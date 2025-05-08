@@ -21,7 +21,7 @@ import (
 
 type ServicesFixture interface {
 	WhatsOnChain() WhatsOnChainFixture
-	ARC() ArcFixture
+	ARC() ARCFixture
 
 	Services() WalletServicesFixture
 	NewServicesWithConfig(config configuration.WalletServices) *services.WalletServices
@@ -44,7 +44,7 @@ type servicesFixture struct {
 	transport            *httpmock.MockTransport
 	walletServicesConfig *configuration.WalletServices
 	woc                  WhatsOnChainFixture
-	arc                  ArcFixture
+	arc                  ARCFixture
 }
 
 func Given(t testing.TB) ServicesFixture {
@@ -73,7 +73,7 @@ func (f *servicesFixture) WhatsOnChain() WhatsOnChainFixture {
 	return f.woc
 }
 
-func (f *servicesFixture) ARC() ArcFixture {
+func (f *servicesFixture) ARC() ARCFixture {
 	return f.arc
 }
 

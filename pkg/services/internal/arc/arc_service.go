@@ -86,15 +86,19 @@ func (s *Service) PostBeef(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("failed to broadcast beef: %w", err)
 	}
 
-	resultsForTxID := s.getTxIDResults(ctx, response, txIDs)
+	var resultsForTxID iter.Seq[results.PostTxID]
+	if response != nil {
+		resultsForTxID = s.getMissingTxIDResults(ctx, response, txIDs)
+	} else {
+		resultsForTxID = s.getTxIDResults(ctx, txIDs)
+	}
 
 	return &results.PostBEEF{
 		TxIDResults: seq.Collect(resultsForTxID),
 	}, nil
-
 }
 
-func (s *Service) getTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[results.PostTxID] {
+func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[results.PostTxID] {
 	txIDsWithMissingTxInfo := seq.Filter(seq.FromSlice(txIDs), func(txID string) bool {
 		return txInfo.TxID != txID
 	})
@@ -103,6 +107,14 @@ func (s *Service) getTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []st
 
 	subjectTxResult := internal.NewNamedResult(txInfo.TxID, types.SuccessResult(txInfo))
 	txsData = seq.Prepend(txsData, subjectTxResult)
+
+	return seq.Map(txsData, toResultForPostTxID)
+}
+
+func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[results.PostTxID] {
+	txIDsWithMissingTxInfo := seq.FromSlice(txIDs)
+
+	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
 
 	return seq.Map(txsData, toResultForPostTxID)
 }

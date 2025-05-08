@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+
+	"github.com/go-softwarelab/common/pkg/is"
 )
 
 type broadcastRequestBody struct {
@@ -37,8 +39,15 @@ func (s *Service) broadcast(ctx context.Context, txHex string) (*TXInfo, error) 
 		return nil, fmt.Errorf("failed to send request to arc: %w", err)
 	}
 
+	if result != nil && is.BlankString(result.TxID) {
+		result = nil
+	}
+
 	switch response.StatusCode() {
 	case http.StatusOK:
+		if result != nil && is.BlankString(result.TxID) {
+			return nil, nil
+		}
 		return result, nil
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
 		return nil, fmt.Errorf("arc returned unauthorized: %w", arcErr)

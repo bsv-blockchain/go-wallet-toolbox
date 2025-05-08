@@ -26,25 +26,39 @@ const arcHttpStatusMalformed = 463
 
 var timestamp = time.Date(2018, time.November, 10, 23, 0, 0, 0, time.UTC).Format("2006-01-02T15:04:05.999999999Z")
 
-type ArcFixture interface {
+type ARCFixture interface {
 	IsUpAndRunning()
 	HttpClient() *resty.Client
 	TxInfoJSON(id string) string
 	WillAlwaysReturnStatus(httpStatus int)
+	WhenQueryingTx(txID string) ARCQueryFixture
+	OnBroadcast() ArcBroadcastFixture
+}
+
+type ARCQueryFixture interface {
+	WillReturnHttpStatus(httpStatus int)
+	WillBeUnreachable()
+	WillReturnNoBody()
+	WillReturnDifferentTxID()
+}
+
+type ArcBroadcastFixture interface {
+	WillReturnNoBody()
 }
 
 type arcFixture struct {
 	testing.TB
-	transport         *httpmock.MockTransport
-	knownTransactions map[string]*knownTransaction
+	transport                    *httpmock.MockTransport
+	knownTransactions            map[string]*knownTransaction
+	broadcastWithoutResponseBody bool
 }
 
-func NewArcFixture(t testing.TB) ArcFixture {
+func NewARCFixture(t testing.TB) ARCFixture {
 	transport := httpmock.NewMockTransport()
 	return NewArcFixtureWithTransport(t, transport)
 }
 
-func NewArcFixtureWithTransport(t testing.TB, transport *httpmock.MockTransport) ArcFixture {
+func NewArcFixtureWithTransport(t testing.TB, transport *httpmock.MockTransport) ARCFixture {
 	require.NotNil(t, transport, "http.RoundTripper must be provided")
 
 	return &arcFixture{
@@ -61,30 +75,8 @@ func (f *arcFixture) HttpClient() *resty.Client {
 }
 
 func (f *arcFixture) WillAlwaysReturnStatus(httpStatus int) {
-	var details string
-	switch httpStatus {
-	case http.StatusBadRequest:
-		details = "The request seems to be malformed and cannot be processed"
-	case http.StatusUnauthorized:
-		details = "The request is not authorized"
-	case http.StatusForbidden:
-		details = "The request is not authorized"
-	case http.StatusNotFound:
-		details = "The requested resource could not be found"
-	case http.StatusInternalServerError:
-		details = "The server encountered an internal error and was unable to complete your request"
-	}
-
-	f.transport.RegisterResponder(http.MethodPost, "=~"+ArcURL+"/v1/tx.*", func(req *http.Request) (*http.Response, error) {
-		return httpmock.NewJsonResponse(httpStatus, map[string]any{
-			"error":     details,
-			"extraInfo": "",
-			"instance":  nil,
-			"status":    httpStatus,
-			"title":     http.StatusText(httpStatus),
-			"txid":      nil,
-			"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_" + to.StringFromInteger(httpStatus),
-		})
+	f.transport.RegisterResponder("POST", "=~"+ArcURL+"/v1/tx.*", func(req *http.Request) (*http.Response, error) {
+		return httpmock.NewJsonResponse(errorResponseForStatus(httpStatus))
 	})
 }
 
@@ -103,34 +95,28 @@ func (f *arcFixture) IsUpAndRunning() {
 
 		rawTx := body["rawTx"]
 		if !assert.NotNil(f, rawTx) {
-			return httpmock.NewJsonResponse(http.StatusBadRequest, map[string]any{
-				"detail":    "The request seems to be malformed and cannot be processed",
-				"extraInfo": "error parsing transactions from request: no transaction found - empty request body",
-				"instance":  nil,
-				"status":    http.StatusBadRequest,
-				"title":     "Bad request",
-				"txid":      nil,
-				"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_400",
-			})
+			return httpmock.NewJsonResponse(
+				errorResponseForStatusWithExtraInfo(
+					http.StatusBadRequest,
+					"error parsing transactions from request: no transaction found - empty request body",
+				),
+			)
 		}
 		txHex := rawTx.(string)
 
 		tx, err := sdk.NewTransactionFromBEEFHex(txHex)
 		if !assert.NoError(f, err) {
-			return httpmock.NewJsonResponse(arcHttpStatusMalformed, map[string]any{
-				"detail":    "Transaction is malformed and cannot be processed",
-				"extraInfo": err.Error(),
-				"instance":  nil,
-				"status":    arcHttpStatusMalformed,
-				"title":     "Malformed transaction",
-				"txid":      nil,
-				"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_463",
-			})
+			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusMalformed, err.Error()))
 		}
 
 		f.store(txHex)
 
-		return f.knownTransactions[tx.TxID().String()].toResponseOrError()
+		if f.broadcastWithoutResponseBody {
+			return httpmock.NewJsonResponse(http.StatusOK, nil)
+		} else {
+			return f.knownTransactions[tx.TxID().String()].toResponseOrError()
+		}
+
 	})
 
 	f.transport.RegisterResponder("GET", "=~"+ArcURL+"/v1/tx/.*", func(req *http.Request) (*http.Response, error) {
@@ -147,6 +133,22 @@ func (f *arcFixture) TxInfoJSON(id string) string {
 	b, err := json.Marshal(content)
 	require.NoError(f, err, "failed to marshal response content")
 	return string(b)
+}
+
+func (f *arcFixture) OnBroadcast() ArcBroadcastFixture {
+	return f
+}
+
+func (f *arcFixture) WillReturnNoBody() {
+	f.broadcastWithoutResponseBody = true
+}
+
+func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
+	return &arcQueryFixture{
+		TB:     f,
+		parent: f,
+		txID:   txID,
+	}
 }
 
 func (f *arcFixture) store(txHex string) {
@@ -174,6 +176,90 @@ func (f *arcFixture) store(txHex string) {
 	})
 
 	seq.ForEach(includedTransactions, func(it *knownTransaction) {
-		f.knownTransactions[it.txid] = it
+		if _, ok := f.knownTransactions[it.txid]; !ok {
+			f.knownTransactions[it.txid] = it
+		}
 	})
+}
+
+type arcQueryFixture struct {
+	testing.TB
+	parent *arcFixture
+	txID   string
+}
+
+func (a *arcQueryFixture) WillReturnDifferentTxID() {
+	tx := a.knownTransaction()
+	tx.txid = a.rotatedTxIdByNumberOfChars(7)
+}
+
+// rotatedTxIdByNumberOfChars will return rotated txid by number of chars
+// for example:
+// txid: 1234567890
+// rotatedTxIdByNumberOfChars(3) will return 4567890123
+func (a *arcQueryFixture) rotatedTxIdByNumberOfChars(number int) string {
+	start := a.txID[number:]
+	end := a.txID[:number]
+	rotated := start + end // storing in variable for easier debugging
+	return rotated
+}
+
+func (a *arcQueryFixture) WillReturnNoBody() {
+	tx := a.knownTransaction()
+	tx.noBody = true
+}
+
+func (a *arcQueryFixture) WillBeUnreachable() {
+	tx := a.knownTransaction()
+	tx.unreachable = true
+}
+
+func (a *arcQueryFixture) WillReturnHttpStatus(httpStatus int) {
+	tx := a.knownTransaction()
+	tx.httpStatus = httpStatus
+}
+
+func (a *arcQueryFixture) knownTransaction() *knownTransaction {
+	tx, ok := a.parent.knownTransactions[a.txID]
+	if !ok {
+		tx = &knownTransaction{
+			txid: a.txID,
+		}
+		a.parent.knownTransactions[a.txID] = tx
+	}
+	return tx
+}
+
+func errorResponseForStatus(httpStatus int) (int, map[string]any) {
+	return errorResponseForStatusWithExtraInfo(httpStatus, "")
+}
+
+func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int, map[string]any) {
+	var title = http.StatusText(httpStatus)
+	var details string
+	switch httpStatus {
+	case http.StatusBadRequest:
+		details = "The request seems to be malformed and cannot be processed"
+	case http.StatusUnauthorized:
+		details = "The request is not authorized"
+	case http.StatusForbidden:
+		details = "The request is not authorized"
+	case http.StatusNotFound:
+		details = "The requested resource could not be found"
+	case arcHttpStatusMalformed:
+		details = "Transaction is malformed and cannot be processed"
+		title = "Malformed transaction"
+	case http.StatusInternalServerError:
+		details = "The server encountered an internal error and was unable to complete your request"
+	}
+
+	return httpStatus, map[string]any{
+		"error":     details,
+		"extraInfo": extraInfo,
+		"instance":  nil,
+		"status":    httpStatus,
+		"title":     title,
+		"txid":      nil,
+		"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_" + to.StringFromInteger(httpStatus),
+	}
 }
