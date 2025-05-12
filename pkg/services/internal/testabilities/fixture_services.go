@@ -1,7 +1,6 @@
 package testabilities
 
 import (
-	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -45,6 +44,7 @@ type servicesFixture struct {
 	walletServicesConfig *configuration.WalletServices
 	woc                  WhatsOnChainFixture
 	arc                  ARCFixture
+	network              defs.BSVNetwork
 }
 
 func Given(t testing.TB) ServicesFixture {
@@ -52,10 +52,11 @@ func Given(t testing.TB) ServicesFixture {
 	client := resty.New()
 	client.GetClient().Transport = transport
 
-	servicesConfig := servicesCfg(defs.NetworkTestnet)
+	network := defs.NetworkMainnet
+	servicesConfig := servicesCfg(network)
 
-	wocFx := NewWoCFixtureWithTransport(t, transport)
-	arcFx := NewArcFixtureWithTransport(t, transport)
+	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
+	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
 
 	return &servicesFixture{
 		t:                    t,
@@ -64,6 +65,7 @@ func Given(t testing.TB) ServicesFixture {
 		httpClient:           client,
 		transport:            transport,
 		walletServicesConfig: &servicesConfig,
+		network:              network,
 		woc:                  wocFx,
 		arc:                  arcFx,
 	}
@@ -100,8 +102,8 @@ func (f *servicesFixture) NewArcService(opts ...func(*arc.Config)) *arc.Service 
 	logger := logging.NewTestLogger(f.t)
 	httpClient := f.arc.HttpClient()
 	config := to.OptionsWithDefault(arc.Config{
-		URL:           ArcURL,
-		Token:         ArcToken,
+		URL:           to.IfThen(f.network == defs.NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
+		Token:         to.IfThen(f.network == defs.NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
 		DeploymentID:  DeploymentID,
 		WaitFor:       "",
 		CallbackURL:   "",
@@ -126,23 +128,19 @@ func (f *servicesFixture) NewServicesWithConfig(config configuration.WalletServi
 }
 
 func servicesCfg(chain defs.BSVNetwork) configuration.WalletServices {
-	var taalApiKey string
-	var port int
+	var arcAPIKey string
 	var arcUrl string
 
 	if chain == defs.NetworkMainnet {
-		taalApiKey = "mainnet_9596de07e92300c6287e4393594ae39c"
-		port = 8084
-		arcUrl = "https://api.taal.com/arc"
+		arcUrl = ArcURL
+		arcAPIKey = ArcToken
 	} else {
-		taalApiKey = "testnet_0e6cf72133b43ea2d7861da2a38684e3"
-		port = 8083
-		arcUrl = "https://arc-test.taal.com/arc"
+		arcUrl = ArcTestURL
+		arcAPIKey = ArcTestToken
 	}
 
 	return configuration.WalletServices{
-		Chain:      chain,
-		TaalAPIKey: taalApiKey,
+		Chain: chain,
 		WhatsOnChain: configuration.WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(whatsonchain.DefaultBSVExchangeUpdateInterval),
 		},
@@ -158,9 +156,11 @@ func servicesCfg(chain defs.BSVNetwork) configuration.WalletServices {
 		FiatUpdateInterval:              to.Ptr(whatsonchain.DefaultFiatExchangeUpdateInterval),
 		DisableMapiCallback:             true, // rely on WalletMonitor by default
 		ExchangeratesApiKey:             "bd539d2ff492bcb5619d5f27726a766f",
-		ChaintracksFiatExchangeRatesUrl: fmt.Sprintf("https://npm-registry.babbage.systems:%d/getFiatExchangeRates", port),
+		ChaintracksFiatExchangeRatesUrl: "",  // TODO: implement me
 		Chaintracks:                     nil, // TODO: implement me
-		ArcURL:                          arcUrl,
-		ArcConfig:                       nil, // TODO: implement me
+		ArcConfig: configuration.ARC{
+			URL:   arcUrl,
+			Token: arcAPIKey,
+		},
 	}
 }

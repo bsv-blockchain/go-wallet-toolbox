@@ -8,22 +8,27 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/configuration"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 // WalletServices is a struct that contains services used by a wallet
 type WalletServices struct {
-	httpClient    *resty.Client
-	logger        *slog.Logger
-	chain         defs.BSVNetwork
-	config        *configuration.WalletServices
-	whatsonchain  *whatsonchain.WhatsOnChain
-	rawTxServices servicequeue.Queue1[string, *wdk.RawTxResult]
+	httpClient   *resty.Client
+	logger       *slog.Logger
+	chain        defs.BSVNetwork
+	config       *configuration.WalletServices
+	whatsonchain *whatsonchain.WhatsOnChain
+
+	rawTxServices    servicequeue.Queue1[string, *wdk.RawTxResult]
+	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *results.PostBEEF]
 
 	// getMerklePathServices: ServiceCollection<sdk.GetMerklePathService>
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
@@ -39,6 +44,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, config configuration.Wal
 	}
 
 	woc := whatsonchain.New(httpClient, logger, config.Chain, config.WhatsOnChain)
+	arcService := arc.NewARCService(logger, httpClient, config.ArcConfig)
 
 	return &WalletServices{
 		httpClient:   httpClient,
@@ -51,6 +57,12 @@ func New(httpClient *resty.Client, logger *slog.Logger, config configuration.Wal
 			logger,
 			"RawTx",
 			servicequeue.NewService1(whatsonchain.ServiceName, woc.RawTx),
+		),
+
+		postBEEFServices: servicequeue.NewQueue2(
+			logger,
+			"PostBEEF",
+			servicequeue.NewService2(arc.ServiceName, arcService.PostBEEF),
 		),
 	}
 }
@@ -117,9 +129,27 @@ func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult
 	panic("Not implemented yet")
 }
 
-// PostBeef attempts to post beef with given txIDs
-func (s *WalletServices) PostBeef(beef *transaction.Beef, txids []string) ([]*PostBeefResult, error) {
-	panic("Not implemented yet")
+// PostBEEF attempts to post beef with given txIDs
+func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*results.ServicePostBEEF, error) {
+	res, err := s.postBEEFServices.All(ctx, beef, txids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
+	}
+
+	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*results.PostBEEF]) *results.ServicePostBEEF {
+		if it.IsError() {
+			return &results.ServicePostBEEF{
+				Name:  it.Name(),
+				Error: it.MustGetError(),
+			}
+		}
+		return &results.ServicePostBEEF{
+			Name:    it.Name(),
+			Success: it.MustGetValue(),
+		}
+	})
+
+	return postBEEFResults, nil
 }
 
 // UtxoStatus attempts to determine the UTXO status of a transaction output.

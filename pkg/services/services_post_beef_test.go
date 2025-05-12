@@ -1,0 +1,87 @@
+package services_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
+	sdk "github.com/bsv-blockchain/go-sdk/transaction"
+	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPostBEEF(t *testing.T) {
+	t.Run("successfully post BEEF with single tx IDs", func(t *testing.T) {
+		// given:
+		given := testabilities.Given(t)
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+		beef, err := sdk.NewBeefFromTransaction(tx)
+		require.NoError(t, err)
+
+		txID := tx.TxID().String()
+		var txids = []string{txID}
+
+		// and:
+		services := given.Services().WithDefaultConfig()
+
+		// when:
+		response, err := services.PostBEEF(context.Background(), beef, txids)
+
+		// then:
+		assert.NoError(t, err)
+		assert.NotEmpty(t, response)
+
+		slices.ForEach(response, func(item *results.ServicePostBEEF) {
+			assert.NotEmpty(t, item.Name)
+			assert.NoError(t, item.Error)
+			if assert.NotNil(t, item.Success) {
+				result := item.Success
+				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
+			}
+		})
+	})
+
+	t.Run("successfully post BEEF with multiple tx IDs", func(t *testing.T) {
+		// given:
+		given := testabilities.Given(t)
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		parentTx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+		parentTxID := parentTx.TxID().String()
+
+		// and:
+		childTx := txtestabilities.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(98).TX()
+		childTxID := childTx.TxID().String()
+		beef, err := sdk.NewBeefFromTransaction(childTx)
+		require.NoError(t, err)
+
+		var txids = []string{parentTxID, childTxID}
+
+		// and:
+		services := given.Services().WithDefaultConfig()
+
+		// when:
+		response, err := services.PostBEEF(context.Background(), beef, txids)
+
+		// then:
+		assert.NoError(t, err)
+		assert.NotEmpty(t, response)
+
+		slices.ForEach(response, func(item *results.ServicePostBEEF) {
+			assert.NotEmpty(t, item.Name)
+			assert.NoError(t, item.Error)
+			if assert.NotNil(t, item.Success) {
+				result := item.Success
+				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
+			}
+		})
+	})
+
+}
