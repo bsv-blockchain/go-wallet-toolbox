@@ -3,10 +3,10 @@ package services_test
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"testing"
 	"time"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"

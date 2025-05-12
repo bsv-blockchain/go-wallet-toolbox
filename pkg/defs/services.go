@@ -2,8 +2,9 @@ package defs
 
 import (
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/to"
 	"time"
+
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (

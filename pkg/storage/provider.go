@@ -67,7 +67,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 	var services wdk.Services
 	if options.services == nil {
 		logger.Warn("services is not set, some actions may not work")
-	}else {
+	} else {
 		services = options.services
 	}
 

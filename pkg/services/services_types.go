@@ -85,4 +85,3 @@ type UtxoStatusResult struct {
 	// there could be more than one block in which it is a valid UTXO.
 	Details []UtxoStatusDetails
 }
-
