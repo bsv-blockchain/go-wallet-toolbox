@@ -30,10 +30,11 @@ type providerFixture struct {
 	feeModel   defs.FeeModel
 	randomizer wdk.Randomizer
 
-	t       testing.TB
-	require *require.Assertions
-	logger  *slog.Logger
-	db      *database.Database
+	t             testing.TB
+	require       *require.Assertions
+	logger        *slog.Logger
+	db            *database.Database
+	activeStorage *storage.Provider
 }
 
 func (p *providerFixture) WithNetwork(network defs.BSVNetwork) ProviderFixture {
@@ -85,6 +86,8 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 
 	_, err = activeStorage.Migrate(context.Background(), fixtures.StorageName, storageIdentityKey)
 	p.require.NoError(err)
+
+	p.activeStorage = activeStorage
 
 	return activeStorage
 }

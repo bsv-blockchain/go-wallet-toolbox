@@ -19,8 +19,12 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/server"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/dbfixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -34,6 +38,8 @@ type StorageFixture interface {
 	MockProvider() *mocks.MockWalletStorageWriter
 
 	Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture
+
+	ActionCreatedAndSinged(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
 }
 
 type FaucetFixture interface {
@@ -105,6 +111,72 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 		db:       s.db,
 		basketID: basket.BasketID,
 	}
+}
+
+func (p *storageFixture) ActionCreatedAndSinged(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
+	ctx := context.Background()
+	internalizeArgs := wdk.InternalizeActionArgs{
+		Tx: tsgenerated.AtomicBeefToInternalize(p.t),
+		Outputs: []*wdk.InternalizeOutput{
+			{
+				OutputIndex: 0,
+				Protocol:    wdk.WalletPaymentProtocol,
+				PaymentRemittance: &wdk.WalletPayment{
+					DerivationPrefix:  fixtures.DerivationPrefix,
+					DerivationSuffix:  fixtures.DerivationSuffix,
+					SenderIdentityKey: fixtures.AnyoneIdentityKey,
+				},
+			},
+		},
+		Description: "description",
+	}
+
+	// NOTE: Alice's identityKey has been used for tsgenerated.SignedTransaction - that's why you cannot use another user here
+	user := testusers.Alice
+
+	_, err := activeStorage.InternalizeAction(ctx, user.AuthID(), internalizeArgs)
+	require.NoError(p.t, err)
+
+	args := wdk.ValidCreateActionArgs{
+		Description: "outputBRC29",
+		Inputs:      []wdk.ValidCreateActionInput{},
+		Outputs: []wdk.ValidCreateActionOutput{
+			{
+				LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
+				Satoshis:           1000,
+				OutputDescription:  "outputBRC29",
+				CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
+			},
+		},
+		LockTime: 0,
+		Version:  1,
+		Labels:   []primitives.StringUnder300{"outputbrc29"},
+		Options: wdk.ValidCreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
+			SendWith:               []primitives.TXIDHexString{},
+			SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
+			KnownTxids:             []primitives.TXIDHexString{},
+			NoSendChange:           []wdk.OutPoint{},
+			RandomizeOutputs:       false,
+		},
+		IsSendWith:                   false,
+		IsDelayed:                    false,
+		IsNoSend:                     false,
+		IsNewTx:                      true,
+		IsRemixChange:                false,
+		IsSignAction:                 false,
+		IncludeAllSourceTransactions: true,
+	}
+
+	result, err := activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	require.NoError(p.t, err)
+
+	return result, tsgenerated.SignedTransaction(p.t)
 }
 
 func Given(t testing.TB) StorageFixture {

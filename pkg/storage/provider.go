@@ -18,27 +18,12 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-// Repository is an interface for the actual storage repository.
-type Repository interface {
-	Migrate(context.Context) error
-
-	ReadSettings(ctx context.Context) (*wdk.TableSettings, error)
-	SaveSettings(ctx context.Context, settings *wdk.TableSettings) error
-
-	FindUser(ctx context.Context, identityKey string) (*wdk.TableUser, error)
-	CreateUser(ctx context.Context, identityKey, activeStorage string, baskets ...wdk.BasketConfiguration) (*wdk.TableUser, error)
-
-	CreateCertificate(ctx context.Context, certificate *models.Certificate) (uint, error)
-	DeleteCertificate(ctx context.Context, userID int, args wdk.RelinquishCertificateArgs) error
-	ListAndCountCertificates(ctx context.Context, userID int, opts repo.ListCertificatesActionParams) ([]*models.Certificate, int64, error)
-}
-
 // Provider is a storage provider.
 type Provider struct {
 	Chain defs.BSVNetwork
 
 	settings *wdk.TableSettings
-	repo     Repository
+	repo     *repo.Repositories
 	actions  *actions.Actions
 }
 

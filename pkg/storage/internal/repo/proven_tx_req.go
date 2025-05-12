@@ -76,9 +76,6 @@ func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.
 		Where("tx_id = ? ", txID).
 		First(&model).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", nil
-		}
 		return "", fmt.Errorf("failed to find proven tx status: %w", err)
 	}
 	return model.Status, nil

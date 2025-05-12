@@ -46,12 +46,6 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		panic("not implemented yet")
 	}
 
-	if args.IsNoSend {
-		return &wdk.ProcessActionResult{
-			SendWithResults: make([]wdk.SendWithResult, 0),
-		}, nil
-	}
-
 	_, err := p.broadcastSingleTx(ctx, string(*args.TxID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
@@ -128,7 +122,7 @@ func (p *process) validateStateOfTableTx(reference string, tableTx *wdk.TableTra
 	}
 
 	if len(tableTx.InputBEEF) == 0 {
-		return fmt.Errorf("transaction with reference (%s) has no inputBEEF", reference)
+		return fmt.Errorf("transaction with reference (%s) has no inputBEEF. This suggests the transaction may have already been processed. Try with (IsNewTx = false)", reference)
 	}
 
 	if tableTx.Status != wdk.TxStatusUnsigned && tableTx.Status != wdk.TxStatusUnprocessed {
