@@ -2,10 +2,6 @@ package testabilities
 
 import (
 	"context"
-	tsgenerated2 "github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-softwarelab/common/pkg/to"
 	"log/slog"
 	"testing"
 
@@ -26,8 +22,6 @@ type ProviderFixture interface {
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
-
-	ActionCreated(user testusers.User) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
 }
 
 type providerFixture struct {
@@ -96,68 +90,6 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.activeStorage = activeStorage
 
 	return activeStorage
-}
-
-func (p *providerFixture) ActionCreated(user testusers.User) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
-	ctx := context.Background()
-	internalizeArgs := wdk.InternalizeActionArgs{
-		Tx: tsgenerated2.AtomicBeefToInternalize(p.t),
-		Outputs: []*wdk.InternalizeOutput{
-			{
-				OutputIndex: 0,
-				Protocol:    wdk.WalletPaymentProtocol,
-				PaymentRemittance: &wdk.WalletPayment{
-					DerivationPrefix:  fixtures.DerivationPrefix,
-					DerivationSuffix:  fixtures.DerivationSuffix,
-					SenderIdentityKey: fixtures.AnyoneIdentityKey,
-				},
-			},
-		},
-	}
-
-	_, err := p.activeStorage.InternalizeAction(ctx, user.AuthID(), internalizeArgs)
-	require.NoError(p.t, err)
-
-	args := wdk.ValidCreateActionArgs{
-		Description: "outputBRC29",
-		Inputs:      []wdk.ValidCreateActionInput{},
-		Outputs: []wdk.ValidCreateActionOutput{
-			{
-				LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
-				Satoshis:           1000,
-				OutputDescription:  "outputBRC29",
-				CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
-			},
-		},
-		LockTime: 0,
-		Version:  1,
-		Labels:   []primitives.StringUnder300{"outputbrc29"},
-		Options: wdk.ValidCreateActionOptions{
-			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
-			SendWith:               []primitives.TXIDHexString{},
-			SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
-			KnownTxids:             []primitives.TXIDHexString{},
-			NoSendChange:           []wdk.OutPoint{},
-			RandomizeOutputs:       false,
-		},
-		IsSendWith:                   false,
-		IsDelayed:                    false,
-		IsNoSend:                     false,
-		IsNewTx:                      true,
-		IsRemixChange:                false,
-		IsSignAction:                 false,
-		IncludeAllSourceTransactions: true,
-	}
-
-	result, err := p.activeStorage.CreateAction(
-		context.Background(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-
-	require.NoError(p.t, err)
-
-	return result, tsgenerated2.SignedTransaction(p.t)
 }
 
 func (p *providerFixture) seedUsers(provider *storage.Provider) {
