@@ -10,17 +10,6 @@ type PostBEEF struct {
 	TxIDResults []PostTxID
 }
 
-// PostBEEFError is the error result of the single service PostBEEF method.
-type PostBEEFError struct {
-	Cause error
-	Notes
-	TxIDResults []PostTxID
-}
-
-func (p *PostBEEFError) Error() string {
-	return p.Cause.Error()
-}
-
 // ResultStatus is the status of the result which can be either success or error.
 type ResultStatus string
 
