@@ -22,7 +22,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.ActionCreated(activeStorage)
+	createActionResult, signedTx := given.ActionCreatedAndSinged(activeStorage)
 	txID := signedTx.TxID().String()
 
 	// and:
@@ -54,7 +54,7 @@ func TestProcessActionTwice(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.ActionCreated(activeStorage)
+	createActionResult, signedTx := given.ActionCreatedAndSinged(activeStorage)
 	txID := signedTx.TxID().String()
 
 	// and:
@@ -122,7 +122,7 @@ func TestProcessActionErrorCases(t *testing.T) {
 				GORM()
 
 			// and:
-			createActionResult, signedTx := given.ActionCreated(activeStorage)
+			createActionResult, signedTx := given.ActionCreatedAndSinged(activeStorage)
 			txID := signedTx.TxID().String()
 
 			// and:

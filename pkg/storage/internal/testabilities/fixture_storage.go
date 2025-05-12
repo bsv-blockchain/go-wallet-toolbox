@@ -39,7 +39,7 @@ type StorageFixture interface {
 
 	Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture
 
-	ActionCreated(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
+	ActionCreatedAndSinged(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
 }
 
 type FaucetFixture interface {
@@ -113,7 +113,7 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	}
 }
 
-func (p *storageFixture) ActionCreated(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
+func (p *storageFixture) ActionCreatedAndSinged(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
 	ctx := context.Background()
 	internalizeArgs := wdk.InternalizeActionArgs{
 		Tx: tsgenerated.AtomicBeefToInternalize(p.t),
