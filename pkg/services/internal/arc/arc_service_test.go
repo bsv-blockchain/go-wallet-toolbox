@@ -33,7 +33,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		txID := tx.TxID().String()
 
 		// when:
-		res, err := service.PostBeef(context.Background(), beef, nil)
+		res, err := service.PostBEEF(context.Background(), beef, nil)
 
 		// then:
 		assert.NoError(t, err)
@@ -69,7 +69,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		var txids = []string{txID}
 
 		// when:
-		res, err := service.PostBeef(context.Background(), beef, txids)
+		res, err := service.PostBEEF(context.Background(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
@@ -109,7 +109,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		var txids = []string{parentTxID, childTxID}
 
 		// when:
-		res, err := service.PostBeef(context.Background(), beef, txids)
+		res, err := service.PostBEEF(context.Background(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
@@ -151,7 +151,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		var txids = []string{txID}
 
 		// when:
-		res, err := service.PostBeef(context.Background(), beef, txids)
+		res, err := service.PostBEEF(context.Background(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
@@ -219,7 +219,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			service := given.Services().NewArcService()
 
 			// when:
-			res, err := service.PostBeef(context.Background(), test.BEEF(t), nil)
+			res, err := service.PostBEEF(context.Background(), test.BEEF(t), nil)
 
 			// then:
 			assert.Error(t, err)
@@ -271,7 +271,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			require.NoError(t, err)
 
 			// when:
-			res, err := service.PostBeef(context.Background(), beef, nil)
+			res, err := service.PostBEEF(context.Background(), beef, nil)
 
 			// then:
 			assert.Error(t, err)
@@ -353,7 +353,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			test.setupARCQueryTx(given.ARC().WhenQueryingTx(parentTxID))
 
 			// when:
-			res, err := service.PostBeef(context.Background(), beef, txids)
+			res, err := service.PostBEEF(context.Background(), beef, txids)
 
 			// then:
 			assert.NoError(t, err)
@@ -362,7 +362,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			for _, resultForTxID := range res.TxIDResults {
 				if resultForTxID.TxID == parentTxID {
 					assert.Equal(t, results.ResultStatusError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
-					assert.Nil(t, resultForTxID.Data, "expect result for (parentTx) tx %s to have no data", resultForTxID.TxID)
+					assert.Empty(t, resultForTxID.Data, "expect result for (parentTx) tx %s to have no data", resultForTxID.TxID)
 					assert.Error(t, resultForTxID.Error, "expect result for (parentTx) tx %s to have an error", resultForTxID.TxID)
 				} else {
 					assert.Equal(t, results.ResultStatusSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
