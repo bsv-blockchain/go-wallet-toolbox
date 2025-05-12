@@ -33,6 +33,6 @@ func New(logger *slog.Logger, funder Funder, commission defs.Commission, repos *
 			repos.ProvenTxReq,
 			randomizer,
 		),
-		process: newProcessAction(logger, repos.Transactions, repos.Outputs),
+		process: newProcessAction(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq),
 	}
 }

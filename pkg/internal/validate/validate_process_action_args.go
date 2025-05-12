@@ -23,6 +23,10 @@ func ProcessActionArgs(args *wdk.ProcessActionArgs) error {
 		}
 	}
 
+	if !args.IsNoSend && args.TxID == nil {
+		return fmt.Errorf("missing txID argument for send transaction")
+	}
+
 	if args.TxID != nil {
 		if err := args.TxID.Validate(); err != nil {
 			return fmt.Errorf("invalid txID argument: %w", err)

@@ -14,17 +14,19 @@ import (
 )
 
 type process struct {
-	logger     *slog.Logger
-	txRepo     TransactionsRepo
-	outputRepo OutputRepo
+	logger       *slog.Logger
+	txRepo       TransactionsRepo
+	outputRepo   OutputRepo
+	provenTxRepo ProvenTxRepo
 }
 
-func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo) *process {
+func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, provenTxRepo ProvenTxRepo) *process {
 	logger = logging.Child(logger, "processAction")
 	return &process{
-		logger:     logger,
-		txRepo:     txRepo,
-		outputRepo: outputRepo,
+		logger:       logger,
+		txRepo:       txRepo,
+		outputRepo:   outputRepo,
+		provenTxRepo: provenTxRepo,
 	}
 }
 
@@ -34,6 +36,25 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if args.IsSendWith {
+		panic("not implemented yet")
+	}
+
+	if args.IsDelayed {
+		panic("not implemented yet")
+	}
+
+	if args.IsNoSend {
+		return &wdk.ProcessActionResult{
+			SendWithResults: make([]wdk.SendWithResult, 0),
+		}, nil
+	}
+
+	_, err := p.broadcastSingleTx(ctx, string(*args.TxID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
 	return nil, nil
@@ -155,4 +176,45 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	}
 
 	return
+}
+
+func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
+	sendStatus, err := p.getSendStatus(ctx, txID)
+	if err != nil {
+		return "", err
+	}
+
+	if sendStatus != wdk.SendWithResultStatusSending {
+		return sendStatus, nil
+	}
+
+	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqStatusesForSourceTransactions)
+	if err != nil {
+		return "", fmt.Errorf("failed to build valid BEEF: %w", err)
+	}
+
+	// TODO: SPV of the beef
+
+	_ = beef // TODO Services::PostBEEF
+	return wdk.SendWithResultStatusSending, nil
+}
+
+func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
+	reqTxStatus, err := p.provenTxRepo.FindProvenTxStatus(ctx, txID)
+	if err != nil {
+		return "", fmt.Errorf("failed to find proven tx status: %w", err)
+	}
+
+	switch reqTxStatus.BroadcastStatus() {
+	case wdk.TxReqBroadcastReadyToSend:
+		return wdk.SendWithResultStatusSending, nil
+	case wdk.TxReqBroadcastError:
+		return wdk.SendWithResultStatusFailed, nil
+	case wdk.TxReqBroadcastAlreadySent:
+		return wdk.SendWithResultStatusUnproven, nil
+	case wdk.TxReqBroadcastUnknown:
+		fallthrough
+	default:
+		return "", fmt.Errorf("unknown broadcast status")
+	}
 }

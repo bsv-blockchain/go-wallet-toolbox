@@ -35,3 +35,49 @@ const (
 	ProvenTxStatusDoubleSpend ProvenTxReqStatus = "doubleSpend"
 	ProvenTxStatusUnfail      ProvenTxReqStatus = "unfail"
 )
+
+// TxReqBroadcastStatus is a reduced ProvenTxReqStatus, used to decide whether to broadcast a transaction or not.
+type TxReqBroadcastStatus string
+
+// Possible transaction request broadcast statuses
+const (
+	TxReqBroadcastReadyToSend TxReqBroadcastStatus = "readyToSend"
+	TxReqBroadcastAlreadySent TxReqBroadcastStatus = "alreadySent"
+	TxReqBroadcastError       TxReqBroadcastStatus = "error"
+	TxReqBroadcastUnknown     TxReqBroadcastStatus = "unknown"
+)
+
+// BroadcastStatus returns the simplified broadcast status of a transaction request based on its current status.
+func (s ProvenTxReqStatus) BroadcastStatus() TxReqBroadcastStatus {
+	switch s {
+	case ProvenTxStatusUnknown,
+		ProvenTxStatusNonFinal,
+		ProvenTxStatusInvalid,
+		ProvenTxStatusDoubleSpend:
+		return TxReqBroadcastError
+	case ProvenTxStatusSending,
+		ProvenTxStatusUnsent,
+		ProvenTxStatusNoSend,
+		ProvenTxStatusUnprocessed:
+		return TxReqBroadcastReadyToSend
+	case ProvenTxStatusUnmined,
+		ProvenTxStatusCallback,
+		ProvenTxStatusUnconfirmed,
+		ProvenTxStatusCompleted:
+		return TxReqBroadcastAlreadySent
+	case ProvenTxStatusUnfail:
+		fallthrough
+	default:
+		return TxReqBroadcastUnknown
+	}
+}
+
+// ProvenTxReqStatusesForSourceTransactions is a provenTxReq status list of txs that can be taken as subject-transaction's input sources
+var ProvenTxReqStatusesForSourceTransactions = []ProvenTxReqStatus{
+	ProvenTxStatusUnsent,
+	ProvenTxStatusUnmined,
+	ProvenTxStatusUnconfirmed,
+	ProvenTxStatusSending,
+	ProvenTxStatusNoSend,
+	ProvenTxStatusCompleted,
+}
