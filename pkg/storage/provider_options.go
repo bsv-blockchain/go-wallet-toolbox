@@ -13,6 +13,7 @@ type providerOptions struct {
 	gormDB     *gorm.DB
 	funder     actions.Funder
 	randomizer wdk.Randomizer
+	services   wdk.Services
 }
 
 // WithGORM sets the GORM database for the provider.
@@ -26,6 +27,13 @@ func WithGORM(gormDB *gorm.DB) ProviderOption {
 func WithRandomizer(randomizer wdk.Randomizer) ProviderOption {
 	return func(o *providerOptions) {
 		o.randomizer = randomizer
+	}
+}
+
+// WithServices sets the services for the provider.
+func WithServices(services wdk.Services) ProviderOption {
+	return func(o *providerOptions) {
+		o.services = services
 	}
 }
 

@@ -2,9 +2,9 @@ package infra
 
 import (
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
 )
 
 //go:generate go run ../../cmd/infra_config_gen/main.go -o ../../infra-config.example.yaml
@@ -12,14 +12,15 @@ import (
 // Config is the configuration for the "remote storage server" service (aka "infra")
 type Config struct {
 	// Name is the human-readable name of this storage server
-	Name             string          `mapstructure:"name"`
-	ServerPrivateKey string          `mapstructure:"server_private_key"`
-	BSVNetwork       defs.BSVNetwork `mapstructure:"bsv_network"`
-	FeeModel         defs.FeeModel   `mapstructure:"fee_model"`
-	DBConfig         defs.Database   `mapstructure:"db"`
-	HTTPConfig       HTTPConfig      `mapstructure:"http"`
-	Logging          LogConfig       `mapstructure:"logging"`
-	Commission       defs.Commission `mapstructure:"commission"`
+	Name             string              `mapstructure:"name"`
+	ServerPrivateKey string              `mapstructure:"server_private_key"`
+	BSVNetwork       defs.BSVNetwork     `mapstructure:"bsv_network"`
+	FeeModel         defs.FeeModel       `mapstructure:"fee_model"`
+	DBConfig         defs.Database       `mapstructure:"db"`
+	HTTPConfig       HTTPConfig          `mapstructure:"http"`
+	Logging          LogConfig           `mapstructure:"logging"`
+	Commission       defs.Commission     `mapstructure:"commission"`
+	Services         defs.WalletServices `mapstructure:"wallet_services"`
 }
 
 // DBConfig is the configuration for the database
@@ -41,11 +42,13 @@ type LogConfig struct {
 
 // Defaults returns the default configuration
 func Defaults() Config {
+	network := defs.NetworkMainnet
+
 	return Config{
 		Name:             "go-storage-server",
 		ServerPrivateKey: "", // it is not optional, user must provide it
 
-		BSVNetwork: defs.NetworkMainnet,
+		BSVNetwork: network,
 		DBConfig:   defs.DefaultDBConfig(),
 		HTTPConfig: HTTPConfig{
 			Port: 8100,
@@ -57,6 +60,7 @@ func Defaults() Config {
 			Handler: defs.JSONHandler,
 		},
 		Commission: defs.DefaultCommission(),
+		Services:   defs.DefaultServicesConfig(network),
 	}
 }
 
@@ -83,6 +87,10 @@ func (c *Config) Validate() (err error) {
 
 	if err = c.Commission.Validate(); err != nil {
 		return fmt.Errorf("invalid commission config: %w", err)
+	}
+
+	if err = c.Services.Validate(); err != nil {
+		return fmt.Errorf("invalid services config: %w", err)
 	}
 
 	return nil

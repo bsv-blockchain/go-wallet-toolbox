@@ -3,6 +3,7 @@ package services_test
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		given.WhatsOnChain().WillRespondWithRates(500, "", nil)
 
 		// and:
-		cachedRate := wdk.BSVExchangeRate{
+		cachedRate := defs.BSVExchangeRate{
 			Timestamp: time.Now().Add(-5 * time.Minute),
 			Base:      "USD",
 			Rate:      100.0,
@@ -46,7 +47,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		}`, nil)
 
 		// and:
-		services := given.Services().WithBsvExchangeRate(wdk.BSVExchangeRate{
+		services := given.Services().WithBsvExchangeRate(defs.BSVExchangeRate{
 			Timestamp: time.Now().Add(-16 * time.Minute),
 			Base:      "USD",
 			Rate:      100.0,

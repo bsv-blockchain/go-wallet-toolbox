@@ -18,15 +18,17 @@ type process struct {
 	txRepo       TransactionsRepo
 	outputRepo   OutputRepo
 	provenTxRepo ProvenTxRepo
+	services     wdk.Services
 }
 
-func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, provenTxRepo ProvenTxRepo) *process {
+func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, provenTxRepo ProvenTxRepo, services wdk.Services) *process {
 	logger = logging.Child(logger, "processAction")
 	return &process{
 		logger:       logger,
 		txRepo:       txRepo,
 		outputRepo:   outputRepo,
 		provenTxRepo: provenTxRepo,
+		services:     services,
 	}
 }
 

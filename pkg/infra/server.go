@@ -3,6 +3,8 @@ package infra
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
+	"github.com/go-resty/resty/v2"
 	"log/slog"
 	"os"
 
@@ -46,6 +48,8 @@ func NewServer(opts ...InitOption) (*Server, error) {
 
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
 
+	activeServices := services.New(resty.New(), logger, cfg.Services)
+
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage identity key: %w", err)
@@ -56,7 +60,7 @@ func NewServer(opts ...InitOption) (*Server, error) {
 		Chain:      cfg.BSVNetwork,
 		FeeModel:   cfg.FeeModel,
 		Commission: cfg.Commission,
-	})
+	}, storage.WithServices(activeServices))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage provider: %w", err)
 	}

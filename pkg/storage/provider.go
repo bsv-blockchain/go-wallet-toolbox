@@ -64,10 +64,17 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		random = randomizer.New()
 	}
 
+	var services wdk.Services
+	if options.services == nil {
+		logger.Warn("services is not set, some actions may not work")
+	}else {
+		services = options.services
+	}
+
 	return &Provider{
 		Chain:   config.Chain,
 		repo:    repos,
-		actions: actions.New(logger, funder, config.Commission, repos, random),
+		actions: actions.New(logger, funder, config.Commission, repos, random, services),
 	}, nil
 }
 

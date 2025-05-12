@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/configuration"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -21,7 +20,7 @@ type WalletServices struct {
 	httpClient    *resty.Client
 	logger        *slog.Logger
 	chain         defs.BSVNetwork
-	config        *configuration.WalletServices
+	config        *defs.WalletServices
 	whatsonchain  *whatsonchain.WhatsOnChain
 	rawTxServices servicequeue.Queue1[string, *wdk.RawTxResult]
 
@@ -33,7 +32,7 @@ type WalletServices struct {
 }
 
 // New will return a new WalletServices
-func New(httpClient *resty.Client, logger *slog.Logger, config configuration.WalletServices) *WalletServices {
+func New(httpClient *resty.Client, logger *slog.Logger, config defs.WalletServices) *WalletServices {
 	if httpClient == nil {
 		panic("httpClient is required")
 	}
@@ -94,7 +93,7 @@ func (s *WalletServices) BsvExchangeRate() (float64, error) {
 }
 
 // FiatExchangeRate returns approximate exchange rate currency per base.
-func (s *WalletServices) FiatExchangeRate(currency wdk.Currency, base *wdk.Currency) float64 {
+func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Currency) float64 {
 	panic("Not implemented yet")
 }
 
@@ -118,7 +117,7 @@ func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult
 }
 
 // PostBeef attempts to post beef with given txIDs
-func (s *WalletServices) PostBeef(beef *transaction.Beef, txids []string) ([]*PostBeefResult, error) {
+func (s *WalletServices) PostBeef(beef *transaction.Beef, txids []string) ([]*wdk.PostBeefResult, error) {
 	panic("Not implemented yet")
 }
 
