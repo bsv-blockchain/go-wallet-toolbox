@@ -73,7 +73,8 @@ func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.
 	err := p.db.WithContext(ctx).
 		Model(&model).
 		Select("status").
-		First(&model, "tx_id = ? ", txID).Error
+		Where("tx_id = ? ", txID).
+		First(&model).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil
@@ -113,27 +114,27 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
-		return fmt.Errorf("failed to find proven tx raw tx and input beef: %w", err)
+		return fmt.Errorf("failed to find proven tx, raw tx and input beef for tx (id: %s): %w", txID, err)
 	}
 
 	if model.RawTx == nil || model.InputBeef == nil {
-		return fmt.Errorf("raw tx or input beef is nil")
+		return fmt.Errorf("raw tx or input beef is nil in transaction %s", txID)
 	}
 
 	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
 	if err != nil {
-		return fmt.Errorf("failed to build transaction object from raw tx bytes: %w", err)
+		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
 	}
 
 	for i := range tx.Inputs {
 		if len(tx.Inputs[i].SourceTXID) == 0 {
-			return fmt.Errorf("input SourceTXID is empty at index %d", i)
+			return fmt.Errorf("input of tx (id: %s) has empty SourceTXID at index %d ", txID, i)
 		}
 	}
 
 	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to merge raw tx into BEEF object: %w", err)
+		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
 	}
 
 	/*

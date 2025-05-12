@@ -179,7 +179,7 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 }
 
 func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
-	sendStatus, err := p.sendStatusByReqTxStatus(ctx, txID)
+	sendStatus, err := p.getSendStatus(ctx, txID)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +199,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendW
 	return wdk.SendWithResultStatusSending, nil
 }
 
-func (p *process) sendStatusByReqTxStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
+func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
 	reqTxStatus, err := p.provenTxRepo.FindProvenTxStatus(ctx, txID)
 	if err != nil {
 		return "", fmt.Errorf("failed to find proven tx status: %w", err)
