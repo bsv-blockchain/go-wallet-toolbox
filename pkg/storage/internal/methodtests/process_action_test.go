@@ -2,6 +2,8 @@ package methodtests
 
 import (
 	"context"
+	"testing"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
@@ -10,7 +12,6 @@ import (
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestProcessActionHappyPath(t *testing.T) {

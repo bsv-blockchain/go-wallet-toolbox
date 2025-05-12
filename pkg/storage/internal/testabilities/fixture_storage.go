@@ -2,10 +2,6 @@ package testabilities
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-softwarelab/common/pkg/to"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -23,8 +19,12 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/server"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/dbfixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -128,7 +128,7 @@ func (p *storageFixture) ActionCreated(activeStorage *storage.Provider) (createA
 				},
 			},
 		},
-		Description:    "description",
+		Description: "description",
 	}
 
 	// NOTE: Alice's identityKey has been used for tsgenerated.SignedTransaction - that's why you cannot use another user here
