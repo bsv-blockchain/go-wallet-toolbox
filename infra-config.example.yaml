@@ -52,7 +52,7 @@ wallet_services:
             EUR: 0.93
             GBP: 0.8
             USD: 1
-        timestamp: {}
+        timestamp: 2023-12-13T00:00:00Z
     fiat_update_interval: 24h0m0s
     taal_api_key: mainnet_9596de07e92300c6287e4393594ae39c
     whats_on_chain:
@@ -60,5 +60,5 @@ wallet_services:
         bsv_exchange_rate:
             base: USD
             rates: 47.52
-            timestamp: {}
+            timestamp: 2023-12-13T00:00:00Z
         bsv_update_interval: 15m0s
