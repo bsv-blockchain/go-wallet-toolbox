@@ -43,7 +43,7 @@ func (arc *ARC) validateCallbackURL() error {
 	callbackURLString := arc.CallbackURL
 
 	if !explicitHTTPURLRegex.MatchString(callbackURLString) {
-		return fmt.Errorf("invalid callback URL: %s - it should start with https://", callbackURLString)
+		return fmt.Errorf("invalid callback URL: %s - it should start with http:// or https://", callbackURLString)
 	}
 	callbackURL, err := url.Parse(callbackURLString)
 	if err != nil {

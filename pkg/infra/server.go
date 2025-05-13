@@ -48,7 +48,7 @@ func NewServer(opts ...InitOption) (*Server, error) {
 
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
 
-	activeServices := services.New(resty.New(), logger, cfg.Services)
+	activeServices := services.New(resty.New(), logger, cfg.BSVNetwork, cfg.Services)
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {

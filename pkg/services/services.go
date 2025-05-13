@@ -36,17 +36,17 @@ type WalletServices struct {
 }
 
 // New will return a new WalletServices
-func New(httpClient *resty.Client, logger *slog.Logger, config defs.WalletServices) *WalletServices {
+func New(httpClient *resty.Client, logger *slog.Logger, chain defs.BSVNetwork, config defs.WalletServices) *WalletServices {
 	if httpClient == nil {
 		panic("httpClient is required")
 	}
 
-	woc := whatsonchain.New(httpClient, logger, config.Chain, config.WhatsOnChain)
+	woc := whatsonchain.New(httpClient, logger, chain, config.WhatsOnChain)
 	arcService := arc.NewARCService(logger, httpClient, config.ArcConfig)
 
 	return &WalletServices{
 		httpClient:   httpClient,
-		chain:        config.Chain,
+		chain:        chain,
 		config:       &config,
 		logger:       logger,
 		whatsonchain: woc,
