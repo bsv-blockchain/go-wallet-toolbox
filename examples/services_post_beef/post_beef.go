@@ -12,7 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	feemodel "github.com/bsv-blockchain/go-sdk/transaction/fee_model"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
-	"github.com/go-resty/resty/v2"
 )
 
 func main() {
@@ -41,7 +40,7 @@ func main() {
 
 	serviceCfg := defs.DefaultServicesConfig(network)
 
-	walletServices := services.New(resty.New(), slog.Default(), serviceCfg)
+	walletServices := services.New(slog.Default(), serviceCfg)
 
 	results, err := walletServices.PostBEEF(context.Background(), beef, []string{tx.TxID().String()})
 	if err != nil {

@@ -8,18 +8,18 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/options"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
-	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // WalletServices is a struct that contains services used by a wallet
 type WalletServices struct {
-	httpClient   *resty.Client
 	logger       *slog.Logger
 	chain        defs.BSVNetwork
 	config       *defs.WalletServices
@@ -36,20 +36,17 @@ type WalletServices struct {
 }
 
 // New will return a new WalletServices
-func New(httpClient *resty.Client, logger *slog.Logger, config defs.WalletServices) *WalletServices {
-	if httpClient == nil {
-		panic("httpClient is required")
-	}
+func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.Service)) *WalletServices {
+	option := to.OptionsWithDefault(options.Default(), opts...)
 
 	if config.Chain == "" {
 		panic("chain is required")
 	}
 
-	woc := whatsonchain.New(httpClient, logger, config.Chain, config.WhatsOnChain)
-	arcService := arc.NewARCService(logger, httpClient, config.ArcConfig)
+	woc := whatsonchain.New(option.HttpClient, logger, config.Chain, config.WhatsOnChain)
+	arcService := arc.NewARCService(logger, option.HttpClient, config.ArcConfig)
 
 	return &WalletServices{
-		httpClient:   httpClient,
 		chain:        config.Chain,
 		config:       &config,
 		logger:       logger,

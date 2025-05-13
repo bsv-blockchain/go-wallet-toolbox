@@ -69,11 +69,9 @@ func (ws *WalletServices) Validate() error {
 
 // DefaultServicesConfig returns a default configuration for wallet services
 func DefaultServicesConfig(chain BSVNetwork) WalletServices {
-	arcApiKey, arcUrl := networkSpecific(chain)
-
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
-	return WalletServices{
+	cfg := WalletServices{
 		Chain: chain,
 		WhatsOnChain: WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
@@ -97,21 +95,18 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 		ExchangeratesApiKey:             "bd539d2ff492bcb5619d5f27726a766f",
 		ChaintracksFiatExchangeRatesUrl: "",  // TODO: implement me
 		Chaintracks:                     nil, // TODO: implement me
-		ArcConfig: ARC{
-			URL:   arcUrl,
-			Token: arcApiKey,
-		},
 	}
-}
 
-func networkSpecific(chain BSVNetwork) (taalApiKey, arcURL string) {
-	if chain == NetworkMainnet {
-		arcURL = ArcURL
-		taalApiKey = ArcToken
-	} else {
-		arcURL = ArcTestURL
-		taalApiKey = ArcTestToken
-
+	switch chain {
+	case NetworkMainnet:
+		cfg.ArcConfig.URL = ArcURL
+		cfg.ArcConfig.Token = ArcToken
+	case NetworkTestnet:
+		cfg.ArcConfig.URL = ArcTestURL
+		cfg.ArcConfig.Token = ArcTestToken
+	default:
+		panic("Unsupported chain type: " + string(chain))
 	}
-	return
+
+	return cfg
 }
