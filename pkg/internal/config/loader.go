@@ -15,6 +15,13 @@ const (
 	DefaultConfigFilePath = "config.yaml"
 )
 
+// PostLoadHook if it is implemented by the config struct, it will be called after loading the config.
+type PostLoadHook interface {
+	// OnPostLoad is called after the configuration is loaded.
+	// It is useful for making any initialization based on already loaded values.
+	OnPostLoad() error
+}
+
 var SupportedExts = []string{"yaml", "yml", "json", "dotenv", "env"}
 
 type Loader[T any] struct {
@@ -82,6 +89,13 @@ func (l *Loader[T]) Load() (T, error) {
 
 	if err := l.viperToCfg(); err != nil {
 		return l.cfg, err
+	}
+
+	cfgPtr := &l.cfg
+	if cfg, ok := any(cfgPtr).(PostLoadHook); ok {
+		if err := cfg.OnPostLoad(); err != nil {
+			return l.cfg, fmt.Errorf("error while post loading initialization of config: %w", err)
+		}
 	}
 
 	return l.cfg, nil
