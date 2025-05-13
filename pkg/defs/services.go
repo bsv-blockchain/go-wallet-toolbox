@@ -29,6 +29,7 @@ const (
 
 // WalletServices is a struct that has options for wallet services
 type WalletServices struct {
+	Chain                           BSVNetwork        `mapstructure:"-"`
 	BitailsAPIKey                   *string           `mapstructure:"bitails_api_key"`
 	FiatExchangeRates               FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
 	FiatUpdateInterval              *time.Duration    `mapstructure:"fiat_update_interval"`
@@ -44,6 +45,10 @@ type WalletServices struct {
 // Validate checks the validity of the WalletServices struct
 func (ws *WalletServices) Validate() error {
 	var err error
+
+	if ws.Chain == "" {
+		return fmt.Errorf("chain is required")
+	}
 
 	if err = ws.FiatExchangeRates.Validate(); err != nil {
 		return fmt.Errorf("invalid fiat exchange rates: %w", err)
@@ -69,6 +74,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
 	return WalletServices{
+		Chain: chain,
 		WhatsOnChain: WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
 			BSVExchangeRate: BSVExchangeRate{
