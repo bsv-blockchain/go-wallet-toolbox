@@ -33,6 +33,7 @@ type GORMProviderConfig struct {
 	Chain      defs.BSVNetwork
 	FeeModel   defs.FeeModel
 	Commission defs.Commission
+	Services   wdk.Services
 }
 
 // NewGORMProvider creates a new storage provider with GORM repository.
@@ -64,17 +65,14 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		random = randomizer.New()
 	}
 
-	var services wdk.Services
-	if options.services == nil {
+	if config.Services == nil {
 		logger.Warn("services is not set, some actions may not work")
-	} else {
-		services = options.services
 	}
 
 	return &Provider{
 		Chain:   config.Chain,
 		repo:    repos,
-		actions: actions.New(logger, funder, config.Commission, repos, random, services),
+		actions: actions.New(logger, funder, config.Commission, repos, random, config.Services),
 	}, nil
 }
 

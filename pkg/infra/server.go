@@ -60,7 +60,8 @@ func NewServer(opts ...InitOption) (*Server, error) {
 		Chain:      cfg.BSVNetwork,
 		FeeModel:   cfg.FeeModel,
 		Commission: cfg.Commission,
-	}, storage.WithServices(activeServices))
+		Services:   activeServices,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage provider: %w", err)
 	}

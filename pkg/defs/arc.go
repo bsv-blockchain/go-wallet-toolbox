@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"regexp"
 	"strings"
 )
-
-var explicitHTTPURLRegex = regexp.MustCompile(`^https?://`)
 
 // ARC is a configuration for ARCService used by the wallet service to communicate with ARC.
 type ARC struct {
@@ -42,12 +39,14 @@ func (arc *ARC) validateCallbackURL() error {
 
 	callbackURLString := arc.CallbackURL
 
-	if !explicitHTTPURLRegex.MatchString(callbackURLString) {
-		return fmt.Errorf("invalid callback URL: %s - it should start with http:// or https://", callbackURLString)
-	}
 	callbackURL, err := url.Parse(callbackURLString)
 	if err != nil {
 		return fmt.Errorf("invalid callback URL: %s - %w", callbackURLString, err)
+	}
+
+	schema := callbackURL.Scheme
+	if schema != "http" && schema != "https" {
+		return fmt.Errorf("invalid callback URL: %s - it should start with http:// or https://", callbackURLString)
 	}
 
 	hostname := callbackURL.Hostname()
