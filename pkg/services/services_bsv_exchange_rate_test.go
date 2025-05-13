@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 )
 

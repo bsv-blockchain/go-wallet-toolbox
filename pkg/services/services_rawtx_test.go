@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
