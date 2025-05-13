@@ -38,12 +38,16 @@ logging:
 name: go-storage-server
 server_private_key: ""
 wallet_services:
-    arc: null
-    arc_url: https://api.taal.com/arc
+    arc:
+        callback_token: ""
+        callback_url: ""
+        deployment_id: ""
+        token: mainnet_9596de07e92300c6287e4393594ae39c
+        url: https://api.taal.com/arc
+        wait_for: ""
     bitails_api_key: null
-    chain: main
     chaintracks: null
-    chaintracks_fiat_exchange_rates_url: https://npm-registry.babbage.systems:8084/getFiatExchangeRates
+    chaintracks_fiat_exchange_rates_url: ""
     disable_mapi_callback: true
     exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
     fiat_exchange_rates:
@@ -54,7 +58,6 @@ wallet_services:
             USD: 1
         timestamp: {}
     fiat_update_interval: 24h0m0s
-    taal_api_key: mainnet_9596de07e92300c6287e4393594ae39c
     whats_on_chain:
         api_key: ""
         bsv_exchange_rate:
