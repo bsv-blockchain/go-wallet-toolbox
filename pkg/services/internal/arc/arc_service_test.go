@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
@@ -41,9 +41,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]results.PostTxID{
+			[]wdk.PostTxID{
 				{
-					Result: results.ResultStatusSuccess,
+					Result: wdk.ResultStatusSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -77,9 +77,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]results.PostTxID{
+			[]wdk.PostTxID{
 				{
-					Result: results.ResultStatusSuccess,
+					Result: wdk.ResultStatusSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -117,14 +117,14 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]results.PostTxID{
+			[]wdk.PostTxID{
 				{
-					Result: results.ResultStatusSuccess,
+					Result: wdk.ResultStatusSuccess,
 					TxID:   parentTx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(parentTxID),
 				},
 				{
-					Result: results.ResultStatusSuccess,
+					Result: wdk.ResultStatusSuccess,
 					TxID:   childTxID,
 					Data:   given.ARC().TxInfoJSON(childTxID),
 				},
@@ -159,9 +159,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]results.PostTxID{
+			[]wdk.PostTxID{
 				{
-					Result: results.ResultStatusSuccess,
+					Result: wdk.ResultStatusSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -361,11 +361,11 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 			for _, resultForTxID := range res.TxIDResults {
 				if resultForTxID.TxID == parentTxID {
-					assert.Equal(t, results.ResultStatusError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
+					assert.Equal(t, wdk.ResultStatusError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
 					assert.Empty(t, resultForTxID.Data, "expect result for (parentTx) tx %s to have no data", resultForTxID.TxID)
 					assert.Error(t, resultForTxID.Error, "expect result for (parentTx) tx %s to have an error", resultForTxID.TxID)
 				} else {
-					assert.Equal(t, results.ResultStatusSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
+					assert.Equal(t, wdk.ResultStatusSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
 				}
 			}
 		})

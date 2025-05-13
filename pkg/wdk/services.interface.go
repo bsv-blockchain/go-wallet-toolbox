@@ -1,6 +1,8 @@
-package results
+package wdk
 
 import (
+	"context"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
@@ -48,4 +50,9 @@ type PostTxID struct {
 
 	Data  string
 	Error error
+}
+
+// Services defines an interface for handling 3rd party services
+type Services interface {
+	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*ServicePostBEEF, error)
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -37,7 +37,7 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *results.ServicePostBEEF) {
+		slices.ForEach(response, func(item *wdk.ServicePostBEEF) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
 			if assert.NotNil(t, item.Success) {
@@ -74,7 +74,7 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *results.ServicePostBEEF) {
+		slices.ForEach(response, func(item *wdk.ServicePostBEEF) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
 			if assert.NotNil(t, item.Success) {

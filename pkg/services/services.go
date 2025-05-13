@@ -7,11 +7,9 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/configuration"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
@@ -24,11 +22,11 @@ type WalletServices struct {
 	httpClient   *resty.Client
 	logger       *slog.Logger
 	chain        defs.BSVNetwork
-	config       *configuration.WalletServices
+	config       *defs.WalletServices
 	whatsonchain *whatsonchain.WhatsOnChain
 
 	rawTxServices    servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *results.PostBEEF]
+	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostBEEF]
 
 	// getMerklePathServices: ServiceCollection<sdk.GetMerklePathService>
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
@@ -38,17 +36,17 @@ type WalletServices struct {
 }
 
 // New will return a new WalletServices
-func New(httpClient *resty.Client, logger *slog.Logger, config configuration.WalletServices) *WalletServices {
+func New(httpClient *resty.Client, logger *slog.Logger, chain defs.BSVNetwork, config defs.WalletServices) *WalletServices {
 	if httpClient == nil {
 		panic("httpClient is required")
 	}
 
-	woc := whatsonchain.New(httpClient, logger, config.Chain, config.WhatsOnChain)
+	woc := whatsonchain.New(httpClient, logger, chain, config.WhatsOnChain)
 	arcService := arc.NewARCService(logger, httpClient, config.ArcConfig)
 
 	return &WalletServices{
 		httpClient:   httpClient,
-		chain:        config.Chain,
+		chain:        chain,
 		config:       &config,
 		logger:       logger,
 		whatsonchain: woc,
@@ -106,7 +104,7 @@ func (s *WalletServices) BsvExchangeRate() (float64, error) {
 }
 
 // FiatExchangeRate returns approximate exchange rate currency per base.
-func (s *WalletServices) FiatExchangeRate(currency wdk.Currency, base *wdk.Currency) float64 {
+func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Currency) float64 {
 	panic("Not implemented yet")
 }
 
@@ -130,20 +128,20 @@ func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*results.ServicePostBEEF, error) {
+func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*wdk.ServicePostBEEF, error) {
 	res, err := s.postBEEFServices.All(ctx, beef, txids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
 	}
 
-	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*results.PostBEEF]) *results.ServicePostBEEF {
+	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostBEEF]) *wdk.ServicePostBEEF {
 		if it.IsError() {
-			return &results.ServicePostBEEF{
+			return &wdk.ServicePostBEEF{
 				Name:  it.Name(),
 				Error: it.MustGetError(),
 			}
 		}
-		return &results.ServicePostBEEF{
+		return &wdk.ServicePostBEEF{
 			Name:    it.Name(),
 			Success: it.MustGetValue(),
 		}

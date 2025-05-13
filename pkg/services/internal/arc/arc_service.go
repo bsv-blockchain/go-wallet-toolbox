@@ -8,11 +8,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/configuration"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/is"
@@ -28,7 +28,7 @@ const (
 	StatusCumulativeFeeValidationFailed = 473
 )
 
-type Config = configuration.ARC
+type Config = defs.ARC
 
 const ServiceName = "ARC"
 
@@ -75,7 +75,7 @@ func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config)
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*results.PostBEEF, error) {
+func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostBEEF, error) {
 	err := s.validateBEEF(beef)
 	if err != nil {
 		return nil, err
@@ -91,19 +91,19 @@ func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("failed to broadcast beef: %w", err)
 	}
 
-	var resultsForTxID iter.Seq[results.PostTxID]
+	var resultsForTxID iter.Seq[wdk.PostTxID]
 	if response != nil {
 		resultsForTxID = s.getMissingTxIDResults(ctx, response, txIDs)
 	} else {
 		resultsForTxID = s.getTxIDResults(ctx, txIDs)
 	}
 
-	return &results.PostBEEF{
+	return &wdk.PostBEEF{
 		TxIDResults: seq.Collect(resultsForTxID),
 	}, nil
 }
 
-func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[results.PostTxID] {
+func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[wdk.PostTxID] {
 	txIDsWithMissingTxInfo := seq.Filter(seq.FromSlice(txIDs), func(txID string) bool {
 		return txInfo.TxID != txID
 	})
@@ -116,7 +116,7 @@ func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txI
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[results.PostTxID] {
+func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[wdk.PostTxID] {
 	txIDsWithMissingTxInfo := seq.FromSlice(txIDs)
 
 	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
@@ -124,18 +124,18 @@ func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[r
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) results.PostTxID {
+func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostTxID {
 	if it.IsError() {
-		return results.PostTxID{
+		return wdk.PostTxID{
 			TxID:   it.Name(),
-			Result: results.ResultStatusError,
+			Result: wdk.ResultStatusError,
 			Error:  it.MustGetError(),
 		}
 	}
 	info := it.MustGetValue()
 
-	result := results.PostTxID{
-		Result:       results.ResultStatusSuccess,
+	result := wdk.PostTxID{
+		Result:       wdk.ResultStatusSuccess,
 		TxID:         it.Name(),
 		DoubleSpend:  info.TXStatus == DoubleSpendAttempted,
 		BlockHash:    info.BlockHash,
@@ -147,7 +147,7 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) results.PostTxID {
 		merklePath, err := transaction.NewMerklePathFromHex(info.MerklePath)
 		if err != nil {
 			result.Error = err
-			result.Result = results.ResultStatusError
+			result.Result = wdk.ResultStatusError
 		} else {
 			result.MerklePath = merklePath
 		}

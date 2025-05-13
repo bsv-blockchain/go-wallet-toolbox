@@ -8,3 +8,6 @@ type ReqHistoryNote struct {
 	What string     `json:"what"`
 	Args map[string]any
 }
+
+// Notes represents a list of ReqHistoryNote
+type Notes []ReqHistoryNote
