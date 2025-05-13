@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/optional"
@@ -21,6 +22,8 @@ import (
 
 const ArcURL = "https://api.taal.com/arc"
 const ArcToken = "mainnet_9596de07e92300c6287e4393594ae39c"
+const ArcTestURL = "https://arc-test.taal.com/arc"
+const ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3"
 const DeploymentID = "go-wallet-toolbox-test"
 const arcHttpStatusMalformed = 463
 
@@ -51,19 +54,23 @@ type arcFixture struct {
 	transport                    *httpmock.MockTransport
 	knownTransactions            map[string]*knownTransaction
 	broadcastWithoutResponseBody bool
+	network                      defs.BSVNetwork
+	url                          string
+	token                        string
 }
 
-func NewARCFixture(t testing.TB) ARCFixture {
-	transport := httpmock.NewMockTransport()
-	return NewArcFixtureWithTransport(t, transport)
-}
-
-func NewArcFixtureWithTransport(t testing.TB, transport *httpmock.MockTransport) ARCFixture {
-	require.NotNil(t, transport, "http.RoundTripper must be provided")
+func NewARCFixture(t testing.TB, opts ...Option) ARCFixture {
+	options := to.OptionsWithDefault(FixtureOptions{
+		network:   defs.NetworkMainnet,
+		transport: httpmock.NewMockTransport(),
+	}, opts...)
 
 	return &arcFixture{
 		TB:                t,
-		transport:         transport,
+		transport:         options.transport,
+		network:           options.network,
+		url:               to.IfThen(options.network == defs.NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
+		token:             to.IfThen(options.network == defs.NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
 		knownTransactions: make(map[string]*knownTransaction),
 	}
 }
@@ -75,13 +82,13 @@ func (f *arcFixture) HttpClient() *resty.Client {
 }
 
 func (f *arcFixture) WillAlwaysReturnStatus(httpStatus int) {
-	f.transport.RegisterResponder("POST", "=~"+ArcURL+"/v1/tx.*", func(req *http.Request) (*http.Response, error) {
+	f.transport.RegisterResponder("POST", "=~"+f.url+"/v1/tx.*", func(req *http.Request) (*http.Response, error) {
 		return httpmock.NewJsonResponse(errorResponseForStatus(httpStatus))
 	})
 }
 
 func (f *arcFixture) IsUpAndRunning() {
-	f.transport.RegisterResponder(http.MethodPost, ArcURL+"/v1/tx", func(req *http.Request) (*http.Response, error) {
+	f.transport.RegisterResponder(http.MethodPost, f.url+"/v1/tx", func(req *http.Request) (*http.Response, error) {
 		b, err := io.ReadAll(req.Body)
 		if !assert.NoError(f, err) {
 			return nil, err
@@ -119,8 +126,8 @@ func (f *arcFixture) IsUpAndRunning() {
 
 	})
 
-	f.transport.RegisterResponder("GET", "=~"+ArcURL+"/v1/tx/.*", func(req *http.Request) (*http.Response, error) {
-		txid := req.URL.String()[len(ArcURL+"/v1/tx/"):]
+	f.transport.RegisterResponder("GET", "=~"+f.url+"/v1/tx/.*", func(req *http.Request) (*http.Response, error) {
+		txid := req.URL.String()[len(f.url+"/v1/tx/"):]
 		return f.knownTransactions[txid].toResponse()
 	})
 }

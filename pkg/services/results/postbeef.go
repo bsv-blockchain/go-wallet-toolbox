@@ -4,6 +4,15 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// ServicePostBEEF is the result of the PostBEEF method of the service.
+// It contains the name of the service that produce the result and the result itself.
+// The result could be either a success or an error.
+type ServicePostBEEF struct {
+	Name    string
+	Success *PostBEEF
+	Error   error
+}
+
 // PostBEEF is the success result of the single service PostBEEF method.
 type PostBEEF struct {
 	Notes
@@ -34,8 +43,9 @@ type PostTxID struct {
 	BlockHeight  int64
 	MerklePath   *transaction.MerklePath
 	CompetingTxs []string
-	// TODO: consider making it a string
-	Data any
+
 	Notes
+
+	Data  string
 	Error error
 }

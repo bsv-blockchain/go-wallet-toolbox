@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/configuration"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
@@ -26,6 +27,10 @@ const (
 	StatusFeeTooLow                     = 465
 	StatusCumulativeFeeValidationFailed = 473
 )
+
+type Config = configuration.ARC
+
+const ServiceName = "ARC"
 
 type Service struct {
 	logger           *slog.Logger
@@ -69,8 +74,8 @@ func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config)
 	return service
 }
 
-// PostBeef attempts to post beef with given txIDs
-func (s *Service) PostBeef(ctx context.Context, beef *transaction.Beef, txIDs []string) (*results.PostBEEF, error) {
+// PostBEEF attempts to post beef with given txIDs
+func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*results.PostBEEF, error) {
 	err := s.validateBEEF(beef)
 	if err != nil {
 		return nil, err
@@ -136,7 +141,6 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) results.PostTxID {
 		BlockHash:    info.BlockHash,
 		BlockHeight:  info.BlockHeight,
 		CompetingTxs: info.CompetingTxs,
-		Data:         info,
 	}
 
 	if is.NotBlankString(info.MerklePath) {

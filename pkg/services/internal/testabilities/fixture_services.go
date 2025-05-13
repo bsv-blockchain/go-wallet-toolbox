@@ -40,6 +40,7 @@ type servicesFixture struct {
 	walletServicesConfig *defs.WalletServices
 	woc                  WhatsOnChainFixture
 	arc                  ARCFixture
+	network              defs.BSVNetwork
 }
 
 func Given(t testing.TB) ServicesFixture {
@@ -47,10 +48,11 @@ func Given(t testing.TB) ServicesFixture {
 	client := resty.New()
 	client.GetClient().Transport = transport
 
-	servicesConfig := defs.DefaultServicesConfig(defs.NetworkTestnet)
+	network := defs.NetworkMainnet
+	servicesConfig := defs.DefaultServicesConfig(network)
 
-	wocFx := NewWoCFixtureWithTransport(t, transport)
-	arcFx := NewArcFixtureWithTransport(t, transport)
+	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
+	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
 
 	return &servicesFixture{
 		t:                    t,
@@ -59,6 +61,7 @@ func Given(t testing.TB) ServicesFixture {
 		httpClient:           client,
 		transport:            transport,
 		walletServicesConfig: &servicesConfig,
+		network:              network,
 		woc:                  wocFx,
 		arc:                  arcFx,
 	}
@@ -95,8 +98,8 @@ func (f *servicesFixture) NewArcService(opts ...func(*arc.Config)) *arc.Service 
 	logger := logging.NewTestLogger(f.t)
 	httpClient := f.arc.HttpClient()
 	config := to.OptionsWithDefault(arc.Config{
-		URL:           ArcURL,
-		Token:         ArcToken,
+		URL:           to.IfThen(f.network == defs.NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
+		Token:         to.IfThen(f.network == defs.NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
 		DeploymentID:  DeploymentID,
 		WaitFor:       "",
 		CallbackURL:   "",
@@ -118,4 +121,42 @@ func (f *servicesFixture) NewServicesWithConfig(config defs.WalletServices) *ser
 	f.services = walletServices
 
 	return f.services
+}
+
+func servicesCfg(chain defs.BSVNetwork) configuration.WalletServices {
+	var arcAPIKey string
+	var arcUrl string
+
+	if chain == defs.NetworkMainnet {
+		arcUrl = ArcURL
+		arcAPIKey = ArcToken
+	} else {
+		arcUrl = ArcTestURL
+		arcAPIKey = ArcTestToken
+	}
+
+	return configuration.WalletServices{
+		Chain: chain,
+		WhatsOnChain: configuration.WhatsOnChain{
+			BSVUpdateInterval: to.Ptr(whatsonchain.DefaultBSVExchangeUpdateInterval),
+		},
+		FiatExchangeRates: wdk.FiatExchangeRates{
+			Timestamp: time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC),
+			Base:      wdk.USD,
+			Rates: map[wdk.Currency]float64{
+				wdk.USD: 1,
+				wdk.GBP: 0.8,
+				wdk.EUR: 0.93,
+			},
+		},
+		FiatUpdateInterval:              to.Ptr(whatsonchain.DefaultFiatExchangeUpdateInterval),
+		DisableMapiCallback:             true, // rely on WalletMonitor by default
+		ExchangeratesApiKey:             "bd539d2ff492bcb5619d5f27726a766f",
+		ChaintracksFiatExchangeRatesUrl: "",  // TODO: implement me
+		Chaintracks:                     nil, // TODO: implement me
+		ArcConfig: configuration.ARC{
+			URL:   arcUrl,
+			Token: arcAPIKey,
+		},
+	}
 }
