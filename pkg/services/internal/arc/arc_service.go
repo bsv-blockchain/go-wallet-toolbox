@@ -242,9 +242,55 @@ func toHex(beef *transaction.Beef) (string, error) {
 		return "", fmt.Errorf("expected to find subject tx %s in beef, but it was not found, this shouldn't ever happen", subjectTxs[0])
 	}
 
-	beefHex, err := subjectTx.Transaction.BEEFHex()
+	// Another temporary workaround until go-sdk properly implements BEEF serialization
+	tx, err := rebuildSubjectTx(subjectTx.Transaction, beef)
+	if err != nil {
+		return "", fmt.Errorf("failed to rebuild subject tx: %w", err)
+	}
+
+	beefHex, err := tx.BEEFHex()
 	if err != nil {
 		return "", fmt.Errorf("failed to convert subject tx into BEEF hex: %w", err)
 	}
 	return beefHex, nil
+}
+
+func rebuildSubjectTx(tx *transaction.Transaction, beef *transaction.Beef) (*transaction.Transaction, error) {
+	for _, input := range tx.Inputs {
+		err := hydrateInput(input, beef, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hydrate input %s of tx %s: %w", input.SourceTXID.String(), tx.TxID().String(), err)
+		}
+	}
+	return tx, nil
+}
+
+func hydrateInput(input *transaction.TransactionInput, beef *transaction.Beef, depth int) error {
+	txID := input.SourceTXID.String()
+	if depth > 100 {
+		return fmt.Errorf("could not hydrate the input %s: too many recursions", txID)
+	}
+	if input.SourceTransaction != nil {
+		return nil
+	}
+
+	tx, ok := beef.Transactions[txID]
+	if !ok {
+		return fmt.Errorf("could not find transaction %s in beef", txID)
+	}
+	input.SourceTransaction = tx.Transaction
+	if tx.DataFormat == transaction.RawTxAndBumpIndex {
+		if !is.Between(tx.BumpIndex, 0, len(beef.BUMPs)-1) {
+			return fmt.Errorf("cannot find bump with index %d for tx %s", tx.BumpIndex, txID)
+		}
+		input.SourceTransaction.MerklePath = beef.BUMPs[tx.BumpIndex]
+		return nil
+	}
+	for _, source := range input.SourceTransaction.Inputs {
+		err := hydrateInput(source, beef, depth+1)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
