@@ -37,6 +37,8 @@ type WhatsOnChain struct {
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
+	logger = logging.Child(logger, "WoC").With(slog.String("network", string(network)))
+
 	if httpClient == nil {
 		panic("httpClient is required")
 	}
@@ -50,13 +52,15 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetRetryCount(Retries).
 		SetRetryWaitTime(RetriesWaitTime).
 		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
-		SetHeaders(headers)
+		SetHeaders(headers).
+		SetLogger(logging.RestyAdapter(logger)).
+		SetDebug(logger.Enabled(nil, slog.LevelDebug))
 
 	return &WhatsOnChain{
 		httpClient:        client,
 		apiKey:            config.APIKey,
 		url:               fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s", network),
-		logger:            logging.Child(logger, "WoC").With(slog.String("network", string(network))),
+		logger:            logger,
 		bsvExchangeRate:   config.BSVExchangeRate,
 		bsvUpdateInterval: to.IfThen(config.BSVUpdateInterval != nil, *config.BSVUpdateInterval).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
 	}
