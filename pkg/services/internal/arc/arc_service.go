@@ -59,7 +59,7 @@ func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config)
 	httpClient = httpClient.Clone().
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
-		SetDebug(logger.Enabled(nil, slog.LevelDebug))
+		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 
 	service := &Service{
 		logger:     logger,

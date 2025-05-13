@@ -54,7 +54,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
-		SetDebug(logger.Enabled(nil, slog.LevelDebug))
+		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 
 	return &WhatsOnChain{
 		httpClient:        client,
