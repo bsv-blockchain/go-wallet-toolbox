@@ -207,4 +207,3 @@ func TestValidTimestamp(t *testing.T) {
 	expected := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 	require.Equal(t, expected, infraSrv.Config.Services.WhatsOnChain.BSVExchangeRate.Timestamp)
 }
-
