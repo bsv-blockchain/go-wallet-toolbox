@@ -2,6 +2,7 @@ package wdk
 
 import (
 	"context"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 

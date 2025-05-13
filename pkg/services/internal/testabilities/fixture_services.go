@@ -122,4 +122,3 @@ func (f *servicesFixture) NewServicesWithConfig(config defs.WalletServices) *ser
 
 	return f.services
 }
-

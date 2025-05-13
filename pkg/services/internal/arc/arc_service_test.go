@@ -2,11 +2,11 @@ package arc_test
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"net/http"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
