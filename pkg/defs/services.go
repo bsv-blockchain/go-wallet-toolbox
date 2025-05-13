@@ -15,13 +15,13 @@ const (
 	DefaultFiatExchangeUpdateInterval = 24 * time.Hour
 
 	// ArcURL is the URL for the ARC service
-	ArcURL = "https://api.taal.com/arc"
+	ArcURL = "https://arc.taal.com"
 
 	// ArcToken is the token for the ARC service - it's a well-known key and can be public
 	ArcToken = "mainnet_9596de07e92300c6287e4393594ae39c" //nolint:gosec
 
 	// ArcTestURL is the URL for the ARC service on testnet
-	ArcTestURL = "https://arc-test.taal.com/arc"
+	ArcTestURL = "https://arc-test.taal.com"
 
 	// ArcTestToken is the token for the ARC service on testnet - it's a well-known key and can be public
 	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec
