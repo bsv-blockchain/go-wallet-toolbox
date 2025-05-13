@@ -190,4 +190,3 @@ func TestInvalidCurrencyForFiatExchangeRates(t *testing.T) {
 	// then:
 	require.Error(t, err)
 }
-
