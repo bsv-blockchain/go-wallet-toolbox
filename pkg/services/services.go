@@ -7,11 +7,9 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/configuration"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/results"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
@@ -28,7 +26,7 @@ type WalletServices struct {
 	whatsonchain *whatsonchain.WhatsOnChain
 
 	rawTxServices    servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *results.PostBEEF]
+	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostBEEF]
 
 	// getMerklePathServices: ServiceCollection<sdk.GetMerklePathService>
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
@@ -130,20 +128,20 @@ func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*results.ServicePostBEEF, error) {
+func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*wdk.ServicePostBEEF, error) {
 	res, err := s.postBEEFServices.All(ctx, beef, txids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
 	}
 
-	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*results.PostBEEF]) *results.ServicePostBEEF {
+	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostBEEF]) *wdk.ServicePostBEEF {
 		if it.IsError() {
-			return &results.ServicePostBEEF{
+			return &wdk.ServicePostBEEF{
 				Name:  it.Name(),
 				Error: it.MustGetError(),
 			}
 		}
-		return &results.ServicePostBEEF{
+		return &wdk.ServicePostBEEF{
 			Name:    it.Name(),
 			Success: it.MustGetValue(),
 		}

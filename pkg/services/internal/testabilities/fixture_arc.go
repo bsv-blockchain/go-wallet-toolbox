@@ -20,10 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const ArcURL = "https://api.taal.com/arc"
-const ArcToken = "mainnet_9596de07e92300c6287e4393594ae39c"
-const ArcTestURL = "https://arc-test.taal.com/arc"
-const ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3"
 const DeploymentID = "go-wallet-toolbox-test"
 const arcHttpStatusMalformed = 463
 
@@ -69,8 +65,8 @@ func NewARCFixture(t testing.TB, opts ...Option) ARCFixture {
 		TB:                t,
 		transport:         options.transport,
 		network:           options.network,
-		url:               to.IfThen(options.network == defs.NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
-		token:             to.IfThen(options.network == defs.NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
+		url:               to.IfThen(options.network == defs.NetworkMainnet, defs.ArcURL).ElseThen(defs.ArcTestURL),
+		token:             to.IfThen(options.network == defs.NetworkMainnet, defs.ArcToken).ElseThen(defs.ArcTestToken),
 		knownTransactions: make(map[string]*knownTransaction),
 	}
 }
