@@ -2,6 +2,7 @@ package infra_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/infra"
@@ -190,3 +191,20 @@ func TestInvalidCurrencyForFiatExchangeRates(t *testing.T) {
 	// then:
 	require.Error(t, err)
 }
+
+func TestValidTimestamp(t *testing.T) {
+	// given:
+	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	t.Setenv("TEST_WALLET_SERVICES_WHATS_ON_CHAIN_BSV_EXCHANGE_RATE_TIMESTAMP", "2023-12-13T00:00:00Z")
+
+	// when:
+	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+	expected := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
+	require.Equal(t, expected, infraSrv.Config.Services.WhatsOnChain.BSVExchangeRate.Timestamp)
+}
+
