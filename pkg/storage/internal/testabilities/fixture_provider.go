@@ -2,6 +2,8 @@ package testabilities
 
 import (
 	"context"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"log/slog"
 	"testing"
 
@@ -19,6 +21,7 @@ type ProviderFixture interface {
 	WithCommission(commission defs.Commission) ProviderFixture
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
+	WithServices() ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -29,15 +32,18 @@ type providerFixture struct {
 	commission defs.Commission
 	feeModel   defs.FeeModel
 	randomizer wdk.Randomizer
+	services   wdk.Services
 
-	t             testing.TB
-	require       *require.Assertions
-	logger        *slog.Logger
-	db            *database.Database
-	activeStorage *storage.Provider
+	t               testing.TB
+	require         *require.Assertions
+	logger          *slog.Logger
+	db              *database.Database
+	activeStorage   *storage.Provider
+	servicesFixture testabilities.ServicesFixture
 }
 
 func (p *providerFixture) WithNetwork(network defs.BSVNetwork) ProviderFixture {
+	require.Nil(p.t, p.services, "please configure network before services")
 	p.network = network
 	return p
 }
@@ -54,6 +60,15 @@ func (p *providerFixture) WithFeeModel(feeModel defs.FeeModel) ProviderFixture {
 
 func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixture {
 	p.randomizer = randomizer
+	return p
+}
+
+func (p *providerFixture) WithServices() ProviderFixture {
+	p.servicesFixture = testabilities.GivenServicesWithNetwork(p.t, p.network)
+
+	p.servicesFixture.ARC().IsUpAndRunning()
+
+	p.services = services.New(p.servicesFixture.ARC().HttpClient(), p.logger, p.network, defs.DefaultServicesConfig(p.network))
 	return p
 }
 
@@ -78,6 +93,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 			Chain:      p.network,
 			FeeModel:   p.feeModel,
 			Commission: p.commission,
+			Services:   p.services,
 		},
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),

@@ -18,7 +18,7 @@ type ARCFServiceFixture interface {
 
 func Given(t testing.TB) ARCFServiceFixture {
 	return &arcServiceFixture{
-		ServicesFixture: testabilities.Given(t),
+		ServicesFixture: testabilities.GivenServices(t),
 		t:               t,
 	}
 }

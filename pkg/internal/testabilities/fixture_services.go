@@ -39,12 +39,20 @@ type servicesFixture struct {
 	network              defs.BSVNetwork
 }
 
-func Given(t testing.TB) ServicesFixture {
+func GivenServices(t testing.TB) ServicesFixture {
+	network := defs.NetworkMainnet
+	return givenServicesWithNetwork(t, network)
+}
+
+func GivenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFixture {
+	return givenServicesWithNetwork(t, network)
+}
+
+func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFixture {
 	transport := httpmock.NewMockTransport()
 	client := resty.New()
 	client.GetClient().Transport = transport
 
-	network := defs.NetworkMainnet
 	servicesConfig := defs.DefaultServicesConfig(network)
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))

@@ -12,7 +12,7 @@ import (
 func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 	t.Run("returns cached exchange rate if within update threshold", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.WhatsOnChain().WillRespondWithRates(500, "", nil)
 
 		// and:
@@ -35,7 +35,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 
 	t.Run("returns updated exchange rate when outside threshold", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.WhatsOnChain().WillRespondWithRates(200, `{
 			"time": 123456,
 			"rate": 50.5,
@@ -61,7 +61,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 func TestUpdateBsvExchangeRateFail(t *testing.T) {
 	t.Run("returns error if HTTP request fails", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.WhatsOnChain().WillRespondWithRates(200, "", assert.AnError)
 
 		// and:
@@ -77,7 +77,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 
 	t.Run("returns error if HTTP response is not 200", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.WhatsOnChain().WillRespondWithRates(500, "", nil)
 
 		// and:
@@ -93,7 +93,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 
 	t.Run("returns error if currency is not USD", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.WhatsOnChain().WillRespondWithRates(200, `{
 			"time": 123456,
 			"rate": 50.5,

@@ -16,7 +16,7 @@ import (
 func TestPostBEEF(t *testing.T) {
 	t.Run("successfully post BEEF with single tx IDs", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
 		// and:
@@ -49,7 +49,7 @@ func TestPostBEEF(t *testing.T) {
 
 	t.Run("successfully post BEEF with multiple tx IDs", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
 		// and:

@@ -191,13 +191,13 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendW
 
 	// TODO: SPV of the beef
 
-	_ = beef
-	//results, err := p.services.PostBEEF(ctx, beef, []string{txID})
-	//if err != nil {
-	//	return "", fmt.Errorf("failed to post BEEF: %w", err)
-	//}
-	//
-	//_ = results // TODO postprocess results
+	//_ = beef
+	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
+	if err != nil {
+		return "", fmt.Errorf("failed to post BEEF: %w", err)
+	}
+
+	_ = results // TODO postprocess results
 	return wdk.SendWithResultStatusSending, nil
 }
 
