@@ -68,7 +68,7 @@ func (p *providerFixture) WithServices() ProviderFixture {
 
 	p.servicesFixture.ARC().IsUpAndRunning()
 
-	p.services = services.New(p.servicesFixture.ARC().HttpClient(), p.logger, p.network, defs.DefaultServicesConfig(p.network))
+	p.services = services.New(p.logger, defs.DefaultServicesConfig(p.network), services.WithRestyClient(p.servicesFixture.ARC().HttpClient()))
 	return p
 }
 
