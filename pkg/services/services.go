@@ -59,7 +59,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, chain defs.BSVNetwork, c
 
 		postBEEFServices: servicequeue.NewQueue2(
 			logger,
-			"PostedBEEF",
+			"PostBEEF",
 			servicequeue.NewService2(arc.ServiceName, arcService.PostBEEF),
 		),
 	}
@@ -131,7 +131,7 @@ func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult
 func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (wdk.PostBeefResult, error) {
 	res, err := s.postBEEFServices.All(ctx, beef, txids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to PostedBEEF: %w", err)
+		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
 	}
 
 	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostedBEEF]) *wdk.PostBeefSingleResult {

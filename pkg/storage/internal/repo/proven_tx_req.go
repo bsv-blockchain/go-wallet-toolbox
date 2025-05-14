@@ -85,7 +85,7 @@ func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, sourceTxs
 	beef := transaction.NewBeefV2()
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, sourceTxsStatusFilter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build valid PostedBEEF: %w", err)
+		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
 	return beef, nil
@@ -131,7 +131,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 
 	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to merge raw tx (id: %s) into PostedBEEF object: %w", txID, err)
+		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
 	}
 
 	/*
@@ -144,7 +144,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	*/
 	err = mergeBEEF(mergeToBeef, model.InputBeef)
 	if err != nil {
-		return fmt.Errorf("failed to merge input beef into PostedBEEF object: %w", err)
+		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
 	}
 
 	var sourceTXID string
@@ -154,7 +154,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 		if beefTx == nil {
 			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusFilter)
 			if err != nil {
-				return fmt.Errorf("failed to recursively find proven tx and merge into PostedBEEF: %w", err)
+				return fmt.Errorf("failed to recursively find proven tx and merge into BEEF: %w", err)
 			}
 		}
 	}
@@ -163,7 +163,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	return nil
 }
 
-// mergeBEEF merges the PostedBEEF object with another PostedBEEF encoded in bytes.
+// mergeBEEF merges the BEEF object with another BEEF encoded in bytes.
 // temporary solution for the issue with AtomicBeef
 func mergeBEEF(mergeToBeef *transaction.Beef, otherBeefBytes []byte) error {
 	otherBeef, _, _, err := transaction.ParseBeef(otherBeefBytes)

@@ -202,8 +202,8 @@ func (s *Service) getTransactionData(ctx context.Context, txID string) *internal
 }
 
 func toHex(beef *transaction.Beef) (string, error) {
-	// This is a temporary solution until go-sdk properly implements PostedBEEF serialization
-	// It searches for the subject transaction in transaction.Beef and serializes this one to PostedBEEF hex.
+	// This is a temporary solution until go-sdk properly implements BEEF serialization
+	// It searches for the subject transaction in transaction.Beef and serializes this one to BEEF hex.
 	// For now, it's not supporting more than one subject transaction.
 	idToTx := seq2.FromMap(beef.Transactions)
 
@@ -242,7 +242,7 @@ func toHex(beef *transaction.Beef) (string, error) {
 		return "", fmt.Errorf("expected to find subject tx %s in beef, but it was not found, this shouldn't ever happen", subjectTxs[0])
 	}
 
-	// Another temporary workaround until go-sdk properly implements PostedBEEF serialization
+	// Another temporary workaround until go-sdk properly implements BEEF serialization
 	tx, err := rebuildSubjectTx(subjectTx.Transaction, beef)
 	if err != nil {
 		return "", fmt.Errorf("failed to rebuild subject tx: %w", err)
@@ -250,7 +250,7 @@ func toHex(beef *transaction.Beef) (string, error) {
 
 	beefHex, err := tx.BEEFHex()
 	if err != nil {
-		return "", fmt.Errorf("failed to convert subject tx into PostedBEEF hex: %w", err)
+		return "", fmt.Errorf("failed to convert subject tx into BEEF hex: %w", err)
 	}
 	return beefHex, nil
 }

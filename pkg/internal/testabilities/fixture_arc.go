@@ -156,10 +156,10 @@ func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
 
 func (f *arcFixture) store(txHex string) {
 	beefBytes, err := hex.DecodeString(txHex)
-	require.NoError(f, err, "failed to decode PostedBEEF hex")
+	require.NoError(f, err, "failed to decode BEEF hex")
 
 	beef, err := sdk.NewBeefFromBytes(beefBytes)
-	require.NoError(f, err, "failed to create PostedBEEF from bytes")
+	require.NoError(f, err, "failed to create BEEF from bytes")
 
 	transactions := seq2.FromMap(beef.Transactions)
 	includedTransactions := seq2.MapTo(transactions, func(txID string, tx *sdk.BeefTx) *knownTransaction {

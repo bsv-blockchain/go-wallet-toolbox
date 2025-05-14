@@ -43,7 +43,7 @@ func newInternalizeAction(
 func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 	tx, err := transaction.NewTransactionFromBEEF(args.Tx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction from PostedBEEF: %w", err)
+		return nil, fmt.Errorf("failed to create transaction from BEEF: %w", err)
 	}
 	txID := tx.TxID().String()
 

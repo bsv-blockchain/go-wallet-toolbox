@@ -188,14 +188,14 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendW
 
 	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqStatusesForSourceTransactions)
 	if err != nil {
-		return "", fmt.Errorf("failed to build valid PostedBEEF: %w", err)
+		return "", fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
 	// TODO: SPV of the beef
 
 	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
 	if err != nil {
-		return "", fmt.Errorf("failed to post PostedBEEF: %w", err)
+		return "", fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
 	_ = results // TODO postprocess results
