@@ -51,6 +51,11 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		panic("not implemented yet")
 	}
 
+	_, err := p.broadcastSingleTx(ctx, string(*args.TxID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
+	}
+
 	return p.broadcastSingleTx(ctx, string(*args.TxID))
 }
 

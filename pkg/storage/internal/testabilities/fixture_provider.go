@@ -80,7 +80,6 @@ func (p *providerFixture) ARC() testabilities.ARCFixture {
 
 	return p.servicesFixture.ARC()
 }
-
 func (p *providerFixture) GORM() *storage.Provider {
 	p.t.Helper()
 	provider := p.GORMWithCleanDatabase()
