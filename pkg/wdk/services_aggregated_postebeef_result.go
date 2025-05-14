@@ -1,0 +1,101 @@
+package wdk
+
+// AggregatedPostedTxIDStatus represents the aggregated status of postBEEF process for single txid
+type AggregatedPostedTxIDStatus string
+
+// Possible values for AggregatedPostedTxIDStatus
+const (
+	AggregatedPostedTxIDSuccess      AggregatedPostedTxIDStatus = "success"
+	AggregatedPostedTxIDDoubleSpend  AggregatedPostedTxIDStatus = "doubleSpend"
+	AggregatedPostedTxIDInvalidTx    AggregatedPostedTxIDStatus = "invalidTx"
+	AggregatedPostedTxIDServiceError AggregatedPostedTxIDStatus = "serviceError"
+)
+
+// AggregatedPostedTxID represents postBEEF result, aggregated from all broadcasters for particular TxID
+type AggregatedPostedTxID struct {
+	TxID              string
+	TxIDResults       []*PostedTxID
+	Status            AggregatedPostedTxIDStatus
+	SuccessCount      int
+	DoubleSpendCount  int
+	StatusErrorCount  int
+	ServiceErrorCount int
+	CompetingTxs      map[string]struct{}
+}
+
+// AggregatedPostBEEF is a map of AggregatedPostedTxID results, indexed by txid
+type AggregatedPostBEEF map[string]*AggregatedPostedTxID
+
+func newAggregatedPostBEEF(results PostBeefResult, txids []string) AggregatedPostBEEF {
+	aggregatedTxs := make(AggregatedPostBEEF)
+
+	for _, result := range results {
+		if !result.Success() {
+			continue
+		}
+
+		mapped := make(map[string]*PostedTxID)
+		for _, txIDResult := range result.PostedBEEFResult.TxIDResults {
+			mapped[txIDResult.TxID] = &txIDResult
+		}
+
+		for _, txid := range txids {
+			txIDResult, ok := mapped[txid]
+			if !ok {
+				continue
+			}
+
+			var agg *AggregatedPostedTxID
+			if existing, ok := aggregatedTxs[txid]; ok {
+				agg = existing
+			} else {
+				agg = &AggregatedPostedTxID{
+					TxID:         txid,
+					CompetingTxs: make(map[string]struct{}),
+				}
+				aggregatedTxs[txid] = agg
+			}
+
+			agg.TxIDResults = append(agg.TxIDResults, txIDResult)
+
+			switch {
+			case txIDResult.Result == PostedTxIDResultSuccess:
+				agg.SuccessCount++
+			case txIDResult.DoubleSpend:
+				agg.DoubleSpendCount++
+				for _, competingTx := range txIDResult.CompetingTxs {
+					agg.CompetingTxs[competingTx] = struct{}{}
+				}
+			case txIDResult.Error != nil:
+				agg.ServiceErrorCount++
+			default:
+				agg.StatusErrorCount++
+			}
+		}
+	}
+
+	for _, txid := range txids {
+		agg, ok := aggregatedTxs[txid]
+		if !ok {
+			agg = &AggregatedPostedTxID{
+				TxID:         txid,
+				CompetingTxs: make(map[string]struct{}),
+				Status:       AggregatedPostedTxIDServiceError,
+			}
+			aggregatedTxs[txid] = agg
+		} else {
+			switch {
+			case agg.DoubleSpendCount > 0:
+				agg.Status = AggregatedPostedTxIDDoubleSpend
+			case agg.SuccessCount > 0:
+				agg.Status = AggregatedPostedTxIDSuccess
+			case agg.ServiceErrorCount > 0:
+				agg.Status = AggregatedPostedTxIDServiceError
+			default:
+				agg.Status = AggregatedPostedTxIDInvalidTx
+			}
+		}
+	}
+
+	return aggregatedTxs
+}

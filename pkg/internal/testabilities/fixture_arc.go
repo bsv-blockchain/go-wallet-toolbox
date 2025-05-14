@@ -39,6 +39,7 @@ type ARCQueryFixture interface {
 	WillBeUnreachable()
 	WillReturnNoBody()
 	WillReturnDifferentTxID()
+	WillReturnDoubleSpending(competingTxs ...string)
 }
 
 type ArcBroadcastFixture interface {
@@ -119,7 +120,6 @@ func (f *arcFixture) IsUpAndRunning() {
 		} else {
 			return f.knownTransactions[tx.TxID().String()].toResponseOrError()
 		}
-
 	})
 
 	f.transport.RegisterResponder("GET", "=~"+f.url+"/v1/tx/.*", func(req *http.Request) (*http.Response, error) {
@@ -194,6 +194,12 @@ type arcQueryFixture struct {
 func (a *arcQueryFixture) WillReturnDifferentTxID() {
 	tx := a.knownTransaction()
 	tx.txid = a.rotatedTxIdByNumberOfChars(7)
+}
+
+func (a *arcQueryFixture) WillReturnDoubleSpending(competingTxs ...string) {
+	tx := a.knownTransaction()
+	tx.status = "DOUBLE_SPEND_ATTEMPTED"
+	tx.competingTxs = competingTxs
 }
 
 // rotatedTxIdByNumberOfChars will return rotated txid by number of chars

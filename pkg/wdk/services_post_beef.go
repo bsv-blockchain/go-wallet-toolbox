@@ -6,27 +6,32 @@ import (
 )
 
 // PostBeefResult is a list of results from the PostBEEF method of all services.
-type PostBeefResult []*PostBeefSingleResult
+type PostBeefResult []*PostBEEFServiceResult
 
 // Success checks if one of the results is a success.
 func (it PostBeefResult) Success() bool {
-	return seq.Exists(seq.FromSlice(it), func(it *PostBeefSingleResult) bool {
-		return it.PostedBEEF != nil && it.Error == nil
+	return seq.Exists(seq.FromSlice(it), func(it *PostBEEFServiceResult) bool {
+		return it.PostedBEEFResult != nil && it.Error == nil
 	})
 }
 
-// PostBeefSingleResult is the result of the PostBEEF method of a single service.
+// Aggregated gets results from all services and aggregates them by txid, calculating status and counts.
+func (it PostBeefResult) Aggregated(txids []string) AggregatedPostBEEF {
+	return newAggregatedPostBEEF(it, txids)
+}
+
+// PostBEEFServiceResult is the result of the PostBEEF method of a single service.
 // It contains the name of the service that produced the result and the result itself.
 // The result could be either a success or an error.
-type PostBeefSingleResult struct {
-	Name       string
-	PostedBEEF *PostedBEEF
-	Error      error
+type PostBEEFServiceResult struct {
+	Name             string
+	PostedBEEFResult *PostedBEEF
+	Error            error
 }
 
 // Success checks if the result is a success.
-func (it *PostBeefSingleResult) Success() bool {
-	return it.PostedBEEF != nil && it.Error == nil
+func (it *PostBEEFServiceResult) Success() bool {
+	return it.PostedBEEFResult != nil && it.Error == nil
 }
 
 // PostedBEEF is the success result of the single service PostedBEEF method.
@@ -35,19 +40,19 @@ type PostedBEEF struct {
 	TxIDResults []PostedTxID
 }
 
-// PostedTxIDStatus is the status of the result which can be either success or error.
-type PostedTxIDStatus string
+// PostedTxIDResultStatus is the status of the result which can be either success or error.
+type PostedTxIDResultStatus string
 
 const (
-	// PostedTxIDSuccess indicates that the result was a success.
-	PostedTxIDSuccess PostedTxIDStatus = "success"
-	// PostedTxIDError indicates that the result was an error.
-	PostedTxIDError PostedTxIDStatus = "error"
+	// PostedTxIDResultSuccess indicates that the result was a success.
+	PostedTxIDResultSuccess PostedTxIDResultStatus = "success"
+	// PostedTxIDResultError indicates that the result was an error.
+	PostedTxIDResultError PostedTxIDResultStatus = "error"
 )
 
 // PostedTxID is the struct representing postTX result for particular TxID
 type PostedTxID struct {
-	Result PostedTxIDStatus
+	Result PostedTxIDResultStatus
 	TxID   string
 	// AlreadyKnown if true, the transaction was already known to this service. Usually treat as a success.
 	// Potentially stop posting to additional transaction processors.

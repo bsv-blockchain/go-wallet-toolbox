@@ -9,14 +9,15 @@ import (
 )
 
 type knownTransaction struct {
-	txid        string
-	status      string
-	blockHeight uint32
-	blockHash   string
-	merklePath  string
-	httpStatus  int
-	unreachable bool
-	noBody      bool
+	txid         string
+	status       string
+	blockHeight  uint32
+	blockHash    string
+	merklePath   string
+	httpStatus   int
+	unreachable  bool
+	noBody       bool
+	competingTxs []string
 }
 
 func (t *knownTransaction) toResponse() (*http.Response, error) {
@@ -46,10 +47,16 @@ func (t *knownTransaction) toResponseContent() (int, map[string]any) {
 		return http.StatusOK, nil
 	}
 
+	var competingTxs []string
+	if len(t.competingTxs) > 0 {
+		competingTxs = make([]string, len(t.competingTxs))
+		copy(competingTxs, t.competingTxs)
+	}
+
 	return http.StatusOK, map[string]any{
 		"blockHash":    t.blockHash,
 		"blockHeight":  t.blockHeight,
-		"competingTxs": nil,
+		"competingTxs": competingTxs,
 		"extraInfo":    "",
 		"merklePath":   t.merklePath,
 		"timestamp":    timestamp,

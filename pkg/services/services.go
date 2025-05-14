@@ -135,16 +135,16 @@ func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
 	}
 
-	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostedBEEF]) *wdk.PostBeefSingleResult {
+	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostedBEEF]) *wdk.PostBEEFServiceResult {
 		if it.IsError() {
-			return &wdk.PostBeefSingleResult{
+			return &wdk.PostBEEFServiceResult{
 				Name:  it.Name(),
 				Error: it.MustGetError(),
 			}
 		}
-		return &wdk.PostBeefSingleResult{
-			Name:       it.Name(),
-			PostedBEEF: it.MustGetValue(),
+		return &wdk.PostBEEFServiceResult{
+			Name:             it.Name(),
+			PostedBEEFResult: it.MustGetValue(),
 		}
 	})
 
