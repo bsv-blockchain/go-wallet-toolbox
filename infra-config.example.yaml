@@ -43,7 +43,7 @@ wallet_services:
         callback_url: ""
         deployment_id: ""
         token: mainnet_9596de07e92300c6287e4393594ae39c
-        url: https://api.taal.com/arc
+        url: https://arc.taal.com
         wait_for: ""
     bitails_api_key: null
     chaintracks: null

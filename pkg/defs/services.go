@@ -15,13 +15,13 @@ const (
 	DefaultFiatExchangeUpdateInterval = 24 * time.Hour
 
 	// ArcURL is the URL for the ARC service
-	ArcURL = "https://api.taal.com/arc"
+	ArcURL = "https://arc.taal.com"
 
 	// ArcToken is the token for the ARC service - it's a well-known key and can be public
 	ArcToken = "mainnet_9596de07e92300c6287e4393594ae39c" //nolint:gosec
 
 	// ArcTestURL is the URL for the ARC service on testnet
-	ArcTestURL = "https://arc-test.taal.com/arc"
+	ArcTestURL = "https://arc-test.taal.com"
 
 	// ArcTestToken is the token for the ARC service on testnet - it's a well-known key and can be public
 	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec
@@ -29,6 +29,7 @@ const (
 
 // WalletServices is a struct that has options for wallet services
 type WalletServices struct {
+	Chain                           BSVNetwork        `mapstructure:"-"`
 	BitailsAPIKey                   *string           `mapstructure:"bitails_api_key"`
 	FiatExchangeRates               FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
 	FiatUpdateInterval              *time.Duration    `mapstructure:"fiat_update_interval"`
@@ -44,6 +45,10 @@ type WalletServices struct {
 // Validate checks the validity of the WalletServices struct
 func (ws *WalletServices) Validate() error {
 	var err error
+
+	if ws.Chain == "" {
+		return fmt.Errorf("chain is required")
+	}
 
 	if err = ws.FiatExchangeRates.Validate(); err != nil {
 		return fmt.Errorf("invalid fiat exchange rates: %w", err)
@@ -64,11 +69,10 @@ func (ws *WalletServices) Validate() error {
 
 // DefaultServicesConfig returns a default configuration for wallet services
 func DefaultServicesConfig(chain BSVNetwork) WalletServices {
-	arcApiKey, arcUrl := networkSpecific(chain)
-
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
-	return WalletServices{
+	cfg := WalletServices{
+		Chain: chain,
 		WhatsOnChain: WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
 			BSVExchangeRate: BSVExchangeRate{
@@ -91,21 +95,18 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 		ExchangeratesApiKey:             "bd539d2ff492bcb5619d5f27726a766f",
 		ChaintracksFiatExchangeRatesUrl: "",  // TODO: implement me
 		Chaintracks:                     nil, // TODO: implement me
-		ArcConfig: ARC{
-			URL:   arcUrl,
-			Token: arcApiKey,
-		},
 	}
-}
 
-func networkSpecific(chain BSVNetwork) (taalApiKey, arcURL string) {
-	if chain == NetworkMainnet {
-		arcURL = ArcURL
-		taalApiKey = ArcToken
-	} else {
-		arcURL = ArcTestURL
-		taalApiKey = ArcTestToken
-
+	switch chain {
+	case NetworkMainnet:
+		cfg.ArcConfig.URL = ArcURL
+		cfg.ArcConfig.Token = ArcToken
+	case NetworkTestnet:
+		cfg.ArcConfig.URL = ArcTestURL
+		cfg.ArcConfig.Token = ArcTestToken
+	default:
+		panic("Unsupported chain type: " + string(chain))
 	}
-	return
+
+	return cfg
 }

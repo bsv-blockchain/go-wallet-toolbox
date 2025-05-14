@@ -64,6 +64,12 @@ func Defaults() Config {
 	}
 }
 
+// OnPostLoad is called after the configuration is loaded
+func (c *Config) OnPostLoad() error {
+	c.Services.Chain = c.BSVNetwork
+	return nil
+}
+
 // Validate validates the whole configuration
 func (c *Config) Validate() (err error) {
 	if c.ServerPrivateKey == "" {

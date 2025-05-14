@@ -43,6 +43,8 @@ type Service struct {
 
 // NewARCService creates a new arc service.
 func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config) *Service {
+	logger = logging.Child(logger, "arc")
+
 	if httpClient == nil {
 		httpClient = resty.New()
 	}
@@ -55,10 +57,12 @@ func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config)
 		Set("XDeployment-ID").OrDefault(config.DeploymentID, "go-wallet-toolbox#"+time.Now().Format("20060102150405"))
 
 	httpClient = httpClient.Clone().
-		SetHeaders(headers)
+		SetHeaders(headers).
+		SetLogger(logging.RestyAdapter(logger)).
+		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 
 	service := &Service{
-		logger:     logging.Child(logger, "arc"),
+		logger:     logger,
 		httpClient: httpClient,
 		config:     config,
 

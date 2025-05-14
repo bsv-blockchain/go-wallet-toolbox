@@ -82,7 +82,7 @@ func (f *servicesFixture) ARC() ARCFixture {
 func (f *servicesFixture) WithDefaultConfig() *services.WalletServices {
 	f.t.Helper()
 
-	walletServices := services.New(f.httpClient, f.logger, f.network, *f.walletServicesConfig)
+	walletServices := services.New(f.logger, *f.walletServicesConfig, services.WithRestyClient(f.httpClient))
 	f.services = walletServices
 
 	return f.services
@@ -92,7 +92,7 @@ func (f *servicesFixture) WithBsvExchangeRate(exchangeRate defs.BSVExchangeRate)
 	f.t.Helper()
 	f.walletServicesConfig.WhatsOnChain.BSVExchangeRate = exchangeRate
 
-	walletServices := services.New(f.httpClient, f.logger, f.network, *f.walletServicesConfig)
+	walletServices := services.New(f.logger, *f.walletServicesConfig, services.WithRestyClient(f.httpClient))
 	f.services = walletServices
 
 	return f.services
@@ -105,7 +105,7 @@ func (f *servicesFixture) Services() WalletServicesFixture {
 func (f *servicesFixture) NewServicesWithConfig(config defs.WalletServices) *services.WalletServices {
 	f.t.Helper()
 
-	walletServices := services.New(f.httpClient, f.logger, f.network, config)
+	walletServices := services.New(f.logger, config, services.WithRestyClient(f.httpClient))
 
 	f.services = walletServices
 

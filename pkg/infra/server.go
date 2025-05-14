@@ -11,7 +11,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-resty/resty/v2"
 )
 
 // Server is a struct that holds the "infra" server configuration
@@ -48,7 +47,7 @@ func NewServer(opts ...InitOption) (*Server, error) {
 
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
 
-	activeServices := services.New(resty.New(), logger, cfg.BSVNetwork, cfg.Services)
+	activeServices := services.New(logger, cfg.Services)
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {

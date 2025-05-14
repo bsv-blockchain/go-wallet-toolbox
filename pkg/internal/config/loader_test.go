@@ -6,13 +6,22 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type MockConfig struct {
-	A string    `mapstructure:"a"`
-	B int       `mapstructure:"b_with_long_name"`
-	C SubConfig `mapstructure:"c_sub_config"`
+	A          string    `mapstructure:"a"`
+	B          int       `mapstructure:"b_with_long_name"`
+	C          SubConfig `mapstructure:"c_sub_config"`
+	onPostLoad func(*MockConfig) error
+}
+
+func (c *MockConfig) OnPostLoad() error {
+	if c.onPostLoad != nil {
+		return c.onPostLoad(c)
+	}
+	return nil
 }
 
 type SubConfig struct {
@@ -26,6 +35,14 @@ func Defaults() MockConfig {
 		C: SubConfig{
 			D: "default_world",
 		},
+	}
+}
+
+func DefaultsWithPostLoadHook(initializer func(*MockConfig) error) func() MockConfig {
+	return func() MockConfig {
+		cfg := Defaults()
+		cfg.onPostLoad = initializer
+		return cfg
 	}
 }
 
@@ -238,6 +255,46 @@ func TestEnvOverridesDotEnv(t *testing.T) {
 	require.Equal(t, "default_hello", cfg.A)
 	require.Equal(t, 2, cfg.B)
 	require.Equal(t, "env_world", cfg.C.D)
+}
+
+func TestPostLoadHook(t *testing.T) {
+	t.Run("should override the config from hook", func(t *testing.T) {
+		// given:
+		postLoadHook := func(cfg *MockConfig) error {
+			cfg.A = "overridden_in_post_load"
+			return nil
+		}
+
+		// and:
+		loader := config.NewLoader(DefaultsWithPostLoadHook(postLoadHook), "TEST")
+
+		// when:
+		cfg, err := loader.Load()
+
+		// then:
+		require.NoError(t, err)
+		assert.Equal(t, "overridden_in_post_load", cfg.A)
+		assert.Equal(t, 1, cfg.B)
+		assert.Equal(t, "default_world", cfg.C.D)
+	})
+
+	t.Run("should return error on hook failure", func(t *testing.T) {
+		SomeError := fmt.Errorf("some error")
+
+		// given:
+		postLoadHook := func(cfg *MockConfig) error {
+			return SomeError
+		}
+
+		// and:
+		loader := config.NewLoader(DefaultsWithPostLoadHook(postLoadHook), "TEST")
+
+		// when:
+		_, err := loader.Load()
+
+		// then:
+		assert.ErrorIs(t, err, SomeError)
+	})
 }
 
 func tempConfig(t *testing.T, content, extension string) string {
