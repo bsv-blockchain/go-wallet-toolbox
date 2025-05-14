@@ -53,7 +53,9 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
-	return nil, nil
+	// TODO: Build and return ProcessActionResult
+
+	return &wdk.ProcessActionResult{}, nil
 }
 
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
@@ -191,7 +193,17 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendW
 
 	// TODO: SPV of the beef
 
-	_ = beef // TODO Services::PostBEEF
+	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
+	if err != nil {
+		return "", fmt.Errorf("failed to post BEEF: %w", err)
+	}
+
+	if !results.Success() {
+		// TODO: temporary
+		return wdk.SendWithResultStatusFailed, fmt.Errorf("failed to post BEEF: %v", results)
+	}
+
+	_ = results // TODO postprocess results
 	return wdk.SendWithResultStatusSending, nil
 }
 

@@ -79,7 +79,7 @@ func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config)
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostBEEF, error) {
+func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
 	err := s.validateBEEF(beef)
 	if err != nil {
 		return nil, err
@@ -95,19 +95,19 @@ func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("failed to broadcast beef: %w", err)
 	}
 
-	var resultsForTxID iter.Seq[wdk.PostTxID]
+	var resultsForTxID iter.Seq[wdk.PostedTxID]
 	if response != nil {
 		resultsForTxID = s.getMissingTxIDResults(ctx, response, txIDs)
 	} else {
 		resultsForTxID = s.getTxIDResults(ctx, txIDs)
 	}
 
-	return &wdk.PostBEEF{
+	return &wdk.PostedBEEF{
 		TxIDResults: seq.Collect(resultsForTxID),
 	}, nil
 }
 
-func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[wdk.PostTxID] {
+func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[wdk.PostedTxID] {
 	txIDsWithMissingTxInfo := seq.Filter(seq.FromSlice(txIDs), func(txID string) bool {
 		return txInfo.TxID != txID
 	})
@@ -120,7 +120,7 @@ func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txI
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[wdk.PostTxID] {
+func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[wdk.PostedTxID] {
 	txIDsWithMissingTxInfo := seq.FromSlice(txIDs)
 
 	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
@@ -128,18 +128,18 @@ func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[w
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostTxID {
+func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {
 	if it.IsError() {
-		return wdk.PostTxID{
+		return wdk.PostedTxID{
 			TxID:   it.Name(),
-			Result: wdk.ResultStatusError,
+			Result: wdk.PostedTxIDResultError,
 			Error:  it.MustGetError(),
 		}
 	}
 	info := it.MustGetValue()
 
-	result := wdk.PostTxID{
-		Result:       wdk.ResultStatusSuccess,
+	result := wdk.PostedTxID{
+		Result:       wdk.PostedTxIDResultSuccess,
 		TxID:         it.Name(),
 		DoubleSpend:  info.TXStatus == DoubleSpendAttempted,
 		BlockHash:    info.BlockHash,
@@ -151,7 +151,7 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostTxID {
 		merklePath, err := transaction.NewMerklePathFromHex(info.MerklePath)
 		if err != nil {
 			result.Error = err
-			result.Result = wdk.ResultStatusError
+			result.Result = wdk.PostedTxIDResultError
 		} else {
 			result.MerklePath = merklePath
 		}
@@ -246,9 +246,55 @@ func toHex(beef *transaction.Beef) (string, error) {
 		return "", fmt.Errorf("expected to find subject tx %s in beef, but it was not found, this shouldn't ever happen", subjectTxs[0])
 	}
 
-	beefHex, err := subjectTx.Transaction.BEEFHex()
+	// Another temporary workaround until go-sdk properly implements BEEF serialization
+	tx, err := rebuildSubjectTx(subjectTx.Transaction, beef)
+	if err != nil {
+		return "", fmt.Errorf("failed to rebuild subject tx: %w", err)
+	}
+
+	beefHex, err := tx.BEEFHex()
 	if err != nil {
 		return "", fmt.Errorf("failed to convert subject tx into BEEF hex: %w", err)
 	}
 	return beefHex, nil
+}
+
+func rebuildSubjectTx(tx *transaction.Transaction, beef *transaction.Beef) (*transaction.Transaction, error) {
+	for _, input := range tx.Inputs {
+		err := hydrateInput(input, beef, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hydrate input %s of tx %s: %w", input.SourceTXID.String(), tx.TxID().String(), err)
+		}
+	}
+	return tx, nil
+}
+
+func hydrateInput(input *transaction.TransactionInput, beef *transaction.Beef, depth int) error {
+	txID := input.SourceTXID.String()
+	if depth > 100 {
+		return fmt.Errorf("could not hydrate the input %s: too many recursions", txID)
+	}
+	if input.SourceTransaction != nil {
+		return nil
+	}
+
+	tx, ok := beef.Transactions[txID]
+	if !ok {
+		return fmt.Errorf("could not find transaction %s in beef", txID)
+	}
+	input.SourceTransaction = tx.Transaction
+	if tx.DataFormat == transaction.RawTxAndBumpIndex {
+		if !is.Between(tx.BumpIndex, 0, len(beef.BUMPs)-1) {
+			return fmt.Errorf("cannot find bump with index %d for tx %s", tx.BumpIndex, txID)
+		}
+		input.SourceTransaction.MerklePath = beef.BUMPs[tx.BumpIndex]
+		return nil
+	}
+	for _, source := range input.SourceTransaction.Inputs {
+		err := hydrateInput(source, beef, depth+1)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -7,6 +7,8 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
@@ -29,12 +31,14 @@ type providerFixture struct {
 	commission defs.Commission
 	feeModel   defs.FeeModel
 	randomizer wdk.Randomizer
+	services   wdk.Services
 
-	t             testing.TB
-	require       *require.Assertions
-	logger        *slog.Logger
-	db            *database.Database
-	activeStorage *storage.Provider
+	t               testing.TB
+	require         *require.Assertions
+	logger          *slog.Logger
+	db              *database.Database
+	activeStorage   *storage.Provider
+	servicesFixture testabilities.ServicesFixture
 }
 
 func (p *providerFixture) WithNetwork(network defs.BSVNetwork) ProviderFixture {
@@ -57,6 +61,15 @@ func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixt
 	return p
 }
 
+func (p *providerFixture) withServices() ProviderFixture {
+	p.servicesFixture = testabilities.GivenServicesWithNetwork(p.t, p.network)
+
+	p.servicesFixture.ARC().IsUpAndRunning()
+
+	p.services = services.New(p.logger, defs.DefaultServicesConfig(p.network), services.WithRestyClient(p.servicesFixture.ARC().HttpClient()))
+	return p
+}
+
 func (p *providerFixture) GORM() *storage.Provider {
 	p.t.Helper()
 	provider := p.GORMWithCleanDatabase()
@@ -68,6 +81,7 @@ func (p *providerFixture) GORM() *storage.Provider {
 
 func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.t.Helper()
+	p.withServices()
 
 	storageIdentityKey, err := wdk.IdentityKey(fixtures.StorageServerPrivKey)
 	p.require.NoError(err)
@@ -78,6 +92,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 			Chain:      p.network,
 			FeeModel:   p.feeModel,
 			Commission: p.commission,
+			Services:   p.services,
 		},
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),

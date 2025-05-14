@@ -7,9 +7,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
 )
@@ -19,15 +17,13 @@ type ServicesFixture interface {
 	ARC() ARCFixture
 
 	Services() WalletServicesFixture
-	NewServicesWithConfig(config defs.WalletServices) *services.WalletServices
+
+	Network() defs.BSVNetwork
 }
 
 type WalletServicesFixture interface {
 	WithDefaultConfig() *services.WalletServices
-
 	WithBsvExchangeRate(exchangeRate defs.BSVExchangeRate) *services.WalletServices
-
-	NewArcService(opts ...func(*arc.Config)) *arc.Service
 }
 
 type servicesFixture struct {
@@ -43,12 +39,20 @@ type servicesFixture struct {
 	network              defs.BSVNetwork
 }
 
-func Given(t testing.TB) ServicesFixture {
+func GivenServices(t testing.TB) ServicesFixture {
+	network := defs.NetworkMainnet
+	return givenServicesWithNetwork(t, network)
+}
+
+func GivenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFixture {
+	return givenServicesWithNetwork(t, network)
+}
+
+func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFixture {
 	transport := httpmock.NewMockTransport()
 	client := resty.New()
 	client.GetClient().Transport = transport
 
-	network := defs.NetworkMainnet
 	servicesConfig := defs.DefaultServicesConfig(network)
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
@@ -94,21 +98,6 @@ func (f *servicesFixture) WithBsvExchangeRate(exchangeRate defs.BSVExchangeRate)
 	return f.services
 }
 
-func (f *servicesFixture) NewArcService(opts ...func(*arc.Config)) *arc.Service {
-	logger := logging.NewTestLogger(f.t)
-	httpClient := f.arc.HttpClient()
-	config := to.OptionsWithDefault(arc.Config{
-		URL:           to.IfThen(f.network == defs.NetworkMainnet, defs.ArcURL).ElseThen(defs.ArcTestURL),
-		Token:         to.IfThen(f.network == defs.NetworkMainnet, defs.ArcToken).ElseThen(defs.ArcTestToken),
-		DeploymentID:  DeploymentID,
-		WaitFor:       "",
-		CallbackURL:   "",
-		CallbackToken: "",
-	}, opts...)
-
-	return arc.NewARCService(logger, httpClient, config)
-}
-
 func (f *servicesFixture) Services() WalletServicesFixture {
 	return f
 }
@@ -121,4 +110,8 @@ func (f *servicesFixture) NewServicesWithConfig(config defs.WalletServices) *ser
 	f.services = walletServices
 
 	return f.services
+}
+
+func (f *servicesFixture) Network() defs.BSVNetwork {
+	return f.network
 }

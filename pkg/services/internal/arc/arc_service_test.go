@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	arctestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -17,13 +18,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 	t.Run("broadcast without passing txid", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := arctestabilities.Given(t)
 
 		// setup arc server
 		given.ARC().IsUpAndRunning()
 
 		// and:
-		service := given.Services().NewArcService()
+		service := given.NewArcService()
 
 		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
@@ -41,9 +42,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDResultSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -52,13 +53,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 	t.Run("broadcast single transaction", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := arctestabilities.Given(t)
 
 		// setup arc server
 		given.ARC().IsUpAndRunning()
 
 		// and:
-		service := given.Services().NewArcService()
+		service := given.NewArcService()
 
 		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
@@ -77,9 +78,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDResultSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -88,13 +89,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 	t.Run("broadcast multiple txids", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := arctestabilities.Given(t)
 
 		// setup arc server
 		given.ARC().IsUpAndRunning()
 
 		// and:
-		service := given.Services().NewArcService()
+		service := given.NewArcService()
 
 		// and:
 		parentTx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
@@ -117,14 +118,14 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDResultSuccess,
 					TxID:   parentTx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(parentTxID),
 				},
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDResultSuccess,
 					TxID:   childTxID,
 					Data:   given.ARC().TxInfoJSON(childTxID),
 				},
@@ -133,14 +134,14 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 	t.Run("return success if broadcast finished with OK without body, but we can query the tx", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := arctestabilities.Given(t)
 
 		// setup arc server
 		given.ARC().IsUpAndRunning()
 		given.ARC().OnBroadcast().WillReturnNoBody()
 
 		// and:
-		service := given.Services().NewArcService()
+		service := given.NewArcService()
 
 		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
@@ -159,9 +160,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDResultSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -210,13 +211,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 	for name, test := range invalidBEEFTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given := testabilities.Given(t)
+			given := arctestabilities.Given(t)
 
 			// setup arc server
 			given.ARC().IsUpAndRunning()
 
 			// and:
-			service := given.Services().NewArcService()
+			service := given.NewArcService()
 
 			// when:
 			res, err := service.PostBEEF(context.Background(), test.BEEF(t), nil)
@@ -257,13 +258,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 	for name, test := range arcFailingTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given := testabilities.Given(t)
+			given := arctestabilities.Given(t)
 
 			// setup arc server
 			test.setupARC(given.ARC())
 
 			// and:
-			service := given.Services().NewArcService()
+			service := given.NewArcService()
 
 			// and:
 			tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
@@ -326,13 +327,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 	for name, test := range errorOnQueryTxTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given := testabilities.Given(t)
+			given := arctestabilities.Given(t)
 
 			// setup arc server
 			given.ARC().IsUpAndRunning()
 
 			// and:
-			service := given.Services().NewArcService()
+			service := given.NewArcService()
 
 			// and:
 			grandParentTx := txtestabilities.GivenTX().WithInput(300).WithP2PKHOutput(299).TX()
@@ -361,11 +362,11 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 			for _, resultForTxID := range res.TxIDResults {
 				if resultForTxID.TxID == parentTxID {
-					assert.Equal(t, wdk.ResultStatusError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
+					assert.Equal(t, wdk.PostedTxIDResultError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
 					assert.Empty(t, resultForTxID.Data, "expect result for (parentTx) tx %s to have no data", resultForTxID.TxID)
 					assert.Error(t, resultForTxID.Error, "expect result for (parentTx) tx %s to have an error", resultForTxID.TxID)
 				} else {
-					assert.Equal(t, wdk.ResultStatusSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
+					assert.Equal(t, wdk.PostedTxIDResultSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
 				}
 			}
 		})

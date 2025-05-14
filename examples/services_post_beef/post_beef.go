@@ -61,11 +61,11 @@ func main() {
 	for _, result := range results {
 		fmt.Println("===========================================================")
 		fmt.Printf("Service %s PostBEEF result:", result.Name)
-		if result.Error != nil {
+		if !result.Success() {
 			fmt.Println("	Error:", result.Error)
 		} else {
 			fmt.Println("	Success:")
-			for _, resultForTxID := range result.Success.TxIDResults {
+			for _, resultForTxID := range result.PostedBEEFResult.TxIDResults {
 				fmt.Println("		TX ID:", resultForTxID.TxID)
 				fmt.Println("		Result:	", resultForTxID.Result)
 				if resultForTxID.Result == "error" {
@@ -81,7 +81,7 @@ func main() {
 					fmt.Println("		Data:	", resultForTxID.Data)
 				}
 			}
-			fmt.Println("		Notes:", result.Success.Notes)
+			fmt.Println("		Notes:", result.PostedBEEFResult.Notes)
 		}
 	}
 

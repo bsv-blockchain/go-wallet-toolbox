@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -16,7 +16,7 @@ import (
 func TestPostBEEF(t *testing.T) {
 	t.Run("successfully post BEEF with single tx IDs", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
 		// and:
@@ -37,11 +37,11 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.ServicePostBEEF) {
+		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.Success) {
-				result := item.Success
+			if assert.NotNil(t, item.PostedBEEFResult) {
+				result := item.PostedBEEFResult
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
 			}
 		})
@@ -49,7 +49,7 @@ func TestPostBEEF(t *testing.T) {
 
 	t.Run("successfully post BEEF with multiple tx IDs", func(t *testing.T) {
 		// given:
-		given := testabilities.Given(t)
+		given := testabilities.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
 		// and:
@@ -74,11 +74,11 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.ServicePostBEEF) {
+		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.Success) {
-				result := item.Success
+			if assert.NotNil(t, item.PostedBEEFResult) {
+				result := item.PostedBEEFResult
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
 			}
 		})
