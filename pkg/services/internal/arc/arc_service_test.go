@@ -42,9 +42,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -78,9 +78,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -118,14 +118,14 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDSuccess,
 					TxID:   parentTx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(parentTxID),
 				},
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDSuccess,
 					TxID:   childTxID,
 					Data:   given.ARC().TxInfoJSON(childTxID),
 				},
@@ -160,9 +160,9 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		require.ElementsMatch(t,
 			res.TxIDResults,
-			[]wdk.PostTxID{
+			[]wdk.PostedTxID{
 				{
-					Result: wdk.ResultStatusSuccess,
+					Result: wdk.PostedTxIDSuccess,
 					TxID:   tx.TxID().String(),
 					Data:   given.ARC().TxInfoJSON(txID),
 				},
@@ -362,11 +362,11 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 			for _, resultForTxID := range res.TxIDResults {
 				if resultForTxID.TxID == parentTxID {
-					assert.Equal(t, wdk.ResultStatusError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
+					assert.Equal(t, wdk.PostedTxIDError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
 					assert.Empty(t, resultForTxID.Data, "expect result for (parentTx) tx %s to have no data", resultForTxID.TxID)
 					assert.Error(t, resultForTxID.Error, "expect result for (parentTx) tx %s to have an error", resultForTxID.TxID)
 				} else {
-					assert.Equal(t, wdk.ResultStatusSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
+					assert.Equal(t, wdk.PostedTxIDSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
 				}
 			}
 		})

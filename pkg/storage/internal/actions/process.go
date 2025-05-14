@@ -11,7 +11,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq"
 )
 
 type process struct {
@@ -49,16 +48,12 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		panic("not implemented yet")
 	}
 
-	res, err := p.broadcastSingleTx(ctx, string(*args.TxID))
+	_, err := p.broadcastSingleTx(ctx, string(*args.TxID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
-	// TODO: implement me correctly
-	if res == wdk.SendWithResultStatusFailed {
-		return nil, fmt.Errorf("failed to send transaction")
-	}
 
-	return nil, nil
+	return &wdk.ProcessActionResult{}, nil
 }
 
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
@@ -191,21 +186,17 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendW
 
 	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqStatusesForSourceTransactions)
 	if err != nil {
-		return "", fmt.Errorf("failed to build valid BEEF: %w", err)
+		return "", fmt.Errorf("failed to build valid PostedBEEF: %w", err)
 	}
 
 	// TODO: SPV of the beef
 
-	// _ = beef
 	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
 	if err != nil {
-		return "", fmt.Errorf("failed to post BEEF: %w", err)
+		return "", fmt.Errorf("failed to post PostedBEEF: %w", err)
 	}
 
-	// TODO: implement me correctly
-	hasSuccess := seq.Exists(seq.FromSlice(results), func(it *wdk.ServicePostBEEF) bool {
-		return it.Success != nil && it.Error == nil
-	})
+	hasSuccess := results.Success()
 	if !hasSuccess {
 		return wdk.SendWithResultStatusFailed, nil
 	}

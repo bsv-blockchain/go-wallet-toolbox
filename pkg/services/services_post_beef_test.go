@@ -14,7 +14,7 @@ import (
 )
 
 func TestPostBEEF(t *testing.T) {
-	t.Run("successfully post BEEF with single tx IDs", func(t *testing.T) {
+	t.Run("successfully post PostedBEEF with single tx IDs", func(t *testing.T) {
 		// given:
 		given := testabilities.GivenServices(t)
 		given.ARC().IsUpAndRunning()
@@ -37,17 +37,17 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.ServicePostBEEF) {
+		slices.ForEach(response, func(item *wdk.PostBeefSingleResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.Success) {
-				result := item.Success
+			if assert.NotNil(t, item.PostedBEEF) {
+				result := item.PostedBEEF
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
 			}
 		})
 	})
 
-	t.Run("successfully post BEEF with multiple tx IDs", func(t *testing.T) {
+	t.Run("successfully post PostedBEEF with multiple tx IDs", func(t *testing.T) {
 		// given:
 		given := testabilities.GivenServices(t)
 		given.ARC().IsUpAndRunning()
@@ -74,11 +74,11 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.ServicePostBEEF) {
+		slices.ForEach(response, func(item *wdk.PostBeefSingleResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.Success) {
-				result := item.Success
+			if assert.NotNil(t, item.PostedBEEF) {
+				result := item.PostedBEEF
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
 			}
 		})

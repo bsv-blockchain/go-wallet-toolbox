@@ -75,7 +75,7 @@ func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config)
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostBEEF, error) {
+func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
 	err := s.validateBEEF(beef)
 	if err != nil {
 		return nil, err
@@ -91,19 +91,19 @@ func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("failed to broadcast beef: %w", err)
 	}
 
-	var resultsForTxID iter.Seq[wdk.PostTxID]
+	var resultsForTxID iter.Seq[wdk.PostedTxID]
 	if response != nil {
 		resultsForTxID = s.getMissingTxIDResults(ctx, response, txIDs)
 	} else {
 		resultsForTxID = s.getTxIDResults(ctx, txIDs)
 	}
 
-	return &wdk.PostBEEF{
+	return &wdk.PostedBEEF{
 		TxIDResults: seq.Collect(resultsForTxID),
 	}, nil
 }
 
-func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[wdk.PostTxID] {
+func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[wdk.PostedTxID] {
 	txIDsWithMissingTxInfo := seq.Filter(seq.FromSlice(txIDs), func(txID string) bool {
 		return txInfo.TxID != txID
 	})
@@ -116,7 +116,7 @@ func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txI
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[wdk.PostTxID] {
+func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[wdk.PostedTxID] {
 	txIDsWithMissingTxInfo := seq.FromSlice(txIDs)
 
 	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
@@ -124,18 +124,18 @@ func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[w
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostTxID {
+func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {
 	if it.IsError() {
-		return wdk.PostTxID{
+		return wdk.PostedTxID{
 			TxID:   it.Name(),
-			Result: wdk.ResultStatusError,
+			Result: wdk.PostedTxIDError,
 			Error:  it.MustGetError(),
 		}
 	}
 	info := it.MustGetValue()
 
-	result := wdk.PostTxID{
-		Result:       wdk.ResultStatusSuccess,
+	result := wdk.PostedTxID{
+		Result:       wdk.PostedTxIDSuccess,
 		TxID:         it.Name(),
 		DoubleSpend:  info.TXStatus == DoubleSpendAttempted,
 		BlockHash:    info.BlockHash,
@@ -147,7 +147,7 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostTxID {
 		merklePath, err := transaction.NewMerklePathFromHex(info.MerklePath)
 		if err != nil {
 			result.Error = err
-			result.Result = wdk.ResultStatusError
+			result.Result = wdk.PostedTxIDError
 		} else {
 			result.MerklePath = merklePath
 		}
@@ -202,8 +202,8 @@ func (s *Service) getTransactionData(ctx context.Context, txID string) *internal
 }
 
 func toHex(beef *transaction.Beef) (string, error) {
-	// This is a temporary solution until go-sdk properly implements BEEF serialization
-	// It searches for the subject transaction in transaction.Beef and serializes this one to BEEF hex.
+	// This is a temporary solution until go-sdk properly implements PostedBEEF serialization
+	// It searches for the subject transaction in transaction.Beef and serializes this one to PostedBEEF hex.
 	// For now, it's not supporting more than one subject transaction.
 	idToTx := seq2.FromMap(beef.Transactions)
 
@@ -242,7 +242,7 @@ func toHex(beef *transaction.Beef) (string, error) {
 		return "", fmt.Errorf("expected to find subject tx %s in beef, but it was not found, this shouldn't ever happen", subjectTxs[0])
 	}
 
-	// Another temporary workaround until go-sdk properly implements BEEF serialization
+	// Another temporary workaround until go-sdk properly implements PostedBEEF serialization
 	tx, err := rebuildSubjectTx(subjectTx.Transaction, beef)
 	if err != nil {
 		return "", fmt.Errorf("failed to rebuild subject tx: %w", err)
@@ -250,7 +250,7 @@ func toHex(beef *transaction.Beef) (string, error) {
 
 	beefHex, err := tx.BEEFHex()
 	if err != nil {
-		return "", fmt.Errorf("failed to convert subject tx into BEEF hex: %w", err)
+		return "", fmt.Errorf("failed to convert subject tx into PostedBEEF hex: %w", err)
 	}
 	return beefHex, nil
 }

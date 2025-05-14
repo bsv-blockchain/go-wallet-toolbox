@@ -26,7 +26,7 @@ type WalletServices struct {
 	whatsonchain *whatsonchain.WhatsOnChain
 
 	rawTxServices    servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostBEEF]
+	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
 
 	// getMerklePathServices: ServiceCollection<sdk.GetMerklePathService>
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
@@ -59,7 +59,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, chain defs.BSVNetwork, c
 
 		postBEEFServices: servicequeue.NewQueue2(
 			logger,
-			"PostBEEF",
+			"PostedBEEF",
 			servicequeue.NewService2(arc.ServiceName, arcService.PostBEEF),
 		),
 	}
@@ -128,22 +128,22 @@ func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*wdk.ServicePostBEEF, error) {
+func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (wdk.PostBeefResult, error) {
 	res, err := s.postBEEFServices.All(ctx, beef, txids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
+		return nil, fmt.Errorf("failed to PostedBEEF: %w", err)
 	}
 
-	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostBEEF]) *wdk.ServicePostBEEF {
+	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostedBEEF]) *wdk.PostBeefSingleResult {
 		if it.IsError() {
-			return &wdk.ServicePostBEEF{
+			return &wdk.PostBeefSingleResult{
 				Name:  it.Name(),
 				Error: it.MustGetError(),
 			}
 		}
-		return &wdk.ServicePostBEEF{
-			Name:    it.Name(),
-			Success: it.MustGetValue(),
+		return &wdk.PostBeefSingleResult{
+			Name:       it.Name(),
+			PostedBEEF: it.MustGetValue(),
 		}
 	})
 

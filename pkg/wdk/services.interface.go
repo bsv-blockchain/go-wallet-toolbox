@@ -6,53 +6,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
-// ServicePostBEEF is the result of the PostBEEF method of the service.
-// It contains the name of the service that produce the result and the result itself.
-// The result could be either a success or an error.
-type ServicePostBEEF struct {
-	Name    string
-	Success *PostBEEF
-	Error   error
-}
-
-// PostBEEF is the success result of the single service PostBEEF method.
-type PostBEEF struct {
-	Notes
-	TxIDResults []PostTxID
-}
-
-// ResultStatus is the status of the result which can be either success or error.
-type ResultStatus string
-
-const (
-	// ResultStatusSuccess indicates that the result was a success.
-	ResultStatusSuccess ResultStatus = "success"
-	// ResultStatusError indicates that the result was an error.
-	ResultStatusError ResultStatus = "error"
-)
-
-// PostTxID is the struct representing postTX result for particular TxID
-type PostTxID struct {
-	Result ResultStatus
-	TxID   string
-	// AlreadyKnown if true, the transaction was already known to this service. Usually treat as a success.
-	// Potentially stop posting to additional transaction processors.
-	AlreadyKnown bool
-	// DoubleSpend is when service indicated this broadcast double spends at least one input
-	// `competingTxs` may be an array of txids that were first seen spends of at least one input.
-	DoubleSpend  bool
-	BlockHash    string
-	BlockHeight  int64
-	MerklePath   *transaction.MerklePath
-	CompetingTxs []string
-
-	Notes
-
-	Data  string
-	Error error
-}
-
 // Services defines an interface for handling 3rd party services
 type Services interface {
-	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) ([]*ServicePostBEEF, error)
+	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (PostBeefResult, error)
 }

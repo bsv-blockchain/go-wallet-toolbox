@@ -13,7 +13,7 @@ import (
 type broadcastRequestBody struct {
 	// Even though the name suggests that it is a raw transaction,
 	// it is actually a hex encoded transaction
-	// and can be in Raw, Extended Format or BEEF format.
+	// and can be in Raw, Extended Format or PostedBEEF format.
 	RawTx string `json:"rawTx"`
 }
 
