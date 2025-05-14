@@ -22,7 +22,6 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 	given := testabilities.Given(t)
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
-		WithServices().
 		GORM()
 
 	var createdTxReference string

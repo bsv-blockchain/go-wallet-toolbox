@@ -65,7 +65,7 @@ func main() {
 			fmt.Println("	Error:", result.Error)
 		} else {
 			fmt.Println("	Success:")
-			for _, resultForTxID := range result.PostedBEEF.TxIDResults {
+			for _, resultForTxID := range result.PostedBEEFResult.TxIDResults {
 				fmt.Println("		TX ID:", resultForTxID.TxID)
 				fmt.Println("		Result:	", resultForTxID.Result)
 				if resultForTxID.Result == "error" {
@@ -81,7 +81,7 @@ func main() {
 					fmt.Println("		Data:	", resultForTxID.Data)
 				}
 			}
-			fmt.Println("		Notes:", result.PostedBEEF.Notes)
+			fmt.Println("		Notes:", result.PostedBEEFResult.Notes)
 		}
 	}
 

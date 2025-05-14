@@ -19,7 +19,6 @@ func TestProcessActionHappyPath(t *testing.T) {
 	given := testabilities.Given(t)
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
-		WithServices().
 		GORM()
 
 	// and:
@@ -52,7 +51,6 @@ func TestProcessActionTwice(t *testing.T) {
 	given := testabilities.Given(t)
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
-		WithServices().
 		GORM()
 
 	// and:
@@ -121,7 +119,6 @@ func TestProcessActionErrorCases(t *testing.T) {
 			given := testabilities.Given(t)
 			activeStorage := given.Provider().
 				WithRandomizer(randomizer.NewTestRandomizer()).
-				WithServices().
 				GORM()
 
 			// and:

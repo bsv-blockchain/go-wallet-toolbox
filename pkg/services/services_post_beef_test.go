@@ -37,11 +37,11 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.PostBeefSingleResult) {
+		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.PostedBEEF) {
-				result := item.PostedBEEF
+			if assert.NotNil(t, item.PostedBEEFResult) {
+				result := item.PostedBEEFResult
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
 			}
 		})
@@ -74,11 +74,11 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.PostBeefSingleResult) {
+		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.PostedBEEF) {
-				result := item.PostedBEEF
+			if assert.NotNil(t, item.PostedBEEFResult) {
+				result := item.PostedBEEFResult
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
 			}
 		})

@@ -21,7 +21,6 @@ type ProviderFixture interface {
 	WithCommission(commission defs.Commission) ProviderFixture
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
-	WithServices() ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -43,7 +42,6 @@ type providerFixture struct {
 }
 
 func (p *providerFixture) WithNetwork(network defs.BSVNetwork) ProviderFixture {
-	require.Nil(p.t, p.services, "please configure network before services")
 	p.network = network
 	return p
 }
@@ -63,7 +61,7 @@ func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixt
 	return p
 }
 
-func (p *providerFixture) WithServices() ProviderFixture {
+func (p *providerFixture) withServices() ProviderFixture {
 	p.servicesFixture = testabilities.GivenServicesWithNetwork(p.t, p.network)
 
 	p.servicesFixture.ARC().IsUpAndRunning()
@@ -83,6 +81,7 @@ func (p *providerFixture) GORM() *storage.Provider {
 
 func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.t.Helper()
+	p.withServices()
 
 	storageIdentityKey, err := wdk.IdentityKey(fixtures.StorageServerPrivKey)
 	p.require.NoError(err)

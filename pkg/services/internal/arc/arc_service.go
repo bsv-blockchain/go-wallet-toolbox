@@ -132,14 +132,14 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {
 	if it.IsError() {
 		return wdk.PostedTxID{
 			TxID:   it.Name(),
-			Result: wdk.PostedTxIDError,
+			Result: wdk.PostedTxIDResultError,
 			Error:  it.MustGetError(),
 		}
 	}
 	info := it.MustGetValue()
 
 	result := wdk.PostedTxID{
-		Result:       wdk.PostedTxIDSuccess,
+		Result:       wdk.PostedTxIDResultSuccess,
 		TxID:         it.Name(),
 		DoubleSpend:  info.TXStatus == DoubleSpendAttempted,
 		BlockHash:    info.BlockHash,
@@ -151,7 +151,7 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {
 		merklePath, err := transaction.NewMerklePathFromHex(info.MerklePath)
 		if err != nil {
 			result.Error = err
-			result.Result = wdk.PostedTxIDError
+			result.Result = wdk.PostedTxIDResultError
 		} else {
 			result.MerklePath = merklePath
 		}

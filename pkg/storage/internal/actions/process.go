@@ -198,6 +198,11 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendW
 		return "", fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
+	if !results.Success() {
+		// TODO: temporary
+		return wdk.SendWithResultStatusFailed, fmt.Errorf("failed to post BEEF: %v", results)
+	}
+
 	_ = results // TODO postprocess results
 	return wdk.SendWithResultStatusSending, nil
 }
