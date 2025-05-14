@@ -26,6 +26,44 @@ type AggregatedPostedTxID struct {
 // AggregatedPostBEEF is a map of AggregatedPostedTxID results, indexed by txid
 type AggregatedPostBEEF map[string]*AggregatedPostedTxID
 
+func (a AggregatedPostBEEF) getOrDefault(txid string) *AggregatedPostedTxID {
+	if agg, ok := a[txid]; ok {
+		return agg
+	}
+
+	agg := &AggregatedPostedTxID{
+		TxID:         txid,
+		CompetingTxs: make(map[string]struct{}),
+	}
+	a[txid] = agg
+
+	return agg
+}
+
+func (a AggregatedPostBEEF) summarize(txID string) {
+	agg, ok := a[txID]
+	if !ok {
+		agg = &AggregatedPostedTxID{
+			TxID:         txID,
+			CompetingTxs: make(map[string]struct{}),
+			Status:       AggregatedPostedTxIDServiceError,
+		}
+		a[txID] = agg
+		return
+	}
+
+	switch {
+	case agg.DoubleSpendCount > 0:
+		agg.Status = AggregatedPostedTxIDDoubleSpend
+	case agg.SuccessCount > 0:
+		agg.Status = AggregatedPostedTxIDSuccess
+	case agg.ServiceErrorCount > 0:
+		agg.Status = AggregatedPostedTxIDServiceError
+	default:
+		agg.Status = AggregatedPostedTxIDInvalidTx
+	}
+}
+
 func newAggregatedPostBEEF(results PostBeefResult, txids []string) AggregatedPostBEEF {
 	aggregatedTxs := make(AggregatedPostBEEF)
 
@@ -45,16 +83,7 @@ func newAggregatedPostBEEF(results PostBeefResult, txids []string) AggregatedPos
 				continue
 			}
 
-			var agg *AggregatedPostedTxID
-			if existing, ok := aggregatedTxs[txid]; ok {
-				agg = existing
-			} else {
-				agg = &AggregatedPostedTxID{
-					TxID:         txid,
-					CompetingTxs: make(map[string]struct{}),
-				}
-				aggregatedTxs[txid] = agg
-			}
+			agg := aggregatedTxs.getOrDefault(txid)
 
 			agg.TxIDResults = append(agg.TxIDResults, txIDResult)
 
@@ -75,26 +104,7 @@ func newAggregatedPostBEEF(results PostBeefResult, txids []string) AggregatedPos
 	}
 
 	for _, txid := range txids {
-		agg, ok := aggregatedTxs[txid]
-		if !ok {
-			agg = &AggregatedPostedTxID{
-				TxID:         txid,
-				CompetingTxs: make(map[string]struct{}),
-				Status:       AggregatedPostedTxIDServiceError,
-			}
-			aggregatedTxs[txid] = agg
-		} else {
-			switch {
-			case agg.DoubleSpendCount > 0:
-				agg.Status = AggregatedPostedTxIDDoubleSpend
-			case agg.SuccessCount > 0:
-				agg.Status = AggregatedPostedTxIDSuccess
-			case agg.ServiceErrorCount > 0:
-				agg.Status = AggregatedPostedTxIDServiceError
-			default:
-				agg.Status = AggregatedPostedTxIDInvalidTx
-			}
-		}
+		aggregatedTxs.summarize(txid)
 	}
 
 	return aggregatedTxs
