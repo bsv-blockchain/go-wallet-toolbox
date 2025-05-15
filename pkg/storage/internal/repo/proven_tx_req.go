@@ -64,7 +64,7 @@ func updateProvenTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus
 	model.Status = status
 	model.AddNote(time.Now(), historyNote, historyAttrs)
 
-	return db.Where("tx_id", txID).Updates(&model).Error
+	return db.Where("tx_id = ?", txID).Updates(&model).Error
 }
 
 func (p *ProvenTxReq) FindProvenTxRawTX(ctx context.Context, txID string) ([]byte, error) {
