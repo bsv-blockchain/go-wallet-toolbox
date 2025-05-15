@@ -3,7 +3,7 @@ package testabilities
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
 )

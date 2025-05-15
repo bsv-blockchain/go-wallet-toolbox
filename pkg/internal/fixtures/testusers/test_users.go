@@ -37,11 +37,24 @@ func (u User) AuthID() wdk.AuthID {
 
 func (u User) PubKey(t *testing.T) string {
 	t.Helper()
+	return u.PublicKey(t).ToDERHex()
+}
+
+func (u User) PrivateKey(t *testing.T) *primitives.PrivateKey {
+	t.Helper()
+
+	priv, err := primitives.PrivateKeyFromHex(u.PrivKey)
+	require.NoError(t, err)
+	return priv
+}
+
+func (u User) PublicKey(t *testing.T) *primitives.PublicKey {
+	t.Helper()
 
 	priv, err := primitives.PrivateKeyFromHex(u.PrivKey)
 	require.NoError(t, err)
 
-	return priv.PubKey().ToDERHex()
+	return priv.PubKey()
 }
 
 func All() []*User {
