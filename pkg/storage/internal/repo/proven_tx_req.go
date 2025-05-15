@@ -53,6 +53,19 @@ func upsertProvenTxReq(db *gorm.DB, req *entity.UpsertProvenTxReq, historyNote s
 	return db.Save(&model).Error
 }
 
+func updateProvenTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus, historyNote string, historyAttrs map[string]any) error {
+	var model models.ProvenTxReq
+	err := db.Model(&model).Select("status", "history").First(&model, "tx_id = ? ", txID).Error
+	if err != nil {
+		return fmt.Errorf("cannot update proven tx status: %w", err)
+	}
+
+	model.Status = status
+	model.AddNote(time.Now(), historyNote, historyAttrs)
+
+	return db.Where("tx_id", txID).Updates(&model).Error
+}
+
 func (p *ProvenTxReq) FindProvenTxRawTX(ctx context.Context, txID string) ([]byte, error) {
 	var model models.ProvenTxReq
 	err := p.db.WithContext(ctx).

@@ -28,6 +28,14 @@ type TransactionsRepo interface {
 		historyNote string,
 		historyAttrs map[string]any,
 	) error
+	UpdateTransactionStatusForTxID(
+		ctx context.Context,
+		txID string,
+		txStatus wdk.TxStatus,
+		provenTxReqStatus wdk.ProvenTxReqStatus,
+		historyNote string,
+		historyAttrs map[string]any,
+	) error
 }
 
 type ProvenTxRepo interface {

@@ -97,11 +97,7 @@ func TestProcessActionTwice(t *testing.T) {
 	assert.Equal(t, txID, string(sendWithResult.TxID))
 	assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
 
-	require.Len(t, result.NotDelayedResults, 1)
-	reviewActionResult := result.NotDelayedResults[0]
-	assert.Equal(t, txID, string(reviewActionResult.TxID))
-	assert.Equal(t, wdk.ReviewActionResultStatusSuccess, reviewActionResult.Status)
-	assert.Empty(t, reviewActionResult.CompetingTxs)
+	require.Len(t, result.NotDelayedResults, 0)
 }
 
 func TestProcessActionErrorCases(t *testing.T) {
