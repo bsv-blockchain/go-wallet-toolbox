@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/history"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seq"
 )
 
 type process struct {
@@ -53,9 +56,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
 	}
 
-	// TODO: Build and return ProcessActionResult
-
-	return &wdk.ProcessActionResult{}, nil
+	return p.broadcastSingleTx(ctx, string(*args.TxID))
 }
 
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
@@ -176,35 +177,45 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return
 }
 
-func (p *process) broadcastSingleTx(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
+func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.ProcessActionResult, error) {
 	sendStatus, err := p.getSendStatus(ctx, txID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if sendStatus != wdk.SendWithResultStatusSending {
-		return sendStatus, nil
+		return &wdk.ProcessActionResult{
+			SendWithResults: []wdk.SendWithResult{
+				{
+					TxID:   primitives.TXIDHexString(txID),
+					Status: sendStatus,
+				},
+			},
+		}, nil
 	}
 
 	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqStatusesForSourceTransactions)
 	if err != nil {
-		return "", fmt.Errorf("failed to build valid BEEF: %w", err)
+		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
 	// TODO: SPV of the beef
 
 	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
 	if err != nil {
-		return "", fmt.Errorf("failed to post BEEF: %w", err)
+		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	if !results.Success() {
-		// TODO: temporary
-		return wdk.SendWithResultStatusFailed, fmt.Errorf("failed to post BEEF: %v", results)
+	newReqStatus, newTxStatus, result, err := p.processBroadcastSingleTxResult(results, txID)
+	if err != nil {
+		return nil, err
 	}
 
-	_ = results // TODO postprocess results
-	return wdk.SendWithResultStatusSending, nil
+	// TODO: Update tx and provenTxReq records in the database
+	_ = newReqStatus
+	_ = newTxStatus
+
+	return &result, nil
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
@@ -225,4 +236,59 @@ func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithR
 	default:
 		return "", fmt.Errorf("unknown broadcast status")
 	}
+}
+
+func (p *process) processBroadcastSingleTxResult(broadcastResults wdk.PostBeefResult, txID string) (
+	reqStatus wdk.ProvenTxReqStatus,
+	txStatus wdk.TxStatus,
+	result wdk.ProcessActionResult,
+	err error,
+) {
+	aggregated := broadcastResults.Aggregated([]string{txID})
+	aggBroadcastResult, ok := aggregated[txID]
+	if !ok {
+		err = fmt.Errorf("failed to find aggregated result for txID %s", txID)
+		return
+	}
+
+	reviewActionResult := wdk.ReviewActionResult{
+		TxID: primitives.TXIDHexString(txID),
+	}
+
+	sendWithResult := wdk.SendWithResult{
+		TxID: primitives.TXIDHexString(txID),
+	}
+
+	switch aggBroadcastResult.Status {
+	case wdk.AggregatedPostedTxIDSuccess:
+		reqStatus = wdk.ProvenTxStatusUnmined
+		txStatus = wdk.TxStatusUnproven
+		sendWithResult.Status = wdk.SendWithResultStatusUnproven
+		reviewActionResult.Status = wdk.ReviewActionResultStatusSuccess
+	case wdk.AggregatedPostedTxIDDoubleSpend:
+		reqStatus = wdk.ProvenTxStatusDoubleSpend
+		txStatus = wdk.TxStatusFailed
+		sendWithResult.Status = wdk.SendWithResultStatusFailed
+		reviewActionResult.Status = wdk.ReviewActionResultStatusDoubleSpend
+		reviewActionResult.CompetingTxs = seq.Collect(maps.Keys(aggBroadcastResult.CompetingTxs))
+		//TODO: Build reviewActionResult.CompetingBeef
+	case wdk.AggregatedPostedTxIDInvalidTx:
+		reqStatus = wdk.ProvenTxStatusInvalid
+		txStatus = wdk.TxStatusFailed
+		sendWithResult.Status = wdk.SendWithResultStatusFailed
+		reviewActionResult.Status = wdk.ReviewActionResultStatusInvalidTx
+	case wdk.AggregatedPostedTxIDServiceError:
+		// TODO: check if it's ok - in TS there is also req.attempts++ - but I don't know how to do it here
+		reqStatus = wdk.ProvenTxStatusSending
+		txStatus = wdk.TxStatusSending
+		sendWithResult.Status = wdk.SendWithResultStatusSending
+		reviewActionResult.Status = wdk.ReviewActionResultStatusServiceError
+	default:
+		err = fmt.Errorf("unknown AggregatedPostedTxIDStatus %s", aggBroadcastResult.Status)
+	}
+
+	result.SendWithResults = []wdk.SendWithResult{sendWithResult}
+	result.NotDelayedResults = []wdk.ReviewActionResult{reviewActionResult}
+
+	return
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -144,10 +145,21 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		}
 
 		// when:
-		_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+		result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
 
 		// then:
 		require.NoError(t, err)
+
+		require.Len(t, result.SendWithResults, 1)
+		sendWithResult := result.SendWithResults[0]
+		assert.Equal(t, txID, string(sendWithResult.TxID))
+		assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
+
+		require.Len(t, result.NotDelayedResults, 1)
+		reviewActionResult := result.NotDelayedResults[0]
+		assert.Equal(t, txID, string(reviewActionResult.TxID))
+		assert.Equal(t, wdk.ReviewActionResultStatusSuccess, reviewActionResult.Status)
+		assert.Empty(t, reviewActionResult.CompetingTxs)
 	})
 }
 

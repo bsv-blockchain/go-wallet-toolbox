@@ -22,6 +22,8 @@ type ProviderFixture interface {
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
 
+	ARC() testabilities.ARCFixture
+
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
 }
@@ -70,6 +72,14 @@ func (p *providerFixture) withServices() ProviderFixture {
 	return p
 }
 
+func (p *providerFixture) ARC() testabilities.ARCFixture {
+	p.t.Helper()
+	if p.servicesFixture == nil {
+		p.t.Fatal("ARC() called without setting up services fixture")
+	}
+
+	return p.servicesFixture.ARC()
+}
 func (p *providerFixture) GORM() *storage.Provider {
 	p.t.Helper()
 	provider := p.GORMWithCleanDatabase()

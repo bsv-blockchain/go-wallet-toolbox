@@ -18,6 +18,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
 )
 
@@ -138,10 +139,11 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {
 	}
 	info := it.MustGetValue()
 
+	doubleSpend := info.TXStatus == DoubleSpendAttempted
 	result := wdk.PostedTxID{
-		Result:       wdk.PostedTxIDResultSuccess,
+		Result:       to.IfThen(doubleSpend, wdk.PostedTxIDResultError).ElseThen(wdk.PostedTxIDResultSuccess),
 		TxID:         it.Name(),
-		DoubleSpend:  info.TXStatus == DoubleSpendAttempted,
+		DoubleSpend:  doubleSpend,
 		BlockHash:    info.BlockHash,
 		BlockHeight:  info.BlockHeight,
 		CompetingTxs: info.CompetingTxs,

@@ -15,6 +15,11 @@ func (it PostBeefResult) Success() bool {
 	})
 }
 
+// Aggregated gets results from all services and aggregates them by txid, calculating status and counts.
+func (it PostBeefResult) Aggregated(txids []string) AggregatedPostBEEF {
+	return newAggregatedPostBEEF(it, txids)
+}
+
 // PostBEEFServiceResult is the result of the PostBEEF method of a single service.
 // It contains the name of the service that produced the result and the result itself.
 // The result could be either a success or an error.
