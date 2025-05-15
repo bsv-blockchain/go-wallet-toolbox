@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.1.25
+	github.com/bsv-blockchain/go-sdk v1.1.26
 	github.com/bsv-blockchain/universal-test-vectors v0.5.0
 	github.com/filecoin-project/go-jsonrpc v0.8.0
 	github.com/go-resty/resty/v2 v2.16.5
