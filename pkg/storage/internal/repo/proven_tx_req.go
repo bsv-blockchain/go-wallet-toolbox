@@ -60,6 +60,7 @@ func updateProvenTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus
 		return fmt.Errorf("cannot update proven tx status: %w", err)
 	}
 
+	historyAttrs["oldStatus"] = model.Status
 	model.Status = status
 	model.AddNote(time.Now(), historyNote, historyAttrs)
 

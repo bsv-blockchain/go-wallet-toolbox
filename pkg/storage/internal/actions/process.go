@@ -214,20 +214,22 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, err
 	}
 
-	notes := map[string]any{
+	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, history.AggregateResultsHistoryNote, p.noteForAggregation(aggBroadcastResult))
+	if err != nil {
+		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (p *process) noteForAggregation(aggBroadcastResult *wdk.AggregatedPostedTxID) map[string]any {
+	return map[string]any{
 		"aggStatus":         aggBroadcastResult.Status,
 		"successCount":      aggBroadcastResult.SuccessCount,
 		"doubleSpendCount":  aggBroadcastResult.DoubleSpendCount,
 		"statusErrorCount":  aggBroadcastResult.StatusErrorCount,
 		"serviceErrorCount": aggBroadcastResult.ServiceErrorCount,
 	}
-
-	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, history.AggregateResultsHistoryNote, notes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-	}
-
-	return &result, nil
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
