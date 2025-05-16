@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"

@@ -9,6 +9,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
@@ -18,7 +19,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/server"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/dbfixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
