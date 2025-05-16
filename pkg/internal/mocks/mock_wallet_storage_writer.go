@@ -86,6 +86,21 @@ func (mr *MockWalletStorageWriterMockRecorder) InsertCertificateAuth(ctx, auth, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCertificateAuth", reflect.TypeOf((*MockWalletStorageWriter)(nil).InsertCertificateAuth), ctx, auth, certificate)
 }
 
+// InternalizeAction mocks base method.
+func (m *MockWalletStorageWriter) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InternalizeAction", ctx, auth, args)
+	ret0, _ := ret[0].(*wdk.InternalizeActionResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InternalizeAction indicates an expected call of InternalizeAction.
+func (mr *MockWalletStorageWriterMockRecorder) InternalizeAction(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InternalizeAction", reflect.TypeOf((*MockWalletStorageWriter)(nil).InternalizeAction), ctx, auth, args)
+}
+
 // ListCertificates mocks base method.
 func (m *MockWalletStorageWriter) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	m.ctrl.T.Helper()
@@ -129,6 +144,21 @@ func (m *MockWalletStorageWriter) Migrate(ctx context.Context, storageName, stor
 func (mr *MockWalletStorageWriterMockRecorder) Migrate(ctx, storageName, storageIdentityKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Migrate", reflect.TypeOf((*MockWalletStorageWriter)(nil).Migrate), ctx, storageName, storageIdentityKey)
+}
+
+// ProcessAction mocks base method.
+func (m *MockWalletStorageWriter) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessAction", ctx, auth, args)
+	ret0, _ := ret[0].(*wdk.ProcessActionResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProcessAction indicates an expected call of ProcessAction.
+func (mr *MockWalletStorageWriterMockRecorder) ProcessAction(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessAction", reflect.TypeOf((*MockWalletStorageWriter)(nil).ProcessAction), ctx, auth, args)
 }
 
 // RelinquishCertificate mocks base method.
