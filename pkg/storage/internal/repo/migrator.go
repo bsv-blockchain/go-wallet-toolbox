@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database/models"
 	"gorm.io/gorm"
@@ -27,6 +28,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.Transaction{},
 		models.Output{},
 		models.ProvenTxReq{},
+		gormlock.CronJobLock{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate settings: %w", err)

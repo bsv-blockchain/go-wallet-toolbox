@@ -10,9 +10,9 @@ import (
 type ProviderOption func(*providerOptions)
 
 type providerOptions struct {
-	gormDB     *gorm.DB
-	funder     actions.Funder
-	randomizer wdk.Randomizer
+	gormDB         *gorm.DB
+	funder         actions.Funder
+	randomizer     wdk.Randomizer
 }
 
 // WithGORM sets the GORM database for the provider.

@@ -70,6 +70,12 @@ func NewServer(opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to migrate storage: %w", err)
 	}
 
+	if cfg.Monitor.Enabled {
+		if err = activeStorage.Monitor.Start(cfg.Monitor.Tasks); err != nil {
+			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
+		}
+	}
+
 	return &Server{
 		Config: cfg,
 
