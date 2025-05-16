@@ -67,6 +67,12 @@ func Defaults() Config {
 // OnPostLoad is called after the configuration is loaded
 func (c *Config) OnPostLoad() error {
 	c.Services.Chain = c.BSVNetwork
+
+	// if testnet selected - switch to testnet-ARC if default config points to mainnet-ARC
+	if c.BSVNetwork == defs.NetworkTestnet && c.Services.ArcConfig.URL == defs.ArcURL {
+		c.Services.ArcConfig.URL = defs.ArcTestURL
+		c.Services.ArcConfig.Token = defs.ArcTestToken
+	}
 	return nil
 }
 
