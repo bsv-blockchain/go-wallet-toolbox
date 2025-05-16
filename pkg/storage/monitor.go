@@ -1,14 +1,13 @@
-package monitor
+package storage
 
 import (
 	"fmt"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/monitor/internal/tasks"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/tasks"
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
-	"github.com/go-softwarelab/common/pkg/must"
 	"gorm.io/gorm"
 	"log/slog"
 	"time"
@@ -19,7 +18,12 @@ import (
 type Daemon struct {
 	scheduler   gocron.Scheduler
 	logger      *slog.Logger
-	activeTasks map[defs.MonitorTask]tasks.TaskInterface
+	activeTasks map[defs.MonitorTask]*ActiveTask
+}
+
+type ActiveTask struct {
+	Instance tasks.TaskInterface
+	Cronjob  gocron.Job
 }
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
@@ -40,16 +44,16 @@ func NewDaemonWithGORMLocker(logger *slog.Logger, db *gorm.DB) (*Daemon, error) 
 	}
 
 	return &Daemon{
-		scheduler: scheduler,
-		logger:    logging.Child(logger, "monitor"),
-		activeTasks: make(map[defs.MonitorTask]tasks.TaskInterface),
+		scheduler:   scheduler,
+		logger:      logging.Child(logger, "monitor"),
+		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 	}, nil
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
-func (d *Daemon) Start(monitor map[defs.MonitorTask]defs.TaskConfig) error {
-	for taskName, taskConfig := range monitor {
-		if err := d.initializeTask(taskName, taskConfig); err != nil {
+func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
+	for taskName, taskInterval := range tasksToStart {
+		if err := d.initializeTask(taskName, taskInterval); err != nil {
 			return err
 		}
 	}
@@ -58,25 +62,23 @@ func (d *Daemon) Start(monitor map[defs.MonitorTask]defs.TaskConfig) error {
 	return nil
 }
 
+func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
+	task, ok := d.activeTasks[name]
+	return task, ok
+}
+
 // initializeTask initializes and schedules a single monitoring task.
-func (d *Daemon) initializeTask(taskName defs.MonitorTask, taskConfig defs.TaskConfig) error {
+func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duration) error {
 	taskCreator, ok := tasks.All[taskName]
 	if !ok {
 		d.logger.Warn("Provided unknown task name. Skipping.", slog.Any("task", taskName))
 		return nil
 	}
 
-	if !taskConfig.Enabled {
-		d.logger.Debug("Task is disabled", slog.Any("task", taskName))
-		return nil
-	}
-
 	taskInstance := taskCreator(d.logger)
-	d.activeTasks[taskName] = taskInstance
 
-	intervalDuration := time.Duration(must.ConvertToInt64FromUnsigned(taskConfig.IntervalSeconds)) * time.Second
-	_, err := d.scheduler.NewJob(
-		gocron.DurationJob(intervalDuration),
+	job, err := d.scheduler.NewJob(
+		gocron.DurationJob(interval),
 		gocron.NewTask(func() { taskInstance.Run() }),
 		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
 	)
@@ -84,6 +86,11 @@ func (d *Daemon) initializeTask(taskName defs.MonitorTask, taskConfig defs.TaskC
 		return fmt.Errorf("failed to create job %s: %w", taskName, err)
 	}
 
-	d.logger.Info("Starting a task", slog.Any("task", taskName), slog.Any("interval", intervalDuration))
+	d.activeTasks[taskName] = &ActiveTask{
+		Instance: taskInstance,
+		Cronjob:  job,
+	}
+	
+	d.logger.Info("Starting a task", slog.Any("task", taskName), slog.Any("interval", interval))
 	return nil
 }

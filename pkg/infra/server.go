@@ -71,7 +71,7 @@ func NewServer(opts ...InitOption) (*Server, error) {
 	}
 
 	if cfg.Monitor.Enabled {
-		if err = activeStorage.Monitor.Start(cfg.Monitor.Tasks); err != nil {
+		if err = activeStorage.Monitor.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
 			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
 		}
 	}

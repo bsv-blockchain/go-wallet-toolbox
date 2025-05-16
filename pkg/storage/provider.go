@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/monitor"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -22,7 +21,7 @@ import (
 // Provider is a storage provider.
 type Provider struct {
 	Chain   defs.BSVNetwork
-	Monitor *monitor.Daemon
+	Monitor *Daemon
 
 	settings *wdk.TableSettings
 	repo     *repo.Repositories
@@ -71,7 +70,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		logger.Warn("services is not set, some actions may not work")
 	}
 
-	daemon, err := monitor.NewDaemonWithGORMLocker(logger, db.DB)
+	daemon, err := NewDaemonWithGORMLocker(logger, db.DB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create daemon: %w", err)
 	}
@@ -79,7 +78,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 	return &Provider{
 		Chain:   config.Chain,
 		Monitor: daemon,
-		
+
 		repo:    repos,
 		actions: actions.New(logger, funder, config.Commission, repos, random, config.Services),
 	}, nil

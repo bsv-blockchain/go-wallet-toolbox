@@ -113,10 +113,10 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	}
 }
 
-func (p *storageFixture) ActionCreatedAndSinged(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
+func (s *storageFixture) ActionCreatedAndSinged(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
 	ctx := context.Background()
 	internalizeArgs := wdk.InternalizeActionArgs{
-		Tx: tsgenerated.AtomicBeefToInternalize(p.t),
+		Tx: tsgenerated.AtomicBeefToInternalize(s.t),
 		Outputs: []*wdk.InternalizeOutput{
 			{
 				OutputIndex: 0,
@@ -135,7 +135,7 @@ func (p *storageFixture) ActionCreatedAndSinged(activeStorage *storage.Provider)
 	user := testusers.Alice
 
 	_, err := activeStorage.InternalizeAction(ctx, user.AuthID(), internalizeArgs)
-	require.NoError(p.t, err)
+	require.NoError(s.t, err)
 
 	args := wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
@@ -174,9 +174,9 @@ func (p *storageFixture) ActionCreatedAndSinged(activeStorage *storage.Provider)
 		args,
 	)
 
-	require.NoError(p.t, err)
+	require.NoError(s.t, err)
 
-	return result, tsgenerated.SignedTransaction(p.t)
+	return result, tsgenerated.SignedTransaction(s.t)
 }
 
 func Given(t testing.TB) StorageFixture {
