@@ -24,8 +24,16 @@ func (c *WalletStorageWriterClient) FindOrInsertUser(ctx context.Context, identi
 	return c.client.FindOrInsertUser(ctx, identityKey)
 }
 
+func (c *WalletStorageWriterClient) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	return c.client.InternalizeAction(ctx, auth, args)
+}
+
 func (c *WalletStorageWriterClient) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	return c.client.CreateAction(ctx, auth, args)
+}
+
+func (c *WalletStorageWriterClient) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	return c.client.ProcessAction(ctx, auth, args)
 }
 
 func (c *WalletStorageWriterClient) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
@@ -44,7 +52,9 @@ type rpcWalletStorageWriter struct {
 	Migrate               func(context.Context, string, string) (string, error)
 	MakeAvailable         func(context.Context) (*wdk.TableSettings, error)
 	FindOrInsertUser      func(context.Context, string) (*wdk.FindOrInsertUserResponse, error)
+	InternalizeAction     func(context.Context, wdk.AuthID, wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error)
 	CreateAction          func(context.Context, wdk.AuthID, wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
+	ProcessAction         func(context.Context, wdk.AuthID, wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error)
 	InsertCertificateAuth func(context.Context, wdk.AuthID, *wdk.TableCertificateX) (uint, error)
 	RelinquishCertificate func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
 	ListCertificates      func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
