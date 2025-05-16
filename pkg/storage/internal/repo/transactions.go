@@ -245,11 +245,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 	historyAttrs map[string]any,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = tx.Model(models.Transaction{}).
-			Where("tx_id = ?", txID).
-			Updates(map[string]any{
-				"status": txStatus,
-			}).Error
+		err = updateTransactionStatus(tx, txID, txStatus)
 		if err != nil {
 			return err
 		}
@@ -260,6 +256,14 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
 	return nil
+}
+
+func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
+	return tx.Model(models.Transaction{}).
+		Where("tx_id = ?", txID).
+		Updates(map[string]any{
+			"status": txStatus,
+		}).Error
 }
 
 func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *wdk.TableTransaction {
