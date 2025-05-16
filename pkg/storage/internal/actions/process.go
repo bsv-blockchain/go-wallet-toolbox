@@ -51,11 +51,6 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		panic("not implemented yet")
 	}
 
-	_, err := p.broadcastSingleTx(ctx, string(*args.TxID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to broadcast transaction: %w", err)
-	}
-
 	return p.broadcastSingleTx(ctx, string(*args.TxID))
 }
 
@@ -206,16 +201,35 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	newReqStatus, newTxStatus, result, err := p.processBroadcastSingleTxResult(results, txID)
+	// TODO: Store notes from PostBEEF result
+
+	aggregated := results.Aggregated([]string{txID})
+	aggBroadcastResult, ok := aggregated[txID]
+	if !ok {
+		return nil, fmt.Errorf("failed to find aggregated result for txID %s", txID)
+	}
+
+	newReqStatus, newTxStatus, result, err := p.processBroadcastSingleTxResult(aggBroadcastResult, txID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Update tx and provenTxReq records in the database
-	_ = newReqStatus
-	_ = newTxStatus
+	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, history.AggregateResultsHistoryNote, p.noteForAggregation(aggBroadcastResult))
+	if err != nil {
+		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+	}
 
 	return &result, nil
+}
+
+func (p *process) noteForAggregation(aggBroadcastResult *wdk.AggregatedPostedTxID) map[string]any {
+	return map[string]any{
+		"aggStatus":         aggBroadcastResult.Status,
+		"successCount":      aggBroadcastResult.SuccessCount,
+		"doubleSpendCount":  aggBroadcastResult.DoubleSpendCount,
+		"statusErrorCount":  aggBroadcastResult.StatusErrorCount,
+		"serviceErrorCount": aggBroadcastResult.ServiceErrorCount,
+	}
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
@@ -238,19 +252,12 @@ func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithR
 	}
 }
 
-func (p *process) processBroadcastSingleTxResult(broadcastResults wdk.PostBeefResult, txID string) (
+func (p *process) processBroadcastSingleTxResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
 	result wdk.ProcessActionResult,
 	err error,
 ) {
-	aggregated := broadcastResults.Aggregated([]string{txID})
-	aggBroadcastResult, ok := aggregated[txID]
-	if !ok {
-		err = fmt.Errorf("failed to find aggregated result for txID %s", txID)
-		return
-	}
-
 	reviewActionResult := wdk.ReviewActionResult{
 		TxID: primitives.TXIDHexString(txID),
 	}
