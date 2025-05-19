@@ -33,6 +33,8 @@ func (t *TaskConfig) Interval() time.Duration {
 }
 
 // TasksConfig is a map of monitoring tasks with their configuration parameters
+// This is a struct that contains fields for each MonitorTask/
+// Make sure each field has a mapstructure tag that matches the MonitorTask enum value.
 type TasksConfig struct {
 	CheckForProofs TaskConfig `mapstructure:"check_for_proofs"`
 }
@@ -40,8 +42,13 @@ type TasksConfig struct {
 // All returns a map where each MonitorTask key is paired with its corresponding TaskConfig from the TasksConfig struct.
 func (t *TasksConfig) All() map[MonitorTask]TaskConfig {
 	result := make(map[MonitorTask]TaskConfig)
+	if t == nil {
+		return result
+	}
+
 	val := reflect.ValueOf(t).Elem()
 	typ := val.Type()
+	taskConfigType := reflect.TypeOf(TaskConfig{})
 
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
@@ -49,14 +56,15 @@ func (t *TasksConfig) All() map[MonitorTask]TaskConfig {
 		if name == "" {
 			panic(fmt.Sprintf("missing mapstructure tag for field %s", field.Name))
 		}
-		if field.Type == reflect.TypeOf(TaskConfig{}) {
-			taskName, err := ParseMonitorTaskStr(name)
-			if err != nil {
-				panic(fmt.Sprintf("invalid task name %s: %v; TaskConfig fields must align with MonitorTask enum type", name, err))
-			}
-			cfgVal := val.Field(i).Interface().(TaskConfig)
-			result[taskName] = cfgVal
+		if field.Type != taskConfigType {
+			continue
 		}
+		taskName, err := ParseMonitorTaskStr(name)
+		if err != nil {
+			panic(fmt.Sprintf("invalid task name %s: %v; TaskConfig fields must align with MonitorTask enum type", name, err))
+		}
+		cfgVal := val.Field(i).Interface().(TaskConfig)
+		result[taskName] = cfgVal
 	}
 	return result
 }

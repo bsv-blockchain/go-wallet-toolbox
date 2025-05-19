@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -20,6 +21,9 @@ type Daemon struct {
 	scheduler   gocron.Scheduler
 	logger      *slog.Logger
 	activeTasks map[defs.MonitorTask]*ActiveTask
+
+	started   bool
+	startLock sync.Mutex
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -55,6 +59,14 @@ func NewDaemonWithGORMLocker(logger *slog.Logger, db *gorm.DB) (*Daemon, error) 
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
 func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
+	d.startLock.Lock()
+	defer d.startLock.Unlock()
+
+	if d.started {
+		d.logger.Warn("Daemon is already started. Skipping.")
+		return nil
+	}
+
 	for taskName, taskInterval := range tasksToStart {
 		if err := d.initializeTask(taskName, taskInterval); err != nil {
 			return err
@@ -62,6 +74,7 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
 	}
 
 	d.scheduler.Start()
+	d.started = true
 	return nil
 }
 
