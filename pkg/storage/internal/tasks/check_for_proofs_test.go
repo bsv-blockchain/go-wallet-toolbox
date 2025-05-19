@@ -1,6 +1,7 @@
 package tasks_test
 
 import (
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"testing"
 	"time"
 
@@ -23,13 +24,28 @@ func TestTaskTime(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	time.Sleep(3 * taskInterval)
-
+	// and:
 	activeTask, ok := activeStorage.Monitor.Get(defs.CheckForProofsMonitorTask)
 	require.True(t, ok)
 
 	// then:
-	lastRun, err := activeTask.Cronjob.LastRun()
-	require.NoError(t, err)
-	require.True(t, lastRun.After(time.Now().Add(-2*taskInterval)))
+	ensureTaskExecutedInTime(t, activeTask, taskInterval)
+}
+
+func ensureTaskExecutedInTime(t testing.TB, activeTask *storage.ActiveTask, taskInterval time.Duration) {
+	zeroTime := time.Time{}
+	timeout := time.Now().Add(5 * taskInterval)
+	for time.Now().Before(timeout) {
+		lastRun, err := activeTask.Cronjob.LastRun()
+		require.NoError(t, err)
+
+		if lastRun == zeroTime {
+			time.Sleep(taskInterval / 10)
+			continue
+		}
+
+		require.True(t, lastRun.After(time.Now().Add(-2*taskInterval)))
+		return
+	}
+	t.Fatal("scheduled task was not called in time")
 }
