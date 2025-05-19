@@ -224,31 +224,25 @@ func TestValidMonitor(t *testing.T) {
 	require.Equal(t, false, infraSrv.Config.Monitor.Enabled)
 }
 
-func TestMonitorNotExistingTask(t *testing.T) {
-	// NOTE: Not existing task/key cannot be set via env var, because viper doesn't copy the keys that are not known (at Defaults()).
-	// Which is good, but to test this, we need to set it manually in the config.
-
+func TestMonitorTaskCustomInterval(t *testing.T) {
 	// given:
-	config := infra.Defaults()
-
-	// and:
-	config.Monitor.Tasks["non_existing_task"] = defs.TaskConfig{}
-
+	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "123")
 	// when:
-	err := config.Validate()
+	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, 123*time.Second, infraSrv.Config.Monitor.Tasks.CheckForProofs.Interval())
+}
+
+func TestMonitorTaskZeroInterval(t *testing.T) {
+	// given:
+	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "0")
+	// when:
+	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.Error(t, err)
 }
-
-//func TestMonitorTaskZeroInterval(t *testing.T) {
-//	// given:
-//	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
-//	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "0")
-//
-//	// when:
-//	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
-//
-//	// then:
-//	require.Error(t, err)
-//}
