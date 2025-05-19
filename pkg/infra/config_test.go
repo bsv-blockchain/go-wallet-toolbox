@@ -207,3 +207,48 @@ func TestValidTimestamp(t *testing.T) {
 	expected := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 	require.Equal(t, expected, infraSrv.Config.Services.WhatsOnChain.BSVExchangeRate.Timestamp)
 }
+
+func TestValidMonitor(t *testing.T) {
+	// given:
+	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	t.Setenv("TEST_MONITOR_ENABLED", "false")
+
+	// when:
+	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+
+	require.Equal(t, false, infraSrv.Config.Monitor.Enabled)
+}
+
+func TestMonitorNotExistingTask(t *testing.T) {
+	// NOTE: Not existing task/key cannot be set via env var, because viper doesn't copy the keys that are not known (at Defaults()).
+	// Which is good, but to test this, we need to set it manually in the config.
+
+	// given:
+	config := infra.Defaults()
+
+	// and:
+	config.Monitor.Tasks["non_existing_task"] = defs.TaskConfig{}
+
+	// when:
+	err := config.Validate()
+
+	// then:
+	require.Error(t, err)
+}
+
+//func TestMonitorTaskZeroInterval(t *testing.T) {
+//	// given:
+//	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+//	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "0")
+//
+//	// when:
+//	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+//
+//	// then:
+//	require.Error(t, err)
+//}

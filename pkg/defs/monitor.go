@@ -1,6 +1,7 @@
 package defs
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-softwarelab/common/pkg/must"
@@ -37,10 +38,35 @@ func (t TasksConfig) EnabledTasks() map[MonitorTask]time.Duration {
 	return durations
 }
 
+// Validate verifies each task name and configuration in the map, ensuring names are valid and intervals are non-zero.
+func (t TasksConfig) Validate() error {
+	for taskName, taskConfig := range t {
+		sanitizedTaskName, err := ParseMonitorTaskStr(string(taskName))
+		if err != nil {
+			return fmt.Errorf("task %s is not a valid task name: %w", taskName, err)
+		}
+
+		if sanitizedTaskName != taskName {
+			t[sanitizedTaskName] = taskConfig
+			delete(t, taskName)
+		}
+
+		if taskConfig.IntervalSeconds == 0 {
+			return fmt.Errorf("task %s has interval_seconds set to 0", taskName)
+		}
+	}
+	return nil
+}
+
 // Monitor represents a monitoring system configuration with tasks
 type Monitor struct {
-	Enabled bool `mapstructure:"enabled"`
-	Tasks   TasksConfig
+	Enabled bool        `mapstructure:"enabled"`
+	Tasks   TasksConfig `mapstructure:"tasks"`
+}
+
+// Validate verifies the monitor configuration, including its tasks.
+func (m *Monitor) Validate() error {
+	return m.Tasks.Validate()
 }
 
 // DefaultMonitorConfig returns a default monitoring configuration

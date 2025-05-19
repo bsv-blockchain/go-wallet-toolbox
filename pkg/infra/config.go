@@ -107,6 +107,10 @@ func (c *Config) Validate() (err error) {
 		return fmt.Errorf("invalid services config: %w", err)
 	}
 
+	if err = c.Monitor.Validate(); err != nil {
+		return fmt.Errorf("invalid monitor config: %w", err)
+	}
+
 	return nil
 }
 
