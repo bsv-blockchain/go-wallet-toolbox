@@ -10,25 +10,25 @@ import (
 
 func TestTaskTime(t *testing.T) {
 	// given:
+	taskInterval := time.Millisecond * 100
+
 	activeStorage := testabilities.Given(t).
 		Provider().
 		GORM()
 
 	// when:
 	err := activeStorage.Monitor.Start(map[defs.MonitorTask]time.Duration{
-		defs.CheckForProofsMonitorTask: time.Millisecond * 100,
+		defs.CheckForProofsMonitorTask: taskInterval,
 	})
-
-	// then:
 	require.NoError(t, err)
 
-	// when:
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(3 * taskInterval)
+
 	activeTask, ok := activeStorage.Monitor.Get(defs.CheckForProofsMonitorTask)
 	require.True(t, ok)
 
-	// and:
+	// then:
 	lastRun, err := activeTask.Cronjob.LastRun()
 	require.NoError(t, err)
-	require.True(t, lastRun.After(time.Now().Add(-time.Millisecond*500)))
+	require.True(t, lastRun.After(time.Now().Add(-2*taskInterval)))
 }

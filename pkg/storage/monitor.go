@@ -21,6 +21,8 @@ type Daemon struct {
 	activeTasks map[defs.MonitorTask]*ActiveTask
 }
 
+// ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
+// It holds the task logic and the job entry created in the distributed scheduler for management purposes.
 type ActiveTask struct {
 	Instance tasks.TaskInterface
 	Cronjob  gocron.Job
@@ -33,7 +35,7 @@ func NewDaemonWithGORMLocker(logger *slog.Logger, db *gorm.DB) (*Daemon, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate worker name: %w", err)
 	}
-	locker, err := gormlock.NewGormLocker(db, workerName)
+	locker, err := gormlock.NewGormLocker(db, workerName, gormlock.WithDefaultJobIdentifier(time.Millisecond))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
@@ -62,12 +64,13 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
 	return nil
 }
 
+// Get retrieves the active monitoring task associated with the given name.
+// Returns the ActiveTask pointer and true if found, otherwise nil and false.
 func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	task, ok := d.activeTasks[name]
 	return task, ok
 }
 
-// initializeTask initializes and schedules a single monitoring task.
 func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duration) error {
 	taskCreator, ok := tasks.All[taskName]
 	if !ok {
@@ -79,7 +82,7 @@ func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duratio
 
 	job, err := d.scheduler.NewJob(
 		gocron.DurationJob(interval),
-		gocron.NewTask(func() { taskInstance.Run() }),
+		gocron.NewTask(d.singleTaskRunner(taskName)),
 		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
 	)
 	if err != nil {
@@ -90,7 +93,25 @@ func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duratio
 		Instance: taskInstance,
 		Cronjob:  job,
 	}
-	
+
 	d.logger.Info("Starting a task", slog.Any("task", taskName), slog.Any("interval", interval))
 	return nil
+}
+
+func (d *Daemon) singleTaskRunner(taskName defs.MonitorTask) func() {
+	return func() {
+		activeTask, ok := d.activeTasks[taskName]
+		if !ok {
+			d.logger.Warn("Task is not active", slog.Any("task", taskName))
+			return
+		}
+
+		d.logger.Info("Run task", slog.Any("task", taskName))
+		defer func() {
+			nextRun, _ := activeTask.Cronjob.NextRun()
+			d.logger.Info("Finish task", slog.Any("task", taskName), slog.Any("next_run", nextRun))
+		}()
+
+		activeTask.Instance.Run()
+	}
 }
