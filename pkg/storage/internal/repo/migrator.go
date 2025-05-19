@@ -3,9 +3,9 @@ package repo
 import (
 	"context"
 	"fmt"
-	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database/models"
+	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"gorm.io/gorm"
 )
 

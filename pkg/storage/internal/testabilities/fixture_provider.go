@@ -29,11 +29,11 @@ type ProviderFixture interface {
 }
 
 type providerFixture struct {
-	network       defs.BSVNetwork
-	commission    defs.Commission
-	feeModel      defs.FeeModel
-	randomizer    wdk.Randomizer
-	services      wdk.Services
+	network    defs.BSVNetwork
+	commission defs.Commission
+	feeModel   defs.FeeModel
+	randomizer wdk.Randomizer
+	services   wdk.Services
 
 	t               testing.TB
 	require         *require.Assertions

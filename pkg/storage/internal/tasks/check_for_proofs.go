@@ -1,8 +1,9 @@
 package tasks
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"log/slog"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 )
 
 type CheckForProofsTask struct {

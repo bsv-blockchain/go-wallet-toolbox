@@ -2,6 +2,9 @@ package storage
 
 import (
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
@@ -9,8 +12,6 @@ import (
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Daemon is responsible for scheduling and running monitoring tasks at specified intervals.

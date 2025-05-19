@@ -2,10 +2,10 @@ package dbfixtures
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testmode"
 	"github.com/stretchr/testify/require"
