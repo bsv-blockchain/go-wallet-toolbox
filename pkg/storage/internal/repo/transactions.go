@@ -236,6 +236,36 @@ func (txs *Transactions) UpdateTransaction(
 	return nil
 }
 
+func (txs *Transactions) UpdateTransactionStatusForTxID(
+	ctx context.Context,
+	txID string,
+	txStatus wdk.TxStatus,
+	provenTxReqStatus wdk.ProvenTxReqStatus,
+	historyNote string,
+	historyAttrs map[string]any,
+) error {
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
+		err = updateTransactionStatus(tx, txID, txStatus)
+		if err != nil {
+			return err
+		}
+
+		return updateProvenTxStatus(tx, txID, provenTxReqStatus, historyNote, historyAttrs)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+	return nil
+}
+
+func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
+	return tx.Model(models.Transaction{}).
+		Where("tx_id = ?", txID).
+		Updates(map[string]any{
+			"status": txStatus,
+		}).Error
+}
+
 func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *wdk.TableTransaction {
 	return &wdk.TableTransaction{
 		CreatedAt:     model.CreatedAt,
