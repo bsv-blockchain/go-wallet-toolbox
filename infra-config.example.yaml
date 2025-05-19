@@ -35,6 +35,12 @@ logging:
     enabled: true
     handler: json
     level: info
+monitor:
+    Tasks:
+        check_for_proofs:
+            enabled: true
+            intervalseconds: 60
+    enabled: true
 name: go-storage-server
 server_private_key: ""
 wallet_services:
