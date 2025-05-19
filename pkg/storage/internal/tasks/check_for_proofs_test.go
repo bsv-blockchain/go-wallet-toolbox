@@ -1,11 +1,11 @@
 package tasks_test
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"testing"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/stretchr/testify/require"
 )
