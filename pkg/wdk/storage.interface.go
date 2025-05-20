@@ -12,7 +12,9 @@ type WalletStorageWriter interface {
 	Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error)
 	MakeAvailable(ctx context.Context) (*TableSettings, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*FindOrInsertUserResponse, error)
+	InternalizeAction(ctx context.Context, auth AuthID, args InternalizeActionArgs) (*InternalizeActionResult, error)
 	CreateAction(ctx context.Context, auth AuthID, args ValidCreateActionArgs) (*StorageCreateActionResult, error)
+	ProcessAction(ctx context.Context, auth AuthID, args ProcessActionArgs) (*ProcessActionResult, error)
 
 	InsertCertificateAuth(ctx context.Context, auth AuthID, certificate *TableCertificateX) (uint, error)
 	RelinquishCertificate(ctx context.Context, auth AuthID, args RelinquishCertificateArgs) error
