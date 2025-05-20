@@ -26,6 +26,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		GORM()
 
 	var createdTxReference string
+	var processedTxID string
 
 	t.Run("Internalize", func(t *testing.T) {
 		// given:
@@ -160,6 +161,56 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		assert.Equal(t, txID, string(reviewActionResult.TxID))
 		assert.Equal(t, wdk.ReviewActionResultStatusSuccess, reviewActionResult.Status)
 		assert.Empty(t, reviewActionResult.CompetingTxs)
+
+		// update:
+		processedTxID = txID
+	})
+
+	t.Run("Next create - to check if another new transaction can be created using generated change UTXOs", func(t *testing.T) {
+		// given:
+		args := wdk.ValidCreateActionArgs{
+			Description: "outputBRC29",
+			Inputs:      []wdk.ValidCreateActionInput{},
+			Outputs: []wdk.ValidCreateActionOutput{
+				{
+					LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
+					Satoshis:           1000,
+					OutputDescription:  "outputBRC29",
+					CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
+				},
+			},
+			LockTime: 0,
+			Version:  1,
+			Labels:   []primitives.StringUnder300{"outputbrc29"},
+			Options: wdk.ValidCreateActionOptions{
+				AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
+				SendWith:               []primitives.TXIDHexString{},
+				SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
+				KnownTxids:             []primitives.TXIDHexString{},
+				NoSendChange:           []wdk.OutPoint{},
+				RandomizeOutputs:       false,
+			},
+			IsSendWith:                   false,
+			IsDelayed:                    false,
+			IsNoSend:                     false,
+			IsNewTx:                      true,
+			IsRemixChange:                false,
+			IsSignAction:                 false,
+			IncludeAllSourceTransactions: true,
+		}
+
+		// when:
+		result, err := activeStorage.CreateAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, result.Inputs, 1)
+		assert.Equal(t, processedTxID, result.Inputs[0].SourceTxID)
+		require.Len(t, result.Outputs, 2)
 	})
 }
 

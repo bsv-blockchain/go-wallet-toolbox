@@ -22,7 +22,7 @@ type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*wdk.TableTransaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error)
-	UpdateTransaction(
+	SpendTransaction(
 		ctx context.Context,
 		updatedTx entity.UpdatedTx,
 		historyNote string,
