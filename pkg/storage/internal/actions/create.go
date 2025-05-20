@@ -434,6 +434,7 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*UTXO, inclu
 			Type:                  utxo.Type,
 			DerivationPrefix:      utxo.DerivationPrefix,
 			DerivationSuffix:      utxo.DerivationSuffix,
+			SenderIdentityKey:     utxo.SenderIdentityKey,
 		}
 
 		if includeRawTxs {
