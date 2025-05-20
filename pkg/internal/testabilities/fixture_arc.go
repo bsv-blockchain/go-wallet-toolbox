@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
@@ -40,6 +42,11 @@ type ARCQueryFixture interface {
 	WillReturnNoBody()
 	WillReturnDifferentTxID()
 	WillReturnDoubleSpending(competingTxs ...string)
+	WillReturnTransactionWithoutMerklePath()
+	WillReturnTransactionWithMerklePathHex(merklePath string)
+	WillReturnTransactionWithMerklePath(path sdk.MerklePath) ARCQueryFixture
+	WillReturnTransactionOnHeight(i int)
+	WillReturnTransactionWithBlockHash(hash *chainhash.Hash)
 }
 
 type ArcBroadcastFixture interface {
@@ -191,6 +198,29 @@ type arcQueryFixture struct {
 	txID   string
 }
 
+func (a *arcQueryFixture) WillReturnTransactionOnHeight(height int) {
+	tx := a.knownTransaction()
+	tx.status = "MINED"
+	tx.blockHeight = must.ConvertToUInt32(height)
+}
+
+func (a *arcQueryFixture) WillReturnTransactionWithBlockHash(hash *chainhash.Hash) {
+	tx := a.knownTransaction()
+	tx.status = "MINED"
+	tx.blockHash = hash.String()
+}
+
+func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePath) ARCQueryFixture {
+	tx := a.knownTransaction()
+	tx.status = "MINED"
+	tx.merklePath = path.Hex()
+	tx.blockHeight = path.BlockHeight
+	var err error
+	tx.blockHash, err = path.ComputeRootHex(nil)
+	require.NoError(a, err, "failed to compute root: wrong test setup")
+	return a
+}
+
 func (a *arcQueryFixture) WillReturnDifferentTxID() {
 	tx := a.knownTransaction()
 	tx.txid = a.rotatedTxIdByNumberOfChars(7)
@@ -226,6 +256,17 @@ func (a *arcQueryFixture) WillBeUnreachable() {
 func (a *arcQueryFixture) WillReturnHttpStatus(httpStatus int) {
 	tx := a.knownTransaction()
 	tx.httpStatus = httpStatus
+}
+
+func (a *arcQueryFixture) WillReturnTransactionWithoutMerklePath() {
+	tx := a.knownTransaction()
+	tx.status = "SEEN_ON_NETWORK"
+}
+
+func (a *arcQueryFixture) WillReturnTransactionWithMerklePathHex(merklePath string) {
+	tx := a.knownTransaction()
+	tx.status = "MINED"
+	tx.merklePath = merklePath
 }
 
 func (a *arcQueryFixture) knownTransaction() *knownTransaction {
