@@ -20,8 +20,8 @@ import (
 
 // Provider is a storage provider.
 type Provider struct {
-	Chain   defs.BSVNetwork
-	Monitor *Daemon
+	Chain    defs.BSVNetwork
+	Database *database.Database
 
 	settings *wdk.TableSettings
 	repo     *repo.Repositories
@@ -70,14 +70,9 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		logger.Warn("services is not set, some actions may not work")
 	}
 
-	daemon, err := NewDaemonWithGORMLocker(logger, db.DB)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create daemon: %w", err)
-	}
-
 	return &Provider{
-		Chain:   config.Chain,
-		Monitor: daemon,
+		Chain:    config.Chain,
+		Database: db,
 
 		repo:    repos,
 		actions: actions.New(logger, funder, config.Commission, repos, random, config.Services),

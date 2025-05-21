@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/monitor"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/monitor/internal/testabilities"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,25 +14,23 @@ func TestTaskTime(t *testing.T) {
 	// given:
 	taskInterval := time.Millisecond * 100
 
-	activeStorage := testabilities.Given(t).
-		Provider().
-		GORM()
+	daemon := testabilities.Given(t).Daemon()
 
 	// when:
-	err := activeStorage.Monitor.Start(map[defs.MonitorTask]time.Duration{
+	err := daemon.Start(map[defs.MonitorTask]time.Duration{
 		defs.CheckForProofsMonitorTask: taskInterval,
 	})
 	require.NoError(t, err)
 
 	// and:
-	activeTask, ok := activeStorage.Monitor.Get(defs.CheckForProofsMonitorTask)
+	activeTask, ok := daemon.Get(defs.CheckForProofsMonitorTask)
 	require.True(t, ok)
 
 	// then:
 	ensureTaskExecutedInTime(t, activeTask, taskInterval)
 }
 
-func ensureTaskExecutedInTime(t testing.TB, activeTask *storage.ActiveTask, taskInterval time.Duration) {
+func ensureTaskExecutedInTime(t testing.TB, activeTask *monitor.ActiveTask, taskInterval time.Duration) {
 	zeroTime := time.Time{}
 	timeout := time.Now().Add(5 * taskInterval)
 	for time.Now().Before(timeout) {

@@ -1,6 +1,7 @@
-package storage
+package monitor
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -8,8 +9,8 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/tasks"
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
@@ -36,7 +37,12 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(logger *slog.Logger, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, db *gorm.DB) (*Daemon, error) {
+	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
+	}
+
 	workerName, err := randomizer.New().Base64(12)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate worker name: %w", err)
@@ -46,14 +52,19 @@ func NewDaemonWithGORMLocker(logger *slog.Logger, db *gorm.DB) (*Daemon, error) 
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
 
-	scheduler, err := gocron.NewScheduler(gocron.WithDistributedLocker(locker))
+	return NewDaemon(logger.With(slog.String("worker", workerName)), gocron.WithDistributedLocker(locker))
+}
+
+// NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
+// NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
+func NewDaemon(logger *slog.Logger, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}
-
 	return &Daemon{
 		scheduler:   scheduler,
-		logger:      logging.Child(logger, "monitor").With(slog.String("worker", workerName)),
+		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 	}, nil
 }
