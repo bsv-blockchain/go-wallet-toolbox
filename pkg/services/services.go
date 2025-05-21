@@ -25,10 +25,9 @@ type WalletServices struct {
 	config       *defs.WalletServices
 	whatsonchain *whatsonchain.WhatsOnChain
 
-	rawTxServices    servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
-
-	// getMerklePathServices: ServiceCollection<sdk.GetMerklePathService>
+	rawTxServices         servicequeue.Queue1[string, *wdk.RawTxResult]
+	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
+	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -62,6 +61,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"PostBEEF",
 			servicequeue.NewService2(arc.ServiceName, arcService.PostBEEF),
+		),
+
+		getMerklePathServices: servicequeue.NewQueue1(
+			logger,
+			"MerklePath",
+			servicequeue.NewService1(whatsonchain.ServiceName, arcService.MerklePath),
 		),
 	}
 }
@@ -110,22 +115,15 @@ func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Cur
 }
 
 // MerklePath attempts to obtain the merkle proof associated with a 32 byte transaction hash (txid).
-//
-// Cycles through configured transaction processing services attempting to get a valid response.
-//
-// On success:
-// Result txid is the requested transaction hash
-// Result proof will be the merkle proof.
-// Result name will be the responding service's identifying name.
-// Returns result without incrementing active service.
-//
-// On failure:
-// Result txid is the requested transaction hash
-// Result mapi will be the first mapi response obtained (service name and response), or null
-// Result error will be the first error thrown (service name and CwiError), or null
-// Increments to next configured service and tries again until all services have been tried.
-func (s *WalletServices) MerklePath(txid string, useNext bool) (MerklePathResult, error) {
-	panic("Not implemented yet")
+func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.MerklePathResult, error) {
+	result, err := s.getMerklePathServices.OneByOne(ctx, txid)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("transaction with txID: %s not found", txid)
+		}
+		return nil, fmt.Errorf("couldn't get merkle path for id %s: %w", txid, err)
+	}
+	return result, nil
 }
 
 // PostBEEF attempts to post beef with given txIDs
