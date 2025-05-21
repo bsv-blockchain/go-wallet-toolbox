@@ -20,7 +20,8 @@ import (
 
 // Provider is a storage provider.
 type Provider struct {
-	Chain defs.BSVNetwork
+	Chain    defs.BSVNetwork
+	Database *database.Database
 
 	settings *wdk.TableSettings
 	repo     *repo.Repositories
@@ -70,7 +71,9 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 	}
 
 	return &Provider{
-		Chain:   config.Chain,
+		Chain:    config.Chain,
+		Database: db,
+
 		repo:    repos,
 		actions: actions.New(logger, funder, config.Commission, repos, random, config.Services),
 	}, nil

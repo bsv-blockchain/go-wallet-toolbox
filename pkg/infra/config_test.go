@@ -12,7 +12,7 @@ import (
 
 func TestCaseInsensitiveEnums(t *testing.T) {
 	// given:
-	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	setRequiredEnvs(t)
 	t.Setenv("TEST_DB_ENGINE", "SQLite")
 	t.Setenv("TEST_BSV_NETWORK", "MAIN")
 	t.Setenv("TEST_LOGGING_LEVEL", "DeBug")
@@ -71,7 +71,7 @@ func TestEnums(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+			setRequiredEnvs(t)
 			t.Setenv(test.envKey, "wrong")
 
 			// when:
@@ -118,7 +118,7 @@ func TestValidArcCallbacks(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+			setRequiredEnvs(t)
 			t.Setenv("TEST_WALLET_SERVICES_ARC_CALLBACK_URL", test.url)
 
 			// when:
@@ -168,7 +168,7 @@ func TestInvalidArcCallbacks(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+			setRequiredEnvs(t)
 			t.Setenv("TEST_WALLET_SERVICES_ARC_CALLBACK_URL", test.url)
 
 			// when:
@@ -182,7 +182,7 @@ func TestInvalidArcCallbacks(t *testing.T) {
 
 func TestInvalidCurrencyForFiatExchangeRates(t *testing.T) {
 	// given:
-	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	setRequiredEnvs(t)
 	t.Setenv("TEST_WALLET_SERVICES_FIAT_EXCHANGE_RATES_BASE", "PLN")
 
 	// when:
@@ -194,7 +194,7 @@ func TestInvalidCurrencyForFiatExchangeRates(t *testing.T) {
 
 func TestValidTimestamp(t *testing.T) {
 	// given:
-	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	setRequiredEnvs(t)
 	t.Setenv("TEST_WALLET_SERVICES_WHATS_ON_CHAIN_BSV_EXCHANGE_RATE_TIMESTAMP", "2023-12-13T00:00:00Z")
 
 	// when:
@@ -206,4 +206,49 @@ func TestValidTimestamp(t *testing.T) {
 	// and:
 	expected := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 	require.Equal(t, expected, infraSrv.Config.Services.WhatsOnChain.BSVExchangeRate.Timestamp)
+}
+
+func TestValidMonitor(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_MONITOR_ENABLED", "false")
+
+	// when:
+	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+
+	require.Equal(t, false, infraSrv.Config.Monitor.Enabled)
+}
+
+func TestMonitorTaskCustomInterval(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "123")
+	// when:
+	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, 123*time.Second, infraSrv.Config.Monitor.Tasks.CheckForProofs.Interval())
+}
+
+func TestMonitorTaskZeroInterval(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "0")
+	// when:
+	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.Error(t, err)
+}
+
+// setRequiredEnvs sets necessary environment variables for test configuration.
+// It ensures TEST_SERVER_PRIVATE_KEY is set with a valid private key value for proper test initialization.
+func setRequiredEnvs(t *testing.T) {
+	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
 }

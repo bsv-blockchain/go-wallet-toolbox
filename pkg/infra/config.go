@@ -21,6 +21,7 @@ type Config struct {
 	Logging          LogConfig           `mapstructure:"logging"`
 	Commission       defs.Commission     `mapstructure:"commission"`
 	Services         defs.WalletServices `mapstructure:"wallet_services"`
+	Monitor          defs.Monitor        `mapstructure:"monitor"`
 }
 
 // DBConfig is the configuration for the database
@@ -61,6 +62,7 @@ func Defaults() Config {
 		},
 		Commission: defs.DefaultCommission(),
 		Services:   defs.DefaultServicesConfig(network),
+		Monitor:    defs.DefaultMonitorConfig(),
 	}
 }
 
@@ -103,6 +105,10 @@ func (c *Config) Validate() (err error) {
 
 	if err = c.Services.Validate(); err != nil {
 		return fmt.Errorf("invalid services config: %w", err)
+	}
+
+	if err = c.Monitor.Validate(); err != nil {
+		return fmt.Errorf("invalid monitor config: %w", err)
 	}
 
 	return nil

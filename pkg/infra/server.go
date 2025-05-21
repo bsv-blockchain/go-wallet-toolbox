@@ -8,6 +8,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/monitor"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -20,6 +21,7 @@ type Server struct {
 	logger        *slog.Logger
 	storage       *storage.Provider
 	storageServer *storage.Server
+	monitor       *monitor.Daemon
 }
 
 // NewServer creates a new server instance with given options, like config file path or a prefix for environment variables
@@ -65,9 +67,22 @@ func NewServer(opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to create storage provider: %w", err)
 	}
 
-	_, err = activeStorage.Migrate(context.Background(), cfg.Name, storageIdentityKey)
+	_, err = activeStorage.Migrate(context.TODO(), cfg.Name, storageIdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate storage: %w", err)
+	}
+
+	var daemon *monitor.Daemon
+	if cfg.Monitor.Enabled {
+		// TODO: Provide a storage interface to the monitor - according to monitor needs
+		daemon, err = monitor.NewDaemonWithGORMLocker(context.TODO(), logger, activeStorage.Database.DB)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create daemon: %w", err)
+		}
+
+		if err = daemon.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
+			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
+		}
 	}
 
 	return &Server{
@@ -75,6 +90,7 @@ func NewServer(opts ...InitOption) (*Server, error) {
 
 		logger:        logger,
 		storage:       activeStorage,
+		monitor:       daemon,
 		storageServer: storage.NewServer(logger, activeStorage, storage.ServerOptions{Port: cfg.HTTPConfig.Port}),
 	}, nil
 }
