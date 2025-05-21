@@ -2,10 +2,12 @@ package defs
 
 import (
 	"fmt"
+	"iter"
 	"reflect"
 	"time"
 
 	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seq2"
 )
 
 // MonitorTask represents a monitoring task type
@@ -39,40 +41,41 @@ type TasksConfig struct {
 	CheckForProofs TaskConfig `mapstructure:"check_for_proofs"`
 }
 
-// All returns a map where each MonitorTask key is paired with its corresponding TaskConfig from the TasksConfig struct.
-func (t *TasksConfig) All() map[MonitorTask]TaskConfig {
-	result := make(map[MonitorTask]TaskConfig)
+func (t *TasksConfig) all() iter.Seq2[MonitorTask, TaskConfig] {
 	if t == nil {
-		return result
+		return seq2.Empty[MonitorTask, TaskConfig]()
 	}
 
-	val := reflect.ValueOf(t).Elem()
-	typ := val.Type()
-	taskConfigType := reflect.TypeOf(TaskConfig{})
+	return func(yield func(MonitorTask, TaskConfig) bool) {
+		val := reflect.ValueOf(t).Elem()
+		typ := val.Type()
+		taskConfigType := reflect.TypeOf(TaskConfig{})
 
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		name := field.Tag.Get("mapstructure")
-		if name == "" {
-			panic(fmt.Sprintf("missing mapstructure tag for field %s", field.Name))
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			name := field.Tag.Get("mapstructure")
+			if name == "" {
+				panic(fmt.Sprintf("missing mapstructure tag for field %s", field.Name))
+			}
+			if field.Type != taskConfigType {
+				continue
+			}
+			taskName, err := ParseMonitorTaskStr(name)
+			if err != nil {
+				panic(fmt.Sprintf("invalid task name %s: %v; TaskConfig fields must align with MonitorTask enum type", name, err))
+			}
+			cfgVal := val.Field(i).Interface().(TaskConfig)
+			if !yield(taskName, cfgVal) {
+				break
+			}
 		}
-		if field.Type != taskConfigType {
-			continue
-		}
-		taskName, err := ParseMonitorTaskStr(name)
-		if err != nil {
-			panic(fmt.Sprintf("invalid task name %s: %v; TaskConfig fields must align with MonitorTask enum type", name, err))
-		}
-		cfgVal := val.Field(i).Interface().(TaskConfig)
-		result[taskName] = cfgVal
 	}
-	return result
 }
 
 // EnabledTasks returns a map of enabled monitoring tasks and their corresponding intervals as time.Duration values.
 func (t *TasksConfig) EnabledTasks() map[MonitorTask]time.Duration {
 	durations := make(map[MonitorTask]time.Duration)
-	for taskName, taskConfig := range t.All() {
+	for taskName, taskConfig := range t.all() {
 		if !taskConfig.Enabled {
 			continue
 		}
@@ -83,7 +86,7 @@ func (t *TasksConfig) EnabledTasks() map[MonitorTask]time.Duration {
 
 // Validate verifies each task name and configuration in the map, ensuring names are valid and intervals are non-zero.
 func (t *TasksConfig) Validate() error {
-	for taskName, taskConfig := range t.All() {
+	for taskName, taskConfig := range t.all() {
 		if taskConfig.IntervalSeconds == 0 {
 			return fmt.Errorf("task %s has interval_seconds set to 0", taskName)
 		}

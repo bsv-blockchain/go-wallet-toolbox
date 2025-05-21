@@ -31,6 +31,7 @@ type Daemon struct {
 type ActiveTask struct {
 	Instance tasks.TaskInterface
 	Cronjob  gocron.Job
+	TaskName defs.MonitorTask
 }
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
@@ -52,7 +53,7 @@ func NewDaemonWithGORMLocker(logger *slog.Logger, db *gorm.DB) (*Daemon, error) 
 
 	return &Daemon{
 		scheduler:   scheduler,
-		logger:      logging.Child(logger, "monitor"),
+		logger:      logging.Child(logger, "monitor").With(slog.String("worker", workerName)),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 	}, nil
 }
@@ -86,44 +87,45 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 }
 
 func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duration) error {
-	taskCreator, ok := tasks.All[taskName]
+	taskFactory, ok := tasks.All[taskName]
 	if !ok {
 		d.logger.Warn("Provided unknown task name. Skipping.", slog.Any("task", taskName))
 		return nil
 	}
 
-	taskInstance := taskCreator(d.logger)
+	taskInstance := taskFactory(d.logger)
+
+	task := &ActiveTask{
+		Instance: taskInstance,
+		TaskName: taskName,
+		// NOTE: Cronjob (gocron.Job) is not set here, as it will be set when the job is created.
+	}
 
 	job, err := d.scheduler.NewJob(
 		gocron.DurationJob(interval),
-		gocron.NewTask(d.singleTaskRunner(taskName)),
+		gocron.NewTask(d.singleTaskRunner(task)),
 		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create job %s: %w", taskName, err)
 	}
 
-	d.activeTasks[taskName] = &ActiveTask{
-		Instance: taskInstance,
-		Cronjob:  job,
-	}
+	task.Cronjob = job
+	d.activeTasks[taskName] = task
 
 	d.logger.Info("Starting a task", slog.Any("task", taskName), slog.Any("interval", interval))
 	return nil
 }
 
-func (d *Daemon) singleTaskRunner(taskName defs.MonitorTask) func() {
+func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
 	return func() {
-		activeTask, ok := d.activeTasks[taskName]
-		if !ok {
-			d.logger.Warn("Task is not active", slog.Any("task", taskName))
-			return
-		}
-
-		d.logger.Info("Run task", slog.Any("task", taskName))
+		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
+			if activeTask.Cronjob == nil {
+				return
+			}
 			nextRun, _ := activeTask.Cronjob.NextRun()
-			d.logger.Info("Finish task", slog.Any("task", taskName), slog.Any("next_run", nextRun))
+			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
 		activeTask.Instance.Run()
