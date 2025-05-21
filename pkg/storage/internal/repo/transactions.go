@@ -12,6 +12,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
@@ -196,7 +197,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	return txs.mapModelToTableTransaction(&transaction), nil
 }
 
-func (txs *Transactions) UpdateTransaction(
+func (txs *Transactions) SpendTransaction(
 	ctx context.Context,
 	updatedTx entity.UpdatedTx,
 	historyNote string,
@@ -215,10 +216,12 @@ func (txs *Transactions) UpdateTransaction(
 			return err
 		}
 
-		err = tx.Model(models.Output{}).
-			Scopes(scopes.UserID(updatedTx.UserID)).
-			Where("transaction_id = ?", updatedTx.TransactionID).
-			Update("spendable", updatedTx.Spendable).Error
+		err = tx.Delete(models.UserUTXO{}, "reserved_by_id = ?", updatedTx.TransactionID).Error
+		if err != nil {
+			return err
+		}
+
+		err = makeOutputsSpendable(tx, updatedTx)
 		if err != nil {
 			return err
 		}
@@ -232,6 +235,54 @@ func (txs *Transactions) UpdateTransaction(
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+	return nil
+}
+
+func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
+	var changeOutputs []*models.Output
+	err := tx.
+		Model(&models.Transaction{
+			Model: gorm.Model{
+				ID: updatedTx.TransactionID,
+			},
+		}).
+		Association("Outputs").
+		Find(&changeOutputs, "basket_id IS NOT NULL AND change = ? AND satoshis > 0 AND spent_by IS NULL", true)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction outputs: %w", err)
+	}
+
+	if len(changeOutputs) == 0 {
+		return nil
+	}
+
+	for _, output := range changeOutputs {
+		output.Spendable = true
+		output.LockingScript, err = updatedTx.GetLockingScript(output.Vout)
+		if err != nil {
+			return fmt.Errorf("failed to get locking script: %w", err)
+		}
+	}
+
+	err = tx.Save(changeOutputs).Error
+	if err != nil {
+		return fmt.Errorf("failed to save change outputs: %w", err)
+	}
+
+	newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
+		return &models.UserUTXO{
+			UserID:             updatedTx.UserID,
+			OutputID:           output.ID,
+			BasketID:           *output.BasketID,
+			Satoshis:           must.ConvertToUInt64(output.Satoshis),
+			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+		}
+	})
+
+	err = tx.Create(newUTXOs).Error
+	if err != nil {
+		return fmt.Errorf("failed to create new UTXOs: %w", err)
 	}
 	return nil
 }
