@@ -16,6 +16,7 @@
       "sourceLockingScript": "76a914a7d6e4270f5c90cc9e272586a6a5099663572d5988ac",
       "unlockingScriptLength": 107,
       "providedBy": "storage",
+      "senderIdentityKey": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
       "type": "P2PKH",
       "derivationPrefix": "Pr==",
       "derivationSuffix": "Su=="
