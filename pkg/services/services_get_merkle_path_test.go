@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -53,8 +54,11 @@ func TestGetMerklePath(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, response)
-		assert.Nil(t, response.MerklePath)
-		assert.Nil(t, response.Header)
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       "ARC",
+			MerklePath: nil,
+			Header:     nil,
+		}, *response)
 	})
 
 	t.Run("get merkle path from arc", func(t *testing.T) {
@@ -95,12 +99,14 @@ func TestGetMerklePath(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, response)
-		assert.NotNil(t, response.MerklePath)
-		assert.Equal(t, merklePath, *response.MerklePath)
-		assert.EqualValues(t, 2000, response.Header.Height)
-		assert.Equal(t, blockHash, response.Header.Hash)
-		assert.Equal(t, "ARC", response.Name)
-
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       "ARC",
+			MerklePath: &merklePath,
+			Header: &wdk.BlockHeader{
+				Height: 2000,
+				Hash:   blockHash,
+			},
+		}, *response)
 	})
 
 }

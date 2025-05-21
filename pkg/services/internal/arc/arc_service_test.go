@@ -434,8 +434,11 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		assert.NotNil(t, res)
-		assert.Nil(t, res.MerklePath)
-		assert.Nil(t, res.Header)
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       "ARC",
+			MerklePath: nil,
+			Header:     nil,
+		}, *res)
 	})
 
 	t.Run("return error when arc returns invalid merkle path", func(t *testing.T) {
@@ -618,9 +621,13 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
-		assert.NotNil(t, res.MerklePath)
-		assert.Equal(t, merklePath, *res.MerklePath)
-		assert.EqualValues(t, 2000, res.Header.Height)
-		assert.Equal(t, blockHash, res.Header.Hash)
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       "ARC",
+			MerklePath: &merklePath,
+			Header: &wdk.BlockHeader{
+				Height: 2000,
+				Hash:   blockHash,
+			},
+		}, *res)
 	})
 }
