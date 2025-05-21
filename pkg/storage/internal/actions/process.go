@@ -95,15 +95,15 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	newTxStatus, newReqStatus := p.newStatuses(args)
 
-	err = p.txRepo.UpdateTransaction(ctx, entity.UpdatedTx{
+	err = p.txRepo.SpendTransaction(ctx, entity.UpdatedTx{
 		UserID:        userID,
 		TransactionID: tableTx.TransactionID,
-		Spendable:     true,
 		TxID:          txID,
 		TxStatus:      newTxStatus,
 		ReqTxStatus:   newReqStatus,
 		RawTx:         args.RawTx,
 		InputBeef:     tableTx.InputBEEF,
+		Tx:            tx,
 	}, history.ProcessActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
