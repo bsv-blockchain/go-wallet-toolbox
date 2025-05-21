@@ -23,4 +23,5 @@ type TableOutput struct {
 	DerivationSuffix   *string   `json:"derivationSuffix,omitempty"`
 	CustomInstructions *string   `json:"customInstructions,omitempty"`
 	LockingScript      *string   `json:"lockingScript,omitempty"`
+	SenderIdentityKey  *string   `json:"senderIdentityKey,omitempty"`
 }

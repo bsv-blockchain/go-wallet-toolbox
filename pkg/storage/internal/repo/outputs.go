@@ -89,6 +89,7 @@ func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
 		DerivationSuffix:   model.DerivationSuffix,
 		CustomInstructions: model.CustomInstructions,
 		LockingScript:      model.LockingScript,
+		SenderIdentityKey:  model.SenderIdentityKey,
 	}
 	if model.Transaction != nil {
 		output.TxID = model.Transaction.TxID
