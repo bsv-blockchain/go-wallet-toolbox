@@ -415,7 +415,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		assert.Nil(t, res)
 	})
 
-	t.Run("return error when transaction has no merkle path", func(t *testing.T) {
+	t.Run("return empty result if transaction is not mined yet", func(t *testing.T) {
 		// given:
 		given := arctestabilities.Given(t)
 
@@ -432,8 +432,10 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		res, err := service.MerklePath(context.Background(), txID)
 
 		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		assert.Nil(t, res.MerklePath)
+		assert.Nil(t, res.Header)
 	})
 
 	t.Run("return error when arc returns invalid merkle path", func(t *testing.T) {
