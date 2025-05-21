@@ -8,8 +8,10 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	arctestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -371,4 +373,261 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetMerklePathWithARCService(t *testing.T) {
+	tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+	txID := tx.TxID().String()
+
+	someSecondHash, errHash := chainhash.NewHashFromHex("27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e")
+	require.NoError(t, errHash)
+
+	t.Run("return error when arc is unreachable", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// and:
+		service := given.NewArcService()
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("get merkle path for unknown tx will return error", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("return empty result if transaction is not mined yet", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		// and:
+		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       "ARC",
+			MerklePath: nil,
+			Header:     nil,
+		}, *res)
+	})
+
+	t.Run("return error when arc returns invalid merkle path", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		// and:
+		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithMerklePathHex("invalid-merkle-path")
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("return error when arc return merkle path with invalid height", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: 2000,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   tx.TxID(),
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   someSecondHash,
+					},
+				},
+			},
+		}
+
+		// and:
+		given.ARC().WhenQueryingTx(txID).
+			WillReturnTransactionWithMerklePath(merklePath).
+			WillReturnTransactionOnHeight(2002)
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("return error when arc return merkle path with invalid block hash", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: 2000,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   tx.TxID(),
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   someSecondHash,
+					},
+				},
+			},
+		}
+
+		// and:
+		given.ARC().WhenQueryingTx(txID).
+			WillReturnTransactionWithMerklePath(merklePath).
+			WillReturnTransactionWithBlockHash(someSecondHash)
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("return error when arc return merkle path without queried tx", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		// and:
+		merklePath := sdk.MerklePath{
+			BlockHeight: 2000,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   someSecondHash,
+					},
+					{
+						Offset: 1,
+						Hash:   someSecondHash,
+					},
+				},
+			},
+		}
+
+		// and:
+		given.ARC().WhenQueryingTx(txID).
+			WillReturnTransactionWithMerklePath(merklePath)
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("return merkle path when arc return valid merkle path", func(t *testing.T) {
+		// given:
+		given := arctestabilities.Given(t)
+
+		// setup arc server
+		given.ARC().IsUpAndRunning()
+
+		// and:
+		service := given.NewArcService()
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: 2000,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   tx.TxID(),
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   someSecondHash,
+					},
+				},
+			},
+		}
+
+		blockHash, err := merklePath.ComputeRootHex(nil)
+		require.NoError(t, err, "failed to compute block hash from merkle path, wrong test setup")
+
+		// and:
+		given.ARC().WhenQueryingTx(txID).
+			WillReturnTransactionWithMerklePath(merklePath)
+
+		// when:
+		res, err := service.MerklePath(context.Background(), txID)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       "ARC",
+			MerklePath: &merklePath,
+			Header: &wdk.BlockHeader{
+				Height: 2000,
+				Hash:   blockHash,
+			},
+		}, *res)
+	})
 }
