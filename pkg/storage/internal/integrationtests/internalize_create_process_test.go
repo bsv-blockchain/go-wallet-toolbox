@@ -76,36 +76,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		// given:
-		args := wdk.ValidCreateActionArgs{
-			Description: "outputBRC29",
-			Inputs:      []wdk.ValidCreateActionInput{},
-			Outputs: []wdk.ValidCreateActionOutput{
-				{
-					LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
-					Satoshis:           1000,
-					OutputDescription:  "outputBRC29",
-					CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
-				},
-			},
-			LockTime: 0,
-			Version:  1,
-			Labels:   []primitives.StringUnder300{"outputbrc29"},
-			Options: wdk.ValidCreateActionOptions{
-				AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
-				SendWith:               []primitives.TXIDHexString{},
-				SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
-				KnownTxids:             []primitives.TXIDHexString{},
-				NoSendChange:           []wdk.OutPoint{},
-				RandomizeOutputs:       false,
-			},
-			IsSendWith:                   false,
-			IsDelayed:                    false,
-			IsNoSend:                     false,
-			IsNewTx:                      true,
-			IsRemixChange:                false,
-			IsSignAction:                 false,
-			IncludeAllSourceTransactions: true,
-		}
+		args := createActionArgsWithProvidedOutput()
 
 		// when:
 		result, err := activeStorage.CreateAction(
@@ -168,36 +139,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 
 	t.Run("Next create - to check if another new transaction can be created using generated change UTXOs", func(t *testing.T) {
 		// given:
-		args := wdk.ValidCreateActionArgs{
-			Description: "outputBRC29",
-			Inputs:      []wdk.ValidCreateActionInput{},
-			Outputs: []wdk.ValidCreateActionOutput{
-				{
-					LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
-					Satoshis:           1000,
-					OutputDescription:  "outputBRC29",
-					CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
-				},
-			},
-			LockTime: 0,
-			Version:  1,
-			Labels:   []primitives.StringUnder300{"outputbrc29"},
-			Options: wdk.ValidCreateActionOptions{
-				AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
-				SendWith:               []primitives.TXIDHexString{},
-				SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
-				KnownTxids:             []primitives.TXIDHexString{},
-				NoSendChange:           []wdk.OutPoint{},
-				RandomizeOutputs:       false,
-			},
-			IsSendWith:                   false,
-			IsDelayed:                    false,
-			IsNoSend:                     false,
-			IsNewTx:                      true,
-			IsRemixChange:                false,
-			IsSignAction:                 false,
-			IncludeAllSourceTransactions: true,
-		}
+		args := createActionArgsWithProvidedOutput()
 
 		// when:
 		result, err := activeStorage.CreateAction(
@@ -286,4 +228,37 @@ func TestInternalizeBasketInsertionThenCreate(t *testing.T) {
 		// then:
 		require.ErrorIs(t, err, errfunder.NotEnoughFunds)
 	})
+}
+
+func createActionArgsWithProvidedOutput() wdk.ValidCreateActionArgs {
+	return wdk.ValidCreateActionArgs{
+		Description: "outputBRC29",
+		Inputs:      []wdk.ValidCreateActionInput{},
+		Outputs: []wdk.ValidCreateActionOutput{
+			{
+				LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
+				Satoshis:           1000,
+				OutputDescription:  "outputBRC29",
+				CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
+			},
+		},
+		LockTime: 0,
+		Version:  1,
+		Labels:   []primitives.StringUnder300{"outputbrc29"},
+		Options: wdk.ValidCreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
+			SendWith:               []primitives.TXIDHexString{},
+			SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
+			KnownTxids:             []primitives.TXIDHexString{},
+			NoSendChange:           []wdk.OutPoint{},
+			RandomizeOutputs:       false,
+		},
+		IsSendWith:                   false,
+		IsDelayed:                    false,
+		IsNoSend:                     false,
+		IsNewTx:                      true,
+		IsRemixChange:                false,
+		IsSignAction:                 false,
+		IncludeAllSourceTransactions: true,
+	}
 }

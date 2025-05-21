@@ -221,45 +221,9 @@ func (txs *Transactions) SpendTransaction(
 			return err
 		}
 
-		var txOutputs []*models.Output
-		err = tx.Model(&models.Transaction{
-			Model: gorm.Model{
-				ID: updatedTx.TransactionID,
-			},
-		}).Association("Outputs").Find(&txOutputs)
+		err = makeOutputsSpendable(tx, updatedTx)
 		if err != nil {
-			return fmt.Errorf("failed to find transaction outputs: %w", err)
-		}
-
-		changeOutputs := slices.Filter(txOutputs, isChangeOutput)
-		if len(changeOutputs) > 0 {
-			for _, output := range changeOutputs {
-				output.Spendable = true
-				if must.ConvertToIntFromUnsigned(output.Vout) >= len(updatedTx.Tx.Outputs) {
-					return fmt.Errorf("output index %d is out of range of provided tx outputs count %d", output.Vout, len(updatedTx.Tx.Outputs))
-				}
-				output.LockingScript = to.Ptr(updatedTx.Tx.Outputs[output.Vout].LockingScript.String())
-			}
-
-			err = tx.Save(changeOutputs).Error
-			if err != nil {
-				return fmt.Errorf("failed to save change outputs: %w", err)
-			}
-
-			newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
-				return &models.UserUTXO{
-					UserID:             updatedTx.UserID,
-					OutputID:           output.ID,
-					BasketID:           *output.BasketID,
-					Satoshis:           must.ConvertToUInt64(output.Satoshis),
-					EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-				}
-			})
-
-			err = tx.Create(newUTXOs).Error
-			if err != nil {
-				return fmt.Errorf("failed to create new UTXOs: %w", err)
-			}
+			return err
 		}
 
 		return upsertProvenTxReq(tx, &entity.UpsertProvenTxReq{
@@ -271,6 +235,54 @@ func (txs *Transactions) SpendTransaction(
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+	return nil
+}
+
+func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
+	var changeOutputs []*models.Output
+	err := tx.
+		Model(&models.Transaction{
+			Model: gorm.Model{
+				ID: updatedTx.TransactionID,
+			},
+		}).
+		Association("Outputs").
+		Find(&changeOutputs, "basket_id IS NOT NULL AND change = ? AND satoshis > 0 AND spent_by IS NULL", true)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction outputs: %w", err)
+	}
+
+	if len(changeOutputs) == 0 {
+		return nil
+	}
+
+	for _, output := range changeOutputs {
+		output.Spendable = true
+		output.LockingScript, err = updatedTx.GetLockingScript(output.Vout)
+		if err != nil {
+			return fmt.Errorf("failed to get locking script: %w", err)
+		}
+	}
+
+	err = tx.Save(changeOutputs).Error
+	if err != nil {
+		return fmt.Errorf("failed to save change outputs: %w", err)
+	}
+
+	newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
+		return &models.UserUTXO{
+			UserID:             updatedTx.UserID,
+			OutputID:           output.ID,
+			BasketID:           *output.BasketID,
+			Satoshis:           must.ConvertToUInt64(output.Satoshis),
+			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+		}
+	})
+
+	err = tx.Create(newUTXOs).Error
+	if err != nil {
+		return fmt.Errorf("failed to create new UTXOs: %w", err)
 	}
 	return nil
 }
@@ -321,8 +333,4 @@ func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *
 		TxID:          model.TxID,
 		InputBEEF:     model.InputBeef,
 	}
-}
-
-func isChangeOutput(output *models.Output) bool {
-	return output.BasketID != nil && output.Change && output.Satoshis > 0 && output.SpentBy == nil
 }
