@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
@@ -17,6 +18,9 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
+
+// ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
+var ErrAuthorization = fmt.Errorf("access is denied due to an authorization error")
 
 // Provider is a storage provider.
 type Provider struct {
@@ -133,7 +137,7 @@ func (p *Provider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error
 // InsertCertificateAuth inserts certificate to the database for authenticated user
 func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
 	if auth.UserID == nil || certificate.UserID != *auth.UserID {
-		return 0, fmt.Errorf("access is denied due to an authorization error")
+		return 0, ErrAuthorization
 	}
 
 	err := validate.TableCertificateX(certificate)
@@ -168,7 +172,7 @@ func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, c
 // RelinquishCertificate will relinquish existing certificate
 func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
 	if auth.UserID == nil {
-		return fmt.Errorf("access is denied due to an authorization error")
+		return ErrAuthorization
 	}
 
 	err := validate.RelinquishCertificateArgs(&args)
@@ -187,7 +191,7 @@ func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, a
 // ListCertificates will list certificates with provided args
 func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	if auth.UserID == nil {
-		return nil, fmt.Errorf("access is denied due to an authorization error")
+		return nil, ErrAuthorization
 	}
 
 	err := validate.ListCertificatesArgs(&args)
@@ -253,7 +257,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 // CreateAction Storage level processing for wallet `createAction`.
 func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	if auth.UserID == nil {
-		return nil, fmt.Errorf("missing user ID")
+		return nil, ErrAuthorization
 	}
 	if err := validate.ValidCreateActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
@@ -269,7 +273,7 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 // InternalizeAction Storage level processing for wallet `internalizeAction`.
 func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 	if auth.UserID == nil {
-		return nil, fmt.Errorf("missing user ID")
+		return nil, ErrAuthorization
 	}
 	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
@@ -285,7 +289,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 // ProcessAction Storage level processing for wallet `processAction`.
 func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
 	if auth.UserID == nil {
-		return nil, fmt.Errorf("missing user ID")
+		return nil, ErrAuthorization
 	}
 	if err := validate.ProcessActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid processAction args: %w", err)
@@ -305,4 +309,49 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
 	}
 	return nil
+}
+
+// ListOutputs will list outputs with provided args
+func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	if err := validate.ListOutputsArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid listOutputs args: %w", err)
+	}
+
+	filter := listOutputsArgsToFilterParams(args)
+
+	outputModels, totalCount, err := p.repo.ListAndCountOutputs(ctx, *auth.UserID, filter)
+	if err != nil {
+		return nil, fmt.Errorf("error during listing outputs: %w", err)
+	}
+	if totalCount < 0 {
+		return nil, fmt.Errorf("unexpected negative output count: %d", totalCount)
+	}
+	if totalCount > math.MaxInt {
+		return nil, fmt.Errorf("output count exceeds PositiveInteger limit: %d", totalCount)
+	}
+
+	outputs := make([]*wdk.WalletOutput, len(outputModels))
+	for i, m := range outputModels {
+		outputs[i] = outputModelToResult(m)
+	}
+
+	result := &wdk.ListOutputsResult{
+		TotalOutputs: primitives.PositiveInteger(totalCount),
+		Outputs:      outputs,
+	}
+
+	if args.IncludeTransactions {
+		rawBeef, err := p.repo.GetBEEFForTxids(ctx, args.KnownTxids)
+		if err != nil {
+			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
+		}
+		beef := primitives.BEEF(rawBeef)
+		result.BEEF = &beef
+	}
+
+	return result, nil
 }

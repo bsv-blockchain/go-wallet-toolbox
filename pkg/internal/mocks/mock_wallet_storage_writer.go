@@ -116,6 +116,21 @@ func (mr *MockWalletStorageWriterMockRecorder) ListCertificates(ctx, auth, args 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCertificates", reflect.TypeOf((*MockWalletStorageWriter)(nil).ListCertificates), ctx, auth, args)
 }
 
+// ListOutputs mocks base method.
+func (m *MockWalletStorageWriter) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOutputs", ctx, auth, args)
+	ret0, _ := ret[0].(*wdk.ListOutputsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListOutputs indicates an expected call of ListOutputs.
+func (mr *MockWalletStorageWriterMockRecorder) ListOutputs(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOutputs", reflect.TypeOf((*MockWalletStorageWriter)(nil).ListOutputs), ctx, auth, args)
+}
+
 // MakeAvailable mocks base method.
 func (m *MockWalletStorageWriter) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error) {
 	m.ctrl.T.Helper()

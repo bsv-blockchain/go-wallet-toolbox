@@ -48,6 +48,10 @@ func (c *WalletStorageWriterClient) ListCertificates(ctx context.Context, auth w
 	return c.client.ListCertificates(ctx, auth, args)
 }
 
+func (c *WalletStorageWriterClient) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+	return c.client.ListOutputs(ctx, auth, args)
+}
+
 type rpcWalletStorageWriter struct {
 	Migrate               func(context.Context, string, string) (string, error)
 	MakeAvailable         func(context.Context) (*wdk.TableSettings, error)
@@ -58,4 +62,5 @@ type rpcWalletStorageWriter struct {
 	InsertCertificateAuth func(context.Context, wdk.AuthID, *wdk.TableCertificateX) (uint, error)
 	RelinquishCertificate func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
 	ListCertificates      func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
+	ListOutputs           func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 }
