@@ -1,4 +1,4 @@
-package testabilities
+package testservices
 
 import (
 	"fmt"

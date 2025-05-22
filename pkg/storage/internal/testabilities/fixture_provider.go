@@ -8,7 +8,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database"
@@ -22,7 +22,7 @@ type ProviderFixture interface {
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
 
-	ARC() testabilities.ARCFixture
+	ARC() testservices.ARCFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -40,7 +40,7 @@ type providerFixture struct {
 	logger          *slog.Logger
 	db              *database.Database
 	activeStorage   *storage.Provider
-	servicesFixture testabilities.ServicesFixture
+	servicesFixture testservices.ServicesFixture
 }
 
 func (p *providerFixture) WithNetwork(network defs.BSVNetwork) ProviderFixture {
@@ -64,7 +64,7 @@ func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixt
 }
 
 func (p *providerFixture) withServices() ProviderFixture {
-	p.servicesFixture = testabilities.GivenServicesWithNetwork(p.t, p.network)
+	p.servicesFixture = testservices.GivenServicesWithNetwork(p.t, p.network)
 
 	p.servicesFixture.ARC().IsUpAndRunning()
 
@@ -72,7 +72,7 @@ func (p *providerFixture) withServices() ProviderFixture {
 	return p
 }
 
-func (p *providerFixture) ARC() testabilities.ARCFixture {
+func (p *providerFixture) ARC() testservices.ARCFixture {
 	p.t.Helper()
 	if p.servicesFixture == nil {
 		p.t.Fatal("ARC() called without setting up services fixture")

@@ -1,4 +1,4 @@
-package testabilities
+package testservices
 
 import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"

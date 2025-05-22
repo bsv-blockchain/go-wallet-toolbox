@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -16,7 +16,7 @@ import (
 func TestPostBEEF(t *testing.T) {
 	t.Run("successfully post BEEF with single tx IDs", func(t *testing.T) {
 		// given:
-		given := testabilities.GivenServices(t)
+		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
 		// and:
@@ -49,7 +49,7 @@ func TestPostBEEF(t *testing.T) {
 
 	t.Run("successfully post BEEF with multiple tx IDs", func(t *testing.T) {
 		// given:
-		given := testabilities.GivenServices(t)
+		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
 		// and:

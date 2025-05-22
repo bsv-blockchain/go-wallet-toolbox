@@ -5,26 +5,26 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type ARCFServiceFixture interface {
-	testabilities.ServicesFixture
+	testservices.ServicesFixture
 
 	NewArcService(opts ...func(*arc.Config)) *arc.Service
 }
 
 func Given(t testing.TB) ARCFServiceFixture {
 	return &arcServiceFixture{
-		ServicesFixture: testabilities.GivenServices(t),
+		ServicesFixture: testservices.GivenServices(t),
 		t:               t,
 	}
 }
 
 type arcServiceFixture struct {
-	testabilities.ServicesFixture
+	testservices.ServicesFixture
 	t testing.TB
 }
 
@@ -35,7 +35,7 @@ func (f *arcServiceFixture) NewArcService(opts ...func(*arc.Config)) *arc.Servic
 	config := to.OptionsWithDefault(arc.Config{
 		URL:           to.IfThen(network == defs.NetworkMainnet, defs.ArcURL).ElseThen(defs.ArcTestURL),
 		Token:         to.IfThen(network == defs.NetworkMainnet, defs.ArcToken).ElseThen(defs.ArcTestToken),
-		DeploymentID:  testabilities.DeploymentID,
+		DeploymentID:  testservices.DeploymentID,
 		WaitFor:       "",
 		CallbackURL:   "",
 		CallbackToken: "",
