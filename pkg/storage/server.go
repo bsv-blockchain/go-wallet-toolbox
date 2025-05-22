@@ -27,18 +27,23 @@ func NewServer(logger *slog.Logger, storage wdk.WalletStorageWriter, opts Server
 	}
 }
 
-// Start starts the server
-// NOTE: This method is blocking
-func (s *Server) Start() error {
+// Handler returns an http.Handler configured with the storage RPC endpoints.
+func (s *Server) Handler() http.Handler {
 	rpcServer := server.NewRPCHandler(s.logger, "remote_storage", s.provider)
 
 	mux := http.NewServeMux()
 	rpcServer.Register(mux)
 
+	return mux
+}
+
+// Start starts the server
+// NOTE: This method is blocking
+func (s *Server) Start() error {
 	port := s.options.Port
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           mux,
+		Handler:           s.Handler(),
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

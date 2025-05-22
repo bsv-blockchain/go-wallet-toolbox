@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/actions"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
 )
@@ -11,7 +11,7 @@ type ProviderOption func(*providerOptions)
 
 type providerOptions struct {
 	gormDB     *gorm.DB
-	funder     actions.Funder
+	funder     funder.Funder
 	randomizer wdk.Randomizer
 }
 
