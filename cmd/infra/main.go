@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/infra"
 )
 

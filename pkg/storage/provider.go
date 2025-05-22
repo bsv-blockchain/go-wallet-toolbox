@@ -298,6 +298,7 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 	return res, nil
 }
 
+// SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
 func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 	err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {

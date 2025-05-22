@@ -2,9 +2,10 @@ package actions
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"log/slog"
 	"sync"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 )
 
 type synchronizeTxStatuses struct {

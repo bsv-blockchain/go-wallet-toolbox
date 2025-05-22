@@ -1,10 +1,11 @@
 package testabilities
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/stretchr/testify/require"
 )
 
 type MonitorAssertions interface {
