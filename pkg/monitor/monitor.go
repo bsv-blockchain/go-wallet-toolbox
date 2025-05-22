@@ -23,6 +23,8 @@ type Daemon struct {
 	logger      *slog.Logger
 	activeTasks map[defs.MonitorTask]*ActiveTask
 
+	storage MinimalStorageInterface
+
 	started   bool
 	startLock sync.Mutex
 }
@@ -37,7 +39,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MinimalStorageInterface, db *gorm.DB) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
@@ -52,12 +54,12 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, db *gorm.
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), gocron.WithDistributedLocker(locker))
+	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, gocron.WithDistributedLocker(locker))
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MinimalStorageInterface, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
@@ -66,7 +68,18 @@ func NewDaemon(logger *slog.Logger, schedulerOptions ...gocron.SchedulerOption) 
 		scheduler:   scheduler,
 		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
+		storage:     storage,
 	}, nil
+}
+
+type taskFactoryFunc func() tasks.TaskInterface
+
+func (d *Daemon) allTasksFactories() map[defs.MonitorTask]taskFactoryFunc {
+	return map[defs.MonitorTask]taskFactoryFunc{
+		defs.CheckForProofsMonitorTask: func() tasks.TaskInterface {
+			return tasks.NewCheckForProofsTask(d.logger, d.storage)
+		},
+	}
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
@@ -79,8 +92,15 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
 		return nil
 	}
 
+	factories := d.allTasksFactories()
 	for taskName, taskInterval := range tasksToStart {
-		if err := d.initializeTask(taskName, taskInterval); err != nil {
+		taskFactory, ok := factories[taskName]
+		if !ok {
+			d.logger.Warn("Task does not exist. Skipping.", slog.Any("task", taskName))
+			continue
+		}
+
+		if err := d.initializeTask(taskFactory(), taskName, taskInterval); err != nil {
 			return err
 		}
 	}
@@ -97,15 +117,7 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	return task, ok
 }
 
-func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duration) error {
-	taskFactory, ok := tasks.All[taskName]
-	if !ok {
-		d.logger.Warn("Provided unknown task name. Skipping.", slog.Any("task", taskName))
-		return nil
-	}
-
-	taskInstance := taskFactory(d.logger)
-
+func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, interval time.Duration) error {
 	task := &ActiveTask{
 		Instance: taskInstance,
 		TaskName: taskName,
@@ -130,8 +142,13 @@ func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duratio
 
 func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
 	return func() {
+		var err error
 		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
+			if err != nil {
+				d.logger.Error("Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+				return
+			}
 			if activeTask.Cronjob == nil {
 				return
 			}
@@ -139,6 +156,6 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
 			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
-		activeTask.Instance.Run()
+		err = activeTask.Instance.Run(context.TODO())
 	}
 }

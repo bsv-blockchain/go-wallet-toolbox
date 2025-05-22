@@ -1,23 +1,33 @@
 package tasks
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 )
 
-type CheckForProofsTask struct {
-	logger  *slog.Logger
-	counter uint64
+type TransactionStatusesSynchronizer interface {
+	SynchronizeTransactionStatuses(ctx context.Context) error
 }
 
-func NewCheckForProofsTask(logger *slog.Logger) TaskInterface {
+type CheckForProofsTask struct {
+	logger  *slog.Logger
+	storage TransactionStatusesSynchronizer
+}
+
+func NewCheckForProofsTask(logger *slog.Logger, storage TransactionStatusesSynchronizer) TaskInterface {
 	return &CheckForProofsTask{
 		logger:  logging.Child(logger, "check_for_proofs"),
-		counter: 0,
+		storage: storage,
 	}
 }
 
-func (t *CheckForProofsTask) Run() {
-	// TODO: implement
+func (t *CheckForProofsTask) Run(ctx context.Context) error {
+	if err := t.storage.SynchronizeTransactionStatuses(ctx); err != nil {
+		return fmt.Errorf("synchronize transaction statuses failed: %w", err)
+	}
+
+	return nil
 }
