@@ -23,7 +23,7 @@ type Daemon struct {
 	logger      *slog.Logger
 	activeTasks map[defs.MonitorTask]*ActiveTask
 
-	storage MinimalStorageInterface
+	storage MonitoredStorage
 
 	started   bool
 	startLock sync.Mutex
@@ -39,7 +39,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MinimalStorageInterface, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
@@ -59,7 +59,7 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, storage MinimalStorageInterface, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)

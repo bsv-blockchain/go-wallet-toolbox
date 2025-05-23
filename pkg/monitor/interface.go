@@ -2,7 +2,7 @@ package monitor
 
 import "context"
 
-// MinimalStorageInterface defines the minimum storage functionality used by the monitor.
-type MinimalStorageInterface interface {
+// MonitoredStorage defines the minimum storage functionality used by the monitor.
+type MonitoredStorage interface {
 	SynchronizeTransactionStatuses(ctx context.Context) error
 }
