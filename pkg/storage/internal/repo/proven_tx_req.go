@@ -168,3 +168,21 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	// Result is in mergeToBeef
 	return nil
 }
+
+func (p *ProvenTxReq) GetBEEFForTxids(ctx context.Context, txids []string) ([]byte, error) {
+	beef := transaction.NewBeefV2()
+
+	for _, txid := range txids {
+		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
+		}
+	}
+
+	data, err := beef.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("beef serialization error: %w", err)
+	}
+
+	return data, nil
+}
