@@ -110,6 +110,44 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
 	return nil
 }
 
+// Pause stops all scheduled jobs if the daemon is currently running.
+// If the daemon is not started, it logs a warning and does nothing.
+// Returns an error if stopping the jobs fails.
+func (d *Daemon) Pause() error {
+	d.startLock.Lock()
+	defer d.startLock.Unlock()
+
+	if !d.started {
+		d.logger.Warn("Daemon is not started. Skipping.")
+		return nil
+	}
+
+	err := d.scheduler.StopJobs()
+	if err != nil {
+		return fmt.Errorf("failed to stop jobs: %w", err)
+	}
+	return nil
+}
+
+// Stop shuts down the daemon, releasing all resources and clearing scheduled jobs.
+// If the daemon is not running, logs a warning and returns nil.
+// The Daemon cannot be restarted after stopping.
+func (d *Daemon) Stop() error {
+	d.startLock.Lock()
+	defer d.startLock.Unlock()
+
+	if !d.started {
+		d.logger.Warn("Daemon is not started. Skipping.")
+		return nil
+	}
+
+	err := d.scheduler.Shutdown()
+	if err != nil {
+		return fmt.Errorf("failed to clear jobs: %w", err)
+	}
+	return nil
+}
+
 // Get retrieves the active monitoring task associated with the given name.
 // Returns the ActiveTask pointer and true if found, otherwise nil and false.
 func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
@@ -140,8 +178,8 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	return nil
 }
 
-func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
-	return func() {
+func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Context) {
+	return func(ctx context.Context) {
 		var err error
 		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
@@ -156,6 +194,6 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
 			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
-		err = activeTask.Instance.Run(context.TODO())
+		err = activeTask.Instance.Run(ctx)
 	}
 }
