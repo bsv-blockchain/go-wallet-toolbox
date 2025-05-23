@@ -215,10 +215,10 @@ func (c *utxoCollector) prepareResult() (*Result, error) {
 	}
 
 	return &Result{
-		AllocatedUTXOs: c.allocatedUTXOs,
-		Fee:            c.fee,
-		ChangeAmount:   changeAmount,
-		ChangeCount:    c.changeOutputsCount,
+		AllocatedUTXOs:     c.allocatedUTXOs,
+		Fee:                c.fee,
+		ChangeAmount:       changeAmount,
+		ChangeOutputsCount: c.changeOutputsCount,
 	}, nil
 }
 

@@ -113,14 +113,14 @@ func (a *funderAssertion) HasFee(fee int) SuccessFundingResultAssertion {
 func (a *funderAssertion) HasNoChange() SuccessFundingResultAssertion {
 	a.Helper()
 
-	assert.Zerof(a, a.result.ChangeCount, "Unexpected number of changes")
+	assert.Zerof(a, a.result.ChangeOutputsCount, "Unexpected number of changes")
 	assert.Zerof(a, a.result.ChangeAmount, "Unexpected amount for changes")
 	return a
 }
 
 func (a *funderAssertion) HasChangeCount(count int) ChangeAssertion {
 	a.Helper()
-	assert.EqualValuesf(a, count, a.result.ChangeCount, "Expected change count to be %d but was %d", count, a.result.ChangeCount)
+	assert.EqualValuesf(a, count, a.result.ChangeOutputsCount, "Expected change count to be %d but was %d", count, a.result.ChangeOutputsCount)
 	return a
 }
 

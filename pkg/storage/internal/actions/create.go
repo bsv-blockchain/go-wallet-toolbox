@@ -132,7 +132,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	changeDistribution := txutils.NewChangeDistribution(satoshi.MustFrom(basket.MinimumDesiredUTXOValue), c.random.Uint64).
-		Distribute(funding.ChangeCount, funding.ChangeAmount)
+		Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
 
 	derivationPrefix, reference, err := c.randomValues()
 	if err != nil {
@@ -141,7 +141,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	newOutputs, err := c.newOutputs(
 		changeDistribution,
-		funding.ChangeCount,
+		funding.ChangeOutputsCount,
 		derivationPrefix,
 		params.Outputs,
 		commOut,

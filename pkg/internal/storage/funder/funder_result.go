@@ -8,10 +8,10 @@ import (
 )
 
 type Result struct {
-	AllocatedUTXOs []*UTXO
-	ChangeCount    uint64
-	ChangeAmount   satoshi.Value
-	Fee            satoshi.Value
+	AllocatedUTXOs     []*UTXO
+	ChangeOutputsCount uint64
+	ChangeAmount       satoshi.Value
+	Fee                satoshi.Value
 }
 
 func (fr *Result) TotalAllocated() (satoshi.Value, error) {
