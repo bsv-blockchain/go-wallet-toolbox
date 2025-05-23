@@ -23,6 +23,7 @@ import (
 )
 
 const DeploymentID = "go-wallet-toolbox-test"
+const TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
 const arcHttpStatusMalformed = 463
 
 var timestamp = time.Date(2018, time.November, 10, 23, 0, 0, 0, time.UTC).Format("2006-01-02T15:04:05.999999999Z")
@@ -215,9 +216,7 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePat
 	tx.status = "MINED"
 	tx.merklePath = path.Hex()
 	tx.blockHeight = path.BlockHeight
-	var err error
-	tx.blockHash, err = path.ComputeRootHex(nil)
-	require.NoError(a, err, "failed to compute root: wrong test setup")
+	tx.blockHash = TestBlockHash
 	return a
 }
 
