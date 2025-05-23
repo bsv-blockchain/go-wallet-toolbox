@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	models2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
@@ -22,7 +22,7 @@ func NewUsers(db *gorm.DB, settings *Settings, outputBaskets *OutputBaskets) *Us
 }
 
 func (u *Users) FindUser(ctx context.Context, identityKey string) (*wdk.TableUser, error) {
-	user := &models2.User{}
+	user := &models.User{}
 	err := u.db.WithContext(ctx).First(&user, "identity_key = ?", identityKey).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -41,11 +41,11 @@ func (u *Users) FindUser(ctx context.Context, identityKey string) (*wdk.TableUse
 }
 
 func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage string, baskets ...wdk.BasketConfiguration) (*wdk.TableUser, error) {
-	user := models2.User{
+	user := models.User{
 		IdentityKey:   identityKey,
 		ActiveStorage: activeStorage,
-		OutputBaskets: slices.Map(baskets, func(basket wdk.BasketConfiguration) *models2.OutputBasket {
-			return &models2.OutputBasket{
+		OutputBaskets: slices.Map(baskets, func(basket wdk.BasketConfiguration) *models.OutputBasket {
+			return &models.OutputBasket{
 				Name:                    basket.Name,
 				NumberOfDesiredUTXOs:    basket.NumberOfDesiredUTXOs,
 				MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,

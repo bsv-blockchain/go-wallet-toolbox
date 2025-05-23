@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	models2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
@@ -22,7 +22,7 @@ type UserUTXOFixture interface {
 }
 
 type UTXODatabase interface {
-	Save(utxo *models2.UserUTXO)
+	Save(utxo *models.UserUTXO)
 }
 
 var defaultBasket = wdk.TableOutputBasket{
@@ -92,14 +92,14 @@ func (f *userUtxoFixture) Stored() {
 		return
 	}
 
-	utxo := &models2.UserUTXO{
+	utxo := &models.UserUTXO{
 		UserID:             f.userID,
 		OutputID:           f.index,
 		Satoshis:           f.satoshis,
 		EstimatedInputSize: f.estimatedInputSize,
 		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second),
 		BasketID:           f.basket.BasketID,
-		Basket: &models2.OutputBasket{
+		Basket: &models.OutputBasket{
 			CreatedAt:               FirstCreatedAt,
 			UpdatedAt:               FirstCreatedAt,
 			DeletedAt:               gorm.DeletedAt{},

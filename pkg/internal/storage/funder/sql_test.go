@@ -6,7 +6,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	testabilities2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -16,24 +16,24 @@ func TestFunderSQLFund(t *testing.T) {
 	var ctx = context.Background()
 
 	testCasesErrors := map[string]struct {
-		thereAreUTXOInDB func(testabilities2.FunderFixture, *wdk.TableOutputBasket)
+		thereAreUTXOInDB func(testabilities.FunderFixture, *wdk.TableOutputBasket)
 		targetSatoshis   satoshi.Value
 		txSize           uint64
 	}{
 		"return error when user has no utxo": {
-			thereAreUTXOInDB: func(testabilities2.FunderFixture, *wdk.TableOutputBasket) {},
+			thereAreUTXOInDB: func(testabilities.FunderFixture, *wdk.TableOutputBasket) {},
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
 		},
 		"return error when user fund the transaction by himself but has not enough utxo to cover the fee": {
-			thereAreUTXOInDB: func(testabilities2.FunderFixture, *wdk.TableOutputBasket) {},
+			thereAreUTXOInDB: func(testabilities.FunderFixture, *wdk.TableOutputBasket) {},
 
 			targetSatoshis: 0,
 			txSize:         smallTransactionSize,
 		},
 		"return error when user has not enough utxo to cover the transaction": {
-			thereAreUTXOInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(50).P2PKH().Stored()
 			},
 
@@ -41,7 +41,7 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         smallTransactionSize,
 		},
 		"return error when user has not enough utxos to cover fee": {
-			thereAreUTXOInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
 			},
 
@@ -50,7 +50,7 @@ func TestFunderSQLFund(t *testing.T) {
 		},
 		"return error when user has not enough utxos to cover fee for bigger tx": {
 			// Because the transaction size makes the fee = 2, one satoshi above the target satoshis is not enough.
-			thereAreUTXOInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(101).P2PKH().Stored()
 			},
 
@@ -58,7 +58,7 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         transactionSizeForHigherFee,
 		},
 		"return error when user has no utxos but there are other users utxos": {
-			thereAreUTXOInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().OwnedBy(testusers.Bob).WithSatoshis(1000).P2PKH().Stored()
 				given.UTXO().OwnedBy(testusers.Bob).WithSatoshis(100).P2PKH().Stored()
 				given.UTXO().OwnedBy(testusers.Bob).WithSatoshis(200).P2PKH().Stored()
@@ -69,7 +69,7 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         smallTransactionSize,
 		},
 		"return error when user has utxos but in other basket": {
-			thereAreUTXOInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 
 				otherBasket := *basket
 				otherBasket.BasketID = 100
@@ -87,7 +87,7 @@ func TestFunderSQLFund(t *testing.T) {
 	for name, test := range testCasesErrors {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given, then, cleanup := testabilities2.New(t)
+			given, then, cleanup := testabilities.New(t)
 			defer cleanup()
 
 			// and:
@@ -113,13 +113,13 @@ func TestFunderSQLFund(t *testing.T) {
 		possessedUTXOs int64
 		targetSatoshis satoshi.Value
 		txSize         uint64
-		expectations   func(testabilities2.SuccessFundingResultAssertion)
+		expectations   func(testabilities.SuccessFundingResultAssertion)
 	}{
 		"user has funded exactly the transaction and fee by himself": {
 			targetSatoshis: -1,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.DoesNotAllocateUTXOs().
 					HasNoChange().
 					HasFee(1)
@@ -129,7 +129,7 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: -2,
 			txSize:         transactionSizeForHigherFee,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.DoesNotAllocateUTXOs().
 					HasNoChange().
 					HasFee(2)
@@ -139,7 +139,7 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: -1001,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.DoesNotAllocateUTXOs().
 					HasChangeCount(1).ForAmount(1000).
 					HasFee(1)
@@ -151,7 +151,7 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: 0,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().ForTotalAmount(1).
 					HasNoChange().
 					HasFee(1)
@@ -163,7 +163,7 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: -1,
 			txSize:         transactionSizeForHigherFee,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().ForTotalAmount(1).
 					HasNoChange().
 					HasFee(2)
@@ -173,7 +173,7 @@ func TestFunderSQLFund(t *testing.T) {
 	for name, test := range testCasesForFundingWithoutAllocatingUTXO {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given, then, cleanup := testabilities2.New(t)
+			given, then, cleanup := testabilities.New(t)
 			defer cleanup()
 
 			// and:
@@ -194,41 +194,41 @@ func TestFunderSQLFund(t *testing.T) {
 	}
 
 	testCasesFundWholeTransaction := map[string]struct {
-		havingUTXOsInDB func(testabilities2.FunderFixture, *wdk.TableOutputBasket)
+		havingUTXOsInDB func(testabilities.FunderFixture, *wdk.TableOutputBasket)
 		targetSatoshis  satoshi.Value
 		txSize          uint64
-		expectations    func(testabilities2.SuccessFundingResultAssertion)
+		expectations    func(testabilities.SuccessFundingResultAssertion)
 	}{
 		"target satoshis and fee are equal to the only one utxo satoshis": {
-			havingUTXOsInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(101).P2PKH().Stored()
 			},
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0).
 					HasNoChange().
 					HasFee(1)
 			},
 		},
 		"adding utxo can increase the fee": {
-			havingUTXOsInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(102).P2PKH().Stored()
 			},
 
 			targetSatoshis: 100,
 			txSize:         999,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0).
 					HasFee(2).
 					HasNoChange()
 			},
 		},
 		"user has a lot of small utxo to they will cover the target sats and fee": {
-			havingUTXOsInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				// Funder is collecting utxos by 1000 rows, so we need to have more than 1000 utxos to test this case.
 				for range 1600 {
 					given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(1).P2PKH().Stored()
@@ -238,27 +238,27 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: 1363,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().ForTotalAmount(1600).
 					HasNoChange()
 			},
 		},
 		"user has single big utxo and basket is aiming for smallest number of changes": {
-			havingUTXOsInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(10101).P2PKH().Stored()
 			},
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0).
 					HasFee(1).
 					HasChangeCount(1).ForAmount(10000)
 			},
 		},
 		"allocate biggest utxos first": {
-			havingUTXOsInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(10101).P2PKH().Stored()
@@ -269,14 +269,14 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(2).
 					HasFee(1).
 					HasChangeCount(1).ForAmount(10000)
 			},
 		},
 		"allocate several utxos and calculate the change from them": {
-			havingUTXOsInDB: func(given testabilities2.FunderFixture, basket *wdk.TableOutputBasket) {
+			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(1).P2PKH().Stored()
@@ -286,7 +286,7 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis: 549,
 			txSize:         smallTransactionSize,
 
-			expectations: func(thenResult testabilities2.SuccessFundingResultAssertion) {
+			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0, 1, 3).
 					HasFee(1).
 					HasChangeCount(1).ForAmount(50)
@@ -296,7 +296,7 @@ func TestFunderSQLFund(t *testing.T) {
 	for name, test := range testCasesFundWholeTransaction {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given, then, cleanup := testabilities2.New(t)
+			given, then, cleanup := testabilities.New(t)
 			defer cleanup()
 
 			// and:
@@ -319,7 +319,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 	t.Run("adding change increases the fee", func(t *testing.T) {
 		// given:
-		given, then, cleanup := testabilities2.New(t)
+		given, then, cleanup := testabilities.New(t)
 		defer cleanup()
 
 		// and:
@@ -339,7 +339,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 	t.Run("adding change will increase the fee so that there won't be any change, so we're giving extra fee to miner", func(t *testing.T) {
 		// given:
-		given, then, cleanup := testabilities2.New(t)
+		given, then, cleanup := testabilities.New(t)
 		defer cleanup()
 
 		// and:
@@ -359,7 +359,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 	t.Run("produce single change when basket NumberOfDesiredUTXOs is 0", func(t *testing.T) {
 		// given:
-		given, then, cleanup := testabilities2.New(t)
+		given, then, cleanup := testabilities.New(t)
 		defer cleanup()
 
 		// and:
@@ -378,7 +378,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 	t.Run("produce single change when basket NumberOfDesiredUTXOs is negative (value: -5)", func(t *testing.T) {
 		// given:
-		given, then, cleanup := testabilities2.New(t)
+		given, then, cleanup := testabilities.New(t)
 		defer cleanup()
 
 		// and:
@@ -397,7 +397,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 	t.Run("produce single change when user has already utxo number equal to desired basket NumberOfDesiredUTXOs", func(t *testing.T) {
 		// given:
-		given, then, cleanup := testabilities2.New(t)
+		given, then, cleanup := testabilities.New(t)
 		defer cleanup()
 
 		// and:
@@ -479,7 +479,7 @@ func TestFunderSQLFund(t *testing.T) {
 			targetSatoshis := -satoshi.MustAdd(test.expectedChangeValue, fee)
 
 			// and:
-			given, then, cleanup := testabilities2.New(t)
+			given, then, cleanup := testabilities.New(t)
 			defer cleanup()
 
 			// and:

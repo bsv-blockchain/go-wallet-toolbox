@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	models2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
@@ -50,14 +50,14 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 	return nil
 }
 
-func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models2.Transaction, error) {
-	outputs, err := slices.MapOrError(newTx.Outputs, func(output *entity.NewOutput) (*models2.Output, error) {
+func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transaction, error) {
+	outputs, err := slices.MapOrError(newTx.Outputs, func(output *entity.NewOutput) (*models.Output, error) {
 		return txs.makeNewOutput(newTx.UserID, output)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outputs: %w", err)
 	}
-	model := &models2.Transaction{
+	model := &models.Transaction{
 		UserID:      newTx.UserID,
 		Status:      newTx.Status,
 		Reference:   newTx.Reference,
@@ -68,14 +68,14 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models2.Trans
 		LockTime:    newTx.LockTime,
 		InputBeef:   newTx.InputBeef,
 		TxID:        newTx.TxID,
-		Labels: slices.Map(newTx.Labels, func(label primitives.StringUnder300) *models2.Label {
-			return &models2.Label{
+		Labels: slices.Map(newTx.Labels, func(label primitives.StringUnder300) *models.Label {
+			return &models.Label{
 				Name:   string(label),
 				UserID: newTx.UserID,
 			}
 		}),
-		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models2.UserUTXO {
-			return &models2.UserUTXO{
+		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models.UserUTXO {
+			return &models.UserUTXO{
 				UserID:   newTx.UserID,
 				OutputID: reservedOutputID,
 			}
@@ -86,7 +86,7 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models2.Trans
 	return model, nil
 }
 
-func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.NewTx, model *models2.Transaction) error {
+func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.NewTx, model *models.Transaction) error {
 	basketMaker := newCachedBasketMaker(tx, newTx.UserID)
 	for _, out := range model.Outputs {
 		if out.Basket == nil || out.Basket.Name == "" {
@@ -106,8 +106,8 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 	return nil
 }
 
-func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*models2.Output, error) {
-	out := models2.Output{
+func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*models.Output, error) {
+	out := models.Output{
 		Vout:               output.Vout,
 		UserID:             userID,
 		Satoshis:           output.Satoshis.Int64(),
@@ -126,7 +126,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 
 	if output.Basket != nil && *output.Basket != "" {
 		// This won't create a new basket, the name is just passed for further processing (see connectOutputsWithBaskets())
-		out.Basket = &models2.OutputBasket{
+		out.Basket = &models.OutputBasket{
 			Name: *output.Basket,
 		}
 	}
@@ -143,7 +143,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 			return nil, fmt.Errorf("failed to convert satoshis to uint64: %w", err)
 		}
 
-		out.UserUTXO = &models2.UserUTXO{
+		out.UserUTXO = &models.UserUTXO{
 			UserID:             userID,
 			Satoshis:           sats,
 			EstimatedInputSize: txutils.EstimatedInputSizeByType(output.Type),
@@ -157,7 +157,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, userID i
 		return nil
 	}
 
-	err := tx.Model(&models2.Output{}).
+	err := tx.Model(&models.Output{}).
 		Where("id IN ?", outputIDs).
 		Where("user_id = ?", userID).
 		Update("spendable", false).Error
@@ -168,7 +168,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, userID i
 }
 
 func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*wdk.TableTransaction, error) {
-	var transaction models2.Transaction
+	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -182,7 +182,7 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 }
 
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error) {
-	transaction := models2.Transaction{}
+	transaction := models.Transaction{}
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
@@ -204,7 +204,7 @@ func (txs *Transactions) SpendTransaction(
 	historyAttrs map[string]any,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = tx.Model(models2.Transaction{}).
+		err = tx.Model(models.Transaction{}).
 			Scopes(scopes.UserID(updatedTx.UserID)).
 			Where("id = ?", updatedTx.TransactionID).
 			Updates(map[string]any{
@@ -216,7 +216,7 @@ func (txs *Transactions) SpendTransaction(
 			return err
 		}
 
-		err = tx.Delete(models2.UserUTXO{}, "reserved_by_id = ?", updatedTx.TransactionID).Error
+		err = tx.Delete(models.UserUTXO{}, "reserved_by_id = ?", updatedTx.TransactionID).Error
 		if err != nil {
 			return err
 		}
@@ -240,9 +240,9 @@ func (txs *Transactions) SpendTransaction(
 }
 
 func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
-	var changeOutputs []*models2.Output
+	var changeOutputs []*models.Output
 	err := tx.
-		Model(&models2.Transaction{
+		Model(&models.Transaction{
 			Model: gorm.Model{
 				ID: updatedTx.TransactionID,
 			},
@@ -270,8 +270,8 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 		return fmt.Errorf("failed to save change outputs: %w", err)
 	}
 
-	newUTXOs := slices.Map(changeOutputs, func(output *models2.Output) *models2.UserUTXO {
-		return &models2.UserUTXO{
+	newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
+		return &models.UserUTXO{
 			UserID:             updatedTx.UserID,
 			OutputID:           output.ID,
 			BasketID:           *output.BasketID,
@@ -310,14 +310,14 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 }
 
 func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
-	return tx.Model(models2.Transaction{}).
+	return tx.Model(models.Transaction{}).
 		Where("tx_id = ?", txID).
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
 }
 
-func (txs *Transactions) mapModelToTableTransaction(model *models2.Transaction) *wdk.TableTransaction {
+func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *wdk.TableTransaction {
 	return &wdk.TableTransaction{
 		CreatedAt:     model.CreatedAt,
 		UpdatedAt:     model.UpdatedAt,

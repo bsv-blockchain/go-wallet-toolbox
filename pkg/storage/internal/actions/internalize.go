@@ -7,7 +7,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	entity2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
@@ -68,7 +68,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}
 
 	// TODO: Don't upsert ProvenTxReq if the transaction is already known in ProvenTx (not *Req)
-	err = in.provenTxRepo.UpsertProvenTxReq(ctx, &entity2.UpsertProvenTxReq{
+	err = in.provenTxRepo.UpsertProvenTxReq(ctx, &entity.UpsertProvenTxReq{
 		TxID:      txID,
 		RawTx:     tx.Bytes(),
 		InputBeef: args.Tx,
@@ -78,7 +78,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to upsert proven tx request: %w", err)
 	}
 
-	err = in.txRepo.CreateTransaction(ctx, &entity2.NewTx{
+	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{
 		UserID:      userID,
 		Version:     tx.Version,
 		LockTime:    tx.LockTime,
@@ -103,12 +103,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}, nil
 }
 
-func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transaction.Transaction, outputSpecs []*wdk.InternalizeOutput) ([]*entity2.NewOutput, satoshi.Value, error) {
+func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transaction.Transaction, outputSpecs []*wdk.InternalizeOutput) ([]*entity.NewOutput, satoshi.Value, error) {
 	satoshis := satoshi.Zero()
 
 	changeBasketVerified := false
 
-	var newOutputs []*entity2.NewOutput
+	var newOutputs []*entity.NewOutput
 	outputsCount, err := to.UInt32(len(tx.Outputs))
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to convert outputs count to uint32: %w", err)
@@ -132,7 +132,7 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 			}
 
 			remittance := outputSpec.PaymentRemittance
-			newOutputs = append(newOutputs, &entity2.NewOutput{
+			newOutputs = append(newOutputs, &entity.NewOutput{
 				Vout:              outputSpec.OutputIndex,
 				Spendable:         true,
 				LockingScript:     to.Ptr(primitives.HexString(output.LockingScript.String())),
@@ -149,7 +149,7 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 
 		case wdk.BasketInsertionProtocol:
 			remittance := outputSpec.InsertionRemittance
-			newOutputs = append(newOutputs, &entity2.NewOutput{
+			newOutputs = append(newOutputs, &entity.NewOutput{
 				Vout:               outputSpec.OutputIndex,
 				Spendable:          true,
 				LockingScript:      to.Ptr(primitives.HexString(output.LockingScript.String())),

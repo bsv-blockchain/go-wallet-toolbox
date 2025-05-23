@@ -7,7 +7,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
-	models2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -29,7 +29,7 @@ type faucetFixture struct {
 	index    int
 }
 
-func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models2.UserUTXO) {
+func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models.UserUTXO) {
 	f.t.Helper()
 
 	spec := txtestabilities.GivenTX().
@@ -40,14 +40,14 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 	beef, err := spec.TX().BEEF()
 	require.NoError(f.t, err)
 
-	provenTxReq := &models2.ProvenTxReq{
+	provenTxReq := &models.ProvenTxReq{
 		TxID:      spec.ID(),
 		Status:    wdk.ProvenTxStatusUnmined,
 		RawTx:     spec.TX().Bytes(),
 		InputBeef: beef,
 	}
 
-	transaction := &models2.Transaction{
+	transaction := &models.Transaction{
 		UserID:      f.user.ID,
 		Status:      wdk.TxStatusCompleted,
 		Reference:   MockReference,
@@ -60,7 +60,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		TxID:        to.Ptr(spec.ID()),
 	}
 
-	output := &models2.Output{
+	output := &models.Output{
 		Vout:             0,
 		UserID:           f.user.ID,
 		Satoshis:         satoshis.Int64(),
@@ -78,7 +78,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		Transaction: transaction,
 	}
 
-	utxo := &models2.UserUTXO{
+	utxo := &models.UserUTXO{
 		UserID:             f.user.ID,
 		Satoshis:           satoshis.MustUInt64(),
 		EstimatedInputSize: txutils.P2PKHEstimatedInputSize,
