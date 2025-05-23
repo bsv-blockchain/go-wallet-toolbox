@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	arctestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -231,28 +231,28 @@ func TestPostBEEFWithARCService(t *testing.T) {
 	}
 
 	arcFailingTestCases := map[string]struct {
-		setupARC func(testabilities.ARCFixture)
+		setupARC func(testservices.ARCFixture)
 	}{
 		"return error when arc is unreachable": {
-			setupARC: func(testabilities.ARCFixture) {},
+			setupARC: func(testservices.ARCFixture) {},
 		},
 		"return error when arc returns unauthorized": {
-			setupARC: func(arc testabilities.ARCFixture) {
+			setupARC: func(arc testservices.ARCFixture) {
 				arc.WillAlwaysReturnStatus(http.StatusUnauthorized)
 			},
 		},
 		"return error when arc returns forbidden": {
-			setupARC: func(arc testabilities.ARCFixture) {
+			setupARC: func(arc testservices.ARCFixture) {
 				arc.WillAlwaysReturnStatus(http.StatusForbidden)
 			},
 		},
 		"return error when arc returns not found": {
-			setupARC: func(arc testabilities.ARCFixture) {
+			setupARC: func(arc testservices.ARCFixture) {
 				arc.WillAlwaysReturnStatus(http.StatusNotFound)
 			},
 		},
 		"return error when arc returns internal server error": {
-			setupARC: func(arc testabilities.ARCFixture) {
+			setupARC: func(arc testservices.ARCFixture) {
 				arc.WillAlwaysReturnStatus(http.StatusInternalServerError)
 			},
 		},
@@ -283,45 +283,45 @@ func TestPostBEEFWithARCService(t *testing.T) {
 	}
 
 	errorOnQueryTxTestCases := map[string]struct {
-		setupARCQueryTx func(arc testabilities.ARCQueryFixture)
+		setupARCQueryTx func(arc testservices.ARCQueryFixture)
 	}{
 		"return success result when broadcast succeed but getting info about tx failed because arc is unreachable": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillBeUnreachable()
 			},
 		},
 		"return success result when broadcast succeed but getting info about tx failed with unauthorized": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnHttpStatus(http.StatusUnauthorized)
 			},
 		},
 		"return success result when broadcast succeed but getting info about tx failed with forbidden": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnHttpStatus(http.StatusForbidden)
 			},
 		},
 		"return success result when broadcast succeed but getting info about tx failed with conflict": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnHttpStatus(http.StatusConflict)
 			},
 		},
 		"return success result when broadcast succeed but getting info about tx failed with internal server error": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnHttpStatus(http.StatusInternalServerError)
 			},
 		},
 		"return success result when broadcast succeed but getting info about tx failed with not found": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnHttpStatus(http.StatusNotFound)
 			},
 		},
 		"return success result when broadcast succeed but getting info would result with no body": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnNoBody()
 			},
 		},
 		"return success result when broadcast succeed but getting info would result with different transaction": {
-			setupARCQueryTx: func(arc testabilities.ARCQueryFixture) {
+			setupARCQueryTx: func(arc testservices.ARCQueryFixture) {
 				arc.WillReturnDifferentTxID()
 			},
 		},

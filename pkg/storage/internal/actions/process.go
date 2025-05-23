@@ -7,8 +7,8 @@ import (
 	"maps"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/history"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -278,7 +278,7 @@ func (p *process) processBroadcastSingleTxResult(aggBroadcastResult *wdk.Aggrega
 		sendWithResult.Status = wdk.SendWithResultStatusFailed
 		reviewActionResult.Status = wdk.ReviewActionResultStatusDoubleSpend
 		reviewActionResult.CompetingTxs = seq.Collect(maps.Keys(aggBroadcastResult.CompetingTxs))
-		//TODO: Build reviewActionResult.CompetingBeef
+		// TODO: Build reviewActionResult.CompetingBeef
 	case wdk.AggregatedPostedTxIDInvalidTx:
 		reqStatus = wdk.ProvenTxStatusInvalid
 		txStatus = wdk.TxStatusFailed

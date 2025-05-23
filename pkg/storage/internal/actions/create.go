@@ -9,9 +9,10 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/commission"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -27,29 +28,6 @@ const (
 	derivationLength = 16
 	referenceLength  = 12
 )
-
-type UTXO struct {
-	OutputID uint
-	Satoshis satoshi.Value
-}
-
-type FundingResult struct {
-	AllocatedUTXOs []*UTXO
-	ChangeCount    uint64
-	ChangeAmount   satoshi.Value
-	Fee            satoshi.Value
-}
-
-func (fr *FundingResult) TotalAllocated() (satoshi.Value, error) {
-	total, err := satoshi.Sum(seq.Map(seq.FromSlice(fr.AllocatedUTXOs), func(utxo *UTXO) satoshi.Value {
-		return utxo.Satoshis
-	}))
-	if err != nil {
-		return 0, fmt.Errorf("failed to sum allocated UTXOs: %w", err)
-	}
-
-	return total, nil
-}
 
 type CreateActionParams struct {
 	Version                  uint32
@@ -76,19 +54,9 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 	}
 }
 
-type Funder interface {
-	// Fund
-	// @param targetSat - the target amount of satoshis to fund (total inputs - total outputs)
-	// @param currentTxSize - the current size of the transaction in bytes (size of tx + current inputs + current outputs)
-	// @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
-	// @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
-	// @param userID - the user ID
-	Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int) (*FundingResult, error)
-}
-
 type create struct {
 	logger        *slog.Logger
-	funder        Funder
+	funder        funder.Funder
 	basketRepo    BasketRepo
 	txRepo        TransactionsRepo
 	outputRepo    OutputRepo
@@ -100,7 +68,7 @@ type create struct {
 
 func newCreateAction(
 	logger *slog.Logger,
-	funder Funder,
+	funder funder.Funder,
 	commissionCfg defs.Commission,
 	basketRepo BasketRepo,
 	txRepo TransactionsRepo,
@@ -164,7 +132,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	changeDistribution := txutils.NewChangeDistribution(satoshi.MustFrom(basket.MinimumDesiredUTXOValue), c.random.Uint64).
-		Distribute(funding.ChangeCount, funding.ChangeAmount)
+		Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
 
 	derivationPrefix, reference, err := c.randomValues()
 	if err != nil {
@@ -173,7 +141,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	newOutputs, err := c.newOutputs(
 		changeDistribution,
-		funding.ChangeCount,
+		funding.ChangeOutputsCount,
 		derivationPrefix,
 		params.Outputs,
 		commOut,
@@ -185,7 +153,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	totalAllocated, err := funding.TotalAllocated()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get total allocated inputs: %w", err)
 	}
 
 	beef := transaction.NewBeefV2()
@@ -205,7 +173,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Description: params.Description,
 		Satoshis:    satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
 		Outputs:     newOutputs,
-		ReservedOutputIDs: slices.Map(funding.AllocatedUTXOs, func(utxo *UTXO) uint {
+		ReservedOutputIDs: slices.Map(funding.AllocatedUTXOs, func(utxo *funder.UTXO) uint {
 			return utxo.OutputID
 		}),
 		Labels:    params.Labels,
@@ -403,8 +371,8 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []wdk.StorageCrea
 	return resultOutputs
 }
 
-func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*UTXO, includeRawTxs bool) ([]wdk.StorageCreateTransactionSdkInput, error) {
-	utxos, err := c.outputRepo.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *UTXO) uint {
+func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO, includeRawTxs bool) ([]wdk.StorageCreateTransactionSdkInput, error) {
+	utxos, err := c.outputRepo.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
 	if err != nil {

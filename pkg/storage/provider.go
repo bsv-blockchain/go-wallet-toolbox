@@ -7,12 +7,13 @@ import (
 	"math"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/actions"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/database/models"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -58,11 +59,11 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 
 	repos := db.CreateRepositories()
 
-	var funder actions.Funder
+	var transactionFunder funder.Funder
 	if options.funder != nil {
-		funder = options.funder
+		transactionFunder = options.funder
 	} else {
-		funder = db.CreateFunder(config.FeeModel)
+		transactionFunder = db.CreateFunder(config.FeeModel)
 	}
 
 	var random wdk.Randomizer
@@ -81,7 +82,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Database: db,
 
 		repo:    repos,
-		actions: actions.New(logger, funder, config.Commission, repos, random, config.Services),
+		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services),
 	}, nil
 }
 

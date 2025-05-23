@@ -4,7 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/repo"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -15,7 +16,7 @@ type Actions struct {
 	*synchronizeTxStatuses
 }
 
-func New(logger *slog.Logger, funder Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services) *Actions {
+func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services) *Actions {
 	return &Actions{
 		create: newCreateAction(
 			logger,

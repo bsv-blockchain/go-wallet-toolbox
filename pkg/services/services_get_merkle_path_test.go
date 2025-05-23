@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
@@ -23,7 +23,7 @@ func TestGetMerklePath(t *testing.T) {
 
 	t.Run("return error when all services are unreachable", func(t *testing.T) {
 		// given:
-		given := testabilities.GivenServices(t)
+		given := testservices.GivenServices(t)
 
 		// and:
 		services := given.Services().WithDefaultConfig()
@@ -38,7 +38,7 @@ func TestGetMerklePath(t *testing.T) {
 
 	t.Run("return result without Merkle Path when transaction is not mined yet", func(t *testing.T) {
 		// given:
-		given := testabilities.GivenServices(t)
+		given := testservices.GivenServices(t)
 
 		given.ARC().IsUpAndRunning()
 
@@ -63,7 +63,7 @@ func TestGetMerklePath(t *testing.T) {
 
 	t.Run("get merkle path from arc", func(t *testing.T) {
 		// given:
-		given := testabilities.GivenServices(t)
+		given := testservices.GivenServices(t)
 
 		given.ARC().IsUpAndRunning()
 
