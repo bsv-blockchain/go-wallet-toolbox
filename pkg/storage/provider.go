@@ -19,8 +19,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-// AutorizationError is an error for access denied.
-var AutorizationError = fmt.Errorf("access is denied due to an authorization error")
+// ErrInvalidAuthID is an error when authorization fails because of invalid AuthID.
+var ErrInvalidAuthID = fmt.Errorf("access is denied due to an authorization error")
 
 // Provider is a storage provider.
 type Provider struct {
@@ -135,7 +135,7 @@ func (p *Provider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error
 // InsertCertificateAuth inserts certificate to the database for authenticated user
 func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
 	if auth.UserID == nil || certificate.UserID != *auth.UserID {
-		return 0, AutorizationError
+		return 0, ErrInvalidAuthID
 	}
 
 	err := validate.TableCertificateX(certificate)
@@ -170,7 +170,7 @@ func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, c
 // RelinquishCertificate will relinquish existing certificate
 func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
 	if auth.UserID == nil {
-		return AutorizationError
+		return ErrInvalidAuthID
 	}
 
 	err := validate.RelinquishCertificateArgs(&args)
@@ -189,7 +189,7 @@ func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, a
 // ListCertificates will list certificates with provided args
 func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	if auth.UserID == nil {
-		return nil, AutorizationError
+		return nil, ErrInvalidAuthID
 	}
 
 	err := validate.ListCertificatesArgs(&args)
@@ -255,7 +255,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 // CreateAction Storage level processing for wallet `createAction`.
 func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	if auth.UserID == nil {
-		return nil, AutorizationError
+		return nil, ErrInvalidAuthID
 	}
 	if err := validate.ValidCreateActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
@@ -271,7 +271,7 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 // InternalizeAction Storage level processing for wallet `internalizeAction`.
 func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 	if auth.UserID == nil {
-		return nil, AutorizationError
+		return nil, ErrInvalidAuthID
 	}
 	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
@@ -287,7 +287,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 // ProcessAction Storage level processing for wallet `processAction`.
 func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
 	if auth.UserID == nil {
-		return nil, AutorizationError
+		return nil, ErrInvalidAuthID
 	}
 	if err := validate.ProcessActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid processAction args: %w", err)
@@ -303,7 +303,7 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	if auth.UserID == nil {
-		return nil, AutorizationError
+		return nil, ErrInvalidAuthID
 	}
 
 	if err := validate.ListOutputsArgs(&args); err != nil {
