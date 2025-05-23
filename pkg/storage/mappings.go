@@ -109,11 +109,10 @@ func listOutputsArgsToFilterParams(args wdk.ListOutputsArgs) entity.ListOutputsF
 }
 
 func outputModelToResult(m *wdk.TableOutput) *wdk.WalletOutput {
-	satoshis := to.NoLessThan(m.Satoshis, 0)
-
 	result := &wdk.WalletOutput{
-		Satoshis:  primitives.SatoshiValue(satoshis), //nolint
-		Spendable: m.Spendable,
+		Satoshis:           primitives.SatoshiValue(must.ConvertToUInt64(m.Satoshis)),
+		Spendable:          m.Spendable,
+		CustomInstructions: m.CustomInstructions,
 	}
 
 	if m.TxID != nil {
@@ -124,8 +123,6 @@ func outputModelToResult(m *wdk.TableOutput) *wdk.WalletOutput {
 	if m.LockingScript != nil {
 		result.LockingScript = to.Ptr(primitives.HexString(*m.LockingScript))
 	}
-
-	result.CustomInstructions = m.CustomInstructions
 
 	return result
 }
