@@ -42,5 +42,7 @@ type ProvenTxRepo interface {
 	UpsertProvenTxReq(ctx context.Context, req *entity.UpsertProvenTxReq, historyNote string, historyAttrs map[string]any) error
 	FindProvenTxRawTX(ctx context.Context, txID string) ([]byte, error)
 	FindProvenTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
+	FindProvenTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.ProvenTxToSync, error)
 	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
+	UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error
 }

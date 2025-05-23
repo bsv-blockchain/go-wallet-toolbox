@@ -43,21 +43,18 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		return nil, fmt.Errorf("merkle path %s block height %d does not match tx block height %d", txInfo.MerklePath, merklePath.BlockHeight, txInfo.BlockHeight)
 	}
 
-	hex, err := merklePath.ComputeRootHex(&txInfo.TxID)
+	merkleRoot, err := merklePath.ComputeRootHex(&txInfo.TxID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute block hash from merkle path %s root for tx %s: %w", txInfo.MerklePath, txInfo.TxID, err)
-	}
-
-	if hex != txInfo.BlockHash {
-		return nil, fmt.Errorf("computed block hash %s from merkle path %s does not match tx block hash %s", hex, txInfo.MerklePath, txInfo.BlockHash)
 	}
 
 	return &wdk.MerklePathResult{
 		Name:       ServiceName,
 		MerklePath: merklePath,
 		Header: &wdk.BlockHeader{
-			Height: blockHeight,
-			Hash:   hex,
+			Height:     blockHeight,
+			MerkleRoot: merkleRoot,
+			Hash:       txInfo.BlockHash,
 		},
 	}, nil
 }

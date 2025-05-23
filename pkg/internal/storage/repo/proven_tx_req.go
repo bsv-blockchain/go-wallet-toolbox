@@ -10,6 +10,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 )
 
@@ -185,4 +186,41 @@ func (p *ProvenTxReq) GetBEEFForTxids(ctx context.Context, txids []string) ([]by
 	}
 
 	return data, nil
+}
+
+func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.ProvenTxToSync, error) {
+	var rows []*models.ProvenTxReq
+	err := p.db.WithContext(ctx).
+		Model(&models.ProvenTxReq{}).
+		Select("tx_id, status, attempts").
+		Where("status IN ? ", txStatus).
+		Order("attempts ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find proven tx ids by statuses: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.ProvenTxReq) *entity.ProvenTxToSync {
+		return &entity.ProvenTxToSync{
+			TxID:     row.TxID,
+			Attempts: row.Attempts,
+		}
+	}), nil
+}
+
+func (p *ProvenTxReq) UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error {
+	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+		Where("tx_id = ?", provenTxAsMined.TxID).
+		Updates(&models.ProvenTxReq{
+			Status:      wdk.ProvenTxStatusCompleted,
+			BlockHash:   &provenTxAsMined.BlockHash,
+			BlockHeight: &provenTxAsMined.BlockHeight,
+			MerklePath:  provenTxAsMined.MerklePath,
+			MerkleRoot:  &provenTxAsMined.MerkleRoot,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to update proven tx as mined: %w", err)
+	}
+	return nil
 }

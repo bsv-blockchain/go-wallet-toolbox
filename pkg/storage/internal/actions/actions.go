@@ -16,7 +16,7 @@ type Actions struct {
 	*synchronizeTxStatuses
 }
 
-func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services) *Actions {
+func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services, syncTxStatusesConfig defs.SynchronizeTxStatuses) *Actions {
 	return &Actions{
 		create: newCreateAction(
 			logger,
@@ -36,6 +36,6 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			randomizer,
 		),
 		process:               newProcessAction(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, services),
-		synchronizeTxStatuses: newSynchronizeTxStatuses(logger),
+		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.ProvenTxReq),
 	}
 }

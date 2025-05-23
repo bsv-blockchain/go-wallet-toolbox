@@ -14,13 +14,18 @@ type ProvenTxReq struct {
 	TxID string `gorm:"type:varchar(64);primaryKey"`
 
 	Status   wdk.ProvenTxReqStatus `gorm:"default:unknown"`
-	Attempts uint
+	Attempts uint64
 	Notified bool
 
 	RawTx     []byte
 	InputBeef []byte
 
 	History datatypes.JSONType[*HistoryModel]
+
+	BlockHeight *uint32
+	MerklePath  []byte
+	MerkleRoot  *string
+	BlockHash   *string
 }
 
 func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any) {
@@ -37,4 +42,11 @@ func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any)
 	}
 
 	history.Notes = append(history.Notes, note)
+}
+
+func (p *ProvenTxReq) Mined() bool {
+	return p.Status == wdk.ProvenTxStatusCompleted &&
+		p.BlockHeight != nil && *p.BlockHeight > 0 &&
+		p.MerklePath != nil && len(p.MerklePath) > 0 &&
+		p.BlockHash != nil && len(*p.BlockHash) > 0
 }

@@ -37,11 +37,12 @@ var _ wdk.WalletStorageWriter = (*Provider)(nil)
 
 // GORMProviderConfig is a configuration for GORM storage provider.
 type GORMProviderConfig struct {
-	DB         defs.Database
-	Chain      defs.BSVNetwork
-	FeeModel   defs.FeeModel
-	Commission defs.Commission
-	Services   wdk.Services
+	DB                    defs.Database
+	Chain                 defs.BSVNetwork
+	FeeModel              defs.FeeModel
+	Commission            defs.Commission
+	Services              wdk.Services
+	SynchronizeTxStatuses defs.SynchronizeTxStatuses
 }
 
 // NewGORMProvider creates a new storage provider with GORM repository.
@@ -82,7 +83,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Database: db,
 
 		repo:    repos,
-		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services),
+		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
 	}, nil
 }
 
