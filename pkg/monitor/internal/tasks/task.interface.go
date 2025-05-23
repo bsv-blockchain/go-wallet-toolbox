@@ -1,9 +1,7 @@
 package tasks
 
-import "log/slog"
-
-type TaskCreator func(logger *slog.Logger) TaskInterface
+import "context"
 
 type TaskInterface interface {
-	Run()
+	Run(ctx context.Context) error
 }

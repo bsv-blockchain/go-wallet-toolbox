@@ -25,7 +25,7 @@ type Server struct {
 }
 
 // NewServer creates a new server instance with given options, like config file path or a prefix for environment variables
-func NewServer(opts ...InitOption) (*Server, error) {
+func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	options := defaultOptions()
 	for _, option := range opts {
 		option(&options)
@@ -67,15 +67,14 @@ func NewServer(opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to create storage provider: %w", err)
 	}
 
-	_, err = activeStorage.Migrate(context.TODO(), cfg.Name, storageIdentityKey)
+	_, err = activeStorage.Migrate(ctx, cfg.Name, storageIdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate storage: %w", err)
 	}
 
 	var daemon *monitor.Daemon
 	if cfg.Monitor.Enabled {
-		// TODO: Provide a storage interface to the monitor - according to monitor needs
-		daemon, err = monitor.NewDaemonWithGORMLocker(context.TODO(), logger, activeStorage.Database.DB)
+		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create daemon: %w", err)
 		}

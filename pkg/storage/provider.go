@@ -28,6 +28,8 @@ type Provider struct {
 	actions  *actions.Actions
 }
 
+var _ wdk.WalletStorageWriter = (*Provider)(nil)
+
 // GORMProviderConfig is a configuration for GORM storage provider.
 type GORMProviderConfig struct {
 	DB         defs.Database
@@ -294,4 +296,13 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 		return nil, fmt.Errorf("failed to process processAction: %w", err)
 	}
 	return res, nil
+}
+
+// SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
+func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
+	err := p.actions.SynchronizeTxStatuses(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+	}
+	return nil
 }

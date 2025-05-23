@@ -20,7 +20,7 @@ func TestCaseInsensitiveEnums(t *testing.T) {
 	t.Setenv("TEST_WALLET_SERVICES_WHATS_ON_CHAIN_BSV_EXCHANGE_RATE_BASE", "euR")
 
 	// when:
-	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.NoError(t, err)
@@ -36,7 +36,7 @@ func TestFeeZero(t *testing.T) {
 	t.Setenv("TEST_FEE_MODEL_VALUE", "0")
 
 	// when:
-	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.Error(t, err)
@@ -75,7 +75,7 @@ func TestEnums(t *testing.T) {
 			t.Setenv(test.envKey, "wrong")
 
 			// when:
-			_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+			_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 			// then:
 			require.Error(t, err)
@@ -122,7 +122,7 @@ func TestValidArcCallbacks(t *testing.T) {
 			t.Setenv("TEST_WALLET_SERVICES_ARC_CALLBACK_URL", test.url)
 
 			// when:
-			infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+			infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 			// then:
 			require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestInvalidArcCallbacks(t *testing.T) {
 			t.Setenv("TEST_WALLET_SERVICES_ARC_CALLBACK_URL", test.url)
 
 			// when:
-			_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+			_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 			// then:
 			require.Error(t, err)
@@ -186,7 +186,7 @@ func TestInvalidCurrencyForFiatExchangeRates(t *testing.T) {
 	t.Setenv("TEST_WALLET_SERVICES_FIAT_EXCHANGE_RATES_BASE", "PLN")
 
 	// when:
-	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.Error(t, err)
@@ -198,7 +198,7 @@ func TestValidTimestamp(t *testing.T) {
 	t.Setenv("TEST_WALLET_SERVICES_WHATS_ON_CHAIN_BSV_EXCHANGE_RATE_TIMESTAMP", "2023-12-13T00:00:00Z")
 
 	// when:
-	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestValidMonitor(t *testing.T) {
 	t.Setenv("TEST_MONITOR_ENABLED", "false")
 
 	// when:
-	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.NoError(t, err)
@@ -229,7 +229,7 @@ func TestMonitorTaskCustomInterval(t *testing.T) {
 	setRequiredEnvs(t)
 	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "123")
 	// when:
-	infraSrv, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestMonitorTaskZeroInterval(t *testing.T) {
 	setRequiredEnvs(t)
 	t.Setenv("TEST_MONITOR_TASKS_CHECK_FOR_PROOFS_INTERVAL_SECONDS", "0")
 	// when:
-	_, err := infra.NewServer(infra.WithEnvPrefix("TEST"))
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 
 	// then:
 	require.Error(t, err)
