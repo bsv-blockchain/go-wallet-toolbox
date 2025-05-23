@@ -44,7 +44,7 @@ monitor:
 name: go-storage-server
 server_private_key: ""
 synchronize_tx_statuses:
-    max_attempts: 0
+    max_attempts: 10
 wallet_services:
     arc:
         callback_token: ""
