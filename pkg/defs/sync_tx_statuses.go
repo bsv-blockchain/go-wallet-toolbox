@@ -6,3 +6,9 @@ type SynchronizeTxStatuses struct {
 	MaxAttempts uint64 `mapstructure:"max_attempts"`
 }
 
+// DefaultSynchronizeTxStatuses returns the default configuration for synchronizing transaction statuses with retries.
+func DefaultSynchronizeTxStatuses() SynchronizeTxStatuses {
+	return SynchronizeTxStatuses{
+		MaxAttempts: 10,
+	}
+}

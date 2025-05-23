@@ -61,9 +61,10 @@ func Defaults() Config {
 			Level:   defs.LogLevelInfo,
 			Handler: defs.JSONHandler,
 		},
-		Commission: defs.DefaultCommission(),
-		Services:   defs.DefaultServicesConfig(network),
-		Monitor:    defs.DefaultMonitorConfig(),
+		Commission:            defs.DefaultCommission(),
+		Services:              defs.DefaultServicesConfig(network),
+		Monitor:               defs.DefaultMonitorConfig(),
+		SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
 	}
 }
 
