@@ -20,7 +20,8 @@ import (
 
 func TestRPCCommunication(t *testing.T) {
 	t.Run("Migrate", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -47,7 +48,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("MakeAvailable", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -81,7 +83,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("FindOrInsertUser", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -119,7 +122,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("Internalize", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -175,7 +179,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("CreateAction", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -291,7 +296,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("ProcessAction", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -352,7 +358,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("InsertCertificate", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -381,7 +388,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("RelinquishCertificate", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()
@@ -413,7 +421,8 @@ func TestRPCCommunication(t *testing.T) {
 	})
 
 	t.Run("ListCertificates", func(t *testing.T) {
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// given:
 		mockStorage := given.MockProvider()

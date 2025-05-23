@@ -10,7 +10,8 @@ import (
 )
 
 func TestFindOrInsertUser(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	userIdentityKey := "03f17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86beb"

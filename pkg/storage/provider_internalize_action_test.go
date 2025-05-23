@@ -14,7 +14,8 @@ import (
 )
 
 func TestInternalizeActionNilAuth(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -27,7 +28,8 @@ func TestInternalizeActionNilAuth(t *testing.T) {
 }
 
 func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -52,7 +54,8 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 }
 
 func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -95,7 +98,8 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			given := testabilities.Given(t)
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
 
 			// given:
 			activeStorage := given.Provider().GORM()
@@ -117,7 +121,8 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 }
 
 func TestInternalizeActionForStoredTransaction(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()

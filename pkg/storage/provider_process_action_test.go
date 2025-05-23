@@ -17,7 +17,8 @@ import (
 
 func TestProcessActionHappyPath(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
 		GORM()
@@ -58,7 +59,8 @@ func TestProcessActionHappyPath(t *testing.T) {
 
 func TestProcessActionTwice(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
 		GORM()
@@ -133,7 +135,8 @@ func TestProcessActionErrorCases(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given := testabilities.Given(t)
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
 			activeStorage := given.Provider().
 				WithRandomizer(randomizer.NewTestRandomizer()).
 				GORM()
@@ -165,7 +168,8 @@ func TestProcessActionErrorCases(t *testing.T) {
 
 func TestProcessActionDoubleSpending(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.
 		WithRandomizer(randomizer.NewTestRandomizer()).
@@ -213,7 +217,8 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 
 func TestProcessActionARCReturnNoBody(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.
 		WithRandomizer(randomizer.NewTestRandomizer()).

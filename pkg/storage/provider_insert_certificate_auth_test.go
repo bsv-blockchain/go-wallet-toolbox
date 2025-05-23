@@ -15,7 +15,8 @@ import (
 
 func TestInsertCertificateAuth(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// and:
 	activeStorage := given.Provider().GORM()
@@ -172,7 +173,8 @@ func TestInsertCertificateAuth(t *testing.T) {
 
 func TestInsertCertificateAuthFailure(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// and:
 	activeStorage := given.Provider().GORM()
@@ -226,7 +228,8 @@ func TestInsertCertificateAuthFailure(t *testing.T) {
 
 func TestListCertificates(t *testing.T) {
 	// given:
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// and:
 	activeStorage := given.Provider().GORM()

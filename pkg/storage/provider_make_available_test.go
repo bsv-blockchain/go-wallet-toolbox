@@ -12,7 +12,8 @@ import (
 )
 
 func TestMakeAvailable(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORMWithCleanDatabase()

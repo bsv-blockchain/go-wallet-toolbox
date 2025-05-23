@@ -20,7 +20,8 @@ import (
 )
 
 func TestCreateActionNilAuth(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -33,7 +34,8 @@ func TestCreateActionNilAuth(t *testing.T) {
 }
 
 func TestCreateActionHappyPath(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -96,7 +98,8 @@ func TestCreateActionHappyPath(t *testing.T) {
 }
 
 func TestCreateActionWithSignActionHappyPath(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -123,7 +126,8 @@ func TestCreateActionWithSignActionHappyPath(t *testing.T) {
 }
 
 func TestCreateActionWithCommission(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().
@@ -166,7 +170,8 @@ func TestCreateActionWithCommission(t *testing.T) {
 }
 
 func TestCreateActionShuffleOutputs(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().
@@ -207,7 +212,8 @@ func TestCreateActionShuffleOutputs(t *testing.T) {
 }
 
 func TestZeroFunds(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -227,7 +233,8 @@ func TestZeroFunds(t *testing.T) {
 }
 
 func TestInsufficientFunds(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
@@ -250,7 +257,8 @@ func TestInsufficientFunds(t *testing.T) {
 }
 
 func TestReservedUTXO(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()

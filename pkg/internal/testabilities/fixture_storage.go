@@ -83,7 +83,7 @@ func (s *storageFixture) Provider() ProviderFixture {
 
 func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture {
 	s.t.Helper()
-	ctx := context.Background()
+	ctx := s.t.Context()
 
 	_, err := activeStorage.FindOrInsertUser(ctx, user.PrivKey)
 	s.require.NoError(err)
@@ -100,12 +100,12 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	}
 }
 
-func Given(t testing.TB) StorageFixture {
-	db, _ := dbfixtures.TestDatabase(t)
+func Given(t testing.TB) (given StorageFixture, cleanup func()) {
+	db, cleanup := dbfixtures.TestDatabase(t)
 	return &storageFixture{
 		t:       t,
 		require: require.New(t),
 		logger:  logging.NewTestLogger(t),
 		db:      db,
-	}
+	}, cleanup
 }

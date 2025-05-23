@@ -20,7 +20,8 @@ import (
 )
 
 func TestInternalizeThenCreateThenProcess(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
 		GORM()
@@ -157,7 +158,8 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 }
 
 func TestInternalizePlusTooHighCreate(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	activeStorage := given.Provider().GORM()
 
 	t.Run("Internalize", func(t *testing.T) {
@@ -194,7 +196,8 @@ func TestInternalizePlusTooHighCreate(t *testing.T) {
 }
 
 func TestInternalizeBasketInsertionThenCreate(t *testing.T) {
-	given := testabilities.Given(t)
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
 	activeStorage := given.Provider().GORM()
 
 	t.Run("Internalize", func(t *testing.T) {

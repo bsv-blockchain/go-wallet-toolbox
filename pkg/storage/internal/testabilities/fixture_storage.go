@@ -92,9 +92,11 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 	return result, tsgenerated.SignedTransaction(s.t)
 }
 
-func Given(t testing.TB) StorageFixture {
+func Given(t testing.TB) (given StorageFixture, cleanup func()) {
+	storageFxt, cleanupFunc := testabilities.Given(t)
+
 	return &storageFixture{
 		t:              t,
-		StorageFixture: testabilities.Given(t),
-	}
+		StorageFixture: storageFxt,
+	}, cleanupFunc
 }
