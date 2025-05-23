@@ -1,10 +1,17 @@
 package storage
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 func tableCertificateXFieldsToModelFields(userID int) func(*wdk.TableCertificateField) *models.CertificateField {
@@ -76,6 +83,45 @@ func certificateModelFieldsToFieldsResult(fields []*models.CertificateField) map
 	result := make(map[primitives.StringUnder50Bytes]string, len(fields))
 	for _, field := range fields {
 		result[primitives.StringUnder50Bytes(field.FieldName)] = field.FieldValue
+	}
+
+	return result
+}
+
+func listOutputsArgsToFilterParams(args wdk.ListOutputsArgs) entity.ListOutputsFilter {
+
+	limit := must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, 10000))
+	offset := must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Offset, math.MaxInt))
+
+	return entity.ListOutputsFilter{
+		Basket:                    string(args.Basket),
+		Tags:                      slices.Map(args.Tags, func(t primitives.StringUnder300) string { return string(t) }),
+		TagQueryMode:              args.TagQueryMode,
+		IncludeLockingScripts:     args.IncludeLockingScripts,
+		IncludeTransactions:       args.IncludeTransactions,
+		IncludeCustomInstructions: args.IncludeCustomInstructions,
+		IncludeTags:               args.IncludeTags,
+		IncludeLabels:             args.IncludeLabels,
+		Limit:                     limit,
+		Offset:                    offset,
+		KnownTxids:                args.KnownTxids,
+	}
+}
+
+func outputModelToResult(m *wdk.TableOutput) *wdk.WalletOutput {
+	result := &wdk.WalletOutput{
+		Satoshis:           primitives.SatoshiValue(must.ConvertToUInt64(m.Satoshis)),
+		Spendable:          m.Spendable,
+		CustomInstructions: m.CustomInstructions,
+	}
+
+	if m.TxID != nil {
+		outpoint := fmt.Sprintf("%s.%d", *m.TxID, m.Vout)
+		result.Outpoint = primitives.OutpointString(outpoint)
+	}
+
+	if m.LockingScript != nil {
+		result.LockingScript = to.Ptr(primitives.HexString(*m.LockingScript))
 	}
 
 	return result

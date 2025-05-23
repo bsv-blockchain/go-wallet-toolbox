@@ -1,6 +1,8 @@
 package repo
 
-import "gorm.io/gorm"
+import (
+	"gorm.io/gorm"
+)
 
 type Repositories struct {
 	*Migrator

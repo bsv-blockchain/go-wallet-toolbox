@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -95,4 +96,51 @@ func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
 		output.TxID = model.Transaction.TxID
 	}
 	return output
+}
+
+func listAndCountOutputs(ctx context.Context, db *gorm.DB, params entity.ListOutputsParams) ([]*models.Output, int64, error) {
+	var outputs []*models.Output
+	var total int64
+
+	if err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		query := tx.Model(&models.Output{}).Where("user_id = ?", params.UserID)
+
+		if params.BasketName != "" {
+			query = query.Where("basket_id IN (?)", db.Model(&models.OutputBasket{}).Select("basket_id").Where("name = ? and user_id = ?", params.BasketName, params.UserID))
+		}
+
+		if len(params.KnownTxids) > 0 {
+			query = query.Where("transaction_id IN (?)", db.Model(&models.Transaction{}).Select("id").Where("tx_id IN ?", params.KnownTxids)).Preload("Transaction")
+		}
+
+		if err := query.Count(&total).Error; err != nil {
+			return fmt.Errorf("count failed: %w", err)
+		}
+
+		if err := query.Limit(params.Limit).Offset(params.Offset).Order("bsv_outputs.id ASC").Find(&outputs).Error; err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return outputs, total, nil
+}
+
+func (o *Outputs) ListAndCountOutputs(ctx context.Context, userID int, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error) {
+	params := entity.ListOutputsParams{
+		UserID:     userID,
+		BasketName: filter.Basket,
+		KnownTxids: filter.KnownTxids,
+		Limit:      filter.Limit,
+		Offset:     filter.Offset,
+	}
+
+	rows, total, err := listAndCountOutputs(ctx, o.db, params)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list outputs: %w", err)
+	}
+
+	return slices.Map(rows, o.mapModelToTableOutput), total, nil
 }

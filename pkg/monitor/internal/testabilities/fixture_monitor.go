@@ -17,16 +17,19 @@ type MonitorFixture interface {
 
 func Given(t testing.TB) MonitorFixture {
 	return &monitorFixture{
-		t:       t,
-		logger:  logging.NewTestLogger(t),
-		require: require.New(t),
+		t:           t,
+		logger:      logging.NewTestLogger(t),
+		require:     require.New(t),
+		mockStorage: &MockStorage{},
 	}
 }
 
 type monitorFixture struct {
-	t       testing.TB
-	logger  *slog.Logger
-	require *require.Assertions
+	t           testing.TB
+	logger      *slog.Logger
+	require     *require.Assertions
+	mockStorage *MockStorage
+	daemon      *monitor.Daemon
 }
 
 func (m *monitorFixture) Daemon() *monitor.Daemon {
@@ -35,8 +38,10 @@ func (m *monitorFixture) Daemon() *monitor.Daemon {
 	db, err := gorm.Open(sqlite.Open(connectionString), &gorm.Config{})
 	m.require.NoError(err, "failed to connect to sqlite in-memory database")
 
-	daemon, err := monitor.NewDaemonWithGORMLocker(m.t.Context(), m.logger, db)
+	daemon, err := monitor.NewDaemonWithGORMLocker(m.t.Context(), m.logger, m.mockStorage, db)
 	m.require.NoError(err)
+
+	m.daemon = daemon
 
 	return daemon
 }

@@ -470,4 +470,53 @@ func TestRPCCommunication(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, storageResult, response)
 	})
+
+	t.Run("ListOutputs", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		mockStorage := given.MockProvider()
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage)
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClient()
+		defer cleanupCli()
+
+		// given:
+		listArgs := wdk.ListOutputsArgs{
+			Basket:              "",
+			Limit:               10,
+			Offset:              0,
+			KnownTxids:          []string{"3105f51688f7081b6b1c364ec6455787e3b6765626f8a2ebf76084be8540453b"},
+			IncludeTransactions: true,
+		}
+
+		expectedResult := &wdk.ListOutputsResult{
+			TotalOutputs: 1,
+			BEEF:         to.Ptr(primitives.BEEF([]byte{0x01, 0x02})),
+			Outputs: []*wdk.WalletOutput{
+				{
+					Satoshis:  1000,
+					Spendable: true,
+					Outpoint:  "3105f51688f7081b6b1c364ec6455787e3b6765626f8a2ebf76084be8540453b.0",
+				},
+			},
+		}
+
+		mockStorage.EXPECT().
+			ListOutputs(gomock.Any(), testusers.Alice.AuthID(), listArgs).
+			Return(expectedResult, nil)
+
+		// when:
+		actualResult, err := client.ListOutputs(context.Background(), testusers.Alice.AuthID(), listArgs)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, actualResult)
+		assert.EqualValues(t, expectedResult, actualResult)
+	})
 }

@@ -23,6 +23,8 @@ type Daemon struct {
 	logger      *slog.Logger
 	activeTasks map[defs.MonitorTask]*ActiveTask
 
+	storage MonitoredStorage
+
 	started   bool
 	startLock sync.Mutex
 }
@@ -37,7 +39,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
@@ -52,12 +54,12 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, db *gorm.
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), gocron.WithDistributedLocker(locker))
+	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, gocron.WithDistributedLocker(locker))
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
@@ -66,7 +68,18 @@ func NewDaemon(logger *slog.Logger, schedulerOptions ...gocron.SchedulerOption) 
 		scheduler:   scheduler,
 		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
+		storage:     storage,
 	}, nil
+}
+
+type taskFactoryFunc func() tasks.TaskInterface
+
+func (d *Daemon) allTasksFactories() map[defs.MonitorTask]taskFactoryFunc {
+	return map[defs.MonitorTask]taskFactoryFunc{
+		defs.CheckForProofsMonitorTask: func() tasks.TaskInterface {
+			return tasks.NewCheckForProofsTask(d.logger, d.storage)
+		},
+	}
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
@@ -79,14 +92,59 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
 		return nil
 	}
 
+	factories := d.allTasksFactories()
 	for taskName, taskInterval := range tasksToStart {
-		if err := d.initializeTask(taskName, taskInterval); err != nil {
+		taskFactory, ok := factories[taskName]
+		if !ok {
+			d.logger.Warn("Task does not exist. Skipping.", slog.Any("task", taskName))
+			continue
+		}
+
+		if err := d.initializeTask(taskFactory(), taskName, taskInterval); err != nil {
 			return err
 		}
 	}
 
 	d.scheduler.Start()
 	d.started = true
+	return nil
+}
+
+// Pause stops all scheduled jobs if the daemon is currently running.
+// If the daemon is not started, it logs a warning and does nothing.
+// Returns an error if stopping the jobs fails.
+func (d *Daemon) Pause() error {
+	d.startLock.Lock()
+	defer d.startLock.Unlock()
+
+	if !d.started {
+		d.logger.Warn("Daemon is not started. Skipping.")
+		return nil
+	}
+
+	err := d.scheduler.StopJobs()
+	if err != nil {
+		return fmt.Errorf("failed to stop jobs: %w", err)
+	}
+	return nil
+}
+
+// Stop shuts down the daemon, releasing all resources and clearing scheduled jobs.
+// If the daemon is not running, logs a warning and returns nil.
+// The Daemon cannot be restarted after stopping.
+func (d *Daemon) Stop() error {
+	d.startLock.Lock()
+	defer d.startLock.Unlock()
+
+	if !d.started {
+		d.logger.Warn("Daemon is not started. Skipping.")
+		return nil
+	}
+
+	err := d.scheduler.Shutdown()
+	if err != nil {
+		return fmt.Errorf("failed to clear jobs: %w", err)
+	}
 	return nil
 }
 
@@ -97,15 +155,7 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	return task, ok
 }
 
-func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duration) error {
-	taskFactory, ok := tasks.All[taskName]
-	if !ok {
-		d.logger.Warn("Provided unknown task name. Skipping.", slog.Any("task", taskName))
-		return nil
-	}
-
-	taskInstance := taskFactory(d.logger)
-
+func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, interval time.Duration) error {
 	task := &ActiveTask{
 		Instance: taskInstance,
 		TaskName: taskName,
@@ -128,10 +178,15 @@ func (d *Daemon) initializeTask(taskName defs.MonitorTask, interval time.Duratio
 	return nil
 }
 
-func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
-	return func() {
+func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		var err error
 		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
+			if err != nil {
+				d.logger.Error("Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+				return
+			}
 			if activeTask.Cronjob == nil {
 				return
 			}
@@ -139,6 +194,6 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func() {
 			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
-		activeTask.Instance.Run()
+		err = activeTask.Instance.Run(ctx)
 	}
 }

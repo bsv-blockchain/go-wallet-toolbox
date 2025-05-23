@@ -13,6 +13,7 @@ type Actions struct {
 	*create
 	*internalize
 	*process
+	*synchronizeTxStatuses
 }
 
 func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services) *Actions {
@@ -34,6 +35,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			repos.ProvenTxReq,
 			randomizer,
 		),
-		process: newProcessAction(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, services),
+		process:               newProcessAction(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, services),
+		synchronizeTxStatuses: newSynchronizeTxStatuses(logger),
 	}
 }

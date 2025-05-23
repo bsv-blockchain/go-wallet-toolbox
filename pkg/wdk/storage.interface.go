@@ -19,4 +19,5 @@ type WalletStorageWriter interface {
 	InsertCertificateAuth(ctx context.Context, auth AuthID, certificate *TableCertificateX) (uint, error)
 	RelinquishCertificate(ctx context.Context, auth AuthID, args RelinquishCertificateArgs) error
 	ListCertificates(ctx context.Context, auth AuthID, args ListCertificatesArgs) (*ListCertificatesResult, error)
+	ListOutputs(ctx context.Context, auth AuthID, args ListOutputsArgs) (*ListOutputsResult, error)
 }
