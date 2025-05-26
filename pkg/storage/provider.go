@@ -3,9 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"math"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -18,6 +15,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"log/slog"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -323,37 +321,9 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, fmt.Errorf("invalid listOutputs args: %w", err)
 	}
 
-	filter := listOutputsArgsToFilterParams(args)
-
-	outputModels, totalCount, err := p.repo.ListAndCountOutputs(ctx, *auth.UserID, filter)
+	result, err := p.actions.ListOutputs(ctx, auth, &args)
 	if err != nil {
-		return nil, fmt.Errorf("error during listing outputs: %w", err)
+		return nil, fmt.Errorf("failed to list outputs: %w", err)
 	}
-	if totalCount < 0 {
-		return nil, fmt.Errorf("unexpected negative output count: %d", totalCount)
-	}
-	if totalCount > math.MaxInt {
-		return nil, fmt.Errorf("output count exceeds PositiveInteger limit: %d", totalCount)
-	}
-
-	outputs := make([]*wdk.WalletOutput, len(outputModels))
-	for i, m := range outputModels {
-		outputs[i] = outputModelToResult(m)
-	}
-
-	result := &wdk.ListOutputsResult{
-		TotalOutputs: primitives.PositiveInteger(totalCount),
-		Outputs:      outputs,
-	}
-
-	if args.IncludeTransactions {
-		rawBeef, err := p.repo.GetBEEFForTxids(ctx, args.KnownTxids)
-		if err != nil {
-			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
-		}
-		beef := primitives.BEEF(rawBeef)
-		result.BEEF = &beef
-	}
-
 	return result, nil
 }

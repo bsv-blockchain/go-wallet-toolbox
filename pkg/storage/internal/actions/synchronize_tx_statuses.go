@@ -74,6 +74,16 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			continue
 		}
 
+		if merkleResult == nil || merkleResult.Header == nil || merkleResult.MerklePath == nil {
+			s.logger.Warn(
+				"merkle path result is empty, this may be normal if the transaction is not yet mined",
+				slog.String("txID", txToSync.TxID),
+			)
+
+			// TODO: Increase attempts
+			continue
+		}
+
 		// TODO Support history notes
 		// TODO: Check how old it the tx and if it is older than x hours, mark it as invalid
 
@@ -87,10 +97,10 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 		if err != nil {
 			return fmt.Errorf("failed to update proven txs as mined: %w", err)
 		}
-
-		// TODO: Update txs attempts for transactions that merkle path was NOT found
-		// TODO: For transactions that attempts > maxAttempts, mark them as invalid
 	}
+
+	// TODO: Update txs attempts for transactions that merkle path was NOT found
+	// TODO: For transactions that attempts > maxAttempts, mark them as invalid
 
 	// TODO: Implement further synchronization logic for txsToSync
 

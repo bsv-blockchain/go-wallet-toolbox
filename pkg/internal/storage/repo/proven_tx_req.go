@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -170,10 +171,16 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	return nil
 }
 
-func (p *ProvenTxReq) GetBEEFForTxids(ctx context.Context, txids []string) ([]byte, error) {
+func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string) ([]byte, error) {
 	beef := transaction.NewBeefV2()
 
-	for _, txid := range txids {
+	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
+	_ = knownTxIDs
+
+	for txid := range txids {
+		if beef.FindTransaction(txid) != nil {
+			continue
+		}
 		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)

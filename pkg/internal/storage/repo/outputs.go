@@ -98,26 +98,38 @@ func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
 	return output
 }
 
-func listAndCountOutputs(ctx context.Context, db *gorm.DB, params entity.ListOutputsParams) ([]*models.Output, int64, error) {
+func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error) {
 	var outputs []*models.Output
 	var total int64
 
-	if err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		query := tx.Model(&models.Output{}).Where("user_id = ?", params.UserID)
+	if err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		query := tx.
+			Model(&models.Output{}).
+			Where("user_id = ?", filter.UserID)
 
-		if params.BasketName != "" {
-			query = query.Where("basket_id IN (?)", db.Model(&models.OutputBasket{}).Select("basket_id").Where("name = ? and user_id = ?", params.BasketName, params.UserID))
+		query = query.Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, tx_id")
+		})
+
+		if filter.Basket != "" {
+			query = query.Where("basket_id IN (?)",
+				o.db.Model(&models.OutputBasket{}).
+					Select("basket_id").
+					Where("name = ? and user_id = ?", filter.Basket, filter.UserID),
+			)
 		}
 
-		if len(params.KnownTxids) > 0 {
-			query = query.Where("transaction_id IN (?)", db.Model(&models.Transaction{}).Select("id").Where("tx_id IN ?", params.KnownTxids)).Preload("Transaction")
+		if filter.IncludeTXID {
+			query = query.Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+				return db.Select("id, tx_id")
+			})
 		}
 
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
 
-		if err := query.Limit(params.Limit).Offset(params.Offset).Order("bsv_outputs.id ASC").Find(&outputs).Error; err != nil {
+		if err := query.Limit(filter.Limit).Offset(filter.Offset).Order("bsv_outputs.id ASC").Find(&outputs).Error; err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
 		return nil
@@ -125,22 +137,5 @@ func listAndCountOutputs(ctx context.Context, db *gorm.DB, params entity.ListOut
 		return nil, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return outputs, total, nil
-}
-
-func (o *Outputs) ListAndCountOutputs(ctx context.Context, userID int, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error) {
-	params := entity.ListOutputsParams{
-		UserID:     userID,
-		BasketName: filter.Basket,
-		KnownTxids: filter.KnownTxids,
-		Limit:      filter.Limit,
-		Offset:     filter.Offset,
-	}
-
-	rows, total, err := listAndCountOutputs(ctx, o.db, params)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list outputs: %w", err)
-	}
-
-	return slices.Map(rows, o.mapModelToTableOutput), total, nil
+	return slices.Map(outputs, o.mapModelToTableOutput), total, nil
 }
