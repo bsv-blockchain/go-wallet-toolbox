@@ -408,7 +408,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 				arc.WillAlwaysReturnStatus(http.StatusInternalServerError)
 			},
 		},
-		"return errror when trying to get merkle path for unknown tx": {
+		"return error when trying to get merkle path for unknown tx": {
 			setupARC: func(arc testservices.ARCFixture) {
 				arc.IsUpAndRunning()
 			},
