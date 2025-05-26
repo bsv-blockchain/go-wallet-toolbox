@@ -13,13 +13,13 @@ import (
 
 // Server represents the storage server exposing JSON-RPC API
 type Server struct {
-	provider wdk.WalletStorageWriter
+	provider wdk.WalletStorageProvider
 	logger   *slog.Logger
 	options  ServerOptions
 }
 
 // NewServer creates a new storage server instance with given storage provider and optional options
-func NewServer(logger *slog.Logger, storage wdk.WalletStorageWriter, opts ServerOptions) *Server {
+func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, opts ServerOptions) *Server {
 	return &Server{
 		provider: storage,
 		logger:   logging.Child(logger, "storage_server"),

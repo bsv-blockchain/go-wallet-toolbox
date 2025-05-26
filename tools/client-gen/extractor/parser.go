@@ -10,14 +10,15 @@ import (
 	"log"
 	"strings"
 
+	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/metadata"
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 
 // InterfaceInfo holds information about an interface
 type InterfaceInfo struct {
-	Imports []Import     `json:"imports"`
-	Name    string       `json:"name"`
-	Methods []MethodInfo `json:"methods"`
+	Imports []Import              `json:"imports"`
+	Name    string                `json:"name"`
+	Methods []metadata.MethodInfo `json:"methods"`
 }
 
 // Import holds information about an import
@@ -31,24 +32,6 @@ func (i *Import) String() string {
 		return fmt.Sprintf(`%s %s`, i.Alias, i.Path)
 	}
 	return i.Path
-}
-
-// MethodInfo holds information about a method in an interface
-type MethodInfo struct {
-	Name      string      `json:"name"`
-	Arguments []ParamInfo `json:"arguments"`
-	Results   []TypeInfo  `json:"results"`
-}
-
-// ParamInfo holds information about a parameter
-type ParamInfo struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
-
-// TypeInfo holds information about a type
-type TypeInfo struct {
-	Type string `json:"type"`
 }
 
 // ExtractInterfaces extracts interface information from the given file
@@ -95,8 +78,19 @@ func ExtractInterfaces(fset *token.FileSet, file *ast.File) []InterfaceInfo {
 						continue
 					}
 
-					methodInfo := MethodInfo{
-						Name: method.Names[0].Name,
+					methodInfo := metadata.MethodInfo{
+						Name:        method.Names[0].Name,
+						Annotations: make([]string, 0),
+						Comments:    make([]string, 0),
+					}
+
+					for _, comment := range method.Doc.List {
+						text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
+						if strings.HasPrefix(text, "@") {
+							methodInfo.Annotations = append(methodInfo.Annotations, text)
+							continue
+						}
+						methodInfo.Comments = append(methodInfo.Comments, text)
 					}
 
 					// Get the function type
@@ -117,7 +111,7 @@ func ExtractInterfaces(fset *token.FileSet, file *ast.File) []InterfaceInfo {
 							// A single field can have multiple names (e.g., a, b int)
 							if len(param.Names) > 0 {
 								for _, name := range param.Names {
-									paramInfo := ParamInfo{
+									paramInfo := metadata.ParamInfo{
 										Name: name.Name,
 										Type: typeStr,
 									}
@@ -125,7 +119,7 @@ func ExtractInterfaces(fset *token.FileSet, file *ast.File) []InterfaceInfo {
 								}
 							} else {
 								// Unnamed parameter
-								paramInfo := ParamInfo{
+								paramInfo := metadata.ParamInfo{
 									Name: "",
 									Type: typeStr,
 								}
@@ -146,14 +140,14 @@ func ExtractInterfaces(fset *token.FileSet, file *ast.File) []InterfaceInfo {
 							// A single result field can represent multiple results of the same type
 							if len(result.Names) > 0 {
 								for _, name := range result.Names {
-									resultInfo := TypeInfo{
+									resultInfo := metadata.TypeInfo{
 										Type: fmt.Sprintf("%s %s", name.Name, typeStr),
 									}
 									methodInfo.Results = append(methodInfo.Results, resultInfo)
 								}
 							} else {
 								// Unnamed result
-								resultInfo := TypeInfo{
+								resultInfo := metadata.TypeInfo{
 									Type: typeStr,
 								}
 								methodInfo.Results = append(methodInfo.Results, resultInfo)

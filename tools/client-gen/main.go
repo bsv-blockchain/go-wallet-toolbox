@@ -15,6 +15,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/extractor"
 	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/generator"
+	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/metadata"
 )
 
 func main() {
@@ -27,6 +28,10 @@ func main() {
 	outputFile := flag.String("out", "client_gen.go", "Output file (default: stdout)")
 
 	workingDir := flag.String("cwd", cwd, "Current working directory")
+
+	templateFile := flag.String("tmpl", "client.tpl", "Template file name in the templates directory (default: client.tpl)")
+
+	skipMethodsFlag := flag.String("skip-methods", "", "Comma-separated list of methods to skip (default: none)")
 	flag.Parse()
 
 	fmt.Println("Running from directory:", *workingDir)
@@ -73,9 +78,11 @@ func main() {
 		targetPackageName = filepath.Base(filepath.Dir(targetFile))
 	}
 
-	pkg := generator.NewPackage(targetPackageName, packageName, fullPackageName, isTheSameDir)
+	pkg := metadata.NewPackage(targetPackageName, packageName, fullPackageName, isTheSameDir)
 
-	output := generator.Generate(pkg, interfaces)
+	data := generator.Data(pkg, interfaces, strings.Split(*skipMethodsFlag, ","))
+
+	output := generator.Generate(data, *templateFile)
 
 	// Write the output
 	log.Printf("Writing to file://%s \n", targetFile)
