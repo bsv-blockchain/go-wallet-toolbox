@@ -44,6 +44,7 @@ func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any)
 	history.Notes = append(history.Notes, note)
 }
 
+// HasMerklePath returns true if the MerklePath field contains data, indicating the presence of a Merkle proof.
 func (p *ProvenTxReq) HasMerklePath() bool {
-	return p.MerklePath != nil && len(p.MerklePath) > 0
+	return len(p.MerklePath) > 0
 }

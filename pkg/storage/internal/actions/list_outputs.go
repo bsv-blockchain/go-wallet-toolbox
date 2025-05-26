@@ -3,6 +3,10 @@ package actions
 import (
 	"context"
 	"fmt"
+	"iter"
+	"log/slog"
+	"math"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -10,9 +14,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
-	"iter"
-	"log/slog"
-	"math"
 )
 
 type listOutputs struct {

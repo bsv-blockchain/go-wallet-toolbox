@@ -1,13 +1,13 @@
 package storage_test
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/assert"

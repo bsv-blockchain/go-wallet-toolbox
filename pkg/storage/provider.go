@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -15,7 +17,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
-	"log/slog"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.

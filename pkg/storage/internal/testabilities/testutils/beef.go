@@ -1,9 +1,10 @@
 package testutils
 
 import (
+	"testing"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func BEEFFromHex(t testing.TB, beefBytes []byte) *transaction.Beef {
