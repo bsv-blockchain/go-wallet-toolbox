@@ -34,6 +34,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	// TODO: Handle args.Tags
 	// TODO: Handle args.TagQueryMode
 
+	// TODO: Handle args.KnownTxids
 	// TODO: Handle args.IncludeLockingScripts
 	// TODO: Handle args.IncludeCustomInstructions
 	// TODO: Handle args.IncludeTags
@@ -45,12 +46,6 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	if err != nil {
 		return nil, fmt.Errorf("error during listing outputs: %w", err)
 	}
-	if totalCount < 0 {
-		return nil, fmt.Errorf("unexpected negative output count: %d", totalCount)
-	}
-	if totalCount > math.MaxInt {
-		return nil, fmt.Errorf("output count exceeds PositiveInteger limit: %d", totalCount)
-	}
 
 	outputs := make([]*wdk.WalletOutput, len(outputModels))
 	for i, m := range outputModels {
@@ -58,7 +53,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	result := &wdk.ListOutputsResult{
-		TotalOutputs: primitives.PositiveInteger(totalCount),
+		TotalOutputs: primitives.PositiveInteger(must.ConvertToUInt64(totalCount)),
 		Outputs:      outputs,
 	}
 

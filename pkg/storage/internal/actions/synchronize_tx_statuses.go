@@ -47,7 +47,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// TODO CHeck current block height; skip if already synchronized for this block height
+	// TODO Check current block height; skip if already synchronized for this block height
 
 	txsToSync, err := s.provenTxRepo.FindProvenTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			continue
 		}
 
-		// TODO Support history notes
+		// TODO: Support history notes
 		// TODO: Check how old it the tx and if it is older than x hours, mark it as invalid
 
 		err = s.provenTxRepo.UpdateProvenTxAsMined(ctx, &entity.ProvenTxAsMined{
@@ -101,8 +101,6 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 
 	// TODO: Update txs attempts for transactions that merkle path was NOT found
 	// TODO: For transactions that attempts > maxAttempts, mark them as invalid
-
-	// TODO: Implement further synchronization logic for txsToSync
 
 	return nil
 }

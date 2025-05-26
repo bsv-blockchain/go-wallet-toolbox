@@ -107,10 +107,6 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			Model(&models.Output{}).
 			Where("user_id = ?", filter.UserID)
 
-		query = query.Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id, tx_id")
-		})
-
 		if filter.Basket != "" {
 			query = query.Where("basket_id IN (?)",
 				o.db.Model(&models.OutputBasket{}).
