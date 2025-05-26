@@ -44,9 +44,6 @@ func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any)
 	history.Notes = append(history.Notes, note)
 }
 
-func (p *ProvenTxReq) Mined() bool {
-	return p.Status == wdk.ProvenTxStatusCompleted &&
-		p.BlockHeight != nil && *p.BlockHeight > 0 &&
-		p.MerklePath != nil && len(p.MerklePath) > 0 &&
-		p.BlockHash != nil && len(*p.BlockHash) > 0
+func (p *ProvenTxReq) HasMerklePath() bool {
+	return p.MerklePath != nil && len(p.MerklePath) > 0
 }

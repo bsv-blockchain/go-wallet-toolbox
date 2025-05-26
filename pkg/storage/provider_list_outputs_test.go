@@ -1,7 +1,7 @@
 package storage_test
 
 import (
-	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"strings"
 	"testing"
 
@@ -68,7 +68,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 	require.Len(t, actualResult.Outputs, 33)
 
 	// and:
-	beef := beefFromHex(t, *actualResult.BEEF)
+	beef := testutils.BEEFFromHex(t, *actualResult.BEEF)
 	require.Len(t, beef.Transactions, 2) // parent transaction with BUMP and the internalized one (with no BUMP)
 
 	// Given:
@@ -96,7 +96,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 
 	// and:
 	require.NotNil(t, actualResult.BEEF)
-	beef = beefFromHex(t, *actualResult.BEEF)
+	beef = testutils.BEEFFromHex(t, *actualResult.BEEF)
 	require.Len(t, beef.Transactions, 3) // parent transaction with BUMP, the internalized one (with no BUMP), AND the newly created transaction
 
 	for _, output := range actualResult.Outputs {
@@ -137,13 +137,4 @@ func TestListOutputs_FilterByBasketName(t *testing.T) {
 	require.NotNil(t, actualResult)
 	require.NotEmpty(t, actualResult.Outputs, "Expected outputs for basket %s", basketName)
 	assert.Greater(t, int(actualResult.TotalOutputs), 0, "Expected totalOutputs > 0 for basket %s", basketName)
-}
-
-func beefFromHex(t testing.TB, beefBytes []byte) *transaction.Beef {
-	t.Helper()
-
-	beef, err := transaction.NewBeefFromBytes(beefBytes)
-	require.NoError(t, err)
-
-	return beef
 }

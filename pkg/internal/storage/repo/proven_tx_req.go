@@ -115,7 +115,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	var model models.ProvenTxReq
 	query := p.db.WithContext(ctx).
 		Model(&model).
-		Select("raw_tx, input_beef")
+		Select("raw_tx, input_beef, merkle_path")
 
 	queryForSubjectTx := depth == 0
 	if !queryForSubjectTx && len(statusFilter) > 0 {
@@ -137,6 +137,24 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
 	if err != nil {
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
+	}
+
+	if model.HasMerklePath() {
+		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
+		if err != nil {
+			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
+		}
+		err = tx.AddMerkleProof(merklePath)
+		if err != nil {
+			return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
+		}
+
+		_, err = mergeToBeef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
+		}
+
+		return nil
 	}
 
 	for i := range tx.Inputs {

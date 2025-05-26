@@ -5,6 +5,8 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -32,9 +34,13 @@ func TestSynchronizeTx(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	//outputs, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{Limit: 10, IncludeTransactions: true})
-	//require.NoError(t, err)
-	//_ = outputs
+	// and:
+	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{Limit: 10, IncludeTransactions: true})
+	require.NoError(t, err)
+	require.NotNil(t, listOutputsResult.BEEF)
+	beef := testutils.BEEFFromHex(t, *listOutputsResult.BEEF)
+	require.Len(t, beef.Transactions, 1) // should be one transaction, because we just made it "mined" so parent transaction should not be included
+	require.NotNil(t, beef.FindTransaction(txSpec.ID()))
 }
 
 func TestSynchronizeTxEdgeCases(t *testing.T) {
