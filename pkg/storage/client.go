@@ -8,10 +8,10 @@ import (
 )
 
 // NewClient returns WalletStorageWriterClient that allows connection to rpc server
-func NewClient(addr string, overrideOptions ...ClientOptions) (*WalletStorageWriterClient, func(), error) {
+func NewClient(addr string, overrideOptions ...ClientOptions) (*WalletStorageProviderClient, func(), error) {
 	opts := defaultClientOptions()
-	client := &WalletStorageWriterClient{
-		client: &rpcWalletStorageWriter{},
+	client := &WalletStorageProviderClient{
+		client: &rpcWalletStorageProvider{},
 	}
 
 	for _, opt := range overrideOptions {

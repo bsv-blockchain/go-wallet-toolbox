@@ -1,0 +1,131 @@
+package storage_test
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestWalletStorageManager_GetAuth(t *testing.T) {
+
+	t.Run("get auth successfully", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.MockProvider()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// and:
+		mocks.SetupMockStorageProvider(t, activeStorage)
+
+		// when
+		auth, err := storageManager.GetAuth(t.Context())
+		require.NoError(t, err)
+
+		require.Equal(t, wdk.AuthID{
+			UserID:      &testusers.Alice.ID,
+			IdentityKey: testusers.Alice.IdentityKey(t),
+			IsActive:    to.Ptr(true),
+		}, auth)
+
+	})
+
+	errorCases := map[string]struct {
+		settingsOverride func(settingsResponse *mocks.StorageProviderMethodResponse[*wdk.TableSettings])
+		userOverride     func(userResponse *mocks.StorageProviderMethodResponse[*wdk.FindOrInsertUserResponse])
+	}{
+		"return error when active storage MakeAvailable returns an error": {
+			settingsOverride: func(settingsResponse *mocks.StorageProviderMethodResponse[*wdk.TableSettings]) {
+				settingsResponse.Error = fmt.Errorf("failed to make storage available")
+				settingsResponse.Success = nil
+			},
+		},
+		"return error when active storage FindOrInsertUser returns an error": {
+			userOverride: func(userResponse *mocks.StorageProviderMethodResponse[*wdk.FindOrInsertUserResponse]) {
+				userResponse.Error = fmt.Errorf("failed to find or insert user")
+				userResponse.Success = nil
+			},
+		},
+		"return error when user has different identity key then returned by storage": {
+			userOverride: func(userResponse *mocks.StorageProviderMethodResponse[*wdk.FindOrInsertUserResponse]) {
+				userResponse.Success = &wdk.FindOrInsertUserResponse{
+					User: wdk.TableUser{
+						UserID:        testusers.Alice.ID,
+						IdentityKey:   "different-identity-key",
+						ActiveStorage: "storage-id",
+					},
+				}
+			},
+		},
+	}
+	for name, test := range errorCases {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			// and:
+			activeStorage := given.MockProvider()
+
+			// and
+			storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+			// and:
+			mocks.SetupMockStorageProvider(t, activeStorage,
+				mocks.WithMakeAvailableResponse(test.settingsOverride),
+				mocks.WithFindOrInsertUserResponse(test.userOverride),
+			)
+
+			// when
+			auth, err := storageManager.GetAuth(t.Context())
+			assert.Empty(t, auth)
+			require.Error(t, err)
+		})
+	}
+
+	t.Run("cache the storage answer when getting auth", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.MockProvider()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// and:
+		mocks.SetupMockStorageProvider(t, activeStorage,
+			mocks.WithMakeAvailableResponse(mocks.Once[*mocks.StorageProviderMethodResponse[*wdk.TableSettings]]()),
+			mocks.WithFindOrInsertUserResponse(mocks.Once[*mocks.StorageProviderMethodResponse[*wdk.FindOrInsertUserResponse]]()),
+		)
+
+		// when:
+		_, err := storageManager.GetAuth(t.Context())
+		// then:
+		require.NoError(t, err)
+
+		// when: second call
+		auth, err := storageManager.GetAuth(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, wdk.AuthID{
+			UserID:      &testusers.Alice.ID,
+			IdentityKey: testusers.Alice.IdentityKey(t),
+			IsActive:    to.Ptr(true),
+		}, auth)
+
+	})
+}

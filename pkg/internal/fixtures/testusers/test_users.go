@@ -5,6 +5,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,16 +32,31 @@ var Bob = User{
 
 func (u User) AuthID() wdk.AuthID {
 	return wdk.AuthID{
-		UserID: &u.ID,
+		IdentityKey: u.mustGetPublicKey().ToDERHex(),
+		UserID:      &u.ID,
+		IsActive:    to.Ptr(true),
 	}
 }
 
-func (u User) PubKey(t *testing.T) string {
+func (u User) IdentityKey(t testing.TB) string {
+	t.Helper()
+	return u.PubKey(t)
+}
+
+func (u User) mustGetPublicKey() *primitives.PublicKey {
+	priv, err := primitives.PrivateKeyFromHex(u.PrivKey)
+	if err != nil {
+		panic(err)
+	}
+	return priv.PubKey()
+}
+
+func (u User) PubKey(t testing.TB) string {
 	t.Helper()
 	return u.PublicKey(t).ToDERHex()
 }
 
-func (u User) PrivateKey(t *testing.T) *primitives.PrivateKey {
+func (u User) PrivateKey(t testing.TB) *primitives.PrivateKey {
 	t.Helper()
 
 	priv, err := primitives.PrivateKeyFromHex(u.PrivKey)
@@ -48,7 +64,7 @@ func (u User) PrivateKey(t *testing.T) *primitives.PrivateKey {
 	return priv
 }
 
-func (u User) PublicKey(t *testing.T) *primitives.PublicKey {
+func (u User) PublicKey(t testing.TB) *primitives.PublicKey {
 	t.Helper()
 
 	priv, err := primitives.PrivateKeyFromHex(u.PrivKey)

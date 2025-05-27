@@ -8,51 +8,61 @@ import (
 
 import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 
-type WalletStorageWriterClient struct {
-	client *rpcWalletStorageWriter
+type WalletStorageProviderClient struct {
+	client *rpcWalletStorageProvider
 }
 
-func (c *WalletStorageWriterClient) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
+// Migrate migrates a wallet storage database.
+func (c *WalletStorageProviderClient) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
 	return c.client.Migrate(ctx, storageName, storageIdentityKey)
 }
 
-func (c *WalletStorageWriterClient) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error) {
+// MakeAvailable makes the storage available storage for user.
+func (c *WalletStorageProviderClient) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error) {
 	return c.client.MakeAvailable(ctx)
 }
 
-func (c *WalletStorageWriterClient) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
+// FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
+func (c *WalletStorageProviderClient) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
 	return c.client.FindOrInsertUser(ctx, identityKey)
 }
 
-func (c *WalletStorageWriterClient) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+// InternalizeAction handles the internalization of a transaction from the outside of the wallet.
+func (c *WalletStorageProviderClient) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 	return c.client.InternalizeAction(ctx, auth, args)
 }
 
-func (c *WalletStorageWriterClient) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+// CreateAction creates a new transaction ready to be signed and processed later.
+func (c *WalletStorageProviderClient) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	return c.client.CreateAction(ctx, auth, args)
 }
 
-func (c *WalletStorageWriterClient) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+// ProcessAction processes a signed transaction created by CreateAction.
+func (c *WalletStorageProviderClient) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
 	return c.client.ProcessAction(ctx, auth, args)
 }
 
-func (c *WalletStorageWriterClient) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
+// InsertCertificateAuth adds a new certificate for a user.
+func (c *WalletStorageProviderClient) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
 	return c.client.InsertCertificateAuth(ctx, auth, certificate)
 }
 
-func (c *WalletStorageWriterClient) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
+// RelinquishCertificate revokes the specified certificate from the users certificates.
+func (c *WalletStorageProviderClient) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
 	return c.client.RelinquishCertificate(ctx, auth, args)
 }
 
-func (c *WalletStorageWriterClient) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
+// ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.
+func (c *WalletStorageProviderClient) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	return c.client.ListCertificates(ctx, auth, args)
 }
 
-func (c *WalletStorageWriterClient) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+// ListOutputs retrieves a list of wallet outputs based on the provided query parameters in the arguments.
+func (c *WalletStorageProviderClient) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	return c.client.ListOutputs(ctx, auth, args)
 }
 
-type rpcWalletStorageWriter struct {
+type rpcWalletStorageProvider struct {
 	Migrate               func(context.Context, string, string) (string, error)
 	MakeAvailable         func(context.Context) (*wdk.TableSettings, error)
 	FindOrInsertUser      func(context.Context, string) (*wdk.FindOrInsertUserResponse, error)

@@ -18,12 +18,17 @@ import (
 
 type StorageFixture interface {
 	testabilities.StorageFixture
+	StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager
 	ActionCreatedAndSigned(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
 }
 
 type storageFixture struct {
 	t testing.TB
 	testabilities.StorageFixture
+}
+
+func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager {
+	return storage.NewWalletStorageManager(user.IdentityKey(s.t), activeStorage)
 }
 
 func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {

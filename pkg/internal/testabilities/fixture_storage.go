@@ -25,10 +25,10 @@ import (
 type StorageFixture interface {
 	Provider() ProviderFixture
 
-	StartedRPCServerFor(provider wdk.WalletStorageWriter) (cleanup func())
-	RPCClient() (*storage.WalletStorageWriterClient, func())
+	StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func())
+	RPCClient() (*storage.WalletStorageProviderClient, func())
 
-	MockProvider() *mocks.MockWalletStorageWriter
+	MockProvider() *mocks.MockWalletStorageProvider
 
 	Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture
 }
@@ -45,25 +45,25 @@ type storageFixture struct {
 	db         *database.Database
 }
 
-func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageWriter) (cleanup func()) {
+func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func()) {
 	s.t.Helper()
 	storageServer := storage.NewServer(s.logger, provider, storage.ServerOptions{})
 	s.testServer = httptest.NewServer(storageServer.Handler())
 	return s.testServer.Close
 }
 
-func (s *storageFixture) RPCClient() (client *storage.WalletStorageWriterClient, cleanup func()) {
+func (s *storageFixture) RPCClient() (client *storage.WalletStorageProviderClient, cleanup func()) {
 	s.t.Helper()
 	client, cleanup, err := storage.NewClient(s.testServer.URL, storage.WithHttpClient(s.testServer.Client()))
 	s.require.NoError(err)
 	return client, cleanup
 }
 
-func (s *storageFixture) MockProvider() *mocks.MockWalletStorageWriter {
+func (s *storageFixture) MockProvider() *mocks.MockWalletStorageProvider {
 	s.t.Helper()
 	ctrl := gomock.NewController(s.t)
 
-	return mocks.NewMockWalletStorageWriter(ctrl)
+	return mocks.NewMockWalletStorageProvider(ctrl)
 }
 
 func (s *storageFixture) Provider() ProviderFixture {
