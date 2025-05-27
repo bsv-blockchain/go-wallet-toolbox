@@ -8,10 +8,29 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
+
+type WalletTestSuite struct {
+	suite.Suite
+	StorageType testabilities.StorageType
+}
+
+func TestWalletWithSQLiteStorage(t *testing.T) {
+	suite.Run(t, &WalletTestSuite{
+		StorageType: testabilities.StorageTypeSQLite,
+	})
+}
+
+func TestWalletWithRemoteStorage(t *testing.T) {
+	suite.Run(t, &WalletTestSuite{
+		StorageType: testabilities.StorageTypeRemote,
+	})
+}
 
 func TestNewWalletArgumentValidation(t *testing.T) {
 	validChain := defs.NetworkMainnet

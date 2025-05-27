@@ -101,11 +101,11 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 }
 
 func Given(t testing.TB) (given StorageFixture, cleanup func()) {
-	db, cleanup := dbfixtures.TestDatabase(t)
+	db, dbCleanup := dbfixtures.TestDatabase(t)
 	return &storageFixture{
 		t:       t,
 		require: require.New(t),
 		logger:  logging.NewTestLogger(t),
 		db:      db,
-	}, cleanup
+	}, dbCleanup
 }
