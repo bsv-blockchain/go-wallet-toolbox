@@ -5,11 +5,11 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.1.26
+	github.com/bsv-blockchain/go-sdk v1.1.27
 	github.com/bsv-blockchain/universal-test-vectors v0.5.0
 	github.com/filecoin-project/go-jsonrpc v0.8.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
-	github.com/go-co-op/gocron/v2 v2.16.1
+	github.com/go-co-op/gocron/v2 v2.16.2
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-softwarelab/common v1.0.0
 	github.com/go-viper/mapstructure/v2 v2.2.1
@@ -23,7 +23,7 @@ require (
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.26.1
+	gorm.io/gorm v1.30.0
 )
 
 require (
