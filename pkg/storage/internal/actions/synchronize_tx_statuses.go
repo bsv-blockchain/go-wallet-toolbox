@@ -59,12 +59,12 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 	}
 
 	for _, txToSync := range txsToSync {
-		s.logger.Info("synchronizing", slog.Any("tx", txToSync))
+		s.logger.Info("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
 
 		merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
 		if err != nil {
 			s.logger.Warn(
-				"failed to get merkle path - this may be normal if the transaction is not yet mined\n",
+				"failed to get merkle path for transaction",
 				slog.Any("err", err),
 				slog.String("txID", txToSync.TxID),
 				slog.Uint64("attempts", txToSync.Attempts),
@@ -74,7 +74,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			continue
 		}
 
-		if merkleResult == nil || merkleResult.Header == nil || merkleResult.MerklePath == nil {
+		if merkleResult.Header == nil || merkleResult.MerklePath == nil {
 			s.logger.Warn(
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),

@@ -219,7 +219,7 @@ func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, 
 		Model(&models.ProvenTxReq{}).
 		Select("tx_id, status, attempts").
 		Where("status IN ? ", txStatus).
-		Order("attempts ASC").
+		Order("created_at ASC").
 		Limit(limit).
 		Find(&rows).Error
 	if err != nil {

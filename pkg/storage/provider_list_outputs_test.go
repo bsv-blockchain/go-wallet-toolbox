@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -101,12 +100,8 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 
 	for _, output := range actualResult.Outputs {
 		require.NotEmpty(t, output.Outpoint)
-
-		parts := strings.Split(string(output.Outpoint), ".")
-		require.Len(t, parts, 2, "Outpoint format should be <txid>.<vout>")
-
-		txid := parts[0]
-		require.NotNil(t, beef.FindTransaction(txid))
+		require.NoError(t, output.Outpoint.Validate())
+		require.NotNil(t, beef.FindTransaction(output.Outpoint.MustGetTxID()))
 	}
 }
 

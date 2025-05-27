@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"math"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -85,8 +85,8 @@ func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) enti
 	return entity.ListOutputsFilter{
 		UserID:      userID,
 		Basket:      string(args.Basket),
-		Limit:       must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, 10000)),
-		Offset:      must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Offset, math.MaxInt)),
+		Limit:       must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, validate.MaxPaginationLimit)),
+		Offset:      must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Offset, validate.MaxPaginationOffset)),
 		IncludeTXID: args.IncludeTransactions,
 	}
 }
@@ -99,8 +99,7 @@ func (l *listOutputs) outputModelToResult(m *wdk.TableOutput) *wdk.WalletOutput 
 	}
 
 	if m.TxID != nil {
-		outpoint := fmt.Sprintf("%s.%d", *m.TxID, m.Vout)
-		result.Outpoint = primitives.OutpointString(outpoint)
+		result.Outpoint = primitives.NewOutpointString(*m.TxID, m.Vout)
 	}
 
 	if m.LockingScript != nil {
