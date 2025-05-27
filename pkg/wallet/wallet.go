@@ -6,6 +6,9 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -13,7 +16,9 @@ var _ sdk.Interface = (*Wallet)(nil)
 
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
-	proto *sdk.ProtoWallet
+	proto      *sdk.ProtoWallet
+	storage    wdk.WalletStorage
+	keyDeriver *sdk.KeyDeriver
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
@@ -40,8 +45,12 @@ func New(chain defs.BSVNetwork, keyDeriver *sdk.KeyDeriver, activeStorage wdk.Wa
 		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
 	}
 
+	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKeyHex(), activeStorage)
+
 	return &Wallet{
-		proto: proto,
+		proto:      proto,
+		keyDeriver: keyDeriver,
+		storage:    storageManager,
 	}, nil
 }
 
@@ -142,8 +151,22 @@ func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, orig
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
 // inserted into baskets, and/or tagged.
 func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	wdkArgs := mapping.MapInternalizeActionArgs(args)
+
+	if err := validate.ValidInternalizeActionArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid internalize action args: %w", err)
+	}
+
+	result, err := w.storage.InternalizeAction(ctx, wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to internalize action: %w", err)
+	}
+
+	return mapping.MapInternalizeActionResult(result), nil
 }
 
 // ListOutputs lists the spendable outputs kept within a specific basket, optionally tagged with specific labels.
