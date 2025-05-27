@@ -17,8 +17,8 @@ type MethodInfo struct {
 	Results     Results   `json:"results"`
 }
 
-// HasAnnotation checks if the method contains an annotation that starts with the specified annotationType prefix.
-// By annotation, we mean a method Docs that starts with "// @".
+// HasAnnotation checks if the method contains an annotation comment.
+// Annotations are method-level comments starting with "// @", for example: "// @Write".
 func (m MethodInfo) HasAnnotation(annotationType string) bool {
 	return seq.Exists(seq.FromSlice(m.Annotations), func(it string) bool {
 		return strings.HasPrefix(it, annotationType)
