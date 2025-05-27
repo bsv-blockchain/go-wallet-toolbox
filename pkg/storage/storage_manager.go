@@ -36,7 +36,7 @@ func NewWalletStorageManager(identityKey string, active wdk.WalletStorageProvide
 	}
 
 	return &WalletStorageManager{
-		activeStorage: managed.NewMangedStorage(active),
+		activeStorage: managed.NewManagedStorage(active),
 		identityKey:   identityKey,
 	}
 }

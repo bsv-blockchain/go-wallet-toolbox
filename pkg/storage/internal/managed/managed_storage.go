@@ -13,7 +13,7 @@ type Storage struct {
 	User     *wdk.TableUser
 }
 
-func NewMangedStorage(storage wdk.WalletStorageProvider) *Storage {
+func NewManagedStorage(storage wdk.WalletStorageProvider) *Storage {
 	return &Storage{
 		WalletStorageProvider: storage,
 	}
