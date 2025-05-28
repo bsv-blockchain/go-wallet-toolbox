@@ -14,7 +14,7 @@ func Originator(originator string) error {
 
 	originator = normalizeOriginator(originator)
 	if !is.Between(len(originator), 1, 250) {
-		return fmt.Errorf("originator must be between 1 and 250 bytes, but was: %d", len(originator))
+		return fmt.Errorf("originator %q must be between 1 and 250 bytes, but was: %d", originator, len(originator))
 	}
 
 	if !strings.Contains(originator, ".") {
@@ -23,7 +23,7 @@ func Originator(originator string) error {
 
 	for originatorPart := range strings.SplitSeq(originator, ".") {
 		if !is.Between(len(originatorPart), 1, 63) {
-			return fmt.Errorf("originator part must be between 1 and 63 bytes, but was: %d", len(originatorPart))
+			return fmt.Errorf("originator part %q must be between 1 and 63 bytes, but was: %d", originatorPart, len(originatorPart))
 		}
 	}
 	return nil
