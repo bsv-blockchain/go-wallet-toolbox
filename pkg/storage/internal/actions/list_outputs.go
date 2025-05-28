@@ -60,7 +60,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	if args.IncludeTransactions {
 		uniqueTxIDs := l.uniqueTxTDsForAllOutputs(outputModels)
 
-		rawBeef, err := l.provenTxRepo.GetBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids)
+		rawBeef, err := l.provenTxRepo.GetBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids, wdk.ProvenTxReqProblematicStatuses)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
 		}

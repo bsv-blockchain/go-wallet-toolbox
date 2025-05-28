@@ -103,6 +103,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 			FeeModel:   p.feeModel,
 			Commission: p.commission,
 			Services:   p.services,
+			SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
 		},
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),

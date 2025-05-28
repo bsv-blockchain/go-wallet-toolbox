@@ -121,6 +121,9 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 		return fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
 
+	//NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
+	//updates matching (user) transactions to "failed" and tidies outputs
+	//TODO: Consider if we want to do the same or do it right away here
 	err = s.provenTxRepo.SetStatusForProvenTxAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
 	if err != nil {
 		return fmt.Errorf("failed to set status for txs above attempts: %w", err)

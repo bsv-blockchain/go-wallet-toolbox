@@ -72,12 +72,10 @@ func (s ProvenTxReqStatus) BroadcastStatus() TxReqBroadcastStatus {
 	}
 }
 
-// ProvenTxReqStatusesForSourceTransactions is a provenTxReq status list of txs that can be taken as subject-transaction's input sources
-var ProvenTxReqStatusesForSourceTransactions = []ProvenTxReqStatus{
-	ProvenTxStatusUnsent,
-	ProvenTxStatusUnmined,
-	ProvenTxStatusUnconfirmed,
-	ProvenTxStatusSending,
-	ProvenTxStatusNoSend,
-	ProvenTxStatusCompleted,
+// ProvenTxReqProblematicStatuses contains transaction statuses considered problematic, such as unknown, nonfinal, invalid, and double spend.
+var ProvenTxReqProblematicStatuses = []ProvenTxReqStatus{
+	ProvenTxStatusUnknown,
+	ProvenTxStatusNonFinal,
+	ProvenTxStatusInvalid,
+	ProvenTxStatusDoubleSpend,
 }
