@@ -216,7 +216,6 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 
 	now := time.Now()
 	untilNext := nextRun.Sub(now)
-	d.logger.Debug("Next run for task", slog.Any("next_run", nextRun), slog.Any("until_next", untilNext))
 
 	if untilNext <= 0 {
 		return ctx, func() {}
