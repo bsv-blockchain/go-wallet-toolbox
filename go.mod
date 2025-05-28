@@ -5,11 +5,11 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.1.26
+	github.com/bsv-blockchain/go-sdk v1.1.27
 	github.com/bsv-blockchain/universal-test-vectors v0.5.0
 	github.com/filecoin-project/go-jsonrpc v0.8.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
-	github.com/go-co-op/gocron/v2 v2.16.1
+	github.com/go-co-op/gocron/v2 v2.16.2
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-softwarelab/common v1.0.0
 	github.com/go-viper/mapstructure/v2 v2.2.1
@@ -21,9 +21,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/datatypes v1.2.5
 	gorm.io/driver/mysql v1.5.7
-	gorm.io/driver/postgres v1.5.11
+	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.26.1
+	gorm.io/gorm v1.30.0
 )
 
 require (
@@ -36,9 +36,9 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect
-	github.com/jackc/pgx/v5 v5.5.5 // indirect
-	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.6.0 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
