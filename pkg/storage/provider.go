@@ -32,7 +32,7 @@ type Provider struct {
 	actions  *actions.Actions
 }
 
-var _ wdk.WalletStorageWriter = (*Provider)(nil)
+var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
 // GORMProviderConfig is a configuration for GORM storage provider.
 type GORMProviderConfig struct {

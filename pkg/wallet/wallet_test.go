@@ -16,12 +16,12 @@ import (
 func TestNewWalletArgumentValidation(t *testing.T) {
 	validChain := defs.NetworkMainnet
 	validKeyDeriver := sdk.NewKeyDeriver(testusers.Alice.PrivateKey(t))
-	validStorage := mocks.NewMockWalletStorageWriter(nil)
+	validStorage := mocks.NewMockWalletStorageProvider(nil)
 
 	tests := map[string]struct {
 		chain      defs.BSVNetwork
 		keyDeriver *sdk.KeyDeriver
-		storage    wdk.WalletStorageWriter
+		storage    wdk.WalletStorageProvider
 	}{
 		"return error on invalid chain": {
 			chain:      "unknown",

@@ -18,7 +18,7 @@ type Wallet struct {
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
-func New(chain defs.BSVNetwork, keyDeriver *sdk.KeyDeriver, activeStorage wdk.WalletStorageWriter) (*Wallet, error) {
+func New(chain defs.BSVNetwork, keyDeriver *sdk.KeyDeriver, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
