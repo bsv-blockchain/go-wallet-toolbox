@@ -104,6 +104,22 @@ func WithFindOrInsertUserResponse(override func(response *StorageProviderMethodR
 	}
 }
 
+func ExpectNoInteraction() func(*StorageProviderResponses) {
+	return func(responses *StorageProviderResponses) {
+		zero := to.Ptr(0)
+		responses.Migrate.times(zero)
+		responses.MakeAvailable.times(zero)
+		responses.FindOrInsertUser.times(zero)
+		responses.InternalizeAction.times(zero)
+		responses.CreateAction.times(zero)
+		responses.ProcessAction.times(zero)
+		responses.InsertCertificateAuth.times(zero)
+		responses.RelinquishCertificate.times(zero)
+		responses.ListCertificates.times(zero)
+		responses.ListOutputs.times(zero)
+	}
+}
+
 func SetupMockStorageProvider(t testing.TB, provider *MockWalletStorageProvider, opts ...func(*StorageProviderResponses)) {
 	responses := to.OptionsWithDefault(DefaultResponses(t), opts...)
 

@@ -36,6 +36,14 @@ func NewKeyDeriver(privateKey *ec.PrivateKey) *KeyDeriver {
 	}
 }
 
+func (kd *KeyDeriver) IdentityKey() *ec.PublicKey {
+	return kd.rootKey.PubKey()
+}
+
+func (kd *KeyDeriver) IdentityKeyHex() string {
+	return kd.IdentityKey().ToDERHex()
+}
+
 // DeriveSymmetricKey creates a symmetric key based on protocol ID, key ID, and counterparty.
 // Note: Symmetric keys should not be derivable by everyone due to security risks.
 func (kd *KeyDeriver) DeriveSymmetricKey(protocol Protocol, keyID string, counterparty Counterparty) (*ec.SymmetricKey, error) {

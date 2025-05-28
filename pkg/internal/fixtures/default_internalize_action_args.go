@@ -3,6 +3,7 @@ package fixtures
 import (
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -42,6 +43,45 @@ func DefaultInternalizeActionArgs(t *testing.T, protocol wdk.InternalizeProtocol
 			outputSpec,
 		},
 		Labels: []primitives.StringUnder300{
+			"label1", "label2",
+		},
+		Description:    "description",
+		SeekPermission: nil,
+	}
+}
+
+func DefaultWalletInternalizeActionArgs(t *testing.T, protocol sdk.InternalizeProtocol) sdk.InternalizeActionArgs {
+	t.Helper()
+
+	spec := testabilities.GivenTX().WithInput(1000).WithP2PKHOutput(ExpectedValueToInternalize)
+
+	atomicBeef, err := spec.TX().AtomicBEEF(false)
+	require.NoError(t, err)
+
+	outputSpec := sdk.InternalizeOutput{
+		OutputIndex: 0,
+		Protocol:    protocol,
+	}
+	if protocol == sdk.InternalizeProtocolWalletPayment {
+		outputSpec.PaymentRemittance = &sdk.Payment{
+			DerivationPrefix:  DerivationPrefix,
+			DerivationSuffix:  DerivationSuffix,
+			SenderIdentityKey: UserIdentityKey,
+		}
+	} else {
+		outputSpec.InsertionRemittance = &sdk.BasketInsertion{
+			Basket:             CustomBasket,
+			CustomInstructions: "custom instructions",
+			Tags:               []string{"tag1", "tag2"},
+		}
+	}
+
+	return sdk.InternalizeActionArgs{
+		Tx: atomicBeef,
+		Outputs: []sdk.InternalizeOutput{
+			outputSpec,
+		},
+		Labels: []string{
 			"label1", "label2",
 		},
 		Description:    "description",
