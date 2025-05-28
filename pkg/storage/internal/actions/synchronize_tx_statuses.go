@@ -35,6 +35,12 @@ type synchronizeTxStatuses struct {
 }
 
 func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.SynchronizeTxStatuses, services wdk.Services, provenTxRepo ProvenTxRepo) *synchronizeTxStatuses {
+	logger = logging.Child(logger, "synchronize_tx_statuses")
+
+	if syncTxStatusesConfig.MaxAttempts == 0 {
+		logger.Warn("synchronizeTxStatusesConfig.MaxAttempts is 0 which means that transactions will be tried to synchronize indefinitely; this may lead to performance issues")
+	}
+
 	return &synchronizeTxStatuses{
 		logger:               logging.Child(logger, "synchronize_tx_statuses"),
 		provenTxRepo:         provenTxRepo,
@@ -86,7 +92,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 		}
 
 		if merkleResult.Header == nil || merkleResult.MerklePath == nil {
-			s.logger.Warn(
+			s.logger.Info(
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
 				slog.String("status", string(txToSync.Status)),
