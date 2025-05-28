@@ -222,16 +222,8 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePat
 }
 
 func (a *arcQueryFixture) WillReturnWithMindedTx() ARCQueryFixture {
-	tx := a.knownTransaction()
-	merklePath := mockValidMerklePath(a.TB, tx.txid)
-	blockHash, err := merklePath.ComputeRootHex(&tx.txid)
-	require.NoError(a.TB, err)
-
-	tx.status = "MINED"
-	tx.merklePath = merklePath.Hex()
-	tx.blockHeight = merklePath.BlockHeight
-	tx.blockHash = blockHash
-	return a
+	merklePath := mockValidMerklePath(a.TB, a.txID)
+	return a.WillReturnTransactionWithMerklePath(merklePath)
 }
 
 func (a *arcQueryFixture) WillReturnDifferentTxID() {
