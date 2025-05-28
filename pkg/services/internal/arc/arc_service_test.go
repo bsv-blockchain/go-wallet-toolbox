@@ -382,38 +382,111 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 	someSecondHash, errHash := chainhash.NewHashFromHex("27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e")
 	require.NoError(t, errHash)
 
-	t.Run("return error when arc is unreachable", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
+	arcErrorTestCases := map[string]struct {
+		setupARC func(arc testservices.ARCFixture)
+	}{
+		"return error when arc is unreachable": {
+			setupARC: func(arc testservices.ARCFixture) {},
+		},
+		"return error when arc returns unauthorized": {
+			setupARC: func(arc testservices.ARCFixture) {
+				arc.WillAlwaysReturnStatus(http.StatusUnauthorized)
+			},
+		},
+		"return error when arc returns forbidden": {
+			setupARC: func(arc testservices.ARCFixture) {
+				arc.WillAlwaysReturnStatus(http.StatusForbidden)
+			},
+		},
+		"return error when arc returns not found": {
+			setupARC: func(arc testservices.ARCFixture) {
+				arc.WillAlwaysReturnStatus(http.StatusNotFound)
+			},
+		},
+		"return error when arc returns internal server error": {
+			setupARC: func(arc testservices.ARCFixture) {
+				arc.WillAlwaysReturnStatus(http.StatusInternalServerError)
+			},
+		},
+		"return error when trying to get merkle path for unknown tx": {
+			setupARC: func(arc testservices.ARCFixture) {
+				arc.IsUpAndRunning()
+			},
+		},
+		"return error when arc returns invalid merkle path": {
+			setupARC: func(arc testservices.ARCFixture) {
+				arc.IsUpAndRunning()
+				arc.WhenQueryingTx(txID).WillReturnTransactionWithMerklePathHex("invalid-merkle-path")
+			},
+		},
+		"return error when arc return merkle path with invalid height": {
+			setupARC: func(arc testservices.ARCFixture) {
+				merklePath := sdk.MerklePath{
+					BlockHeight: 2000,
+					Path: [][]*sdk.PathElement{
+						{
+							{
+								Offset: 0,
+								Hash:   tx.TxID(),
+								Txid:   to.Ptr(true),
+							},
+							{
+								Offset: 1,
+								Hash:   someSecondHash,
+							},
+						},
+					},
+				}
 
-		// and:
-		service := given.NewArcService()
+				arc.IsUpAndRunning()
+				arc.WhenQueryingTx(txID).
+					WillReturnTransactionWithMerklePath(merklePath).
+					WillReturnTransactionOnHeight(2002)
 
-		// when:
-		res, err := service.MerklePath(context.Background(), txID)
+			},
+		},
+		"return error when arc return merkle path without queried tx": {
+			setupARC: func(arc testservices.ARCFixture) {
+				merklePath := sdk.MerklePath{
+					BlockHeight: 2000,
+					Path: [][]*sdk.PathElement{
+						{
+							{
+								Offset: 0,
+								Hash:   someSecondHash,
+							},
+							{
+								Offset: 1,
+								Hash:   someSecondHash,
+							},
+						},
+					},
+				}
 
-		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
-	})
+				arc.IsUpAndRunning()
+				arc.WhenQueryingTx(txID).WillReturnTransactionWithMerklePath(merklePath)
+			},
+		},
+	}
+	for name, test := range arcErrorTestCases {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := arctestabilities.Given(t)
 
-	t.Run("get merkle path for unknown tx will return error", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
+			// and:
+			test.setupARC(given.ARC())
 
-		// setup arc server
-		given.ARC().IsUpAndRunning()
+			// and:
+			service := given.NewArcService()
 
-		// and:
-		service := given.NewArcService()
+			// when:
+			res, err := service.MerklePath(context.Background(), txID)
 
-		// when:
-		res, err := service.MerklePath(context.Background(), txID)
-
-		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
-	})
+			// then:
+			assert.Error(t, err)
+			assert.Nil(t, res)
+		})
+	}
 
 	t.Run("return empty result if transaction is not mined yet", func(t *testing.T) {
 		// given:
@@ -439,146 +512,6 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 			MerklePath: nil,
 			Header:     nil,
 		}, *res)
-	})
-
-	t.Run("return error when arc returns invalid merkle path", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
-
-		// setup arc server
-		given.ARC().IsUpAndRunning()
-
-		// and:
-		service := given.NewArcService()
-
-		// and:
-		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithMerklePathHex("invalid-merkle-path")
-
-		// when:
-		res, err := service.MerklePath(context.Background(), txID)
-
-		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
-	})
-
-	t.Run("return error when arc return merkle path with invalid height", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
-
-		// setup arc server
-		given.ARC().IsUpAndRunning()
-
-		// and:
-		service := given.NewArcService()
-
-		merklePath := sdk.MerklePath{
-			BlockHeight: 2000,
-			Path: [][]*sdk.PathElement{
-				{
-					{
-						Offset: 0,
-						Hash:   tx.TxID(),
-						Txid:   to.Ptr(true),
-					},
-					{
-						Offset: 1,
-						Hash:   someSecondHash,
-					},
-				},
-			},
-		}
-
-		// and:
-		given.ARC().WhenQueryingTx(txID).
-			WillReturnTransactionWithMerklePath(merklePath).
-			WillReturnTransactionOnHeight(2002)
-
-		// when:
-		res, err := service.MerklePath(context.Background(), txID)
-
-		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
-	})
-
-	t.Run("return error when arc return merkle path with invalid block hash", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
-
-		// setup arc server
-		given.ARC().IsUpAndRunning()
-
-		// and:
-		service := given.NewArcService()
-
-		merklePath := sdk.MerklePath{
-			BlockHeight: 2000,
-			Path: [][]*sdk.PathElement{
-				{
-					{
-						Offset: 0,
-						Hash:   tx.TxID(),
-						Txid:   to.Ptr(true),
-					},
-					{
-						Offset: 1,
-						Hash:   someSecondHash,
-					},
-				},
-			},
-		}
-
-		// and:
-		given.ARC().WhenQueryingTx(txID).
-			WillReturnTransactionWithMerklePath(merklePath).
-			WillReturnTransactionWithBlockHash(someSecondHash)
-
-		// when:
-		res, err := service.MerklePath(context.Background(), txID)
-
-		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
-	})
-
-	t.Run("return error when arc return merkle path without queried tx", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
-
-		// setup arc server
-		given.ARC().IsUpAndRunning()
-
-		// and:
-		service := given.NewArcService()
-
-		// and:
-		merklePath := sdk.MerklePath{
-			BlockHeight: 2000,
-			Path: [][]*sdk.PathElement{
-				{
-					{
-						Offset: 0,
-						Hash:   someSecondHash,
-					},
-					{
-						Offset: 1,
-						Hash:   someSecondHash,
-					},
-				},
-			},
-		}
-
-		// and:
-		given.ARC().WhenQueryingTx(txID).
-			WillReturnTransactionWithMerklePath(merklePath)
-
-		// when:
-		res, err := service.MerklePath(context.Background(), txID)
-
-		// then:
-		assert.Error(t, err)
-		assert.Nil(t, res)
 	})
 
 	t.Run("return merkle path when arc return valid merkle path", func(t *testing.T) {
@@ -608,8 +541,8 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 			},
 		}
 
-		blockHash, err := merklePath.ComputeRootHex(nil)
-		require.NoError(t, err, "failed to compute block hash from merkle path, wrong test setup")
+		merkleRoot, err := merklePath.ComputeRootHex(nil)
+		require.NoError(t, err, "failed to compute merkle root, wrong test setup")
 
 		// and:
 		given.ARC().WhenQueryingTx(txID).
@@ -621,12 +554,14 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
+
 		require.Equal(t, wdk.MerklePathResult{
 			Name:       "ARC",
 			MerklePath: &merklePath,
 			Header: &wdk.BlockHeader{
-				Height: 2000,
-				Hash:   blockHash,
+				Height:     2000,
+				MerkleRoot: merkleRoot,
+				Hash:       testservices.TestBlockHash,
 			},
 		}, *res)
 	})

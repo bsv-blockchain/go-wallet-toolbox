@@ -1,12 +1,12 @@
 package storage_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ func TestListOutputs_EmptyByDefault(t *testing.T) {
 	require.Equal(t, expectedResult, actualResult)
 }
 
-func TestListOutputs_WithKnownTxidsAndIncludeTransactions(t *testing.T) {
+func TestListOutputs_IncludeTransactions(t *testing.T) {
 	// Given:
 	ctx := t.Context()
 	given, cleanup := testabilities.Given(t)
@@ -50,26 +50,11 @@ func TestListOutputs_WithKnownTxidsAndIncludeTransactions(t *testing.T) {
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
 	actionResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
-	txid := signedTx.TxID().String()
-
-	processArgs := wdk.ProcessActionArgs{
-		IsNewTx:    true,
-		IsSendWith: false,
-		IsNoSend:   false,
-		IsDelayed:  false,
-		Reference:  &actionResult.Reference,
-		TxID:       (*primitives.TXIDHexString)(&txid),
-		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
-	}
-	_, err := activeStorage.ProcessAction(ctx, testusers.Alice.AuthID(), processArgs)
-	require.NoError(t, err)
 
 	listArgs := wdk.ListOutputsArgs{
 		Basket:              "",
-		Limit:               10,
+		Limit:               100,
 		Offset:              0,
-		KnownTxids:          []string{txid},
 		IncludeTransactions: true,
 	}
 
@@ -79,19 +64,44 @@ func TestListOutputs_WithKnownTxidsAndIncludeTransactions(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.NotEmpty(t, actualResult.Outputs)
-	require.NotNil(t, actualResult.BEEF)
+	require.Len(t, actualResult.Outputs, 33)
 
-	expectedOutpoints := map[string]bool{}
-	for _, out := range actualResult.Outputs {
-		parts := strings.Split(string(out.Outpoint), ".")
-		require.Len(t, parts, 2, "Outpoint format should be <txid>.<vout>")
-		require.Equal(t, txid, parts[0], "Output txid should match known txid")
-		expectedOutpoints[string(out.Outpoint)] = true
+	// and:
+	beef := testutils.BEEFFromHex(t, *actualResult.BEEF)
+	require.Len(t, beef.Transactions, 2) // parent transaction with BUMP and the internalized one (with no BUMP)
+
+	// Given:
+	createdTxID := signedTx.TxID().String()
+	processArgs := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  false,
+		Reference:  &actionResult.Reference,
+		TxID:       (*primitives.TXIDHexString)(&createdTxID),
+		RawTx:      signedTx.Bytes(),
+		SendWith:   []string{},
 	}
+	_, err = activeStorage.ProcessAction(ctx, testusers.Alice.AuthID(), processArgs)
+	require.NoError(t, err)
 
-	for _, out := range actualResult.Outputs {
-		assert.Truef(t, expectedOutpoints[string(out.Outpoint)], "Unexpected outpoint: %s", out.Outpoint)
+	// When:
+	actualResult, err = activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), listArgs)
+
+	// Then:
+	require.NoError(t, err)
+	require.NotNil(t, actualResult)
+	require.Len(t, actualResult.Outputs, 33)
+
+	// and:
+	require.NotNil(t, actualResult.BEEF)
+	beef = testutils.BEEFFromHex(t, *actualResult.BEEF)
+	require.Len(t, beef.Transactions, 3) // parent transaction with BUMP, the internalized one (with no BUMP), AND the newly created transaction
+
+	for _, output := range actualResult.Outputs {
+		require.NotEmpty(t, output.Outpoint)
+		require.NoError(t, output.Outpoint.Validate())
+		require.NotNil(t, beef.FindTransaction(output.Outpoint.MustGetTxID()))
 	}
 }
 

@@ -84,7 +84,7 @@ func TestGetMerklePath(t *testing.T) {
 			},
 		}
 
-		blockHash, err := merklePath.ComputeRootHex(nil)
+		merkleRoot, err := merklePath.ComputeRootHex(nil)
 		require.NoError(t, err, "failed to compute block hash from merkle path, wrong test setup")
 
 		// and:
@@ -103,8 +103,9 @@ func TestGetMerklePath(t *testing.T) {
 			Name:       "ARC",
 			MerklePath: &merklePath,
 			Header: &wdk.BlockHeader{
-				Height: 2000,
-				Hash:   blockHash,
+				Height:     2000,
+				Hash:       testservices.TestBlockHash,
+				MerkleRoot: merkleRoot,
 			},
 		}, *response)
 	})

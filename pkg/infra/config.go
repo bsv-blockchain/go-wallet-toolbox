@@ -12,16 +12,17 @@ import (
 // Config is the configuration for the "remote storage server" service (aka "infra")
 type Config struct {
 	// Name is the human-readable name of this storage server
-	Name             string              `mapstructure:"name"`
-	ServerPrivateKey string              `mapstructure:"server_private_key"`
-	BSVNetwork       defs.BSVNetwork     `mapstructure:"bsv_network"`
-	FeeModel         defs.FeeModel       `mapstructure:"fee_model"`
-	DBConfig         defs.Database       `mapstructure:"db"`
-	HTTPConfig       HTTPConfig          `mapstructure:"http"`
-	Logging          LogConfig           `mapstructure:"logging"`
-	Commission       defs.Commission     `mapstructure:"commission"`
-	Services         defs.WalletServices `mapstructure:"wallet_services"`
-	Monitor          defs.Monitor        `mapstructure:"monitor"`
+	Name                  string                     `mapstructure:"name"`
+	ServerPrivateKey      string                     `mapstructure:"server_private_key"`
+	BSVNetwork            defs.BSVNetwork            `mapstructure:"bsv_network"`
+	FeeModel              defs.FeeModel              `mapstructure:"fee_model"`
+	DBConfig              defs.Database              `mapstructure:"db"`
+	HTTPConfig            HTTPConfig                 `mapstructure:"http"`
+	Logging               LogConfig                  `mapstructure:"logging"`
+	Commission            defs.Commission            `mapstructure:"commission"`
+	Services              defs.WalletServices        `mapstructure:"wallet_services"`
+	Monitor               defs.Monitor               `mapstructure:"monitor"`
+	SynchronizeTxStatuses defs.SynchronizeTxStatuses `mapstructure:"synchronize_tx_statuses"`
 }
 
 // DBConfig is the configuration for the database
@@ -60,9 +61,10 @@ func Defaults() Config {
 			Level:   defs.LogLevelInfo,
 			Handler: defs.JSONHandler,
 		},
-		Commission: defs.DefaultCommission(),
-		Services:   defs.DefaultServicesConfig(network),
-		Monitor:    defs.DefaultMonitorConfig(),
+		Commission:            defs.DefaultCommission(),
+		Services:              defs.DefaultServicesConfig(network),
+		Monitor:               defs.DefaultMonitorConfig(),
+		SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 )
 
 const DeploymentID = "go-wallet-toolbox-test"
+const TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
 const arcHttpStatusMalformed = 463
 
 var timestamp = time.Date(2018, time.November, 10, 23, 0, 0, 0, time.UTC).Format("2006-01-02T15:04:05.999999999Z")
@@ -45,6 +46,7 @@ type ARCQueryFixture interface {
 	WillReturnTransactionWithoutMerklePath()
 	WillReturnTransactionWithMerklePathHex(merklePath string)
 	WillReturnTransactionWithMerklePath(path sdk.MerklePath) ARCQueryFixture
+	WillReturnWithMindedTx() ARCQueryFixture
 	WillReturnTransactionOnHeight(i int)
 	WillReturnTransactionWithBlockHash(hash *chainhash.Hash)
 }
@@ -215,10 +217,13 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePat
 	tx.status = "MINED"
 	tx.merklePath = path.Hex()
 	tx.blockHeight = path.BlockHeight
-	var err error
-	tx.blockHash, err = path.ComputeRootHex(nil)
-	require.NoError(a, err, "failed to compute root: wrong test setup")
+	tx.blockHash = TestBlockHash
 	return a
+}
+
+func (a *arcQueryFixture) WillReturnWithMindedTx() ARCQueryFixture {
+	merklePath := mockValidMerklePath(a.TB, a.txID)
+	return a.WillReturnTransactionWithMerklePath(merklePath)
 }
 
 func (a *arcQueryFixture) WillReturnDifferentTxID() {
@@ -311,5 +316,32 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 		"title":     title,
 		"txid":      nil,
 		"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_" + to.StringFromInteger(httpStatus),
+	}
+}
+
+func mockValidMerklePath(t testing.TB, txID string) sdk.MerklePath {
+	t.Helper()
+
+	hash, err := chainhash.NewHashFromHex(txID)
+	require.NoError(t, err)
+
+	someSecondHash, errHash := chainhash.NewHashFromHex("27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e")
+	require.NoError(t, errHash)
+
+	return sdk.MerklePath{
+		BlockHeight: 2000,
+		Path: [][]*sdk.PathElement{
+			{
+				{
+					Offset: 0,
+					Hash:   hash,
+					Txid:   to.Ptr(true),
+				},
+				{
+					Offset: 1,
+					Hash:   someSecondHash,
+				},
+			},
+		},
 	}
 }

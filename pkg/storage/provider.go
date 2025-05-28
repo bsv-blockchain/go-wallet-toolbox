@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
@@ -37,11 +36,12 @@ var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
 // GORMProviderConfig is a configuration for GORM storage provider.
 type GORMProviderConfig struct {
-	DB         defs.Database
-	Chain      defs.BSVNetwork
-	FeeModel   defs.FeeModel
-	Commission defs.Commission
-	Services   wdk.Services
+	DB                    defs.Database
+	Chain                 defs.BSVNetwork
+	FeeModel              defs.FeeModel
+	Commission            defs.Commission
+	Services              wdk.Services
+	SynchronizeTxStatuses defs.SynchronizeTxStatuses
 }
 
 // NewGORMProvider creates a new storage provider with GORM repository.
@@ -82,7 +82,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Database: db,
 
 		repo:    repos,
-		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services),
+		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
 	}, nil
 }
 
@@ -322,37 +322,9 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, fmt.Errorf("invalid listOutputs args: %w", err)
 	}
 
-	filter := listOutputsArgsToFilterParams(args)
-
-	outputModels, totalCount, err := p.repo.ListAndCountOutputs(ctx, *auth.UserID, filter)
+	result, err := p.actions.ListOutputs(ctx, auth, &args)
 	if err != nil {
-		return nil, fmt.Errorf("error during listing outputs: %w", err)
+		return nil, fmt.Errorf("failed to list outputs: %w", err)
 	}
-	if totalCount < 0 {
-		return nil, fmt.Errorf("unexpected negative output count: %d", totalCount)
-	}
-	if totalCount > math.MaxInt {
-		return nil, fmt.Errorf("output count exceeds PositiveInteger limit: %d", totalCount)
-	}
-
-	outputs := make([]*wdk.WalletOutput, len(outputModels))
-	for i, m := range outputModels {
-		outputs[i] = outputModelToResult(m)
-	}
-
-	result := &wdk.ListOutputsResult{
-		TotalOutputs: primitives.PositiveInteger(totalCount),
-		Outputs:      outputs,
-	}
-
-	if args.IncludeTransactions {
-		rawBeef, err := p.repo.GetBEEFForTxids(ctx, args.KnownTxids)
-		if err != nil {
-			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
-		}
-		beef := primitives.BEEF(rawBeef)
-		result.BEEF = &beef
-	}
-
 	return result, nil
 }

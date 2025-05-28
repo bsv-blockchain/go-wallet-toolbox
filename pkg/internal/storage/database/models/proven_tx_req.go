@@ -14,13 +14,18 @@ type ProvenTxReq struct {
 	TxID string `gorm:"type:varchar(64);primaryKey"`
 
 	Status   wdk.ProvenTxReqStatus `gorm:"default:unknown"`
-	Attempts uint
+	Attempts uint64
 	Notified bool
 
 	RawTx     []byte
 	InputBeef []byte
 
 	History datatypes.JSONType[*HistoryModel]
+
+	BlockHeight *uint32
+	MerklePath  []byte
+	MerkleRoot  *string
+	BlockHash   *string
 }
 
 func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any) {
@@ -37,4 +42,9 @@ func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any)
 	}
 
 	history.Notes = append(history.Notes, note)
+}
+
+// HasMerklePath returns true if the MerklePath field contains data, indicating the presence of a Merkle proof.
+func (p *ProvenTxReq) HasMerklePath() bool {
+	return len(p.MerklePath) > 0
 }

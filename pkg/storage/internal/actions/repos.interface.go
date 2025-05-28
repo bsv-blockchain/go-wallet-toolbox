@@ -16,6 +16,7 @@ type BasketRepo interface {
 type OutputRepo interface {
 	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*wdk.TableOutput, error)
 	FindInputsAndOutputsOfTransaction(ctx context.Context, transactionID uint) (inputs []*wdk.TableOutput, outputs []*wdk.TableOutput, err error)
+	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error)
 }
 
 type TransactionsRepo interface {
@@ -42,5 +43,8 @@ type ProvenTxRepo interface {
 	UpsertProvenTxReq(ctx context.Context, req *entity.UpsertProvenTxReq, historyNote string, historyAttrs map[string]any) error
 	FindProvenTxRawTX(ctx context.Context, txID string) ([]byte, error)
 	FindProvenTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
+	FindProvenTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.ProvenTxToSync, error)
 	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
+	UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error
+	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string) ([]byte, error)
 }

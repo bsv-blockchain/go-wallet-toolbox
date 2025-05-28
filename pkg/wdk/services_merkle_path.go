@@ -23,6 +23,10 @@ type MerklePathResult struct {
 type BlockHeader struct {
 	// Height is the of the header, starting from zero
 	Height uint32
-	// Hash is the double sha256 hash of the serialized `BaseBlockHeader` fields
+
+	// MerkleRoot is the hexadecimal string representation of the Merkle tree root for all transactions in the block.
+	MerkleRoot string
+
+	// Hash is the hexadecimal string representation of the block hash
 	Hash string
 }

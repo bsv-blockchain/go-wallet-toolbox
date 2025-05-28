@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 )
 
@@ -113,7 +115,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	var model models.ProvenTxReq
 	query := p.db.WithContext(ctx).
 		Model(&model).
-		Select("raw_tx, input_beef")
+		Select("raw_tx, input_beef, merkle_path")
 
 	queryForSubjectTx := depth == 0
 	if !queryForSubjectTx && len(statusFilter) > 0 {
@@ -135,6 +137,24 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
 	if err != nil {
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
+	}
+
+	if model.HasMerklePath() {
+		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
+		if err != nil {
+			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
+		}
+		err = tx.AddMerkleProof(merklePath)
+		if err != nil {
+			return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
+		}
+
+		_, err = mergeToBeef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
+		}
+
+		return nil
 	}
 
 	for i := range tx.Inputs {
@@ -169,10 +189,16 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	return nil
 }
 
-func (p *ProvenTxReq) GetBEEFForTxids(ctx context.Context, txids []string) ([]byte, error) {
+func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string) ([]byte, error) {
 	beef := transaction.NewBeefV2()
 
-	for _, txid := range txids {
+	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
+	_ = knownTxIDs
+
+	for txid := range txids {
+		if beef.FindTransaction(txid) != nil {
+			continue
+		}
 		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
@@ -185,4 +211,41 @@ func (p *ProvenTxReq) GetBEEFForTxids(ctx context.Context, txids []string) ([]by
 	}
 
 	return data, nil
+}
+
+func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.ProvenTxToSync, error) {
+	var rows []*models.ProvenTxReq
+	err := p.db.WithContext(ctx).
+		Model(&models.ProvenTxReq{}).
+		Select("tx_id, status, attempts").
+		Where("status IN ? ", txStatus).
+		Order("created_at ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find proven tx ids by statuses: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.ProvenTxReq) *entity.ProvenTxToSync {
+		return &entity.ProvenTxToSync{
+			TxID:     row.TxID,
+			Attempts: row.Attempts,
+		}
+	}), nil
+}
+
+func (p *ProvenTxReq) UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error {
+	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+		Where("tx_id = ?", provenTxAsMined.TxID).
+		Updates(&models.ProvenTxReq{
+			Status:      wdk.ProvenTxStatusCompleted,
+			BlockHash:   &provenTxAsMined.BlockHash,
+			BlockHeight: &provenTxAsMined.BlockHeight,
+			MerklePath:  provenTxAsMined.MerklePath,
+			MerkleRoot:  &provenTxAsMined.MerkleRoot,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to update proven tx as mined: %w", err)
+	}
+	return nil
 }
