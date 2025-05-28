@@ -46,6 +46,7 @@ type ARCQueryFixture interface {
 	WillReturnTransactionWithoutMerklePath()
 	WillReturnTransactionWithMerklePathHex(merklePath string)
 	WillReturnTransactionWithMerklePath(path sdk.MerklePath) ARCQueryFixture
+	WillReturnWithMindedTx() ARCQueryFixture
 	WillReturnTransactionOnHeight(i int)
 	WillReturnTransactionWithBlockHash(hash *chainhash.Hash)
 }
@@ -220,6 +221,19 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePat
 	return a
 }
 
+func (a *arcQueryFixture) WillReturnWithMindedTx() ARCQueryFixture {
+	tx := a.knownTransaction()
+	merklePath := mockValidMerklePath(a.TB, tx.txid)
+	blockHash, err := merklePath.ComputeRootHex(&tx.txid)
+	require.NoError(a.TB, err)
+
+	tx.status = "MINED"
+	tx.merklePath = merklePath.Hex()
+	tx.blockHeight = merklePath.BlockHeight
+	tx.blockHash = blockHash
+	return a
+}
+
 func (a *arcQueryFixture) WillReturnDifferentTxID() {
 	tx := a.knownTransaction()
 	tx.txid = a.rotatedTxIdByNumberOfChars(7)
@@ -310,5 +324,32 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 		"title":     title,
 		"txid":      nil,
 		"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_" + to.StringFromInteger(httpStatus),
+	}
+}
+
+func mockValidMerklePath(t testing.TB, txID string) sdk.MerklePath {
+	t.Helper()
+
+	hash, err := chainhash.NewHashFromHex(txID)
+	require.NoError(t, err)
+
+	someSecondHash, errHash := chainhash.NewHashFromHex("27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e")
+	require.NoError(t, errHash)
+
+	return sdk.MerklePath{
+		BlockHeight: 2000,
+		Path: [][]*sdk.PathElement{
+			{
+				{
+					Offset: 0,
+					Hash:   hash,
+					Txid:   to.Ptr(true),
+				},
+				{
+					Offset: 1,
+					Hash:   someSecondHash,
+				},
+			},
+		},
 	}
 }
