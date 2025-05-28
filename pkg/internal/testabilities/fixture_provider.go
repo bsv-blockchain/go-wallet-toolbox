@@ -99,10 +99,10 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	activeStorage, err := storage.NewGORMProvider(
 		p.logger,
 		storage.GORMProviderConfig{
-			Chain:      p.network,
-			FeeModel:   p.feeModel,
-			Commission: p.commission,
-			Services:   p.services,
+			Chain:                 p.network,
+			FeeModel:              p.feeModel,
+			Commission:            p.commission,
+			Services:              p.services,
 			SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
 		},
 		storage.WithGORM(p.db.DB),

@@ -2,9 +2,9 @@ package storage_test
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
