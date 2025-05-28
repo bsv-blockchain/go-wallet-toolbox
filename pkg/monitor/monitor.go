@@ -16,6 +16,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const safetyMargin = 0.95 // Safety margin to ensure tasks complete before the next scheduled run
+
 // Daemon is responsible for scheduling and running monitoring tasks at specified intervals.
 // It uses a distributed scheduler to ensure tasks are run reliably across multiple instances.
 type Daemon struct {
@@ -194,6 +196,32 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
+		nextRun, err := activeTask.Cronjob.NextRun()
+		if err != nil {
+			d.logger.Error("Failed to get next run for task", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+			return
+		}
+
+		ctx, cancel := d.contextWithTimeout(ctx, nextRun)
+		defer cancel()
+
 		err = activeTask.Instance.Run(ctx)
 	}
+}
+
+func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (context.Context, context.CancelFunc) {
+	if nextRun.IsZero() {
+		return ctx, func() {}
+	}
+
+	now := time.Now()
+	untilNext := nextRun.Sub(now)
+	d.logger.Debug("Next run for task", slog.Any("next_run", nextRun), slog.Any("until_next", untilNext))
+
+	if untilNext <= 0 {
+		return ctx, func() {}
+	}
+
+	timeout := time.Duration(float64(untilNext) * safetyMargin)
+	return context.WithTimeout(ctx, timeout)
 }

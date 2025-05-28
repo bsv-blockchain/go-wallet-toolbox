@@ -230,6 +230,7 @@ func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, 
 		return &entity.ProvenTxToSync{
 			TxID:     row.TxID,
 			Attempts: row.Attempts,
+			Status:   row.Status,
 		}
 	}), nil
 }
@@ -243,9 +244,38 @@ func (p *ProvenTxReq) UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined
 			BlockHeight: &provenTxAsMined.BlockHeight,
 			MerklePath:  provenTxAsMined.MerklePath,
 			MerkleRoot:  &provenTxAsMined.MerkleRoot,
+			Notified:    true,
 		}).Error
 	if err != nil {
 		return fmt.Errorf("failed to update proven tx as mined: %w", err)
+	}
+	return nil
+}
+
+func (p *ProvenTxReq) IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error {
+	if len(txIDs) == 0 {
+		return nil
+	}
+
+	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+		Where("tx_id IN ? ", txIDs).
+		UpdateColumn("attempts", gorm.Expr("attempts + ?", 1)).Error
+	if err != nil {
+		return fmt.Errorf("failed to increase attempts for tx ids: %w", err)
+	}
+	return nil
+}
+
+func (p *ProvenTxReq) SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
+	if attempts == 0 {
+		return nil
+	}
+
+	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+		Where("attempts >= ? ", attempts).
+		UpdateColumn("status", status).Error
+	if err != nil {
+		return fmt.Errorf("failed to set status for proven tx above attempts: %w", err)
 	}
 	return nil
 }

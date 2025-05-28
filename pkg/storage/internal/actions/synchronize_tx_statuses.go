@@ -44,11 +44,16 @@ func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.Syn
 }
 
 func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error {
-	s.lock.Lock()
+	lockAcquired := s.lock.TryLock()
+	if !lockAcquired {
+		s.logger.Warn("synchronizeTxStatuses is already running, skipping this run")
+		return nil
+	}
 	defer s.lock.Unlock()
 
 	// TODO Check current block height; skip if already synchronized for this block height
 
+	// TODO: Use pagination (plus created_at older than now) strategy to process all the transactions that need synchronization
 	txsToSync, err := s.provenTxRepo.FindProvenTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
 	if err != nil {
 		return fmt.Errorf("provenTxRepo.FindTxIDsByStatuses failed: %w", err)
@@ -58,7 +63,12 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 		return nil
 	}
 
+	var failedAttempts []string
 	for _, txToSync := range txsToSync {
+		if err = ctx.Err(); err != nil {
+			return fmt.Errorf("context cancelled, aborting synchronizeTxStatuses: %w", err)
+		}
+
 		s.logger.Info("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
 
 		merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
@@ -68,9 +78,10 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 				slog.Any("err", err),
 				slog.String("txID", txToSync.TxID),
 				slog.Uint64("attempts", txToSync.Attempts),
+				slog.String("status", string(txToSync.Status)),
 			)
 
-			// TODO: Increase attempts
+			failedAttempts = append(failedAttempts, txToSync.TxID)
 			continue
 		}
 
@@ -78,14 +89,14 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			s.logger.Warn(
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
+				slog.String("status", string(txToSync.Status)),
 			)
 
-			// TODO: Increase attempts
+			failedAttempts = append(failedAttempts, txToSync.TxID)
 			continue
 		}
 
 		// TODO: Support history notes
-		// TODO: Check how old it the tx and if it is older than x hours, mark it as invalid
 
 		err = s.provenTxRepo.UpdateProvenTxAsMined(ctx, &entity.ProvenTxAsMined{
 			TxID:        txToSync.TxID,
@@ -99,8 +110,15 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 		}
 	}
 
-	// TODO: Update txs attempts for transactions that merkle path was NOT found
-	// TODO: For transactions that attempts > maxAttempts, mark them as invalid
+	err = s.provenTxRepo.IncreaseProvenTxAttemptsForTxIDs(ctx, failedAttempts)
+	if err != nil {
+		return fmt.Errorf("failed to increase attempts for txs: %w", err)
+	}
+
+	err = s.provenTxRepo.SetStatusForProvenTxAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
+	if err != nil {
+		return fmt.Errorf("failed to set status for txs above attempts: %w", err)
+	}
 
 	return nil
 }
