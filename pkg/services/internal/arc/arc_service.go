@@ -266,6 +266,10 @@ func (s *Service) toHex(beef *transaction.Beef) (string, error) {
 
 func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
 	for i, bump := range beef.BUMPs {
+		if len(bump.Path) == 0 || len(bump.Path[0]) == 0 {
+			s.logger.Warn("got bump without bottom path", slog.String("merklePath", bump.Hex()))
+			continue
+		}
 		for _, element := range bump.Path[0] {
 			if element.Txid != nil && *element.Txid {
 				tx, ok := beef.Transactions[element.Hash.String()]
