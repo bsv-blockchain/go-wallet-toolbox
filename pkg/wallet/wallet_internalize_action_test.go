@@ -88,14 +88,17 @@ func TestInternalizeActionArgsValidation(t *testing.T) {
 			// given:
 			given, then := testabilities.New(t)
 
+			// and:
 			aliceWallet, cleanup := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
 			defer cleanup()
 
+			// when:
 			action, err := aliceWallet.InternalizeAction(t.Context(), test.args(), test.originator)
 
+			// then:
 			then.Result(action).HasError(err)
 
-			then.Storage()
+			then.Storage().HadNoInteraction()
 		})
 	}
 }
@@ -105,7 +108,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		t := s.T()
 
 		// given:
-		given, _ := testabilities.New(t)
+		given := testabilities.Given(t)
 
 		// and:
 		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
@@ -120,14 +123,14 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, result)
-		assert.True(t, result.Accepted)
+		assert.True(t, result.Accepted, "Result should be accepted")
 	})
 
 	s.Run("basket insertion protocol", func() {
 		t := s.T()
 
 		// given:
-		given, _ := testabilities.New(t)
+		given := testabilities.Given(t)
 
 		// and:
 		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
@@ -142,6 +145,6 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, result)
-		assert.True(t, result.Accepted)
+		assert.True(t, result.Accepted, "Result should be accepted")
 	})
 }
