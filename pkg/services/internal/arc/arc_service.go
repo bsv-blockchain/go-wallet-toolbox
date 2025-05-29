@@ -86,7 +86,7 @@ func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, err
 	}
 
-	beefHex, err := toHex(beef)
+	beefHex, err := s.toHex(beef)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,10 @@ func (s *Service) getTransactionData(ctx context.Context, txID string) *internal
 	return internal.NewNamedResult(txID, types.SuccessResult(txInfo))
 }
 
-func toHex(beef *transaction.Beef) (string, error) {
+func (s *Service) toHex(beef *transaction.Beef) (string, error) {
+	// This is a temporary fix on BEEF until the merge beef will work properly and will bind the tx with bump.
+	s.bindBumpsAndTransactions(beef)
+
 	// This is a temporary solution until go-sdk properly implements BEEF serialization
 	// It searches for the subject transaction in transaction.Beef and serializes this one to BEEF hex.
 	// For now, it's not supporting more than one subject transaction.
@@ -259,6 +262,27 @@ func toHex(beef *transaction.Beef) (string, error) {
 		return "", fmt.Errorf("failed to convert subject tx into BEEF hex: %w", err)
 	}
 	return beefHex, nil
+}
+
+func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
+	for i, bump := range beef.BUMPs {
+		if len(bump.Path) == 0 || len(bump.Path[0]) == 0 {
+			s.logger.Warn("got bump without bottom path", slog.String("merklePath", bump.Hex()))
+			continue
+		}
+		for _, element := range bump.Path[0] {
+			if element.Txid != nil && *element.Txid {
+				tx, ok := beef.Transactions[element.Hash.String()]
+				if !ok {
+					s.logger.Warn("got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
+					continue
+				}
+				tx.BumpIndex = i
+				tx.DataFormat = transaction.RawTxAndBumpIndex
+				tx.Transaction.MerklePath = bump
+			}
+		}
+	}
 }
 
 func rebuildSubjectTx(tx *transaction.Transaction, beef *transaction.Beef) (*transaction.Transaction, error) {
