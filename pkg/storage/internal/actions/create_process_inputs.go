@@ -3,15 +3,16 @@ package actions
 import (
 	"context"
 	"fmt"
+	"iter"
+	"maps"
+	"strings"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
-	"iter"
-	"maps"
-	"strings"
 )
 
 type xinputDefinition struct {

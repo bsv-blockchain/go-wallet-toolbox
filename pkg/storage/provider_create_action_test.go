@@ -3,7 +3,6 @@ package storage_test
 import (
 	"context"
 	"encoding/hex"
-	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"slices"
 	"testing"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

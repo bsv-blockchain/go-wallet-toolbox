@@ -3,6 +3,9 @@ package actions
 import (
 	"context"
 	"fmt"
+	"iter"
+	"log/slog"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
@@ -17,8 +20,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
-	"iter"
-	"log/slog"
 )
 
 const (
