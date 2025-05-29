@@ -172,6 +172,10 @@ func (proc *inputsProcessor) processInputBEEF() error {
 		return !ok
 	}))
 
+	if len(notProvidedInInputsTxs) == 0 {
+		return nil
+	}
+
 	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, notProvidedInInputsTxs, readyToBeInputProvenTxStatuses)
 	if err != nil {
 		return fmt.Errorf("failed to check if transaction are known: %w", err)
@@ -200,7 +204,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 
 	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
 	if err != nil {
-		return fmt.Errorf("failed to check if transaction are known: %w", err)
+		return fmt.Errorf("failed to check if transactions are known: %w", err)
 	}
 
 	if !allKnown {
