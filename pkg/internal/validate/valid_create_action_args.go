@@ -2,7 +2,6 @@ package validate
 
 import (
 	"fmt"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -51,10 +50,15 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		}
 	}
 
+	seenInputs := make(map[wdk.OutPoint]struct{})
 	for i, input := range args.Inputs {
+		if _, exists := seenInputs[input.Outpoint]; exists {
+			return fmt.Errorf("duplicate input outpoint at index %d: %s.%d", i, input.Outpoint.TxID, input.Outpoint.Vout)
+		}
 		if err := validateCreateActionInput(&input); err != nil {
 			return fmt.Errorf("invalid input as %d: %w", i, err)
 		}
+		seenInputs[input.Outpoint] = struct{}{}
 	}
 
 	for i, output := range args.Outputs {

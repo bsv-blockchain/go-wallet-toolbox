@@ -3,9 +3,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"iter"
-	"log/slog"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
@@ -15,18 +12,30 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"iter"
+	"log/slog"
 )
 
 const (
 	derivationLength = 16
 	referenceLength  = 12
+)
+
+var (
+	statusesOfTxReadyToBeUsedAsInput = []wdk.ProvenTxReqStatus{
+		wdk.ProvenTxStatusUnsent,
+		wdk.ProvenTxStatusUnmined,
+		wdk.ProvenTxStatusUnconfirmed,
+		wdk.ProvenTxStatusSending,
+		wdk.ProvenTxStatusNoSend,
+		wdk.ProvenTxStatusCompleted,
+	}
 )
 
 type CreateActionParams struct {
@@ -36,8 +45,10 @@ type CreateActionParams struct {
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
+	InputBEEF                []byte
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
+	TrustSelf                bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -49,8 +60,10 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		Labels:                   args.Labels,
 		Outputs:                  args.Outputs,
 		Inputs:                   args.Inputs,
+		InputBEEF:                args.InputBEEF,
 		RandomizeOutputs:         args.Options.RandomizeOutputs,
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
+		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == "known",
 	}
 }
 
@@ -104,8 +117,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
+	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf, basket.BasketID).processInputs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to process inputs: %w", err)
+	}
+	xinputs := processedInputs.Inputs
 	xoutputs := seq.PointersFromSlice(params.Outputs)
-	xinputs := seq.PointersFromSlice(params.Inputs)
 
 	var commOut *serviceChargeOutput
 	if c.commission != nil {
@@ -126,6 +143,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
 
+	// TODO: Prevent funder to select UTXO already provided by a user
+	// (output_id not in ?), processedInputs.ChangeOutputIDs
 	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
@@ -156,9 +175,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to get total allocated inputs: %w", err)
 	}
 
-	beef := transaction.NewBeefV2()
-
-	inputBeef, err := beef.Bytes()
+	inputBeef, err := processedInputs.Beef.Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize beef: %w", err)
 	}
@@ -174,6 +191,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Satoshis:    satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
 		Outputs:     newOutputs,
 		ReservedOutputIDs: slices.Map(funding.AllocatedUTXOs, func(utxo *funder.UTXO) uint {
+			// TODO: Reserve also the outputs that were provided by the user
 			return utxo.OutputID
 		}),
 		Labels:    params.Labels,
@@ -183,6 +201,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
+	// TODO: Check if provided inputs should be return to the user
 	resultInputs, err := c.resultInputs(ctx, funding.AllocatedUTXOs, params.IncludeInputSourceRawTxs)
 	if err != nil {
 		return nil, err
@@ -220,9 +239,13 @@ func (c *create) createCommissionOutput() (*serviceChargeOutput, error) {
 	}, nil
 }
 
-func (c *create) targetSat(_ iter.Seq[*wdk.ValidCreateActionInput], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {
-	providedInputs := satoshi.Zero()
-	// TODO: sum provided inputs satoshis - but first the values should be found
+func (c *create) targetSat(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {
+	providedInputs, err := satoshi.Sum(seq.Map(xinputs, func(input *xinputDefinition) satoshi.Value {
+		return input.Satoshis
+	}))
+	if err != nil {
+		return 0, fmt.Errorf("failed to sum provided inputs' satoshis: %w", err)
+	}
 
 	providedOutputs, err := satoshi.Sum(seq.Map(xoutputs, func(output *wdk.ValidCreateActionOutput) primitives.SatoshiValue {
 		return output.Satoshis
@@ -239,8 +262,8 @@ func (c *create) targetSat(_ iter.Seq[*wdk.ValidCreateActionInput], xoutputs ite
 	return sub, nil
 }
 
-func (c *create) txSize(xinputs iter.Seq[*wdk.ValidCreateActionInput], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (uint64, error) {
-	inputSizes := seqerr.MapSeq(xinputs, func(o *wdk.ValidCreateActionInput) (uint64, error) {
+func (c *create) txSize(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (uint64, error) {
+	inputSizes := seqerr.MapSeq(xinputs, func(o *xinputDefinition) (uint64, error) {
 		return o.ScriptLength()
 	})
 

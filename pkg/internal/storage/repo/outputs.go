@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 
@@ -147,4 +148,30 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	}
 
 	return nil
+}
+
+func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*wdk.TableOutput, error) {
+	var output models.Output
+	err := o.db.WithContext(ctx).
+		Model(&models.Output{}).
+		Scopes(scopes.UserID(userID)).
+		Where("user_id = ? and vout = ?", userID, outpoint.Vout).
+		Where("transaction_id IN ?",
+			o.db.Model(&models.Transaction{}).
+			Select("id").
+			Scopes(scopes.UserID(userID)).
+			Where("tx_id = ?", outpoint.TxID),
+		).
+		First(&output).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find output: %w", err)
+	}
+
+	tableOutput := o.mapModelToTableOutput(&output)
+	tableOutput.TxID = &outpoint.TxID
+	return tableOutput, nil
 }
