@@ -97,12 +97,12 @@ func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.
 	return model.Status, nil
 }
 
-func (p *ProvenTxReq) ExistsProvenTx(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
+func (p *ProvenTxReq) ExistsAllProvenTxs(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
 	var model models.ProvenTxReq
 	query := p.db.WithContext(ctx).
 		Model(&model).
 		Select("tx_id").
-		Where("tx_id = ? ", txID).
+		Where("tx_id IN (?) ", txIDs).
 		Where("raw_tx IS NOT NULL and LENGTH(raw_tx) > 0").
 		Where("input_beef IS NOT NULL and LENGTH(input_beef) > 0")
 
@@ -110,15 +110,13 @@ func (p *ProvenTxReq) ExistsProvenTx(ctx context.Context, txID string, sourceTxs
 		query = query.Where("status IN ? ", sourceTxsStatusFilter)
 	}
 
-	err := query.First(&model).Error
+	var count int64
+	err := query.Count(&count).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to check if proven tx exists: %w", err)
+		return false, fmt.Errorf("failed to check if proven transactions exist: %w", err)
 	}
 
-	return true, nil
+	return count == int64(len(txIDs)), nil
 }
 
 func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {

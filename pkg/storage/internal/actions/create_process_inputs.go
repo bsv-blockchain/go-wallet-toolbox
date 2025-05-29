@@ -15,6 +15,15 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq2"
 )
 
+var readyToBeInputProvenTxStatuses = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusUnsent,
+	wdk.ProvenTxStatusUnmined,
+	wdk.ProvenTxStatusUnconfirmed,
+	wdk.ProvenTxStatusSending,
+	wdk.ProvenTxStatusNoSend,
+	wdk.ProvenTxStatusCompleted,
+}
+
 type xinputDefinition struct {
 	*wdk.ValidCreateActionInput
 	Satoshis      satoshi.Value
@@ -154,44 +163,47 @@ func (proc *inputsProcessor) processInputBEEF() error {
 	}
 
 	// not provided in inputs but exists in the inputBEEF
-	notProvidedInInputsTxs := seq.Filter(txIDOnlyIDs, func(txID string) bool {
+	notProvidedInInputsTxs := seq.Collect(seq.Filter(txIDOnlyIDs, func(txID string) bool {
 		_, ok := proc.txIDsLookup[txID]
 		return !ok
-	})
+	}))
 
-	for txID := range notProvidedInInputsTxs {
-		known, err := proc.parent.provenTxRepo.ExistsProvenTx(proc.ctx, txID, statusesOfTxReadyToBeUsedAsInput)
-		if err != nil {
-			return fmt.Errorf("failed to check if tx %s is known: %w", txID, err)
-		}
-		if !known {
-			return fmt.Errorf("tx used in provided input is not known to storage; valid and contain complete proof data for unknown %s in inputBEEF", txID)
-		}
+	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, notProvidedInInputsTxs, readyToBeInputProvenTxStatuses)
+	if err != nil {
+		return fmt.Errorf("failed to check if transaction are known: %w", err)
+	}
+
+	if !allKnown {
+		return fmt.Errorf("some tx in the inputBEEF is not known to storage; valid and contain complete proof data for transactions: %s", strings.Join(notProvidedInInputsTxs, ", "))
 	}
 
 	return nil
 }
 
 func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
-	for txID := range proc.txIDsLookup {
-		if btx, ok := proc.beef.Transactions[txID]; ok && btx.DataFormat != transaction.TxIDOnly {
-			continue
-		}
+	missingFullProofs := seq.Collect(seq.Filter(maps.Keys(proc.txIDsLookup), func(txID string) bool {
+		btx, ok := proc.beef.Transactions[txID]
+		return !ok || btx.DataFormat == transaction.TxIDOnly
+	}))
 
-		if !proc.trustSelf {
-			return fmt.Errorf("valid and contain complete proof data for %s", txID)
-		}
+	if len(missingFullProofs) == 0 {
+		return nil
+	}
 
-		// TODO: consider making one call to the repo to check all txIDs at once
-		known, err := proc.parent.provenTxRepo.ExistsProvenTx(proc.ctx, txID, statusesOfTxReadyToBeUsedAsInput)
-		if err != nil {
-			return fmt.Errorf("failed to check if tx %s is known: %w", txID, err)
-		}
+	if !proc.trustSelf {
+		return fmt.Errorf("valid and contain complete proof data for transactions: %s", strings.Join(missingFullProofs, ", "))
+	}
 
-		if !known {
-			return fmt.Errorf("tx used in provided input is not known to storage; valid and contain complete proof data for unknown %s in inputBEEF", txID)
-		}
+	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
+	if err != nil {
+		return fmt.Errorf("failed to check if transaction are known: %w", err)
+	}
 
+	if !allKnown {
+		return fmt.Errorf("some tx used in provided input is not known to storage; valid and contain complete proof data for transactions: %s", strings.Join(missingFullProofs, ", "))
+	}
+
+	for _, txID := range missingFullProofs {
 		proc.beef.MergeTxidOnly(txID)
 	}
 
@@ -222,7 +234,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	}
 
 	if btx.DataFormat == transaction.TxIDOnly {
-		beefForTx, err := proc.parent.provenTxRepo.BuildValidBEEF(proc.ctx, xinput.Outpoint.TxID, statusesOfTxReadyToBeUsedAsInput)
+		beefForTx, err := proc.parent.provenTxRepo.BuildValidBEEF(proc.ctx, xinput.Outpoint.TxID, readyToBeInputProvenTxStatuses)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build beef for tx %s: %w", xinput.Outpoint.TxID, err)
 		}

@@ -87,7 +87,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, uint32(0), input.SourceVout)
 	assert.Equal(t, int64(100_000), input.SourceSatoshis)
 	assert.NotEmpty(t, input.SourceLockingScript)
-	assert.NotEmpty(t, input.SourceTransaction)
+	assert.Nil(t, input.SourceTransaction)
 	assert.Equal(t, wdk.ProvidedByStorage, input.ProvidedBy)
 	assert.Equal(t, wdk.OutputTypeP2PKH, input.Type)
 	require.NotEmpty(t, input.DerivationPrefix)

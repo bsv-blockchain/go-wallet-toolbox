@@ -27,17 +27,6 @@ const (
 	referenceLength  = 12
 )
 
-var (
-	statusesOfTxReadyToBeUsedAsInput = []wdk.ProvenTxReqStatus{
-		wdk.ProvenTxStatusUnsent,
-		wdk.ProvenTxStatusUnmined,
-		wdk.ProvenTxStatusUnconfirmed,
-		wdk.ProvenTxStatusSending,
-		wdk.ProvenTxStatusNoSend,
-		wdk.ProvenTxStatusCompleted,
-	}
-)
-
 type CreateActionParams struct {
 	Version                  uint32
 	LockTime                 uint32

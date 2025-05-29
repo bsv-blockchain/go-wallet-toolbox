@@ -7,7 +7,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/paging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
 )
 
@@ -36,19 +35,6 @@ func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID i
 		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
 	}
 	return result, nil
-}
-
-func (u *UTXOs) FindNotReservedUTXOByOutpoint(ctx context.Context, userID int, basketID int, outpoint wdk.OutPoint) (*models.UserUTXO, error) {
-	var utxo models.UserUTXO
-	err := u.db.WithContext(ctx).
-		Model(&models.UserUTXO{}).
-		Scopes(scopes.UserID(userID), scopes.BasketID(basketID), notReserved()).
-		Where("outpoint = ?", outpoint).
-		First(&utxo).Error
-	if err != nil {
-		return nil, err
-	}
-	return &utxo, nil
 }
 
 func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basket int) (int64, error) {

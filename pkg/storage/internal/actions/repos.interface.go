@@ -49,7 +49,7 @@ type ProvenTxRepo interface {
 	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
 	UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error
 	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) ([]byte, error)
-	ExistsProvenTx(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
+	ExistsAllProvenTxs(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
 	IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
 	SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
 }
