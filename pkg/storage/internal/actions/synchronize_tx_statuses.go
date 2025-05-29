@@ -75,7 +75,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			return fmt.Errorf("context canceled, aborting synchronizeTxStatuses: %w", err)
 		}
 
-		s.logger.Info("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
+		s.logger.Debug("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
 
 		merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
 		if err != nil {

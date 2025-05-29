@@ -258,7 +258,7 @@ func (p *ProvenTxReq) IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txID
 
 	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
 		Where("tx_id IN ? ", txIDs).
-		UpdateColumn("attempts", gorm.Expr("attempts + ?", 1)).Error
+		UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
 	if err != nil {
 		return fmt.Errorf("failed to increase attempts for tx ids: %w", err)
 	}
