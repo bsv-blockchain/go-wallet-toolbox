@@ -3,6 +3,7 @@ package wdk
 import (
 	"fmt"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -57,7 +58,7 @@ type ValidCreateActionOptions struct {
 	NoSend                 *primitives.BooleanDefaultFalse `json:"noSend,omitempty"`
 	SendWith               []primitives.TXIDHexString      `json:"sendWith,omitempty"`
 	SignAndProcess         *primitives.BooleanDefaultTrue  `json:"signAndProcess,omitempty"`
-	TrustSelf              *string                         `json:"trustSelf,omitempty"`
+	TrustSelf              *sdk.TrustSelf                  `json:"trustSelf,omitempty"`
 	KnownTxids             []primitives.TXIDHexString      `json:"knownTxids,omitempty"`
 	NoSendChange           []OutPoint                      `json:"noSendChange,omitempty"`
 	RandomizeOutputs       bool                            `json:"randomizeOutputs"`

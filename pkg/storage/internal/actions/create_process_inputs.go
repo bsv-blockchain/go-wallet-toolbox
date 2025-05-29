@@ -114,6 +114,10 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 
 	// TODO: Make SPV
 
+	return proc.buildInputsDefinition()
+}
+
+func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, error) {
 	xinputDefs := make([]*xinputDefinition, 0, len(proc.providedInputs))
 	var changeOutputIDs []uint
 	for _, xinput := range proc.providedInputs {

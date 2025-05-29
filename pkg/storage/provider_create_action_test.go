@@ -9,6 +9,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
@@ -305,7 +306,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs()
 	args.IsSignAction = true
-	args.Options.TrustSelf = to.Ptr("known")
+	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
@@ -371,7 +372,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs()
 	args.IsSignAction = true
-	args.Options.TrustSelf = to.Ptr("known")
+	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
@@ -435,7 +436,7 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs()
 	args.IsSignAction = true
-	args.Options.TrustSelf = to.Ptr("known")
+	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{

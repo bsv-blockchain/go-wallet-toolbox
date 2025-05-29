@@ -9,6 +9,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
@@ -52,7 +53,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		InputBEEF:                args.InputBEEF,
 		RandomizeOutputs:         args.Options.RandomizeOutputs,
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
-		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == "known",
+		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
 	}
 }
 
@@ -106,7 +107,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf).processInputs()
+	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf).
+		processInputs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to process inputs: %w", err)
 	}
@@ -185,7 +187,6 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	// TODO: Check if provided inputs should be return to the user
 	resultInputs, err := c.resultInputs(ctx, funding.AllocatedUTXOs, params.IncludeInputSourceRawTxs, processedInputs.Inputs)
 	if err != nil {
 		return nil, err
