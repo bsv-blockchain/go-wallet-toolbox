@@ -97,9 +97,9 @@ func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.
 	return model.Status, nil
 }
 
-func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
+func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
-	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, sourceTxsStatusFilter)
+	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, statusesToFilterOut)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -107,7 +107,7 @@ func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, sourceTxs
 	return beef, nil
 }
 
-func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeToBeef *transaction.Beef, txID string, statusFilter []wdk.ProvenTxReqStatus) error {
+func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeToBeef *transaction.Beef, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
 	}
@@ -117,9 +117,8 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 		Model(&model).
 		Select("raw_tx, input_beef, merkle_path")
 
-	queryForSubjectTx := depth == 0
-	if !queryForSubjectTx && len(statusFilter) > 0 {
-		query = query.Where("status IN ? ", statusFilter)
+	if len(statusesToFilterOut) > 0 {
+		query = query.Where("status NOT IN ? ", statusesToFilterOut)
 	}
 
 	err := query.First(&model, "tx_id = ? ", txID).Error
@@ -178,7 +177,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 		sourceTXID = input.SourceTXID.String()
 		beefTx := mergeToBeef.FindTransaction(sourceTXID)
 		if beefTx == nil {
-			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusFilter)
+			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusesToFilterOut)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find proven tx and merge into BEEF: %w", err)
 			}
@@ -189,7 +188,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	return nil
 }
 
-func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string) ([]byte, error) {
+func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) ([]byte, error) {
 	beef := transaction.NewBeefV2()
 
 	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
@@ -199,7 +198,7 @@ func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string
 		if beef.FindTransaction(txid) != nil {
 			continue
 		}
-		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, nil)
+		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, statusesToFilterOut)
 		if err != nil {
 			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
 		}
@@ -230,6 +229,7 @@ func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, 
 		return &entity.ProvenTxToSync{
 			TxID:     row.TxID,
 			Attempts: row.Attempts,
+			Status:   row.Status,
 		}
 	}), nil
 }
@@ -243,9 +243,38 @@ func (p *ProvenTxReq) UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined
 			BlockHeight: &provenTxAsMined.BlockHeight,
 			MerklePath:  provenTxAsMined.MerklePath,
 			MerkleRoot:  &provenTxAsMined.MerkleRoot,
+			Notified:    true,
 		}).Error
 	if err != nil {
 		return fmt.Errorf("failed to update proven tx as mined: %w", err)
+	}
+	return nil
+}
+
+func (p *ProvenTxReq) IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error {
+	if len(txIDs) == 0 {
+		return nil
+	}
+
+	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+		Where("tx_id IN ? ", txIDs).
+		UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
+	if err != nil {
+		return fmt.Errorf("failed to increase attempts for tx ids: %w", err)
+	}
+	return nil
+}
+
+func (p *ProvenTxReq) SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
+	if attempts == 0 {
+		return nil
+	}
+
+	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+		Where("attempts >= ? ", attempts).
+		UpdateColumn("status", status).Error
+	if err != nil {
+		return fmt.Errorf("failed to set status for proven tx above attempts: %w", err)
 	}
 	return nil
 }

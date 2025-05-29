@@ -189,7 +189,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		}, nil
 	}
 
-	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqStatusesForSourceTransactions)
+	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
