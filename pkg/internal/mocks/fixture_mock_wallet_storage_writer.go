@@ -171,7 +171,7 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 		CreateAction: StorageProviderMethodResponse[*wdk.StorageCreateActionResult]{
 			Success: &wdk.StorageCreateActionResult{
 				InputBeef: primitives.ExplicitByteArray{0x2, 0x0, 0xbe, 0xef, 0x0, 0x0},
-				Inputs: []wdk.StorageCreateTransactionSdkInput{
+				Inputs: []*wdk.StorageCreateTransactionSdkInput{
 					{
 						Vin:                   0,
 						SourceTxID:            "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
@@ -179,7 +179,7 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 						SourceSatoshis:        1101,
 						SourceLockingScript:   "76a914a7d6e4270f5c90cc9e272586a6a5099663572d5988ac",
 						SourceTransaction:     nil,
-						UnlockingScriptLength: 107,
+						UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(107)),
 						ProvidedBy:            "storage",
 						Type:                  "P2PKH",
 						SpendingDescription:   nil,
@@ -188,7 +188,7 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 						SenderIdentityKey:     nil,
 					},
 				},
-				Outputs: []wdk.StorageCreateTransactionSdkOutput{
+				Outputs: []*wdk.StorageCreateTransactionSdkOutput{
 					{
 						ValidCreateActionOutput: wdk.ValidCreateActionOutput{
 							LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",

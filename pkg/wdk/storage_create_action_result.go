@@ -10,9 +10,9 @@ type StorageCreateTransactionSdkInput struct {
 	SourceSatoshis        int64                        `json:"sourceSatoshis"`
 	SourceLockingScript   string                       `json:"sourceLockingScript"`
 	SourceTransaction     primitives.ExplicitByteArray `json:"sourceTransaction,omitempty"`
-	UnlockingScriptLength int                          `json:"unlockingScriptLength"`
+	UnlockingScriptLength *primitives.PositiveInteger  `json:"unlockingScriptLength"`
 	ProvidedBy            ProvidedBy                   `json:"providedBy"`
-	Type                  string                       `json:"type"`
+	Type                  OutputType                   `json:"type"`
 	SpendingDescription   *string                      `json:"spendingDescription,omitempty"`
 	DerivationPrefix      *string                      `json:"derivationPrefix,omitempty"`
 	DerivationSuffix      *string                      `json:"derivationSuffix,omitempty"`
@@ -31,12 +31,12 @@ type StorageCreateTransactionSdkOutput struct {
 
 // StorageCreateActionResult represents the result of creating a transaction action
 type StorageCreateActionResult struct {
-	InputBeef               primitives.ExplicitByteArray        `json:"inputBeef"`
-	Inputs                  []StorageCreateTransactionSdkInput  `json:"inputs"`
-	Outputs                 []StorageCreateTransactionSdkOutput `json:"outputs"`
-	NoSendChangeOutputVouts *[]int                              `json:"noSendChangeOutputVouts"`
-	DerivationPrefix        string                              `json:"derivationPrefix"`
-	Version                 uint32                              `json:"version"`
-	LockTime                uint32                              `json:"lockTime"`
-	Reference               string                              `json:"reference"`
+	InputBeef               primitives.ExplicitByteArray         `json:"inputBeef"`
+	Inputs                  []*StorageCreateTransactionSdkInput  `json:"inputs"`
+	Outputs                 []*StorageCreateTransactionSdkOutput `json:"outputs"`
+	NoSendChangeOutputVouts *[]int                               `json:"noSendChangeOutputVouts"`
+	DerivationPrefix        string                               `json:"derivationPrefix"`
+	Version                 uint32                               `json:"version"`
+	LockTime                uint32                               `json:"lockTime"`
+	Reference               string                               `json:"reference"`
 }

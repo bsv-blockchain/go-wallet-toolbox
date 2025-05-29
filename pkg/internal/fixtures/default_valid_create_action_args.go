@@ -9,6 +9,7 @@ import (
 func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 	return wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
+		InputBEEF:   nil,
 		Inputs:      []wdk.ValidCreateActionInput{},
 		Outputs: []wdk.ValidCreateActionOutput{
 			{
@@ -28,6 +29,7 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 			KnownTxids:             []primitives.TXIDHexString{},
 			NoSendChange:           []wdk.OutPoint{},
 			RandomizeOutputs:       false,
+			TrustSelf:              nil,
 		},
 		IsSendWith:                   false,
 		IsDelayed:                    false,

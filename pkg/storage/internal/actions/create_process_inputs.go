@@ -18,10 +18,31 @@ type xinputDefinition struct {
 	*wdk.ValidCreateActionInput
 	Satoshis      satoshi.Value
 	LockingScript string
+
+	knownOutput *wdk.TableOutput // This is used only for known UTXOs, can be nil for unknown UTXOs
+}
+
+type xinputDefinitions []*xinputDefinition
+
+func (inputs xinputDefinitions) iter() iter.Seq[*xinputDefinition] {
+	return seq.FromSlice(inputs)
+}
+
+func (inputs xinputDefinitions) knownOutputs() iter.Seq[*wdk.TableOutput] {
+	knownOutputs := func(input *xinputDefinition) bool { return input.knownOutput != nil }
+	toTableOutput := func(input *xinputDefinition) *wdk.TableOutput { return input.knownOutput }
+
+	return seq.Map(seq.Filter(inputs.iter(), knownOutputs), toTableOutput)
+}
+
+func (inputs xinputDefinitions) providedByUserAndUnknown() iter.Seq[*xinputDefinition] {
+	unknownOutputs := func(input *xinputDefinition) bool { return input.knownOutput == nil }
+
+	return seq.Filter(inputs.iter(), unknownOutputs)
 }
 
 type processedInputsResult struct {
-	Inputs          iter.Seq[*xinputDefinition]
+	Inputs          xinputDefinitions
 	Beef            *transaction.Beef
 	ChangeOutputIDs []uint
 }
@@ -67,8 +88,7 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 
 	if len(proc.providedInputs) == 0 {
 		return &processedInputsResult{
-			Inputs: seq.Empty[*xinputDefinition](),
-			Beef:   transaction.NewBeefV2(),
+			Beef: transaction.NewBeefV2(),
 		}, nil
 	}
 
@@ -110,7 +130,7 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 	}
 
 	return &processedInputsResult{
-		Inputs:          seq.FromSlice(xinputDefs),
+		Inputs:          xinputDefs,
 		Beef:            proc.beef,
 		ChangeOutputIDs: changeOutputIDs,
 	}, nil
@@ -190,6 +210,7 @@ func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionI
 		ValidCreateActionInput: xinput,
 		Satoshis:               satoshi.MustFrom(output.Satoshis),
 		LockingScript:          *output.LockingScript,
+		knownOutput:            output,
 	}, nil
 }
 

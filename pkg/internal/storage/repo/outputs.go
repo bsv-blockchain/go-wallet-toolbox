@@ -155,12 +155,12 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 	err := o.db.WithContext(ctx).
 		Model(&models.Output{}).
 		Scopes(scopes.UserID(userID)).
-		Where("user_id = ? and vout = ?", userID, outpoint.Vout).
-		Where("transaction_id IN ?",
+		Where("vout = ?", outpoint.Vout).
+		Where("transaction_id IN (?)",
 			o.db.Model(&models.Transaction{}).
-			Select("id").
-			Scopes(scopes.UserID(userID)).
-			Where("tx_id = ?", outpoint.TxID),
+				Select("id").
+				Scopes(scopes.UserID(userID)).
+				Where("tx_id = ?", outpoint.TxID),
 		).
 		First(&output).Error
 

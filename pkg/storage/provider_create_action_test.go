@@ -65,7 +65,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef0000", hex.EncodeToString(result.InputBeef))
 
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p wdk.StorageCreateTransactionSdkOutput) {
+	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
@@ -86,9 +86,9 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, uint32(0), input.SourceVout)
 	assert.Equal(t, int64(100_000), input.SourceSatoshis)
 	assert.NotEmpty(t, input.SourceLockingScript)
-	assert.Nil(t, input.SourceTransaction)
+	assert.NotEmpty(t, input.SourceTransaction)
 	assert.Equal(t, wdk.ProvidedByStorage, input.ProvidedBy)
-	assert.Equal(t, string(wdk.OutputTypeP2PKH), input.Type)
+	assert.Equal(t, wdk.OutputTypeP2PKH, input.Type)
 	require.NotEmpty(t, input.DerivationPrefix)
 	assert.Equal(t, 24, len(*input.DerivationPrefix))
 	require.NotEmpty(t, input.DerivationSuffix)
@@ -288,4 +288,67 @@ func TestReservedUTXO(t *testing.T) {
 
 	// then:
 	require.ErrorIs(t, err, errfunder.NotEnoughFunds)
+}
+
+func TestCreateActionWithProvidedKnownInput(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	ownedTx := ownedTxSpec.TX()
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsSignAction = true
+	args.Options.TrustSelf = to.Ptr("known")
+	args.Outputs = []wdk.ValidCreateActionOutput{}
+	args.Inputs = []wdk.ValidCreateActionInput{{
+		Outpoint: wdk.OutPoint{
+			TxID: ownedTx.TxID().String(),
+			Vout: 0,
+		},
+		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+		InputDescription:      "provided input",
+	}}
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 24, len(result.DerivationPrefix))
+	assert.Equal(t, 16, len(result.Reference))
+	assert.Equal(t, args.Version, result.Version)
+	assert.Equal(t, args.LockTime, result.LockTime)
+	assert.Equal(t, 31, len(result.Outputs))
+	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, "0200beef0001021b4dc343ecd37c7707f5c7194f0f40788a62be3264e80b6433612273d4b4bbb2", hex.EncodeToString(result.InputBeef))
+
+	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+		assert.Equal(t, "change", p.Purpose)
+	})
+
+	input := result.Inputs[0]
+	assert.Equal(t, 1, len(result.Inputs))
+	assert.Equal(t, 0, input.Vin)
+	assert.NotEmpty(t, input.SourceTxID)
+	assert.Equal(t, uint32(0), input.SourceVout)
+	assert.Equal(t, int64(100_000), input.SourceSatoshis)
+	assert.NotEmpty(t, input.SourceLockingScript)
+	assert.NotEmpty(t, input.SourceTransaction)
+	assert.Equal(t, wdk.ProvidedByYouAndStorage, input.ProvidedBy)
+	assert.Equal(t, wdk.OutputTypeP2PKH, input.Type)
+	require.NotEmpty(t, input.DerivationPrefix)
+	assert.Equal(t, 24, len(*input.DerivationPrefix))
+	require.NotEmpty(t, input.DerivationSuffix)
+	assert.Equal(t, 24, len(*input.DerivationSuffix))
 }
