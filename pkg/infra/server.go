@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 
@@ -12,6 +13,9 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	exampleWallet "github.com/bsv-blockchain/go-bsv-middleware-examples/example-wallet"
+	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware/auth"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 )
 
 // Server is a struct that holds the "infra" server configuration
@@ -85,13 +89,32 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		}
 	}
 
+	sPrivKey, err := ec.PrivateKeyFromHex(cfg.ServerPrivateKey)
+	if err != nil {
+		log.Fatalf("Failed to create server private key: %v", err)
+	}
+
+	serverWallet, err := exampleWallet.NewExtendedProtoWallet(sPrivKey)
+	if err != nil {
+		log.Fatalf("Failed to create server wallet: %v", err)
+	}
+
+	authMiddleware, err := auth.New(auth.Config{
+		AllowUnauthenticated: false, // or true based on your needs
+		Logger:               logger,
+		Wallet:               serverWallet, // You'll need to create this
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auth middleware: %w", err)
+	}
+
 	return &Server{
 		Config: cfg,
 
 		logger:        logger,
 		storage:       activeStorage,
 		monitor:       daemon,
-		storageServer: storage.NewServer(logger, activeStorage, storage.ServerOptions{Port: cfg.HTTPConfig.Port}),
+		storageServer: storage.NewServer(logger, activeStorage, authMiddleware, storage.ServerOptions{Port: cfg.HTTPConfig.Port}),
 	}, nil
 }
 
