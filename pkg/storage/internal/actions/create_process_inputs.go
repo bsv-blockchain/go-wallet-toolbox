@@ -27,15 +27,14 @@ type processedInputsResult struct {
 }
 
 type inputsProcessor struct {
-	parent            *create
-	ctx               context.Context
-	userID            int
-	providedInputs    []wdk.ValidCreateActionInput
-	inputBEEF         []byte
-	trustSelf         bool
-	txIDsLookup       map[string]struct{}
-	beef              *transaction.Beef
-	basketIDForChange int
+	parent         *create
+	ctx            context.Context
+	userID         int
+	providedInputs []wdk.ValidCreateActionInput
+	inputBEEF      []byte
+	trustSelf      bool
+	txIDsLookup    map[string]struct{}
+	beef           *transaction.Beef
 }
 
 func newInputsProcessor(
@@ -45,7 +44,6 @@ func newInputsProcessor(
 	providedInputs []wdk.ValidCreateActionInput,
 	inputBEEF []byte,
 	trustSelf bool,
-	basketIDForChange int,
 ) *inputsProcessor {
 	txIDsLookup := make(map[string]struct{})
 	for _, input := range providedInputs {
@@ -53,15 +51,14 @@ func newInputsProcessor(
 	}
 
 	return &inputsProcessor{
-		ctx:               ctx,
-		parent:            parent,
-		userID:            userID,
-		inputBEEF:         inputBEEF,
-		trustSelf:         trustSelf,
-		txIDsLookup:       txIDsLookup,
-		providedInputs:    providedInputs,
-		basketIDForChange: basketIDForChange,
-		beef:              transaction.NewBeefV2(),
+		ctx:            ctx,
+		parent:         parent,
+		userID:         userID,
+		inputBEEF:      inputBEEF,
+		trustSelf:      trustSelf,
+		txIDsLookup:    txIDsLookup,
+		providedInputs: providedInputs,
+		beef:           transaction.NewBeefV2(),
 	}
 }
 
@@ -97,7 +94,7 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 
 		var newXInput *xinputDefinition
 		if output != nil {
-			if output.BasketID != nil && *output.BasketID == proc.basketIDForChange {
+			if output.Change {
 				changeOutputIDs = append(changeOutputIDs, output.OutputID)
 			}
 			newXInput, err = proc.xinputDefOnKnownUTXO(&xinput, output)
@@ -164,6 +161,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 			return fmt.Errorf("valid and contain complete proof data for %s", txID)
 		}
 
+		// TODO: consider making one call to the repo to check all txIDs at once
 		known, err := proc.parent.provenTxRepo.ExistsProvenTx(proc.ctx, txID, statusesOfTxReadyToBeUsedAsInput)
 		if err != nil {
 			return fmt.Errorf("failed to check if tx %s is known: %w", txID, err)

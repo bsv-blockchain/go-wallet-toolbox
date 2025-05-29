@@ -16,7 +16,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"iter"
 	"log/slog"
@@ -117,7 +116,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf, basket.BasketID).processInputs()
+	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf).processInputs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to process inputs: %w", err)
 	}
@@ -138,14 +137,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	targetSat, err := c.targetSat(xinputs, xoutputs)
+	targetSat, err := c.targetSat(xinputs, xoutputs) // NOTE: Target satoshis can be negative
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
 
-	// TODO: Prevent funder to select UTXO already provided by a user
-	// (output_id not in ?), processedInputs.ChangeOutputIDs
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID)
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}
@@ -181,21 +178,18 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	err = c.txRepo.CreateTransaction(ctx, &entity.NewTx{
-		UserID:      userID,
-		Version:     params.Version,
-		LockTime:    params.LockTime,
-		Status:      wdk.TxStatusUnsigned,
-		Reference:   reference,
-		IsOutgoing:  true,
-		Description: params.Description,
-		Satoshis:    satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
-		Outputs:     newOutputs,
-		ReservedOutputIDs: slices.Map(funding.AllocatedUTXOs, func(utxo *funder.UTXO) uint {
-			// TODO: Reserve also the outputs that were provided by the user
-			return utxo.OutputID
-		}),
-		Labels:    params.Labels,
-		InputBeef: inputBeef,
+		UserID:            userID,
+		Version:           params.Version,
+		LockTime:          params.LockTime,
+		Status:            wdk.TxStatusUnsigned,
+		Reference:         reference,
+		IsOutgoing:        true,
+		Description:       params.Description,
+		Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
+		Outputs:           newOutputs,
+		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+		Labels:            params.Labels,
+		InputBeef:         inputBeef,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -450,4 +444,13 @@ func (c *create) randomDerivation() (string, error) {
 	}
 
 	return suffix, nil
+}
+
+func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsIDs []uint) []uint {
+	ids := make([]uint, 0, len(allocated)+len(providedOutputsIDs))
+	ids = append(ids, providedOutputsIDs...)
+	for _, utxo := range allocated {
+		ids = append(ids, utxo.OutputID)
+	}
+	return ids
 }

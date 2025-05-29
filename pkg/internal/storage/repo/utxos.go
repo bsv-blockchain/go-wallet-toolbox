@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"fmt"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -20,13 +21,19 @@ func NewUTXOs(db *gorm.DB) *UTXOs {
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page) ([]*models.UserUTXO, error) {
+func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
 	var result []*models.UserUTXO
-	err := u.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID), scopes.BasketID(basketID), scopes.Paginate(page), notReserved()).
-		Find(&result).Error
+
+	query := u.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID), scopes.BasketID(basketID), scopes.Paginate(page), notReserved())
+
+	if len(forbiddenOutputIDs) > 0 {
+		query = query.Where("output_id NOT IN ?", forbiddenOutputIDs)
+	}
+
+	err := query.Find(&result).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
 	}
 	return result, nil
 }
