@@ -7,6 +7,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -235,7 +236,7 @@ func TestRPCCommunication(t *testing.T) {
 					SourceSatoshis:        1101,
 					SourceLockingScript:   "76a914a7d6e4270f5c90cc9e272586a6a5099663572d5988ac",
 					SourceTransaction:     nil,
-					UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(107)),
+					UnlockingScriptLength: to.Ptr[primitives.PositiveInteger](txutils.P2PKHUnlockingScriptLength),
 					ProvidedBy:            "storage",
 					Type:                  "P2PKH",
 					SpendingDescription:   nil,

@@ -162,8 +162,7 @@ func (proc *inputsProcessor) processInputBEEF() error {
 	}))
 
 	if !proc.trustSelf && seq.IsNotEmpty(txIDOnlyIDs) {
-		missingIds := strings.Join(seq.Collect(txIDOnlyIDs), ",")
-		return fmt.Errorf("valid and contain complete proof data for %s", missingIds)
+		return proc.missingProofError(seq.Collect(txIDOnlyIDs), "inputBEEF contains transactions with TxIDOnly that causes error if trustSelf not set")
 	}
 
 	// not provided in inputs but exists in the inputBEEF
@@ -178,11 +177,11 @@ func (proc *inputsProcessor) processInputBEEF() error {
 
 	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, notProvidedInInputsTxs, readyToBeInputProvenTxStatuses)
 	if err != nil {
-		return fmt.Errorf("failed to check if transaction are known: %w", err)
+		return fmt.Errorf("failed to check if transactions are known: %w", err)
 	}
 
 	if !allKnown {
-		return fmt.Errorf("some tx in the inputBEEF is not known to storage; valid and contain complete proof data for transactions: %s", strings.Join(notProvidedInInputsTxs, ", "))
+		return proc.missingProofError(notProvidedInInputsTxs, "some tx in the inputBEEF is not known to storage")
 	}
 
 	return nil
@@ -199,7 +198,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 	}
 
 	if !proc.trustSelf {
-		return fmt.Errorf("valid and contain complete proof data for transactions: %s", strings.Join(missingFullProofs, ", "))
+		return proc.missingProofError(missingFullProofs, "provided inputs contain transactions with TxIDOnly format but not provided in inputBEEF")
 	}
 
 	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
@@ -208,7 +207,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 	}
 
 	if !allKnown {
-		return fmt.Errorf("some tx used in provided input is not known to storage; valid and contain complete proof data for transactions: %s", strings.Join(missingFullProofs, ", "))
+		return proc.missingProofError(missingFullProofs, "some tx used in provided input is not known to storage")
 	}
 
 	for _, txID := range missingFullProofs {
@@ -270,4 +269,23 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 		Satoshis:               satoshi.MustFrom(out.Satoshis),
 		LockingScript:          out.LockingScript.String(),
 	}, nil
+}
+
+func (proc *inputsProcessor) missingProofError(txIDs []string, msgParts ...string) error {
+	if len(txIDs) == 0 {
+		return fmt.Errorf("%s", strings.Join(msgParts, "; "))
+	}
+
+	var subject string
+	if len(txIDs) > 1 {
+		subject = "transactions"
+	} else {
+		subject = "transaction"
+	}
+
+	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, strings.Join(txIDs, ", "))
+	if len(msgParts) > 0 {
+		return fmt.Errorf("%s; %s", strings.Join(msgParts, "; "), txMsgPart)
+	}
+	return fmt.Errorf("%s", txMsgPart)
 }
