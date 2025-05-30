@@ -197,8 +197,8 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	var sourceTXID string
 	for _, input := range tx.Inputs {
 		sourceTXID = input.SourceTXID.String()
-		beefTx := mergeToBeef.FindTransaction(sourceTXID)
-		if beefTx == nil {
+		beefTx := mergeToBeef.Transactions[sourceTXID]
+		if beefTx == nil || beefTx.DataFormat != transaction.RawTxAndBumpIndex {
 			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusesToFilterOut)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find proven tx and merge into BEEF: %w", err)
