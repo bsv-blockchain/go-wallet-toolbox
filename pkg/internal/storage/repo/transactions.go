@@ -164,8 +164,10 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	err := tx.Model(&models.Output{}).
 		Where("id IN ?", outputIDs).
 		Where("user_id = ?", userID).
-		Update("spendable", false).
-		Update("spent_by", spendingTransactionID).
+		Updates(map[string]interface{}{
+			"spendable": false,
+			"spent_by":  spendingTransactionID,
+		}).
 		Error
 	if err != nil {
 		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
