@@ -31,10 +31,6 @@ func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID i
 		outputNotIn(forbiddenOutputIDs),
 	)
 
-	if len(forbiddenOutputIDs) > 0 {
-		query = query.Where("output_id NOT IN ?", forbiddenOutputIDs)
-	}
-
 	err := query.Find(&result).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
