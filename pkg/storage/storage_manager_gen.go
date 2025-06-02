@@ -90,3 +90,13 @@ func (m *WalletStorageManager) ListOutputs(ctx context.Context, args wdk.ListOut
 
 	return m.getActiveReader().ListOutputs(ctx, auth, args)
 }
+
+// ListActions retrieves a list of wallet actions based on the provided query parameters in the arguments.
+func (m *WalletStorageManager) ListActions(ctx context.Context, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().ListActions(ctx, auth, args)
+}

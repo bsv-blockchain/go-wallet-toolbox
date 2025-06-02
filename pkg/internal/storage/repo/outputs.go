@@ -210,3 +210,33 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 	tableOutput.TxID = &outpoint.TxID
 	return tableOutput, nil
 }
+
+// FindInputsAndOutputsWithBuckets retrieves inputs and outputs for given transaction IDs, including basket information.
+// It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
+// Each map contains slices of TableOutput, which include basket details if available.
+func (o *Outputs) FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []uint) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error) {
+	if len(txIDs) == 0 {
+		return
+	}
+
+	var allOutputs []*models.Output
+	if err := o.db.WithContext(ctx).
+		Preload("Basket").
+		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs).
+		Find(&allOutputs).Error; err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
+	}
+
+	inputMap := make(map[uint][]*wdk.TableOutput)
+	outputMap := make(map[uint][]*wdk.TableOutput)
+
+	for _, out := range allOutputs {
+		tableOut := o.mapModelToTableOutput(out)
+		if out.SpentBy != nil {
+			inputMap[*out.SpentBy] = append(inputMap[*out.SpentBy], tableOut)
+		}
+		outputMap[out.TransactionID] = append(outputMap[out.TransactionID], tableOut)
+	}
+
+	return inputMap, outputMap, nil
+}

@@ -89,6 +89,32 @@ func (p *ProvenTxReq) FindProvenTxRawTX(ctx context.Context, txID string) ([]byt
 	return model.RawTx, nil
 }
 
+func (p *ProvenTxReq) FindProvenTxRawTXs(ctx context.Context, txIDs []string) (map[string][]byte, error) {
+	if len(txIDs) == 0 {
+		return make(map[string][]byte), nil
+	}
+
+	var results []struct {
+		TxID  string
+		RawTx []byte
+	}
+
+	err := p.db.WithContext(ctx).
+		Model(&models.ProvenTxReq{}).
+		Select("tx_id, raw_tx").
+		Where("tx_id IN ?", txIDs).
+		Scan(&results).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch fetch raw tx: %w", err)
+	}
+
+	rawTxMap := make(map[string][]byte)
+	for _, r := range results {
+		rawTxMap[r.TxID] = r.RawTx
+	}
+	return rawTxMap, nil
+}
+
 func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error) {
 	var model models.ProvenTxReq
 	err := p.db.WithContext(ctx).

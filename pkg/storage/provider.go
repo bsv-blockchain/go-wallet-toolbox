@@ -372,3 +372,22 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 	}
 	return nil
 }
+
+// ListActions will list actions with provided args
+// It returns a paginated list of actions for the authenticated user.
+// The result includes the total number of actions and the actions themselves.
+func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	if err := validate.ListActionsArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid listActions args: %w", err)
+	}
+
+	result, err := p.actions.ListActions(ctx, auth, &args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list actions: %w", err)
+	}
+	return result, nil
+}

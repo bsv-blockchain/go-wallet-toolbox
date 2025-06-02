@@ -343,3 +343,80 @@ func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *
 		InputBEEF:     model.InputBeef,
 	}
 }
+
+func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*wdk.TableTransaction, int64, error) {
+	var actions []*models.Transaction
+	var total int64
+
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		query := tx.Model(&models.Transaction{}).
+			Where("user_id = ?", userID)
+
+		if len(filter.Status) > 0 {
+			query = query.Where("status IN ?", filter.Status)
+		}
+
+		if len(filter.Labels) > 0 {
+			labelSubQuery := tx.Model(&models.TransactionLabels{}).
+				Select("transaction_id").
+				Where("label_name IN ?", filter.Labels).
+				Where("label_user_id = ?", userID)
+
+			if filter.IncludeAllLabels {
+				labelSubQuery = labelSubQuery.
+					Group("transaction_id").
+					Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+			}
+
+			query = query.Where("id IN (?)", labelSubQuery)
+		}
+
+		if err := query.Count(&total).Error; err != nil {
+			return fmt.Errorf("count failed: %w", err)
+		}
+
+		if err := query.
+			Limit(filter.Limit).
+			Offset(filter.Offset).
+			Order("id ASC").
+			Find(&actions).Error; err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return slices.Map(actions, txs.mapModelToTableTransaction), total, nil
+}
+
+func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {
+	if len(txIDs) == 0 {
+		return make(map[uint][]string), nil
+	}
+
+	type resultRow struct {
+		TransactionID uint
+		LabelName     string
+	}
+
+	var rows []resultRow
+	err := txs.db.WithContext(ctx).
+		Model(&models.TransactionLabels{}).
+		Select("transaction_id, label_name").
+		Where("transaction_id IN ?", txIDs).
+		Where("label_name IS NOT NULL").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch fetch labels: %w", err)
+	}
+
+	labelsMap := make(map[uint][]string)
+	for _, row := range rows {
+		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
+	}
+	return labelsMap, nil
+}
