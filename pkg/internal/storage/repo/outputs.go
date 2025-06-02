@@ -45,30 +45,19 @@ func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]
 	return slices.Map(outputs, o.mapModelToTableOutput), nil
 }
 
-func (o *Outputs) FindInputsAndOutputsOfTransaction(ctx context.Context, transactionID uint) (inputs []*wdk.TableOutput, outputs []*wdk.TableOutput, err error) {
+func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*wdk.TableOutput, error) {
 	session := o.db.WithContext(ctx)
 
 	var outputRows []*models.Output
-	err = session.
+	err := session.
 		Model(models.Output{}).
 		Where("transaction_id = ?", transactionID).
 		Find(&outputRows).Error
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find outputs for transactionID: %d: %w", transactionID, err)
+		return nil, fmt.Errorf("failed to find outputs for transactionID: %d: %w", transactionID, err)
 	}
 
-	var inputRows []*models.Output
-	err = session.
-		Model(models.Output{}).
-		Where("spent_by = ?", transactionID).
-		Find(&inputRows).Error
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find inputs for transactionID: %d: %w", transactionID, err)
-	}
-
-	inputs = slices.Map(inputRows, o.mapModelToTableOutput)
-	outputs = slices.Map(outputRows, o.mapModelToTableOutput)
-	return
+	return slices.Map(outputRows, o.mapModelToTableOutput), nil
 }
 
 func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
