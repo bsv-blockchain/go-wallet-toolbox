@@ -340,7 +340,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 		return fmt.Errorf("invalid relinquishOutput args: %w", err)
 	}
 
-	txID, vout, _ := primitives.OutpointString(args.Output).Get()
+	txID, vout := primitives.OutpointString(args.Output).MustGet()
 
 	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {

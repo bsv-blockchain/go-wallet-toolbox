@@ -46,6 +46,16 @@ func (s OutpointString) Get() (txID string, vout uint32, err error) {
 	return txID, vout32, nil
 }
 
+// MustGet parses the OutpointString and returns the transaction ID and output index, panicking on invalid format.
+func (s OutpointString) MustGet() (txID string, vout uint32) {
+	txID, vout, err := s.Get()
+	if err != nil {
+		panic(fmt.Sprintf("invalid outpoint string format: %s, error: %v", s, err))
+	}
+
+	return txID, vout
+}
+
 // MustGetTxID extracts and returns the transaction ID part from the OutpointString.
 // It panics if the format is invalid.
 func (s OutpointString) MustGetTxID() string {
