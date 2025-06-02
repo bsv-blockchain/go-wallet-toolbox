@@ -697,9 +697,10 @@ type RelinquishCertificateArgs struct {
 }
 
 type RelinquishOutputArgs struct {
-	// NOTE: Basket is not used in TS code. Moreover, BRC100 the documentation says that:
+	// NOTE: Basket is not used in TS code. Moreover, BRC100 documentation says:
 	// "relinquishOutput releases an output from a basket tracked by the wallet, even if it has yet to be spent.
 	// https://github.com/bitcoin-sv/BRCs/blob/master/wallet/0100.md#:~:text=and%20categorizing%20actions.-,Relinquishment,-%3A%20relinquishOutput%20releases
+	// It doesn't say that a user needs to specify a basket.
 
 	// NOTE: The name "Output" is (I think, by mistake) misleading, because it refers to outPOINT so {txID}.{outputIndex}
 	Output string `json:"output"`
