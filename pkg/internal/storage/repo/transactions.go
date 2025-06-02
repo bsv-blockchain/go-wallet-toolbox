@@ -35,14 +35,18 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = txs.connectOutputsWithBaskets(tx, newTx, model)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to connect outputs with baskets: %w", err)
 		}
 
-		if err = txs.markReservedOutputsAsNotSpendable(tx, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
-			return err
+		if err = tx.Create(model).Error; err != nil {
+			return fmt.Errorf("failed to create new transaction model: %w", err)
 		}
 
-		return tx.Create(model).Error
+		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create transaction: %w", err)
@@ -152,7 +156,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 	return &out, nil
 }
 
-func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, userID int, outputIDs []uint) error {
+func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spendingTransactionID uint, userID int, outputIDs []uint) error {
 	if len(outputIDs) == 0 {
 		return nil
 	}
@@ -160,7 +164,11 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, userID i
 	err := tx.Model(&models.Output{}).
 		Where("id IN ?", outputIDs).
 		Where("user_id = ?", userID).
-		Update("spendable", false).Error
+		Updates(map[string]interface{}{
+			"spendable": false,
+			"spent_by":  spendingTransactionID,
+		}).
+		Error
 	if err != nil {
 		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
 	}
