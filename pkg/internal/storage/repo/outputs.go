@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 
@@ -126,24 +127,59 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 	return slices.Map(outputs, o.mapModelToTableOutput), total, nil
 }
 
-func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID int, outpoint wdk.OutPoint) error {
-	result := o.db.WithContext(ctx).Model(&models.Output{}).
-		Scopes(scopes.UserID(userID)).
-		Where("vout = ?", outpoint.Vout).
-		Where("transaction_id IN (?)",
-			o.db.Model(&models.Transaction{}).
-				Select("id").
-				Scopes(scopes.UserID(userID)).
-				Where("tx_id = ?", outpoint.TxID),
-		).
-		Update("basket_id", nil)
+func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID int, basketName *string, outpoint wdk.OutPoint) error {
+	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		query := tx.Model(&models.Output{}).
+			Select("id").
+			Scopes(scopes.UserID(userID)).
+			Where("vout = ?", outpoint.Vout).
+			Where("transaction_id IN (?)",
+				tx.Model(&models.Transaction{}).
+					Select("id").
+					Scopes(scopes.UserID(userID)).
+					Where("tx_id = ?", outpoint.TxID),
+			)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to unlink output from basket: %w", result.Error)
-	}
+		if basketName != nil {
+			query = query.Where("basket_id IN (?)",
+				tx.Model(&models.OutputBasket{}).
+					Select("id").
+					Scopes(scopes.UserID(userID)).
+					Where("name = ?", *basketName),
+			)
+		}
 
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("no output found with vout %d for transaction %s", outpoint.Vout, outpoint.TxID)
+		var output models.Output
+		if err := query.First(&output).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				var basketMsg string
+				if basketName != nil {
+					basketMsg = fmt.Sprintf(" for basket ID %s", *basketName)
+				}
+				return fmt.Errorf("no output found with vout %d and txid %s%s", outpoint.Vout, outpoint.TxID, basketMsg)
+			}
+
+			return fmt.Errorf("failed to fetch outputs for unlink: %w", err)
+		}
+
+		result := tx.Model(&models.Output{}).
+			Where("id = ?", output.ID).
+			Update("basket_id", nil)
+
+		if result.Error != nil {
+			return fmt.Errorf("failed to unlink output from basket: %w", result.Error)
+		}
+
+		err := tx.Delete(models.UserUTXO{}, "reserved_by_id IS NULL and output_id = ?", output.ID).Error
+		if err != nil {
+			return fmt.Errorf("failed to delete user utxo for output %d (it can be reserved): %w", output.ID, err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to unlink output from basket: %w", err)
 	}
 
 	return nil

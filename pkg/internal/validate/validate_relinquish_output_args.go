@@ -13,5 +13,15 @@ func ValidRelinquishOutputArgs(args *sdk.RelinquishOutputArgs) error {
 		return fmt.Errorf("invalid outpoint: %w", err)
 	}
 
+	if args.Basket == "" {
+		// NOTE: An empty basket is allowed - this way any basket can be relinquished.
+		return nil
+	}
+
+	err = primitives.StringUnder300(args.Basket).Validate()
+	if err != nil {
+		return fmt.Errorf("invalid basket: %w", err)
+	}
+
 	return nil
 }
