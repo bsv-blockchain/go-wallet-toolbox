@@ -103,8 +103,10 @@ func (p *ProvenTxReq) ExistsAllProvenTxs(ctx context.Context, txIDs []string, so
 		Model(&model).
 		Select("tx_id").
 		Where("tx_id IN (?) ", txIDs).
-		Where("raw_tx IS NOT NULL and LENGTH(raw_tx) > 0").
-		Where("input_beef IS NOT NULL and LENGTH(input_beef) > 0")
+		Where("raw_tx IS NOT NULL").
+		Where("LENGTH(raw_tx) > 0").
+		Where("input_beef IS NOT NULL").
+		Where("LENGTH(input_beef) > 0")
 
 	if len(sourceTxsStatusFilter) > 0 {
 		query = query.Where("status IN ? ", sourceTxsStatusFilter)
