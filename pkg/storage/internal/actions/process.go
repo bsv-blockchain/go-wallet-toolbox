@@ -77,7 +77,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return err
 	}
 
-	_, outputs, err := p.outputRepo.FindInputsAndOutputsOfTransaction(ctx, tableTx.TransactionID)
+	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, tableTx.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to find inputs and outputs of transaction: %w", err)
 	}
