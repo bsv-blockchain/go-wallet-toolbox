@@ -154,7 +154,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				var basketMsg string
 				if basketName != nil {
-					basketMsg = fmt.Sprintf(" for basket ID %s", *basketName)
+					basketMsg = fmt.Sprintf(" for basket: %s", *basketName)
 				}
 				return fmt.Errorf("no output found with vout %d and txid %s%s", outpoint.Vout, outpoint.TxID, basketMsg)
 			}
