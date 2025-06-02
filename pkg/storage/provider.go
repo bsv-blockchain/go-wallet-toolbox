@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
@@ -327,4 +328,23 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, fmt.Errorf("failed to list outputs: %w", err)
 	}
 	return result, nil
+}
+
+// RelinquishOutput removes a specified output from a basket
+func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args sdk.RelinquishOutputArgs) error {
+	if auth.UserID == nil {
+		return ErrAuthorization
+	}
+
+	if err := validate.ValidRelinquishOutputArgs(&args); err != nil {
+		return fmt.Errorf("invalid relinquishOutput args: %w", err)
+	}
+
+	txID, vout, _ := primitives.OutpointString(args.Output).Get()
+
+	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, wdk.OutPoint{TxID: txID, Vout: vout})
+	if err != nil {
+		return fmt.Errorf("failed to relinquish output: %w", err)
+	}
+	return nil
 }
