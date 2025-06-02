@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -123,4 +124,27 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 	}
 
 	return slices.Map(outputs, o.mapModelToTableOutput), total, nil
+}
+
+func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID int, outpoint wdk.OutPoint) error {
+	result := o.db.WithContext(ctx).Model(&models.Output{}).
+		Scopes(scopes.UserID(userID)).
+		Where("vout = ?", outpoint.Vout).
+		Where("transaction_id IN (?)",
+			o.db.Model(&models.Transaction{}).
+				Select("id").
+				Scopes(scopes.UserID(userID)).
+				Where("tx_id = ?", outpoint.TxID),
+		).
+		Update("basket_id", nil)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to unlink output from basket: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("no output found with vout %d for transaction %s", outpoint.Vout, outpoint.TxID)
+	}
+
+	return nil
 }
