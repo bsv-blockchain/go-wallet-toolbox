@@ -24,7 +24,7 @@ var changeOutputSize = txutils.P2PKHOutputSize
 const utxoBatchSize = 1000
 
 type UTXORepository interface {
-	FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page) ([]*models.UserUTXO, error)
+	FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error)
 	CountUTXOs(ctx context.Context, userID int, basketID int) (int64, error)
 }
 
@@ -51,7 +51,7 @@ func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.Fe
 // @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
 // @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 // @param userID - the user ID.
-func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int) (*Result, error) {
+func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error) {
 	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.BasketID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
@@ -62,7 +62,7 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
-	utxos := f.loadUTXOs(ctx, userID, basket.BasketID)
+	utxos := f.loadUTXOs(ctx, userID, basket.BasketID, forbiddenOutputIDs)
 
 	err = collector.Allocate(utxos)
 	if err != nil {
@@ -72,10 +72,10 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 	return collector.GetResult()
 }
 
-func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketID int) iter.Seq2[*models.UserUTXO, error] {
+func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketID int, forbiddenOutputIDs []uint) iter.Seq2[*models.UserUTXO, error] {
 	batches := seqerr.ProduceWithArg(
 		func(page *paging.Page) ([]*models.UserUTXO, *paging.Page, error) {
-			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketID, page)
+			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketID, page, forbiddenOutputIDs)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to load utxos: %w", err)
 			}

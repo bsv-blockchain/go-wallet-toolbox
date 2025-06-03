@@ -14,5 +14,6 @@ type Funder interface {
 	// @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
 	// @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 	// @param userID - the user ID
-	Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int) (*Result, error)
+	// @param forbiddenOutputIDs - the list of output IDs that should not be used in the funding process
+	Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error)
 }

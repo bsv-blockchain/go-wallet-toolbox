@@ -181,6 +181,26 @@ func TestWrongCreateActionArgs(t *testing.T) {
 				return args
 			},
 		},
+		"Duplicated outpoint in inputs": {
+			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
+				args.Inputs = []wdk.ValidCreateActionInput{{
+					Outpoint: wdk.OutPoint{
+						TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+						Vout: 0,
+					},
+					UnlockingScript:  to.Ptr(primitives.HexString("00")),
+					InputDescription: "input1",
+				}, {
+					Outpoint: wdk.OutPoint{
+						TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+						Vout: 0,
+					},
+					UnlockingScript:  to.Ptr(primitives.HexString("00")),
+					InputDescription: "input2",
+				}}
+				return args
+			},
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {

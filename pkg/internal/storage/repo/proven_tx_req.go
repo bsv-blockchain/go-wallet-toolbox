@@ -97,6 +97,30 @@ func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.
 	return model.Status, nil
 }
 
+func (p *ProvenTxReq) ExistsAllProvenTxs(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
+	var model models.ProvenTxReq
+	query := p.db.WithContext(ctx).
+		Model(&model).
+		Select("tx_id").
+		Where("tx_id IN (?) ", txIDs).
+		Where("raw_tx IS NOT NULL").
+		Where("LENGTH(raw_tx) > 0").
+		Where("input_beef IS NOT NULL").
+		Where("LENGTH(input_beef) > 0")
+
+	if len(sourceTxsStatusFilter) > 0 {
+		query = query.Where("status IN ? ", sourceTxsStatusFilter)
+	}
+
+	var count int64
+	err := query.Count(&count).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to check if proven transactions exist: %w", err)
+	}
+
+	return count == int64(len(txIDs)), nil
+}
+
 func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, statusesToFilterOut)
@@ -175,8 +199,8 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	var sourceTXID string
 	for _, input := range tx.Inputs {
 		sourceTXID = input.SourceTXID.String()
-		beefTx := mergeToBeef.FindTransaction(sourceTXID)
-		if beefTx == nil {
+		beefTx := mergeToBeef.Transactions[sourceTXID]
+		if beefTx == nil || beefTx.DataFormat != transaction.RawTxAndBumpIndex {
 			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusesToFilterOut)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find proven tx and merge into BEEF: %w", err)
