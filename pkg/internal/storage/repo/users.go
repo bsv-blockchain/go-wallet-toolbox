@@ -46,7 +46,7 @@ func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage strin
 		ActiveStorage: activeStorage,
 		OutputBaskets: slices.Map(baskets, func(basket wdk.BasketConfiguration) *models.OutputBasket {
 			return &models.OutputBasket{
-				Name:                    basket.Name,
+				Name:                    string(basket.Name),
 				NumberOfDesiredUTXOs:    basket.NumberOfDesiredUTXOs,
 				MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,
 			}

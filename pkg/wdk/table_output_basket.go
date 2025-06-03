@@ -1,14 +1,15 @@
 package wdk
 
 import (
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"time"
 )
 
 // BasketConfiguration is a struct that defines the configuration of the output basket
 type BasketConfiguration struct {
-	Name                    string `json:"name"`
-	NumberOfDesiredUTXOs    int64  `json:"numberOfDesiredUTXOs"`
-	MinimumDesiredUTXOValue uint64 `json:"minimumDesiredUTXOValue"`
+	Name                    primitives.StringUnder300 `json:"name"`
+	NumberOfDesiredUTXOs    int64                     `json:"numberOfDesiredUTXOs"`
+	MinimumDesiredUTXOValue uint64                    `json:"minimumDesiredUTXOValue"`
 }
 
 // TableOutputBasket is a struct that holds the output baskets details

@@ -348,3 +348,22 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 	}
 	return nil
 }
+
+// ConfigureBasket validates and updates the basket configuration for the authorized user in the repository.
+// Returns an error if the user is unauthorized, input is invalid, or the update fails.
+// NOTE: For "change basket" use wdk.BasketNameForChange ("default") as the basket name.
+func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wdk.BasketConfiguration) error {
+	if auth.UserID == nil {
+		return ErrAuthorization
+	}
+
+	if err := validate.ValidBasketConfiguration(&args); err != nil {
+		return fmt.Errorf("invalid basket configuration: %w", err)
+	}
+
+	err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
+	if err != nil {
+		return fmt.Errorf("failed to update basket configuration: %w", err)
+	}
+	return nil
+}

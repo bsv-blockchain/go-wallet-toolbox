@@ -157,6 +157,243 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 	})
 }
 
+func TestCreateWithUnknownInputThenProcess(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	var createdTxReference string
+	var processedTxID string
+
+	// given:
+	basketConf := wdk.DefaultBasketConfiguration()
+	basketConf.NumberOfDesiredUTXOs = 31 // we need to adjust the number of generated change outputs to align with the tsgenerated.SignedTransaction
+	err := activeStorage.ConfigureBasket(t.Context(), testusers.Alice.AuthID(), basketConf)
+	require.NoError(t, err)
+
+	t.Run("Create", func(t *testing.T) {
+		// given:
+		args := createActionArgsWithProvidedOutput()
+		args.Inputs = []wdk.ValidCreateActionInput{
+			{
+				Outpoint: wdk.OutPoint{
+					TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+					Vout: 0,
+				},
+				InputDescription:      "unknown-to-storage utxo",
+				UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+			},
+		}
+		args.IsSignAction = true
+		args.InputBEEF = tsgenerated.AtomicBeefToInternalize(t)
+
+		// when:
+		result, err := activeStorage.CreateAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, result.Inputs, 1)
+		require.Equal(t, wdk.ProvidedByYou, result.Inputs[0].ProvidedBy)
+
+		// update:
+		createdTxReference = result.Reference
+	})
+
+	t.Run("Process", func(t *testing.T) {
+		// given:
+		tx := tsgenerated.SignedTransaction(t)
+		txID := tx.TxID().String()
+
+		// and:
+		args := wdk.ProcessActionArgs{
+			IsNewTx:    true,
+			IsSendWith: false,
+			IsNoSend:   false,
+			IsDelayed:  false,
+			Reference:  to.Ptr(createdTxReference),
+			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+			RawTx:      tx.Bytes(),
+			SendWith:   []string{},
+		}
+
+		// when:
+		result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+
+		// then:
+		require.NoError(t, err)
+
+		require.Len(t, result.SendWithResults, 1)
+		sendWithResult := result.SendWithResults[0]
+		assert.Equal(t, txID, string(sendWithResult.TxID))
+		assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
+
+		require.Len(t, result.NotDelayedResults, 1)
+		reviewActionResult := result.NotDelayedResults[0]
+		assert.Equal(t, txID, string(reviewActionResult.TxID))
+		assert.Equal(t, wdk.ReviewActionResultStatusSuccess, reviewActionResult.Status)
+		assert.Empty(t, reviewActionResult.CompetingTxs)
+
+		// update:
+		processedTxID = txID
+	})
+
+	t.Run("Next create - to check if another new transaction can be created using generated change UTXOs", func(t *testing.T) {
+		// given:
+		args := createActionArgsWithProvidedOutput()
+
+		// when:
+		result, err := activeStorage.CreateAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, result.Inputs, 1)
+		assert.Equal(t, processedTxID, result.Inputs[0].SourceTxID)
+		require.Len(t, result.Outputs, 2)
+	})
+}
+
+func TestCreateWithKnownInputThenProcess(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	var createdTxReference string
+	var processedTxID string
+
+	t.Run("Internalize - this way the storage will 'know' specified UTXO", func(t *testing.T) {
+		// given:
+		args := wdk.InternalizeActionArgs{
+			Tx: tsgenerated.AtomicBeefToInternalize(t),
+			Outputs: []*wdk.InternalizeOutput{
+				{
+					OutputIndex: 0,
+					Protocol:    wdk.WalletPaymentProtocol,
+					PaymentRemittance: &wdk.WalletPayment{
+						DerivationPrefix:  fixtures.DerivationPrefix,
+						DerivationSuffix:  fixtures.DerivationSuffix,
+						SenderIdentityKey: fixtures.AnyoneIdentityKey,
+					},
+				},
+			},
+			Labels: []primitives.StringUnder300{
+				"label1", "label2",
+			},
+			Description:    "description",
+			SeekPermission: nil,
+		}
+
+		// when:
+		_, err := activeStorage.InternalizeAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		// given:
+		args := createActionArgsWithProvidedOutput()
+		args.Inputs = []wdk.ValidCreateActionInput{
+			{
+				Outpoint: wdk.OutPoint{
+					TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+					Vout: 0,
+				},
+				InputDescription:      "known-to-storage utxo",
+				UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+			},
+		}
+		args.IsSignAction = true
+		args.InputBEEF = tsgenerated.AtomicBeefToInternalize(t)
+
+		// when:
+		result, err := activeStorage.CreateAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, result.Inputs, 1)
+		require.Equal(t, wdk.ProvidedByYouAndStorage, result.Inputs[0].ProvidedBy)
+
+		// update:
+		createdTxReference = result.Reference
+	})
+
+	t.Run("Process", func(t *testing.T) {
+		// given:
+		tx := tsgenerated.SignedTransaction(t)
+		txID := tx.TxID().String()
+
+		// and:
+		args := wdk.ProcessActionArgs{
+			IsNewTx:    true,
+			IsSendWith: false,
+			IsNoSend:   false,
+			IsDelayed:  false,
+			Reference:  to.Ptr(createdTxReference),
+			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+			RawTx:      tx.Bytes(),
+			SendWith:   []string{},
+		}
+
+		// when:
+		result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+
+		// then:
+		require.NoError(t, err)
+
+		require.Len(t, result.SendWithResults, 1)
+		sendWithResult := result.SendWithResults[0]
+		assert.Equal(t, txID, string(sendWithResult.TxID))
+		assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
+
+		require.Len(t, result.NotDelayedResults, 1)
+		reviewActionResult := result.NotDelayedResults[0]
+		assert.Equal(t, txID, string(reviewActionResult.TxID))
+		assert.Equal(t, wdk.ReviewActionResultStatusSuccess, reviewActionResult.Status)
+		assert.Empty(t, reviewActionResult.CompetingTxs)
+
+		// update:
+		processedTxID = txID
+	})
+
+	t.Run("Next create - to check if another new transaction can be created using generated change UTXOs", func(t *testing.T) {
+		// given:
+		args := createActionArgsWithProvidedOutput()
+
+		// when:
+		result, err := activeStorage.CreateAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, result.Inputs, 1)
+		assert.Equal(t, processedTxID, result.Inputs[0].SourceTxID)
+		require.Len(t, result.Outputs, 2)
+	})
+}
+
 func TestInternalizePlusTooHighCreate(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
