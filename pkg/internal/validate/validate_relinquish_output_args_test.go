@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
@@ -8,33 +9,88 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidRelinquishOutputArgs(t *testing.T) {
-	err := ValidRelinquishOutputArgs(&sdk.RelinquishOutputArgs{
-		Output: fixtures.MockOutpoint,
-	})
-	require.NoError(t, err)
-}
-
-func TestWrongRelinquishOutputArgs(t *testing.T) {
+func TestValidRelinquishOutputArgs_Success(t *testing.T) {
 	tests := map[string]struct {
 		args *sdk.RelinquishOutputArgs
 	}{
-		"invalid outpoint: missing dot": {
+		"valid args": {
 			args: &sdk.RelinquishOutputArgs{
-				Output: "notavalidoutpoint",
+				Output: fixtures.MockOutpoint,
+				Basket: "validbasket",
 			},
 		},
-		"invalid outpoint: index not numeric": {
+		"valid: basket at min length": {
 			args: &sdk.RelinquishOutputArgs{
-				Output: "deadbeefcafebabe.notanumber",
+				Output: fixtures.MockOutpoint,
+				Basket: "a",
+			},
+		},
+		"valid: basket at max length": {
+			args: &sdk.RelinquishOutputArgs{
+				Output: fixtures.MockOutpoint,
+				Basket: strings.Repeat("a", 300),
+			},
+		},
+		"valid: empty basket": {
+			args: &sdk.RelinquishOutputArgs{
+				Output: fixtures.MockOutpoint,
+				Basket: "",
 			},
 		},
 	}
 
-	for name, tt := range tests {
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidRelinquishOutputArgs(tt.args)
+			err := ValidRelinquishOutputArgs(test.args)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidRelinquishOutputArgs_Error_InvalidOutpoint(t *testing.T) {
+	tests := map[string]struct {
+		args *sdk.RelinquishOutputArgs
+	}{
+		"missing dot": {
+			args: &sdk.RelinquishOutputArgs{
+				Output: "deadbeefcafebabe0",
+				Basket: "validbasket",
+			},
+		},
+		"index not numeric": {
+			args: &sdk.RelinquishOutputArgs{
+				Output: "deadbeefcafebabe.notanumber",
+				Basket: "validbasket",
+			},
+		},
+		"empty output": {
+			args: &sdk.RelinquishOutputArgs{
+				Output: "",
+				Basket: "validbasket",
+			},
+		},
+		"double dot": {
+			args: &sdk.RelinquishOutputArgs{
+				Output: "deadbeefcafebabe.1.0",
+				Basket: "validbasket",
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidRelinquishOutputArgs(test.args)
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestValidRelinquishOutputArgs_Error_InvalidBasket(t *testing.T) {
+	args := &sdk.RelinquishOutputArgs{
+		Output: fixtures.MockOutpoint,
+		Basket: strings.Repeat("a", 301),
+	}
+
+	err := ValidRelinquishOutputArgs(args)
+	require.Error(t, err)
 }

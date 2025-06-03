@@ -28,6 +28,7 @@ func TestRelinquishOutput(t *testing.T) {
 		context.Background(),
 		testusers.Alice.AuthID(),
 		sdk.RelinquishOutputArgs{
+			Basket: wdk.BasketNameForChange,
 			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
 		},
 	)
@@ -40,6 +41,51 @@ func TestRelinquishOutput(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0, int(listOutputsResult.TotalOutputs))
+
+	// and:
+	_, err = activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		fixtures.DefaultValidCreateActionArgs(),
+	)
+	require.Error(t, err) // make sure that we cannot create an action with relinquished output (got "not enough funds")
+}
+
+func TestRelinquishOutputWithoutBasketSpecified(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// when:
+	err := activeStorage.RelinquishOutput(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		sdk.RelinquishOutputArgs{
+			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
+		},
+	)
+
+	// then:
+	require.NoError(t, err)
+	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:  10,
+		Basket: wdk.BasketNameForChange,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, int(listOutputsResult.TotalOutputs))
+
+	// and:
+	_, err = activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		fixtures.DefaultValidCreateActionArgs(),
+	)
+	require.Error(t, err) // make sure that we cannot create an action with relinquished output (got "not enough funds")
 }
 
 func TestRelinquishNotExistingOutput(t *testing.T) {
@@ -91,4 +137,28 @@ func TestRelinquishOutputOneOfTwo(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, int(listOutputsResult.TotalOutputs))
+}
+
+func TestRelinquishOutputWithNotMatchingBasket(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// when:
+	err := activeStorage.RelinquishOutput(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		sdk.RelinquishOutputArgs{
+			Basket: "other-basket",
+			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
+		},
+	)
+
+	// then:
+	require.Error(t, err)
 }
