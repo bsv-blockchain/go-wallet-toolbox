@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"gorm.io/gorm/clause"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OutputBaskets struct {

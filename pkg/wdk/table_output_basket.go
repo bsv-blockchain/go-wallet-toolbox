@@ -1,8 +1,9 @@
 package wdk
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // BasketConfiguration is a struct that defines the configuration of the output basket

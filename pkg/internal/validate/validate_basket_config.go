@@ -2,6 +2,7 @@ package validate
 
 import (
 	"fmt"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
