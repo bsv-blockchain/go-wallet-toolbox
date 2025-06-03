@@ -342,7 +342,12 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 
 	txID, vout := primitives.OutpointString(args.Output).MustGet()
 
-	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, wdk.OutPoint{TxID: txID, Vout: vout})
+	var basketName *string
+	if args.Basket != "" {
+		basketName = &args.Basket
+	}
+
+	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
