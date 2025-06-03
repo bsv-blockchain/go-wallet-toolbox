@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -19,13 +20,20 @@ func NewUTXOs(db *gorm.DB) *UTXOs {
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page) ([]*models.UserUTXO, error) {
+func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
 	var result []*models.UserUTXO
-	err := u.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID), scopes.BasketID(basketID), scopes.Paginate(page), notReserved()).
-		Find(&result).Error
+
+	query := u.db.WithContext(ctx).Scopes(
+		scopes.UserID(userID),
+		scopes.BasketID(basketID),
+		scopes.Paginate(page),
+		notReserved(),
+		outputNotIn(forbiddenOutputIDs),
+	)
+
+	err := query.Find(&result).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
 	}
 	return result, nil
 }
@@ -44,5 +52,16 @@ func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basket int) (int64, 
 func notReserved() func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("reserved_by_id IS NULL")
+	}
+}
+
+func outputNotIn(forbiddenOutputIDs []uint) func(*gorm.DB) *gorm.DB {
+	if len(forbiddenOutputIDs) == 0 {
+		return func(db *gorm.DB) *gorm.DB {
+			return db
+		}
+	}
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("output_id NOT IN ?", forbiddenOutputIDs)
 	}
 }

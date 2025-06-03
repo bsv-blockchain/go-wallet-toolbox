@@ -9,18 +9,17 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -36,8 +35,10 @@ type CreateActionParams struct {
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
+	InputBEEF                []byte
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
+	TrustSelf                bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -49,8 +50,10 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		Labels:                   args.Labels,
 		Outputs:                  args.Outputs,
 		Inputs:                   args.Inputs,
+		InputBEEF:                args.InputBEEF,
 		RandomizeOutputs:         args.Options.RandomizeOutputs,
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
+		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
 	}
 }
 
@@ -104,8 +107,13 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
+	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf).
+		processInputs()
+	if err != nil {
+		return nil, fmt.Errorf("failed to process inputs: %w", err)
+	}
+	xinputs := processedInputs.Inputs
 	xoutputs := seq.PointersFromSlice(params.Outputs)
-	xinputs := seq.PointersFromSlice(params.Inputs)
 
 	var commOut *serviceChargeOutput
 	if c.commission != nil {
@@ -116,17 +124,17 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		xoutputs = seq.Append(xoutputs, &commOut.ValidCreateActionOutput)
 	}
 
-	initialTxSize, err := c.txSize(xinputs, xoutputs)
+	initialTxSize, err := c.txSize(xinputs.iter(), xoutputs)
 	if err != nil {
 		return nil, err
 	}
 
-	targetSat, err := c.targetSat(xinputs, xoutputs)
+	targetSat, err := c.targetSat(xinputs.iter(), xoutputs) // NOTE: Target satoshis can be negative
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID)
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}
@@ -156,34 +164,30 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to get total allocated inputs: %w", err)
 	}
 
-	beef := transaction.NewBeefV2()
-
-	inputBeef, err := beef.Bytes()
+	inputBeef, err := processedInputs.Beef.Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize beef: %w", err)
 	}
 
 	err = c.txRepo.CreateTransaction(ctx, &entity.NewTx{
-		UserID:      userID,
-		Version:     params.Version,
-		LockTime:    params.LockTime,
-		Status:      wdk.TxStatusUnsigned,
-		Reference:   reference,
-		IsOutgoing:  true,
-		Description: params.Description,
-		Satoshis:    satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
-		Outputs:     newOutputs,
-		ReservedOutputIDs: slices.Map(funding.AllocatedUTXOs, func(utxo *funder.UTXO) uint {
-			return utxo.OutputID
-		}),
-		Labels:    params.Labels,
-		InputBeef: inputBeef,
+		UserID:            userID,
+		Version:           params.Version,
+		LockTime:          params.LockTime,
+		Status:            wdk.TxStatusUnsigned,
+		Reference:         reference,
+		IsOutgoing:        true,
+		Description:       params.Description,
+		Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
+		Outputs:           newOutputs,
+		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+		Labels:            params.Labels,
+		InputBeef:         inputBeef,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	resultInputs, err := c.resultInputs(ctx, funding.AllocatedUTXOs, params.IncludeInputSourceRawTxs)
+	resultInputs, err := c.resultInputs(ctx, funding.AllocatedUTXOs, params.IncludeInputSourceRawTxs, processedInputs.Inputs)
 	if err != nil {
 		return nil, err
 	}
@@ -220,9 +224,13 @@ func (c *create) createCommissionOutput() (*serviceChargeOutput, error) {
 	}, nil
 }
 
-func (c *create) targetSat(_ iter.Seq[*wdk.ValidCreateActionInput], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {
-	providedInputs := satoshi.Zero()
-	// TODO: sum provided inputs satoshis - but first the values should be found
+func (c *create) targetSat(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {
+	providedInputs, err := satoshi.Sum(seq.Map(xinputs, func(input *xinputDefinition) satoshi.Value {
+		return input.Satoshis
+	}))
+	if err != nil {
+		return 0, fmt.Errorf("failed to sum provided inputs' satoshis: %w", err)
+	}
 
 	providedOutputs, err := satoshi.Sum(seq.Map(xoutputs, func(output *wdk.ValidCreateActionOutput) primitives.SatoshiValue {
 		return output.Satoshis
@@ -239,8 +247,8 @@ func (c *create) targetSat(_ iter.Seq[*wdk.ValidCreateActionInput], xoutputs ite
 	return sub, nil
 }
 
-func (c *create) txSize(xinputs iter.Seq[*wdk.ValidCreateActionInput], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (uint64, error) {
-	inputSizes := seqerr.MapSeq(xinputs, func(o *wdk.ValidCreateActionInput) (uint64, error) {
+func (c *create) txSize(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (uint64, error) {
+	inputSizes := seqerr.MapSeq(xinputs, func(o *xinputDefinition) (uint64, error) {
 		return o.ScriptLength()
 	})
 
@@ -346,11 +354,11 @@ func (c *create) newOutputs(
 	return all, nil
 }
 
-func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []wdk.StorageCreateTransactionSdkOutput {
-	resultOutputs := make([]wdk.StorageCreateTransactionSdkOutput, len(newOutputs))
+func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCreateTransactionSdkOutput {
+	resultOutputs := make([]*wdk.StorageCreateTransactionSdkOutput, len(newOutputs))
 	for i, output := range newOutputs {
 
-		resultOutputs[i] = wdk.StorageCreateTransactionSdkOutput{
+		resultOutputs[i] = &wdk.StorageCreateTransactionSdkOutput{
 			Vout:             output.Vout,
 			ProvidedBy:       output.ProvidedBy,
 			Purpose:          output.Purpose,
@@ -371,7 +379,7 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []wdk.StorageCrea
 	return resultOutputs
 }
 
-func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO, includeRawTxs bool) ([]wdk.StorageCreateTransactionSdkInput, error) {
+func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO, includeRawTxs bool, xinputs xinputDefinitions) ([]*wdk.StorageCreateTransactionSdkInput, error) {
 	utxos, err := c.outputRepo.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
@@ -382,42 +390,81 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 		return nil, fmt.Errorf("expected %d outputs, got %d", len(allocatedUTXOs), len(utxos))
 	}
 
-	resultInputs := make([]wdk.StorageCreateTransactionSdkInput, len(allocatedUTXOs))
-	for i, utxo := range utxos {
-		if utxo.TxID == nil {
-			return nil, fmt.Errorf("missing txid for output %d", i)
-		}
-		if utxo.LockingScript == nil {
-			return nil, fmt.Errorf("missing locking script for output %d", i)
-		}
-		txID := *utxo.TxID
-		resultInputs[i] = wdk.StorageCreateTransactionSdkInput{
-			Vin:                   i,
-			SourceTxID:            txID,
-			SourceVout:            utxo.Vout,
-			SourceSatoshis:        utxo.Satoshis,
-			SourceLockingScript:   *utxo.LockingScript,
-			UnlockingScriptLength: txutils.P2PKHUnlockingScriptLength,
-			ProvidedBy:            wdk.ProvidedByStorage,
-			Type:                  utxo.Type,
-			DerivationPrefix:      utxo.DerivationPrefix,
-			DerivationSuffix:      utxo.DerivationSuffix,
-			SenderIdentityKey:     utxo.SenderIdentityKey,
+	resultInputs := make([]*wdk.StorageCreateTransactionSdkInput, 0, len(allocatedUTXOs)+len(xinputs))
+
+	var vin int
+	for _, allocatedOutputs := range utxos {
+		input, err := c.resultInputForKnownUTXO(ctx, vin, allocatedOutputs, includeRawTxs, wdk.ProvidedByStorage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create result input for known UTXO: %w", err)
 		}
 
-		if includeRawTxs {
-			sourceTx, err := c.provenTxRepo.FindProvenTxRawTX(ctx, txID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to find source transaction of TxID = %s: %w", txID, err)
-			}
-			if len(sourceTx) == 0 {
-				return nil, fmt.Errorf("source transaction of TxID = %s is empty", txID)
-			}
-			resultInputs[i].SourceTransaction = sourceTx
-		}
-
+		resultInputs = append(resultInputs, input)
+		vin++
 	}
+
+	for knownProvided := range xinputs.knownOutputs() {
+		input, err := c.resultInputForKnownUTXO(ctx, vin, knownProvided, includeRawTxs, wdk.ProvidedByYouAndStorage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create result input for provided-by-user and known UTXO: %w", err)
+		}
+
+		resultInputs = append(resultInputs, input)
+		vin++
+	}
+
+	for unknownProvided := range xinputs.providedByUserAndUnknown() {
+		input := &wdk.StorageCreateTransactionSdkInput{
+			Vin:                   vin,
+			SourceTxID:            unknownProvided.Outpoint.TxID,
+			SourceVout:            unknownProvided.Outpoint.Vout,
+			SourceSatoshis:        unknownProvided.Satoshis.Int64(),
+			SourceLockingScript:   unknownProvided.LockingScript,
+			UnlockingScriptLength: unknownProvided.UnlockingScriptLength,
+			ProvidedBy:            wdk.ProvidedByYou,
+			Type:                  wdk.OutputTypeCustom,
+		}
+
+		resultInputs = append(resultInputs, input)
+		vin++
+	}
+
 	return resultInputs, nil
+}
+
+func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *wdk.TableOutput, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
+	if utxo.TxID == nil {
+		return nil, fmt.Errorf("missing txid for outputID %d", utxo.OutputID)
+	}
+	if utxo.LockingScript == nil {
+		return nil, fmt.Errorf("missing locking script for outputID %d and TxID %s", utxo.OutputID, *utxo.TxID)
+	}
+	txID := *utxo.TxID
+	result := wdk.StorageCreateTransactionSdkInput{
+		Vin:                   vin,
+		SourceTxID:            txID,
+		SourceVout:            utxo.Vout,
+		SourceSatoshis:        utxo.Satoshis,
+		SourceLockingScript:   *utxo.LockingScript,
+		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(txutils.P2PKHUnlockingScriptLength)),
+		ProvidedBy:            providedBy,
+		Type:                  wdk.OutputType(utxo.Type),
+		DerivationPrefix:      utxo.DerivationPrefix,
+		DerivationSuffix:      utxo.DerivationSuffix,
+		SenderIdentityKey:     utxo.SenderIdentityKey,
+	}
+
+	if includeRawTxs {
+		sourceTx, err := c.provenTxRepo.FindProvenTxRawTX(ctx, txID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find source transaction of TxID = %s: %w", txID, err)
+		}
+		if len(sourceTx) == 0 {
+			return nil, fmt.Errorf("source transaction of TxID = %s is empty", txID)
+		}
+		result.SourceTransaction = sourceTx
+	}
+	return &result, nil
 }
 
 func (c *create) randomDerivation() (string, error) {
@@ -427,4 +474,13 @@ func (c *create) randomDerivation() (string, error) {
 	}
 
 	return suffix, nil
+}
+
+func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsIDs []uint) []uint {
+	ids := make([]uint, 0, len(allocated)+len(providedOutputsIDs))
+	ids = append(ids, providedOutputsIDs...)
+	for _, utxo := range allocated {
+		ids = append(ids, utxo.OutputID)
+	}
+	return ids
 }

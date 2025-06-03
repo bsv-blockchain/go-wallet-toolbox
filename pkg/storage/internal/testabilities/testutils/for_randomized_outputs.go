@@ -11,20 +11,20 @@ import (
 
 func FindOutput[T any](
 	t *testing.T,
-	outputs []T,
-	finder func(p T) bool,
+	outputs []*T,
+	finder func(p *T) bool,
 ) (*T, uint32) {
 	t.Helper()
 	index := slices.IndexFunc(outputs, finder)
 	require.GreaterOrEqual(t, index, 0)
 
-	return &outputs[index], uint32(index)
+	return outputs[index], uint32(index)
 }
 
 func CountOutputsWithCondition[T any](
 	t *testing.T,
-	outputs []T,
-	finder func(p T) bool,
+	outputs []*T,
+	finder func(p *T) bool,
 ) int {
 	t.Helper()
 
@@ -33,9 +33,9 @@ func CountOutputsWithCondition[T any](
 
 func SumOutputsWithCondition[T any, S types.Number](
 	t *testing.T,
-	outputs []T,
-	getter func(p T) S,
-	finder func(p T) bool,
+	outputs []*T,
+	getter func(p *T) S,
+	finder func(p *T) bool,
 ) S {
 	t.Helper()
 
