@@ -419,7 +419,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Nil(t, input.DerivationSuffix)
 }
 
-func TestCreateActionWithProvidedInputAndLessOutput(t *testing.T) {
+func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 

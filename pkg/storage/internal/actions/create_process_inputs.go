@@ -198,7 +198,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 	}
 
 	if !proc.trustSelf {
-		return proc.missingProofError(missingFullProofs, "provided inputs contain transactions that missing full proof data in the inputBEEF ")
+		return proc.missingProofError(missingFullProofs, "provided inputs contain transactions that are missing full proof in the inputBEEF")
 	}
 
 	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
