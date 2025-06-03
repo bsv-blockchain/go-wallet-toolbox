@@ -42,7 +42,6 @@ type CreateActionParams struct {
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
-	// TODO: use only the necessary fields (no redundant fields)
 	return CreateActionParams{
 		Version:                  args.Version,
 		LockTime:                 args.LockTime,
@@ -299,7 +298,7 @@ func (c *create) newOutputs(
 		all = append(all, &entity.NewOutput{
 			Satoshis:           satoshi.MustFrom(output.Satoshis),
 			Basket:             (*string)(output.Basket),
-			Spendable:          false, // TODO: Make sure, these outputs turn to spendable during "processAction"
+			Spendable:          false,
 			Change:             false,
 			ProvidedBy:         wdk.ProvidedByYou,
 			Type:               wdk.OutputTypeCustom,
@@ -331,7 +330,7 @@ func (c *create) newOutputs(
 		all = append(all, &entity.NewOutput{
 			Satoshis:         satoshis,
 			Basket:           to.Ptr(wdk.BasketNameForChange),
-			Spendable:        false, // TODO: Make sure, these outputs turn to spendable during "processAction"
+			Spendable:        false,
 			Change:           true,
 			ProvidedBy:       wdk.ProvidedByStorage,
 			Type:             wdk.OutputTypeP2PKH,

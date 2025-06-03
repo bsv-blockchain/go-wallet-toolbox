@@ -96,7 +96,7 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 		if out.Basket == nil || out.Basket.Name == "" {
 			continue
 		}
-		basketID, err := basketMaker.findOrCreate(tx, out.Basket.Name, wdk.DefaultNumberOfDesiredUTXOs, wdk.DefaultMinimumDesiredUTXOValue)
+		basketID, err := basketMaker.findOrCreate(tx, out.Basket.Name, wdk.NonChangeBasketConfiguration.NumberOfDesiredUTXOs, wdk.NonChangeBasketConfiguration.MinimumDesiredUTXOValue)
 		if err != nil || basketID == nil {
 			return fmt.Errorf("failed to find or create output basket: %w", err)
 		}
@@ -235,10 +235,11 @@ func (txs *Transactions) SpendTransaction(
 		}
 
 		return upsertProvenTxReq(tx, &entity.UpsertProvenTxReq{
-			TxID:      updatedTx.TxID,
-			Status:    updatedTx.ReqTxStatus,
-			RawTx:     updatedTx.RawTx,
-			InputBeef: updatedTx.InputBeef,
+			TxID:          updatedTx.TxID,
+			Status:        updatedTx.ReqTxStatus,
+			RawTx:         updatedTx.RawTx,
+			InputBeef:     updatedTx.InputBeef,
+			SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
 		}, historyNote, historyAttrs)
 	})
 	if err != nil {

@@ -5,8 +5,9 @@ import (
 )
 
 type UpsertProvenTxReq struct {
-	InputBeef []byte
-	RawTx     []byte
-	TxID      string
-	Status    wdk.ProvenTxReqStatus
+	InputBeef     []byte
+	RawTx         []byte
+	TxID          string
+	Status        wdk.ProvenTxReqStatus
+	SkipForStatus *wdk.ProvenTxReqStatus
 }

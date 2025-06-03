@@ -67,12 +67,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
-	// TODO: Don't upsert ProvenTxReq if the transaction is already known in ProvenTx (not *Req)
 	err = in.provenTxRepo.UpsertProvenTxReq(ctx, &entity.UpsertProvenTxReq{
-		TxID:      txID,
-		RawTx:     tx.Bytes(),
-		InputBeef: args.Tx,
-		Status:    wdk.ProvenTxStatusUnmined,
+		TxID:          txID,
+		RawTx:         tx.Bytes(),
+		InputBeef:     args.Tx,
+		Status:        wdk.ProvenTxStatusUnmined,
+		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
 	}, history.InternalizeActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert proven tx request: %w", err)
