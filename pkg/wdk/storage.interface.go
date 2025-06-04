@@ -51,4 +51,8 @@ type WalletStorageProvider interface {
 	// ListOutputs retrieves a list of wallet outputs based on the provided query parameters in the arguments.
 	// @Read
 	ListOutputs(ctx context.Context, auth AuthID, args ListOutputsArgs) (*ListOutputsResult, error)
+
+	// ListActions retrieves a list of wallet actions based on the provided query parameters in the arguments.
+	// @Read
+	ListActions(ctx context.Context, auth AuthID, args ListActionsArgs) (*ListActionsResult, error)
 }

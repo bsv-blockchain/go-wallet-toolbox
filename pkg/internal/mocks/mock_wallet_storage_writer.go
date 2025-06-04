@@ -101,6 +101,21 @@ func (mr *MockWalletStorageProviderMockRecorder) InternalizeAction(ctx, auth, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InternalizeAction", reflect.TypeOf((*MockWalletStorageProvider)(nil).InternalizeAction), ctx, auth, args)
 }
 
+// ListActions mocks base method.
+func (m *MockWalletStorageProvider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListActions", ctx, auth, args)
+	ret0, _ := ret[0].(*wdk.ListActionsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListActions indicates an expected call of ListActions.
+func (mr *MockWalletStorageProviderMockRecorder) ListActions(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActions", reflect.TypeOf((*MockWalletStorageProvider)(nil).ListActions), ctx, auth, args)
+}
+
 // ListCertificates mocks base method.
 func (m *MockWalletStorageProvider) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	m.ctrl.T.Helper()

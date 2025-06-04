@@ -8,6 +8,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -63,4 +64,33 @@ func (u *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 	}
 
 	return nil
+}
+
+func (o *OutputBaskets) FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error) {
+	if len(basketIDs) == 0 {
+		return []*wdk.TableOutputBasket{}, nil
+	}
+
+	var dbBaskets []*models.OutputBasket
+	if err := o.db.WithContext(ctx).
+		Model(&models.OutputBasket{}).
+		Where("basket_id IN ?", basketIDs).
+		Find(&dbBaskets).Error; err != nil {
+		return nil, fmt.Errorf("failed to load output baskets: %w", err)
+	}
+	return slices.Map(dbBaskets, mapModelToTableOutputBasket), nil
+}
+
+func mapModelToTableOutputBasket(model *models.OutputBasket) *wdk.TableOutputBasket {
+	return &wdk.TableOutputBasket{
+		BasketID:  model.BasketID,
+		UserID:    model.UserID,
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+		BasketConfiguration: wdk.BasketConfiguration{
+			Name:                    primitives.StringUnder300(model.Name),
+			NumberOfDesiredUTXOs:    model.NumberOfDesiredUTXOs,
+			MinimumDesiredUTXOValue: model.MinimumDesiredUTXOValue,
+		},
+	}
 }
