@@ -14,7 +14,7 @@ import (
 
 // Server represents the storage server exposing JSON-RPC API
 type Server struct {
-	provider       wdk.WalletStorageWriter
+	provider       wdk.WalletStorageProvider
 	logger         *slog.Logger
 	options        ServerOptions
 	authMiddleware *auth.Middleware
