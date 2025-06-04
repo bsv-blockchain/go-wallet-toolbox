@@ -45,7 +45,12 @@ func upsertProvenTxReq(db *gorm.DB, req *entity.UpsertProvenTxReq, historyNote s
 		return fmt.Errorf("cannot upsert proven tx req: %w", err)
 	}
 
-	model.Status = req.Status // TODO: Shouldn't we check the status first? Only if it's higher than the current one, we should update it.
+	if req.SkipForStatus != nil && model.Status == *req.SkipForStatus {
+		// If the status is the same as the one we want to skip, we do not update it.
+		return nil
+	}
+
+	model.Status = req.Status
 	model.TxID = req.TxID
 	model.RawTx = req.RawTx
 	model.InputBeef = req.InputBeef
