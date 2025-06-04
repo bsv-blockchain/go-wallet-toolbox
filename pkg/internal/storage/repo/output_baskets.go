@@ -7,7 +7,9 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OutputBaskets struct {
@@ -35,9 +37,30 @@ func (u *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 		UpdatedAt: outputBasket.UpdatedAt,
 
 		BasketConfiguration: wdk.BasketConfiguration{
-			Name:                    outputBasket.Name,
+			Name:                    primitives.StringUnder300(outputBasket.Name),
 			NumberOfDesiredUTXOs:    outputBasket.NumberOfDesiredUTXOs,
 			MinimumDesiredUTXOValue: outputBasket.MinimumDesiredUTXOValue,
 		},
 	}, nil
+}
+
+func (u *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) error {
+	err := u.db.WithContext(ctx).
+		Model(&models.OutputBasket{}).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}, {Name: "name"}},
+			DoUpdates: clause.AssignmentColumns([]string{"number_of_desired_utxos", "minimum_desired_utxo_value"}),
+		}).
+		Create(&models.OutputBasket{
+			UserID:                  userID,
+			Name:                    string(basket.Name),
+			NumberOfDesiredUTXOs:    basket.NumberOfDesiredUTXOs,
+			MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,
+		}).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert output basket: %w", err)
+	}
+
+	return nil
 }

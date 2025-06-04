@@ -81,8 +81,8 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, providedOutput.CustomInstructions, resultOutput.CustomInstructions)
 	assert.Equal(t, providedOutput.Tags, resultOutput.Tags)
 
+	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
-	assert.Equal(t, 1, len(result.Inputs))
 	assert.Equal(t, 0, input.Vin)
 	assert.NotEmpty(t, input.SourceTxID)
 	assert.Equal(t, uint32(0), input.SourceVout)
@@ -339,8 +339,8 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
+	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
-	assert.Equal(t, 1, len(result.Inputs))
 	assert.Equal(t, 0, input.Vin)
 	assert.Equal(t, input.SourceTxID, ownedTx.TxID().String())
 	assert.Equal(t, uint32(0), input.SourceVout)
@@ -361,9 +361,6 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 
 	// given:
 	activeStorage := given.Provider().GORM()
-
-	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	unknownParentTx := txtestabilities.GivenTX().
 		WithInput(100_002).
@@ -399,8 +396,8 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Equal(t, 16, len(result.Reference))
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 31, len(result.Outputs))
-	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 32, len(result.Outputs))
+	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef01fde80301010000f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d102010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100c7ddc5159fc630d28f4beeeafa73bc8d32f25b01909732d8d44b9cdbbc85888502206a0a6269bc47c633441a7b5aff120fd0760024badd660f24f713889c0ee70ecb4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a2860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d1000000006a4730440220291e6769c2383c82fd3c06de833589d9401dbb55838bdc02a76d8d7a98d3cac302207ad2de40877eab59981f2d46dba1cdefd40846db840ae24094eb07688b3e4ee64121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a0860100000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
 
@@ -408,8 +405,8 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
+	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
-	assert.Equal(t, 1, len(result.Inputs))
 	assert.Equal(t, 0, input.Vin)
 	assert.Equal(t, input.SourceTxID, unknownParentTx.ID())
 	assert.Equal(t, uint32(0), input.SourceVout)
@@ -420,6 +417,145 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Equal(t, wdk.OutputTypeCustom, input.Type)
 	assert.Nil(t, input.DerivationPrefix)
 	assert.Nil(t, input.DerivationSuffix)
+}
+
+func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	unknownParentTx := txtestabilities.GivenTX().
+		WithInput(100_002).
+		WithP2PKHOutput(100_000)
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsSignAction = true
+	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
+	args.Inputs = []wdk.ValidCreateActionInput{{
+		Outpoint: wdk.OutPoint{
+			TxID: unknownParentTx.ID(),
+			Vout: 0,
+		},
+		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+		InputDescription:      "provided unknown-by-storage input",
+	}}
+	inputBEEF, err := unknownParentTx.TX().BEEF()
+	require.NoError(t, err)
+	args.InputBEEF = inputBEEF
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 24, len(result.DerivationPrefix))
+	assert.Equal(t, 16, len(result.Reference))
+	assert.Equal(t, args.Version, result.Version)
+	assert.Equal(t, args.LockTime, result.LockTime)
+	assert.Equal(t, 33, len(result.Outputs))
+	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, "0200beef01fde80301010000f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d102010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100c7ddc5159fc630d28f4beeeafa73bc8d32f25b01909732d8d44b9cdbbc85888502206a0a6269bc47c633441a7b5aff120fd0760024badd660f24f713889c0ee70ecb4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a2860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d1000000006a4730440220291e6769c2383c82fd3c06de833589d9401dbb55838bdc02a76d8d7a98d3cac302207ad2de40877eab59981f2d46dba1cdefd40846db840ae24094eb07688b3e4ee64121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a0860100000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
+
+	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+		assert.Equal(t, "change", p.Purpose)
+	})
+
+	require.Equal(t, 1, len(result.Inputs))
+	input := result.Inputs[0]
+	assert.Equal(t, 0, input.Vin)
+	assert.Equal(t, input.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, uint32(0), input.SourceVout)
+	assert.Equal(t, int64(100_000), input.SourceSatoshis)
+	assert.NotEmpty(t, input.SourceLockingScript)
+	assert.Empty(t, input.SourceTransaction)
+	assert.Equal(t, wdk.ProvidedByYou, input.ProvidedBy)
+	assert.Equal(t, wdk.OutputTypeCustom, input.Type)
+	assert.Nil(t, input.DerivationPrefix)
+	assert.Nil(t, input.DerivationSuffix)
+}
+
+func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(25_000)
+
+	unknownParentTx := txtestabilities.GivenTX().
+		WithInput(25_002).
+		WithP2PKHOutput(25_000)
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsSignAction = true
+	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
+	args.Inputs = []wdk.ValidCreateActionInput{{
+		Outpoint: wdk.OutPoint{
+			TxID: unknownParentTx.ID(),
+			Vout: 0,
+		},
+		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+		InputDescription:      "provided unknown-by-storage input",
+	}}
+	inputBEEF, err := unknownParentTx.TX().BEEF()
+	require.NoError(t, err)
+	args.InputBEEF = inputBEEF
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 24, len(result.DerivationPrefix))
+	assert.Equal(t, 16, len(result.Reference))
+	assert.Equal(t, args.Version, result.Version)
+	assert.Equal(t, args.LockTime, result.LockTime)
+	assert.Equal(t, 9, len(result.Outputs))
+	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(7999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, "0200beef01fde80301010000afc74b81ac854adcf0d8f6c00dc0a472091a849ab6a6eba05e56a2081cfad85d02010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100960e5206bd3bad3df969139151f80c22a1d95bba33b4fa2624bee729a2270ad802207f97598bbe1bd6957190064eefbee29cb71400b708d8e3583b0e6284cc189ebf4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01aa610000000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001afc74b81ac854adcf0d8f6c00dc0a472091a849ab6a6eba05e56a2081cfad85d000000006a47304402207988fdfa676f7be346e97aab0a646445efcc8ace7ebca9ff56d6177cddfde6af02201aa2a53b255aab78d270237cc8585783f783382831b7573dc29f982e53ca1b404121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a8610000000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
+
+	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+		assert.Equal(t, "change", p.Purpose)
+	})
+
+	require.Equal(t, 2, len(result.Inputs))
+	providedInput := result.Inputs[0]
+	assert.Equal(t, 0, providedInput.Vin)
+	assert.Equal(t, providedInput.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, uint32(0), providedInput.SourceVout)
+	assert.Equal(t, int64(25_000), providedInput.SourceSatoshis)
+	assert.NotEmpty(t, providedInput.SourceLockingScript)
+	assert.Empty(t, providedInput.SourceTransaction)
+	assert.Equal(t, wdk.ProvidedByYou, providedInput.ProvidedBy)
+	assert.Equal(t, wdk.OutputTypeCustom, providedInput.Type)
+	assert.Nil(t, providedInput.DerivationPrefix)
+	assert.Nil(t, providedInput.DerivationSuffix)
+
+	allocatedInput := result.Inputs[1]
+	assert.Equal(t, 1, allocatedInput.Vin)
+	assert.Equal(t, allocatedInput.SourceTxID, ownedTxSpec.ID())
+	assert.Equal(t, uint32(0), allocatedInput.SourceVout)
+	assert.Equal(t, int64(25_000), allocatedInput.SourceSatoshis)
+	assert.Equal(t, wdk.ProvidedByStorage, allocatedInput.ProvidedBy)
+	assert.Equal(t, wdk.OutputTypeP2PKH, allocatedInput.Type)
+	assert.NotEmpty(t, allocatedInput.DerivationPrefix)
+	assert.NotEmpty(t, allocatedInput.DerivationSuffix)
 }
 
 func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
