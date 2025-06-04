@@ -285,7 +285,7 @@ func (p *process) processBroadcastSingleTxResult(aggBroadcastResult *wdk.Aggrega
 		sendWithResult.Status = wdk.SendWithResultStatusFailed
 		reviewActionResult.Status = wdk.ReviewActionResultStatusInvalidTx
 	case wdk.AggregatedPostedTxIDServiceError:
-		// TODO: check if it's ok - in TS there is also req.attempts++ - but I don't know how to do it here
+		// TODO: make sure, this tx will be attempted to be sent again in a periodic task (TaskSendWaiting)
 		reqStatus = wdk.ProvenTxStatusSending
 		txStatus = wdk.TxStatusSending
 		sendWithResult.Status = wdk.SendWithResultStatusSending
