@@ -7,6 +7,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 )
 
 type chunkerBaskets struct {
@@ -23,7 +24,7 @@ func (c *chunkerBaskets) Name() string {
 	return "baskets"
 }
 
-func (c *chunkerBaskets) MaxDivider() int {
+func (c *chunkerBaskets) MaxDivider() uint64 {
 	return 1
 }
 
@@ -32,11 +33,14 @@ func (c *chunkerBaskets) IsApplicable(requestedEntities OffsetsLookup) bool {
 	return ok
 }
 
-func (c *chunkerBaskets) Process(ctx context.Context, userID, limit, relativeOffset int, offsetsLookup OffsetsLookup, since *time.Time, result *wdk.SyncChunk) (num int, err error) {
+func (c *chunkerBaskets) Process(ctx context.Context, userID int, limit, relativeOffset uint64, offsetsLookup OffsetsLookup, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
 	offset := offsetsLookup[wdk.OutputBasketEntityName] + relativeOffset
 
 	opts := []queryopts.QueryOptsUnion{
-		queryopts.WithPage(queryopts.Paging{Limit: limit, Offset: offset}),
+		queryopts.WithPage(queryopts.Paging{
+			Limit:  must.ConvertToIntFromUnsigned(limit),
+			Offset: must.ConvertToIntFromUnsigned(offset),
+		}),
 	}
 
 	if since != nil {
@@ -50,5 +54,5 @@ func (c *chunkerBaskets) Process(ctx context.Context, userID, limit, relativeOff
 
 	result.OutputBaskets = append(result.OutputBaskets, rows...)
 
-	return len(rows), nil
+	return must.ConvertToUInt64(len(rows)), nil
 }

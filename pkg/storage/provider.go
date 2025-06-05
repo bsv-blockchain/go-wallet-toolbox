@@ -360,7 +360,9 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 // GetSyncChunk retrieves a sync chunk based on the provided arguments.
 // It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-	fmt.Printf("GetSyncChunk called with args: %#+v", args)
+	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
+	}
 
 	chunk, err := p.syncActions.GetSyncChunk(ctx, &args)
 	if err != nil {

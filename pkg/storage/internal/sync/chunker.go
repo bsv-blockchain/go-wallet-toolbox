@@ -9,7 +9,7 @@ import (
 
 type Chunker interface {
 	Name() string
-	MaxDivider() int
+	MaxDivider() uint64
 	IsApplicable(requestedEntities OffsetsLookup) bool
-	Process(ctx context.Context, userID, limit, relativeOffset int, offsetsLookup OffsetsLookup, since *time.Time, result *wdk.SyncChunk) (num int, err error)
+	Process(ctx context.Context, userID int, limit, relativeOffset uint64, offsetsLookup OffsetsLookup, since *time.Time, result *wdk.SyncChunk) (num uint64, err error)
 }

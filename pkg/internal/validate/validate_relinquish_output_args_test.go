@@ -1,4 +1,4 @@
-package validate
+package validate_test
 
 import (
 	"strings"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +42,7 @@ func TestValidRelinquishOutputArgs_Success(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidRelinquishOutputArgs(test.args)
+			err := validate.ValidRelinquishOutputArgs(test.args)
 			require.NoError(t, err)
 		})
 	}
@@ -79,7 +80,7 @@ func TestValidRelinquishOutputArgs_Error_InvalidOutpoint(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := ValidRelinquishOutputArgs(test.args)
+			err := validate.ValidRelinquishOutputArgs(test.args)
 			require.Error(t, err)
 		})
 	}
@@ -91,6 +92,6 @@ func TestValidRelinquishOutputArgs_Error_InvalidBasket(t *testing.T) {
 		Basket: strings.Repeat("a", 301),
 	}
 
-	err := ValidRelinquishOutputArgs(args)
+	err := validate.ValidRelinquishOutputArgs(args)
 	require.Error(t, err)
 }

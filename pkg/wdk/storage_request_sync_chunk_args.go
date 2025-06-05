@@ -20,10 +20,10 @@ type RequestSyncChunkArgs struct {
 
 	// MaxRoughSize - A rough limit on how large the response should be.
 	// The item that exceeds the limit is included and ends adding more items.
-	MaxRoughSize int `json:"maxRoughSize"`
+	MaxRoughSize uint64 `json:"maxRoughSize"`
 
 	// MaxItems - The maximum number of items (records) to be returned.
-	MaxItems int `json:"maxItems"`
+	MaxItems uint64 `json:"maxItems"`
 
 	// Offsets - For each entity in dependency order, the offset at which to start returning items from 'since'.
 	Offsets []SyncOffsets `json:"offsets"`
@@ -34,7 +34,7 @@ type RequestSyncChunkArgs struct {
 // Helps determine where to resume fetching data for incremental sync tasks.
 type SyncOffsets struct {
 	Name   EntityName `json:"name"`
-	Offset int        `json:"offset"`
+	Offset uint64     `json:"offset"`
 }
 
 // SyncChunk contains a slice of data to synchronize between storages for a particular user.

@@ -9,7 +9,9 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type syncChunkAction struct {
@@ -54,10 +56,8 @@ func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyn
 }
 
 func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChunkArgs, userID int, result *wdk.SyncChunk) error {
-	var num int
 	var err error
-
-	itemsCounter := 0
+	var itemsCounter uint64
 
 	offsetsLookup := s.makeOffsetsLookup(args)
 
@@ -66,16 +66,19 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 			continue
 		}
 
-		relativeOffset := 0
+		var relativeOffset uint64
 		for range s.safeLoopIterator(1000) {
 			if err = ctx.Err(); err != nil {
 				return fmt.Errorf("context canceled, aborting: %w", err)
 			}
 
 			freeSlots := args.MaxItems - itemsCounter
-			limit := min(freeSlots, max(10, args.MaxItems/chunker.MaxDivider()))
+			limit, err := to.UInt64(min(freeSlots, max(10, args.MaxItems/chunker.MaxDivider())))
+			if err != nil {
+				return fmt.Errorf("failed to calculate limit: %w", err)
+			}
 
-			num, err = chunker.Process(ctx, userID, limit, relativeOffset, offsetsLookup, args.Since, result)
+			num, err := chunker.Process(ctx, userID, limit, relativeOffset, offsetsLookup, args.Since, result)
 			if err != nil {
 				return fmt.Errorf("chunker %s failed: %w", chunker.Name(), err)
 			}
@@ -110,11 +113,11 @@ func (s *syncChunkAction) safeLoopIterator(maxIterations int) iter.Seq[int] {
 	return seq.RangeWithStep(0, maxIterations, 1)
 }
 
-func (s *syncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) int {
+func (s *syncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) uint64 {
 	// TODO it could be less precise and use a more efficient way to estimate size
 	b, err := json.Marshal(chunk)
 	if err != nil {
 		return 0
 	}
-	return len(b)
+	return must.ConvertToUInt64(len(b))
 }

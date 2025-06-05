@@ -42,9 +42,10 @@ func Since(since *queryopts.Since) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		since.ApplyDefaults()
 		return db.Where(
-			"?? >= ?",
-			clause.Column{Name: since.Field},
-			since.Time,
+			&clause.Gte{
+				Column: clause.Column{Name: since.Field},
+				Value:  since.Time,
+			},
 		)
 	}
 }
