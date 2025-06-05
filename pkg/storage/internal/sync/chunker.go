@@ -2,8 +2,9 @@ package sync
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type Chunker interface {

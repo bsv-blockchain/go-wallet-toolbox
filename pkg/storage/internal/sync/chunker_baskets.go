@@ -3,9 +3,10 @@ package sync
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"time"
 )
 
 type chunkerBaskets struct {

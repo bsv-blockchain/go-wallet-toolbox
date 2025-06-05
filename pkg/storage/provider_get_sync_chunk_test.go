@@ -1,13 +1,14 @@
 package storage_test
 
 import (
+	"testing"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 
 func TestGetSyncChunk(t *testing.T) {
 	given, cleanup := testabilities.Given(t)

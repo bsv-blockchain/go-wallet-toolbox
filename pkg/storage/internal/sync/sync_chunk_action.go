@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
+	"log/slog"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
-	"iter"
-	"log/slog"
 )
 
 type syncChunkAction struct {
@@ -67,6 +68,10 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 
 		relativeOffset := 0
 		for range s.safeLoopIterator(1000) {
+			if err = ctx.Err(); err != nil {
+				return fmt.Errorf("context canceled, aborting: %w", err)
+			}
+
 			freeSlots := args.MaxItems - itemsCounter
 			limit := min(freeSlots, max(10, args.MaxItems/chunker.MaxDivider()))
 

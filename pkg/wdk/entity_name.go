@@ -1,7 +1,9 @@
 package wdk
 
+// EntityName represents the name of an entity aligned with the API (NOTE: These are not the same as the database table names in this project).
 type EntityName string
 
+// All entity names used in the storage API
 const (
 	ProvenTxEntityName       EntityName = "provenTx"
 	OutputBasketEntityName  EntityName = "outputBasket"
@@ -16,19 +18,3 @@ const (
 	CertificateFieldEntityName EntityName = "certificateField"
 	CommissionEntityName     EntityName = "commission"
 )
-
-var allEntityNames = []EntityName{
-	ProvenTxEntityName,
-	OutputBasketEntityName,
-	TransactionEntityName,
-	ProvenTxReqEntityName,
-	TxLabelEntityName,
-	TxLabelMapEntityName,
-	OutputEntityName,
-	OutputTagEntityName,
-	OutputTagMapEntityName,
-	CertificateEntityName,
-	CertificateFieldEntityName,
-	CommissionEntityName,
-}
-

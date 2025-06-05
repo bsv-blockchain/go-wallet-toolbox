@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -15,6 +14,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/actions"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -357,6 +357,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 	return nil
 }
 
+// GetSyncChunk retrieves a sync chunk based on the provided arguments.
+// It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
 	fmt.Printf("GetSyncChunk called with args: %#+v", args)
 

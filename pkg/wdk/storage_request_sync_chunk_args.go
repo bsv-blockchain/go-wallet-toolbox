@@ -37,6 +37,9 @@ type SyncOffsets struct {
 	Offset int        `json:"offset"`
 }
 
+// SyncChunk contains a slice of data to synchronize between storages for a particular user.
+// It includes storage identity keys and chunks of entities.
+// Used to transfer a consistent batch of data during synchronization operations between wallets or servers.
 type SyncChunk struct {
 	FromStorageIdentityKey string `json:"fromStorageIdentityKey"`
 	ToStorageIdentityKey   string `json:"toStorageIdentityKey"`
