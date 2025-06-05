@@ -19,61 +19,82 @@ var _ sdk.Interface = (*Wallet)(nil)
 
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
-	proto      *sdk.ProtoWallet
-	storage    wdk.WalletStorage
-	keyDeriver *sdk.KeyDeriver
+	proto   *sdk.ProtoWallet
+	storage wdk.WalletStorage
 	wallet_opts.Opts
+}
+
+type Key interface {
+	string | *ec.PrivateKey | *sdk.KeyDeriver
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
 // TODO: add support for opts pattern and handle optional parameters as it is in the Typescript version.
-func New[K string | *sdk.KeyDeriver](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
-	var keyDeriver *sdk.KeyDeriver
-	switch k := any(key).(type) {
-	case string:
-		priv, err := ec.PrivateKeyFromHex(k)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse provided private key: %w", err)
-		}
-		keyDeriver = sdk.NewKeyDeriver(priv)
-	case *sdk.KeyDeriver:
-		keyDeriver = k
-	}
-
+func New[K Key](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
-	}
-
-	if keyDeriver == nil {
-		return nil, fmt.Errorf("deriver must be provided")
 	}
 
 	if activeStorage == nil {
 		return nil, fmt.Errorf("active storage must be provided")
 	}
 
-	proto, err := sdk.NewProtoWallet(sdk.ProtoWalletArgs{
-		Type:       sdk.ProtoWalletArgsTypeKeyDeriver,
-		KeyDeriver: keyDeriver,
-	})
+	proto, err := createProtoWallet(key, err)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
+		return nil, err
 	}
 
-	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKeyHex(), activeStorage)
+	identityKey, err := proto.GetPublicKey(context.Background(), sdk.GetPublicKeyArgs{IdentityKey: true}, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get identity key: %w", err)
+	}
+
+	storageManager := storage.NewWalletStorageManager(identityKey.PublicKey.ToDERHex(), activeStorage)
 
 	return &Wallet{
-		proto:      proto,
-		keyDeriver: keyDeriver,
-		storage:    storageManager,
+		proto:   proto,
+		storage: storageManager,
 		Opts: wallet_opts.Opts{
 			IncludeAllSourceTransactions: true,
 			AutoKnownTxids:               false,
 			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
 		},
 	}, nil
+}
+
+func createProtoWallet[K Key](key K, err error) (*sdk.ProtoWallet, error) {
+	var protoWalletArgs sdk.ProtoWalletArgs
+	switch k := any(key).(type) {
+	case string:
+		priv, err := ec.PrivateKeyFromHex(k)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse provided private key: %w", err)
+		}
+		protoWalletArgs = sdk.ProtoWalletArgs{
+			Type:       sdk.ProtoWalletArgsTypePrivateKey,
+			PrivateKey: priv,
+		}
+	case *ec.PrivateKey:
+		protoWalletArgs = sdk.ProtoWalletArgs{
+			Type:       sdk.ProtoWalletArgsTypePrivateKey,
+			PrivateKey: k,
+		}
+	case *sdk.KeyDeriver:
+		protoWalletArgs = sdk.ProtoWalletArgs{
+			Type:       sdk.ProtoWalletArgsTypeKeyDeriver,
+			KeyDeriver: k,
+		}
+	default:
+		panic(fmt.Sprintf("unexpected type (%T) of key argument, looks like an error in the generics definition", k))
+	}
+
+	proto, err := sdk.NewProtoWallet(protoWalletArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
+	}
+	return proto, nil
 }
 
 // GetPublicKey retrieves a derived or identity public key based on the requested protocol, key ID, counterparty, and other factors.
