@@ -9,7 +9,10 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 var _ sdk.Interface = (*Wallet)(nil)
@@ -19,11 +22,25 @@ type Wallet struct {
 	proto      *sdk.ProtoWallet
 	storage    wdk.WalletStorage
 	keyDeriver *sdk.KeyDeriver
+	wallet_opts.Opts
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
-func New(chain defs.BSVNetwork, keyDeriver *sdk.KeyDeriver, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
+// TODO: add support for opts pattern and handle optional parameters as it is in the Typescript version.
+func New[K string | *sdk.KeyDeriver](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
+	var keyDeriver *sdk.KeyDeriver
+	switch k := any(key).(type) {
+	case string:
+		priv, err := ec.PrivateKeyFromHex(k)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse provided private key: %w", err)
+		}
+		keyDeriver = sdk.NewKeyDeriver(priv)
+	case *sdk.KeyDeriver:
+		keyDeriver = k
+	}
+
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
@@ -51,6 +68,11 @@ func New(chain defs.BSVNetwork, keyDeriver *sdk.KeyDeriver, activeStorage wdk.Wa
 		proto:      proto,
 		keyDeriver: keyDeriver,
 		storage:    storageManager,
+		Opts: wallet_opts.Opts{
+			IncludeAllSourceTransactions: true,
+			AutoKnownTxids:               false,
+			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
+		},
 	}, nil
 }
 
@@ -126,8 +148,18 @@ func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureAr
 
 // CreateAction creates a new Bitcoin transaction based on the provided inputs, outputs, labels, locks, and other options.
 func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	// TODO: mapping.MapCreateActionArgs should handle known tx ids - needs some merging and validation of BEEF
+	wdkArgs := mapping.MapCreateActionArgs(args, w.Opts)
+
+	if err := validate.WalletCreateActionArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid create action args: %w", err)
+	}
+
+	return nil, nil
 }
 
 // SignAction signs a transaction previously created using CreateAction.

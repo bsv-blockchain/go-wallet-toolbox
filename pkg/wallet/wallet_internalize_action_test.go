@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInternalizeActionArgsValidation(t *testing.T) {
+func TestWalletInternalizeActionArgsValidation(t *testing.T) {
 	errorTestCases := map[string]struct {
 		originator string
 		args       func() sdk.InternalizeActionArgs

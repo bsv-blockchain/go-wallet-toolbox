@@ -7,6 +7,11 @@ import (
 )
 
 func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
+	err := WalletCreateActionArgs(args)
+	if err != nil {
+		return err
+	}
+
 	deducedIsSendWith := len(args.Options.SendWith) > 0
 	if args.IsSendWith != deducedIsSendWith {
 		return fmt.Errorf("inconsistent IsSendWith with Options.SendWith")
@@ -41,6 +46,10 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("inconsistent IsNoSend with Options.NoSend")
 	}
 
+	return nil
+}
+
+func WalletCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 	if err := args.Description.Validate(); err != nil {
 		return fmt.Errorf("the description parameter must be %w", err)
 	}
@@ -67,7 +76,6 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 			return fmt.Errorf("invalid output as %d: %w", i, err)
 		}
 	}
-
 	return nil
 }
 
