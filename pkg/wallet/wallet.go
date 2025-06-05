@@ -153,13 +153,16 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	}
 
 	// TODO: mapping.MapCreateActionArgs should handle known tx ids - needs some merging and validation of BEEF
-	wdkArgs := mapping.MapCreateActionArgs(args, w.Opts)
+	wdkArgs, err := mapping.MapCreateActionArgs(args, w.Opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process provided arguments: %w", err)
+	}
 
 	if err := validate.WalletCreateActionArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid create action args: %w", err)
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("CreateAction is not yet fully implemented")
 }
 
 // SignAction signs a transaction previously created using CreateAction.
