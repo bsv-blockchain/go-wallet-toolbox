@@ -6,7 +6,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/paging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -54,7 +54,7 @@ func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args w
 
 func (c *Certificates) ListAndCountCertificates(ctx context.Context, userID int, opts ListCertificatesActionParams) (certificates []*models.Certificate, totalRows int64, err error) {
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		page := &paging.Page{}
+		page := &queryopts.Paging{}
 
 		// parse offset and limit
 		if opts.Limit > 0 {

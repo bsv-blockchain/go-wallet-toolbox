@@ -26,6 +26,8 @@ type ProviderFixture interface {
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
+
+	StorageIdentityKey() string
 }
 
 type providerFixture struct {
@@ -118,9 +120,17 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	return activeStorage
 }
 
+func (p *providerFixture) StorageIdentityKey() string {
+	p.t.Helper()
+	identityKey, err := wdk.IdentityKey(fixtures.StorageServerPrivKey)
+	require.NoError(p.t, err)
+
+	return identityKey
+}
+
 func (p *providerFixture) seedUsers(provider *storage.Provider) {
 	for _, user := range testusers.All() {
-		res, err := provider.FindOrInsertUser(context.Background(), user.PrivKey)
+		res, err := provider.FindOrInsertUser(context.Background(), user.IdentityKey(p.t))
 		p.require.NoError(err)
 
 		user.ID = res.User.UserID

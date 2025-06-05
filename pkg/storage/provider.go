@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -28,9 +29,10 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	settings *wdk.TableSettings
-	repo     *repo.Repositories
-	actions  *actions.Actions
+	settings    *wdk.TableSettings
+	repo        *repo.Repositories
+	actions     *actions.Actions
+	syncActions *sync.Actions
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -82,8 +84,9 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Chain:    config.Chain,
 		Database: db,
 
-		repo:    repos,
-		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		repo:        repos,
+		actions:     actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		syncActions: sync.New(logger, repos),
 	}, nil
 }
 
@@ -353,3 +356,40 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 	}
 	return nil
 }
+
+func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	fmt.Printf("GetSyncChunk called with args: %#+v", args)
+
+	chunk, err := p.syncActions.GetSyncChunk(ctx, &args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sync chunk: %w", err)
+	}
+	return chunk, nil
+}
+
+/*
+Initial request
+RequestSyncChunkArgs: {
+    FromStorageIdentityKey: "028f2daab7808b79368d99eef1ebc2d35cdafe3932cafe3d83cf17837af034ec29"
+    ToStorageIdentityKey:   "7146d1a1d1c237ca7b744e77adc98c3c597b6b87f8bcbcb2282e15bc71d04cbad7"
+    IdentityKey:            "0320bbfb879bbd6761ecd2962badbb41ba9d60ca88327d78b07ae7141af6b6c810"
+    Since:                  <nil>
+    MaxRoughSize:           10000000
+    MaxItems:               1000
+    Offsets: [
+        { Name: "provenTx",         Offset: 0 }
+        { Name: "outputBasket",     Offset: 0 }
+        { Name: "outputTag",        Offset: 0 }
+        { Name: "txLabel",          Offset: 0 }
+        { Name: "transaction",      Offset: 0 }
+        { Name: "output",           Offset: 0 }
+        { Name: "txLabelMap",       Offset: 0 }
+        { Name: "outputTagMap",     Offset: 0 }
+        { Name: "certificate",      Offset: 0 }
+        { Name: "certificateField", Offset: 0 }
+        { Name: "commission",       Offset: 0 }
+        { Name: "provenTxReq",      Offset: 0 }
+    ]
+}
+
+*/

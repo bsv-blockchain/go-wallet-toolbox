@@ -6,7 +6,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/paging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +20,7 @@ func NewUTXOs(db *gorm.DB) *UTXOs {
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
+func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *queryopts.Paging, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
 	var result []*models.UserUTXO
 
 	query := u.db.WithContext(ctx).Scopes(

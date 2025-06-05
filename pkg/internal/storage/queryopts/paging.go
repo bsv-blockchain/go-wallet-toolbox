@@ -1,16 +1,16 @@
-package paging
+package queryopts
 
 import "strings"
 
-type Page struct {
+type Paging struct {
 	Limit  int
 	Offset int
 	Sort   string
 	SortBy string
 }
 
-// ApplyDefaults sets default values for a Page object (in place).
-func (p *Page) ApplyDefaults() {
+// ApplyDefaults sets default values for a Paging object (in place).
+func (p *Paging) ApplyDefaults() {
 	if p.Limit <= 0 {
 		p.Limit = -1
 	}
@@ -27,6 +27,10 @@ func (p *Page) ApplyDefaults() {
 	}
 }
 
-func (p *Page) Next() {
+func (p *Paging) Next() {
 	p.Offset += p.Limit
+}
+
+func (p *Paging) IsDesc() bool {
+	return strings.ToLower(p.Sort) == "desc"
 }

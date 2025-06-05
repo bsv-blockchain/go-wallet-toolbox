@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/go-softwarelab/common/pkg/slices"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -28,16 +31,36 @@ func (u *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 		return nil, fmt.Errorf("failed to find output basket: %w", err)
 	}
 
+	return mapToTableOutputBasket(outputBasket), nil
+}
+
+func (u *OutputBaskets) FindBasketsByUserID(ctx context.Context, userID int, opts ...queryopts.QueryOptsUnion) ([]*wdk.TableOutputBasket, error) {
+	var outputBaskets []*models.OutputBasket
+	err := u.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID)).
+		Scopes(scopes.FromQueryOpts(opts...)...).
+		Find(&outputBaskets).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find output baskets: %w", err)
+	}
+
+	return slices.Map(outputBaskets, mapToTableOutputBasket), nil
+}
+
+func mapToTableOutputBasket(basket *models.OutputBasket) *wdk.TableOutputBasket {
+	if basket == nil {
+		return nil
+	}
 	return &wdk.TableOutputBasket{
-		BasketID:  outputBasket.BasketID,
-		UserID:    outputBasket.UserID,
-		CreatedAt: outputBasket.CreatedAt,
-		UpdatedAt: outputBasket.UpdatedAt,
+		BasketID:  basket.BasketID,
+		UserID:    basket.UserID,
+		CreatedAt: basket.CreatedAt,
+		UpdatedAt: basket.UpdatedAt,
 
 		BasketConfiguration: wdk.BasketConfiguration{
-			Name:                    outputBasket.Name,
-			NumberOfDesiredUTXOs:    outputBasket.NumberOfDesiredUTXOs,
-			MinimumDesiredUTXOValue: outputBasket.MinimumDesiredUTXOValue,
+			Name:                    basket.Name,
+			NumberOfDesiredUTXOs:    basket.NumberOfDesiredUTXOs,
+			MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,
 		},
-	}, nil
+	}
 }
