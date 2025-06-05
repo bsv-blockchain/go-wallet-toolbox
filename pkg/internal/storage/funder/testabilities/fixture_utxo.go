@@ -104,7 +104,7 @@ func (f *userUtxoFixture) Stored() {
 			UpdatedAt:               FirstCreatedAt,
 			DeletedAt:               gorm.DeletedAt{},
 			BasketID:                f.basket.BasketID,
-			Name:                    f.basket.Name,
+			Name:                    string(f.basket.Name),
 			UserID:                  f.basket.UserID,
 			NumberOfDesiredUTXOs:    f.basket.NumberOfDesiredUTXOs,
 			MinimumDesiredUTXOValue: f.basket.MinimumDesiredUTXOValue,

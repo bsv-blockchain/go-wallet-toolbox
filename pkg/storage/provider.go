@@ -357,6 +357,44 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args s
 	return nil
 }
 
+// ConfigureBasket validates and updates the basket configuration for the authorized user in the repository.
+// Returns an error if the user is unauthorized, input is invalid, or the update fails.
+// NOTE: For "change basket" use wdk.BasketNameForChange ("default") as the basket name.
+func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wdk.BasketConfiguration) error {
+	if auth.UserID == nil {
+		return ErrAuthorization
+	}
+
+	if err := validate.ValidBasketConfiguration(&args); err != nil {
+		return fmt.Errorf("invalid basket configuration: %w", err)
+	}
+
+	err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
+	if err != nil {
+		return fmt.Errorf("failed to update basket configuration: %w", err)
+	}
+	return nil
+}
+
+// ListActions will list actions with provided args
+// It returns a paginated list of actions for the authenticated user.
+// The result includes the total number of actions and the actions themselves.
+func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	if err := validate.ListActionsArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid listActions args: %w", err)
+	}
+
+	result, err := p.actions.ListActions(ctx, auth, &args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list actions: %w", err)
+	}
+	return result, nil
+}
+
 // GetSyncChunk retrieves a sync chunk based on the provided arguments.
 // It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {

@@ -17,12 +17,16 @@ const (
 	// MinimumDesiredUTXOValueForChange is the minimum value of UTXOs in the change output basket,
 	// it influences the number of change outputs created during createAction
 	MinimumDesiredUTXOValueForChange = 1000
-
-	// DefaultNumberOfDesiredUTXOs is the default number of desired UTXOs for non-change output baskets.
-	// During createAction or internalizeAction, when a user provides an output with non-existing basket name, it will be created with this number of desired UTXOs.
-	DefaultNumberOfDesiredUTXOs = 0 // TODO: Even though in TS version this is set to 0, we should double check that if this is intentional or not
-
-	// DefaultMinimumDesiredUTXOValue is the default minimum value of UTXOs for non-change output baskets.
-	// During createAction or internalizeAction, when a user provides an output with non-existing basket name, it will be created with this minimum value.
-	DefaultMinimumDesiredUTXOValue = 0 // TODO: Even though in TS version this is set to 0, we should double check that if this is intentional or not
 )
+
+// NonChangeBasketConfiguration defines default configuration for non-change output baskets.
+// NOTE: Those parameters are used only by funder.Funder for "change" output baskets - so they are not applicable for non-change baskets.
+// That's why the values are set to 0.
+// This constant is made only to describe this fact and to avoid confusion.
+var NonChangeBasketConfiguration = struct {
+	NumberOfDesiredUTXOs    int64
+	MinimumDesiredUTXOValue uint64
+}{
+	NumberOfDesiredUTXOs:    0,
+	MinimumDesiredUTXOValue: 0,
+}

@@ -15,6 +15,7 @@ type Actions struct {
 	*process
 	*synchronizeTxStatuses
 	*listOutputs
+	*listActions
 }
 
 func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services, syncTxStatusesConfig defs.SynchronizeTxStatuses) *Actions {
@@ -37,7 +38,8 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			randomizer,
 		),
 		process:               newProcessAction(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, services),
-		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.ProvenTxReq),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.ProvenTxReq),
+		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.ProvenTxReq),
+		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, repos.OutputBaskets),
 	}
 }

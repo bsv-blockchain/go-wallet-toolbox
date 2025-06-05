@@ -45,7 +45,12 @@ func upsertProvenTxReq(db *gorm.DB, req *entity.UpsertProvenTxReq, historyNote s
 		return fmt.Errorf("cannot upsert proven tx req: %w", err)
 	}
 
-	model.Status = req.Status // TODO: Shouldn't we check the status first? Only if it's higher than the current one, we should update it.
+	if req.SkipForStatus != nil && model.Status == *req.SkipForStatus {
+		// If the status is the same as the one we want to skip, we do not update it.
+		return nil
+	}
+
+	model.Status = req.Status
 	model.TxID = req.TxID
 	model.RawTx = req.RawTx
 	model.InputBeef = req.InputBeef
@@ -82,6 +87,32 @@ func (p *ProvenTxReq) FindProvenTxRawTX(ctx context.Context, txID string) ([]byt
 		return nil, fmt.Errorf("failed to find proven tx raw tx: %w", err)
 	}
 	return model.RawTx, nil
+}
+
+func (p *ProvenTxReq) FindProvenTxRawTXs(ctx context.Context, txIDs []string) (map[string][]byte, error) {
+	if len(txIDs) == 0 {
+		return make(map[string][]byte), nil
+	}
+
+	var results []struct {
+		TxID  string
+		RawTx []byte
+	}
+
+	err := p.db.WithContext(ctx).
+		Model(&models.ProvenTxReq{}).
+		Select("tx_id, raw_tx").
+		Where("tx_id IN ?", txIDs).
+		Scan(&results).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch fetch raw tx: %w", err)
+	}
+
+	rawTxMap := make(map[string][]byte)
+	for _, r := range results {
+		rawTxMap[r.TxID] = r.RawTx
+	}
+	return rawTxMap, nil
 }
 
 func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error) {

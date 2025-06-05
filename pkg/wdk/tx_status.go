@@ -16,6 +16,11 @@ const (
 	TxStatusUnfail      TxStatus = "unfail"
 )
 
+// String returns the string representation of the TxStatus.
+func (s TxStatus) String() string {
+	return string(s)
+}
+
 // ProvenTxReqStatus represents the status of a proven transaction in a defined processing state as a string.
 type ProvenTxReqStatus string
 

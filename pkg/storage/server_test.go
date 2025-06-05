@@ -520,4 +520,53 @@ func TestRPCCommunication(t *testing.T) {
 		require.NotNil(t, actualResult)
 		assert.EqualValues(t, expectedResult, actualResult)
 	})
+
+	t.Run("ListActions", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// Given:
+		mockStorage := given.MockProvider()
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage)
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClient()
+		defer cleanupCli()
+
+		args := wdk.ListActionsArgs{
+			Limit:  10,
+			Offset: 0,
+		}
+
+		expectedResult := &wdk.ListActionsResult{
+			TotalActions: 1,
+			Actions: []wdk.WalletAction{
+				{
+					TxID:        "abcd1234",
+					Satoshis:    1000,
+					Status:      "completed",
+					IsOutgoing:  false,
+					Description: "Test transaction",
+					Version:     1,
+					LockTime:    0,
+					Labels:      []string{"label1"},
+				},
+			},
+		}
+
+		mockStorage.EXPECT().
+			ListActions(gomock.Any(), testusers.Alice.AuthID(), args).
+			Return(expectedResult, nil)
+
+		// When:
+		actualResult, err := client.ListActions(context.Background(), testusers.Alice.AuthID(), args)
+
+		// Then:
+		require.NoError(t, err)
+		require.NotNil(t, actualResult)
+		assert.EqualValues(t, expectedResult, actualResult)
+	})
 }

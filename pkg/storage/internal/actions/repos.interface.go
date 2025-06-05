@@ -11,6 +11,7 @@ import (
 
 type BasketRepo interface {
 	FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error)
+	FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error)
 }
 
 type OutputRepo interface {
@@ -18,6 +19,7 @@ type OutputRepo interface {
 	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*wdk.TableOutput, error)
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*wdk.TableOutput, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error)
+	FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []uint) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error)
 }
 
 type TransactionsRepo interface {
@@ -38,6 +40,8 @@ type TransactionsRepo interface {
 		historyNote string,
 		historyAttrs map[string]any,
 	) error
+	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*wdk.TableTransaction, int64, error)
+	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 }
 
 type ProvenTxRepo interface {
@@ -51,4 +55,5 @@ type ProvenTxRepo interface {
 	ExistsAllProvenTxs(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
 	IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
 	SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
+	FindProvenTxRawTXs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 }

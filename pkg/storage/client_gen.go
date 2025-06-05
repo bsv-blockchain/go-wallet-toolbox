@@ -62,6 +62,11 @@ func (c *WalletStorageProviderClient) ListOutputs(ctx context.Context, auth wdk.
 	return c.client.ListOutputs(ctx, auth, args)
 }
 
+// ListActions retrieves a list of wallet actions based on the provided query parameters in the arguments.
+func (c *WalletStorageProviderClient) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	return c.client.ListActions(ctx, auth, args)
+}
+
 type rpcWalletStorageProvider struct {
 	Migrate               func(context.Context, string, string) (string, error)
 	MakeAvailable         func(context.Context) (*wdk.TableSettings, error)
@@ -73,4 +78,5 @@ type rpcWalletStorageProvider struct {
 	RelinquishCertificate func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
 	ListCertificates      func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
 	ListOutputs           func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
+	ListActions           func(context.Context, wdk.AuthID, wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
 }
