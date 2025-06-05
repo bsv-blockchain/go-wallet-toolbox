@@ -14,6 +14,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
+const maxIterations = 1000
+
 type syncChunkAction struct {
 	logger   *slog.Logger
 	repo     Repository
@@ -67,7 +69,8 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 		}
 
 		var relativeOffset uint64
-		for range s.safeLoopIterator(1000) {
+
+		for range s.safeLoopIterator(maxIterations) {
 			if err = ctx.Err(); err != nil {
 				return fmt.Errorf("context canceled, aborting: %w", err)
 			}
