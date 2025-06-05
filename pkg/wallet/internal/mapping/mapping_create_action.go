@@ -1,8 +1,7 @@
 package mapping
 
 import (
-	"strconv"
-	"strings"
+	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
@@ -11,21 +10,32 @@ import (
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // MapCreateActionArgs maps sdk.CreateActionArgs to wdk.ValidCreateActionArgs
-func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) wdk.ValidCreateActionArgs {
+func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) (wdk.ValidCreateActionArgs, error) {
+	inputs, err := seqerr.Collect(seq.MapOrErr(seq.FromSlice(args.Inputs), mapCreateActionInput))
+	if err != nil {
+		return wdk.ValidCreateActionArgs{}, err
+	}
+
+	options, err := mapCreateActionOptions(optional.OfPtr(args.Options).OrZeroValue(), opts)
+	if err != nil {
+		return wdk.ValidCreateActionArgs{}, err
+	}
+
 	wdkArgs := &wdk.ValidCreateActionArgs{
 		Description: primitives.String5to2000Bytes(args.Description),
 		InputBEEF:   args.InputBEEF,
-		Inputs:      slices.Map(args.Inputs, mapCreateActionInput),
+		Inputs:      inputs,
 		Outputs:     slices.Map(args.Outputs, mapCreateActionOutput),
 		LockTime:    args.LockTime,
 		Version:     args.Version,
 		Labels:      slices.Map(args.Labels, stringToStringUnder300),
-		Options:     mapCreateActionOptions(optional.OfPtr(args.Options).OrZeroValue(), opts),
+		Options:     options,
 
 		RandomVals:                   nil,
 		IncludeAllSourceTransactions: opts.IncludeAllSourceTransactions,
@@ -33,7 +43,7 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) wdk.V
 
 	initComputableFields(wdkArgs)
 
-	return *wdkArgs
+	return *wdkArgs, nil
 }
 
 func initComputableFields(wdkArgs *wdk.ValidCreateActionArgs) {
@@ -49,8 +59,11 @@ func withoutUnlockingScript(input wdk.ValidCreateActionInput) bool {
 	return input.UnlockingScript != nil
 }
 
-func mapCreateActionInput(input sdk.CreateActionInput) wdk.ValidCreateActionInput {
-	outpoint := parseOutpoint(input.Outpoint)
+func mapCreateActionInput(input sdk.CreateActionInput) (wdk.ValidCreateActionInput, error) {
+	outpoint, err := parseOutpoint(input.Outpoint)
+	if err != nil {
+		return wdk.ValidCreateActionInput{}, err
+	}
 
 	var unlockingScript *primitives.HexString
 	if input.UnlockingScript != "" {
@@ -70,7 +83,7 @@ func mapCreateActionInput(input sdk.CreateActionInput) wdk.ValidCreateActionInpu
 		SequenceNumber:        primitives.PositiveInteger(input.SequenceNumber),
 		UnlockingScript:       unlockingScript,
 		UnlockingScriptLength: unlockingScriptLength,
-	}
+	}, nil
 }
 
 func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionOutput {
@@ -95,7 +108,12 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 	}
 }
 
-func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Opts) wdk.ValidCreateActionOptions {
+func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Opts) (wdk.ValidCreateActionOptions, error) {
+	noSendChange, err := seqerr.Collect(seq.MapOrErr(seq.FromSlice(options.NoSendChange), parseOutpoint))
+	if err != nil {
+		return wdk.ValidCreateActionOptions{}, err
+	}
+
 	return wdk.ValidCreateActionOptions{
 		SignAndProcess:         (*primitives.BooleanDefaultTrue)(options.SignAndProcess),
 		AcceptDelayedBroadcast: (*primitives.BooleanDefaultTrue)(options.AcceptDelayedBroadcast),
@@ -103,27 +121,22 @@ func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_o
 		KnownTxids:             slices.Map(options.KnownTxids, stringToTXIDHexString),
 		ReturnTXIDOnly:         (*primitives.BooleanDefaultFalse)(options.ReturnTXIDOnly),
 		NoSend:                 (*primitives.BooleanDefaultFalse)(options.NoSend),
-		NoSendChange:           slices.Map(options.NoSendChange, parseOutpoint),
+		NoSendChange:           noSendChange,
 		SendWith:               slices.Map(options.SendWith, stringToTXIDHexString),
 		RandomizeOutputs:       optional.OfPtr(options.RandomizeOutputs).OrElse(true),
-	}
+	}, nil
 }
 
-func parseOutpoint(outpoint string) wdk.OutPoint {
-	parts := strings.Split(outpoint, ".")
-	if len(parts) != 2 {
-		return wdk.OutPoint{}
-	}
-
-	voutUint64, err := strconv.ParseUint(parts[1], 10, 32)
+func parseOutpoint(outpoint string) (wdk.OutPoint, error) {
+	txID, vout, err := primitives.OutpointString(outpoint).Get()
 	if err != nil {
-		return wdk.OutPoint{}
+		return wdk.OutPoint{}, fmt.Errorf("cannot parse outpoint: %w", err)
 	}
 
 	return wdk.OutPoint{
-		TxID: parts[0],
-		Vout: uint32(voutUint64),
-	}
+		TxID: txID,
+		Vout: vout,
+	}, nil
 }
 
 func stringToTXIDHexString(s string) primitives.TXIDHexString {
