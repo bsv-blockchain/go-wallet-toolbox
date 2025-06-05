@@ -10,7 +10,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -19,20 +18,16 @@ var _ sdk.Interface = (*Wallet)(nil)
 
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
-	proto   *sdk.ProtoWallet
-	storage wdk.WalletStorage
+	proto      *sdk.ProtoWallet
+	storage    wdk.WalletStorage
+	keyDeriver *sdk.KeyDeriver
 	wallet_opts.Opts
-}
-
-// Key is a generic type for the key argument of the Wallet methods.
-type Key interface {
-	string | *ec.PrivateKey | *sdk.KeyDeriver
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
 // TODO: add support for opts pattern and handle optional parameters as it is in the Typescript version.
-func New[K Key](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
+func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
@@ -42,60 +37,28 @@ func New[K Key](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStoragePro
 		return nil, fmt.Errorf("active storage must be provided")
 	}
 
-	proto, err := createProtoWallet(key)
+	keyDeriver, err := toKeyDeriver(keySource)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create key deriver from key source: %w", err)
 	}
 
-	identityKey, err := proto.GetPublicKey(context.Background(), sdk.GetPublicKeyArgs{IdentityKey: true}, "")
+	proto, err := sdk.NewProtoWallet(sdk.ProtoWalletArgs{Type: sdk.ProtoWalletArgsTypeKeyDeriver, KeyDeriver: keyDeriver})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get identity key: %w", err)
+		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
 	}
 
-	storageManager := storage.NewWalletStorageManager(identityKey.PublicKey.ToDERHex(), activeStorage)
+	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
 
 	return &Wallet{
-		proto:   proto,
-		storage: storageManager,
+		proto:      proto,
+		storage:    storageManager,
+		keyDeriver: keyDeriver,
 		Opts: wallet_opts.Opts{
 			IncludeAllSourceTransactions: true,
 			AutoKnownTxids:               false,
 			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
 		},
 	}, nil
-}
-
-func createProtoWallet[K Key](key K) (*sdk.ProtoWallet, error) {
-	var protoWalletArgs sdk.ProtoWalletArgs
-	switch k := any(key).(type) {
-	case string:
-		priv, err := ec.PrivateKeyFromHex(k)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse provided private key: %w", err)
-		}
-		protoWalletArgs = sdk.ProtoWalletArgs{
-			Type:       sdk.ProtoWalletArgsTypePrivateKey,
-			PrivateKey: priv,
-		}
-	case *ec.PrivateKey:
-		protoWalletArgs = sdk.ProtoWalletArgs{
-			Type:       sdk.ProtoWalletArgsTypePrivateKey,
-			PrivateKey: k,
-		}
-	case *sdk.KeyDeriver:
-		protoWalletArgs = sdk.ProtoWalletArgs{
-			Type:       sdk.ProtoWalletArgsTypeKeyDeriver,
-			KeyDeriver: k,
-		}
-	default:
-		panic(fmt.Sprintf("unexpected type (%T) of key argument, (hint for author: ensure that all types from generic definition are supported)", k))
-	}
-
-	proto, err := sdk.NewProtoWallet(protoWalletArgs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
-	}
-	return proto, nil
 }
 
 // GetPublicKey retrieves a derived or identity public key based on the requested protocol, key ID, counterparty, and other factors.
@@ -180,6 +143,33 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	if err := validate.WalletCreateActionArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid create action args: %w", err)
 	}
+
+	if wdkArgs.IsNewTx {
+		storageCreateActionResult, err := w.storage.CreateAction(ctx, wdkArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create action: %w", err)
+		}
+
+		tx, err := w.rebuildTransaction(storageCreateActionResult, args)
+		if err != nil {
+			return nil, fmt.Errorf("invalid result from storage - failed to build transaction: %w", err)
+		}
+
+		if wdkArgs.IsSignAction {
+			// TODO: maybe we should build and store PendingSignAction in wallet - because ts is using it in signAction
+			// 	but let's wait with that for wallet.SignAction to be implemented.
+
+			result, err := mapping.SignableTransactionResult(tx, wdkArgs, storageCreateActionResult)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build signable transaction: %w", err)
+			}
+			return result, nil
+		}
+	}
+
+	// TODO: support wallet.returnTxidOnly option - verifyReturnedTxidOnlyAtomicBEEF
+	// TODO: merge BEEF Party ??
+	// TODO: verify broadcasting result
 
 	return nil, fmt.Errorf("CreateAction is not yet fully implemented")
 }

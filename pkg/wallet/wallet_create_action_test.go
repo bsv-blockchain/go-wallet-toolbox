@@ -5,9 +5,14 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWalletCreateActionArgsValidation(t *testing.T) {
@@ -92,4 +97,148 @@ func TestWalletCreateActionArgsValidation(t *testing.T) {
 			then.Storage().HadNoInteraction()
 		})
 	}
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
+	s.Run("return signable transaction when sign&process is false", func() {
+		t := s.T()
+		const topUpValue = 99904
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+		args.Options.SignAndProcess = to.Ptr(false)
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+		require.NotNil(t, result.SignableTransaction, "Wallet result without sign&process contain signable transaction")
+		assert.NotEmpty(t, result.SignableTransaction.Reference, "Signable transaction should have reference")
+
+		// and:
+		require.NotEmpty(t, result.SignableTransaction.Tx, "Signable transaction should have transaction bytes")
+
+		thenTx := asserttx.RestoredFromBEEFBytes(t, result.SignableTransaction.Tx)
+
+		thenTx.HasInputsThatFundsOutputs().HasMinimalFee()
+
+		thenTx.Inputs().AllHaveUnlockingScript().HasTotalInputValue(topUpValue)
+
+		thenTx.Outputs().AllHaveLockingScript()
+
+		thenTx.Output(0).
+			HasLockingScript(args.Outputs[0].LockingScript).
+			HasSatoshis(args.Outputs[0].Satoshis).
+			IsNotChange()
+
+	})
+
+	s.Run("return signable transaction with provided input when sign&process is false", func() {
+		t := s.T()
+		const topUpValue = 99904
+		const inputValue = 100
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		input := given.InputForUser(testusers.Alice).WithSatoshis(inputValue)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+		args.InputBEEF = input.InputBEEFBytes()
+		args.Inputs = []sdk.CreateActionInput{
+			input.CreateActionInput(),
+		}
+		args.Options.SignAndProcess = to.Ptr(false)
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+		require.NotNil(t, result.SignableTransaction, "Wallet result without sign&process contain signable transaction")
+		assert.NotEmpty(t, result.SignableTransaction.Reference, "Signable transaction should have reference")
+
+		// and:
+		require.NotEmpty(t, result.SignableTransaction.Tx, "Signable transaction should have transaction bytes")
+
+		thenTx := asserttx.RestoredFromBEEFBytes(t, result.SignableTransaction.Tx)
+
+		thenTx.HasInputsThatFundsOutputs().HasMinimalFee()
+
+		thenTx.Inputs().AllHaveUnlockingScript().HasTotalInputValue(topUpValue + inputValue)
+
+		thenTx.Outputs().AllHaveLockingScript()
+
+		thenTx.Output(0).
+			HasLockingScript(args.Outputs[0].LockingScript).
+			HasSatoshis(args.Outputs[0].Satoshis).
+			IsNotChange()
+
+	})
+
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionError() {
+	s.Run("return error when user have not enough funds", func() {
+		t := s.T()
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.Error(t, err)
+		require.Nil(t, result)
+
+	})
+
+	s.Run("return error when user have not enough funds and when sign&process is false", func() {
+		t := s.T()
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+		args.Options.SignAndProcess = to.Ptr(false)
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.Error(t, err)
+		require.Nil(t, result)
+
+	})
 }
