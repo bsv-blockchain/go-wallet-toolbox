@@ -120,6 +120,7 @@ func (s *syncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) uint64 {
 	// TODO it could be less precise and use a more efficient way to estimate size
 	b, err := json.Marshal(chunk)
 	if err != nil {
+		s.logger.Warn("failed to marshal sync chunk for size estimation", slog.String("error", err.Error()))
 		return 0
 	}
 	return must.ConvertToUInt64(len(b))
