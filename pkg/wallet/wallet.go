@@ -88,7 +88,7 @@ func createProtoWallet[K Key](key K) (*sdk.ProtoWallet, error) {
 			KeyDeriver: k,
 		}
 	default:
-		panic(fmt.Sprintf("unexpected type (%T) of key argument, looks like an error in the generics definition", k))
+		panic(fmt.Sprintf("unexpected type (%T) of key argument, (hint for author: ensure that all types from generic definition are supported)", k))
 	}
 
 	proto, err := sdk.NewProtoWallet(protoWalletArgs)
