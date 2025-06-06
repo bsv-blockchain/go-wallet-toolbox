@@ -10,7 +10,7 @@ import (
 
 type Chunker interface {
 	Name() string
-	MaxDivider() uint64
+	MaxPageSize() uint64
 	IsApplicable(requestedEntities OffsetsLookup) bool
 	FirstPage(offsetsLookup OffsetsLookup) *queryopts.Paging
 	Process(ctx context.Context, userID int, page *queryopts.Paging, since *time.Time, result *wdk.SyncChunk) (num uint64, err error)

@@ -13,10 +13,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const (
-	minPageSize = 10
-)
-
 type syncChunkAction struct {
 	logger   *slog.Logger
 	repo     Repository
@@ -75,9 +71,8 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 				return fmt.Errorf("context canceled, aborting: %w", err)
 			}
 
-			page.Limit = must.ConvertToIntFromUnsigned(
-				to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, state.freeSlots()),
-			)
+			limit := to.NoMoreThan(state.freeSlots(), chunker.MaxPageSize())
+			page.Limit = must.ConvertToIntFromUnsigned(to.NoMoreThan(limit, maximumAvailablePageSize))
 
 			num, err := chunker.Process(ctx, userID, page, args.Since, result)
 			if err != nil {

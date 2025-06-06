@@ -24,8 +24,8 @@ func (c *chunkerBaskets) Name() string {
 	return "baskets"
 }
 
-func (c *chunkerBaskets) MaxDivider() uint64 {
-	return 1
+func (c *chunkerBaskets) MaxPageSize() uint64 {
+	return maximumAvailablePageSize
 }
 
 func (c *chunkerBaskets) IsApplicable(requestedEntities OffsetsLookup) bool {
