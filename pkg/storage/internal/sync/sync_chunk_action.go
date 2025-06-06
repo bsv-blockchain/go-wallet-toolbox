@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -71,20 +69,18 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 			continue
 		}
 
-		var relativeOffset uint64
+		var page = chunker.FirstPage(offsetsLookup)
 
-		for range s.safeLoopIterator(maxIterations) {
-			if err = ctx.Err(); err != nil {
+		for range maxIterations {
+			if ctx.Err() != nil {
 				return fmt.Errorf("context canceled, aborting: %w", err)
 			}
 
 			freeSlots := args.MaxItems - itemsCounter
-			limit, err := to.UInt64(min(freeSlots, max(minPageSize, args.MaxItems/chunker.MaxDivider())))
-			if err != nil {
-				return fmt.Errorf("failed to calculate limit: %w", err)
-			}
+			limit := to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, freeSlots)
+			page.Limit = must.ConvertToIntFromUnsigned(limit)
 
-			num, err := chunker.Process(ctx, userID, limit, relativeOffset, offsetsLookup, args.Since, result)
+			num, err := chunker.Process(ctx, userID, page, args.Since, result)
 			if err != nil {
 				return fmt.Errorf("chunker %s failed: %w", chunker.Name(), err)
 			}
@@ -100,7 +96,7 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 				return nil
 			}
 
-			relativeOffset += num
+			page.Next()
 		}
 	}
 
@@ -113,10 +109,6 @@ func (s *syncChunkAction) makeOffsetsLookup(args *wdk.RequestSyncChunkArgs) Offs
 		offsetsLookup[it.Name] = it.Offset
 	}
 	return offsetsLookup
-}
-
-func (s *syncChunkAction) safeLoopIterator(maxIterations int) iter.Seq[int] {
-	return seq.RangeWithStep(0, maxIterations, 1)
 }
 
 func (s *syncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) uint64 {
