@@ -24,6 +24,7 @@ type Wallet struct {
 	wallet_opts.Opts
 }
 
+// Key is a generic type for the key argument of the Wallet methods.
 type Key interface {
 	string | *ec.PrivateKey | *sdk.KeyDeriver
 }
@@ -41,7 +42,7 @@ func New[K Key](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStoragePro
 		return nil, fmt.Errorf("active storage must be provided")
 	}
 
-	proto, err := createProtoWallet(key, err)
+	proto, err := createProtoWallet(key)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,7 @@ func New[K Key](chain defs.BSVNetwork, key K, activeStorage wdk.WalletStoragePro
 	}, nil
 }
 
-func createProtoWallet[K Key](key K, err error) (*sdk.ProtoWallet, error) {
+func createProtoWallet[K Key](key K) (*sdk.ProtoWallet, error) {
 	var protoWalletArgs sdk.ProtoWalletArgs
 	switch k := any(key).(type) {
 	case string:

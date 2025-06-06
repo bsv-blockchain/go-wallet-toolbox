@@ -19,7 +19,7 @@ import (
 func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) (wdk.ValidCreateActionArgs, error) {
 	inputs, err := seqerr.Collect(seq.MapOrErr(seq.FromSlice(args.Inputs), mapCreateActionInput))
 	if err != nil {
-		return wdk.ValidCreateActionArgs{}, err
+		return wdk.ValidCreateActionArgs{}, fmt.Errorf("cannot process inputs from args: %w", err)
 	}
 
 	options, err := mapCreateActionOptions(optional.OfPtr(args.Options).OrZeroValue(), opts)
@@ -111,7 +111,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Opts) (wdk.ValidCreateActionOptions, error) {
 	noSendChange, err := seqerr.Collect(seq.MapOrErr(seq.FromSlice(options.NoSendChange), parseOutpoint))
 	if err != nil {
-		return wdk.ValidCreateActionOptions{}, err
+		return wdk.ValidCreateActionOptions{}, fmt.Errorf("cannot process NoSendChange from args options: %w", err)
 	}
 
 	return wdk.ValidCreateActionOptions{
