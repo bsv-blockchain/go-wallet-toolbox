@@ -1,28 +1,28 @@
 package queryopts
 
-type QueryOptsUnion struct {
+type Options struct {
 	Page  *Paging
 	Since *Since
 }
 
-func WithPage(page Paging) QueryOptsUnion {
-	return QueryOptsUnion{
+func WithPage(page Paging) Options {
+	return Options{
 		Page:  &page,
 	}
 }
 
-func WithSince(since Since) QueryOptsUnion {
-	return QueryOptsUnion{
+func WithSince(since Since) Options {
+	return Options{
 		Since: &since,
 	}
 }
 
-func MergeOptions(opts ...QueryOptsUnion) QueryOptsUnion {
+func MergeOptions(opts ...Options) Options {
 	if len(opts) == 0 {
-		return QueryOptsUnion{}
+		return Options{}
 	}
 
-	result := QueryOptsUnion{}
+	result := Options{}
 	for _, opt := range opts {
 		if opt.Page != nil {
 			result.Page = opt.Page

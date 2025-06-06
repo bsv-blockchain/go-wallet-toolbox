@@ -14,7 +14,10 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const maxIterations = 1000
+const (
+	maxIterations = 1000
+	minPageSize   = 10
+)
 
 type syncChunkAction struct {
 	logger   *slog.Logger
@@ -76,7 +79,7 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 			}
 
 			freeSlots := args.MaxItems - itemsCounter
-			limit, err := to.UInt64(min(freeSlots, max(10, args.MaxItems/chunker.MaxDivider())))
+			limit, err := to.UInt64(min(freeSlots, max(minPageSize, args.MaxItems/chunker.MaxDivider())))
 			if err != nil {
 				return fmt.Errorf("failed to calculate limit: %w", err)
 			}

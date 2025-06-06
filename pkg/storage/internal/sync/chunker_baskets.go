@@ -36,7 +36,7 @@ func (c *chunkerBaskets) IsApplicable(requestedEntities OffsetsLookup) bool {
 func (c *chunkerBaskets) Process(ctx context.Context, userID int, limit, relativeOffset uint64, offsetsLookup OffsetsLookup, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
 	offset := offsetsLookup[wdk.OutputBasketEntityName] + relativeOffset
 
-	opts := []queryopts.QueryOptsUnion{
+	opts := []queryopts.Options{
 		queryopts.WithPage(queryopts.Paging{
 			Limit:  must.ConvertToIntFromUnsigned(limit),
 			Offset: must.ConvertToIntFromUnsigned(offset),

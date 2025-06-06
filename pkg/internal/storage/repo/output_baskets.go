@@ -23,9 +23,9 @@ func NewOutputBaskets(db *gorm.DB) *OutputBaskets {
 	return &OutputBaskets{db: db}
 }
 
-func (u *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error) {
+func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error) {
 	outputBasket := &models.OutputBasket{}
-	err := u.db.WithContext(ctx).First(&outputBasket, "user_id = ? AND name = ?", userID, name).Error
+	err := o.db.WithContext(ctx).First(&outputBasket, "user_id = ? AND name = ?", userID, name).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -36,9 +36,9 @@ func (u *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 	return mapModelToTableOutputBasket(outputBasket), nil
 }
 
-func (u *OutputBaskets) FindBasketsByUserID(ctx context.Context, userID int, opts ...queryopts.QueryOptsUnion) ([]*wdk.TableOutputBasket, error) {
+func (o *OutputBaskets) FindBasketsByUserID(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error) {
 	var outputBaskets []*models.OutputBasket
-	err := u.db.WithContext(ctx).
+	err := o.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Scopes(scopes.FromQueryOpts(opts...)...).
 		Find(&outputBaskets).Error
@@ -49,8 +49,8 @@ func (u *OutputBaskets) FindBasketsByUserID(ctx context.Context, userID int, opt
 	return slices.Map(outputBaskets, mapModelToTableOutputBasket), nil
 }
 
-func (u *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) error {
-	err := u.db.WithContext(ctx).
+func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) error {
+	err := o.db.WithContext(ctx).
 		Model(&models.OutputBasket{}).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "user_id"}, {Name: "name"}},
@@ -70,13 +70,13 @@ func (u *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 	return nil
 }
 
-func (u *OutputBaskets) FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error) {
+func (o *OutputBaskets) FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error) {
 	if len(basketIDs) == 0 {
 		return []*wdk.TableOutputBasket{}, nil
 	}
 
 	var dbBaskets []*models.OutputBasket
-	if err := u.db.WithContext(ctx).
+	if err := o.db.WithContext(ctx).
 		Model(&models.OutputBasket{}).
 		Where("basket_id IN ?", basketIDs).
 		Find(&dbBaskets).Error; err != nil {
