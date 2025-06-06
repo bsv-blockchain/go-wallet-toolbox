@@ -1,6 +1,9 @@
 package fixtures
 
 import (
+	"testing"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -8,20 +11,20 @@ import (
 
 func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 	return wdk.ValidCreateActionArgs{
-		Description: "outputBRC29",
+		Description: "test transaction",
 		InputBEEF:   nil,
 		Inputs:      []wdk.ValidCreateActionInput{},
 		Outputs: []wdk.ValidCreateActionOutput{
 			{
 				LockingScript:      "76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac",
 				Satoshis:           42000,
-				OutputDescription:  "outputBRC29",
+				OutputDescription:  "test output",
 				CustomInstructions: to.Ptr(`{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`),
 			},
 		},
 		LockTime: 0,
 		Version:  1,
-		Labels:   []primitives.StringUnder300{"outputbrc29"},
+		Labels:   []primitives.StringUnder300{"test=true"},
 		Options: wdk.ValidCreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
 			SendWith:               []primitives.TXIDHexString{},
@@ -38,5 +41,31 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 		IsRemixChange:                false,
 		IsSignAction:                 false,
 		IncludeAllSourceTransactions: true,
+	}
+}
+
+func DefaultWalletCreateActionArgs(t *testing.T) sdk.CreateActionArgs {
+	t.Helper()
+
+	return sdk.CreateActionArgs{
+		Description: "test transaction",
+		InputBEEF:   nil,
+		Inputs:      nil,
+		Outputs: []sdk.CreateActionOutput{
+			{
+				LockingScript:      "76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac",
+				Satoshis:           42000,
+				OutputDescription:  "test output",
+				CustomInstructions: `{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`,
+			},
+		},
+		LockTime: 0,
+		Version:  1,
+		Labels:   []string{"test=true"},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(false),
+			SignAndProcess:         to.Ptr(true),
+			RandomizeOutputs:       to.Ptr(false),
+		},
 	}
 }
