@@ -68,11 +68,10 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 	})
 
 	for chunker := range state.getNextChunkerUntilReachedMax(applicableChunkers) {
-		var page = chunker.FirstPage(offsetsLookup)
+		var firstPage = chunker.FirstPage(offsetsLookup)
 
-		for range state.doWhileChunkProcessed() {
-			freeSlots := args.MaxItems - state.itemsCounter
-			limit := to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, freeSlots)
+		for page := range state.doWhileChunkProcessed(firstPage) {
+			limit := to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, state.freeSlots())
 			page.Limit = must.ConvertToIntFromUnsigned(limit)
 
 			num, err := chunker.Process(ctx, userID, page, args.Since, result)
@@ -81,7 +80,6 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 			}
 
 			state.update(num, s.approxJSONSize(result))
-			page.Next()
 		}
 	}
 

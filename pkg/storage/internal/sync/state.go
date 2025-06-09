@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -30,9 +31,9 @@ func (s *chunkingState) update(num uint64, roughSize uint64) {
 	s.roughSize = roughSize
 }
 
-func (s *chunkingState) doWhileChunkProcessed() iter.Seq[struct{}] {
-	return func(yield func(struct{}) bool) {
-		if !yield(struct{}{}) {
+func (s *chunkingState) doWhileChunkProcessed(page *queryopts.Paging) iter.Seq[*queryopts.Paging] {
+	return func(yield func(*queryopts.Paging) bool) {
+		if !yield(page) {
 			return
 		}
 
@@ -42,7 +43,8 @@ func (s *chunkingState) doWhileChunkProcessed() iter.Seq[struct{}] {
 				return
 			}
 
-			if !yield(struct{}{}) {
+			page.Next()
+			if !yield(page) {
 				return
 			}
 		}
@@ -55,6 +57,13 @@ func (s *chunkingState) chunkProcessed() bool {
 
 func (s *chunkingState) reachedMax() bool {
 	return s.itemsCounter >= s.args.MaxItems || s.roughSize >= s.args.MaxRoughSize
+}
+
+func (s *chunkingState) freeSlots() uint64 {
+	if s.args.MaxItems == 0 || s.itemsCounter >= s.args.MaxItems {
+		return 0
+	}
+	return s.args.MaxItems - s.itemsCounter
 }
 
 func (s *chunkingState) getNextChunkerUntilReachedMax(chunks iter.Seq[Chunker]) iter.Seq[Chunker] {
