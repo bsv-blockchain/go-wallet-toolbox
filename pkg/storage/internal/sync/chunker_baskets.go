@@ -33,14 +33,17 @@ func (c *chunkerBaskets) IsApplicable(requestedEntities OffsetsLookup) bool {
 	return ok
 }
 
-func (c *chunkerBaskets) Process(ctx context.Context, userID int, limit, relativeOffset uint64, offsetsLookup OffsetsLookup, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
-	offset := offsetsLookup[wdk.OutputBasketEntityName] + relativeOffset
+func (c *chunkerBaskets) FirstPage(offsetsLookup OffsetsLookup) *queryopts.Paging {
+	offset := offsetsLookup[wdk.OutputBasketEntityName]
+	return &queryopts.Paging{
+		Offset: must.ConvertToIntFromUnsigned(offset),
+	}
+}
+
+func (c *chunkerBaskets) Process(ctx context.Context, userID int, page *queryopts.Paging, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
 
 	opts := []queryopts.Options{
-		queryopts.WithPage(queryopts.Paging{
-			Limit:  must.ConvertToIntFromUnsigned(limit),
-			Offset: must.ConvertToIntFromUnsigned(offset),
-		}),
+		queryopts.WithPage(*page),
 	}
 
 	if since != nil {
