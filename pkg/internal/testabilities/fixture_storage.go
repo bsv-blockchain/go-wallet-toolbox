@@ -93,10 +93,10 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	require.NoError(s.t, err)
 
 	return &faucetFixture{
-		t:        s.t,
-		user:     user,
-		db:       s.db,
-		basketID: basket.BasketID,
+		t:          s.t,
+		user:       user,
+		db:         s.db,
+		basketName: string(basket.Name),
 	}
 }
 

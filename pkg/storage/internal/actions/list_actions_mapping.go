@@ -3,7 +3,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
-	"github.com/go-softwarelab/common/pkg/seq"
 	commonslices "github.com/go-softwarelab/common/pkg/slices"
 )
 
@@ -82,42 +80,13 @@ func (l *listActions) mapTransactionsToActions(txs []*wdk.TableTransaction) ([]u
 
 func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args *wdk.ListActionsArgs) (map[uint][]*wdk.TableOutput, map[uint][]*wdk.TableOutput, error) {
 	if args.IncludeInputs.Value() || args.IncludeOutputs.Value() {
-		inputs, outputs, err := l.outputsRepo.FindInputsAndOutputsWithBuckets(ctx, txIDs)
+		inputs, outputs, err := l.outputsRepo.FindInputsAndOutputsWithBuckets(ctx, txIDs, args.IncludeOutputLockingScripts.Value())
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
 		}
 		return inputs, outputs, nil
 	}
 	return map[uint][]*wdk.TableOutput{}, map[uint][]*wdk.TableOutput{}, nil
-}
-
-func (l *listActions) buildBasketMap(ctx context.Context, outputMap map[uint][]*wdk.TableOutput) (map[int]primitives.StringUnder300, error) {
-	basketIDSet := map[int]struct{}{}
-	for _, outputs := range outputMap {
-		for _, out := range outputs {
-			if out.BasketID != nil {
-				basketIDSet[*out.BasketID] = struct{}{}
-			}
-		}
-	}
-
-	basketIDs := seq.ToSlice(maps.Keys(basketIDSet), make([]int, 0, len(basketIDSet)))
-
-	if len(basketIDs) == 0 {
-		return map[int]primitives.StringUnder300{}, nil
-	}
-
-	baskets, err := l.basketRepo.FindBasketsByIDs(ctx, basketIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load baskets: %w", err)
-	}
-
-	basketMap := make(map[int]primitives.StringUnder300, len(baskets))
-	for _, b := range baskets {
-		basketMap[b.BasketID] = b.Name
-	}
-
-	return basketMap, nil
 }
 
 func (l *listActions) loadLabelsIfNeeded(ctx context.Context, txIDs []uint, include *primitives.BooleanDefaultFalse) (map[uint][]string, error) {
@@ -146,7 +115,7 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*wdk.TableTransaction, inputMap, outputMap map[uint][]*wdk.TableOutput, labelMap map[uint][]string, rawTxMap map[string][]byte, basketMap map[int]primitives.StringUnder300, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*wdk.TableTransaction, inputMap, outputMap map[uint][]*wdk.TableOutput, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
@@ -155,7 +124,7 @@ func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*
 		}
 
 		if args.IncludeOutputs.Value() {
-			l.mapOutputsToAction(action, tx.TransactionID, outputMap, basketMap, []string{}...)
+			l.mapOutputsToAction(action, tx.TransactionID, outputMap)
 		}
 
 		if args.IncludeInputs.Value() && tx.TxID != nil {
@@ -175,20 +144,16 @@ func (l *listActions) mapLabelsToAction(action *wdk.WalletAction, txID uint, lab
 	}
 }
 
-func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, outputMap map[uint][]*wdk.TableOutput, basketMap map[int]primitives.StringUnder300, tags ...string) {
+func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, outputMap map[uint][]*wdk.TableOutput, tags ...string) {
 	outputs := outputMap[txID]
-	action.Outputs = l.mapToWalletActionOutputs(outputs, basketMap, tags...)
+	action.Outputs = l.mapToWalletActionOutputs(outputs, tags...)
 }
 
-func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, basketMap map[int]primitives.StringUnder300, tags ...string) []wdk.WalletActionOutput {
+func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, tags ...string) []wdk.WalletActionOutput {
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
-		if o.BasketID == nil {
+		if o.BasketName == nil {
 			continue
-		}
-		basket := primitives.StringUnder300("")
-		if name, ok := basketMap[*o.BasketID]; ok {
-			basket = name
 		}
 
 		// TODO: Implement tags mapping if needed, currently empty as CreateActionArgs does not support tags
@@ -199,7 +164,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, baske
 			Tags:              tags,
 			OutputIndex:       o.Vout,
 			OutputDescription: o.OutputDescription,
-			Basket:            string(basket),
+			Basket:            *o.BasketName,
 			LockingScript:     optional.OfPtr(o.LockingScript).OrZeroValue(),
 		})
 	}

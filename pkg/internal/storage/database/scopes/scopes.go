@@ -31,10 +31,9 @@ func Preload(name string) func(*gorm.DB) *gorm.DB {
 	}
 }
 
-// BasketID is a scope function that filters by basket_id.
-func BasketID(basketID int) func(*gorm.DB) *gorm.DB {
+func BasketName(basketName string) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("basket_id = ?", basketID)
+		return db.Where("basket_name = ?", basketName)
 	}
 }
 

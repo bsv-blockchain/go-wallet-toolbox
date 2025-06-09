@@ -19,8 +19,8 @@ type Output struct {
 	DerivationPrefix *string
 	DerivationSuffix *string
 
-	BasketID *int
-	Basket   *OutputBasket
+	BasketName *string
+	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`
 
 	Spendable bool
 	Change    bool

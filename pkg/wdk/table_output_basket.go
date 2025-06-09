@@ -18,7 +18,7 @@ type TableOutputBasket struct {
 	BasketConfiguration `json:",inline"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
-	BasketID            int       `json:"basketId"`
+	//BasketID            int       `json:"basketId"`
 	UserID              int       `json:"userId"`
 	IsDeleted           bool      `json:"isDeleted"`
 }

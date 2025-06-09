@@ -8,8 +8,9 @@ type UserUTXO struct {
 	OutputID uint    `gorm:"primaryKey"`
 	Output   *Output `gorm:"foreignKey:OutputID"`
 
-	BasketID int           `gorm:"not null"`
-	Basket   *OutputBasket `gorm:"foreignKey:BasketID"`
+	BasketName string        `gorm:"not null"`
+	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`
+
 	Satoshis uint64
 	// EstimatedInputSize is the estimated size increase when adding and unlocking this UTXO to a transaction.
 	EstimatedInputSize uint64

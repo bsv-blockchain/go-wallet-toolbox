@@ -11,7 +11,6 @@ import (
 
 type BasketRepo interface {
 	FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error)
-	FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error)
 }
 
 type OutputRepo interface {
@@ -19,7 +18,7 @@ type OutputRepo interface {
 	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*wdk.TableOutput, error)
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*wdk.TableOutput, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error)
-	FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []uint) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error)
+	FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error)
 }
 
 type TransactionsRepo interface {

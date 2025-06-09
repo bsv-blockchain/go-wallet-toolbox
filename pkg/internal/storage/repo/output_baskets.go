@@ -25,7 +25,10 @@ func NewOutputBaskets(db *gorm.DB) *OutputBaskets {
 
 func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error) {
 	outputBasket := &models.OutputBasket{}
-	err := o.db.WithContext(ctx).First(&outputBasket, "user_id = ? AND name = ?", userID, name).Error
+	err := o.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID), ).
+		Where("name = ?", name).
+		First(&outputBasket).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -70,24 +73,9 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 	return nil
 }
 
-func (o *OutputBaskets) FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error) {
-	if len(basketIDs) == 0 {
-		return []*wdk.TableOutputBasket{}, nil
-	}
-
-	var dbBaskets []*models.OutputBasket
-	if err := o.db.WithContext(ctx).
-		Model(&models.OutputBasket{}).
-		Where("basket_id IN ?", basketIDs).
-		Find(&dbBaskets).Error; err != nil {
-		return nil, fmt.Errorf("failed to load output baskets: %w", err)
-	}
-	return slices.Map(dbBaskets, mapModelToTableOutputBasket), nil
-}
-
 func mapModelToTableOutputBasket(model *models.OutputBasket) *wdk.TableOutputBasket {
 	return &wdk.TableOutputBasket{
-		BasketID:  model.BasketID,
+		//BasketID:  model.BasketID,
 		UserID:    model.UserID,
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,

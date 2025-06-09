@@ -47,11 +47,6 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 		return nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
 	}
 
-	basketMap, err := l.buildBasketMap(ctx, outputMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build basket map: %w", err)
-	}
-
 	labelMap, err := l.loadLabelsIfNeeded(ctx, transactionIDs, args.IncludeLabels)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load labels: %w", err)
@@ -62,7 +57,7 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 		return nil, fmt.Errorf("failed to load raw transactions: %w", err)
 	}
 
-	if err := l.mapInputsOutputsLabels(actions, txs, inputMap, outputMap, labelMap, rawTxMap, basketMap, args); err != nil {
+	if err := l.mapInputsOutputsLabels(actions, txs, inputMap, outputMap, labelMap, rawTxMap, args); err != nil {
 		return nil, fmt.Errorf("failed to map inputs/outputs/labels: %w", err)
 	}
 

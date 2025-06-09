@@ -72,7 +72,6 @@ func TestFunderSQLFund(t *testing.T) {
 			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *wdk.TableOutputBasket) {
 
 				otherBasket := *basket
-				otherBasket.BasketID = 100
 				otherBasket.Name = "other_basket"
 
 				given.UTXO().InBasket(&otherBasket).OwnedBy(testusers.Alice).WithSatoshis(10_000).P2PKH().Stored()

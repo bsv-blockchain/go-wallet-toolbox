@@ -29,7 +29,6 @@ var defaultBasket = wdk.TableOutputBasket{
 	CreatedAt: FirstCreatedAt,
 	UpdatedAt: FirstCreatedAt,
 	IsDeleted: false,
-	BasketID:  1,
 	BasketConfiguration: wdk.BasketConfiguration{
 		Name:                    wdk.BasketNameForChange,
 		NumberOfDesiredUTXOs:    30,
@@ -98,12 +97,11 @@ func (f *userUtxoFixture) Stored() {
 		Satoshis:           f.satoshis,
 		EstimatedInputSize: f.estimatedInputSize,
 		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second),
-		BasketID:           f.basket.BasketID,
+		BasketName:         string(f.basket.Name),
 		Basket: &models.OutputBasket{
 			CreatedAt:               FirstCreatedAt,
 			UpdatedAt:               FirstCreatedAt,
 			DeletedAt:               gorm.DeletedAt{},
-			BasketID:                f.basket.BasketID,
 			Name:                    string(f.basket.Name),
 			UserID:                  f.basket.UserID,
 			NumberOfDesiredUTXOs:    f.basket.NumberOfDesiredUTXOs,
