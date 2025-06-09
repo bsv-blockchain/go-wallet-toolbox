@@ -11,7 +11,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/paging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -24,7 +24,7 @@ var changeOutputSize = txutils.P2PKHOutputSize
 const utxoBatchSize = 1000
 
 type UTXORepository interface {
-	FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *paging.Page, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error)
+	FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *queryopts.Paging, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error)
 	CountUTXOs(ctx context.Context, userID int, basketID int) (int64, error)
 }
 
@@ -74,7 +74,7 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 
 func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketID int, forbiddenOutputIDs []uint) iter.Seq2[*models.UserUTXO, error] {
 	batches := seqerr.ProduceWithArg(
-		func(page *paging.Page) ([]*models.UserUTXO, *paging.Page, error) {
+		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
 			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketID, page, forbiddenOutputIDs)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to load utxos: %w", err)
@@ -82,7 +82,7 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketID int, forbidden
 			page.Next()
 			return utxos, page, nil
 		},
-		&paging.Page{
+		&queryopts.Paging{
 			Limit:  utxoBatchSize,
 			SortBy: "satoshis",
 		})

@@ -1,15 +1,20 @@
 package scopes
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/paging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// Paginate is a Scope function that handle pagination.
-func Paginate(page *paging.Page) func(db *gorm.DB) *gorm.DB {
+// Paginate is a Scope function that handles pagination.
+func Paginate(page *queryopts.Paging) func(db *gorm.DB) *gorm.DB {
 	page.ApplyDefaults()
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Order(page.SortBy + " " + page.Sort).Offset(page.Offset).Limit(page.Limit)
+		orderClause := clause.OrderByColumn{
+			Column: clause.Column{Name: page.SortBy},
+			Desc:   page.IsDesc(),
+		}
+		return db.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 	}
 }
 
@@ -31,4 +36,30 @@ func BasketID(basketID int) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("basket_id = ?", basketID)
 	}
+}
+
+func Since(since *queryopts.Since) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		since.ApplyDefaults()
+		return db.Where(
+			&clause.Gte{
+				Column: clause.Column{Name: since.Field},
+				Value:  since.Time,
+			},
+		)
+	}
+}
+
+func FromQueryOpts(opts []queryopts.Options) []func(*gorm.DB) *gorm.DB {
+	options := queryopts.MergeOptions(opts)
+
+	var sc []func(*gorm.DB) *gorm.DB
+	if options.Page != nil {
+		sc = append(sc, Paginate(options.Page))
+	}
+	if options.Since != nil {
+		sc = append(sc, Since(options.Since))
+	}
+
+	return sc
 }

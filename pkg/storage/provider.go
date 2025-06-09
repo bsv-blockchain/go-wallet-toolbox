@@ -14,6 +14,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/actions"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -28,9 +29,10 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	settings *wdk.TableSettings
-	repo     *repo.Repositories
-	actions  *actions.Actions
+	settings    *wdk.TableSettings
+	repo        *repo.Repositories
+	actions     *actions.Actions
+	syncActions *sync.Actions
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -82,8 +84,9 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Chain:    config.Chain,
 		Database: db,
 
-		repo:    repos,
-		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		repo:        repos,
+		actions:     actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		syncActions: sync.New(logger, repos),
 	}, nil
 }
 
@@ -390,4 +393,18 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, fmt.Errorf("failed to list actions: %w", err)
 	}
 	return result, nil
+}
+
+// GetSyncChunk retrieves a sync chunk based on the provided arguments.
+// It returns the requested sync chunk or an error if retrieval fails.
+func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
+	}
+
+	chunk, err := p.syncActions.GetSyncChunk(ctx, &args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sync chunk: %w", err)
+	}
+	return chunk, nil
 }
