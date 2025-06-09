@@ -63,12 +63,12 @@ func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID 
 
 func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
 	output := &wdk.TableOutput{
-		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
-		OutputID:      model.ID,
-		UserID:        model.UserID,
-		TransactionID: model.TransactionID,
-		//BasketID:           model.BasketID,
+		CreatedAt:          model.CreatedAt,
+		UpdatedAt:          model.UpdatedAt,
+		OutputID:           model.ID,
+		UserID:             model.UserID,
+		TransactionID:      model.TransactionID,
+		BasketName:         model.BasketName,
 		Spendable:          model.Spendable,
 		Change:             model.Change,
 		OutputDescription:  model.Description,
@@ -211,6 +211,7 @@ func (o *Outputs) FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []u
 	}
 
 	query := o.db.WithContext(ctx).
+		Model(&models.Output{}).
 		Preload("Basket").
 		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs)
 
