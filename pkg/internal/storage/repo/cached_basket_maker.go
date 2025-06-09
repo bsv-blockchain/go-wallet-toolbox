@@ -2,10 +2,10 @@ package repo
 
 import (
 	"fmt"
-	"gorm.io/gorm/clause"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type cachedBasketMaker struct {

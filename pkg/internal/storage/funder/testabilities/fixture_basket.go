@@ -38,7 +38,7 @@ func (f *basketFixture) ThatPrefersSingleChange() *wdk.TableOutputBasket {
 
 func (f *basketFixture) WithNumberOfDesiredUTXOs(number int) *wdk.TableOutputBasket {
 	return &wdk.TableOutputBasket{
-		UserID:   f.user.ID,
+		UserID: f.user.ID,
 		BasketConfiguration: wdk.BasketConfiguration{
 			Name:                    "default",
 			NumberOfDesiredUTXOs:    int64(number),

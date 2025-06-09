@@ -1,9 +1,9 @@
 package models
 
 import (
-	"github.com/go-softwarelab/common/pkg/must"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/must"
 	"gorm.io/gorm"
 )
 

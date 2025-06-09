@@ -26,7 +26,7 @@ func NewOutputBaskets(db *gorm.DB) *OutputBaskets {
 func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error) {
 	outputBasket := &models.OutputBasket{}
 	err := o.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID), ).
+		Scopes(scopes.UserID(userID)).
 		Where("name = ?", name).
 		First(&outputBasket).Error
 	if err != nil {
