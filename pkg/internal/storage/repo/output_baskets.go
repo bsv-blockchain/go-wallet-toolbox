@@ -75,10 +75,10 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 
 func mapModelToTableOutputBasket(model *models.OutputBasket) *wdk.TableOutputBasket {
 	return &wdk.TableOutputBasket{
-		//BasketID:  model.BasketID,
-		UserID:    model.UserID,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
+		BasketNumID: model.Num,
+		UserID:      model.UserID,
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
 		BasketConfiguration: wdk.BasketConfiguration{
 			Name:                    primitives.StringUnder300(model.Name),
 			NumberOfDesiredUTXOs:    model.NumberOfDesiredUTXOs,

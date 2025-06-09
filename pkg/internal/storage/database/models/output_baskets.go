@@ -28,7 +28,7 @@ func (ob *OutputBasket) BeforeCreate(tx *gorm.DB) (err error) {
 		return err
 	}
 
-	ob.Num = must.ConvertToInt(count)
+	ob.Num = must.ConvertToInt(count + 1)
 
 	return nil
 }
