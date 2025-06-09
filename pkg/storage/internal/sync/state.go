@@ -1,8 +1,6 @@
 package sync
 
 import (
-	"context"
-	"fmt"
 	"iter"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
@@ -10,17 +8,15 @@ import (
 )
 
 type chunkingState struct {
-	ctx              context.Context
+	args *wdk.RequestSyncChunkArgs
+
 	itemsCounter     uint64
 	prevItemsCounter uint64
-	err              error
 	roughSize        uint64
-	args             *wdk.RequestSyncChunkArgs
 }
 
-func newChunkingState(ctx context.Context, args *wdk.RequestSyncChunkArgs) *chunkingState {
+func newChunkingState(args *wdk.RequestSyncChunkArgs) *chunkingState {
 	return &chunkingState{
-		ctx:  ctx,
 		args: args,
 	}
 }
@@ -38,11 +34,6 @@ func (s *chunkingState) doWhileChunkProcessed(page *queryopts.Paging) iter.Seq[*
 		}
 
 		for !s.chunkProcessed() {
-			if err := s.ctx.Err(); err != nil {
-				s.err = fmt.Errorf("context canceled, aborting: %w", err)
-				return
-			}
-
 			page.Next()
 			if !yield(page) {
 				return

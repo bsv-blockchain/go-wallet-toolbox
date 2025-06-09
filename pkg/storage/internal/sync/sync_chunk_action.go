@@ -59,7 +59,7 @@ func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyn
 }
 
 func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChunkArgs, userID int, result *wdk.SyncChunk) error {
-	state := newChunkingState(ctx, args)
+	state := newChunkingState(args)
 
 	offsetsLookup := s.makeOffsetsLookup(args)
 
@@ -71,8 +71,13 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 		var firstPage = chunker.FirstPage(offsetsLookup)
 
 		for page := range state.doWhileChunkProcessed(firstPage) {
-			limit := to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, state.freeSlots())
-			page.Limit = must.ConvertToIntFromUnsigned(limit)
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("context canceled, aborting: %w", err)
+			}
+
+			page.Limit = must.ConvertToIntFromUnsigned(
+				to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, state.freeSlots()),
+			)
 
 			num, err := chunker.Process(ctx, userID, page, args.Since, result)
 			if err != nil {
