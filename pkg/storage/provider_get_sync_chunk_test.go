@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -213,4 +214,34 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 
 	require.Len(t, chunk.OutputBaskets, 1)
 	// TODO: Remember to add more assertions for other entities when implemented
+}
+
+func TestGetSyncChunkMaxItems(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	args := wdk.RequestSyncChunkArgs{
+		FromStorageIdentityKey: "from_storage",
+		ToStorageIdentityKey:   "to_storage",
+		IdentityKey:            testusers.Alice.IdentityKey(t),
+		MaxItems:               math.MaxUint64,
+		MaxRoughSize:           100_000,
+
+		Offsets: []wdk.SyncOffsets{
+			{
+				Name:   wdk.OutputBasketEntityName,
+				Offset: 0,
+			},
+		},
+	}
+
+	// when:
+	_, err := activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	require.NoError(t, err)
 }
