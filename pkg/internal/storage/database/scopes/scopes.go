@@ -50,8 +50,8 @@ func Since(since *queryopts.Since) func(*gorm.DB) *gorm.DB {
 	}
 }
 
-func FromQueryOpts(opts ...queryopts.Options) []func(*gorm.DB) *gorm.DB {
-	options := queryopts.MergeOptions(opts...)
+func FromQueryOpts(opts []queryopts.Options) []func(*gorm.DB) *gorm.DB {
+	options := queryopts.MergeOptions(opts)
 
 	var sc []func(*gorm.DB) *gorm.DB
 	if options.Page != nil {

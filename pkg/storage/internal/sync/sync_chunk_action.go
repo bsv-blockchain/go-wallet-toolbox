@@ -9,12 +9,12 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
-	maxIterations = 1000
-	minPageSize   = 10
+	minPageSize = 10
 )
 
 type syncChunkAction struct {
@@ -59,24 +59,19 @@ func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyn
 }
 
 func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChunkArgs, userID int, result *wdk.SyncChunk) error {
-	var err error
-	var itemsCounter uint64
+	state := newChunkingState(ctx, args)
 
 	offsetsLookup := s.makeOffsetsLookup(args)
 
-	for _, chunker := range s.chunkers {
-		if !chunker.IsApplicable(offsetsLookup) {
-			continue
-		}
+	applicableChunkers := seq.Filter(seq.FromSlice(s.chunkers), func(chunker Chunker) bool {
+		return chunker.IsApplicable(offsetsLookup)
+	})
 
+	for chunker := range state.getNextChunkerUntilReachedMax(applicableChunkers) {
 		var page = chunker.FirstPage(offsetsLookup)
 
-		for range maxIterations {
-			if ctx.Err() != nil {
-				return fmt.Errorf("context canceled, aborting: %w", err)
-			}
-
-			freeSlots := args.MaxItems - itemsCounter
+		for range state.doWhileChunkProcessed() {
+			freeSlots := args.MaxItems - state.itemsCounter
 			limit := to.ValueBetween(args.MaxItems/chunker.MaxDivider(), minPageSize, freeSlots)
 			page.Limit = must.ConvertToIntFromUnsigned(limit)
 
@@ -85,17 +80,7 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 				return fmt.Errorf("chunker %s failed: %w", chunker.Name(), err)
 			}
 
-			if num == 0 {
-				break
-			}
-
-			itemsCounter += num
-			reachedMax := itemsCounter >= args.MaxItems || s.approxJSONSize(result) >= args.MaxRoughSize
-			if reachedMax {
-				// NOTE: This breaks also the "chunkers" loop because we don't have any more free slots.
-				return nil
-			}
-
+			state.update(num, s.approxJSONSize(result))
 			page.Next()
 		}
 	}
@@ -104,7 +89,7 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 }
 
 func (s *syncChunkAction) makeOffsetsLookup(args *wdk.RequestSyncChunkArgs) OffsetsLookup {
-	offsetsLookup := make(OffsetsLookup)
+	offsetsLookup := make(OffsetsLookup, len(args.Offsets))
 	for _, it := range args.Offsets {
 		offsetsLookup[it.Name] = it.Offset
 	}

@@ -17,7 +17,7 @@ func WithSince(since Since) Options {
 	}
 }
 
-func MergeOptions(opts ...Options) Options {
+func MergeOptions(opts []Options) Options {
 	if len(opts) == 0 {
 		return Options{}
 	}

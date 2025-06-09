@@ -40,7 +40,7 @@ func (o *OutputBaskets) FindBasketsByUserID(ctx context.Context, userID int, opt
 	var outputBaskets []*models.OutputBasket
 	err := o.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
-		Scopes(scopes.FromQueryOpts(opts...)...).
+		Scopes(scopes.FromQueryOpts(opts)...).
 		Find(&outputBaskets).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find output baskets: %w", err)
