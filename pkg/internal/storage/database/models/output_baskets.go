@@ -25,7 +25,7 @@ func (ob *OutputBasket) BeforeCreate(tx *gorm.DB) (err error) {
 	var count int64
 
 	if err = tx.Model(&OutputBasket{}).Unscoped().Count(&count).Error; err != nil {
-		return err
+		return fmt.Errorf("failed to count output baskets: %w", err)
 	}
 
 	ob.Num = must.ConvertToInt(count + 1)
