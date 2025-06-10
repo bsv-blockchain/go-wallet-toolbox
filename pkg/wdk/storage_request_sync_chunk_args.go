@@ -48,3 +48,15 @@ type SyncChunk struct {
 	User          *TableUser           `json:"user,omitempty"`
 	OutputBaskets []*TableOutputBasket `json:"outputBaskets,omitempty"`
 }
+
+type FindOrInsertSyncStateAuthResponse struct {
+	SyncState *TableSyncState `json:"syncState"`
+	IsNew     bool            `json:"isNew"`
+}
+
+type ProcessSyncChunkResult struct {
+	Done         bool       `json:"done"`
+	MaxUpdatedAt *time.Time `json:"maxUpdated_at,omitempty"` // The maximum updated_at value seen for this entity over chunks received during this update cycle.
+	Updates      int        `json:"updates"`                 // The number of updates made to the entity.
+	Inserts      int        `json:"inserts"`                 // The number of new items inserted into the entity.
+}

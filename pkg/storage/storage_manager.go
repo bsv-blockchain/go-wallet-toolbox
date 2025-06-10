@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/managed"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/is"
@@ -28,6 +27,7 @@ func NewWalletStorageManager(identityKey string, active wdk.WalletStorageProvide
 	}
 
 	if active == nil {
+		// TODO: We need to revisit this panic, as in TS the active storage is optional an it's almost never assigned during construction.
 		panic("activeStorage storage must be provided")
 	}
 
@@ -71,6 +71,82 @@ func (m *WalletStorageManager) GetAuth(ctx context.Context) (wdk.AuthID, error) 
 		IdentityKey: m.identityKey,
 		IsActive:    to.Ptr(m.activeStorage.Settings.StorageIdentityKey == m.activeStorage.User.ActiveStorage),
 	}, nil
+}
+
+// SyncToWriter synchronizes wallet data from the active storage to the provided writer storage provider.
+// NOTE: reader(source) => writer(backup)
+func (m *WalletStorageManager) SyncToWriter(ctx context.Context, auth wdk.AuthID, writer wdk.WalletStorageProvider) (inserts, updates int, err error) {
+	// TODO: add locking mechanism to ensure that the active storage is not being modified while syncing
+
+	writerSettings, err := writer.MakeAvailable(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to make writer storage available: %w", err)
+	}
+
+	reader := m.getActiveReader()
+	readerSettings, err := reader.MakeAvailable(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to make reader storage available: %w", err)
+	}
+
+	for range 0 {
+		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, auth, readerSettings.StorageIdentityKey, readerSettings.StorageName)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to find or insert sync state auth: %w", err)
+		}
+
+		syncState := writerSyncState.SyncState
+
+		var offsets []wdk.SyncOffsets
+		syncMap, err := wdk.NewSyncMapFromJSON([]byte(syncState.SyncMap))
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to parse sync map: %w", err)
+		}
+		for _, entityName := range wdk.AllEntityNames {
+			syncMapEntity, ok := syncMap[entityName]
+			if !ok {
+				continue
+			}
+
+			offsets = append(offsets, wdk.SyncOffsets{
+				Name:   entityName,
+				Offset: syncMapEntity.Count,
+			})
+		}
+
+		getSyncChunkArgs := wdk.RequestSyncChunkArgs{
+			FromStorageIdentityKey: readerSettings.StorageIdentityKey,
+			ToStorageIdentityKey:   writerSettings.StorageIdentityKey,
+			IdentityKey:            auth.IdentityKey,
+
+			Since:        syncState.When,
+			MaxRoughSize: 10_000_000, // ~10 MB
+			MaxItems:     1000,
+			Offsets:      offsets,
+		}
+
+		chunk, err := reader.GetSyncChunk(ctx, getSyncChunkArgs)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to get sync chunk from reader storage: %w", err)
+		}
+
+		processChunkResult, err := writer.ProcessSyncChunk(ctx, getSyncChunkArgs, chunk)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to process sync chunk in writer storage: %w", err)
+		}
+
+		if processChunkResult.Done || (processChunkResult.Updates == 0 && processChunkResult.Inserts == 0) {
+			// No more updates to process, we can stop syncing
+			break
+		}
+
+		inserts += processChunkResult.Inserts
+		updates += processChunkResult.Updates
+
+		// TODO Log the sync chunk received (it needs the Manager to include a logger)
+
+	}
+	return inserts, updates, nil
 }
 
 func (m *WalletStorageManager) getActiveReader() wdk.WalletStorageProvider {

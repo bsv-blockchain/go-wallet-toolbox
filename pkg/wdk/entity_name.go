@@ -18,3 +18,18 @@ const (
 	CertificateFieldEntityName EntityName = "certificateField"
 	CommissionEntityName       EntityName = "commission"
 )
+
+var AllEntityNames = []EntityName{
+	ProvenTxEntityName,
+	OutputBasketEntityName,
+	TransactionEntityName,
+	ProvenTxReqEntityName,
+	TxLabelEntityName,
+	TxLabelMapEntityName,
+	OutputEntityName,
+	OutputTagEntityName,
+	OutputTagMapEntityName,
+	CertificateEntityName,
+	CertificateFieldEntityName,
+	CommissionEntityName,
+}
