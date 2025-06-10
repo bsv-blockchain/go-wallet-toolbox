@@ -10,10 +10,10 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -51,8 +51,8 @@ func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.Fe
 // @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
 // @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 // @param userID - the user ID.
-func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error) {
-	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, string(basket.Name))
+func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *entity.OutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error) {
+	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
 	}
@@ -62,7 +62,7 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
-	utxos := f.loadUTXOs(ctx, userID, string(basket.Name), forbiddenOutputIDs)
+	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs)
 
 	err = collector.Allocate(utxos)
 	if err != nil {

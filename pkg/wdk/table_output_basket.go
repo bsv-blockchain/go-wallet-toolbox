@@ -22,7 +22,7 @@ type TableOutputBasket struct {
 	IsDeleted           bool      `json:"isDeleted"`
 
 	// BasketNumID is to keep interoperability via API, NOTE that this field is not a primary key in the database
-	BasketNumID int `json:"basketId"`
+	BasketID int `json:"basketId"`
 }
 
 // DefaultBasketConfiguration returns a default basket configuration

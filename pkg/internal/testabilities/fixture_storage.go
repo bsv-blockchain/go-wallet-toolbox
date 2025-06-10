@@ -96,7 +96,7 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 		t:          s.t,
 		user:       user,
 		db:         s.db,
-		basketName: string(basket.Name),
+		basketName: basket.Name,
 	}
 }
 

@@ -8,6 +8,6 @@ import (
 )
 
 type Repository interface {
-	FindUser(ctx context.Context, identityKey string) (*wdk.TableUser, error)
-	FindBasketsByUserID(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error)
+	FindUserForSync(ctx context.Context, identityKey string) (*wdk.TableUser, error)
+	FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error)
 }

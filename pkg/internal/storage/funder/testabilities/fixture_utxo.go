@@ -6,6 +6,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
@@ -15,7 +16,7 @@ var FirstCreatedAt = time.Date(2006, 02, 01, 15, 4, 5, 7, time.UTC)
 
 type UserUTXOFixture interface {
 	OwnedBy(user testusers.User) UserUTXOFixture
-	InBasket(basket *wdk.TableOutputBasket) UserUTXOFixture
+	InBasket(basket *entity.OutputBasket) UserUTXOFixture
 	P2PKH() UserUTXOFixture
 	WithSatoshis(sats int64) UserUTXOFixture
 	Stored()
@@ -25,16 +26,11 @@ type UTXODatabase interface {
 	Save(utxo *models.UserUTXO)
 }
 
-var defaultBasket = wdk.TableOutputBasket{
-	CreatedAt: FirstCreatedAt,
-	UpdatedAt: FirstCreatedAt,
-	IsDeleted: false,
-	BasketConfiguration: wdk.BasketConfiguration{
-		Name:                    wdk.BasketNameForChange,
-		NumberOfDesiredUTXOs:    30,
-		MinimumDesiredUTXOValue: 1000,
-	},
-	UserID: 1,
+var defaultBasket = entity.OutputBasket{
+	Name:                    wdk.BasketNameForChange,
+	NumberOfDesiredUTXOs:    30,
+	MinimumDesiredUTXOValue: 1000,
+	UserID:                  1,
 }
 
 type userUtxoFixture struct {
@@ -45,7 +41,7 @@ type userUtxoFixture struct {
 	vout               uint32
 	satoshis           uint64
 	estimatedInputSize uint64
-	basket             *wdk.TableOutputBasket
+	basket             *entity.OutputBasket
 }
 
 func newUtxoFixture(t testing.TB, parent UTXODatabase, index uint) *userUtxoFixture {
@@ -62,7 +58,7 @@ func newUtxoFixture(t testing.TB, parent UTXODatabase, index uint) *userUtxoFixt
 	}
 }
 
-func (f *userUtxoFixture) InBasket(basket *wdk.TableOutputBasket) UserUTXOFixture {
+func (f *userUtxoFixture) InBasket(basket *entity.OutputBasket) UserUTXOFixture {
 	f.basket = basket
 	return f
 }
@@ -97,12 +93,12 @@ func (f *userUtxoFixture) Stored() {
 		Satoshis:           f.satoshis,
 		EstimatedInputSize: f.estimatedInputSize,
 		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second),
-		BasketName:         string(f.basket.Name),
+		BasketName:         f.basket.Name,
 		Basket: &models.OutputBasket{
 			CreatedAt:               FirstCreatedAt,
 			UpdatedAt:               FirstCreatedAt,
 			DeletedAt:               gorm.DeletedAt{},
-			Name:                    string(f.basket.Name),
+			Name:                    f.basket.Name,
 			UserID:                  f.basket.UserID,
 			NumberOfDesiredUTXOs:    f.basket.NumberOfDesiredUTXOs,
 			MinimumDesiredUTXOValue: f.basket.MinimumDesiredUTXOValue,

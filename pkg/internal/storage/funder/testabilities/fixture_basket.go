@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"gorm.io/gorm"
 )
 
@@ -14,8 +14,8 @@ const (
 )
 
 type BasketFixture interface {
-	ThatPrefersSingleChange() *wdk.TableOutputBasket
-	WithNumberOfDesiredUTXOs(i int) *wdk.TableOutputBasket
+	ThatPrefersSingleChange() *entity.OutputBasket
+	WithNumberOfDesiredUTXOs(i int) *entity.OutputBasket
 }
 
 type basketFixture struct {
@@ -32,20 +32,15 @@ func newBasketFixture(t testing.TB, db *gorm.DB, user testusers.User) *basketFix
 	}
 }
 
-func (f *basketFixture) ThatPrefersSingleChange() *wdk.TableOutputBasket {
+func (f *basketFixture) ThatPrefersSingleChange() *entity.OutputBasket {
 	return f.WithNumberOfDesiredUTXOs(desiredUTXONumberToPreferSingleChange)
 }
 
-func (f *basketFixture) WithNumberOfDesiredUTXOs(number int) *wdk.TableOutputBasket {
-	return &wdk.TableOutputBasket{
-		UserID: f.user.ID,
-		BasketConfiguration: wdk.BasketConfiguration{
-			Name:                    "default",
-			NumberOfDesiredUTXOs:    int64(number),
-			MinimumDesiredUTXOValue: testDesiredUTXOValue,
-		},
-		CreatedAt: exampleDate,
-		UpdatedAt: exampleDate,
-		IsDeleted: false,
+func (f *basketFixture) WithNumberOfDesiredUTXOs(number int) *entity.OutputBasket {
+	return &entity.OutputBasket{
+		UserID:                  f.user.ID,
+		Name:                    "default",
+		NumberOfDesiredUTXOs:    int64(number),
+		MinimumDesiredUTXOValue: testDesiredUTXOValue,
 	}
 }

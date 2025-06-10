@@ -1,10 +1,8 @@
 package models
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/go-softwarelab/common/pkg/must"
 	"gorm.io/gorm"
 )
 
@@ -13,23 +11,10 @@ type OutputBasket struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
-	Num       int
 
 	Name   string `gorm:"primaryKey;type:varchar(300)"`
 	UserID int    `gorm:"primaryKey"`
 
 	NumberOfDesiredUTXOs    int64  `gorm:"not null;column:number_of_desired_utxos;default:32"`
 	MinimumDesiredUTXOValue uint64 `gorm:"not null;default:1000"`
-}
-
-func (ob *OutputBasket) BeforeCreate(tx *gorm.DB) (err error) {
-	var count int64
-
-	if err = tx.Model(&OutputBasket{}).Unscoped().Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to count output baskets: %w", err)
-	}
-
-	ob.Num = must.ConvertToInt(count + 1)
-
-	return nil
 }
