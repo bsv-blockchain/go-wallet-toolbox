@@ -18,13 +18,13 @@ import (
 type Sync struct {
 	db *gorm.DB
 
-	name *naming
+	naming *naming
 }
 
 func NewSync(db *gorm.DB) *Sync {
 	return &Sync{
-		db:   db,
-		name: newNaming(db),
+		db:     db,
+		naming: newNaming(db),
 	}
 }
 
@@ -63,7 +63,7 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select(fmt.Sprintf("?, %s", stringIDClause), s.name.outputBasketTableName).
+				Select(fmt.Sprintf("?, %s", stringIDClause), s.naming.outputBasketTableName).
 				Scopes(filters...).
 				Find(&models.OutputBasket{})
 		})
@@ -74,7 +74,7 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 		err = tx.WithContext(ctx).
 			Model(&models.OutputBasket{}).
 			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope(stringIDClause, s.name.outputBasketTableName)).
+			Scopes(s.joinWithNumericIDLookupScope(stringIDClause, s.naming.outputBasketTableName)).
 			Scopes(filters...).
 			Find(&resultModels).Error
 		if err != nil {
@@ -104,22 +104,24 @@ func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.Tabl
 	}
 }
 
+// upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
+// It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
 	dry := s.db.Session(&gorm.Session{DryRun: true, Initialized: true})
 	query := stringIDsQuery(dry)
 
-	clauses := []clause.Expression{
-		clause.Expr{SQL: "INSERT INTO " + s.name.numericIDLookupTableName + " (table_name, string_id) "},
+	insertSelectClauses := []clause.Expression{
+		clause.Expr{SQL: "INSERT INTO " + s.naming.numericIDLookupTableName + " (table_name, string_id) "},
 		clause.Expr{SQL: query.Statement.SQL.String(), Vars: query.Statement.Vars},
 		clause.Expr{SQL: " ON CONFLICT DO NOTHING"},
 	}
 
-	dry = s.db.Session(&gorm.Session{DryRun: true, Initialized: true})
-	for _, c := range clauses {
-		c.Build(dry.Statement)
+	insertSelect := &gorm.Statement{DB: s.db}
+	for _, c := range insertSelectClauses {
+		c.Build(insertSelect)
 	}
 
-	err := tx.WithContext(ctx).Exec(dry.Statement.SQL.String(), dry.Statement.Vars...).Error
+	err := tx.WithContext(ctx).Exec(insertSelect.SQL.String(), insertSelect.Vars...).Error
 	if err != nil {
 		return fmt.Errorf("failed to create numeric ID lookup rows: %w", err)
 	}
@@ -127,9 +129,11 @@ func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDs
 	return nil
 }
 
+// joinWithNumericIDLookupScope returns a GORM scope to join a numeric ID lookup table based on the provided string ID clause.
+// The entityName is used to specify the table_name of the entity, and the stringIDClause is used to match the string_id in the numeric ID lookup table.
 func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName string) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		joinQuery := fmt.Sprintf("INNER JOIN %s as num on num.table_name = ? and num.string_id = %s", s.name.numericIDLookupTableName, stringIDClause)
+		joinQuery := fmt.Sprintf("INNER JOIN %s as num on num.table_name = ? and num.string_id = %s", s.naming.numericIDLookupTableName, stringIDClause)
 
 		return db.Joins(joinQuery, entityName)
 	}

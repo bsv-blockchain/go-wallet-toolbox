@@ -8,7 +8,7 @@ type UserUTXO struct {
 	OutputID uint    `gorm:"primaryKey"`
 	Output   *Output `gorm:"foreignKey:OutputID"`
 
-	BasketName string        `gorm:"not null"`
+	BasketName string        `gorm:"not null,index"`
 	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`
 
 	Satoshis uint64
