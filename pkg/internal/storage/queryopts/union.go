@@ -7,7 +7,7 @@ type Options struct {
 
 func WithPage(page Paging) Options {
 	return Options{
-		Page:  &page,
+		Page: &page,
 	}
 }
 

@@ -5,16 +5,16 @@ type EntityName string
 
 // All entity names used in the storage API
 const (
-	ProvenTxEntityName       EntityName = "provenTx"
-	OutputBasketEntityName  EntityName = "outputBasket"
-	TransactionEntityName    EntityName = "transaction"
-	ProvenTxReqEntityName    EntityName = "provenTxReq"
-	TxLabelEntityName        EntityName = "txLabel"
-	TxLabelMapEntityName     EntityName = "txLabelMap"
-	OutputEntityName         EntityName = "output"
-	OutputTagEntityName      EntityName = "outputTag"
-	OutputTagMapEntityName  EntityName = "outputTagMap"
-	CertificateEntityName    EntityName = "certificate"
+	ProvenTxEntityName         EntityName = "provenTx"
+	OutputBasketEntityName     EntityName = "outputBasket"
+	TransactionEntityName      EntityName = "transaction"
+	ProvenTxReqEntityName      EntityName = "provenTxReq"
+	TxLabelEntityName          EntityName = "txLabel"
+	TxLabelMapEntityName       EntityName = "txLabelMap"
+	OutputEntityName           EntityName = "output"
+	OutputTagEntityName        EntityName = "outputTag"
+	OutputTagMapEntityName     EntityName = "outputTagMap"
+	CertificateEntityName      EntityName = "certificate"
 	CertificateFieldEntityName EntityName = "certificateField"
-	CommissionEntityName     EntityName = "commission"
+	CommissionEntityName       EntityName = "commission"
 )
