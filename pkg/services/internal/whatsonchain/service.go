@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -13,6 +14,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/dto"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -62,7 +64,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		url:               fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s", network),
 		logger:            logger,
 		bsvExchangeRate:   config.BSVExchangeRate,
-		bsvUpdateInterval: to.IfThen(config.BSVUpdateInterval != nil, *config.BSVUpdateInterval).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
 	}
 }
 
@@ -140,4 +142,52 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	}
 
 	return woc.bsvExchangeRate, nil
+}
+
+func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*BlockHeader, error) {
+	var result dto.BlockResponses
+	url := fmt.Sprintf("%s/block/headers?limit=1", woc.url)
+	res, err := woc.
+		httpClient.
+		R().
+		SetContext(ctx).
+		SetResult(&result).
+		AddRetryCondition(func(res *resty.Response, err error) bool {
+			return res.StatusCode() == http.StatusTooManyRequests
+		}).
+		Get(url)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch block headers from WOC (URL: %s) due to an error: %w", url, err)
+	}
+
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("failed to retrieve successful response from WOC (URL: %s). Actual status: %d", url, res.StatusCode())
+	}
+
+	if result.IsEmpty() {
+		return nil, fmt.Errorf("failed to retrieve ")
+	}
+
+	return ConvertToBlockHeader(result.First())
+}
+
+func ConvertToBlockHeader(dto dto.BlockResponse) (*BlockHeader, error) {
+	bits, err := strconv.ParseInt(dto.Bits, 16, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse bits %s string to int64: %w", dto.Bits, err)
+	}
+
+	return &BlockHeader{
+		BaseBlockHeader: BaseBlockHeader{
+			Version:      int64(dto.Version),
+			PreviousHash: dto.PreviousBlockHash,
+			MerkleRoot:   dto.MerkleRoot,
+			Time:         dto.Time,
+			Bits:         bits,
+			Nonce:        int64(dto.Nonce),
+		},
+		Height: uint(dto.Height),
+		Hash:   dto.Hash,
+	}, nil
 }

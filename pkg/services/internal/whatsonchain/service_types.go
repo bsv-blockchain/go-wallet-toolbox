@@ -1,4 +1,4 @@
-package services
+package whatsonchain
 
 import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"

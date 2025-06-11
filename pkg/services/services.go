@@ -28,6 +28,8 @@ type WalletServices struct {
 	rawTxServices         servicequeue.Queue1[string, *wdk.RawTxResult]
 	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
 	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
+	chainHeaderServices   servicequeue.Queue[*whatsonchain.BlockHeader]
+
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -68,7 +70,24 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"MerklePath",
 			servicequeue.NewService1(whatsonchain.ServiceName, arcService.MerklePath),
 		),
+
+		chainHeaderServices: servicequeue.NewQueue(
+			logger,
+			"ChainHeader",
+			servicequeue.NewService(whatsonchain.ServiceName, woc.FindChainTipHeader),
+		),
 	}
+}
+
+func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*whatsonchain.BlockHeader, error) {
+	result, err := s.chainHeaderServices.OneByOne(ctx)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("no chain header service returned a result: %w", err)
+		}
+		return nil, fmt.Errorf("failed to retrieve latest block header: %w", err)
+	}
+	return result, nil
 }
 
 // RawTx attempts to obtain the raw transaction bytes associated with a 32 byte transaction hash (txid).
@@ -154,14 +173,14 @@ func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 // Cycles through configured transaction processing services attempting to get a valid response.
 func (s *WalletServices) UtxoStatus(
 	output string,
-	outputFormat UtxoStatusOutputFormat,
+	outputFormat whatsonchain.UtxoStatusOutputFormat,
 	useNext bool,
-) (UtxoStatusResult, error) {
+) (whatsonchain.UtxoStatusResult, error) {
 	panic("Not implemented yet")
 }
 
 // HashToHeader attempts to retrieve BlockHeader by its hash
-func (s *WalletServices) HashToHeader(hash string) (*BlockHeader, error) {
+func (s *WalletServices) HashToHeader(hash string) (*whatsonchain.BlockHeader, error) {
 	panic("Not implemented yet")
 }
 
