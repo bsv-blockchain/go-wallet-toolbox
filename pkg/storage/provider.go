@@ -3,9 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -19,6 +16,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"log/slog"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -32,7 +30,6 @@ type Provider struct {
 	repo        *repo.Repositories
 	actions     *actions.Actions
 	syncActions *sync.Actions
-	random      wdk.Randomizer
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -86,8 +83,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 
 		repo:        repos,
 		actions:     actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
-		syncActions: sync.New(logger, repos),
-		random:      random,
+		syncActions: sync.New(logger, repos, random),
 	}, nil
 }
 
@@ -409,53 +405,29 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 	return chunk, nil
 }
 
+// FindOrInsertSyncStateAuth finds or inserts a sync state for the given user, storage identity key, and storage name.
 func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	fmt.Printf("FindOrInsertSyncStateAuth called with args: %#+v, storageIdentityKey: %s, storageName: %s", auth, storageIdentityKey, storageName)
-
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
 
-	user, err := p.repo.FindUser(ctx, auth.IdentityKey)
+	syncStateResponse, err := p.syncActions.FindOrInsertSyncState(ctx, auth, storageIdentityKey, storageName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
+		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)
 	}
 
-	if user == nil {
-		return nil, fmt.Errorf("user with identity key %s not found", auth.IdentityKey)
-	}
-
-	reference, err := p.random.Base64(12)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate reference number: %w", err)
-	}
-
-	syncMapJSON, err := wdk.NewSyncMap().JSON()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new sync map: %w", err)
-	}
-
-	return &wdk.FindOrInsertSyncStateAuthResponse{
-		SyncState: &wdk.TableSyncState{
-			CreatedAt:          time.Now(),
-			UpdatedAt:          time.Now(),
-			SyncStateID:        0,
-			UserID:             *auth.UserID,       // NOTE: This is the userID of a storage that wants to do the backup
-			StorageIdentityKey: storageIdentityKey, // NOTE: This is the storage that wants to do the backup
-			StorageName:        storageName,
-			Status:             wdk.SyncStatusUnknown,
-			Init:               false,
-			RefNum:             reference,
-			SyncMap:            string(syncMapJSON),
-			When:               nil,
-			Satoshis:           nil,
-			ErrorLocal:         nil,
-			ErrorOther:         nil,
-		},
-		IsNew: true,
-	}, nil
+	return syncStateResponse, nil
 }
 
 func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
-	panic("Not implemented yet") // TODO: Implement ProcessSyncChunk
+	err := validate.ValidRequestSyncChunkArgs(&args)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
+	}
+
+	result, err := p.syncActions.Process(ctx, args, chunk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
+	}
+	return result, nil
 }
