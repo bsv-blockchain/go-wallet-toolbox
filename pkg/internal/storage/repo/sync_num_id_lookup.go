@@ -9,7 +9,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -50,26 +49,21 @@ func (s *Sync) FindUserForSync(ctx context.Context, identityKey string) (*wdk.Ta
 
 type OutputBasketWithNum struct {
 	models.OutputBasket
-	NumID int64
+	NumID int
 }
 
 func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error) {
-	var outputBaskets []*OutputBasketWithNum
+	var resultModels []*OutputBasketWithNum
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
-		/*
-			INSERT INTO bsv_numeric_id_lookups (table_name, string_id) SELECT \"bsv_output_baskets\", name FROM bsv_output_baskets user_id = 1 AND name IS NOT NULL ON CONFLICT DO NOTHING
-			query := fmt.Sprintf(`
-					INSERT INTO %s (table_name, string_id) SELECT ?, name FROM %s WHERE user_id = ? AND name IS NOT NULL
-				`, s.name.numericIDLookupTableName, s.name.outputBasketTableName)
-		*/
+		stringIDClause := "CONCAT(user_id, '.', name)"
 
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
-			return db.Model(&models.OutputBasket{}).
-				Select("?, name", s.name.outputBasketTableName).
-				Scopes(scopes.UserID(userID)).
-				Scopes(scopes.FromQueryOpts(opts)...).
+			return db.
+				Select(fmt.Sprintf("?, %s", stringIDClause), s.name.outputBasketTableName).
+				Scopes(filters...).
 				Find(&models.OutputBasket{})
 		})
 		if err != nil {
@@ -79,10 +73,9 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 		err = tx.WithContext(ctx).
 			Model(&models.OutputBasket{}).
 			Select("*").
-			Joins(fmt.Sprintf("LEFT JOIN %s as num on num.table_name = ? and num.string_id = name", s.name.numericIDLookupTableName), s.name.outputBasketTableName).
-			Scopes(scopes.UserID(userID)).
-			Scopes(scopes.FromQueryOpts(opts)...).
-			Find(&outputBaskets).Error
+			Scopes(s.joinWithNumericIDLookupScope(stringIDClause, s.name.outputBasketTableName)).
+			Scopes(filters...).
+			Find(&resultModels).Error
 		if err != nil {
 			return fmt.Errorf("failed to find output baskets for sync: %w", err)
 		}
@@ -93,12 +86,12 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 		return nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return slices.Map(outputBaskets, s.mapModelToTableOutputBasket), nil
+	return slices.Map(resultModels, s.mapModelToTableOutputBasket), nil
 }
 
 func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.TableOutputBasket {
 	return &wdk.TableOutputBasket{
-		BasketID:  must.ConvertToInt(model.NumID),
+		BasketID:  model.NumID,
 		UserID:    model.UserID,
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,
@@ -111,7 +104,7 @@ func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.Tabl
 }
 
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
-	dry := s.db.Session(&gorm.Session{DryRun: true})
+	dry := s.db.Session(&gorm.Session{DryRun: true, Initialized: true})
 	query := stringIDsQuery(dry)
 
 	clauses := []clause.Expression{
@@ -120,6 +113,7 @@ func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDs
 		clause.Expr{SQL: " ON CONFLICT DO NOTHING"},
 	}
 
+	dry = s.db.Session(&gorm.Session{DryRun: true, Initialized: true})
 	for _, c := range clauses {
 		c.Build(dry.Statement)
 	}
@@ -130,4 +124,12 @@ func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDs
 	}
 
 	return nil
+}
+
+func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName string) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		joinQuery := fmt.Sprintf("INNER JOIN %s as num on num.table_name = ? and num.string_id = %s", s.name.numericIDLookupTableName, stringIDClause)
+
+		return db.Joins(joinQuery, entityName)
+	}
 }
