@@ -3,8 +3,8 @@ package brc29
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/bsv-blockchain/go-sdk/script"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 const forSelf = false

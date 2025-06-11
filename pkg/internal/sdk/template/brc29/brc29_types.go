@@ -3,8 +3,8 @@ package brc29
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 // ProtocolID represents the unique identifier for the BRC-29 protocol.

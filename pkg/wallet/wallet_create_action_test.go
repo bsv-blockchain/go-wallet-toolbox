@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 func TestWalletCreateActionArgsValidation(t *testing.T) {
@@ -46,14 +46,6 @@ func TestWalletCreateActionArgsValidation(t *testing.T) {
 			args: func() sdk.CreateActionArgs {
 				args := fixtures.DefaultWalletCreateActionArgs(t)
 				args.Description = strings.Repeat("a", 2001)
-				return args
-			},
-		},
-		"invalid output locking script": {
-			originator: fixtures.DefaultOriginator,
-			args: func() sdk.CreateActionArgs {
-				args := fixtures.DefaultWalletCreateActionArgs(t)
-				args.Outputs[0].LockingScript = "invalid-hex"
 				return args
 			},
 		},
