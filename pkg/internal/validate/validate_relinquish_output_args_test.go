@@ -5,35 +5,35 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
 
 func TestValidRelinquishOutputArgs_Success(t *testing.T) {
 	tests := map[string]struct {
-		args *sdk.RelinquishOutputArgs
+		args *wdk.RelinquishOutputArgs
 	}{
 		"valid args": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: fixtures.MockOutpoint,
 				Basket: "validbasket",
 			},
 		},
 		"valid: basket at min length": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: fixtures.MockOutpoint,
 				Basket: "a",
 			},
 		},
 		"valid: basket at max length": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: fixtures.MockOutpoint,
 				Basket: strings.Repeat("a", 300),
 			},
 		},
 		"valid: empty basket": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: fixtures.MockOutpoint,
 				Basket: "",
 			},
@@ -50,28 +50,28 @@ func TestValidRelinquishOutputArgs_Success(t *testing.T) {
 
 func TestValidRelinquishOutputArgs_Error_InvalidOutpoint(t *testing.T) {
 	tests := map[string]struct {
-		args *sdk.RelinquishOutputArgs
+		args *wdk.RelinquishOutputArgs
 	}{
 		"missing dot": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: "deadbeefcafebabe0",
 				Basket: "validbasket",
 			},
 		},
 		"index not numeric": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: "deadbeefcafebabe.notanumber",
 				Basket: "validbasket",
 			},
 		},
 		"empty output": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: "",
 				Basket: "validbasket",
 			},
 		},
 		"double dot": {
-			args: &sdk.RelinquishOutputArgs{
+			args: &wdk.RelinquishOutputArgs{
 				Output: "deadbeefcafebabe.1.0",
 				Basket: "validbasket",
 			},
@@ -87,7 +87,7 @@ func TestValidRelinquishOutputArgs_Error_InvalidOutpoint(t *testing.T) {
 }
 
 func TestValidRelinquishOutputArgs_Error_InvalidBasket(t *testing.T) {
-	args := &sdk.RelinquishOutputArgs{
+	args := &wdk.RelinquishOutputArgs{
 		Output: fixtures.MockOutpoint,
 		Basket: strings.Repeat("a", 301),
 	}

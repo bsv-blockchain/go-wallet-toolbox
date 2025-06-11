@@ -3,10 +3,10 @@ package brc29
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 // Lock generates a locking script for a BRC29 address derived from the sender, key ID, and recipient public key.

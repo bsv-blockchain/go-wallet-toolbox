@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -128,22 +128,22 @@ func (w *Wallet) Decrypt(ctx context.Context, args sdk.DecryptArgs, originator s
 	return res, nil
 }
 
-// CreateHmac creates an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
-func (w *Wallet) CreateHmac(ctx context.Context, args sdk.CreateHmacArgs, originator string) (*sdk.CreateHmacResult, error) {
+// CreateHMAC creates an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
+func (w *Wallet) CreateHMAC(ctx context.Context, args sdk.CreateHMACArgs, originator string) (*sdk.CreateHMACResult, error) {
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
-	res, err := w.proto.CreateHmac(ctx, args, originator)
+	res, err := w.proto.CreateHMAC(ctx, args, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create hmac: %w", err)
+		return nil, fmt.Errorf("failed to create HMAC: %w", err)
 	}
 	return res, nil
 }
 
-// VerifyHmac verifies an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
-func (w *Wallet) VerifyHmac(ctx context.Context, args sdk.VerifyHmacArgs, originator string) (*sdk.VerifyHmacResult, error) {
+// VerifyHMAC verifies an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
+func (w *Wallet) VerifyHMAC(ctx context.Context, args sdk.VerifyHMACArgs, originator string) (*sdk.VerifyHMACResult, error) {
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
-	res, err := w.proto.VerifyHmac(ctx, args, originator)
+	res, err := w.proto.VerifyHMAC(ctx, args, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify hmac: %w", err)
+		return nil, fmt.Errorf("failed to verify HMAC: %w", err)
 	}
 	return res, nil
 }
@@ -175,10 +175,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	}
 
 	// TODO: mapping.MapCreateActionArgs should handle known tx ids - needs some merging and validation of BEEF
-	wdkArgs, err := mapping.MapCreateActionArgs(args, w.Opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process provided arguments: %w", err)
-	}
+	wdkArgs := mapping.MapCreateActionArgs(args, w.Opts)
 
 	if err := validate.WalletCreateActionArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid create action args: %w", err)

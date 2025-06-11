@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
@@ -334,7 +333,7 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 }
 
 // RelinquishOutput removes a specified output from a basket
-func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args sdk.RelinquishOutputArgs) error {
+func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
 	if auth.UserID == nil {
 		return ErrAuthorization
 	}
