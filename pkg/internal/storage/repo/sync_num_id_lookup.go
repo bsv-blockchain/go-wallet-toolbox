@@ -107,7 +107,7 @@ func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.Tabl
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
 // It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
-	dry := s.db.Session(&gorm.Session{DryRun: true, Initialized: true})
+	dry := s.db.Session(&gorm.Session{DryRun: true, Initialized: true}) // Initialized to separate the dry run from the actual transaction (this makes the Session to clone the Statement)
 	query := stringIDsQuery(dry)
 
 	insertSelectClauses := []clause.Expression{
