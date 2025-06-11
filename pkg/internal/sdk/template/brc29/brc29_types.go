@@ -47,10 +47,7 @@ type CounterpartyPublicKey interface {
 //   - *sdk.KeyDeriver: a key deriver that can be used to derive the private key
 //   - *ec.PrivateKey: a private key object
 type CounterpartyPrivateKey interface {
-	string |
-		WIF |
-		*sdk.KeyDeriver |
-		*ec.PrivateKey
+	string | WIF | *sdk.KeyDeriver | *ec.PrivateKey
 }
 
 // KeyID represents a key ID for BRC29.
@@ -66,10 +63,10 @@ type KeyID struct {
 // The key ID must have a derivation prefix and derivation suffix.
 func (k *KeyID) Validate() error {
 	if k.DerivationPrefix == "" {
-		return fmt.Errorf("derivation prefix is required")
+		return fmt.Errorf("invalid key id: derivation prefix is required")
 	}
 	if k.DerivationSuffix == "" {
-		return fmt.Errorf("derivation suffix is required")
+		return fmt.Errorf("invalid key id: derivation suffix is required")
 	}
 	return nil
 }

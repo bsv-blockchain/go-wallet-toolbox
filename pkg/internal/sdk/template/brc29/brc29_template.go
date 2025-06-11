@@ -16,8 +16,8 @@ import (
 //   - keyID: the key ID.
 //   - recipient: the recipient key. This is the public key from private key that will be able to unlock it later. Can be a public key hex or a key deriver or ec.PublicKey.
 //   - opts: additional options.
-func Lock[SenderKey CounterpartyPrivateKey, RecipientKey CounterpartyPublicKey](sender SenderKey, keyID KeyID, recipient RecipientKey, opts ...func(*lockOptions)) (*script.Script, error) {
-	address, err := Address(sender, keyID, recipient, opts...)
+func Lock[SenderKey CounterpartyPrivateKey, RecipientKey CounterpartyPublicKey](senderPrivateKeySource SenderKey, keyID KeyID, recipientPublicKeySource RecipientKey, opts ...func(*lockOptions)) (*script.Script, error) {
+	address, err := Address(senderPrivateKeySource, keyID, recipientPublicKeySource, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate BRC29 address to lock the output: %w", err)
 	}
@@ -55,12 +55,12 @@ func Unlock[SenderKey CounterpartyPublicKey, RecipientKey CounterpartyPrivateKey
 
 	senderIdentityKey, err := toIdentityKey(senderPublicKeySource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create sender identity key: %w", err)
+		return nil, fmt.Errorf("failed to create sender identity key from %T: %w", senderIdentityKey, err)
 	}
 
 	recipientKeyDeriver, err := toKeyDeriver(recipientPrivateKeySource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create recipient key deriver: %w", err)
+		return nil, fmt.Errorf("failed to create recipient key deriver from %T: %w", recipientPrivateKeySource, err)
 	}
 
 	err = keyID.Validate()
