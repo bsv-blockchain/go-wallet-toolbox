@@ -62,7 +62,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		url:               fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s", network),
 		logger:            logger,
 		bsvExchangeRate:   config.BSVExchangeRate,
-		bsvUpdateInterval: to.IfThen(config.BSVUpdateInterval != nil, *config.BSVUpdateInterval).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
 	}
 }
 
@@ -70,9 +70,7 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResu
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
-		AddRetryCondition(func(res *resty.Response, err error) bool {
-			return res.StatusCode() == http.StatusTooManyRequests
-		})
+		AddRetryCondition(retryOnTooManyRequestsStatus)
 	req.SetHeader("Cache-Control", "no-cache")
 
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/hex", woc.url, txID))
@@ -114,9 +112,7 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	var exchangeRateResponse bsvExchangeRateResponse
 	req := woc.httpClient.
 		R().
-		AddRetryCondition(func(res *resty.Response, err error) bool {
-			return res.StatusCode() == http.StatusTooManyRequests
-		})
+		AddRetryCondition(retryOnTooManyRequestsStatus)
 
 	res, err := req.
 		SetResult(&exchangeRateResponse).
