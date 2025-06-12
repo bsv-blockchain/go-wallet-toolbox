@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -28,26 +27,6 @@ func NewSync(db *gorm.DB) *Sync {
 		db:     db,
 		naming: newNaming(db),
 	}
-}
-
-func (s *Sync) FindUserForSync(ctx context.Context, identityKey string) (*wdk.TableUser, error) {
-	user := &models.User{}
-	err := s.db.WithContext(ctx).
-		First(&user, "identity_key = ?", identityKey).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	return &wdk.TableUser{
-		UserID:        user.UserID,
-		IdentityKey:   user.IdentityKey,
-		ActiveStorage: user.ActiveStorage,
-		CreatedAt:     user.CreatedAt,
-		UpdatedAt:     user.UpdatedAt,
-	}, nil
 }
 
 type OutputBasketWithNum struct {

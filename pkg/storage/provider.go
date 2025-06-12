@@ -230,7 +230,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 	}
 	if user != nil {
 		return &wdk.FindOrInsertUserResponse{
-			User:  *user,
+			User:  *user.ToWDK(),
 			IsNew: false,
 		}, nil
 	}
@@ -251,7 +251,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 	}
 
 	return &wdk.FindOrInsertUserResponse{
-		User:  *user,
+		User:  *user.ToWDK(),
 		IsNew: true,
 	}, nil
 }
