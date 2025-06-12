@@ -15,33 +15,6 @@ const (
 	Script UtxoStatusOutputFormat = "script"
 )
 
-// BaseBlockHeader are fields of 80 byte serialized header in order whose double sha256 hash is a block's hash value
-// and the next block's previousHash value.
-// All block hash values and merkleRoot values are 32 byte hex string values with the byte order reversed from the serialized byte order.
-type BaseBlockHeader struct {
-	// Block header version value. Serialized length is 4 bytes.
-	Version int64
-	// PreviousHash is a hash of previous block's block header. Serialized length is 32 bytes.
-	PreviousHash string
-	// MerkleRoot is root hash of the merkle tree of all transactions in this block. Serialized length is 32 bytes.
-	MerkleRoot string
-	// Time is block header time value. Serialized length is 4 bytes.
-	Time int64
-	// Bits are block header bits value. Serialized length is 4 bytes.
-	Bits int64
-	// Nonce is block header nonce value. Serialized length is 4 bytes.
-	Nonce int64
-}
-
-// BlockHeader is a base block header with its computed height and hash in its chain
-type BlockHeader struct {
-	BaseBlockHeader
-	// Height is the of the header, starting from zero
-	Height uint
-	// Hash is the double sha256 hash of the serialized `BaseBlockHeader` fields
-	Hash string
-}
-
 // MerklePathResult is result from MerklePath method
 type MerklePathResult struct {
 	// Name is the name of the service returning the proof, or undefined if no proof
@@ -49,7 +22,7 @@ type MerklePathResult struct {
 	// MerklePath are multiple proofs may be returned when a transaction also appears in
 	// one or more orphaned blocks
 	MerklePath *transaction.MerklePath
-	Header     *BlockHeader
+	Header     *wdk.ChainBlockHeader
 	Notes      []wdk.ReqHistoryNote
 }
 

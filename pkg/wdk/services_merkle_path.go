@@ -12,15 +12,15 @@ type MerklePathResult struct {
 	// MerklePath is the MerklePath of the transaction
 	MerklePath *transaction.MerklePath
 
-	// Header is the header of the block containing the transaction
-	Header *BlockHeader
+	// TransactionBlockHeader is the header of the block containing the transaction
+	TransactionBlockHeader *TransactionBlockHeader
 
 	// Notes are the service debug notes for processing the request
 	Notes Notes
 }
 
-// BlockHeader is the header of a block
-type BlockHeader struct {
+// TransactionBlockHeader is the header of a block
+type TransactionBlockHeader struct {
 	// Height is the of the header, starting from zero
 	Height uint32
 
