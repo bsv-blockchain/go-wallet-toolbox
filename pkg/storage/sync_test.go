@@ -14,7 +14,7 @@ func TestSyncProcess(t *testing.T) {
 	givenSourceDB, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	sourceProvider := givenSourceDB.Provider().GORM() // this automatically creates test-users and their default baskets
+	sourceProvider := givenSourceDB.Provider().GORM()
 
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
@@ -44,7 +44,7 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	givenSourceDB, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	sourceProvider := givenSourceDB.Provider().GORM() // this automatically creates test-users and their default baskets
+	sourceProvider := givenSourceDB.Provider().GORM()
 
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
@@ -55,4 +55,28 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, inserts) // TODO: Adjust it after implementing sync logic
 	require.Equal(t, 1, updates) // TODO: Adjust it after implementing sync logic
+}
+
+func TestSyncProcessInvalidUser(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Bob.AuthID(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, 0, inserts) // TODO: Adjust it after implementing sync logic
+	require.Equal(t, 0, updates) // TODO: Adjust it after implementing sync logic
 }

@@ -23,15 +23,24 @@ func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk
 	}
 }
 
-func (p *chunkProcessor) process() error {
+func (p *chunkProcessor) process() (err error) {
 	// TODO: Get SyncState from DB
+
+	defer func() {
+		// TODO: Remember to update the sync state in the database.
+	}()
 
 	if p.chunk.User != nil {
 		// TODO Check if the syncState actually refers to the user in the chunk.
 
-		if err := p.mergeUser(); err != nil {
+		if err = p.mergeUser(); err != nil {
 			return fmt.Errorf("failed to merge user: %w", err)
 		}
+	}
+
+	if p.emptyChunk() {
+		p.result.Done = true
+		return nil // No data to process, return early.
 	}
 
 	//for _, basket := range p.chunk.OutputBaskets {
@@ -74,4 +83,11 @@ func (p *chunkProcessor) updateResult(updatedAt time.Time, updates, inserts int)
 
 func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
 	panic("implement me")
+}
+
+// emptyChunk checks if the chunk is empty, meaning it has no row data to process.
+// NOTE: The user pointer is not taken into account.
+func (p *chunkProcessor) emptyChunk() bool {
+	// TODO: Add more entities when implemented.
+	return len(p.chunk.OutputBaskets) == 0
 }
