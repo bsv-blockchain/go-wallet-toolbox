@@ -8,10 +8,11 @@ import (
 )
 
 type chunkProcessor struct {
-	parent *processSyncChunk
-	chunk  *wdk.SyncChunk
-	result wdk.ProcessSyncChunkResult
-	ctx    context.Context
+	parent    *processSyncChunk
+	chunk     *wdk.SyncChunk
+	result    wdk.ProcessSyncChunkResult
+	ctx       context.Context
+	syncState *wdk.TableSyncState
 }
 
 func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk.SyncChunk) *chunkProcessor {
@@ -23,7 +24,11 @@ func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk
 }
 
 func (p *chunkProcessor) process() error {
+	// TODO: Get SyncState from DB
+
 	if p.chunk.User != nil {
+		// TODO Check if the syncState actually refers to the user in the chunk.
+
 		if err := p.mergeUser(); err != nil {
 			return fmt.Errorf("failed to merge user: %w", err)
 		}
@@ -44,31 +49,17 @@ func (p *chunkProcessor) mergeUser() error {
 		return fmt.Errorf("failed to find chunk user: %w", err)
 	}
 
-	if p.chunk.User.UserID != chunkUserInCurrentDB.UserID {
-		// TODO: Double check that. How this could even work in production where it's very likely that primary keys of different DBs with different users DO NOT match.
-		return fmt.Errorf("user ID mismatch: chunk user ID %d does not match found user ID %d", p.chunk.User.UserID, chunkUserInCurrentDB.UserID)
-	}
-
 	currentDBHasNewerVersion := chunkUserInCurrentDB.UpdatedAt.After(p.chunk.User.UpdatedAt)
-	needsActiveStorageUpdate := chunkUserInCurrentDB.ActiveStorage == "" && p.chunk.User.ActiveStorage != ""
-
-	if currentDBHasNewerVersion && !needsActiveStorageUpdate {
+	if currentDBHasNewerVersion {
 		return nil // No update needed, the current DB user is newer and already has an active storage.
 	}
 
-	var newerUpdatedAt time.Time
-	if currentDBHasNewerVersion {
-		newerUpdatedAt = chunkUserInCurrentDB.UpdatedAt
-	} else {
-		newerUpdatedAt = p.chunk.User.UpdatedAt
-	}
-
-	err = p.parent.repo.UpdateUser(p.ctx, p.chunk.User.UserID, p.chunk.User.ActiveStorage, newerUpdatedAt)
+	err = p.parent.repo.UpdateUser(p.ctx, p.chunk.User.UserID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
-	p.updateResult(newerUpdatedAt, 1, 0)
+	p.updateResult(p.chunk.User.UpdatedAt, 1, 0)
 	return nil
 }
 
