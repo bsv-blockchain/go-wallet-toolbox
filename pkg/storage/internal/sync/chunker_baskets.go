@@ -50,7 +50,7 @@ func (c *chunkerBaskets) Process(ctx context.Context, userID int, page *queryopt
 		opts = append(opts, queryopts.WithSince(queryopts.Since{Time: *since}))
 	}
 
-	rows, err := c.repo.FindBasketsByUserID(ctx, userID, opts...)
+	rows, err := c.repo.FindBasketsForSync(ctx, userID, opts...)
 	if err != nil {
 		return 0, fmt.Errorf("fetch baskets by user id: %w", err)
 	}

@@ -22,11 +22,11 @@ const (
 )
 
 type faucetFixture struct {
-	t        testing.TB
-	user     testusers.User
-	db       *database.Database
-	basketID int
-	index    int
+	t          testing.TB
+	user       testusers.User
+	db         *database.Database
+	basketName string
+	index      int
 }
 
 func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models.UserUTXO) {
@@ -73,7 +73,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		DerivationPrefix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationPrefix, f.index)),
 		DerivationSuffix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationSuffix, f.index)),
 		LockingScript:    to.Ptr(spec.TX().Outputs[0].LockingScript.String()),
-		BasketID:         to.Ptr(f.basketID),
+		BasketName:       &f.basketName,
 
 		Transaction: transaction,
 	}
@@ -82,7 +82,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		UserID:             f.user.ID,
 		Satoshis:           satoshis.MustUInt64(),
 		EstimatedInputSize: txutils.P2PKHEstimatedInputSize,
-		BasketID:           f.basketID,
+		BasketName:         f.basketName,
 
 		Output: output,
 	}

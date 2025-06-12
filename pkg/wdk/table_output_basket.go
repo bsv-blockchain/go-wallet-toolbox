@@ -18,9 +18,11 @@ type TableOutputBasket struct {
 	BasketConfiguration `json:",inline"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
-	BasketID            int       `json:"basketId"`
 	UserID              int       `json:"userId"`
 	IsDeleted           bool      `json:"isDeleted"`
+
+	// BasketNumID is to keep interoperability via API, NOTE that this field is not a primary key in the database
+	BasketID int `json:"basketId"`
 }
 
 // DefaultBasketConfiguration returns a default basket configuration

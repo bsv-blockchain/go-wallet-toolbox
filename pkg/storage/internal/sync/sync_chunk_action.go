@@ -28,7 +28,7 @@ func newSyncChunkAction(logger *slog.Logger, repo Repository) *syncChunkAction {
 }
 
 func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-	user, err := s.repo.FindUser(ctx, args.IdentityKey)
+	user, err := s.repo.FindUserForSync(ctx, args.IdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find user: %w", err)
 	}

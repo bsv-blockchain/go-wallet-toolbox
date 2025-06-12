@@ -20,12 +20,12 @@ func NewUTXOs(db *gorm.DB) *UTXOs {
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID int, page *queryopts.Paging, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
+func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketName string, page *queryopts.Paging, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
 	var result []*models.UserUTXO
 
 	query := u.db.WithContext(ctx).Scopes(
 		scopes.UserID(userID),
-		scopes.BasketID(basketID),
+		scopes.BasketName(basketName),
 		scopes.Paginate(page),
 		notReserved(),
 		outputNotIn(forbiddenOutputIDs),
@@ -38,12 +38,12 @@ func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketID i
 	return result, nil
 }
 
-func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basket int) (int64, error) {
+func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error) {
 	count := int64(0)
 
 	err := u.db.WithContext(ctx).
 		Model(&models.UserUTXO{}).
-		Scopes(scopes.UserID(userID), scopes.BasketID(basket), notReserved()).
+		Scopes(scopes.UserID(userID), scopes.BasketName(basketName), notReserved()).
 		Count(&count).Error
 
 	return count, err

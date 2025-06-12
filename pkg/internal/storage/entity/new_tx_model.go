@@ -33,7 +33,7 @@ type NewOutput struct {
 	LockingScript      *primitives.HexString
 	CustomInstructions *string
 	Satoshis           satoshi.Value
-	Basket             *string
+	BasketName         *string
 	Spendable          bool
 	Change             bool
 	ProvidedBy         wdk.ProvidedBy

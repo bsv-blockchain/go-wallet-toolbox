@@ -14,6 +14,7 @@ type Repositories struct {
 	*Transactions
 	*Outputs
 	*ProvenTxReq
+	*Sync
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
@@ -26,6 +27,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		Transactions:  NewTransactions(db),
 		Outputs:       NewOutputs(db),
 		ProvenTxReq:   NewProvenTxReqRepo(db),
+		Sync:          NewSync(db),
 	}
 	repositories.Users = NewUsers(db, repositories.Settings, repositories.OutputBaskets)
 

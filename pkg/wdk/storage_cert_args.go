@@ -28,4 +28,3 @@ type ListCertificatesArgs struct {
 	Limit      primitives.PositiveIntegerDefault10Max10000 `json:"limit"`
 	Offset     primitives.PositiveInteger                  `json:"offset"`
 }
-

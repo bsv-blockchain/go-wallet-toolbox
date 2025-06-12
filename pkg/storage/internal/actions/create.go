@@ -297,7 +297,7 @@ func (c *create) newOutputs(
 	for _, output := range providedOutputs {
 		all = append(all, &entity.NewOutput{
 			Satoshis:           satoshi.MustFrom(output.Satoshis),
-			Basket:             (*string)(output.Basket),
+			BasketName:         (*string)(output.Basket),
 			Spendable:          false,
 			Change:             false,
 			ProvidedBy:         wdk.ProvidedByYou,
@@ -312,7 +312,7 @@ func (c *create) newOutputs(
 		all = append(all, &entity.NewOutput{
 			LockingScript: to.Ptr(commissionOutput.LockingScript),
 			Satoshis:      satoshi.MustFrom(commissionOutput.Satoshis),
-			Basket:        nil,
+			BasketName:    nil,
 			Spendable:     false,
 			Change:        false,
 			ProvidedBy:    wdk.ProvidedByStorage,
@@ -329,7 +329,7 @@ func (c *create) newOutputs(
 
 		all = append(all, &entity.NewOutput{
 			Satoshis:         satoshis,
-			Basket:           to.Ptr(wdk.BasketNameForChange),
+			BasketName:       to.Ptr(wdk.BasketNameForChange),
 			Spendable:        false,
 			Change:           true,
 			ProvidedBy:       wdk.ProvidedByStorage,
@@ -367,11 +367,8 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 				OutputDescription:  primitives.String5to2000Bytes(output.Description),
 				CustomInstructions: output.CustomInstructions,
 				LockingScript:      optional.OfPtr(output.LockingScript).OrZeroValue(),
+				Basket:             (*primitives.StringUnder300)(output.BasketName),
 			},
-		}
-
-		if output.Basket != nil {
-			resultOutputs[i].Basket = to.Ptr(primitives.StringUnder300(*output.Basket))
 		}
 	}
 

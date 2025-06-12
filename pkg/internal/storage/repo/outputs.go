@@ -68,7 +68,7 @@ func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
 		OutputID:           model.ID,
 		UserID:             model.UserID,
 		TransactionID:      model.TransactionID,
-		BasketID:           model.BasketID,
+		BasketName:         model.BasketName,
 		Spendable:          model.Spendable,
 		Change:             model.Change,
 		OutputDescription:  model.Description,
@@ -99,11 +99,7 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			Where("user_id = ?", filter.UserID)
 
 		if filter.Basket != "" {
-			query = query.Where("basket_id IN (?)",
-				o.db.Model(&models.OutputBasket{}).
-					Select("basket_id").
-					Where("name = ? and user_id = ?", filter.Basket, filter.UserID),
-			)
+			query = query.Where("basket_name = ?", filter.Basket)
 		}
 
 		if filter.IncludeTXID {
@@ -141,12 +137,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 			)
 
 		if basketName != nil {
-			query = query.Where("basket_id IN (?)",
-				tx.Model(&models.OutputBasket{}).
-					Select("id").
-					Scopes(scopes.UserID(userID)).
-					Where("name = ?", *basketName),
-			)
+			query = query.Where("basket_name = ?", *basketName)
 		}
 
 		var output models.Output
@@ -164,7 +155,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 
 		result := tx.Model(&models.Output{}).
 			Where("id = ?", output.ID).
-			Update("basket_id", nil)
+			Update("basket_name", nil)
 
 		if result.Error != nil {
 			return fmt.Errorf("failed to unlink output from basket: %w", result.Error)
@@ -211,19 +202,25 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 	return tableOutput, nil
 }
 
-// FindInputsAndOutputsWithBuckets retrieves inputs and outputs for given transaction IDs, including basket information.
+// FindInputsAndOutputsWithBaskets retrieves inputs and outputs for given transaction IDs, including basket information.
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
-func (o *Outputs) FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []uint) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error) {
+func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error) {
 	if len(txIDs) == 0 {
 		return
 	}
 
-	var allOutputs []*models.Output
-	if err := o.db.WithContext(ctx).
+	query := o.db.WithContext(ctx).
+		Model(&models.Output{}).
 		Preload("Basket").
-		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs).
-		Find(&allOutputs).Error; err != nil {
+		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs)
+
+	if !includeLockingScripts {
+		query = query.Omit("locking_script")
+	}
+
+	var allOutputs []*models.Output
+	if err := query.Find(&allOutputs).Error; err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
 	}
 

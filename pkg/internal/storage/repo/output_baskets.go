@@ -7,10 +7,8 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -23,9 +21,12 @@ func NewOutputBaskets(db *gorm.DB) *OutputBaskets {
 	return &OutputBaskets{db: db}
 }
 
-func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*wdk.TableOutputBasket, error) {
+func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*entity.OutputBasket, error) {
 	outputBasket := &models.OutputBasket{}
-	err := o.db.WithContext(ctx).First(&outputBasket, "user_id = ? AND name = ?", userID, name).Error
+	err := o.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID)).
+		Where("name = ?", name).
+		First(&outputBasket).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -33,20 +34,7 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 		return nil, fmt.Errorf("failed to find output basket: %w", err)
 	}
 
-	return mapModelToTableOutputBasket(outputBasket), nil
-}
-
-func (o *OutputBaskets) FindBasketsByUserID(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error) {
-	var outputBaskets []*models.OutputBasket
-	err := o.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID)).
-		Scopes(scopes.FromQueryOpts(opts)...).
-		Find(&outputBaskets).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to find output baskets: %w", err)
-	}
-
-	return slices.Map(outputBaskets, mapModelToTableOutputBasket), nil
+	return mapModelToEntityOutputBasket(outputBasket), nil
 }
 
 func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) error {
@@ -70,31 +58,11 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 	return nil
 }
 
-func (o *OutputBaskets) FindBasketsByIDs(ctx context.Context, basketIDs []int) ([]*wdk.TableOutputBasket, error) {
-	if len(basketIDs) == 0 {
-		return []*wdk.TableOutputBasket{}, nil
-	}
-
-	var dbBaskets []*models.OutputBasket
-	if err := o.db.WithContext(ctx).
-		Model(&models.OutputBasket{}).
-		Where("basket_id IN ?", basketIDs).
-		Find(&dbBaskets).Error; err != nil {
-		return nil, fmt.Errorf("failed to load output baskets: %w", err)
-	}
-	return slices.Map(dbBaskets, mapModelToTableOutputBasket), nil
-}
-
-func mapModelToTableOutputBasket(model *models.OutputBasket) *wdk.TableOutputBasket {
-	return &wdk.TableOutputBasket{
-		BasketID:  model.BasketID,
-		UserID:    model.UserID,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
-		BasketConfiguration: wdk.BasketConfiguration{
-			Name:                    primitives.StringUnder300(model.Name),
-			NumberOfDesiredUTXOs:    model.NumberOfDesiredUTXOs,
-			MinimumDesiredUTXOValue: model.MinimumDesiredUTXOValue,
-		},
+func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBasket {
+	return &entity.OutputBasket{
+		Name:                    model.Name,
+		NumberOfDesiredUTXOs:    model.NumberOfDesiredUTXOs,
+		MinimumDesiredUTXOValue: model.MinimumDesiredUTXOValue,
+		UserID:                  model.UserID,
 	}
 }

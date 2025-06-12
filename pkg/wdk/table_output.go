@@ -9,7 +9,6 @@ type TableOutput struct {
 	OutputID           uint      `json:"outputId"`
 	UserID             int       `json:"userId"`
 	TransactionID      uint      `json:"transactionId"`
-	BasketID           *int      `json:"basketId,omitempty"`
 	Spendable          bool      `json:"spendable"`
 	Change             bool      `json:"change"`
 	OutputDescription  string    `json:"outputDescription"`
@@ -24,4 +23,10 @@ type TableOutput struct {
 	CustomInstructions *string   `json:"customInstructions,omitempty"`
 	LockingScript      *string   `json:"lockingScript,omitempty"`
 	SenderIdentityKey  *string   `json:"senderIdentityKey,omitempty"`
+
+	// BasketName links the output to a specific basket. It is not a part of JSON RPC API.
+	BasketName *string `json:"-"`
+
+	// TODO: Link this field for sync/backup purposes.
+	//BasketID           *int      `json:"basketId,omitempty"`
 }

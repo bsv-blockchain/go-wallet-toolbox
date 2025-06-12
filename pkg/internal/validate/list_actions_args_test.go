@@ -12,79 +12,86 @@ import (
 )
 
 func TestListActionsArgs(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    *wdk.ListActionsArgs
-		wantErr bool
+	tests := map[string]struct {
+		args *wdk.ListActionsArgs
 	}{
-		{
-			name:    "nil args",
-			args:    nil,
-			wantErr: true,
-		},
-		{
-			name:    "limit exceeds max",
-			args:    &wdk.ListActionsArgs{Limit: validate.MaxPaginationLimit + 1},
-			wantErr: true,
-		},
-		{
-			name:    "offset exceeds max",
-			args:    &wdk.ListActionsArgs{Offset: validate.MaxPaginationOffset + 1},
-			wantErr: true,
-		},
-		{
-			name:    "invalid labelQueryMode",
-			args:    &wdk.ListActionsArgs{LabelQueryMode: to.Ptr(primitives.LabelQueryModeString("unknown"))},
-			wantErr: true,
-		},
-		{
-			name:    "seekPermissions set to false",
-			args:    &wdk.ListActionsArgs{SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(false))},
-			wantErr: true,
-		},
-		{
-			name: "invalid label - too long",
-			args: &wdk.ListActionsArgs{
-				Labels: []primitives.StringUnder300{primitives.StringUnder300(strings.Repeat("x", 301))},
-			},
-			wantErr: true,
-		},
-		{
-			name: "valid label and defaults",
+		"valid labels and defaults": {
 			args: &wdk.ListActionsArgs{
 				LabelQueryMode:  to.Ptr(primitives.LabelQueryModeString("any")),
 				Labels:          []primitives.StringUnder300{"valid-label"},
 				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
-			wantErr: false,
 		},
-		{
-			name: "valid args",
+		"valid args": {
 			args: &wdk.ListActionsArgs{
 				Limit:           validate.MaxPaginationLimit,
 				Offset:          validate.MaxPaginationOffset,
 				LabelQueryMode:  to.Ptr(primitives.LabelQueryModeString("all")),
 				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
-			wantErr: false,
 		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given:
-			args := tt.args
-
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
 			// When:
-			err := validate.ListActionsArgs(args)
+			err := validate.ListActionsArgs(test.args)
 
 			// Then:
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestWrongListActionsArgs(t *testing.T) {
+	tests := map[string]struct {
+		args *wdk.ListActionsArgs
+	}{
+		"nil args": {
+			args: nil,
+		},
+		"limit exceeds max": {
+			args: &wdk.ListActionsArgs{Limit: validate.MaxPaginationLimit + 1},
+		},
+		"offset exceeds max": {
+			args: &wdk.ListActionsArgs{Offset: validate.MaxPaginationOffset + 1},
+		},
+		"invalid labelQueryMode": {
+			args: &wdk.ListActionsArgs{LabelQueryMode: to.Ptr(primitives.LabelQueryModeString("unknown"))},
+		},
+		"seekPermissions set to false": {
+			args: &wdk.ListActionsArgs{SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(false))},
+		},
+		"invalid label - too long": {
+			args: &wdk.ListActionsArgs{
+				Labels: []primitives.StringUnder300{primitives.StringUnder300(strings.Repeat("x", 301))},
+			},
+		},
+		"invalid label - empty": {
+			args: &wdk.ListActionsArgs{
+				Labels: []primitives.StringUnder300{""},
+			},
+		},
+		"inconsistent includeInputSourceLockingScripts with no includeInputs": {
+			args: &wdk.ListActionsArgs{
+				IncludeInputSourceLockingScripts: to.Ptr(primitives.BooleanDefaultFalse(true)),
+			},
+		},
+		"inconsistent includeOutputLockingScripts with no includeOutputs": {
+			args: &wdk.ListActionsArgs{
+				IncludeOutputLockingScripts: to.Ptr(primitives.BooleanDefaultFalse(true)),
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			args := test.args
+
+			// when:
+			err := validate.ListActionsArgs(args)
+
+			// then:
+			require.Error(t, err)
 		})
 	}
 }
