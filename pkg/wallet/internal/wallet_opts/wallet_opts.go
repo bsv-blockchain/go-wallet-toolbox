@@ -1,6 +1,6 @@
 package wallet_opts
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
+import sdk "github.com/bsv-blockchain/go-sdk/wallet"
 
 type Opts struct {
 	// IncludeAllSourceTransactions

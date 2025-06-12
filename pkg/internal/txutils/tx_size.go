@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"iter"
 
-	sdk "github.com/bsv-blockchain/go-sdk/transaction"
+	sdk "github.com/bsv-blockchain/go-sdk/util"
 )
 
 const (

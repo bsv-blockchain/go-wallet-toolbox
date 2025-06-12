@@ -3,8 +3,8 @@ package brc29
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 func toIdentityKey[KeySource CounterpartyPublicKey](keySource KeySource) (*ec.PublicKey, error) {
