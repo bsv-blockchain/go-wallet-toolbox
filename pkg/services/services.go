@@ -72,7 +72,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 
 		chainHeaderServices: servicequeue.NewQueue(
 			logger,
-			"ChainHeader",
+			"What's on Chain",
 			servicequeue.NewService(whatsonchain.ServiceName, woc.FindChainTipHeader),
 		),
 	}
