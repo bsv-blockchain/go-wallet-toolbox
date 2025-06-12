@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 )
 
 type Funder interface {
@@ -15,5 +15,5 @@ type Funder interface {
 	// @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 	// @param userID - the user ID
 	// @param forbiddenOutputIDs - the list of output IDs that should not be used in the funding process
-	Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *wdk.TableOutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error)
+	Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *entity.OutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error)
 }

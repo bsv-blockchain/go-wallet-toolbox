@@ -35,6 +35,20 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 		return fmt.Errorf("operation not allowed without permission (seekPermissions=false)")
 	}
 
+	if !args.IncludeInputs.Value() {
+		if args.IncludeInputUnlockingScripts.Value() {
+			return fmt.Errorf("includeInputUnlockingScripts cannot be true when includeInputs is false")
+		}
+
+		if args.IncludeInputSourceLockingScripts.Value() {
+			return fmt.Errorf("includeInputSourceLockingScripts cannot be true when includeInputs is false")
+		}
+	}
+
+	if !args.IncludeOutputs.Value() && args.IncludeOutputLockingScripts.Value() {
+		return fmt.Errorf("includeOutputLockingScripts cannot be true when includeOutputs is false")
+	}
+
 	return nil
 }
 

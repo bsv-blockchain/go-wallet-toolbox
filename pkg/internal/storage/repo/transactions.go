@@ -93,18 +93,16 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.NewTx, model *models.Transaction) error {
 	basketMaker := newCachedBasketMaker(tx, newTx.UserID)
 	for _, out := range model.Outputs {
-		if out.Basket == nil || out.Basket.Name == "" {
+		if out.BasketName == nil || *out.BasketName == "" {
 			continue
 		}
-		basketID, err := basketMaker.findOrCreate(tx, out.Basket.Name, wdk.NonChangeBasketConfiguration.NumberOfDesiredUTXOs, wdk.NonChangeBasketConfiguration.MinimumDesiredUTXOValue)
-		if err != nil || basketID == nil {
+		err := basketMaker.createIfNotExist(tx, *out.BasketName, wdk.NonChangeBasketConfiguration.NumberOfDesiredUTXOs, wdk.NonChangeBasketConfiguration.MinimumDesiredUTXOValue)
+		if err != nil {
 			return fmt.Errorf("failed to find or create output basket: %w", err)
 		}
 
-		out.BasketID = basketID
-		out.Basket = nil
 		if out.UserUTXO != nil {
-			out.UserUTXO.BasketID = *basketID
+			out.UserUTXO.BasketName = *out.BasketName
 		}
 	}
 	return nil
@@ -126,17 +124,11 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 		LockingScript:      (*string)(output.LockingScript),
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
-	}
-
-	if output.Basket != nil && *output.Basket != "" {
-		// This won't create a new basket, the name is just passed for further processing (see connectOutputsWithBaskets())
-		out.Basket = &models.OutputBasket{
-			Name: *output.Basket,
-		}
+		BasketName:         output.BasketName,
 	}
 
 	if out.Spendable && out.Change {
-		if is.EmptyString(output.Basket) {
+		if is.EmptyString(output.BasketName) {
 			return nil, fmt.Errorf("basket not provided for change output")
 		}
 		if out.Satoshis == 0 {
@@ -257,7 +249,7 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 			},
 		}).
 		Association("Outputs").
-		Find(&changeOutputs, "basket_id IS NOT NULL AND change = ? AND satoshis > 0 AND spent_by IS NULL", true)
+		Find(&changeOutputs, "basket_name IS NOT NULL AND change = ? AND satoshis > 0 AND spent_by IS NULL", true)
 	if err != nil {
 		return fmt.Errorf("failed to find transaction outputs: %w", err)
 	}
@@ -283,7 +275,7 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 		return &models.UserUTXO{
 			UserID:             updatedTx.UserID,
 			OutputID:           output.ID,
-			BasketID:           *output.BasketID,
+			BasketName:         *output.BasketName,
 			Satoshis:           must.ConvertToUInt64(output.Satoshis),
 			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
 		}

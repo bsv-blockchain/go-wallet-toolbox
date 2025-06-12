@@ -2,7 +2,6 @@ package testabilities
 
 import (
 	"testing"
-	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -12,8 +11,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/stretchr/testify/require"
 )
-
-var exampleDate = time.Date(2006, 02, 01, 15, 4, 5, 7, time.UTC)
 
 type FunderFixture interface {
 	NewFunderService() *funder.SQL
