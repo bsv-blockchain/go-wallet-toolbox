@@ -366,7 +366,7 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 		return fmt.Errorf("invalid basket configuration: %w", err)
 	}
 
-	err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
+	_, err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
 	if err != nil {
 		return fmt.Errorf("failed to update basket configuration: %w", err)
 	}

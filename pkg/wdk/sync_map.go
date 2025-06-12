@@ -7,7 +7,7 @@ import (
 )
 
 // SyncMap is a map from EntityName to SyncMapEntity representing synchronization mapping state for multiple entities.
-type SyncMap map[EntityName]SyncMapEntity
+type SyncMap map[EntityName]*SyncMapEntity
 
 // NewSyncMapFromJSON unmarshals JSON data into a SyncMap structure.
 func NewSyncMapFromJSON(data []byte) (SyncMap, error) {
@@ -22,7 +22,7 @@ func NewSyncMapFromJSON(data []byte) (SyncMap, error) {
 func NewSyncMap() SyncMap {
 	syncMap := make(SyncMap, len(AllEntityNames))
 	for _, entityName := range AllEntityNames {
-		syncMap[entityName] = SyncMapEntity{
+		syncMap[entityName] = &SyncMapEntity{
 			EntityName: entityName,
 			IDMap:      make(map[int]int),
 		}

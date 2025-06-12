@@ -30,7 +30,7 @@ func (p *processSyncChunk) Process(ctx context.Context, args wdk.RequestSyncChun
 		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
 	}
 
-	processor := newChunkProcessor(ctx, p, chunk)
+	processor := newChunkProcessor(ctx, p, chunk, &args, user)
 	err = processor.process()
 	if err != nil {
 		return nil, fmt.Errorf("failed to process chunk: %w", err)

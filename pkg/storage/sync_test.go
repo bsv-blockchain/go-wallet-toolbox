@@ -30,7 +30,7 @@ func TestSyncProcess(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.Equal(t, 0, inserts) // TODO: Adjust it after implementing sync logic
-	require.Equal(t, 0, updates) // TODO: Adjust it after implementing sync logic
+	require.Equal(t, 1, updates) // TODO: Adjust it after implementing sync logic
 }
 
 func TestSyncProcessWithMergeUser(t *testing.T) {
@@ -54,7 +54,7 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.Equal(t, 0, inserts) // TODO: Adjust it after implementing sync logic
-	require.Equal(t, 1, updates) // TODO: Adjust it after implementing sync logic
+	require.Equal(t, 2, updates) // TODO: Adjust it after implementing sync logic
 }
 
 func TestSyncProcessInvalidUser(t *testing.T) {
@@ -73,10 +73,8 @@ func TestSyncProcessInvalidUser(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
-	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Bob.AuthID(), backupProvider)
+	_, _, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Bob.AuthID(), backupProvider)
 
 	// then:
-	require.NoError(t, err)
-	require.Equal(t, 0, inserts) // TODO: Adjust it after implementing sync logic
-	require.Equal(t, 0, updates) // TODO: Adjust it after implementing sync logic
+	require.Error(t, err)
 }

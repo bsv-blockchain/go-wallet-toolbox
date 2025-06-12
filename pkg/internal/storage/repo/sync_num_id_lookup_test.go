@@ -54,7 +54,7 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	require.Equal(t, 2, secondaryBasket.BasketID)
 
 	// given:
-	err = repos.UpsertOutputBasket(t.Context(), user.ID, wdk.BasketConfiguration{
+	_, err = repos.UpsertOutputBasket(t.Context(), user.ID, wdk.BasketConfiguration{
 		Name:                    "other",
 		NumberOfDesiredUTXOs:    3,
 		MinimumDesiredUTXOValue: 3000,

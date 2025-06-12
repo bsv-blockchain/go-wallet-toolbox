@@ -78,7 +78,7 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 			return 0, 0, fmt.Errorf("failed to process sync chunk in writer storage: %w", err)
 		}
 
-		state.updateState(processChunkResult.Updates, processChunkResult.Inserts)
+		state.updateState(processChunkResult.Inserts, processChunkResult.Updates)
 
 		if processChunkResult.Done {
 			break
@@ -96,9 +96,9 @@ type syncingState struct {
 	nothingChangedCounter int
 }
 
-func (s *syncingState) updateState(updates, inserts int) {
-	s.updates += updates
+func (s *syncingState) updateState(inserts, updates int) {
 	s.inserts += inserts
+	s.updates += updates
 
 	// NOTE: Depends on storage provider implementation,
 	// ProcessSyncChunk may need to process one more chunk after the empty one, and then return Done = true.

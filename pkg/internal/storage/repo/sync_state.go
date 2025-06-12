@@ -24,11 +24,11 @@ func NewSyncState(db *gorm.DB) *SyncState {
 	}
 }
 
-func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdentityKey string, storageName string) (*entity.SyncState, error) {
+func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdentityKey string) (*entity.SyncState, error) {
 	var model models.SyncState
 	err := s.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
-		Where("storage_identity_key = ? AND storage_name = ?", storageIdentityKey, storageName).
+		Where("storage_identity_key = ?", storageIdentityKey).
 		First(&model).Error
 
 	if err != nil {
@@ -67,6 +67,33 @@ func (s *SyncState) CreateSyncState(ctx context.Context, syncState *entity.SyncS
 	}
 
 	return mapModelToSyncStateEntity(model)
+}
+
+func (s *SyncState) UpdateSyncState(ctx context.Context, syncState *entity.SyncState) error {
+	syncMapJSON, err := syncState.SyncMap.JSON()
+	if err != nil {
+		return fmt.Errorf("failed to marshal sync map: %w", err)
+	}
+
+	toUpdate := models.SyncState{
+		Status:  syncState.Status,
+		SyncMap: syncMapJSON,
+		When:    syncState.When,
+	}
+
+	if syncState.Satoshis != nil {
+		toUpdate.Satoshis = to.Ptr(syncState.Satoshis.Int64())
+	}
+
+	err = s.db.WithContext(ctx).
+		Model(&models.SyncState{}).
+		Where("id = ?", syncState.ID).
+		Updates(toUpdate).Error
+	if err != nil {
+		return fmt.Errorf("failed to update sync state: %w", err)
+	}
+
+	return nil
 }
 
 func mapModelToSyncStateEntity(model models.SyncState) (*entity.SyncState, error) {

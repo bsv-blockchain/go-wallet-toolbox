@@ -25,7 +25,7 @@ func newFindOrInsertSyncState(logger *slog.Logger, repo Repository, random wdk.R
 }
 
 func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	syncState, err := f.repo.FindSyncState(ctx, *auth.UserID, storageIdentityKey, storageName)
+	syncState, err := f.repo.FindSyncState(ctx, *auth.UserID, storageIdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find sync state: %w", err)
 	}
