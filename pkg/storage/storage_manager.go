@@ -89,7 +89,12 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, auth wdk.AuthID
 		return 0, 0, fmt.Errorf("failed to make reader storage available: %w", err)
 	}
 
-	for range 0 {
+	if writerSettings.Chain != readerSettings.Chain {
+		return 0, 0, fmt.Errorf("cannot sync between different chains: reader chain %s, writer chain %s", readerSettings.Chain, writerSettings.Chain)
+	}
+
+	// TODO: implement looping mechanism to handle multiple sync chunks
+	for range 1 {
 		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, auth, readerSettings.StorageIdentityKey, readerSettings.StorageName)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to find or insert sync state auth: %w", err)

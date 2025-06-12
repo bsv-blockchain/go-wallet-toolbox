@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"context"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
@@ -43,6 +44,9 @@ type storageFixture struct {
 	logger     *slog.Logger
 	testServer *httptest.Server
 	db         *database.Database
+
+	storagePrivKey string
+	storageName    string
 }
 
 func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func()) {
@@ -74,10 +78,12 @@ func (s *storageFixture) Provider() ProviderFixture {
 		logger:  s.logger,
 		db:      s.db,
 
-		network:    defs.NetworkTestnet,
-		commission: defs.Commission{},
-		feeModel:   defs.DefaultFeeModel(),
-		randomizer: randomizer.New(),
+		network:        defs.NetworkTestnet,
+		commission:     defs.Commission{},
+		feeModel:       defs.DefaultFeeModel(),
+		randomizer:     randomizer.New(),
+		storagePrivKey: s.storagePrivKey,
+		storageName:    s.storageName,
 	}
 }
 
@@ -100,12 +106,26 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	}
 }
 
-func Given(t testing.TB) (given StorageFixture, cleanup func()) {
-	db, dbCleanup := dbfixtures.TestDatabase(t)
+func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
+	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
 	return &storageFixture{
 		t:       t,
 		require: require.New(t),
 		logger:  logging.NewTestLogger(t),
 		db:      db,
+		storagePrivKey: fixtures.StorageServerPrivKey,
+		storageName:    fixtures.StorageName,
+	}, dbCleanup
+}
+
+func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
+	db, dbCleanup := dbfixtures.TestDatabase(t, dbfixtures.WithSQLiteFileName(name))
+	return &storageFixture{
+		t:              t,
+		require:        require.New(t),
+		logger:         logging.NewTestLogger(t),
+		db:             db,
+		storagePrivKey: identityKey,
+		storageName:    name,
 	}, dbCleanup
 }

@@ -23,16 +23,7 @@ func newFindOrInsertSyncState(logger *slog.Logger, repo Repository, random wdk.R
 	}
 }
 
-func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	user, err := f.repo.FindUser(ctx, auth.IdentityKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
-	if user == nil {
-		return nil, fmt.Errorf("user with identity key %s not found", auth.IdentityKey)
-	}
-
+func (f *findOrInsertSyncState) FindOrInsertSyncState(_ context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 	reference, err := f.random.Base64(12)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate reference number: %w", err)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -64,4 +66,20 @@ func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage strin
 		CreatedAt:     user.CreatedAt,
 		UpdatedAt:     user.UpdatedAt,
 	}, nil
+}
+
+// TODO: Move it to sync repo after my other PR is merged
+func (u *Users) UpdateUser(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error {
+	err := u.db.WithContext(ctx).
+		Model(&models.User{}).
+		Scopes(scopes.UserID(userID)).
+		Updates(models.User{
+			ActiveStorage: activeStorage,
+			UpdatedAt:     updatedAt,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return nil
 }

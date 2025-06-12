@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -10,4 +11,5 @@ import (
 type Repository interface {
 	FindUserForSync(ctx context.Context, identityKey string) (*wdk.TableUser, error)
 	FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error)
+	UpdateUser(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error
 }
