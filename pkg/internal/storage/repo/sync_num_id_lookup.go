@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const basketStringIDClause = "CONCAT(user_id, '.', name)"
+
 type Sync struct {
 	db *gorm.DB
 
@@ -36,7 +38,7 @@ func (s *Sync) FindUserForSync(ctx context.Context, identityKey string) (*wdk.Ta
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to find or create user: %w", err)
+		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
 	return &wdk.TableUser{
@@ -59,11 +61,9 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
-		stringIDClause := "CONCAT(user_id, '.', name)"
-
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select(fmt.Sprintf("?, %s", stringIDClause), s.naming.outputBasketTableName).
+				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.naming.outputBasketTableName).
 				Scopes(filters...).
 				Find(&models.OutputBasket{})
 		})
@@ -74,7 +74,7 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 		err = tx.WithContext(ctx).
 			Model(&models.OutputBasket{}).
 			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope(stringIDClause, s.naming.outputBasketTableName)).
+			Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName)).
 			Scopes(filters...).
 			Find(&resultModels).Error
 		if err != nil {
@@ -104,7 +104,7 @@ func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.Tabl
 	}
 }
 
-// upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
+// NOTICE: upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
 // It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
 	dry := s.db.Session(&gorm.Session{DryRun: true, Initialized: true}) // Initialized to separate the dry run from the actual transaction (this makes the Session to clone the Statement)

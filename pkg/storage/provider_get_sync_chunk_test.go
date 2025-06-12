@@ -54,7 +54,7 @@ func TestGetSyncChunk(t *testing.T) {
 	require.Len(t, chunk.OutputBaskets, 1)
 	defaultBasket := chunk.OutputBaskets[0]
 	assert.Equal(t, testusers.Alice.ID, defaultBasket.UserID)
-	//assert.True(t, defaultBasket.BasketID > 0) // TODO !!!!!!!!!!
+	assert.True(t, defaultBasket.BasketID > 0)
 	assert.Equal(t, wdk.DefaultBasketConfiguration(), defaultBasket.BasketConfiguration)
 	// TODO: Remember to add more assertions for other entities when implemented
 }

@@ -80,7 +80,7 @@ func (l *listActions) mapTransactionsToActions(txs []*wdk.TableTransaction) ([]u
 
 func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args *wdk.ListActionsArgs) (map[uint][]*wdk.TableOutput, map[uint][]*wdk.TableOutput, error) {
 	if args.IncludeInputs.Value() || args.IncludeOutputs.Value() {
-		inputs, outputs, err := l.outputsRepo.FindInputsAndOutputsWithBuckets(ctx, txIDs, args.IncludeOutputLockingScripts.Value())
+		inputs, outputs, err := l.outputsRepo.FindInputsAndOutputsWithBaskets(ctx, txIDs, args.IncludeOutputLockingScripts.Value())
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
 		}

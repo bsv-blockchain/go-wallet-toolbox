@@ -202,10 +202,10 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 	return tableOutput, nil
 }
 
-// FindInputsAndOutputsWithBuckets retrieves inputs and outputs for given transaction IDs, including basket information.
+// FindInputsAndOutputsWithBaskets retrieves inputs and outputs for given transaction IDs, including basket information.
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
-func (o *Outputs) FindInputsAndOutputsWithBuckets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error) {
+func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error) {
 	if len(txIDs) == 0 {
 		return
 	}

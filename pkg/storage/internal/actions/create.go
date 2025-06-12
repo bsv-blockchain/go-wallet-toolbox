@@ -367,11 +367,8 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 				OutputDescription:  primitives.String5to2000Bytes(output.Description),
 				CustomInstructions: output.CustomInstructions,
 				LockingScript:      optional.OfPtr(output.LockingScript).OrZeroValue(),
+				Basket:             (*primitives.StringUnder300)(output.BasketName),
 			},
-		}
-
-		if output.BasketName != nil {
-			resultOutputs[i].Basket = to.Ptr(primitives.StringUnder300(*output.BasketName))
 		}
 	}
 
