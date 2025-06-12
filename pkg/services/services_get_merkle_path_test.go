@@ -55,9 +55,9 @@ func TestGetMerklePath(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, response)
 		require.Equal(t, wdk.MerklePathResult{
-			Name:                   "ARC",
-			MerklePath:             nil,
-			TransactionBlockHeader: nil,
+			Name:        "ARC",
+			MerklePath:  nil,
+			BlockHeader: nil,
 		}, *response)
 	})
 
@@ -102,7 +102,7 @@ func TestGetMerklePath(t *testing.T) {
 		require.Equal(t, wdk.MerklePathResult{
 			Name:       "ARC",
 			MerklePath: &merklePath,
-			TransactionBlockHeader: &wdk.TransactionBlockHeader{
+			BlockHeader: &wdk.MerklePathBlockHeader{
 				Height:     2000,
 				Hash:       testservices.TestBlockHash,
 				MerkleRoot: merkleRoot,

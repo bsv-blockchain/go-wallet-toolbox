@@ -91,7 +91,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			continue
 		}
 
-		if merkleResult.TransactionBlockHeader == nil || merkleResult.MerklePath == nil {
+		if merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
 			s.logger.Info(
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
@@ -106,10 +106,10 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 
 		err = s.provenTxRepo.UpdateProvenTxAsMined(ctx, &entity.ProvenTxAsMined{
 			TxID:        txToSync.TxID,
-			BlockHeight: merkleResult.TransactionBlockHeader.Height,
+			BlockHeight: merkleResult.BlockHeader.Height,
 			MerklePath:  merkleResult.MerklePath.Bytes(),
-			BlockHash:   merkleResult.TransactionBlockHeader.Hash,
-			MerkleRoot:  merkleResult.TransactionBlockHeader.MerkleRoot,
+			BlockHash:   merkleResult.BlockHeader.Hash,
+			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update proven txs as mined: %w", err)

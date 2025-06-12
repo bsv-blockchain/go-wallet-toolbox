@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/dto"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/dto"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -137,13 +137,13 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 }
 
 func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-	var results dto.BlockHeaders
+	var blocks []dto.BlockHeader
 	url := fmt.Sprintf("%s/block/headers?limit=1", woc.url)
 	res, err := woc.
 		httpClient.
 		R().
 		SetContext(ctx).
-		SetResult(&results).
+		SetResult(&blocks).
 		AddRetryCondition(func(res *resty.Response, err error) bool {
 			return res.StatusCode() == http.StatusTooManyRequests
 		}).
@@ -157,11 +157,11 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 		return nil, fmt.Errorf("unexpected response from WhatsOnChain (URL: %s): status code %d", url, res.StatusCode())
 	}
 
-	if results.IsEmpty() {
+	if len(blocks) == 0 {
 		return nil, fmt.Errorf("no block headers returned from WhatsOnChain (URL: %s); at least one expected", url)
 	}
 
-	first := results.First()
+	first := blocks[0]
 	header, err := first.ConvertToChainBlockHeader()
 	if err != nil {
 		return nil, fmt.Errorf("error while converting the response from WhatsOnChain (URL: %s) to the *wdk.ChainBlockHeader: %w", url, err)
