@@ -49,11 +49,14 @@ type SyncChunk struct {
 	OutputBaskets []*TableOutputBasket `json:"outputBaskets,omitempty"`
 }
 
+// FindOrInsertSyncStateAuthResponse represents the result of finding or inserting a sync state with authentication.
+// It contains the sync state details and indicates whether a new sync state record was created or already existed.
 type FindOrInsertSyncStateAuthResponse struct {
 	SyncState *TableSyncState `json:"syncState"`
 	IsNew     bool            `json:"isNew"`
 }
 
+// ProcessSyncChunkResult represents the result of processing a synchronization data chunk for a storage entity.
 type ProcessSyncChunkResult struct {
 	Done         bool       `json:"done"`
 	MaxUpdatedAt *time.Time `json:"maxUpdated_at,omitempty"` // The maximum updated_at value seen for this entity over chunks received during this update cycle.

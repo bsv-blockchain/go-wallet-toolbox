@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/managed"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"

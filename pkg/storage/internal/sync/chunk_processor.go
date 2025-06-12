@@ -3,16 +3,17 @@ package sync
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type chunkProcessor struct {
-	parent    *processSyncChunk
-	chunk     *wdk.SyncChunk
-	result    wdk.ProcessSyncChunkResult
-	ctx       context.Context
-	syncState *wdk.TableSyncState
+	parent *processSyncChunk
+	chunk  *wdk.SyncChunk
+	result wdk.ProcessSyncChunkResult
+	ctx    context.Context
+	//syncState *wdk.TableSyncState
 }
 
 func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk.SyncChunk) *chunkProcessor {
@@ -81,9 +82,9 @@ func (p *chunkProcessor) updateResult(updatedAt time.Time, updates, inserts int)
 	}
 }
 
-func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
-	panic("implement me")
-}
+//func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
+//	panic("implement me")
+//}
 
 // emptyChunk checks if the chunk is empty, meaning it has no row data to process.
 // NOTE: The user pointer is not taken into account.

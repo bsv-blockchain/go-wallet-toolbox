@@ -19,6 +19,7 @@ const (
 	CommissionEntityName       EntityName = "commission"
 )
 
+// AllEntityNames contains the ordered list of all entity names used for synchronization in the application.
 var AllEntityNames = []EntityName{
 	ProvenTxEntityName,
 	OutputBasketEntityName,

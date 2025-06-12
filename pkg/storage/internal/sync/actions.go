@@ -1,8 +1,9 @@
 package sync
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"log/slog"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type Actions struct {

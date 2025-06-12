@@ -2,12 +2,12 @@ package testabilities
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
@@ -109,10 +109,10 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
 	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
 	return &storageFixture{
-		t:       t,
-		require: require.New(t),
-		logger:  logging.NewTestLogger(t),
-		db:      db,
+		t:              t,
+		require:        require.New(t),
+		logger:         logging.NewTestLogger(t),
+		db:             db,
 		storagePrivKey: fixtures.StorageServerPrivKey,
 		storageName:    fixtures.StorageName,
 	}, dbCleanup

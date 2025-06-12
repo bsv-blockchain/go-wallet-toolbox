@@ -3,10 +3,11 @@ package sync
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"log/slog"
 	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type findOrInsertSyncState struct {

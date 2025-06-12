@@ -6,8 +6,10 @@ import (
 	"time"
 )
 
+// SyncMap is a map from EntityName to SyncMapEntity representing synchronization mapping state for multiple entities.
 type SyncMap map[EntityName]SyncMapEntity
 
+// NewSyncMapFromJSON unmarshals JSON data into a SyncMap structure.
 func NewSyncMapFromJSON(data []byte) (SyncMap, error) {
 	var syncMap SyncMap
 	if err := json.Unmarshal(data, &syncMap); err != nil {
@@ -16,6 +18,7 @@ func NewSyncMapFromJSON(data []byte) (SyncMap, error) {
 	return syncMap, nil
 }
 
+// NewSyncMap creates and returns a new SyncMap initialized with entries for all entities in AllEntityNames.
 func NewSyncMap() SyncMap {
 	syncMap := make(SyncMap, len(AllEntityNames))
 	for _, entityName := range AllEntityNames {
@@ -27,6 +30,7 @@ func NewSyncMap() SyncMap {
 	return syncMap
 }
 
+// JSON serializes the SyncMap as JSON and returns the resulting byte slice or an error if marshaling fails.
 func (sm SyncMap) JSON() ([]byte, error) {
 	data, err := json.Marshal(sm)
 	if err != nil {
@@ -35,6 +39,7 @@ func (sm SyncMap) JSON() ([]byte, error) {
 	return data, nil
 }
 
+// SyncMapEntity holds synchronization state for a specific entity, including id mapping, update time and item count.
 type SyncMapEntity struct {
 	// EntityName is the name of the entity in the sync map.
 	EntityName EntityName `json:"entityName"`

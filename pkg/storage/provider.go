@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -16,7 +18,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
-	"log/slog"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -424,6 +425,7 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 	return syncStateResponse, nil
 }
 
+// ProcessSyncChunk validates arguments and processes a synchronization chunk, returning the processing result or an error.
 func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
 	err := validate.ValidRequestSyncChunkArgs(&args)
 	if err != nil {

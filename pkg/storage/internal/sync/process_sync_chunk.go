@@ -3,8 +3,9 @@ package sync
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"log/slog"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type processSyncChunk struct {
@@ -37,4 +38,3 @@ func (p *processSyncChunk) Process(ctx context.Context, args wdk.RequestSyncChun
 
 	return &processor.result, nil
 }
-

@@ -3,8 +3,9 @@ package sync
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"iter"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type ReaderToWriter struct{}
@@ -110,7 +111,7 @@ func (s *syncingState) updateState(updates, inserts int) {
 }
 
 func (s *syncingState) doWhileChangesMade() iter.Seq[int] {
-	const safetyLimit = 1000 // Safety limit to prevent infinite loops
+	const safetyLimit = 1000    // Safety limit to prevent infinite loops
 	const maxNothingChanged = 2 // Allow at most 2 consecutive empty chunks
 	return func(yield func(int) bool) {
 		if !yield(0) {
