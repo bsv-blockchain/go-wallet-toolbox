@@ -10,7 +10,7 @@ import (
 type TableSyncState struct {
 	CreatedAt          time.Time                `json:"created_at"`
 	UpdatedAt          time.Time                `json:"updated_at"`
-	SyncStateID        int                      `json:"syncStateId"`
+	SyncStateID        uint                     `json:"syncStateId"`
 	UserID             int                      `json:"userId"`
 	StorageIdentityKey string                   `json:"storageIdentityKey"`
 	StorageName        string                   `json:"storageName"`
