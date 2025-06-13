@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
@@ -38,10 +39,21 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 		return 0, 0, fmt.Errorf("cannot sync to the same storage: %s", writerSettings.StorageIdentityKey)
 	}
 
+	userIdentityKey := auth.IdentityKey
+	userOnWriterSide, err := writer.FindOrInsertUser(ctx, userIdentityKey)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to find or insert user in writer storage: %w", err)
+	}
+
+	userAuthOnWriterSide := wdk.AuthID{
+		IdentityKey: userIdentityKey,
+		UserID:      to.Ptr(userOnWriterSide.User.UserID),
+	}
+
 	var state syncingState
 
 	for range state.doWhileChangesMade() {
-		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, auth, readerSettings.StorageIdentityKey, readerSettings.StorageName)
+		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, userAuthOnWriterSide, readerSettings.StorageIdentityKey, readerSettings.StorageName)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to find or insert sync state auth: %w", err)
 		}
@@ -56,7 +68,7 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 		getSyncChunkArgs := wdk.RequestSyncChunkArgs{
 			FromStorageIdentityKey: readerSettings.StorageIdentityKey,
 			ToStorageIdentityKey:   writerSettings.StorageIdentityKey,
-			IdentityKey:            auth.IdentityKey,
+			IdentityKey:            userIdentityKey,
 
 			Since:        syncState.When,
 			MaxRoughSize: maxSyncChunkSize,

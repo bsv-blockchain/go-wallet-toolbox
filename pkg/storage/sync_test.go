@@ -97,6 +97,32 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	assert.Equal(t, 2, updates)
 }
 
+func TestSyncWhereOtherUserAlreadyExist(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+	_, err := backupProvider.FindOrInsertUser(t.Context(), testusers.Bob.IdentityKey(t))
+	require.NoError(t, err)
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Alice.AuthID(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 0, inserts)
+	assert.Equal(t, 1, updates)
+}
+
 func TestSyncProcessInvalidUser(t *testing.T) {
 	// given:
 	givenSourceDB, cleanup := testabilities.Given(t)

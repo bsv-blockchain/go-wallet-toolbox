@@ -35,7 +35,7 @@ func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, userI
 	}
 
 	if syncState != nil {
-		return f.stateToResult(syncState)
+		return f.stateToResult(syncState, false)
 	}
 
 	syncState, err = f.createNewState(ctx, userID, storageIdentityKey, storageName)
@@ -43,10 +43,10 @@ func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, userI
 		return nil, err
 	}
 
-	return f.stateToResult(syncState)
+	return f.stateToResult(syncState, true)
 }
 
-func (f *findOrInsertSyncState) stateToResult(syncState *entity.SyncState) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+func (f *findOrInsertSyncState) stateToResult(syncState *entity.SyncState, isNew bool) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 	apiModel, err := syncState.ToWDK()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert sync state to WDK model: %w", err)
@@ -54,7 +54,7 @@ func (f *findOrInsertSyncState) stateToResult(syncState *entity.SyncState) (*wdk
 
 	return &wdk.FindOrInsertSyncStateAuthResponse{
 		SyncState: apiModel,
-		IsNew:     false,
+		IsNew:     isNew,
 	}, nil
 }
 

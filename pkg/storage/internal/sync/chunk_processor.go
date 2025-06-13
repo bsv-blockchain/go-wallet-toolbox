@@ -53,10 +53,6 @@ func (p *chunkProcessor) process() (err error) {
 	p.syncState = syncState
 
 	if p.chunk.User != nil {
-		if p.chunk.User.UserID != p.user.ID {
-			return fmt.Errorf("chunk user ID %d does not match current user ID %d", p.chunk.User.UserID, p.user.ID)
-		}
-
 		if err = p.mergeUser(); err != nil {
 			return fmt.Errorf("failed to merge user: %w", err)
 		}
@@ -91,7 +87,7 @@ func (p *chunkProcessor) mergeUser() error {
 		return fmt.Errorf("chunk user not found for userID %d", p.chunk.User.UserID)
 	}
 
-	if chunkUserInCurrentDB.ID != p.chunk.User.UserID {
+	if chunkUserInCurrentDB.ID != p.user.ID {
 		return fmt.Errorf("chunk user ID %d does not match current DB user ID %d", p.chunk.User.UserID, chunkUserInCurrentDB.ID)
 	}
 
@@ -109,6 +105,21 @@ func (p *chunkProcessor) mergeUser() error {
 	return nil
 }
 
+func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
+	isNew, err := p.parent.repo.UpsertOutputBasket(p.ctx, p.user.ID, chunkBasket.BasketConfiguration)
+	if err != nil {
+		return fmt.Errorf("failed to upsert output basket %q: %w", chunkBasket.Name, err)
+	}
+
+	// NOTE: Even if the chunkBasket has exactly the same data as in the database, we still consider it an update.
+	p.updateResult(chunkBasket.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.OutputBasketEntityName, 1)
+
+	// TODO: Most probably, we need to update the sync state (with IDMap) - But I postpone this until it is actually needed.
+
+	return nil
+}
+
 func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operation) {
 	for _, op := range operations {
 		p.result.Updates += op.updates
@@ -120,21 +131,14 @@ func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operati
 	}
 }
 
-func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
-	isNew, err := p.parent.repo.UpsertOutputBasket(p.ctx, p.user.ID, chunkBasket.BasketConfiguration)
-	if err != nil {
-		return fmt.Errorf("failed to upsert output basket %q: %w", chunkBasket.Name, err)
+func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64) {
+	syncMapEntity, exists := p.syncState.SyncMap[entityName]
+	if !exists {
+		syncMapEntity = wdk.NewSyncMapEntity(entityName)
+		p.syncState.SyncMap[entityName] = syncMapEntity
 	}
 
-	// NOTE: Even if the chunkBasket has exactly the same data as in the database, we still consider it an update.
-	p.updateResult(chunkBasket.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-
-	syncMapEntity := p.syncState.SyncMap[wdk.OutputBasketEntityName]
-	syncMapEntity.Count += 1
-
-	// TODO: Most probably, we need to update the sync state (with IDMap) - But I postpone this until it is actually needed.
-
-	return nil
+	syncMapEntity.Count += count
 }
 
 // emptyChunk checks if the chunk is empty, meaning it has no row data to process.

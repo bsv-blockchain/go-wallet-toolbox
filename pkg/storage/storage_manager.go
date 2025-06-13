@@ -80,6 +80,10 @@ func (m *WalletStorageManager) GetAuth(ctx context.Context) (wdk.AuthID, error) 
 func (m *WalletStorageManager) SyncToWriter(ctx context.Context, auth wdk.AuthID, writer wdk.WalletStorageProvider) (inserts, updates int, err error) {
 	// TODO: add locking mechanism to ensure that the active storage is not being modified while syncing
 
+	if m.identityKey != auth.IdentityKey {
+		return 0, 0, fmt.Errorf("this manager is not configured for the provided user identity key: %s", auth.IdentityKey)
+	}
+
 	reader := m.getActiveReader()
 
 	inserts, updates, err = sync.NewReaderToWriter().Sync(ctx, auth, reader, writer)

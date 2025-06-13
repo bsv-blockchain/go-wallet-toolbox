@@ -22,10 +22,7 @@ func NewSyncMapFromJSON(data []byte) (SyncMap, error) {
 func NewSyncMap() SyncMap {
 	syncMap := make(SyncMap, len(AllEntityNames))
 	for _, entityName := range AllEntityNames {
-		syncMap[entityName] = &SyncMapEntity{
-			EntityName: entityName,
-			IDMap:      make(map[int]int),
-		}
+		syncMap[entityName] = NewSyncMapEntity(entityName)
 	}
 	return syncMap
 }
@@ -54,4 +51,13 @@ type SyncMapEntity struct {
 	// Count - the cumulative count of items of this entity type received over all the `SyncChunk`s since the `since` was last updated.
 	// This is the `offset` value to use for the next SyncChunk request.
 	Count uint64 `json:"count"`
+}
+
+// NewSyncMapEntity creates and returns a pointer to a new SyncMapEntity for the given entity name.
+// The returned SyncMapEntity will have its EntityName set and an initialized empty IDMap.
+func NewSyncMapEntity(entityName EntityName) *SyncMapEntity {
+	return &SyncMapEntity{
+		EntityName: entityName,
+		IDMap:      make(map[int]int),
+	}
 }
