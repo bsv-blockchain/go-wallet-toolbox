@@ -121,13 +121,13 @@ func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operati
 }
 
 func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
-	upserted, err := p.parent.repo.UpsertOutputBasket(p.ctx, p.user.ID, chunkBasket.BasketConfiguration)
+	isNew, err := p.parent.repo.UpsertOutputBasket(p.ctx, p.user.ID, chunkBasket.BasketConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to upsert output basket %q: %w", chunkBasket.Name, err)
 	}
 
-	isNew := upserted.CreatedAt == upserted.UpdatedAt
-	p.updateResult(upserted.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	// NOTE: Even if the chunkBasket has exactly the same data as in the database, we still consider it an update.
+	p.updateResult(chunkBasket.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
 
 	syncMapEntity := p.syncState.SyncMap[wdk.OutputBasketEntityName]
 	syncMapEntity.Count += 1

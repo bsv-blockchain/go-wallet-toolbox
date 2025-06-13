@@ -19,5 +19,5 @@ type Repository interface {
 	CreateSyncState(ctx context.Context, syncState *entity.SyncState) (*entity.SyncState, error)
 	UpdateSyncState(ctx context.Context, syncState *entity.SyncState) error
 
-	UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (*entity.OutputBasket, error)
+	UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error)
 }

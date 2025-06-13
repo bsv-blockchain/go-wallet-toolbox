@@ -34,6 +34,10 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 		return 0, 0, fmt.Errorf("cannot sync between different chains: reader chain %s, writer chain %s", readerSettings.Chain, writerSettings.Chain)
 	}
 
+	if writerSettings.StorageIdentityKey == readerSettings.StorageIdentityKey {
+		return 0, 0, fmt.Errorf("cannot sync to the same storage: %s", writerSettings.StorageIdentityKey)
+	}
+
 	var state syncingState
 
 	for range state.doWhileChangesMade() {

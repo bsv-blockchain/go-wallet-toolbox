@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type OutputBaskets struct {
@@ -38,27 +35,50 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 	return mapModelToEntityOutputBasket(outputBasket), nil
 }
 
-func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (*entity.OutputBasket, error) {
+func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error) {
+	var initialCount int64
 	model := models.OutputBasket{
 		UserID:                  userID,
 		Name:                    string(basket.Name),
 		NumberOfDesiredUTXOs:    basket.NumberOfDesiredUTXOs,
 		MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,
-		UpdatedAt:               time.Now(),
-	}
-	tx := o.db.WithContext(ctx).
-		Model(&models.OutputBasket{}).
-		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "user_id"}, {Name: "name"}},
-			DoUpdates: clause.AssignmentColumns([]string{"number_of_desired_utxos", "minimum_desired_utxo_value", "updated_at"}),
-		}).
-		Create(&model)
-
-	if tx.Error != nil {
-		return nil, fmt.Errorf("failed to upsert output basket: %w", tx.Error)
 	}
 
-	return mapModelToEntityOutputBasket(&model), nil
+	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&models.OutputBasket{}).
+			Scopes(scopes.UserID(userID)).
+			Where("name = ?", basket.Name).
+			Count(&initialCount).Error;
+		if err != nil {
+			return fmt.Errorf("failed to count existing output baskets: %w", err)
+		}
+
+		if initialCount > 0 {
+			err := tx.Model(&models.OutputBasket{}).
+				Scopes(scopes.UserID(userID)).
+				Where("name = ?", basket.Name).
+				Updates(map[string]interface{}{
+					"number_of_desired_utxos":    basket.NumberOfDesiredUTXOs,
+					"minimum_desired_utxo_value": basket.MinimumDesiredUTXOValue,
+				}).Error
+			if err != nil {
+				return fmt.Errorf("failed to update existing output basket: %w", err)
+			}
+			return nil
+		} else {
+			err := tx.Create(&model).Error
+			if err != nil {
+				return fmt.Errorf("failed to create new output basket: %w", err)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("transaction failed while upserting output basket: %w", err)
+	}
+
+	return initialCount == 0, nil
 }
 
 func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBasket {
