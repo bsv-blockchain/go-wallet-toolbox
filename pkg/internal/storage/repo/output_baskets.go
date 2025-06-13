@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -48,7 +49,7 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 		err := tx.Model(&models.OutputBasket{}).
 			Scopes(scopes.UserID(userID)).
 			Where("name = ?", basket.Name).
-			Count(&initialCount).Error;
+			Count(&initialCount).Error
 		if err != nil {
 			return fmt.Errorf("failed to count existing output baskets: %w", err)
 		}
