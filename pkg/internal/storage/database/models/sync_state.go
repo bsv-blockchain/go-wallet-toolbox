@@ -15,7 +15,7 @@ type SyncState struct {
 	StorageIdentityKey string `gorm:"type:varchar(130);not null;uniqueIndex"`
 	StorageName        string `gorm:"type:varchar(128);not null"`
 	Status             wdk.SyncStatus
-	RefNum             string `gorm:"nul null;uniqueIndex"`
+	RefNum             string `gorm:"not null;uniqueIndex"`
 	SyncMap            json.RawMessage
 	When               *time.Time
 	Satoshis           *int64
