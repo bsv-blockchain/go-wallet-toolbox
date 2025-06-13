@@ -6,48 +6,48 @@
 
 {{- define "ReaderWriter" }}
     {{- if . }}
-{{- "Writer" -}}
+        {{- "Writer" -}}
     {{- else}}
-{{- "Reader" -}}
+        {{- "Reader" -}}
     {{end}}
 {{- end }}
 {{- $pkg := .Package }}
 package {{ $pkg.Name }}
 
 {{- if .Imports }}
-import (
+    import (
     {{- range .Imports }}
-    {{ . }}
+        {{ . }}
     {{- end }}
     "fmt"
-)
+    )
 {{- end }}
 
 {{ $pkg.OriginalPkgImportStatement }}
 
 {{- range .Interfaces }}
-{{- $managerName := "WalletStorageManager" }}
+    {{- $managerName := "WalletStorageManager" }}
 
-	{{- range .Methods }}
+    {{- range .Methods }}
         {{- range .Comments }}
-// {{ . }}
+            // {{ . }}
         {{- end}}
-func (m *{{ $managerName }}) {{ .Name }}({{- template "printFunctionArgs" . }}) ({{ range .Results }}{{ .Type | printType }},{{ end }}) {
-    {{- $authIDVarName := .Arguments.ArgumentOfType "AuthID" }}
-    {{- $contextVarName := .Arguments.ArgumentOfType "context.Context" }}
-    {{- if $authIDVarName }}
-    {{ $authIDVarName }}, err := m.GetAuth({{ coalesce $contextVarName "context.Background()" }})
-        {{- if .Results.HasError }}
-            if err != nil {
+        func (m *{{ $managerName }}) {{ .Name }}({{- template "printFunctionArgs" . }}) ({{ range .Results }}{{ .Type | printType }},{{ end }}) {
+        {{- $authIDVarName := .Arguments.ArgumentOfType "AuthID" }}
+        {{- $contextVarName := .Arguments.ArgumentOfType "context.Context" }}
+        {{- if $authIDVarName }}
+            {{ $authIDVarName }}, err := m.GetAuth({{ coalesce $contextVarName "context.Background()" }})
+            {{- if .Results.HasError }}
+                if err != nil {
                 {{ .Results.ReturnError $pkg "fmt.Errorf(\"failed to get user authentication: %w\", err)" }}
-            }
-        {{- else }}
-            panic(err)
+                }
+            {{- else }}
+                panic(err)
+            {{- end }}
         {{- end }}
-    {{- end }}
 
 
-	{{ if gt (len .Results) 0 }} return {{ end }} m.getActive{{template "ReaderWriter" .HasAnnotation "@Write"}}().{{ .Name }}({{ range .Arguments }}{{ .Name }}, {{ end }})
-}
+        {{ if gt (len .Results) 0 }} return {{ end }} m.getActive{{template "ReaderWriter" .HasAnnotation "@Write"}}().{{ .Name }}({{ range .Arguments }}{{ .Name }}, {{ end }})
+        }
     {{- end }}
 {{- end }}
