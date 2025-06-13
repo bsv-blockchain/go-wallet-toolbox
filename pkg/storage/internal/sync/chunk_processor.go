@@ -3,10 +3,21 @@ package sync
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/to"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+)
+
+type operation struct {
+	updates int
+	inserts int
+}
+
+var (
+	singleUpdate = operation{updates: 1}
+	singleInsert = operation{inserts: 1}
 )
 
 type chunkProcessor struct {
@@ -86,7 +97,7 @@ func (p *chunkProcessor) mergeUser() error {
 
 	currentDBHasNewerVersion := chunkUserInCurrentDB.UpdatedAt.After(p.chunk.User.UpdatedAt)
 	if currentDBHasNewerVersion {
-		return nil // No update needed, the current DB user is newer and already has an active storage.
+		return nil // No update needed
 	}
 
 	err = p.parent.repo.UpdateUser(p.ctx, p.chunk.User.UserID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
@@ -94,13 +105,15 @@ func (p *chunkProcessor) mergeUser() error {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
-	p.updateResult(p.chunk.User.UpdatedAt, 1, 0)
+	p.updateResult(p.chunk.User.UpdatedAt, singleUpdate)
 	return nil
 }
 
-func (p *chunkProcessor) updateResult(updatedAt time.Time, updates, inserts int) {
-	p.result.Updates += updates
-	p.result.Inserts += inserts
+func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operation) {
+	for _, op := range operations {
+		p.result.Updates += op.updates
+		p.result.Inserts += op.inserts
+	}
 
 	if p.result.MaxUpdatedAt == nil || updatedAt.After(*p.result.MaxUpdatedAt) {
 		p.result.MaxUpdatedAt = &updatedAt
@@ -114,11 +127,7 @@ func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error 
 	}
 
 	isNew := upserted.CreatedAt == upserted.UpdatedAt
-	if isNew {
-		p.updateResult(upserted.UpdatedAt, 0, 1)
-	} else {
-		p.updateResult(upserted.UpdatedAt, 1, 0)
-	}
+	p.updateResult(upserted.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
 
 	syncMapEntity := p.syncState.SyncMap[wdk.OutputBasketEntityName]
 	syncMapEntity.Count += 1

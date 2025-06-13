@@ -10,6 +10,10 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
+const (
+	referenceLength = 12
+)
+
 type findOrInsertSyncState struct {
 	logger *slog.Logger
 	repo   Repository
@@ -24,31 +28,44 @@ func newFindOrInsertSyncState(logger *slog.Logger, repo Repository, random wdk.R
 	}
 }
 
-func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	syncState, err := f.repo.FindSyncState(ctx, *auth.UserID, storageIdentityKey)
+func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, userID int, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	syncState, err := f.repo.FindSyncState(ctx, userID, storageIdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find sync state: %w", err)
 	}
-
+	
 	if syncState != nil {
-		apiModel, err := syncState.ToWDK()
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert sync state to WDK model: %w", err)
-		}
-
-		return &wdk.FindOrInsertSyncStateAuthResponse{
-			SyncState: apiModel,
-			IsNew:     false,
-		}, nil
+		return f.stateToResult(syncState)
 	}
 
-	reference, err := f.random.Base64(12)
+	syncState, err = f.createNewState(ctx, userID, storageIdentityKey, storageName)
+	if err != nil {
+		return nil, err
+	}
+
+	return f.stateToResult(syncState)
+}
+
+func (f *findOrInsertSyncState) stateToResult(syncState *entity.SyncState) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	apiModel, err := syncState.ToWDK()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert sync state to WDK model: %w", err)
+	}
+
+	return &wdk.FindOrInsertSyncStateAuthResponse{
+		SyncState: apiModel,
+		IsNew:     false,
+	}, nil
+}
+
+func (f *findOrInsertSyncState) createNewState(ctx context.Context, userID int, storageIdentityKey, storageName string) (*entity.SyncState, error) {
+	reference, err := f.random.Base64(referenceLength)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate reference number: %w", err)
 	}
 
-	syncState, err = f.repo.CreateSyncState(ctx, &entity.SyncState{
-		UserID:             *auth.UserID,
+	syncState, err := f.repo.CreateSyncState(ctx, &entity.SyncState{
+		UserID:             userID,
 		StorageIdentityKey: storageIdentityKey,
 		StorageName:        storageName,
 		Status:             wdk.SyncStatusUnknown,
@@ -61,13 +78,5 @@ func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, auth 
 		return nil, fmt.Errorf("failed to create sync state: %w", err)
 	}
 
-	apiModel, err := syncState.ToWDK()
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert sync state to WDK model: %w", err)
-	}
-
-	return &wdk.FindOrInsertSyncStateAuthResponse{
-		SyncState: apiModel,
-		IsNew:     true,
-	}, nil
+	return syncState, nil
 }

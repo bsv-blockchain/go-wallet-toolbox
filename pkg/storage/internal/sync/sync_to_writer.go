@@ -8,6 +8,11 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
+const (
+	maxSyncChunkSize = 10_000_000 // ~10 MB
+	maxSyncItems     = 1000
+)
+
 type ReaderToWriter struct{}
 
 func NewReaderToWriter() *ReaderToWriter {
@@ -31,7 +36,6 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 
 	var state syncingState
 
-	// TODO: implement looping mechanism to handle multiple sync chunks
 	for range state.doWhileChangesMade() {
 		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, auth, readerSettings.StorageIdentityKey, readerSettings.StorageName)
 		if err != nil {
@@ -40,21 +44,9 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 
 		syncState := writerSyncState.SyncState
 
-		var offsets []wdk.SyncOffsets
 		syncMap, err := wdk.NewSyncMapFromJSON([]byte(syncState.SyncMap))
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to parse sync map: %w", err)
-		}
-		for _, entityName := range wdk.AllEntityNames {
-			syncMapEntity, ok := syncMap[entityName]
-			if !ok {
-				continue
-			}
-
-			offsets = append(offsets, wdk.SyncOffsets{
-				Name:   entityName,
-				Offset: syncMapEntity.Count,
-			})
 		}
 
 		getSyncChunkArgs := wdk.RequestSyncChunkArgs{
@@ -63,9 +55,9 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 			IdentityKey:            auth.IdentityKey,
 
 			Since:        syncState.When,
-			MaxRoughSize: 10_000_000, // ~10 MB
-			MaxItems:     1000,
-			Offsets:      offsets,
+			MaxRoughSize: maxSyncChunkSize,
+			MaxItems:     maxSyncItems,
+			Offsets:      s.buildOffsets(syncMap),
 		}
 
 		chunk, err := reader.GetSyncChunk(ctx, getSyncChunkArgs)
@@ -90,6 +82,22 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 	return state.inserts, state.updates, nil
 }
 
+func (s *ReaderToWriter) buildOffsets(syncMap wdk.SyncMap) []wdk.SyncOffsets {
+	offsets := make([]wdk.SyncOffsets, 0, len(wdk.AllEntityNames))
+	for _, entityName := range wdk.AllEntityNames {
+		syncMapEntity, ok := syncMap[entityName]
+		if !ok {
+			continue
+		}
+
+		offsets = append(offsets, wdk.SyncOffsets{
+			Name:   entityName,
+			Offset: syncMapEntity.Count,
+		})
+	}
+	return offsets
+}
+
 type syncingState struct {
 	updates               int
 	inserts               int
@@ -101,7 +109,7 @@ func (s *syncingState) updateState(inserts, updates int) {
 	s.updates += updates
 
 	// NOTE: Depends on storage provider implementation,
-	// ProcessSyncChunk may need to process one more chunk after the empty one, and then return Done = true.
+	// ProcessSyncChunk may need to process one more chunk after the empty one, and then returns Done = true.
 	// But if not, this logic will ensure we don't loop unnecessarily.
 	if updates == 0 && inserts == 0 {
 		s.nothingChangedCounter++

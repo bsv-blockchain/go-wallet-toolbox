@@ -38,7 +38,7 @@ func (ss *SyncState) ToWDK() (*wdk.TableSyncState, error) {
 		StorageIdentityKey: ss.StorageIdentityKey,
 		StorageName:        ss.StorageName,
 		Status:             ss.Status,
-		Init:               false, // Assuming Init is always false for this conversion; TODO: Adjust if needed
+		Init:               false, // Init as true appears to be used only for testing purposes in TS version
 		RefNum:             ss.Reference,
 		SyncMap:            string(syncMap),
 		When:               ss.When,
