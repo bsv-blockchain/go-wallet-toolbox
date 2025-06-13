@@ -33,7 +33,7 @@ func (f *findOrInsertSyncState) FindOrInsertSyncState(ctx context.Context, userI
 	if err != nil {
 		return nil, fmt.Errorf("failed to find sync state: %w", err)
 	}
-	
+
 	if syncState != nil {
 		return f.stateToResult(syncState)
 	}
