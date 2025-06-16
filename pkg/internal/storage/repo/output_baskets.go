@@ -53,7 +53,7 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 				"minimum_desired_utxo_value": basket.MinimumDesiredUTXOValue,
 			})
 		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update existing output basket: %w", err)
+			return fmt.Errorf("failed to update existing output basket: %w", updateTx.Error)
 		}
 
 		if updateTx.RowsAffected > 0 {
