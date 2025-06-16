@@ -1,10 +1,12 @@
 package services_test
 
 import (
-	"context"
+	"fmt"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	tst "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
@@ -29,7 +31,7 @@ func TestGetMerklePath(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		response, err := services.MerklePath(context.Background(), txID)
+		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -49,7 +51,7 @@ func TestGetMerklePath(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		response, err := services.MerklePath(context.Background(), txID)
+		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
 		assert.NoError(t, err)
@@ -94,7 +96,7 @@ func TestGetMerklePath(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		response, err := services.MerklePath(context.Background(), txID)
+		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
 		assert.NoError(t, err)
@@ -110,4 +112,63 @@ func TestGetMerklePath(t *testing.T) {
 		}, *response)
 	})
 
+	t.Run("get merkle path from WoC", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+
+		txHash := tst.MustHashFromHex(tst.TestTxID)
+		siblingHash := tst.MustHashFromHex(tst.TestSiblingHash)
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: tst.BlockHeight,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   txHash,
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   siblingHash,
+					},
+				},
+			},
+		}
+
+		merkleRoot, err := merklePath.ComputeRootHex(nil)
+		require.NoError(t, err, "failed to compute merkle root")
+
+		given.WhatsOnChain().WhenQueryingMerklePath(tst.TestTxID).WillReturnTSCProof(200, `{
+			"index": 0,
+			"txOrId": "`+tst.TestTxID+`",
+			"target": "`+tst.TestTargetHash+`",
+			"nodes": ["`+tst.TestSiblingHash+`"]
+		}`)
+
+		blockHeaderJSON := fmt.Sprintf(`{
+			"hash": "%s",
+			"height": %d,
+			"merkleRoot": "%s"
+		}`, tst.TestTargetHash, tst.BlockHeight, merkleRoot)
+
+		given.WhatsOnChain().WhenQueryingBlockHeader(tst.TestTargetHash).WillReturnBlockHeaderJSON(200, blockHeaderJSON)
+		services := given.Services().WithDefaultConfig()
+
+		// when:
+		response, err := services.MerklePath(t.Context(), tst.TestTxID)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, response)
+		require.Equal(t, wdk.MerklePathResult{
+			Name:       whatsonchain.ServiceName,
+			MerklePath: &merklePath,
+			Header: &wdk.BlockHeader{
+				Height:     tst.BlockHeight,
+				Hash:       tst.TestTargetHash,
+				MerkleRoot: merkleRoot,
+			},
+		}, *response)
+	})
 }
