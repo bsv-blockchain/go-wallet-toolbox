@@ -29,7 +29,7 @@ func TestSyncProcess(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
-	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Alice.AuthID(), backupProvider)
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestSyncWithManyCustomBaskets(t *testing.T) {
 	}
 
 	// when:
-	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Alice.AuthID(), backupProvider)
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
 	require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	// when:
-	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Alice.AuthID(), backupProvider)
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
 	require.NoError(t, err)
@@ -115,34 +115,12 @@ func TestSyncWhereOtherUserAlreadyExist(t *testing.T) {
 	require.NoError(t, err)
 
 	// when:
-	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Alice.AuthID(), backupProvider)
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
 	require.NoError(t, err)
 	assert.Equal(t, 0, inserts)
 	assert.Equal(t, 1, updates)
-}
-
-func TestSyncProcessInvalidUser(t *testing.T) {
-	// given:
-	givenSourceDB, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	sourceProvider := givenSourceDB.Provider().GORM()
-
-	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
-
-	// and:
-	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
-	defer cleanup()
-
-	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
-
-	// when:
-	_, _, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Bob.AuthID(), backupProvider)
-
-	// then:
-	require.Error(t, err)
 }
 
 func TestSyncSameSourceAndBackupStorage(t *testing.T) {
@@ -155,7 +133,7 @@ func TestSyncSameSourceAndBackupStorage(t *testing.T) {
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	// when:
-	_, _, err := sourceStorageManager.SyncToWriter(t.Context(), testusers.Bob.AuthID(), sourceProvider)
+	_, _, err := sourceStorageManager.SyncToWriter(t.Context(), sourceProvider)
 
 	// then:
 	require.Error(t, err)
