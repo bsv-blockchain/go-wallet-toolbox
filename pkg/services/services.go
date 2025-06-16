@@ -67,7 +67,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 		getMerklePathServices: servicequeue.NewQueue1(
 			logger,
 			"MerklePath",
-			servicequeue.NewService1(whatsonchain.ServiceName, arcService.MerklePath),
+			servicequeue.NewService1(arc.ServiceName, arcService.MerklePath),
+			servicequeue.NewService1(whatsonchain.ServiceName, woc.MerklePath),
 		),
 
 		chainHeaderServices: servicequeue.NewQueue(
