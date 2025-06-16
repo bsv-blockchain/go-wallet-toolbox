@@ -80,10 +80,6 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 
 // FindChainTipHeader queries multiple chain header services in sequence
 // and returns the most recent block header (chain tip) available.
-//
-// It attempts each service one by one until a successful result is returned.
-// If no service returns a result, it wraps and returns servicequeue.ErrEmptyResult.
-// Any other errors encountered during the process are returned with context.
 func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
 	result, err := s.chainHeaderServices.OneByOne(ctx)
 	if err != nil {

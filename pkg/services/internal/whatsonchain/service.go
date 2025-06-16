@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/dto"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"

@@ -18,9 +18,9 @@ type BlockHeader struct {
 	// Height is the block’s position in the chain, starting from 0 (the genesis block).
 	Height uint `json:"height"`
 
-	// Version is the integer version number of the block.
+	// Version is is a 32-bit version number of the block.
 	// It indicates which consensus rules or features are in effect.
-	Version uint64 `json:"version"`
+	Version uint32 `json:"version"`
 
 	// MerkleRoot is the root hash of the Merkle tree formed by all transactions in the block.
 	// This value appears in the block header and proves transaction inclusion.
@@ -30,7 +30,7 @@ type BlockHeader struct {
 	Time uint64 `json:"time"`
 
 	// Nonce is a 32-bit number that miners iterate to find a hash meeting the difficulty target.
-	Nonce uint64 `json:"nonce"`
+	Nonce uint32 `json:"nonce"`
 
 	// Bits is the compact, encoded representation of the difficulty target in hexadecimal.
 	Bits string `json:"bits"`

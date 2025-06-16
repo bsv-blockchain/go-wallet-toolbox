@@ -1,9 +1,11 @@
 package services_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,12 +13,10 @@ func TestFindChainTipHeader(t *testing.T) {
 	t.Run("return a single block header after call to the whats on chain service", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		blocks := given.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+		given.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 		// and:
-		expectedBlock, err := blocks[0].ConvertToChainBlockHeader()
-		require.NoError(t, err)
-		require.NotNil(t, expectedBlock)
+		expectedBlock := newTestChainBlockHeader(t)
 
 		// and:
 		service := given.Services().WithDefaultConfig()
@@ -47,6 +47,7 @@ func TestFindChainTipHeader(t *testing.T) {
 
 	t.Run("return an error when all block header services are unreachable", func(t *testing.T) {
 		// given:
+
 		given := testservices.GivenServices(t)
 		target := given.WhatsOnChain().WillBeUnreachable()
 
@@ -76,4 +77,25 @@ func TestFindChainTipHeader(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, actualBlock)
 	})
+}
+
+func newTestChainBlockHeader(t *testing.T) *wdk.ChainBlockHeader {
+	t.Helper()
+
+	bits, err := strconv.ParseUint(testservices.TestBlockBits, 16, 64)
+	require.NotZero(t, bits)
+	require.NoError(t, err)
+
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      testservices.TestBlockVersion,
+			PreviousHash: testservices.TestBlockPreviousBlockHash,
+			MerkleRoot:   testservices.TestBlockMerkleRoot,
+			Time:         testservices.TestBlockTime,
+			Bits:         bits,
+			Nonce:        testservices.TestBlockNonce,
+		},
+		Height: testservices.TestBlockHeight,
+		Hash:   testservices.TestBlockHash,
+	}
 }

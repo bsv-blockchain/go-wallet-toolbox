@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/dto"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
 )
@@ -16,8 +15,8 @@ import (
 type WhatsOnChainFixture interface {
 	WillRespondWithRates(status int, content string, err error)
 	WillRespondWithRawTx(status int, txID, rawTx string, err error)
-	OnTipBlockHeaderWillRespondWithOneElementList() []dto.BlockHeader
-	OnTipBlockHeaderWillRespondWithEmptyList() []dto.BlockHeader
+	OnTipBlockHeaderWillRespondWithOneElementList()
+	OnTipBlockHeaderWillRespondWithEmptyList()
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
 }
@@ -52,36 +51,42 @@ func (f *wocFixture) WillRespondWithInternalFailure() {
 	)
 }
 
-func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() []dto.BlockHeader {
+func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 	f.TB.Helper()
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, []dto.BlockHeader{}),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, []blockDTO{}),
 	)
-	return []dto.BlockHeader{}
 }
 
-func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() []dto.BlockHeader {
-	body := []dto.BlockHeader{
-		{
-			Hash:              "00000000000000000c5f0e00dadaf092df83f98d4dd7b5c271d4ea77840d9616",
-			Height:            900769,
-			Version:           603979776,
-			MerkleRoot:        "d2c956bb4e4630d5e3f7d3d2188033708010b7e39fe437688a885d28617df3e9",
-			Time:              1749640390,
-			Nonce:             3490285233,
-			Bits:              "1811a0fe",
-			PreviousBlockHash: "00000000000000001018b9d31586ff13e4797fa527d1bc74d33424853940c18c",
-		},
-	}
+func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() {
 	f.TB.Helper()
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, []blockDTO{
+			{
+				Hash:              TestBlockHash,
+				Confirmations:     TestBlockConfirmations,
+				Size:              TestBlockSize,
+				Height:            TestBlockHeight,
+				Version:           TestBlockVersion,
+				VersionHex:        TestBlockVersionHex,
+				MerkleRoot:        TestBlockMerkleRoot,
+				Time:              TestBlockTime,
+				MedianTime:        TestBlockMedianTime,
+				Nonce:             TestBlockNonce,
+				Bits:              TestBlockBits,
+				Difficulty:        TestBlockDifficulty,
+				ChainWork:         TestBlockChainWork,
+				PreviousBlockHash: TestBlockPreviousBlockHash,
+				NextBlockHash:     nil,
+				NTx:               TestBlockNTx,
+				NumTx:             TestBlockNumTx,
+			},
+		}),
 	)
-	return body
 }
 
 func (f *wocFixture) WillBeUnreachable() error {
@@ -133,4 +138,51 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/hex", f.network, txID),
 		responder(status, rawTx),
 	)
+}
+
+const (
+	TestBlockConfirmations = 1
+	TestBlockSize          = 2184411
+	TestBlockHeight        = 901475
+	TestBlockNTx           = 0
+	TestBlockNumTx         = 3196
+)
+
+const (
+	TestBlockVersion    uint32 = 805306368
+	TestBlockNonce      uint32 = 602597547
+	TestBlockTime       uint64 = 1750064695
+	TestBlockMedianTime uint64 = 1750060569
+)
+
+const (
+	TestBlockDifficulty = 64454475829.11144
+)
+
+const (
+	TestBlockVersionHex        = "30000000"
+	TestBlockMerkleRoot        = "c7a78f2edd611b0fe7aad6829a243e4a9e351e5ab203b7beb875ba1e6a80249e"
+	TestBlockBits              = "18110ef8"
+	TestBlockChainWork         = "000000000000000000000000000000000000000001669c7b159861f30c53271e"
+	TestBlockPreviousBlockHash = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b704e"
+)
+
+type blockDTO struct {
+	Hash              string  `json:"hash"`
+	Confirmations     int     `json:"confirmations"`
+	Size              int     `json:"size"`
+	Height            uint    `json:"height"`
+	Version           uint32  `json:"version"`
+	VersionHex        string  `json:"versionHex"`
+	MerkleRoot        string  `json:"merkleroot"`
+	Time              uint64  `json:"time"`
+	MedianTime        uint64  `json:"mediantime"`
+	Nonce             uint32  `json:"nonce"`
+	Bits              string  `json:"bits"`
+	Difficulty        float64 `json:"difficulty"`
+	ChainWork         string  `json:"chainwork"`
+	PreviousBlockHash string  `json:"previousblockhash"`
+	NextBlockHash     *string `json:"nextblockhash,omitempty"`
+	NTx               int     `json:"nTx"`
+	NumTx             int     `json:"num_tx"`
 }

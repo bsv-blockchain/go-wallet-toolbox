@@ -8,8 +8,8 @@ package wdk
 // Note: Both the `PreviousHash` and `MerkleRoot` fields are 32-byte hex strings
 // with reversed byte order compared to their serialized binary format.
 type ChainBaseBlockHeader struct {
-	// Version is the block header version. Serialized as 4 bytes (little-endian).
-	Version uint64
+	// Version is the 32-bit block header version. Serialized as 4 bytes (little-endian).
+	Version uint32
 
 	// PreviousHash is the hash of the previous block’s header.
 	// Represented as a 32-byte hex string with reversed byte order.
@@ -31,7 +31,7 @@ type ChainBaseBlockHeader struct {
 
 	// Nonce is the 32-bit nonce used in the mining process to vary the block hash.
 	// Serialized as 4 bytes.
-	Nonce uint64
+	Nonce uint32
 }
 
 // ChainBlockHeader extends ChainBaseBlockHeader with metadata about the block's
