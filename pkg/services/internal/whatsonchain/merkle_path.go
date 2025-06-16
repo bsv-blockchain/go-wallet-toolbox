@@ -57,13 +57,13 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 	}
 
 	return &wdk.MerklePathResult{
-		Name:       ServiceName,
-		MerklePath: merklePath,
-		Header:     header,
+		Name:        ServiceName,
+		MerklePath:  merklePath,
+		BlockHeader: header,
 	}, nil
 }
 
-func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*wdk.BlockHeader, error) {
+func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
 	var hdrResp blockHeaderResponse
 	res, err := woc.httpClient.R().
 		SetContext(ctx).
@@ -83,7 +83,7 @@ func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*w
 		return nil, fmt.Errorf("invalid block height %d: %w", hdrResp.Height, err)
 	}
 
-	return &wdk.BlockHeader{
+	return &wdk.MerklePathBlockHeader{
 		Height:     height,
 		Hash:       blockHash,
 		MerkleRoot: hdrResp.MerkleRoot,

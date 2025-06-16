@@ -62,7 +62,7 @@ func TestMerklePath_Success(t *testing.T) {
 	expected := &wdk.MerklePathResult{
 		Name:       "WhatsOnChain",
 		MerklePath: &merklePath,
-		Header: &wdk.BlockHeader{
+		BlockHeader: &wdk.MerklePathBlockHeader{
 			Height:     tst.BlockHeight,
 			MerkleRoot: merkleRoot,
 			Hash:       tst.TestTargetHash,

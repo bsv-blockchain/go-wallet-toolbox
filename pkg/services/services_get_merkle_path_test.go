@@ -164,7 +164,7 @@ func TestGetMerklePath(t *testing.T) {
 		require.Equal(t, wdk.MerklePathResult{
 			Name:       whatsonchain.ServiceName,
 			MerklePath: &merklePath,
-			Header: &wdk.BlockHeader{
+			BlockHeader: &wdk.MerklePathBlockHeader{
 				Height:     tst.BlockHeight,
 				Hash:       tst.TestTargetHash,
 				MerkleRoot: merkleRoot,
