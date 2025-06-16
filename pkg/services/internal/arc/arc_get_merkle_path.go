@@ -51,7 +51,7 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 	return &wdk.MerklePathResult{
 		Name:       ServiceName,
 		MerklePath: merklePath,
-		Header: &wdk.BlockHeader{
+		BlockHeader: &wdk.MerklePathBlockHeader{
 			Height:     blockHeight,
 			Hash:       txInfo.BlockHash,
 			MerkleRoot: merkleRoot,
