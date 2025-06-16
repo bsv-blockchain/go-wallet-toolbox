@@ -75,14 +75,14 @@ func (s *SyncState) UpdateSyncState(ctx context.Context, syncState *entity.SyncS
 		return fmt.Errorf("failed to marshal sync map: %w", err)
 	}
 
-	toUpdate := models.SyncState{
-		Status:  syncState.Status,
-		SyncMap: syncMapJSON,
-		When:    syncState.When,
+	toUpdate := map[string]any{
+		"status":   syncState.Status,
+		"sync_map": syncMapJSON,
+		"when":     syncState.When,
 	}
 
 	if syncState.Satoshis != nil {
-		toUpdate.Satoshis = to.Ptr(syncState.Satoshis.Int64())
+		toUpdate["satoshis"] = syncState.Satoshis.Int64()
 	}
 
 	err = s.db.WithContext(ctx).

@@ -91,14 +91,14 @@ func (p *chunkProcessor) mergeUser() error {
 		return fmt.Errorf("chunk user ID %d does not match current DB user ID %d", p.chunk.User.UserID, chunkUserInCurrentDB.ID)
 	}
 
-	currentDBHasNewerVersion := chunkUserInCurrentDB.UpdatedAt.After(p.chunk.User.UpdatedAt)
-	if currentDBHasNewerVersion {
+	currentDBHasOlderVersion := chunkUserInCurrentDB.UpdatedAt.Before(p.chunk.User.UpdatedAt)
+	if !currentDBHasOlderVersion {
 		return nil // No update needed
 	}
 
 	err = p.parent.repo.UpdateUser(p.ctx, p.chunk.User.UserID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
 	if err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
+		return fmt.Errorf("failed to update user %d: %w", p.chunk.User.UserID, err)
 	}
 
 	p.updateResult(p.chunk.User.UpdatedAt, singleUpdate)

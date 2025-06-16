@@ -61,9 +61,9 @@ func (u *Users) UpdateUser(ctx context.Context, userID int, activeStorage string
 	err := u.db.WithContext(ctx).
 		Model(&models.User{}).
 		Scopes(scopes.UserID(userID)).
-		Updates(models.User{
-			ActiveStorage: activeStorage,
-			UpdatedAt:     updatedAt,
+		Updates(map[string]any{
+			"active_storage": activeStorage,
+			"updated_at":     updatedAt,
 		}).Error
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
