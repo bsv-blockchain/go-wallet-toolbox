@@ -12,17 +12,11 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 )
-
-// bsvExchangeRateResponse is the response from WhatsOnChain for bsv exchange range
-type bsvExchangeRateResponse struct {
-	Time     int     `json:"time"`
-	Rate     float64 `json:"rate"`
-	Currency string  `json:"currency"`
-}
 
 const ServiceName = "WhatsOnChain"
 
@@ -109,7 +103,7 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 		return woc.bsvExchangeRate, nil
 	}
 
-	var exchangeRateResponse bsvExchangeRateResponse
+	var exchangeRateResponse dto.BSVExchangeRateResponse
 	req := woc.httpClient.
 		R().
 		AddRetryCondition(retryOnTooManyRequestsStatus)
@@ -136,4 +130,38 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	}
 
 	return woc.bsvExchangeRate, nil
+}
+
+func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+	var blocks []dto.BlockHeader
+	url := fmt.Sprintf("%s/block/headers?limit=1", woc.url)
+	res, err := woc.
+		httpClient.
+		R().
+		SetContext(ctx).
+		SetResult(&blocks).
+		AddRetryCondition(func(res *resty.Response, err error) bool {
+			return res.StatusCode() == http.StatusTooManyRequests
+		}).
+		Get(url)
+
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching block headers from WhatsOnChain (URL: %s): %w", url, err)
+	}
+
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response from WhatsOnChain (URL: %s): status code %d", url, res.StatusCode())
+	}
+
+	if len(blocks) == 0 {
+		return nil, fmt.Errorf("no block headers returned from WhatsOnChain (URL: %s); at least one expected", url)
+	}
+
+	first := blocks[0]
+	header, err := first.ConvertToChainBlockHeader()
+	if err != nil {
+		return nil, fmt.Errorf("error while converting the response from WhatsOnChain (URL: %s) to the *wdk.ChainBlockHeader: %w", url, err)
+	}
+
+	return header, nil
 }

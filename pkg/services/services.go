@@ -28,6 +28,7 @@ type WalletServices struct {
 	rawTxServices         servicequeue.Queue1[string, *wdk.RawTxResult]
 	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
 	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
+	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -69,7 +70,26 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			servicequeue.NewService1(arc.ServiceName, arcService.MerklePath),
 			servicequeue.NewService1(whatsonchain.ServiceName, woc.MerklePath),
 		),
+
+		chainHeaderServices: servicequeue.NewQueue(
+			logger,
+			"FindChainTipHeader",
+			servicequeue.NewService(whatsonchain.ServiceName, woc.FindChainTipHeader),
+		),
 	}
+}
+
+// FindChainTipHeader queries multiple chain header services in sequence
+// and returns the most recent block header (chain tip) available.
+func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+	result, err := s.chainHeaderServices.OneByOne(ctx)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("unable to determine chain tip: all chain header services failed to return a result: %w", err)
+		}
+		return nil, fmt.Errorf("failed to retrieve latest block header from chain header services: %w", err)
+	}
+	return result, nil
 }
 
 // RawTx attempts to obtain the raw transaction bytes associated with a 32 byte transaction hash (txid).
@@ -162,7 +182,7 @@ func (s *WalletServices) UtxoStatus(
 }
 
 // HashToHeader attempts to retrieve BlockHeader by its hash
-func (s *WalletServices) HashToHeader(hash string) (*BlockHeader, error) {
+func (s *WalletServices) HashToHeader(hash string) (*wdk.ChainBlockHeader, error) {
 	panic("Not implemented yet")
 }
 
