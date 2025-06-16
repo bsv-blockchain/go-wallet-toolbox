@@ -56,7 +56,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, []blockDTO{}),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, []wocBlockResponseItem{}),
 	)
 }
 
@@ -65,7 +65,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() {
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, []blockDTO{
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, []wocBlockResponseItem{
 			{
 				Hash:              TestBlockHash,
 				Confirmations:     TestBlockConfirmations,
@@ -167,7 +167,7 @@ const (
 	TestBlockPreviousBlockHash = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b704e"
 )
 
-type blockDTO struct {
+type wocBlockResponseItem struct {
 	Hash              string  `json:"hash"`
 	Confirmations     int     `json:"confirmations"`
 	Size              int     `json:"size"`
