@@ -37,7 +37,6 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 }
 
 func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error) {
-	var initialCount int64
 	model := models.OutputBasket{
 		UserID:                  userID,
 		Name:                    string(basket.Name),
@@ -46,32 +45,27 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 	}
 
 	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&models.OutputBasket{}).
+		updateTx := tx.Model(&models.OutputBasket{}).
 			Scopes(scopes.UserID(userID)).
 			Where("name = ?", basket.Name).
-			Count(&initialCount).Error
-		if err != nil {
-			return fmt.Errorf("failed to count existing output baskets: %w", err)
+			Updates(map[string]interface{}{
+				"number_of_desired_utxos":    basket.NumberOfDesiredUTXOs,
+				"minimum_desired_utxo_value": basket.MinimumDesiredUTXOValue,
+			})
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update existing output basket: %w", err)
 		}
 
-		if initialCount > 0 {
-			err := tx.Model(&models.OutputBasket{}).
-				Scopes(scopes.UserID(userID)).
-				Where("name = ?", basket.Name).
-				Updates(map[string]interface{}{
-					"number_of_desired_utxos":    basket.NumberOfDesiredUTXOs,
-					"minimum_desired_utxo_value": basket.MinimumDesiredUTXOValue,
-				}).Error
-			if err != nil {
-				return fmt.Errorf("failed to update existing output basket: %w", err)
-			}
+		if updateTx.RowsAffected > 0 {
 			return nil
-		} else {
-			err := tx.Create(&model).Error
-			if err != nil {
-				return fmt.Errorf("failed to create new output basket: %w", err)
-			}
 		}
+
+		err := tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create new output basket: %w", err)
+		}
+
+		isNew = true
 
 		return nil
 	})
@@ -79,7 +73,7 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 		return false, fmt.Errorf("transaction failed while upserting output basket: %w", err)
 	}
 
-	return initialCount == 0, nil
+	return isNew, nil
 }
 
 func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBasket {

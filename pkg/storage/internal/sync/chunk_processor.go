@@ -78,25 +78,16 @@ func (p *chunkProcessor) process() (err error) {
 }
 
 func (p *chunkProcessor) mergeUser() error {
-	chunkUserInCurrentDB, err := p.parent.repo.FindUser(p.ctx, p.chunk.User.IdentityKey)
-	if err != nil {
-		return fmt.Errorf("failed to find chunk user: %w", err)
+	if p.chunk.User.IdentityKey != p.user.IdentityKey {
+		return fmt.Errorf("chunk user identity key %s does not match current user identity key %s", p.chunk.User.IdentityKey, p.user.IdentityKey)
 	}
 
-	if chunkUserInCurrentDB == nil {
-		return fmt.Errorf("chunk user not found for userID %d", p.chunk.User.UserID)
-	}
-
-	if chunkUserInCurrentDB.ID != p.user.ID {
-		return fmt.Errorf("chunk user ID %d does not match current DB user ID %d", p.chunk.User.UserID, chunkUserInCurrentDB.ID)
-	}
-
-	currentDBHasOlderVersion := chunkUserInCurrentDB.UpdatedAt.Before(p.chunk.User.UpdatedAt)
+	currentDBHasOlderVersion := p.user.UpdatedAt.Before(p.chunk.User.UpdatedAt)
 	if !currentDBHasOlderVersion {
 		return nil // No update needed
 	}
 
-	err = p.parent.repo.UpdateUser(p.ctx, p.chunk.User.UserID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
+	err := p.parent.repo.UpdateUser(p.ctx, p.user.ID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update user %d: %w", p.chunk.User.UserID, err)
 	}
