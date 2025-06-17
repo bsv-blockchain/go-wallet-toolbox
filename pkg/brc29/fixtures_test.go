@@ -1,7 +1,7 @@
 package brc29_test
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/sdk/template/brc29"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
 )
 
 const (

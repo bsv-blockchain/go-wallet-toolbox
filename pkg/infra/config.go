@@ -3,8 +3,8 @@ package infra
 import (
 	"fmt"
 
+	"github.com/4chain-ag/go-wallet-toolbox/internal/config"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
 )
 
 //go:generate go run ../../cmd/infra_config_gen/main.go -o ../../infra-config.example.yaml
