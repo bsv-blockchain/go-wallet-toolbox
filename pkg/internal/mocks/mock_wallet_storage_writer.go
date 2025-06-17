@@ -56,6 +56,21 @@ func (mr *MockWalletStorageProviderMockRecorder) CreateAction(ctx, auth, args an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAction", reflect.TypeOf((*MockWalletStorageProvider)(nil).CreateAction), ctx, auth, args)
 }
 
+// FindOrInsertSyncStateAuth mocks base method.
+func (m *MockWalletStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrInsertSyncStateAuth", ctx, auth, storageIdentityKey, storageName)
+	ret0, _ := ret[0].(*wdk.FindOrInsertSyncStateAuthResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOrInsertSyncStateAuth indicates an expected call of FindOrInsertSyncStateAuth.
+func (mr *MockWalletStorageProviderMockRecorder) FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrInsertSyncStateAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOrInsertSyncStateAuth), ctx, auth, storageIdentityKey, storageName)
+}
+
 // FindOrInsertUser mocks base method.
 func (m *MockWalletStorageProvider) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
 	m.ctrl.T.Helper()
@@ -69,6 +84,21 @@ func (m *MockWalletStorageProvider) FindOrInsertUser(ctx context.Context, identi
 func (mr *MockWalletStorageProviderMockRecorder) FindOrInsertUser(ctx, identityKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrInsertUser", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOrInsertUser), ctx, identityKey)
+}
+
+// GetSyncChunk mocks base method.
+func (m *MockWalletStorageProvider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSyncChunk", ctx, args)
+	ret0, _ := ret[0].(*wdk.SyncChunk)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSyncChunk indicates an expected call of GetSyncChunk.
+func (mr *MockWalletStorageProviderMockRecorder) GetSyncChunk(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSyncChunk", reflect.TypeOf((*MockWalletStorageProvider)(nil).GetSyncChunk), ctx, args)
 }
 
 // InsertCertificateAuth mocks base method.
@@ -189,6 +219,21 @@ func (m *MockWalletStorageProvider) ProcessAction(ctx context.Context, auth wdk.
 func (mr *MockWalletStorageProviderMockRecorder) ProcessAction(ctx, auth, args any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessAction", reflect.TypeOf((*MockWalletStorageProvider)(nil).ProcessAction), ctx, auth, args)
+}
+
+// ProcessSyncChunk mocks base method.
+func (m *MockWalletStorageProvider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessSyncChunk", ctx, args, chunk)
+	ret0, _ := ret[0].(*wdk.ProcessSyncChunkResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProcessSyncChunk indicates an expected call of ProcessSyncChunk.
+func (mr *MockWalletStorageProviderMockRecorder) ProcessSyncChunk(ctx, args, chunk any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessSyncChunk", reflect.TypeOf((*MockWalletStorageProvider)(nil).ProcessSyncChunk), ctx, args, chunk)
 }
 
 // RelinquishCertificate mocks base method.

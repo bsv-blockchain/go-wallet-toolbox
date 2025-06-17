@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
@@ -31,11 +30,13 @@ type ProviderFixture interface {
 }
 
 type providerFixture struct {
-	network    defs.BSVNetwork
-	commission defs.Commission
-	feeModel   defs.FeeModel
-	randomizer wdk.Randomizer
-	services   wdk.Services
+	network        defs.BSVNetwork
+	commission     defs.Commission
+	feeModel       defs.FeeModel
+	randomizer     wdk.Randomizer
+	services       wdk.Services
+	storagePrivKey string
+	storageName    string
 
 	t               testing.TB
 	require         *require.Assertions
@@ -95,7 +96,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.t.Helper()
 	p.withServices()
 
-	storageIdentityKey, err := wdk.IdentityKey(fixtures.StorageServerPrivKey)
+	storageIdentityKey, err := wdk.IdentityKey(p.storagePrivKey)
 	p.require.NoError(err)
 
 	activeStorage, err := storage.NewGORMProvider(
@@ -112,7 +113,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	)
 	p.require.NoError(err)
 
-	_, err = activeStorage.Migrate(context.Background(), fixtures.StorageName, storageIdentityKey)
+	_, err = activeStorage.Migrate(context.Background(), p.storageName, storageIdentityKey)
 	p.require.NoError(err)
 
 	p.activeStorage = activeStorage
@@ -122,7 +123,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 
 func (p *providerFixture) StorageIdentityKey() string {
 	p.t.Helper()
-	identityKey, err := wdk.IdentityKey(fixtures.StorageServerPrivKey)
+	identityKey, err := wdk.IdentityKey(p.storagePrivKey)
 	require.NoError(p.t, err)
 
 	return identityKey

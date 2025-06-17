@@ -30,6 +30,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.Label{},
 		models.TransactionLabels{},
 		models.NumericIDLookup{},
+		models.SyncState{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate settings: %w", err)

@@ -1,24 +1,24 @@
 {{- define "printArgs" }}
     {{- range (.Arguments.SkipTypes "AuthID") }}
-            {{- .Name }} {{ .Type | printType }},
+        {{- .Name }} {{ .Type | printType }},
     {{- end }}
 {{- end }}
 
 package {{ .Package.Name }}
 
 {{- if .Imports }}
-import (
+    import (
     {{- range .Imports }}
-    {{ . }}
+        {{ . }}
     {{- end }}
-)
+    )
 {{- end }}
 
 {{ .Package.OriginalPkgImportStatement }}
 
 {{- with index .Interfaces 0 }}
-type WalletStorageBasic interface {
-	{{- range .Methods }}
+    type WalletStorageBasic interface {
+    {{- range .Methods }}
         {{- range .Comments }}
             // {{ . }}
         {{- end }}
@@ -28,5 +28,5 @@ type WalletStorageBasic interface {
         {{ .Name }}( {{- template "printArgs" . }} )  ({{ range .Results }} {{ .Type | printType }}, {{- end }})
 
     {{- end }}
-}
+    }
 {{- end}}

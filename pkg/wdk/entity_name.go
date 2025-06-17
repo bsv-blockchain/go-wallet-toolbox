@@ -18,3 +18,19 @@ const (
 	CertificateFieldEntityName EntityName = "certificateField"
 	CommissionEntityName       EntityName = "commission"
 )
+
+// AllEntityNames contains the ordered list of all entity names used for synchronization in the application.
+var AllEntityNames = []EntityName{
+	ProvenTxEntityName,
+	OutputBasketEntityName,
+	TransactionEntityName,
+	ProvenTxReqEntityName,
+	TxLabelEntityName,
+	TxLabelMapEntityName,
+	OutputEntityName,
+	OutputTagEntityName,
+	OutputTagMapEntityName,
+	CertificateEntityName,
+	CertificateFieldEntityName,
+	CommissionEntityName,
+}

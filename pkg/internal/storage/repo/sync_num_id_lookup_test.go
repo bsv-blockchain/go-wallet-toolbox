@@ -39,7 +39,7 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	}
 
 	// when:
-	baskets, err := repos.FindBasketsForSync(t.Context(), user.UserID, queryopts.WithPage(page))
+	baskets, err := repos.FindBasketsForSync(t.Context(), user.ID, queryopts.WithPage(page))
 
 	// then:
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	require.Equal(t, 2, secondaryBasket.BasketID)
 
 	// given:
-	err = repos.UpsertOutputBasket(t.Context(), user.UserID, wdk.BasketConfiguration{
+	_, err = repos.UpsertOutputBasket(t.Context(), user.ID, wdk.BasketConfiguration{
 		Name:                    "other",
 		NumberOfDesiredUTXOs:    3,
 		MinimumDesiredUTXOValue: 3000,
@@ -62,7 +62,7 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	// when:
-	baskets, err = repos.FindBasketsForSync(t.Context(), user.UserID, queryopts.WithPage(page))
+	baskets, err = repos.FindBasketsForSync(t.Context(), user.ID, queryopts.WithPage(page))
 
 	// then:
 	require.NoError(t, err)

@@ -2,6 +2,7 @@ package dbfixtures
 
 import (
 	"context"
+	"regexp"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -37,9 +38,15 @@ func DBConfigForTests() defs.Database {
 	return dbConfig
 }
 
+type DBConfigModifier func(config *defs.Database)
+
 // TestDatabase creates a new database component, migrates database to make it ready for tests.
-func TestDatabase(t testing.TB) (db *database.Database, cleanup func()) {
+func TestDatabase(t testing.TB, configModifiers ...DBConfigModifier) (db *database.Database, cleanup func()) {
 	dbConfig := DBConfigForTests()
+	for _, modifier := range configModifiers {
+		modifier(&dbConfig)
+	}
+
 	logger := logging.NewTestLogger(t)
 	db, err := database.NewDatabase(dbConfig, logger)
 	require.NoError(t, err)
@@ -47,4 +54,19 @@ func TestDatabase(t testing.TB) (db *database.Database, cleanup func()) {
 	err = repos.Migrate(context.Background())
 	require.NoError(t, err)
 	return db, func() {}
+}
+
+const sqliteFileNamePattern = `^file:(.+)\.sqlite(.*)$`
+
+func WithSQLiteFileName(fileName string) DBConfigModifier {
+	return func(config *defs.Database) {
+		if config.Engine != defs.DBTypeSQLite {
+			panic("WithSQLiteFileName modifier can only be used with SQLite engine (config.Engine = 'sqlite')")
+		}
+		re := regexp.MustCompile(sqliteFileNamePattern)
+		config.SQLite.ConnectionString = re.ReplaceAllString(
+			config.SQLite.ConnectionString,
+			"file:"+fileName+".sqlite$2",
+		)
+	}
 }

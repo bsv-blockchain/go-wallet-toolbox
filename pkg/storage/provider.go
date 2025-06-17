@@ -28,7 +28,6 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	settings    *wdk.TableSettings
 	repo        *repo.Repositories
 	actions     *actions.Actions
 	syncActions *sync.Actions
@@ -85,7 +84,7 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 
 		repo:        repos,
 		actions:     actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
-		syncActions: sync.New(logger, repos),
+		syncActions: sync.New(logger, repos, random),
 	}, nil
 }
 
@@ -134,7 +133,6 @@ func (p *Provider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error
 		return nil, fmt.Errorf("failed to read settings: %w", err)
 	}
 
-	p.settings = settings
 	return settings, nil
 }
 
@@ -232,7 +230,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 	}
 	if user != nil {
 		return &wdk.FindOrInsertUserResponse{
-			User:  *user,
+			User:  *user.ToWDK(),
 			IsNew: false,
 		}, nil
 	}
@@ -253,7 +251,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 	}
 
 	return &wdk.FindOrInsertUserResponse{
-		User:  *user,
+		User:  *user.ToWDK(),
 		IsNew: true,
 	}, nil
 }
@@ -368,7 +366,7 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 		return fmt.Errorf("invalid basket configuration: %w", err)
 	}
 
-	err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
+	_, err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
 	if err != nil {
 		return fmt.Errorf("failed to update basket configuration: %w", err)
 	}
@@ -406,4 +404,32 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("failed to get sync chunk: %w", err)
 	}
 	return chunk, nil
+}
+
+// FindOrInsertSyncStateAuth finds or inserts a sync state for the given user, storage identity key, and storage name.
+func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	syncStateResponse, err := p.syncActions.FindOrInsertSyncState(ctx, *auth.UserID, storageIdentityKey, storageName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)
+	}
+
+	return syncStateResponse, nil
+}
+
+// ProcessSyncChunk validates arguments and processes a synchronization chunk, returning the processing result or an error.
+func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
+	err := validate.ValidRequestSyncChunkArgs(&args)
+	if err != nil {
+		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
+	}
+
+	result, err := p.syncActions.Process(ctx, args, chunk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
+	}
+	return result, nil
 }
