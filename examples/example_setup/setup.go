@@ -1,4 +1,4 @@
-package setup
+package example_setup
 
 import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"

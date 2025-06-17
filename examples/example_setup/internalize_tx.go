@@ -1,4 +1,4 @@
-package methods
+package example_setup
 
 import (
 	"context"
@@ -14,6 +14,10 @@ func InternalizeTxHandler(ctx context.Context, internalizeArgs sdk.InternalizeAc
 	}
 
 	return *iar, nil
+}
+
+func FaucetAddress() string {
+
 }
 
 func InternalizeFromFaucet(txID string, wallet *sdk.Wallet) error {
