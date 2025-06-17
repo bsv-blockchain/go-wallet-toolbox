@@ -35,7 +35,19 @@ type StorageFixture interface {
 }
 
 type FaucetFixture interface {
-	TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models.UserUTXO)
+	TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO)
+}
+
+type TopUpOptions struct {
+	Mined bool
+}
+
+type TopUpOpts func(*TopUpOptions)
+
+func WithMinedTopUp() TopUpOpts {
+	return func(opts *TopUpOptions) {
+		opts.Mined = true
+	}
 }
 
 type storageFixture struct {

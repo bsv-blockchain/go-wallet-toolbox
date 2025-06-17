@@ -9,7 +9,9 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -83,6 +85,108 @@ func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.Tabl
 	}
 }
 
+type ProvenTxReqWithNum struct {
+	models.ProvenTxReq
+	NumID int
+}
+
+func (s *Sync) FindProvenTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
+	var resultModels []*ProvenTxReqWithNum
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+
+		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select("?, tx_id", s.naming.provenTxReqTableName).
+				Scopes(scopes.FromQueryOpts(opts)...).
+				Scopes(s.provenTxWhereExistsScope(userID)).
+				Find(&models.ProvenTxReq{})
+		})
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).
+			Model(&models.ProvenTxReq{}).
+			Select("*").
+			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.provenTxReqTableName)).
+			Scopes(scopes.FromQueryOpts(opts)...).
+			Scopes(s.provenTxWhereExistsScope(userID)).
+			Find(&resultModels).Error
+		if err != nil {
+			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return slices.Map(resultModels, s.mapModelToTableProvenTxReq), s.toApplicableProvenTxs(resultModels), nil
+}
+
+func (s *Sync) mapModelToTableProvenTxReq(model *ProvenTxReqWithNum) *wdk.TableProvenTxReq {
+	return &wdk.TableProvenTxReq{
+		CreatedAt:     model.CreatedAt,
+		UpdatedAt:     model.UpdatedAt,
+		ProvenTxReqID: model.NumID,
+		ProvenTxID:    to.IfThen(model.HasMerklePath(), to.Ptr(model.NumID)).ElseThen(nil),
+		Status:        model.Status,
+		Attempts:      model.Attempts,
+		Notified:      model.Notified,
+		TxID:          model.TxID,
+		Batch:         nil, // TODO: FOr now batch broadcasting is not supported, will be added later
+		History:       "",  // TODO: History feature will be reworked later, then we can address this and think if we even want to sync "history" field
+		Notify:        "",  // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
+		RawTx:         model.RawTx,
+		InputBEEF:     model.InputBeef,
+	}
+}
+
+func (s *Sync) mapModelToTableProvenTx(model *ProvenTxReqWithNum) *wdk.TableProvenTx {
+	if !model.HasMerklePath() {
+		return nil // If the model does not have a Merkle path, we do not create a TableProvenTx entry
+	}
+
+	if model.BlockHeight == nil || model.MerkleRoot == nil || model.BlockHash == nil {
+		// if the model HasMerklePath() is true, it must have BlockHeight, MerkleRoot, and BlockHash set
+		// this should never happen, but if it does, we panic to indicate a programming error
+		panic("ProvenTxReq model must have BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx")
+	}
+
+	return &wdk.TableProvenTx{
+		CreatedAt:  model.CreatedAt,
+		UpdatedAt:  model.UpdatedAt,
+		ProvenTxID: model.NumID,
+		TxID:       model.TxID,
+		Height:     *model.BlockHeight,
+		Index:      0, // TODO: JS version also contains an index, it could be done in separate task later
+		MerklePath: model.MerklePath,
+		RawTx:      model.RawTx,
+		BlockHash:  *model.BlockHash,
+		MerkleRoot: *model.MerkleRoot,
+	}
+}
+
+func (s *Sync) toApplicableProvenTxs(models []*ProvenTxReqWithNum) []*wdk.TableProvenTx {
+	mappedSeq := seq.Map(seq.FromSlice(models), s.mapModelToTableProvenTx)
+	provenTxs := seq.Filter(mappedSeq, notNil)
+	return seq.Collect(provenTxs)
+}
+
+func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		whereExistClause := fmt.Sprintf(
+			"EXISTS (SELECT 1 FROM %s as user_tx WHERE user_tx.tx_id = %s.tx_id AND user_tx.user_id = ?)",
+			s.naming.transactionsTableName,
+			s.naming.provenTxReqTableName,
+		)
+
+		return db.Where(whereExistClause, userID)
+	}
+}
+
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
 // It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
@@ -116,4 +220,8 @@ func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName st
 
 		return db.Joins(joinQuery, entityName)
 	}
+}
+
+func notNil[T any](v *T) bool {
+	return v != nil
 }

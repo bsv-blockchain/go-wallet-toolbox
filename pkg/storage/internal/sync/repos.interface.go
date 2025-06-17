@@ -20,4 +20,5 @@ type Repository interface {
 	UpdateSyncState(ctx context.Context, syncState *entity.SyncState) error
 
 	UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error)
+	FindProvenTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error)
 }

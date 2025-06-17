@@ -47,6 +47,8 @@ type SyncChunk struct {
 
 	User          *TableUser           `json:"user,omitempty"`
 	OutputBaskets []*TableOutputBasket `json:"outputBaskets,omitempty"`
+	ProvenTxs     []*TableProvenTx     `json:"provenTxs,omitempty"`
+	ProvenTxReqs  []*TableProvenTxReq  `json:"provenTxReqs,omitempty"`
 }
 
 // FindOrInsertSyncStateAuthResponse represents the result of finding or inserting a sync state with authentication.
