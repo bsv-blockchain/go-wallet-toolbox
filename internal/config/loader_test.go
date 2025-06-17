@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
+	"github.com/4chain-ag/go-wallet-toolbox/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
