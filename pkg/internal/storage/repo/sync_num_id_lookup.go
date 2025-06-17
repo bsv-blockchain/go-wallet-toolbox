@@ -94,7 +94,6 @@ func (s *Sync) FindProvenTxsForSync(ctx context.Context, userID int, opts ...que
 	var resultModels []*ProvenTxReqWithNum
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
 				Select("?, tx_id", s.naming.provenTxReqTableName).
@@ -136,7 +135,7 @@ func (s *Sync) mapModelToTableProvenTxReq(model *ProvenTxReqWithNum) *wdk.TableP
 		Attempts:      model.Attempts,
 		Notified:      model.Notified,
 		TxID:          model.TxID,
-		Batch:         nil, // TODO: FOr now batch broadcasting is not supported, will be added later
+		Batch:         nil, // TODO: For now batch broadcasting is not supported, will be added later
 		History:       "",  // TODO: History feature will be reworked later, then we can address this and think if we even want to sync "history" field
 		Notify:        "",  // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
 		RawTx:         model.RawTx,
@@ -150,7 +149,7 @@ func (s *Sync) mapModelToTableProvenTx(model *ProvenTxReqWithNum) *wdk.TableProv
 	}
 
 	if model.BlockHeight == nil || model.MerkleRoot == nil || model.BlockHash == nil {
-		// if the model HasMerklePath() is true, it must have BlockHeight, MerkleRoot, and BlockHash set
+		// if HasMerklePath() is true, it must have BlockHeight, MerkleRoot, and BlockHash set
 		// this should never happen, but if it does, we panic to indicate a programming error
 		panic("ProvenTxReq model must have BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx")
 	}
@@ -169,6 +168,9 @@ func (s *Sync) mapModelToTableProvenTx(model *ProvenTxReqWithNum) *wdk.TableProv
 	}
 }
 
+// toApplicableProvenTxs produced a slice of TableProvenTx
+// NOTE: In this implementation, there is only one table to hold requests (ProvenTxReq) and proven transactions (ProvenTx).
+// This logic deduces if a transaction is MINED (has a Merkle path) - if so, it creates a TableProvenTx entry.
 func (s *Sync) toApplicableProvenTxs(models []*ProvenTxReqWithNum) []*wdk.TableProvenTx {
 	mappedSeq := seq.Map(seq.FromSlice(models), s.mapModelToTableProvenTx)
 	provenTxs := seq.Filter(mappedSeq, notNil)

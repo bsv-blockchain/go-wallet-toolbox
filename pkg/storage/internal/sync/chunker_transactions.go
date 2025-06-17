@@ -47,7 +47,7 @@ func (c *chunkerTransactions) requestedProvenTxReq(requestedEntities OffsetsLook
 }
 
 func (c *chunkerTransactions) FirstPage(offsetsLookup OffsetsLookup) *queryopts.Paging {
-	// TODO: CHeck if I can assume that the offsets are always equal for both entities
+	// TODO: Check if I can assume that the offsets are always equal for both entities
 	offset := offsetsLookup[wdk.ProvenTxReqEntityName]
 	return &queryopts.Paging{
 		Offset: must.ConvertToIntFromUnsigned(offset),
@@ -66,7 +66,7 @@ func (c *chunkerTransactions) Process(ctx context.Context, userID int, page *que
 
 	reqs, mined, err := c.repo.FindProvenTxsForSync(ctx, userID, opts...)
 	if err != nil {
-		return 0, fmt.Errorf("fetch baskets by user id: %w", err)
+		return 0, fmt.Errorf("failed to fetch proven transactions by user id: %w", err)
 	}
 
 	result.ProvenTxReqs = append(result.ProvenTxReqs, reqs...)

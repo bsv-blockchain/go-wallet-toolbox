@@ -8,10 +8,9 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-sdk/chainhash"
-	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
@@ -46,7 +45,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 
 	txObj := spec.TX()
 	if options.Mined {
-		txObj.MerklePath = mockValidMerklePath(f.t, spec.ID())
+		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID()))
 	}
 
 	beef, err := txObj.BEEF()
@@ -115,31 +114,4 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	tx.Create(provenTxReq)
 
 	return spec, utxo
-}
-
-func mockValidMerklePath(t testing.TB, txID string) *sdk.MerklePath {
-	t.Helper()
-
-	hash, err := chainhash.NewHashFromHex(txID)
-	require.NoError(t, err)
-
-	someSecondHash, errHash := chainhash.NewHashFromHex("27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e")
-	require.NoError(t, errHash)
-
-	return &sdk.MerklePath{
-		BlockHeight: 2000,
-		Path: [][]*sdk.PathElement{
-			{
-				{
-					Offset: 0,
-					Hash:   hash,
-					Txid:   to.Ptr(true),
-				},
-				{
-					Offset: 1,
-					Hash:   someSecondHash,
-				},
-			},
-		},
-	}
 }

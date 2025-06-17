@@ -21,6 +21,10 @@ func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey string) wdk.Re
 				Name:   wdk.ProvenTxReqEntityName,
 				Offset: 0,
 			},
+			{
+				Name:   wdk.ProvenTxEntityName,
+				Offset: 0,
+			},
 			// TODO: Add more offsets for other entities when implemented
 		},
 	}

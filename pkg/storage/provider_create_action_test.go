@@ -10,8 +10,8 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	testutils2 "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -63,11 +63,11 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 32, len(result.Outputs))
-	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 31, testutils2.CountOutputsWithCondition(t, result.Outputs, testutils2.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57_998), testutils2.SumOutputsWithCondition(t, result.Outputs, testutils2.SatoshiValue, testutils2.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef0000", hex.EncodeToString(result.InputBeef))
 
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+	testutils2.ForEveryOutput(t, result.Outputs, testutils2.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
@@ -155,11 +155,11 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 33, len(result.Outputs))
-	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 32, testutils2.CountOutputsWithCondition(t, result.Outputs, testutils2.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57_998), testutils2.SumOutputsWithCondition(t, result.Outputs, testutils2.SatoshiValue, testutils2.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef0000", hex.EncodeToString(result.InputBeef))
 
-	commissionOutput, _ := testutils.FindOutput(t, result.Outputs, testutils.CommissionOutputCondition)
+	commissionOutput, _ := testutils2.FindOutput(t, result.Outputs, testutils2.CommissionOutputCondition)
 	assert.Equal(t, primitives.SatoshiValue(10), commissionOutput.Satoshis)
 	assert.Nil(t, commissionOutput.Basket)
 	assert.Equal(t, wdk.ProvidedByStorage, commissionOutput.ProvidedBy)
@@ -201,7 +201,7 @@ func TestCreateActionShuffleOutputs(t *testing.T) {
 			args,
 		)
 
-		found := slices.IndexFunc(result.Outputs, testutils.CommissionOutputCondition)
+		found := slices.IndexFunc(result.Outputs, testutils2.CommissionOutputCondition)
 		commissionOutputVouts[result.Outputs[found].Vout] = struct{}{}
 
 		if len(commissionOutputVouts) > 1 {
@@ -331,11 +331,11 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 31, len(result.Outputs))
-	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 31, testutils2.CountOutputsWithCondition(t, result.Outputs, testutils2.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(99998), testutils2.SumOutputsWithCondition(t, result.Outputs, testutils2.SatoshiValue, testutils2.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef0001021b4dc343ecd37c7707f5c7194f0f40788a62be3264e80b6433612273d4b4bbb2", hex.EncodeToString(result.InputBeef))
 
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+	testutils2.ForEveryOutput(t, result.Outputs, testutils2.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
@@ -397,11 +397,11 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 32, len(result.Outputs))
-	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 32, testutils2.CountOutputsWithCondition(t, result.Outputs, testutils2.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(99998), testutils2.SumOutputsWithCondition(t, result.Outputs, testutils2.SatoshiValue, testutils2.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef01fde80301010000f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d102010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100c7ddc5159fc630d28f4beeeafa73bc8d32f25b01909732d8d44b9cdbbc85888502206a0a6269bc47c633441a7b5aff120fd0760024badd660f24f713889c0ee70ecb4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a2860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d1000000006a4730440220291e6769c2383c82fd3c06de833589d9401dbb55838bdc02a76d8d7a98d3cac302207ad2de40877eab59981f2d46dba1cdefd40846db840ae24094eb07688b3e4ee64121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a0860100000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
 
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+	testutils2.ForEveryOutput(t, result.Outputs, testutils2.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
@@ -460,11 +460,11 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 33, len(result.Outputs))
-	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 32, testutils2.CountOutputsWithCondition(t, result.Outputs, testutils2.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57998), testutils2.SumOutputsWithCondition(t, result.Outputs, testutils2.SatoshiValue, testutils2.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef01fde80301010000f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d102010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100c7ddc5159fc630d28f4beeeafa73bc8d32f25b01909732d8d44b9cdbbc85888502206a0a6269bc47c633441a7b5aff120fd0760024badd660f24f713889c0ee70ecb4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a2860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d1000000006a4730440220291e6769c2383c82fd3c06de833589d9401dbb55838bdc02a76d8d7a98d3cac302207ad2de40877eab59981f2d46dba1cdefd40846db840ae24094eb07688b3e4ee64121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a0860100000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
 
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+	testutils2.ForEveryOutput(t, result.Outputs, testutils2.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
@@ -526,11 +526,11 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 9, len(result.Outputs))
-	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(7999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 8, testutils2.CountOutputsWithCondition(t, result.Outputs, testutils2.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(7999), testutils2.SumOutputsWithCondition(t, result.Outputs, testutils2.SatoshiValue, testutils2.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef01fde80301010000afc74b81ac854adcf0d8f6c00dc0a472091a849ab6a6eba05e56a2081cfad85d02010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100960e5206bd3bad3df969139151f80c22a1d95bba33b4fa2624bee729a2270ad802207f97598bbe1bd6957190064eefbee29cb71400b708d8e3583b0e6284cc189ebf4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01aa610000000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001afc74b81ac854adcf0d8f6c00dc0a472091a849ab6a6eba05e56a2081cfad85d000000006a47304402207988fdfa676f7be346e97aab0a646445efcc8ace7ebca9ff56d6177cddfde6af02201aa2a53b255aab78d270237cc8585783f783382831b7573dc29f982e53ca1b404121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a8610000000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
 
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
+	testutils2.ForEveryOutput(t, result.Outputs, testutils2.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
