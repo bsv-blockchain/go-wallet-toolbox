@@ -395,6 +395,15 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 // GetSyncChunk retrieves a sync chunk based on the provided arguments.
 // It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	settings, err := p.repo.ReadSettings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read settings: %w", err)
+	}
+
+	if settings.StorageIdentityKey != args.FromStorageIdentityKey {
+		return nil, fmt.Errorf("fromStorageIdentityKey %s does not match the storage identity key %s", args.FromStorageIdentityKey, settings.StorageIdentityKey)
+	}
+
 	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
