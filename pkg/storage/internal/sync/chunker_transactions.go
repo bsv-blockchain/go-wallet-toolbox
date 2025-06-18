@@ -70,5 +70,5 @@ func (c *chunkerTransactions) Process(ctx context.Context, userID int, page *que
 	result.ProvenTxReqs = append(result.ProvenTxReqs, reqs...)
 	result.ProvenTxs = append(result.ProvenTxs, mined...)
 
-	return must.ConvertToUInt64(len(reqs)), nil
+	return must.ConvertToUInt64(len(reqs) + len(mined)), nil
 }
