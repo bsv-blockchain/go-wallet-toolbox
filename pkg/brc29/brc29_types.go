@@ -28,7 +28,7 @@ type WIF string
 
 // PrivateKey returns the private key from the WIF string.
 func (w WIF) PrivateKey() (*ec.PrivateKey, error) {
-	return ec.PrivateKeyFromWif(string(w))
+	return ec.PrivateKeyFromWif(string(w)) //nolint:wrapcheck
 }
 
 // CounterpartyPublicKey represents a source of counterparty identity (public) key.
