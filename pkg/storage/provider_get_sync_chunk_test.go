@@ -8,7 +8,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 func TestGetSyncChunk(t *testing.T) {
@@ -24,7 +23,7 @@ func TestGetSyncChunk(t *testing.T) {
 	ownedTx2 := seed.OwnsMinedTransaction()
 
 	// and:
-	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey())
+	args := given.RequestSyncChunk(testusers.Alice).Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
@@ -56,8 +55,9 @@ func TestGetSyncChunkNoOffsets(t *testing.T) {
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey())
-	args.Offsets = nil // No offsets provided
+	args := given.RequestSyncChunk(testusers.Alice).
+		NoOffsets().
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
@@ -98,8 +98,9 @@ func TestGetSyncChunkSinceAsCurrent(t *testing.T) {
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey())
-	args.Since = to.Ptr(time.Now()) // assumes that no items are older than now
+	args := given.RequestSyncChunk(testusers.Alice).
+		WithSince(time.Now()). // assumes that no items are older than now
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
@@ -124,8 +125,9 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 	seed.OwnsTransaction()
 	seed.OwnsMinedTransaction()
 
-	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey())
-	args.Since = to.Ptr(time.Now().Add(-time.Hour))
+	args := given.RequestSyncChunk(testusers.Alice).
+		WithSince(time.Now().Add(-time.Hour)).
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
@@ -146,8 +148,9 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey())
-	args.MaxItems = math.MaxUint64
+	args := given.RequestSyncChunk(testusers.Alice).
+		WithMaxItems(math.MaxUint64).
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
