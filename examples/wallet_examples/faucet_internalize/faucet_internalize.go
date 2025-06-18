@@ -24,7 +24,7 @@ func main() {
 
 	alice := example_setup.CreateAlice()
 
-	//TODO: 
+	//TODO:
 	// Maybe instead we should have alice.GetWallet() which will have lazy initialization of the wallet 🤷
 	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
 	if err != nil {
@@ -36,12 +36,11 @@ func main() {
 	// if beef == "" {
 	//    beef = methods.GetBEEFHex(txID)
 	// }
-	// TODO: look at the method for InternalizeFromFaucet the beef as optional param for 
+	// TODO: look at the method for InternalizeFromFaucet the beef as optional param for
 	// InternalizeFromFaucet
 	//
 
-	//TODO: Get the environment from the alice setup - this is a bit of a hack
-	err = example_setup.InternalizeFromFaucet(ctx, alice.GetEnvironment(), *txID, aliceWallet)
+	err = example_setup.InternalizeFromFaucet(ctx, alice.Environment, *txID, aliceWallet)
 	if err != nil {
 		fmt.Println("Failed to internalize tx")
 		fmt.Println(err)

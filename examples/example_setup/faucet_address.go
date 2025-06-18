@@ -11,16 +11,15 @@ import (
 func FaucetAddress(wallet *Setup) string {
 	parts := utils.DerivationParts()
 
-	senderKeyDeriver := sdk.NewKeyDeriver(&wallet.privateKey)
+	senderKeyDeriver := sdk.NewKeyDeriver(&wallet.PrivateKey)
 
-	recipientIdentityKey := wallet.identityKey
+	recipientIdentityKey := wallet.IdentityKey
 
 	walletPaymentProtocol := sdk.Protocol{
 		SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 		Protocol:      "wallet payment",
 	}
 
-	// Derive the public key using the same pattern as BRC29
 	key, err := senderKeyDeriver.DerivePublicKey(walletPaymentProtocol, parts.KeyID, sdk.Counterparty{
 		Type:         sdk.CounterpartyTypeSelf,
 		Counterparty: &recipientIdentityKey,
@@ -29,8 +28,8 @@ func FaucetAddress(wallet *Setup) string {
 		panic(fmt.Errorf("failed to derive public key: %w", err))
 	}
 
-	// Generate testnet address from the derived public key
-	isMainnet := false // Force testnet
+	
+	isMainnet := false
 	address, err := script.NewAddressFromPublicKey(key, isMainnet)
 	if err != nil {
 		panic(fmt.Errorf("failed to generate address: %w", err))

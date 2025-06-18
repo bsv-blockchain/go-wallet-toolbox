@@ -12,9 +12,9 @@ import (
 )
 
 type Setup struct {
-	environment Environment
-	identityKey ec.PublicKey
-	privateKey  ec.PrivateKey
+	Environment Environment
+	IdentityKey ec.PublicKey
+	PrivateKey  ec.PrivateKey
 }
 
 type Environment struct {
@@ -81,28 +81,28 @@ func CreateAlice() *Setup {
 	}
 
 	return &Setup{
-		environment: Environment{
+		Environment: Environment{
 			BSVNetwork: cfg.Network,
 			ServerURL:  cfg.ServerURL,
 		},
-		identityKey: *identityKey,
-		privateKey:  *privateKey,
+		IdentityKey: *identityKey,
+		PrivateKey: *privateKey,
 	}
 }
 
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func(), error) {
-	storageClient, cleanup, err := storage.NewClient(s.environment.ServerURL)
+	storageClient, cleanup, err := storage.NewClient(s.Environment.ServerURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
-	userWallet, err := wallet.New(s.environment.BSVNetwork, &s.privateKey, storageClient)
+	userWallet, err := wallet.New(s.Environment.BSVNetwork, &s.PrivateKey, storageClient)
 	if err != nil {
 		cleanup()
 		return nil, nil, fmt.Errorf("failed to create wallet: %w", err)
 	}
 
-	identityKey := s.identityKey.ToDERHex()
+	identityKey := s.IdentityKey.ToDERHex()
 	user, err := storageClient.FindOrInsertUser(ctx, identityKey)
 	if err != nil {
 		cleanup()
@@ -111,9 +111,4 @@ func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func(), error
 
 	fmt.Printf("CreateWallet: User %d: %s\n", user.User.UserID, identityKey)
 	return userWallet, cleanup, nil
-}
-
-// GetEnvironment returns the environment configuration
-func (s *Setup) GetEnvironment() Environment {
-	return s.environment
 }
