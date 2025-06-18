@@ -9,7 +9,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
@@ -122,10 +121,16 @@ func (s *Sync) FindProvenTxsForSync(ctx context.Context, userID int, opts ...que
 		return nil, nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return slices.Map(resultModels, s.mapModelToTableProvenTxReq), s.toApplicableProvenTxs(resultModels), nil
+	provenTxReqs, provenTxs := s.toReqOrProvenTx(resultModels)
+	return provenTxReqs, provenTxs, nil
 }
 
-func (s *Sync) mapModelToTableProvenTxReq(model *ProvenTxReqWithNum) *wdk.TableProvenTxReq {
+func (s *Sync) mapModelToTableProvenTxReqForSync(model *ProvenTxReqWithNum) *wdk.TableProvenTxReq {
+	if model.MerklePath != nil {
+		// this mapping function is designed to convert a model that is guaranteed to be NOT MINED (does not have a Merkle path),
+		panic("ProvenTxReq model must not have MerklePath set when creating TableProvenTxReq for sync")
+	}
+
 	return &wdk.TableProvenTxReq{
 		CreatedAt:     model.CreatedAt,
 		UpdatedAt:     model.UpdatedAt,
@@ -143,15 +148,11 @@ func (s *Sync) mapModelToTableProvenTxReq(model *ProvenTxReqWithNum) *wdk.TableP
 	}
 }
 
-func (s *Sync) mapModelToTableProvenTx(model *ProvenTxReqWithNum) *wdk.TableProvenTx {
-	if !model.HasMerklePath() {
-		return nil // If the model does not have a Merkle path, we do not create a TableProvenTx entry
-	}
-
-	if model.BlockHeight == nil || model.MerkleRoot == nil || model.BlockHash == nil {
-		// if HasMerklePath() is true, it must have BlockHeight, MerkleRoot, and BlockHash set
+func (s *Sync) mapModelToTableProvenTxForSync(model *ProvenTxReqWithNum) *wdk.TableProvenTx {
+	if model.MerklePath == nil || model.BlockHeight == nil || model.MerkleRoot == nil || model.BlockHash == nil {
+		// this mapping function is designed to convert a model that is guaranteed to be MINED (has a Merkle path),
 		// this should never happen, but if it does, we panic to indicate a programming error
-		panic("ProvenTxReq model must have BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx")
+		panic("ProvenTxReq model must have MerklePath, BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx for sync")
 	}
 
 	return &wdk.TableProvenTx{
@@ -168,13 +169,31 @@ func (s *Sync) mapModelToTableProvenTx(model *ProvenTxReqWithNum) *wdk.TableProv
 	}
 }
 
-// toApplicableProvenTxs produced a slice of TableProvenTx
-// NOTE: In this implementation, there is only one table to hold requests (ProvenTxReq) and proven transactions (ProvenTx).
-// This logic deduces if a transaction is MINED (has a Merkle path) - if so, it creates a TableProvenTx entry.
-func (s *Sync) toApplicableProvenTxs(models []*ProvenTxReqWithNum) []*wdk.TableProvenTx {
-	mappedSeq := seq.Map(seq.FromSlice(models), s.mapModelToTableProvenTx)
-	provenTxs := seq.Filter(mappedSeq, notNil)
-	return seq.Collect(provenTxs)
+// toReqOrProvenTx produced two slices:
+// - one for requests (ProvenTxReq) that do not have a Merkle path (not mined transactions)
+// - one for proven transactions (ProvenTx) that have a Merkle path (mined transactions).
+// NOTE: In this implementation, there is ONLY ONE table to hold both: requests (ProvenTxReq) and proven transactions (ProvenTx).
+// The function is used to prepare data for syncing, where we need to distinguish between requests and proven transactions.
+func (s *Sync) toReqOrProvenTx(models []*ProvenTxReqWithNum) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx) {
+	minedTxs := 0
+	for _, model := range models {
+		if model.HasMerklePath() {
+			minedTxs++
+		}
+	}
+
+	provenTxReqs := make([]*wdk.TableProvenTxReq, 0, len(models)-minedTxs)
+	provenTxs := make([]*wdk.TableProvenTx, 0, minedTxs)
+
+	for _, model := range models {
+		if model.HasMerklePath() {
+			provenTxs = append(provenTxs, s.mapModelToTableProvenTxForSync(model))
+		} else {
+			provenTxReqs = append(provenTxReqs, s.mapModelToTableProvenTxReqForSync(model))
+		}
+	}
+
+	return provenTxReqs, provenTxs
 }
 
 func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
@@ -222,8 +241,4 @@ func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName st
 
 		return db.Joins(joinQuery, entityName)
 	}
-}
-
-func notNil[T any](v *T) bool {
-	return v != nil
 }

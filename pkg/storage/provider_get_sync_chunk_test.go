@@ -37,9 +37,8 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.BasketsCount(1).
 		BasketAtIndex(0).WithUserID(testusers.Alice.ID).HasValidID().IsDefaultBasket()
 
-	thenChunk.ProvenTxReqsCount(2)
-	thenChunk.ProvenTxReqAtIndex(0).AlignsWithTxSpec(ownedTx2).HasProvenTxID()
-	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx1)
+	thenChunk.ProvenTxReqsCount(1)
+	thenChunk.ProvenTxReqAtIndex(0).AlignsWithTxSpec(ownedTx1)
 
 	thenChunk.ProvenTxsCount(1)
 	thenChunk.ProvenTxAtIndex(0).AlignsWithTxSpec(ownedTx2).HasMerklePath()
@@ -136,7 +135,7 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 	then.Chunk(chunk).WithoutError(err).
 		WithGeneralInfo(&args).
 		BasketsCount(1).
-		ProvenTxReqsCount(2).
+		ProvenTxReqsCount(1).
 		ProvenTxsCount(1)
 }
 

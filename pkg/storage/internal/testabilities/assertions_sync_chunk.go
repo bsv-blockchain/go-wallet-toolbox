@@ -46,7 +46,6 @@ type BasketAssertion interface {
 
 type ProvenTxReqAssertion interface {
 	AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxReqAssertion
-	HasProvenTxID() ProvenTxReqAssertion
 }
 
 type ProvenTxAssertion interface {
@@ -205,13 +204,6 @@ func (p *proveTxReqAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpe
 	p.parent.Helper()
 	assert.Equal(p.parent, txSpec.ID(), p.txReq.TxID, "Expected txReq to align with transaction spec TxID")
 	assert.Equal(p.parent, txSpec.TX().Bytes(), []byte(p.txReq.RawTx), "Expected txReq to align with transaction spec RawTx")
-	return p
-}
-
-func (p *proveTxReqAssertion) HasProvenTxID() ProvenTxReqAssertion {
-	p.parent.Helper()
-	require.NotNil(p.parent, p.txReq.ProvenTxID, "Expected txReq to have a ProvenTxID")
-	assert.Equal(p.parent, p.txReq.ProvenTxReqID, *p.txReq.ProvenTxID, "Expected txReq to have a ProvenTxID")
 	return p
 }
 
