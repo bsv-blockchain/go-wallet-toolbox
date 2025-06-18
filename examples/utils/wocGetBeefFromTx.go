@@ -20,14 +20,10 @@ func WocAPIGetBeefForTX(network, txid string) (string, error) {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	text := string(body)
-	if text == "" {
+	beefHex := string(body)
+	if beefHex == "" {
 		return "", fmt.Errorf("empty response received from WhatsonChain API")
 	}
 
-	if text == "Internal server error" {
-		return "", fmt.Errorf("internal server error from WhatsonChain API")
-	}
-
-	return text, nil
+	return beefHex, nil
 }
