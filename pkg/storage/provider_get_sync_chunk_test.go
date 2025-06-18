@@ -98,7 +98,7 @@ func TestGetSyncChunkSinceAsCurrent(t *testing.T) {
 	activeStorage := givenProvider.GORM()
 
 	args := given.RequestSyncChunk(testusers.Alice).
-		WithSince(time.Now()). // assumes that no items are older than now
+		WithSince(time.Now().Add(time.Hour)). // assumes that no items are older than now+1Hour
 		Args()
 
 	// when:

@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -10,7 +11,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -135,7 +135,6 @@ func (s *Sync) mapModelToTableProvenTxReqForSync(model *ProvenTxReqWithNum) *wdk
 		CreatedAt:     model.CreatedAt,
 		UpdatedAt:     model.UpdatedAt,
 		ProvenTxReqID: model.NumID,
-		ProvenTxID:    to.IfThen(model.HasMerklePath(), to.Ptr(model.NumID)).ElseThen(nil),
 		Status:        model.Status,
 		Attempts:      model.Attempts,
 		Notified:      model.Notified,
@@ -206,6 +205,51 @@ func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 
 		return db.Where(whereExistClause, userID)
 	}
+}
+
+// UpsertProvenTxReqForSync updates only non-zero fields of the proven transaction request.
+func (s *Sync) UpsertProvenTxReqForSync(ctx context.Context, entity *entity.ProvenTxReq) (isNew bool, err error) {
+	model := models.ProvenTxReq{
+		TxID:        entity.TxID,
+		Status:      entity.Status,
+		Attempts:    entity.Attempts,
+		Notified:    entity.Notified,
+		RawTx:       entity.RawTx,
+		InputBeef:   entity.InputBEEF,
+		BlockHeight: entity.BlockHeight,
+		MerklePath:  entity.MerklePath,
+		MerkleRoot:  entity.MerkleRoot,
+		BlockHash:   entity.BlockHash,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updateTx := tx.Model(&models.ProvenTxReq{}).
+			Where("tx_id = ?", entity.TxID).
+			Updates(model)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			return nil
+		}
+
+		err := tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create proven tx req: %w", err)
+		}
+
+		isNew = true
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, nil
 }
 
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
