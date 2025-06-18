@@ -47,15 +47,13 @@ func (c *chunkerTransactions) requestedProvenTxReq(requestedEntities OffsetsLook
 }
 
 func (c *chunkerTransactions) FirstPage(offsetsLookup OffsetsLookup) *queryopts.Paging {
-	// TODO: Check if I can assume that the offsets are always equal for both entities
-	offset := offsetsLookup[wdk.ProvenTxReqEntityName]
+	offset := offsetsLookup[wdk.ProvenTxReqEntityName] + offsetsLookup[wdk.ProvenTxEntityName]
 	return &queryopts.Paging{
 		Offset: must.ConvertToIntFromUnsigned(offset),
 	}
 }
 
 func (c *chunkerTransactions) Process(ctx context.Context, userID int, page *queryopts.Paging, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
-
 	opts := []queryopts.Options{
 		queryopts.WithPage(*page),
 	}
