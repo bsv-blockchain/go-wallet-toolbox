@@ -367,6 +367,10 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			return fmt.Errorf("count failed: %w", err)
 		}
 
+		if total == 0 {
+			return nil
+		}
+
 		if err := query.
 			Limit(filter.Limit).
 			Offset(filter.Offset).

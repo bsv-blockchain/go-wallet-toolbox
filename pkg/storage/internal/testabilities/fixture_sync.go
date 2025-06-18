@@ -24,6 +24,7 @@ type SyncFixture interface {
 type SeedDBForSync interface {
 	OwnsTransaction() testvectors.TransactionSpec
 	OwnsMinedTransaction() testvectors.TransactionSpec
+	PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync
 }
 
 type RequestSyncChunkFixture interface {
@@ -98,4 +99,16 @@ func (s *seedDbForSync) OwnsMinedTransaction() testvectors.TransactionSpec {
 	s.txCounter += 1
 	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter), pkgtestabilities.WithMinedTopUp())
 	return txSpec
+}
+
+func (s *seedDbForSync) PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync {
+	for i := 0; i < numberOfTxs; i++ {
+		if i%2 == 0 {
+			s.OwnsMinedTransaction()
+		} else {
+			s.OwnsTransaction()
+		}
+	}
+
+	return s
 }
