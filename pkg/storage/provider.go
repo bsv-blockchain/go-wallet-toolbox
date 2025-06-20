@@ -3,12 +3,12 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"

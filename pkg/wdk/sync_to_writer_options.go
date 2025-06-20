@@ -10,7 +10,7 @@ const (
 	MaxSyncChunkSize = 10_000_000
 
 	// MaxSyncItems defines the maximum number of items to sync in a single sync operation.
-	MaxSyncItems     = 1000
+	MaxSyncItems = 1000
 )
 
 // SyncToWriterOptions configures sync operations when writing data, such as chunk size and item count per sync.

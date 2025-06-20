@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type KnownTx struct {

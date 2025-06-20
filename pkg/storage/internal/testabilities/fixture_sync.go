@@ -11,6 +11,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -25,6 +26,8 @@ type SeedDBForSync interface {
 	OwnsTransaction() testvectors.TransactionSpec
 	OwnsMinedTransaction() testvectors.TransactionSpec
 	PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync
+
+	GetAllOwnedTransactionIDs() []string
 }
 
 type RequestSyncChunkFixture interface {
@@ -82,15 +85,18 @@ func (s *syncFixture) SeedDB(storage *storage.Provider, user testusers.User) See
 }
 
 type seedDbForSync struct {
-	t         testing.TB
-	faucet    pkgtestabilities.FaucetFixture
-	txCounter int
+	t           testing.TB
+	faucet      pkgtestabilities.FaucetFixture
+	txCounter   int
+	minedTXs    []testvectors.TransactionSpec
+	notMinedTXs []testvectors.TransactionSpec
 }
 
 func (s *seedDbForSync) OwnsTransaction() testvectors.TransactionSpec {
 	s.t.Helper()
 	s.txCounter += 1
 	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter))
+	s.notMinedTXs = append(s.notMinedTXs, txSpec)
 	return txSpec
 }
 
@@ -98,6 +104,7 @@ func (s *seedDbForSync) OwnsMinedTransaction() testvectors.TransactionSpec {
 	s.t.Helper()
 	s.txCounter += 1
 	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter), pkgtestabilities.WithMinedTopUp())
+	s.minedTXs = append(s.minedTXs, txSpec)
 	return txSpec
 }
 
@@ -111,4 +118,14 @@ func (s *seedDbForSync) PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync
 	}
 
 	return s
+}
+
+func (s *seedDbForSync) GetAllOwnedTransactionIDs() []string {
+	s.t.Helper()
+	all := seq.Concat(seq.FromSlice(s.notMinedTXs), seq.FromSlice(s.minedTXs))
+	return seq.Collect(
+		seq.Map(all, func(spec testvectors.TransactionSpec) string {
+			return spec.ID()
+		}),
+	)
 }

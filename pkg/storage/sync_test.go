@@ -22,8 +22,8 @@ func TestSyncProcess(t *testing.T) {
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
-	seed.OwnsMinedTransaction()
-	seed.OwnsTransaction()
+	ownedMinedTx := seed.OwnsMinedTransaction()
+	ownedTx := seed.OwnsTransaction()
 
 	// and:
 	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
@@ -38,6 +38,18 @@ func TestSyncProcess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, inserts)
 	assert.Equal(t, 1, updates)
+
+	// and:
+	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+
+	thenDBState.HasKnownTX(ownedMinedTx.ID()).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		HasRawTx().
+		IsMined()
+
+	thenDBState.HasKnownTX(ownedTx.ID()).
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx()
 
 	// TODO: Check if the data is actually synced. FindProvenTxReqs can be used (it is in a public interface, so we need to implement it anyway)
 }
@@ -127,6 +139,10 @@ func TestSyncProcessWithManyTransactions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, numberOfTxs, inserts)
 	assert.Equal(t, 1, updates)
+
+	// and:
+	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState.HasKnownTXs(seed.GetAllOwnedTransactionIDs()...)
 
 	// TODO: Check if the data is actually synced. FindProvenTxReqs can be used (it is in a public interface, so we need to implement it anyway)
 }
