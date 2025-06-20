@@ -225,8 +225,22 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 
 // ListOutputs lists the spendable outputs kept within a specific basket, optionally tagged with specific labels.
 func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	wdkArgs := mapping.MapListOutputsArgs(args)
+
+	if err := validate.ListOutputsArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid list outputs args: %w", err)
+	}
+
+	result, err := w.storage.ListOutputs(ctx, wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list outputs: %w", err)
+	}
+
+	return mapping.MapListOutputsResult(result), nil
 }
 
 // RelinquishOutput relinquishes an output from a basket, removing it from tracking without spending it.
