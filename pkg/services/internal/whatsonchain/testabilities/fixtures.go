@@ -12,12 +12,8 @@ import (
 
 type WoCServiceFixture interface {
 	testservices.ServicesFixture
-	NewWoCService() *whatsonchain.WhatsOnChain
-}
 
-type wocServiceFixture struct {
-	testservices.ServicesFixture
-	t testing.TB
+	NewWoCService(opts ...func(*whatsonchain.WhatsOnChain)) *whatsonchain.WhatsOnChain
 }
 
 func Given(t testing.TB) WoCServiceFixture {
@@ -27,16 +23,25 @@ func Given(t testing.TB) WoCServiceFixture {
 	}
 }
 
-func (f *wocServiceFixture) NewWoCService() *whatsonchain.WhatsOnChain {
+type wocServiceFixture struct {
+	testservices.ServicesFixture
+	t testing.TB
+}
+
+func (f *wocServiceFixture) NewWoCService(opts ...func(*whatsonchain.WhatsOnChain)) *whatsonchain.WhatsOnChain {
 	logger := logging.NewTestLogger(f.t)
-	httpClient := f.WhatsOnChain().HttpClient()
+	client := f.WhatsOnChain().HttpClient()
 	network := f.Network()
 
 	config := to.OptionsWithDefault(defs.WhatsOnChain{
-		APIKey:            "",
-		BSVExchangeRate:   defs.BSVExchangeRate{},
-		BSVUpdateInterval: nil,
+		BSVExchangeRate: defs.BSVExchangeRate{},
 	})
 
-	return whatsonchain.New(httpClient, logger, network, config)
+	service := whatsonchain.New(client, logger, network, config)
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
 }

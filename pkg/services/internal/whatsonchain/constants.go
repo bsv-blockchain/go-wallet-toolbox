@@ -1,6 +1,8 @@
 package whatsonchain
 
-import "time"
+import (
+	"time"
+)
 
 const (
 	// Retries is the number of retries the client should make when trying to query for the chain's resource
