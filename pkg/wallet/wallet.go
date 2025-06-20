@@ -198,8 +198,18 @@ func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, orig
 
 // ListActions lists all transactions matching the specified labels.
 func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
-	// TODO implement me
-	panic("implement me")
+	wdkArgs := mapping.MapListActionsArgs(args)
+
+	if err := validate.ListActionsArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid list actions args: %w", err)
+	}
+
+	result, err := w.storage.ListActions(ctx, wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list actions: %w", err)
+	}
+
+	return mapping.MapListActionsResult(result), nil
 }
 
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
