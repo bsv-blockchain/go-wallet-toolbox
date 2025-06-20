@@ -19,7 +19,7 @@ import (
 type WhatsOnChainFixture interface {
 	WillRespondWithRates(status int, content string, err error)
 	WillRespondWithRawTx(status int, txID, rawTx string, err error)
-	OnTipBlockHeaderWillRespondWithOneElementList()
+	OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption)
 	OnTipBlockHeaderWillRespondWithEmptyList()
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
@@ -72,8 +72,25 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 	)
 }
 
-func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() {
+type TipBlockHeaderOptions struct {
+	Height uint
+}
+
+type TipBlockHeaderOption = func(*TipBlockHeaderOptions)
+
+func WithTipBlockHeaderHeight(height uint) TipBlockHeaderOption {
+	return func(opts *TipBlockHeaderOptions) {
+		opts.Height = height
+	}
+}
+
+func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption) {
 	f.TB.Helper()
+
+	options := to.OptionsWithDefault(TipBlockHeaderOptions{
+		Height: TestBlockHeight,
+	}, opts...)
+
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
@@ -82,7 +99,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() {
 				Hash:              TestBlockHash,
 				Confirmations:     TestBlockConfirmations,
 				Size:              TestBlockSize,
-				Height:            TestBlockHeight,
+				Height:            options.Height,
 				Version:           TestBlockVersion,
 				VersionHex:        TestBlockVersionHex,
 				MerkleRoot:        TestBlockMerkleRoot,
