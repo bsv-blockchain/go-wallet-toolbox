@@ -158,6 +158,11 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, tags 
 
 		// TODO: Implement tags mapping if needed, currently empty as CreateActionArgs does not support tags
 
+		lockingScript := ""
+		if o.LockingScript != nil {
+			lockingScript = o.LockingScript.Hex()
+		}
+
 		result = append(result, wdk.WalletActionOutput{
 			Satoshis:          must.ConvertToUInt64(o.Satoshis),
 			Spendable:         o.Spendable,
@@ -165,7 +170,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, tags 
 			OutputIndex:       o.Vout,
 			OutputDescription: o.OutputDescription,
 			Basket:            *o.BasketName,
-			LockingScript:     optional.OfPtr(o.LockingScript).OrZeroValue(),
+			LockingScript:     lockingScript,
 		})
 	}
 
@@ -215,7 +220,7 @@ func (l *listActions) mapToWalletActionInputs(inputs []*wdk.TableOutput, rawTx [
 		}
 
 		if includeSourceLockingScripts.Value() && o.LockingScript != nil {
-			input.SourceLockingScript = *o.LockingScript
+			input.SourceLockingScript = o.LockingScript.Hex()
 		}
 
 		if tx != nil && includeUnlockingScripts.Value() {

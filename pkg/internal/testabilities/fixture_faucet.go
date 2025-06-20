@@ -94,7 +94,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		Type:             string(wdk.OutputTypeP2PKH),
 		DerivationPrefix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationPrefix, f.index)),
 		DerivationSuffix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationSuffix, f.index)),
-		LockingScript:    to.Ptr(spec.TX().Outputs[0].LockingScript.String()),
+		LockingScript:    spec.TX().Outputs[0].LockingScript.Bytes(),
 		BasketName:       &f.basketName,
 
 		Transaction: transaction,
