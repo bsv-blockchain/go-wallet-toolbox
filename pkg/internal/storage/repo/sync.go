@@ -139,9 +139,9 @@ func (s *Sync) mapModelToTableProvenTxReqForSync(model *ProvenTxReqWithNum) *wdk
 		Attempts:      model.Attempts,
 		Notified:      model.Notified,
 		TxID:          model.TxID,
-		Batch:         nil, // TODO: For now batch broadcasting is not supported, will be added later
-		History:       "",  // TODO: History feature will be reworked later, then we can address this and think if we even want to sync "history" field
-		Notify:        "",  // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
+		Batch:         nil,  // TODO: For now batch broadcasting is not supported, will be added later
+		History:       "{}", // TODO: History feature will be reworked later, then we can address this and think if we even want to sync "history" field
+		Notify:        "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
 		RawTx:         model.RawTx,
 		InputBEEF:     model.InputBeef,
 	}
