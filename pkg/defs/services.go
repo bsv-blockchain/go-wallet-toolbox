@@ -39,6 +39,7 @@ type WalletServices struct {
 	Chaintracks                     any               `mapstructure:"chaintracks"` // TODO: create *ChaintracksServiceClient
 
 	ArcConfig    ARC          `mapstructure:"arc"`
+	BHS          BHS          `mapstructure:"bhs"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
 }
 

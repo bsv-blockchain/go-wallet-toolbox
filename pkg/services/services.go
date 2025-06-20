@@ -8,6 +8,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bhs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/options"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
@@ -44,6 +45,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 	}
 
 	woc := whatsonchain.New(option.HttpClient, logger, config.Chain, config.WhatsOnChain)
+	bhsService := bhs.NewBlockHeadersService(option.HttpClient, logger, config.Chain, config.BHS)
 	arcService := arc.NewARCService(logger, option.HttpClient, config.ArcConfig)
 
 	return &WalletServices{
@@ -75,6 +77,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"FindChainTipHeader",
 			servicequeue.NewService(whatsonchain.ServiceName, woc.FindChainTipHeader),
+			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
 		),
 	}
 }
