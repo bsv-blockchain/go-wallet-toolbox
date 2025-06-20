@@ -1,11 +1,10 @@
 package mapping
 
 import (
-	"encoding/hex"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -129,7 +128,7 @@ func mapListOutputsOutput(output *wdk.WalletOutput) sdk.Output {
 
 	txidHash, err := chainhash.NewHashFromHex(txID)
 	if err != nil {
-		panic("invalid txid in outpoint: " + err.Error())
+		txidHash = &chainhash.Hash{}
 	}
 
 	result := sdk.Output{
@@ -146,11 +145,9 @@ func mapListOutputsOutput(output *wdk.WalletOutput) sdk.Output {
 	}
 
 	if output.LockingScript != nil {
-		lockingScriptBytes, err := hex.DecodeString(string(*output.LockingScript))
-		if err != nil {
-			panic("invalid locking script hex: " + err.Error())
+		if lockingScript, err := script.NewFromHex(string(*output.LockingScript)); err == nil {
+			result.LockingScript = lockingScript.Bytes()
 		}
-		result.LockingScript = lockingScriptBytes
 	}
 
 	if len(output.Tags) > 0 {
