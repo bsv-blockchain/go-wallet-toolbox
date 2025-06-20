@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	syncTxStatusLimit = 100
+	syncTxStatusLimit  = 100
+	lastBlockHeightKey = "synchronize_tx_statuses_last_block_height"
 )
 
 var (
@@ -173,7 +174,7 @@ type LastHeightValue struct {
 }
 
 func (s *synchronizeTxStatuses) getLastBlockHeight(ctx context.Context) (uint, bool, error) {
-	obj, ok, err := s.keyValueRepo.Get(ctx, "last_block_height")
+	obj, ok, err := s.keyValueRepo.Get(ctx, lastBlockHeightKey)
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to get last block height: %w", err)
 	}
@@ -202,7 +203,7 @@ func (s *synchronizeTxStatuses) setLastBlockHeight(ctx context.Context, blockHei
 		return fmt.Errorf("failed to marshal last block height: %w", err)
 	}
 
-	if err := s.keyValueRepo.Set(ctx, "last_block_height", data); err != nil {
+	if err := s.keyValueRepo.Set(ctx, lastBlockHeightKey, data); err != nil {
 		return fmt.Errorf("failed to set last block height: %w", err)
 	}
 
