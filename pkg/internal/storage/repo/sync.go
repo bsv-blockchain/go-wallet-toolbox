@@ -207,8 +207,8 @@ func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 	}
 }
 
-// UpsertProvenTxReqForSync updates only non-zero fields of the proven transaction request.
-func (s *Sync) UpsertProvenTxReqForSync(ctx context.Context, entity *entity.ProvenTxReq) (isNew bool, err error) {
+// UpsertKnownTxForSync updates only non-zero fields of the proven transaction request.
+func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
 	model := models.ProvenTxReq{
 		TxID:        entity.TxID,
 		Status:      entity.Status,

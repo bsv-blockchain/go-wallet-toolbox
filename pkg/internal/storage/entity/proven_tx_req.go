@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type ProvenTxReq struct {
+type KnownTx struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 

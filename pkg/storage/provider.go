@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -441,4 +442,19 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
 	}
 	return result, nil
+}
+
+// FindKnownTx retrieves a known transaction by txID
+// NOTE: It returns nil if the transaction is not found
+func (p *Provider) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
+	if err := primitives.TXIDHexString(txID).Validate(); err != nil {
+		return nil, fmt.Errorf("invalid transaction ID: %w", err)
+	}
+
+	knownTx, err := p.repo.FindProvenTx(ctx, txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find known tx: %w", err)
+	}
+
+	return knownTx, nil
 }
