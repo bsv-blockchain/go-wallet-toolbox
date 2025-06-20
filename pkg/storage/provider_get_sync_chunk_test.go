@@ -8,6 +8,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestGetSyncChunk(t *testing.T) {
@@ -160,4 +161,62 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 		BasketsCount(1).
 		ProvenTxReqsCount(0).
 		ProvenTxsCount(0)
+}
+
+func TestGetSyncChunkOneByOne(t *testing.T) {
+	given, then, cleanup := testabilities.NewSync(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	seed := given.SeedDB(activeStorage, testusers.Alice)
+	seed.OwnsTransaction()
+	seed.OwnsMinedTransaction()
+
+	// and:
+	argsFixture := given.RequestSyncChunk(testusers.Alice).
+		WithMaxItems(1)
+
+	args := argsFixture.Args()
+
+	// when:
+	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk := then.Chunk(chunk).WithoutError(err)
+
+	// and:
+	thenChunk.WithGeneralInfo(&args)
+
+	thenChunk.BasketsCount(1).
+		ProvenTxReqsCount(0).
+		ProvenTxsCount(0)
+
+	// given::
+	args = argsFixture.WithOffset(wdk.OutputBasketEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(1).
+		ProvenTxReqsCount(0)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(1)
 }

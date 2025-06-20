@@ -13,6 +13,7 @@ import (
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
 )
 
 type SyncFixture interface {
@@ -34,6 +35,8 @@ type RequestSyncChunkFixture interface {
 	NoOffsets() RequestSyncChunkFixture
 	WithSince(t time.Time) RequestSyncChunkFixture
 	WithMaxItems(maxItems uint64) RequestSyncChunkFixture
+	WithOffset(entityName wdk.EntityName, maxItems uint64) RequestSyncChunkFixture
+
 	Args() wdk.RequestSyncChunkArgs
 }
 
@@ -49,11 +52,13 @@ func GivenSyncFixture(t testing.TB) (SyncFixture, func()) {
 }
 
 type requestSyncChunkFixture struct {
+	testing.TB
 	args wdk.RequestSyncChunkArgs
 }
 
 func (s *syncFixture) RequestSyncChunk(user testusers.User) RequestSyncChunkFixture {
 	return &requestSyncChunkFixture{
+		TB:   s.t,
 		args: fixtures.DefaultRequestSyncChunkArgs(user.IdentityKey(s.t), s.StorageIdentityKey()),
 	}
 }
@@ -74,6 +79,17 @@ func (s *requestSyncChunkFixture) WithSince(t time.Time) RequestSyncChunkFixture
 
 func (s *requestSyncChunkFixture) WithMaxItems(maxItems uint64) RequestSyncChunkFixture {
 	s.args.MaxItems = maxItems
+	return s
+}
+
+func (s *requestSyncChunkFixture) WithOffset(entityName wdk.EntityName, offset uint64) RequestSyncChunkFixture {
+	for i := range s.args.Offsets {
+		if s.args.Offsets[i].Name == entityName {
+			s.args.Offsets[i].Offset = offset
+			return s
+		}
+	}
+	require.Failf(s, "Offset not found", "Entity name %s not found in offsets", entityName)
 	return s
 }
 
