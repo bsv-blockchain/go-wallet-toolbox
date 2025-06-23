@@ -381,7 +381,7 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ListActionsArgs(&args); err != nil {
+	if err := validate.ValidListActionsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listActions args: %w", err)
 	}
 

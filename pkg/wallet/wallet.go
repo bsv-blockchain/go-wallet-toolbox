@@ -198,9 +198,13 @@ func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, orig
 
 // ListActions lists all transactions matching the specified labels.
 func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
 	wdkArgs := mapping.MapListActionsArgs(args)
 
-	if err := validate.ListActionsArgs(&wdkArgs); err != nil {
+	if err := validate.ValidListActionsArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid list actions args: %w", err)
 	}
 

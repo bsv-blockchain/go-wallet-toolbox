@@ -7,7 +7,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-func ListActionsArgs(args *wdk.ListActionsArgs) error {
+func ValidListActionsArgs(args *wdk.ListActionsArgs) error {
 	if args == nil {
 		return fmt.Errorf("args cannot be nil")
 	}
@@ -18,6 +18,9 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 		}
 	}
 
+	if args.Limit == 0 {
+		return fmt.Errorf("limit must be greater than 0")
+	}
 	if args.Limit > MaxPaginationLimit {
 		return fmt.Errorf("limit must be less than or equal to %d", MaxPaginationLimit)
 	}

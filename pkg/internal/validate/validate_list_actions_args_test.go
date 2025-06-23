@@ -34,7 +34,7 @@ func TestListActionsArgs(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// When:
-			err := validate.ListActionsArgs(test.args)
+			err := validate.ValidListActionsArgs(test.args)
 
 			// Then:
 			require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestWrongListActionsArgs(t *testing.T) {
 			args := test.args
 
 			// when:
-			err := validate.ListActionsArgs(args)
+			err := validate.ValidListActionsArgs(args)
 
 			// then:
 			require.Error(t, err)
