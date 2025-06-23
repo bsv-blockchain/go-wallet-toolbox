@@ -132,14 +132,14 @@ func (p *process) validateStateOfTableTx(reference string, tableTx *wdk.TableTra
 	return nil
 }
 
-func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*wdk.TableOutput) error {
+func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*entity.Output) error {
 	for _, output := range outputs {
 		if output.Change {
 			continue
 		}
 
 		if output.LockingScript == nil {
-			return fmt.Errorf("locking script is nil for output %d", output.OutputID)
+			return fmt.Errorf("locking script is nil for output %d", output.ID)
 		}
 
 		voutInt := must.ConvertToIntFromUnsigned(output.Vout)

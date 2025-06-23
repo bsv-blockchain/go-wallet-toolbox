@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"iter"
 	"maps"
 	"strings"
@@ -29,7 +30,7 @@ type xinputDefinition struct {
 	Satoshis      satoshi.Value
 	LockingScript string
 
-	knownOutput *wdk.TableOutput // This is used only for known UTXOs, can be nil for unknown UTXOs
+	knownOutput *entity.Output // This is used only for known UTXOs, can be nil for unknown UTXOs
 }
 
 type xinputDefinitions []*xinputDefinition
@@ -38,9 +39,9 @@ func (inputs xinputDefinitions) iter() iter.Seq[*xinputDefinition] {
 	return seq.FromSlice(inputs)
 }
 
-func (inputs xinputDefinitions) knownOutputs() iter.Seq[*wdk.TableOutput] {
+func (inputs xinputDefinitions) knownOutputs() iter.Seq[*entity.Output] {
 	knownOutputs := func(input *xinputDefinition) bool { return input.knownOutput != nil }
-	toTableOutput := func(input *xinputDefinition) *wdk.TableOutput { return input.knownOutput }
+	toTableOutput := func(input *xinputDefinition) *entity.Output { return input.knownOutput }
 
 	return seq.Map(seq.Filter(inputs.iter(), knownOutputs), toTableOutput)
 }
@@ -129,7 +130,7 @@ func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, er
 		var newXInput *xinputDefinition
 		if output != nil {
 			if output.Change {
-				changeOutputIDs = append(changeOutputIDs, output.OutputID)
+				changeOutputIDs = append(changeOutputIDs, output.ID)
 			}
 			newXInput, err = proc.xinputDefOnKnownUTXO(&xinput, output)
 		} else {
@@ -217,7 +218,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 	return nil
 }
 
-func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionInput, output *wdk.TableOutput) (*xinputDefinition, error) {
+func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionInput, output *entity.Output) (*xinputDefinition, error) {
 	if output.LockingScript == nil || len(*output.LockingScript) == 0 || output.Satoshis <= 0 {
 		return nil, fmt.Errorf("output %s has no locking script or positive satoshis", xinput.Outpoint)
 	}

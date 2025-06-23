@@ -23,7 +23,7 @@ func NewOutputs(db *gorm.DB) *Outputs {
 	return &Outputs{db: db}
 }
 
-func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*wdk.TableOutput, error) {
+func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
 	}
@@ -43,10 +43,10 @@ func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
 	}
 
-	return slices.Map(outputs, o.mapModelToTableOutput), nil
+	return slices.Map(outputs, o.mapModelToOutputEntity), nil
 }
 
-func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*wdk.TableOutput, error) {
+func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error) {
 	session := o.db.WithContext(ctx)
 
 	var outputRows []*models.Output
@@ -58,38 +58,10 @@ func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID 
 		return nil, fmt.Errorf("failed to find outputs for transactionID: %d: %w", transactionID, err)
 	}
 
-	return slices.Map(outputRows, o.mapModelToTableOutput), nil
+	return slices.Map(outputRows, o.mapModelToOutputEntity), nil
 }
 
-func (o *Outputs) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
-	output := &wdk.TableOutput{
-		CreatedAt:          model.CreatedAt,
-		UpdatedAt:          model.UpdatedAt,
-		OutputID:           model.ID,
-		UserID:             model.UserID,
-		TransactionID:      model.TransactionID,
-		BasketName:         model.BasketName,
-		Spendable:          model.Spendable,
-		Change:             model.Change,
-		OutputDescription:  model.Description,
-		Vout:               model.Vout,
-		Satoshis:           model.Satoshis,
-		ProvidedBy:         model.ProvidedBy,
-		Purpose:            model.Purpose,
-		Type:               model.Type,
-		DerivationPrefix:   model.DerivationPrefix,
-		DerivationSuffix:   model.DerivationSuffix,
-		CustomInstructions: model.CustomInstructions,
-		LockingScript:      model.LockingScript,
-		SenderIdentityKey:  model.SenderIdentityKey,
-	}
-	if model.Transaction != nil {
-		output.TxID = model.Transaction.TxID
-	}
-	return output
-}
-
-func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error) {
+func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error) {
 	var outputs []*models.Output
 	var total int64
 
@@ -120,7 +92,7 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 		return nil, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return slices.Map(outputs, o.mapModelToTableOutput), total, nil
+	return slices.Map(outputs, o.mapModelToOutputEntity), total, nil
 }
 
 func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID int, basketName *string, outpoint wdk.OutPoint) error {
@@ -176,7 +148,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	return nil
 }
 
-func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*wdk.TableOutput, error) {
+func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error) {
 	var output models.Output
 	err := o.db.WithContext(ctx).
 		Model(&models.Output{}).
@@ -197,7 +169,7 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 		return nil, fmt.Errorf("failed to find output: %w", err)
 	}
 
-	tableOutput := o.mapModelToTableOutput(&output)
+	tableOutput := o.mapModelToOutputEntity(&output)
 	tableOutput.TxID = &outpoint.TxID
 	return tableOutput, nil
 }
@@ -205,7 +177,7 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 // FindInputsAndOutputsWithBaskets retrieves inputs and outputs for given transaction IDs, including basket information.
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
-func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error) {
+func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error) {
 	if len(txIDs) == 0 {
 		return
 	}
@@ -224,11 +196,11 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
 	}
 
-	inputMap := make(map[uint][]*wdk.TableOutput)
-	outputMap := make(map[uint][]*wdk.TableOutput)
+	inputMap := make(map[uint][]*entity.Output)
+	outputMap := make(map[uint][]*entity.Output)
 
 	for _, out := range allOutputs {
-		tableOut := o.mapModelToTableOutput(out)
+		tableOut := o.mapModelToOutputEntity(out)
 		if out.SpentBy != nil {
 			inputMap[*out.SpentBy] = append(inputMap[*out.SpentBy], tableOut)
 		}
@@ -236,4 +208,32 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	}
 
 	return inputMap, outputMap, nil
+}
+
+func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
+	output := &entity.Output{
+		CreatedAt:          model.CreatedAt,
+		UpdatedAt:          model.UpdatedAt,
+		ID:                 model.ID,
+		UserID:             model.UserID,
+		TransactionID:      model.TransactionID,
+		BasketName:         model.BasketName,
+		Spendable:          model.Spendable,
+		Change:             model.Change,
+		Description:        model.Description,
+		Vout:               model.Vout,
+		Satoshis:           model.Satoshis,
+		ProvidedBy:         model.ProvidedBy,
+		Purpose:            model.Purpose,
+		Type:               model.Type,
+		DerivationPrefix:   model.DerivationPrefix,
+		DerivationSuffix:   model.DerivationSuffix,
+		CustomInstructions: model.CustomInstructions,
+		LockingScript:      model.LockingScript,
+		SenderIdentityKey:  model.SenderIdentityKey,
+	}
+	if model.Transaction != nil && model.Transaction.TxID != nil {
+		output.TxID = model.Transaction.TxID
+	}
+	return output
 }

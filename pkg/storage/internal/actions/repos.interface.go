@@ -14,11 +14,11 @@ type BasketRepo interface {
 }
 
 type OutputRepo interface {
-	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*wdk.TableOutput, error)
-	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*wdk.TableOutput, error)
-	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*wdk.TableOutput, error)
-	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error)
-	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error)
+	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error)
+	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error)
+	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
+	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)
+	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
 }
 
 type TransactionsRepo interface {

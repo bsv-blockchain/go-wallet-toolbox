@@ -434,13 +434,15 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 	return resultInputs, nil
 }
 
-func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *wdk.TableOutput, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
+func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *entity.Output, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
 	if utxo.TxID == nil {
-		return nil, fmt.Errorf("missing txid for outputID %d", utxo.OutputID)
+		return nil, fmt.Errorf("missing txid for outputID %d", utxo.ID)
 	}
+
 	if utxo.LockingScript == nil {
-		return nil, fmt.Errorf("missing locking script for outputID %d and TxID %s", utxo.OutputID, *utxo.TxID)
+		return nil, fmt.Errorf("missing locking script for outputID %d and TxID %s", utxo.ID, *utxo.TxID)
 	}
+
 	txID := *utxo.TxID
 	result := wdk.StorageCreateTransactionSdkInput{
 		Vin:                   vin,

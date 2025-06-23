@@ -71,11 +71,11 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	return result, nil
 }
 
-func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*wdk.TableOutput) iter.Seq[string] {
-	transactionsWithTxIDs := seq.Filter(seq.FromSlice(outputModels), func(m *wdk.TableOutput) bool {
+func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*entity.Output) iter.Seq[string] {
+	transactionsWithTxIDs := seq.Filter(seq.FromSlice(outputModels), func(m *entity.Output) bool {
 		return m.TxID != nil && *m.TxID != ""
 	})
-	allTxIDs := seq.Map(transactionsWithTxIDs, func(m *wdk.TableOutput) string {
+	allTxIDs := seq.Map(transactionsWithTxIDs, func(m *entity.Output) string {
 		return *m.TxID
 	})
 	return seq.Uniq(allTxIDs)
@@ -91,7 +91,7 @@ func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) enti
 	}
 }
 
-func (l *listOutputs) outputModelToResult(m *wdk.TableOutput) *wdk.WalletOutput {
+func (l *listOutputs) outputModelToResult(m *entity.Output) *wdk.WalletOutput {
 	result := &wdk.WalletOutput{
 		Satoshis:           primitives.SatoshiValue(must.ConvertToUInt64(m.Satoshis)),
 		Spendable:          m.Spendable,

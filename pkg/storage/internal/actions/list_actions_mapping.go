@@ -78,7 +78,7 @@ func (l *listActions) mapTransactionsToActions(txs []*wdk.TableTransaction) ([]u
 	return transactionIDs, txIDs, actions
 }
 
-func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args *wdk.ListActionsArgs) (map[uint][]*wdk.TableOutput, map[uint][]*wdk.TableOutput, error) {
+func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args *wdk.ListActionsArgs) (map[uint][]*entity.Output, map[uint][]*entity.Output, error) {
 	if args.IncludeInputs.Value() || args.IncludeOutputs.Value() {
 		inputs, outputs, err := l.outputsRepo.FindInputsAndOutputsWithBaskets(ctx, txIDs, args.IncludeOutputLockingScripts.Value())
 		if err != nil {
@@ -86,7 +86,7 @@ func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args
 		}
 		return inputs, outputs, nil
 	}
-	return map[uint][]*wdk.TableOutput{}, map[uint][]*wdk.TableOutput{}, nil
+	return map[uint][]*entity.Output{}, map[uint][]*entity.Output{}, nil
 }
 
 func (l *listActions) loadLabelsIfNeeded(ctx context.Context, txIDs []uint, include *primitives.BooleanDefaultFalse) (map[uint][]string, error) {
@@ -115,7 +115,7 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*wdk.TableTransaction, inputMap, outputMap map[uint][]*wdk.TableOutput, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*wdk.TableTransaction, inputMap, outputMap map[uint][]*entity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
@@ -144,26 +144,24 @@ func (l *listActions) mapLabelsToAction(action *wdk.WalletAction, txID uint, lab
 	}
 }
 
-func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, outputMap map[uint][]*wdk.TableOutput, tags ...string) {
+func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, outputMap map[uint][]*entity.Output) {
 	outputs := outputMap[txID]
-	action.Outputs = l.mapToWalletActionOutputs(outputs, tags...)
+	action.Outputs = l.mapToWalletActionOutputs(outputs)
 }
 
-func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, tags ...string) []wdk.WalletActionOutput {
+func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.WalletActionOutput {
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
 		if o.BasketName == nil {
 			continue
 		}
 
-		// TODO: Implement tags mapping if needed, currently empty as CreateActionArgs does not support tags
-
 		result = append(result, wdk.WalletActionOutput{
 			Satoshis:          must.ConvertToUInt64(o.Satoshis),
 			Spendable:         o.Spendable,
-			Tags:              tags,
+			Tags:              o.Tags,
 			OutputIndex:       o.Vout,
-			OutputDescription: o.OutputDescription,
+			OutputDescription: o.Description,
 			Basket:            *o.BasketName,
 			LockingScript:     optional.OfPtr(o.LockingScript).OrZeroValue(),
 		})
@@ -172,7 +170,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*wdk.TableOutput, tags 
 	return result
 }
 
-func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *wdk.TableTransaction, inputMap map[uint][]*wdk.TableOutput, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *wdk.TableTransaction, inputMap map[uint][]*entity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	rawTx := rawTxMap[*tx.TxID]
 	if rawTx == nil {
 		return nil
@@ -191,7 +189,7 @@ func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *wdk.TableT
 	return nil
 }
 
-func (l *listActions) mapToWalletActionInputs(inputs []*wdk.TableOutput, rawTx []byte, includeSourceLockingScripts, includeUnlockingScripts *primitives.BooleanDefaultFalse) ([]wdk.WalletActionInput, error) {
+func (l *listActions) mapToWalletActionInputs(inputs []*entity.Output, rawTx []byte, includeSourceLockingScripts, includeUnlockingScripts *primitives.BooleanDefaultFalse) ([]wdk.WalletActionInput, error) {
 	result := make([]wdk.WalletActionInput, 0, len(inputs))
 
 	var tx *transaction.Transaction
@@ -206,7 +204,7 @@ func (l *listActions) mapToWalletActionInputs(inputs []*wdk.TableOutput, rawTx [
 	for _, o := range inputs {
 		input := wdk.WalletActionInput{
 			SourceSatoshis:   must.ConvertToUInt64(o.Satoshis),
-			InputDescription: o.OutputDescription,
+			InputDescription: o.Description,
 			SequenceNumber:   0,
 		}
 
