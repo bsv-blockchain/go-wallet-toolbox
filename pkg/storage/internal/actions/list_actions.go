@@ -7,7 +7,6 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 type listActions struct {
@@ -62,7 +61,7 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	return &wdk.ListActionsResult{
-		TotalActions: must.ConvertToUInt32(total),
+		TotalActions: total,
 		Actions:      actions,
 	}, nil
 }

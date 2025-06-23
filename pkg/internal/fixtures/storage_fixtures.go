@@ -15,4 +15,6 @@ const (
 	AnyoneIdentityKey          = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798" // generated in TS by: new PrivateKey(1).toPublicKey().toString()
 	Reference                  = "0LFT4CuWAMEgEa7I"
 	MockOutpoint               = "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6.1" // example outpoint for testing purposes
+	CreateActionTestLabel      = "test_label=true"
+	CreateActionTestTag        = "test_tag=true"
 )

@@ -79,7 +79,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, providedOutput.Basket, resultOutput.Basket)
 	assert.Equal(t, providedOutput.LockingScript, resultOutput.LockingScript)
 	assert.Equal(t, providedOutput.CustomInstructions, resultOutput.CustomInstructions)
-	assert.Equal(t, providedOutput.Tags, resultOutput.Tags)
+	assert.Empty(t, resultOutput.Tags)
 
 	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]

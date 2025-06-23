@@ -21,7 +21,7 @@ type ListActionsArgs struct {
 
 // ListActionsResult defines the result of listing actions
 type ListActionsResult struct {
-	TotalActions uint32         `json:"totalActions"`
+	TotalActions int64          `json:"totalActions"`
 	Actions      []WalletAction `json:"actions"`
 }
 
