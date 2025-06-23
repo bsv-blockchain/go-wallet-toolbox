@@ -122,7 +122,6 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 
 	// and:
 	servicesSniffer := givenProvider.ServicesSniffer()
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID()).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
@@ -133,8 +132,10 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 
 	// and:
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(wocEndpointRegex))
+	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
 	// given:
+	givenProvider.ARC().WhenQueryingTx(txSpec.ID()).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().
 		OnTipBlockHeaderWillRespondWithOneElementList(
 			testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight + 1),
@@ -147,8 +148,9 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	require.NoError(t, err)
 
 	// and:
-	// NOTE: The second call should also trigger a request to WhatsOnChain, because the block height is different
 	require.Equal(t, 2, servicesSniffer.CountCallsByRegex(wocEndpointRegex))
+	require.Equal(t, 2, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
+	// NOTE: The second call should also trigger a request for the transaction, because the block height is different
 }
 
 func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
