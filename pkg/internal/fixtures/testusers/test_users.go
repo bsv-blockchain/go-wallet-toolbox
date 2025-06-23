@@ -5,6 +5,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +72,12 @@ func (u User) PublicKey(t testing.TB) *primitives.PublicKey {
 	require.NoError(t, err)
 
 	return priv.PubKey()
+}
+
+func (u User) Address(t testing.TB) *script.Address {
+	address, err := script.NewAddressFromPublicKey(u.PublicKey(t), false)
+	require.NoErrorf(t, err, "Failed to create address for user %s, invalid test setup", u.Name)
+	return address
 }
 
 func All() []*User {
