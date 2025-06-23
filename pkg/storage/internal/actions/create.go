@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"iter"
 	"log/slog"
 
@@ -295,6 +296,10 @@ func (c *create) newOutputs(
 	all := make([]*entity.NewOutput, 0, len32)
 
 	for _, output := range providedOutputs {
+		tags := slices.Map(output.Tags, func(tag primitives.StringUnder300) string {
+			return string(tag)
+		})
+
 		all = append(all, &entity.NewOutput{
 			Satoshis:           satoshi.MustFrom(output.Satoshis),
 			BasketName:         (*string)(output.Basket),
@@ -305,6 +310,7 @@ func (c *create) newOutputs(
 			LockingScript:      &output.LockingScript,
 			CustomInstructions: output.CustomInstructions,
 			Description:        string(output.OutputDescription),
+			Tags:               tags,
 		})
 	}
 

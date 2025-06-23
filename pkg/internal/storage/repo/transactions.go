@@ -109,6 +109,13 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 }
 
 func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*models.Output, error) {
+	tags := slices.Map(output.Tags, func(tag string) *models.Tag {
+		return &models.Tag{
+			Name:   tag,
+			UserID: userID,
+		}
+	})
+
 	out := models.Output{
 		Vout:               output.Vout,
 		UserID:             userID,
@@ -125,6 +132,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
 		BasketName:         output.BasketName,
+		Tags:               tags,
 	}
 
 	if out.Spendable && out.Change {
