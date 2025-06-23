@@ -374,6 +374,9 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 				CustomInstructions: output.CustomInstructions,
 				LockingScript:      optional.OfPtr(output.LockingScript).OrZeroValue(),
 				Basket:             (*primitives.StringUnder300)(output.BasketName),
+				Tags: slices.Map(output.Tags, func(tag string) primitives.StringUnder300 {
+					return primitives.StringUnder300(tag)
+				}),
 			},
 		}
 	}

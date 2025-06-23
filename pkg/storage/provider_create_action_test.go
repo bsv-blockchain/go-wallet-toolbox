@@ -99,6 +99,43 @@ func TestCreateActionHappyPath(t *testing.T) {
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
 }
 
+func TestCreateActionOutputTagsTags(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	const tag1 = "tag1"
+	const tag2 = "tag2"
+	args := fixtures.DefaultValidCreateActionArgs()
+	providedOutput := &args.Outputs[0]
+	providedOutput.Tags = []primitives.StringUnder300{tag1, tag2}
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+
+	resultOutput := result.Outputs[0]
+	assert.Equal(t, providedOutput.Tags, resultOutput.Tags)
+
+	for _, providedByStorageOutput := range result.Outputs[1:] {
+		assert.NotContains(t, providedByStorageOutput.Tags, tag1)
+		assert.NotContains(t, providedByStorageOutput.Tags, tag2)
+	}
+}
+
 func TestCreateActionWithSignActionHappyPath(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
