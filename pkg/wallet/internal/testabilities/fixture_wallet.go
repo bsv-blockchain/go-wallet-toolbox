@@ -6,11 +6,22 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/require"
 )
 
 type WalletFixture interface {
 	AliceWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func())
 	Wallet() WalletBuilder
+	Faucet(userWallet *wallet.Wallet) FaucetFixture
+	InputForUser(user testusers.User) CreateActionInputBuilder
+}
+
+type CreateActionInputBuilder interface {
+	WithDescription(description string) CreateActionInputBuilder
+	WithSatoshis(satoshis int) CreateActionInputBuilder
+	CreateActionInput() sdk.CreateActionInput
+	InputBEEFBytes() []byte
 }
 
 type WalletBuilder interface {
@@ -22,7 +33,8 @@ type WalletBuilder interface {
 
 type walletFixture struct {
 	testing.TB
-	usersSetups map[testusers.User]*userWalletSetup
+	usersSetups  map[testusers.User]*userWalletSetup
+	usersFaucets map[string]*faucetFixture
 }
 
 func Given(t testing.TB) WalletFixture {
@@ -31,8 +43,9 @@ func Given(t testing.TB) WalletFixture {
 
 func newGiven(t testing.TB) *walletFixture {
 	return &walletFixture{
-		TB:          t,
-		usersSetups: make(map[testusers.User]*userWalletSetup),
+		TB:           t,
+		usersSetups:  make(map[testusers.User]*userWalletSetup),
+		usersFaucets: make(map[string]*faucetFixture),
 	}
 }
 
@@ -44,6 +57,34 @@ func (w *walletFixture) Wallet() WalletBuilder {
 	return &walletBuilder{
 		TB:            w.TB,
 		walletFixture: w,
+	}
+}
+
+func (w *walletFixture) Faucet(userWallet *wallet.Wallet) FaucetFixture {
+	publicKey, err := userWallet.GetPublicKey(w.Context(), sdk.GetPublicKeyArgs{IdentityKey: true}, "")
+	require.NoError(w, err, "Failed to retrieve identity key from wallet to top up")
+
+	identityKey := publicKey.PublicKey.ToDERHex()
+
+	faucet, ok := w.usersFaucets[identityKey]
+	if !ok {
+		faucet = &faucetFixture{
+			TB:         w.TB,
+			userWallet: userWallet,
+			index:      0,
+		}
+		w.usersFaucets[identityKey] = faucet
+	}
+
+	return faucet
+}
+
+func (w *walletFixture) InputForUser(user testusers.User) CreateActionInputBuilder {
+	return &createActionInputBuilder{
+		TB:          w.TB,
+		user:        user,
+		description: "self provided input from tests",
+		satoshis:    1,
 	}
 }
 
