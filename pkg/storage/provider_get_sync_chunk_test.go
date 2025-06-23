@@ -76,7 +76,7 @@ func TestGetSyncChunkOffsetsOverMaxItems(t *testing.T) {
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey())
+	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey(), fixtures.SecondStorageIdentityKey)
 	for i := range args.Offsets {
 		args.Offsets[i].Offset = 100 // This is more than we have in the database
 	}

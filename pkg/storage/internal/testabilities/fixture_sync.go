@@ -59,7 +59,7 @@ type requestSyncChunkFixture struct {
 func (s *syncFixture) RequestSyncChunk(user testusers.User) RequestSyncChunkFixture {
 	return &requestSyncChunkFixture{
 		TB:   s.t,
-		args: fixtures.DefaultRequestSyncChunkArgs(user.IdentityKey(s.t), s.StorageIdentityKey()),
+		args: fixtures.DefaultRequestSyncChunkArgs(user.IdentityKey(s.t), s.StorageIdentityKey(), fixtures.SecondStorageIdentityKey),
 	}
 }
 

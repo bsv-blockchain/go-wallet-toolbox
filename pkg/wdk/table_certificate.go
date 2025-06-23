@@ -21,3 +21,9 @@ type TableCertificate struct {
 	Signature          primitives.HexString      `json:"signature"`
 	IsDeleted          bool                      `json:"isDeleted"`
 }
+
+// TableCertificateX extends TableCertificate with optional fields
+type TableCertificateX struct {
+	TableCertificate
+	Fields []*TableCertificateField `json:"fields,omitempty"`
+}

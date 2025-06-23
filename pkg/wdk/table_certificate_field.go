@@ -16,9 +16,3 @@ type TableCertificateField struct {
 	FieldValue    string                  `json:"fieldValue"`
 	MasterKey     primitives.Base64String `json:"masterKey"`
 }
-
-// TableCertificateX extends TableCertificate with optional fields
-type TableCertificateX struct {
-	TableCertificate
-	Fields []*TableCertificateField `json:"fields,omitempty"`
-}

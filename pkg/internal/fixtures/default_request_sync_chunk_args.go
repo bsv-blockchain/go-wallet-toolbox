@@ -4,10 +4,10 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
-func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey string) wdk.RequestSyncChunkArgs {
+func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey string) wdk.RequestSyncChunkArgs {
 	return wdk.RequestSyncChunkArgs{
 		FromStorageIdentityKey: fromIdentityKey,
-		ToStorageIdentityKey:   "to_storage",
+		ToStorageIdentityKey:   toIdentityKey,
 		IdentityKey:            userIdentityKey,
 		MaxItems:               10,
 		MaxRoughSize:           100_000,
