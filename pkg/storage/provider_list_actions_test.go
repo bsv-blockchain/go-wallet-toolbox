@@ -25,15 +25,7 @@ func TestListActions_HappyPath(t *testing.T) {
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
 	// and:
-	internalizedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// and:
-	createActionArgs := fixtures.DefaultValidCreateActionArgs()
-	createActionArgs.Outputs[0].Tags = []primitives.StringUnder300{fixtures.CreateActionTestTag}
-
-	// and:
-	createdActionResult, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), createActionArgs)
-	require.NoError(t, err)
+	_, ownedTransaction := given.ActionCreatedAndProcessed(activeStorage)
 
 	// When:
 	args := wdk.ListActionsArgs{
@@ -53,17 +45,24 @@ func TestListActions_HappyPath(t *testing.T) {
 	assert.Len(t, result.Actions, 2)
 
 	internalizedTx := result.Actions[0]
-	assert.Equal(t, internalizedTxSpec.ID(), internalizedTx.TxID)
+	assert.Equal(t, ownedTransaction.Inputs[0].SourceTXID.String(), internalizedTx.TxID)
+	assert.Len(t, internalizedTx.Inputs, 0)
 
 	createdTx := result.Actions[1]
-	assert.Equal(t, "", createdTx.TxID)
+	assert.Equal(t, ownedTransaction.TxID().String(), createdTx.TxID)
 	assert.Contains(t, createdTx.Labels, fixtures.CreateActionTestLabel)
 
-	require.Equal(t, len(createdActionResult.Outputs), len(createdTx.Outputs))
+	require.Len(t, createdTx.Inputs, 1)
+	createdTxInput := createdTx.Inputs[0]
+	assert.Equal(t,
+		string(primitives.NewOutpointString(ownedTransaction.Inputs[0].SourceTXID.String(), ownedTransaction.Inputs[0].SourceTxOutIndex)),
+		createdTxInput.SourceOutpoint,
+	)
+
+	require.Equal(t, len(ownedTransaction.Outputs), len(createdTx.Outputs))
 
 	resultOutput := createdTx.Outputs[0]
 	assert.Contains(t, resultOutput.Tags, fixtures.CreateActionTestTag)
-
 }
 
 func TestListActions_InvalidAuth(t *testing.T) {

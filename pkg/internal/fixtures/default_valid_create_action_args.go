@@ -22,6 +22,7 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 				Satoshis:           42000,
 				OutputDescription:  "test output",
 				CustomInstructions: to.Ptr(`{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`),
+				Tags:               []primitives.StringUnder300{CreateActionTestTag},
 			},
 		},
 		LockTime: 0,

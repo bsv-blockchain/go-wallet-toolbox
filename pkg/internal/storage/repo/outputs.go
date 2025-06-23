@@ -184,6 +184,9 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 
 	query := o.db.WithContext(ctx).
 		Model(&models.Output{}).
+		Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, tx_id")
+		}).
 		Preload("Basket").
 		Preload("Tags").
 		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs)
@@ -232,7 +235,7 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
 		CustomInstructions: model.CustomInstructions,
 		LockingScript:      model.LockingScript,
 		SenderIdentityKey:  model.SenderIdentityKey,
-		Tags:			   slices.Map(model.Tags, func(tag *models.Tag) string { return tag.Name }),
+		Tags:               slices.Map(model.Tags, func(tag *models.Tag) string { return tag.Name }),
 	}
 	if model.Transaction != nil && model.Transaction.TxID != nil {
 		output.TxID = model.Transaction.TxID
