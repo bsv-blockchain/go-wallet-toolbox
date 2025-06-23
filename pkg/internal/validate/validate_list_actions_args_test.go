@@ -17,6 +17,7 @@ func TestListActionsArgs(t *testing.T) {
 	}{
 		"valid labels and defaults": {
 			args: &wdk.ListActionsArgs{
+				Limit:           10,
 				LabelQueryMode:  to.Ptr(primitives.LabelQueryModeString("any")),
 				Labels:          []primitives.StringUnder300{"valid-label"},
 				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
@@ -33,10 +34,10 @@ func TestListActionsArgs(t *testing.T) {
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			// When:
+			// when:
 			err := validate.ValidListActionsArgs(test.args)
 
-			// Then:
+			// then:
 			require.NoError(t, err)
 		})
 	}
