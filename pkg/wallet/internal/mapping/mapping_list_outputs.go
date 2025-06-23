@@ -97,13 +97,10 @@ func mapListOutputsOutput(output *wdk.WalletOutput) sdk.Output {
 
 // MapListOutputsResult maps *wdk.ListOutputsResult to *sdk.ListOutputsResult
 func MapListOutputsResult(result *wdk.ListOutputsResult) *sdk.ListOutputsResult {
-	totalOutputs := uint64(result.TotalOutputs)
-	if totalOutputs > math.MaxUint32 {
-		totalOutputs = math.MaxUint32
-	}
+	totalOutputs := min(uint64(result.TotalOutputs), math.MaxUint32)
 
 	sdkResult := &sdk.ListOutputsResult{
-		TotalOutputs: uint32(totalOutputs),
+		TotalOutputs: uint32(totalOutputs), //nolint:gosec // G115: Value is clamped to MaxUint32 by min() function
 		Outputs:      slices.Map(result.Outputs, mapListOutputsOutput),
 	}
 
