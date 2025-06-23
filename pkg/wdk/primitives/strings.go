@@ -79,6 +79,11 @@ func (b StringUnder300) Validate() error {
 // HexString is a string in hexadecimal format
 type HexString string
 
+// String returns the string representation of the HexString
+func (h HexString) String() string {
+	return string(h)
+}
+
 var hexRegex = regexp.MustCompile("^[0-9a-fA-F]+$")
 
 // Validate checks if the string is a valid hexadecimal string
