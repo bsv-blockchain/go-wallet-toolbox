@@ -48,6 +48,12 @@ const (
 	PostedTxIDResultSuccess PostedTxIDResultStatus = "success"
 	// PostedTxIDResultError indicates that the result was an error.
 	PostedTxIDResultError PostedTxIDResultStatus = "error"
+	// PostedTxIDResultAlreadyKnown indicates that the transaction was already known to this service.
+	PostedTxIDResultAlreadyKnown PostedTxIDResultStatus = "already_known"
+	// PostedTxIDResultDoubleSpend indicates that the transaction double spends at least one input.
+	PostedTxIDResultDoubleSpend PostedTxIDResultStatus = "double_spend"
+	// PostedTxIDResultMissingInputs indicates that the transaction is missing inputs, possibly due to a double spend.
+	PostedTxIDResultMissingInputs PostedTxIDResultStatus = "missing_inputs"
 )
 
 // PostedTxID is the struct representing postTX result for particular TxID
