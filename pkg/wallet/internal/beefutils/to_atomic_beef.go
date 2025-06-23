@@ -31,7 +31,7 @@ func ToAtomicBEEFBytes(tx *transaction.Transaction) ([]byte, error) {
 
 func validateInputs(input *transaction.TransactionInput) error {
 	if input.SourceTransaction == nil {
-		return fmt.Errorf("internal: every signlable transaction input must have a source transaction")
+		return fmt.Errorf("internal: every signable transaction input must have a source transaction")
 	}
 	return nil
 }
