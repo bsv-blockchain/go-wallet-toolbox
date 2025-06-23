@@ -53,7 +53,7 @@ func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.Syn
 	}
 }
 
-func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error {
+func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resultErr error) {
 	lockAcquired := s.lock.TryLock()
 	if !lockAcquired {
 		s.logger.Warn("synchronizeTxStatuses is already running, skipping this run")
@@ -70,9 +70,14 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 			return nil
 		}
 
-		if err = s.setLastBlockHeight(ctx, currentHeight); err != nil {
-			return err
-		}
+		defer func() {
+			if resultErr != nil {
+				return
+			}
+			if err := s.setLastBlockHeight(ctx, currentHeight); err != nil {
+				resultErr = fmt.Errorf("successfully synchronized tx statuses, but failed to set last block height: %w", err)
+			}
+		}()
 	}
 
 	// TODO: Use pagination (plus created_at older than now) strategy to process all the transactions that need synchronization

@@ -36,8 +36,10 @@ func (kv *KeyValue) Get(ctx context.Context, key string) ([]byte, bool, error) {
 func (kv *KeyValue) Set(ctx context.Context, key string, value []byte) error {
 	err := kv.db.WithContext(ctx).Model(&models.KeyValue{}).
 		Where("key = ?", key).
-		Assign(models.KeyValue{Value: value}).
-		FirstOrCreate(&models.KeyValue{Key: key}).Error
+		Save(&models.KeyValue{
+			Key:   key,
+			Value: value,
+		}).Error
 	if err != nil {
 		return fmt.Errorf("failed to set value for key %s: %w", key, err)
 	}

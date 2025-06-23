@@ -1,9 +1,12 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+)
 
 type KeyValue struct {
-	gorm.Model
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	Key   string `gorm:"primaryKey"`
 	Value []byte
