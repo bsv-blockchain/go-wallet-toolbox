@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
@@ -80,11 +81,8 @@ func brc29LockingScript(t testing.TB, userWallet sdk.Interface, senderKey *primi
 				Type:         sdk.CounterpartyTypeOther,
 				Counterparty: senderKey,
 			},
-			ProtocolID: sdk.Protocol{
-				SecurityLevel: 2,
-				Protocol:      "3241645161d8",
-			}, // BRC-29 protocol ID
-			KeyID: fmt.Sprintf("%s %s", paymentRemittance.DerivationPrefix, paymentRemittance.DerivationSuffix),
+			ProtocolID: brc29.Protocol,
+			KeyID:      fmt.Sprintf("%s %s", paymentRemittance.DerivationPrefix, paymentRemittance.DerivationSuffix),
 		},
 	}, "")
 	require.NoError(t, err, "Failed to derive public key for top up - check the test setup and GetPublicKey method")

@@ -9,9 +9,9 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
-func (w *Wallet) rebuildTransaction(createActionResult *wdk.StorageCreateActionResult, args sdk.CreateActionArgs) (*transaction.Transaction, error) {
-	txAssempler := mapping.NewCreateActionTransactionAssembler(w.keyDeriver, createActionResult, args)
-	tx, err := txAssempler.Assemble()
+func (w *Wallet) assemblyTransaction(createActionResult *wdk.StorageCreateActionResult, args sdk.CreateActionArgs) (*transaction.Transaction, error) {
+	txAssembler := mapping.NewCreateActionTransactionAssembler(w.keyDeriver, createActionResult, args)
+	tx, err := txAssembler.Assemble()
 	if err != nil {
 		return nil, fmt.Errorf("failed to assemble transaction from storage response: %w", err)
 	}

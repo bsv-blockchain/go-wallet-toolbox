@@ -95,7 +95,7 @@ func (a *CreateActionTransactionAssembler) toTxInput(it *wdk.StorageCreateTransa
 	}
 
 	if a.isInputFromArgs(it) {
-		return a.toTxInputFromArgs(it, sourceTxID, err)
+		return a.toTxInputFromArgs(it, sourceTxID)
 	}
 
 	return a.toTxInputFromManagedInput(it, sourceTxID)
@@ -140,10 +140,14 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 	return input, nil
 }
 
-func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash, err error) (*transaction.TransactionInput, error) {
+func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash) (*transaction.TransactionInput, error) {
+	if it.Vin < 0 {
+		return nil, fmt.Errorf("unexpected negative input index %d", it.Vin)
+	}
+
 	argsInput := a.args.Inputs[it.Vin]
 	if !argsInput.Outpoint.Txid.Equal(*sourceTxID) || argsInput.Outpoint.Index != it.SourceVout {
-		return nil, fmt.Errorf("unexpected input (outpoint: %s.%d) on index %d: %w", it.SourceTxID, it.SourceVout, it.Vin, err)
+		return nil, fmt.Errorf("unexpected input (outpoint: %s.%d) on index %d", it.SourceTxID, it.SourceVout, it.Vin)
 	}
 
 	sourceTx := a.inputBEEF.FindTransaction(it.SourceTxID)

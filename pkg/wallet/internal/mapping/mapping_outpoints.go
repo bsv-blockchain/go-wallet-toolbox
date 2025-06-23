@@ -21,7 +21,7 @@ func indexToOutpointMapper(txID *chainhash.Hash) func(it int) (transaction.Outpo
 	return func(it int) (transaction.Outpoint, error) {
 		index, err := to.UInt32(it)
 		if err != nil {
-			return transaction.Outpoint{}, fmt.Errorf("invalid no sand change output index: %w", err)
+			return transaction.Outpoint{}, fmt.Errorf("invalid transaction output index: %w", err)
 		}
 
 		return transaction.Outpoint{

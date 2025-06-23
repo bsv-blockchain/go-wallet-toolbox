@@ -10,23 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type OutputMatcher interface {
-	MatchesOutput(index int, output *transaction.TransactionOutput) bool
-}
-
-type InputMatcher interface {
-	MatchesInput(index int, input *transaction.TransactionInput) bool
-}
-
-type Index int
-
-func (i Index) MatchesOutput(index int, _ *transaction.TransactionOutput) bool {
-	return index == int(i)
-}
-
-func (i Index) MatchesInput(index int, _ *transaction.TransactionInput) bool {
-	return index == int(i)
-}
+const kilobyte = 1000
 
 type BSVTransactionAssertion interface {
 	HasInputsThatFundsOutputs() BSVTransactionAssertion
@@ -92,7 +76,8 @@ func (t *txAssertion) HasMinimalFee() BSVTransactionAssertion {
 	}
 
 	size := t.tx.Size()
-	var expectedFee = must.ConvertToUInt64(to.IfThen(size%1000 == 0, size/1000).ElseThen(size/1000 + 1))
+
+	var expectedFee = must.ConvertToUInt64(to.IfThen(size%kilobyte == 0, size/kilobyte).ElseThen(size/kilobyte + 1))
 
 	totalOutputs := t.tx.TotalOutputSatoshis()
 

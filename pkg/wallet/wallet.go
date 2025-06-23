@@ -150,7 +150,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 			return nil, fmt.Errorf("failed to create action: %w", err)
 		}
 
-		tx, err := w.rebuildTransaction(storageCreateActionResult, args)
+		tx, err := w.assemblyTransaction(storageCreateActionResult, args)
 		if err != nil {
 			return nil, fmt.Errorf("invalid result from storage - failed to build transaction: %w", err)
 		}
