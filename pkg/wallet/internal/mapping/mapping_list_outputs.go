@@ -1,6 +1,8 @@
 package mapping
 
 import (
+	"math"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -28,9 +30,10 @@ func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 		result.TagQueryMode = "any"
 	}
 
-	if args.Include == sdk.OutputIncludeEntireTransactions {
+	switch args.Include {
+	case sdk.OutputIncludeEntireTransactions:
 		result.IncludeTransactions = true
-	} else if args.Include == sdk.OutputIncludeLockingScripts {
+	case sdk.OutputIncludeLockingScripts:
 		result.IncludeLockingScripts = true
 	}
 
@@ -94,8 +97,13 @@ func mapListOutputsOutput(output *wdk.WalletOutput) sdk.Output {
 
 // MapListOutputsResult maps *wdk.ListOutputsResult to *sdk.ListOutputsResult
 func MapListOutputsResult(result *wdk.ListOutputsResult) *sdk.ListOutputsResult {
+	totalOutputs := uint64(result.TotalOutputs)
+	if totalOutputs > math.MaxUint32 {
+		totalOutputs = math.MaxUint32
+	}
+
 	sdkResult := &sdk.ListOutputsResult{
-		TotalOutputs: uint32(result.TotalOutputs),
+		TotalOutputs: uint32(totalOutputs),
 		Outputs:      slices.Map(result.Outputs, mapListOutputsOutput),
 	}
 
