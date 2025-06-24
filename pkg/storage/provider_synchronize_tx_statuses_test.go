@@ -8,7 +8,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
@@ -38,15 +37,13 @@ func TestSynchronizeTx(t *testing.T) {
 	require.NoError(t, err)
 
 	// and:
-	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
 
 	// and:
-	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{Limit: 10, IncludeTransactions: true})
-	require.NoError(t, err)
-	require.NotNil(t, listOutputsResult.BEEF)
-	beef := testutils.BEEFFromHex(t, *listOutputsResult.BEEF)
-	require.Len(t, beef.Transactions, 1) // should be one transaction, because we just made it "mined" so parent transaction should not be included
-	require.NotNil(t, beef.FindTransaction(txSpec.ID()))
+	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
 }
 
 func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
@@ -68,6 +65,12 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 
 	// when:
 	err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+
+	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
 
 	// then:
 	require.NoError(t, err)
@@ -95,6 +98,11 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	require.NoError(t, err)
 
 	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		NotMined()
+
+	// and:
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
 	// when:
@@ -102,6 +110,11 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
+
+	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		NotMined()
 
 	// and:
 	require.Equal(t, 2, servicesSniffer.CountCallsByRegex(wocEndpointRegex))
@@ -131,6 +144,11 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	require.NoError(t, err)
 
 	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		NotMined()
+
+	// and:
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(wocEndpointRegex))
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
@@ -146,6 +164,11 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
+
+	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		IsMined()
 
 	// and:
 	require.Equal(t, 2, servicesSniffer.CountCallsByRegex(wocEndpointRegex))
@@ -173,12 +196,11 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// then:
-	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{Limit: 10, IncludeTransactions: true})
-	require.NoError(t, err)
-	require.NotNil(t, listOutputsResult.BEEF)
-	beef := testutils.BEEFFromHex(t, *listOutputsResult.BEEF)
-	require.Len(t, beef.Transactions, 0) // should be no transactions, because the proven tx has been set to "failed"
+	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txSpec.ID()).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		NotMined()
 }
 
 func TestSynchronizeTxEdgeCases(t *testing.T) {
