@@ -329,7 +329,7 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 		Where("attempts >= ? ", attempts).
 		UpdateColumn("status", status).Error
 	if err != nil {
-		return fmt.Errorf("failed to set status for knwon transactions above attempts: %w", err)
+		return fmt.Errorf("failed to set status for known transactions above attempts: %w", err)
 	}
 	return nil
 }
@@ -344,7 +344,7 @@ func (p *KnownTx) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to find knwon tx: %w", err)
+		return nil, fmt.Errorf("failed to find known tx: %w", err)
 	}
 
 	return &entity.KnownTx{
