@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -404,7 +405,7 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 			SourceTxID:            unknownProvided.Outpoint.TxID,
 			SourceVout:            unknownProvided.Outpoint.Vout,
 			SourceSatoshis:        unknownProvided.Satoshis.Int64(),
-			SourceLockingScript:   unknownProvided.LockingScript,
+			SourceLockingScript:   hex.EncodeToString(unknownProvided.LockingScript),
 			UnlockingScriptLength: unknownProvided.UnlockingScriptLength,
 			ProvidedBy:            wdk.ProvidedByYou,
 			Type:                  wdk.OutputTypeCustom,
@@ -452,7 +453,7 @@ func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *ent
 		SourceTxID:            txID,
 		SourceVout:            utxo.Vout,
 		SourceSatoshis:        utxo.Satoshis,
-		SourceLockingScript:   utxo.LockingScript.Hex(),
+		SourceLockingScript:   hex.EncodeToString(utxo.LockingScript),
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(txutils.P2PKHUnlockingScriptLength)),
 		ProvidedBy:            providedBy,
 		Type:                  wdk.OutputType(utxo.Type),

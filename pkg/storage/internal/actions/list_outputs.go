@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -108,7 +109,7 @@ func (l *listOutputs) outputModelToResult(m *entity.Output) *wdk.WalletOutput {
 	}
 
 	if m.LockingScript != nil {
-		result.LockingScript = to.Ptr(primitives.HexString(m.LockingScript.Hex()))
+		result.LockingScript = to.Ptr(primitives.HexString(hex.EncodeToString(m.LockingScript)))
 	}
 
 	return result

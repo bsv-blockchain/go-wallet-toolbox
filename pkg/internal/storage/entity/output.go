@@ -17,7 +17,7 @@ type Output struct {
 	TxID *string //NOTE: TxID can be nil if the owning transaction is not yet processed.
 	Vout uint32
 
-	LockingScript      *string
+	LockingScript      []byte
 	CustomInstructions *string
 
 	DerivationPrefix *string

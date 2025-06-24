@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"slices"
 
@@ -133,8 +134,6 @@ func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, ou
 func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.WalletActionOutput {
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
-		lockingScript := o.LockingScript.Hex()
-
 		result = append(result, wdk.WalletActionOutput{
 			Satoshis:          must.ConvertToUInt64(o.Satoshis),
 			Spendable:         o.Spendable,
@@ -142,7 +141,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.W
 			OutputIndex:       o.Vout,
 			OutputDescription: o.Description,
 			Basket:            optional.OfPtr(o.BasketName).OrZeroValue(),
-			LockingScript:     lockingScript,
+			LockingScript:     hex.EncodeToString(o.LockingScript),
 		})
 	}
 
@@ -192,7 +191,7 @@ func (l *listActions) mapToWalletActionInputs(inputs []*entity.Output, rawTx []b
 		}
 
 		if includeSourceLockingScripts.Value() && o.LockingScript != nil {
-			input.SourceLockingScript = o.LockingScript.Hex()
+			input.SourceLockingScript = hex.EncodeToString(o.LockingScript)
 		}
 
 		if tx != nil && includeUnlockingScripts.Value() {

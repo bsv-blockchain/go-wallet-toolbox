@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -147,9 +148,9 @@ func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*e
 			return fmt.Errorf("output index %d is out of range of provided tx outputs count %d", voutInt, len(tx.Outputs))
 		}
 
-		fromDB := output.LockingScript.Hex()
-		providedInArgs := tx.Outputs[voutInt].LockingScript.String()
-		if providedInArgs != fromDB {
+		fromDB := output.LockingScript
+		providedInArgs := tx.Outputs[voutInt].LockingScript.Bytes()
+		if !bytes.Equal(providedInArgs, fromDB) {
 			return fmt.Errorf("locking script mismatch at vout: %d, provided %s, calculated from raw tx: %s", voutInt, providedInArgs, fromDB)
 		}
 	}

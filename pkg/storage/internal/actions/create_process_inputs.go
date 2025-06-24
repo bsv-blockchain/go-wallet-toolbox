@@ -28,7 +28,7 @@ var readyToBeInputProvenTxStatuses = []wdk.ProvenTxReqStatus{
 type xinputDefinition struct {
 	*wdk.ValidCreateActionInput
 	Satoshis      satoshi.Value
-	LockingScript string
+	LockingScript []byte
 
 	knownOutput *entity.Output // This is used only for known UTXOs, can be nil for unknown UTXOs
 }
@@ -230,7 +230,7 @@ func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionI
 	return &xinputDefinition{
 		ValidCreateActionInput: xinput,
 		Satoshis:               satoshi.MustFrom(output.Satoshis),
-		LockingScript:          output.LockingScript.Hex(),
+		LockingScript:          output.LockingScript,
 		knownOutput:            output,
 	}, nil
 }
@@ -268,7 +268,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	return &xinputDefinition{
 		ValidCreateActionInput: xinput,
 		Satoshis:               satoshi.MustFrom(out.Satoshis),
-		LockingScript:          out.LockingScript.String(),
+		LockingScript:          out.LockingScript.Bytes(),
 	}, nil
 }
 
