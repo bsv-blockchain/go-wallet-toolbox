@@ -19,30 +19,30 @@ const (
 	maxDepthOfRecursion = 1000
 )
 
-type ProvenTxReq struct {
+type KnownTx struct {
 	db *gorm.DB
 }
 
-func NewProvenTxReqRepo(db *gorm.DB) *ProvenTxReq {
-	return &ProvenTxReq{db: db}
+func NewKnownTxRepo(db *gorm.DB) *KnownTx {
+	return &KnownTx{db: db}
 }
 
-func (p *ProvenTxReq) UpsertProvenTxReq(ctx context.Context, req *entity.UpsertProvenTxReq, historyNote string, historyAttrs map[string]any) error {
+func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, historyNote string, historyAttrs map[string]any) error {
 	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return upsertProvenTxReq(tx, req, historyNote, historyAttrs)
+		return upsertKnownTx(tx, req, historyNote, historyAttrs)
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to upsert proven tx req: %w", err)
+		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}
 	return nil
 }
 
-func upsertProvenTxReq(db *gorm.DB, req *entity.UpsertProvenTxReq, historyNote string, historyAttrs map[string]any) error {
-	var model models.ProvenTxReq
+func upsertKnownTx(db *gorm.DB, req *entity.UpsertKnownTx, historyNote string, historyAttrs map[string]any) error {
+	var model models.KnownTx
 	err := db.First(&model, "tx_id = ? ", req.TxID).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("cannot upsert proven tx req: %w", err)
+		return fmt.Errorf("cannot upsert known tx: %w", err)
 	}
 
 	if req.SkipForStatus != nil && model.Status == *req.SkipForStatus {
@@ -60,11 +60,11 @@ func upsertProvenTxReq(db *gorm.DB, req *entity.UpsertProvenTxReq, historyNote s
 	return db.Save(&model).Error
 }
 
-func updateProvenTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus, historyNote string, historyAttrs map[string]any) error {
-	var model models.ProvenTxReq
+func updateKnownTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus, historyNote string, historyAttrs map[string]any) error {
+	var model models.KnownTx
 	err := db.Model(&model).Select("status", "history").First(&model, "tx_id = ? ", txID).Error
 	if err != nil {
-		return fmt.Errorf("cannot update proven tx status: %w", err)
+		return fmt.Errorf("cannot update known tx status: %w", err)
 	}
 
 	historyAttrs["oldStatus"] = model.Status
@@ -74,8 +74,8 @@ func updateProvenTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus
 	return db.Where("tx_id = ?", txID).Updates(&model).Error
 }
 
-func (p *ProvenTxReq) FindProvenTxRawTX(ctx context.Context, txID string) ([]byte, error) {
-	var model models.ProvenTxReq
+func (p *KnownTx) FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error) {
+	var model models.KnownTx
 	err := p.db.WithContext(ctx).
 		Model(&model).
 		Select("raw_tx").
@@ -84,12 +84,12 @@ func (p *ProvenTxReq) FindProvenTxRawTX(ctx context.Context, txID string) ([]byt
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to find proven tx raw tx: %w", err)
+		return nil, fmt.Errorf("failed to find raw tx of known tx: %w", err)
 	}
 	return model.RawTx, nil
 }
 
-func (p *ProvenTxReq) FindProvenTxRawTXs(ctx context.Context, txIDs []string) (map[string][]byte, error) {
+func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error) {
 	if len(txIDs) == 0 {
 		return make(map[string][]byte), nil
 	}
@@ -100,7 +100,7 @@ func (p *ProvenTxReq) FindProvenTxRawTXs(ctx context.Context, txIDs []string) (m
 	}
 
 	err := p.db.WithContext(ctx).
-		Model(&models.ProvenTxReq{}).
+		Model(&models.KnownTx{}).
 		Select("tx_id, raw_tx").
 		Where("tx_id IN ?", txIDs).
 		Scan(&results).Error
@@ -115,8 +115,8 @@ func (p *ProvenTxReq) FindProvenTxRawTXs(ctx context.Context, txIDs []string) (m
 	return rawTxMap, nil
 }
 
-func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error) {
-	var model models.ProvenTxReq
+func (p *KnownTx) FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error) {
+	var model models.KnownTx
 	err := p.db.WithContext(ctx).
 		Model(&model).
 		Select("status").
@@ -128,8 +128,8 @@ func (p *ProvenTxReq) FindProvenTxStatus(ctx context.Context, txID string) (wdk.
 	return model.Status, nil
 }
 
-func (p *ProvenTxReq) ExistsAllProvenTxs(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
-	var model models.ProvenTxReq
+func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
+	var model models.KnownTx
 	query := p.db.WithContext(ctx).
 		Model(&model).
 		Select("tx_id").
@@ -146,13 +146,13 @@ func (p *ProvenTxReq) ExistsAllProvenTxs(ctx context.Context, txIDs []string, so
 	var count int64
 	err := query.Count(&count).Error
 	if err != nil {
-		return false, fmt.Errorf("failed to check if proven transactions exist: %w", err)
+		return false, fmt.Errorf("failed to check if known transactions exist: %w", err)
 	}
 
 	return count == int64(len(txIDs)), nil
 }
 
-func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
+func (p *KnownTx) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, statusesToFilterOut)
 	if err != nil {
@@ -162,12 +162,12 @@ func (p *ProvenTxReq) BuildValidBEEF(ctx context.Context, txID string, statusesT
 	return beef, nil
 }
 
-func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeToBeef *transaction.Beef, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) error {
+func (p *KnownTx) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeToBeef *transaction.Beef, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
 	}
 
-	var model models.ProvenTxReq
+	var model models.KnownTx
 	query := p.db.WithContext(ctx).
 		Model(&model).
 		Select("raw_tx, input_beef, merkle_path")
@@ -181,7 +181,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
-		return fmt.Errorf("failed to find proven tx, raw tx and input beef for tx (id: %s): %w", txID, err)
+		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
 	}
 
 	if model.RawTx == nil || model.InputBeef == nil {
@@ -234,7 +234,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 		if beefTx == nil || beefTx.DataFormat != transaction.RawTxAndBumpIndex {
 			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusesToFilterOut)
 			if err != nil {
-				return fmt.Errorf("failed to recursively find proven tx and merge into BEEF: %w", err)
+				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
 			}
 		}
 	}
@@ -243,7 +243,7 @@ func (p *ProvenTxReq) recursiveBuildValidBEEF(ctx context.Context, depth int, me
 	return nil
 }
 
-func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) ([]byte, error) {
+func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) ([]byte, error) {
 	beef := transaction.NewBeefV2()
 
 	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
@@ -267,21 +267,21 @@ func (p *ProvenTxReq) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string
 	return data, nil
 }
 
-func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.ProvenTxToSync, error) {
-	var rows []*models.ProvenTxReq
+func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {
+	var rows []*models.KnownTx
 	err := p.db.WithContext(ctx).
-		Model(&models.ProvenTxReq{}).
+		Model(&models.KnownTx{}).
 		Select("tx_id, status, attempts").
 		Where("status IN ? ", txStatus).
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&rows).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to find proven tx ids by statuses: %w", err)
+		return nil, fmt.Errorf("failed to find known tx ids by statuses: %w", err)
 	}
 
-	return slices.Map(rows, func(row *models.ProvenTxReq) *entity.ProvenTxToSync {
-		return &entity.ProvenTxToSync{
+	return slices.Map(rows, func(row *models.KnownTx) *entity.KnownTxForStatusSync {
+		return &entity.KnownTxForStatusSync{
 			TxID:     row.TxID,
 			Attempts: row.Attempts,
 			Status:   row.Status,
@@ -289,29 +289,29 @@ func (p *ProvenTxReq) FindProvenTxIDsByStatuses(ctx context.Context, limit int, 
 	}), nil
 }
 
-func (p *ProvenTxReq) UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error {
-	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
-		Where("tx_id = ?", provenTxAsMined.TxID).
-		Updates(&models.ProvenTxReq{
+func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *entity.KnownTxAsMined) error {
+	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
+		Where("tx_id = ?", knownTxAsMined.TxID).
+		Updates(&models.KnownTx{
 			Status:      wdk.ProvenTxStatusCompleted,
-			BlockHash:   &provenTxAsMined.BlockHash,
-			BlockHeight: &provenTxAsMined.BlockHeight,
-			MerklePath:  provenTxAsMined.MerklePath,
-			MerkleRoot:  &provenTxAsMined.MerkleRoot,
+			BlockHash:   &knownTxAsMined.BlockHash,
+			BlockHeight: &knownTxAsMined.BlockHeight,
+			MerklePath:  knownTxAsMined.MerklePath,
+			MerkleRoot:  &knownTxAsMined.MerkleRoot,
 			Notified:    true,
 		}).Error
 	if err != nil {
-		return fmt.Errorf("failed to update proven tx as mined: %w", err)
+		return fmt.Errorf("failed to update known tx as mined: %w", err)
 	}
 	return nil
 }
 
-func (p *ProvenTxReq) IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error {
+func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error {
 	if len(txIDs) == 0 {
 		return nil
 	}
 
-	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("tx_id IN ? ", txIDs).
 		UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
 	if err != nil {
@@ -320,22 +320,22 @@ func (p *ProvenTxReq) IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txID
 	return nil
 }
 
-func (p *ProvenTxReq) SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
+func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
 	if attempts == 0 {
 		return nil
 	}
 
-	err := p.db.WithContext(ctx).Model(&models.ProvenTxReq{}).
+	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("attempts >= ? ", attempts).
 		UpdateColumn("status", status).Error
 	if err != nil {
-		return fmt.Errorf("failed to set status for proven tx above attempts: %w", err)
+		return fmt.Errorf("failed to set status for knwon transactions above attempts: %w", err)
 	}
 	return nil
 }
 
-func (p *ProvenTxReq) FindProvenTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
-	var model models.ProvenTxReq
+func (p *KnownTx) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
+	var model models.KnownTx
 	err := p.db.WithContext(ctx).
 		Model(&model).
 		Where("tx_id = ? ", txID).
@@ -344,7 +344,7 @@ func (p *ProvenTxReq) FindProvenTx(ctx context.Context, txID string) (*entity.Kn
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to find proven tx: %w", err)
+		return nil, fmt.Errorf("failed to find knwon tx: %w", err)
 	}
 
 	return &entity.KnownTx{

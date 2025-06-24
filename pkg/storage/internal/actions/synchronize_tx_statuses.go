@@ -31,13 +31,13 @@ var (
 type synchronizeTxStatuses struct {
 	lock                 sync.Mutex
 	logger               *slog.Logger
-	provenTxRepo         ProvenTxRepo
+	provenTxRepo         KnownTxRepo
 	keyValueRepo         KeyValueRepo
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
 }
 
-func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.SynchronizeTxStatuses, services wdk.Services, provenTxRepo ProvenTxRepo, keyValueRepo KeyValueRepo) *synchronizeTxStatuses {
+func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.SynchronizeTxStatuses, services wdk.Services, provenTxRepo KnownTxRepo, keyValueRepo KeyValueRepo) *synchronizeTxStatuses {
 	logger = logging.Child(logger, "synchronize_tx_statuses")
 
 	if syncTxStatusesConfig.MaxAttempts == 0 {
@@ -81,9 +81,9 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 	}
 
 	// TODO: Use pagination (plus created_at older than now) strategy to process all the transactions that need synchronization
-	txsToSync, err := s.provenTxRepo.FindProvenTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
+	txsToSync, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
 	if err != nil {
-		return fmt.Errorf("provenTxRepo.FindTxIDsByStatuses failed: %w", err)
+		return fmt.Errorf("knownTxRepo.FindTxIDsByStatuses failed: %w", err)
 	}
 	if len(txsToSync) == 0 {
 		s.logger.Info("no transactions need synchronization", slog.Any("height", currentHeight))
@@ -127,7 +127,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 
 		// TODO: Support history notes
 
-		err = s.provenTxRepo.UpdateProvenTxAsMined(ctx, &entity.ProvenTxAsMined{
+		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
 			TxID:        txToSync.TxID,
 			BlockHeight: merkleResult.BlockHeader.Height,
 			MerklePath:  merkleResult.MerklePath.Bytes(),
@@ -139,7 +139,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 		}
 	}
 
-	err = s.provenTxRepo.IncreaseProvenTxAttemptsForTxIDs(ctx, failedAttempts)
+	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
 	if err != nil {
 		return fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
@@ -147,7 +147,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 	//NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
 	//updates matching (user) transactions to "failed" and tidies outputs
 	//TODO: Consider if we want to do the same or do it right away here
-	err = s.provenTxRepo.SetStatusForProvenTxAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
+	err = s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
 	if err != nil {
 		return fmt.Errorf("failed to set status for txs above attempts: %w", err)
 	}

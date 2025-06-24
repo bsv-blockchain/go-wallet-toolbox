@@ -62,7 +62,7 @@ func (c *chunkerTransactions) Process(ctx context.Context, userID int, page *que
 		opts = append(opts, queryopts.WithSince(queryopts.Since{Time: *since}))
 	}
 
-	reqs, mined, err := c.repo.FindProvenTxsForSync(ctx, userID, opts...)
+	reqs, mined, err := c.repo.FindKnownTxsForSync(ctx, userID, opts...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch proven transactions by user id: %w", err)
 	}
