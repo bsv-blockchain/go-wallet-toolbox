@@ -62,7 +62,7 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	return &wdk.ListActionsResult{
-		TotalActions: must.ConvertToUInt32(total),
+		TotalActions: must.ConvertToUInt64(total),
 		Actions:      actions,
 	}, nil
 }
