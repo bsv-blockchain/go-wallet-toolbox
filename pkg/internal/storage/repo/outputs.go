@@ -68,16 +68,31 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 	if err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.
 			Model(&models.Output{}).
-			Where("user_id = ?", filter.UserID)
+			Where("user_id = ?", filter.UserID).
+			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+				return db.Select("id, tx_id")
+			})
+
+		var omitFields []string
+
+		if !filter.IncludeLockingScripts {
+			omitFields = append(omitFields, "locking_script")
+		}
+
+		if !filter.IncludeCustomInstructions {
+			omitFields = append(omitFields, "custom_instructions")
+		}
+
+		if len(omitFields) > 0 {
+			query = query.Omit(omitFields...)
+		}
 
 		if filter.Basket != "" {
 			query = query.Where("basket_name = ?", filter.Basket)
 		}
 
-		if filter.IncludeTXID {
-			query = query.Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-				return db.Select("id, tx_id")
-			})
+		if filter.IncludeTags {
+			query = query.Preload("Tags")
 		}
 
 		if err := query.Count(&total).Error; err != nil {

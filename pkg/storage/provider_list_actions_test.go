@@ -41,7 +41,7 @@ func TestListActions_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, int64(2), result.TotalActions)
+	assert.Equal(t, primitives.PositiveInteger(2), result.TotalActions)
 	assert.Len(t, result.Actions, 2)
 
 	internalizedTx := result.Actions[0]

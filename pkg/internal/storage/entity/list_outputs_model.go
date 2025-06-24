@@ -6,5 +6,7 @@ type ListOutputsFilter struct {
 	Limit       int
 	Offset      int
 	UserID      int
-	IncludeTXID bool
+	IncludeTags bool
+	IncludeLockingScripts bool
+	IncludeCustomInstructions bool
 }

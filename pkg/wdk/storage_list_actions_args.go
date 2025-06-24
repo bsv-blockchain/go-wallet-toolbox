@@ -21,8 +21,8 @@ type ListActionsArgs struct {
 
 // ListActionsResult defines the result of listing actions
 type ListActionsResult struct {
-	TotalActions int64          `json:"totalActions"`
-	Actions      []WalletAction `json:"actions"`
+	TotalActions primitives.PositiveInteger `json:"totalActions"`
+	Actions      []WalletAction             `json:"actions"`
 }
 
 // WalletAction represents a transaction in the wallet

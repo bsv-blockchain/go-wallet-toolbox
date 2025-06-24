@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"iter"
 	"log/slog"
 
@@ -35,9 +36,6 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	// TODO: Handle args.TagQueryMode
 
 	// TODO: Handle args.KnownTxids
-	// TODO: Handle args.IncludeLockingScripts
-	// TODO: Handle args.IncludeCustomInstructions
-	// TODO: Handle args.IncludeTags
 	// TODO: Handle args.IncludeLabels
 
 	filter := l.toFilterParams(*auth.UserID, args)
@@ -83,11 +81,13 @@ func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*entity.Output) it
 
 func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) entity.ListOutputsFilter {
 	return entity.ListOutputsFilter{
-		UserID:      userID,
-		Basket:      string(args.Basket),
-		Limit:       must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, validate.MaxPaginationLimit)),
-		Offset:      must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Offset, validate.MaxPaginationOffset)),
-		IncludeTXID: args.IncludeTransactions,
+		UserID:                    userID,
+		Basket:                    string(args.Basket),
+		Limit:                     must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, validate.MaxPaginationLimit)),
+		Offset:                    must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Offset, validate.MaxPaginationOffset)),
+		IncludeTags:               args.IncludeTags,
+		IncludeLockingScripts:     args.IncludeLockingScripts,
+		IncludeCustomInstructions: args.IncludeCustomInstructions,
 	}
 }
 
@@ -96,6 +96,9 @@ func (l *listOutputs) outputModelToResult(m *entity.Output) *wdk.WalletOutput {
 		Satoshis:           primitives.SatoshiValue(must.ConvertToUInt64(m.Satoshis)),
 		Spendable:          m.Spendable,
 		CustomInstructions: m.CustomInstructions,
+		Tags: slices.Map(m.Tags, func(tag string) primitives.StringUnder300 {
+			return primitives.StringUnder300(tag)
+		}),
 	}
 
 	if m.TxID != nil {
