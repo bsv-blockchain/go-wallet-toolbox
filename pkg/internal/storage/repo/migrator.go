@@ -31,6 +31,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.TransactionLabels{},
 		models.NumericIDLookup{},
 		models.SyncState{},
+    models.KeyValue{},
 		models.Tag{},
 		models.OutputTags{},
 	)
