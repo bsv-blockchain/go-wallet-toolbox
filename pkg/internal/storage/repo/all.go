@@ -16,6 +16,7 @@ type Repositories struct {
 	*ProvenTxReq
 	*Sync
 	*SyncState
+	*KeyValue
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
@@ -30,6 +31,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		ProvenTxReq:   NewProvenTxReqRepo(db),
 		Sync:          NewSync(db),
 		SyncState:     NewSyncState(db),
+		KeyValue:      NewKeyValue(db),
 	}
 	repositories.Users = NewUsers(db, repositories.Settings, repositories.OutputBaskets)
 

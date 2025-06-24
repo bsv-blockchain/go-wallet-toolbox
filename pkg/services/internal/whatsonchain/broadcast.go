@@ -30,9 +30,8 @@ type txBroadcastResponse struct {
 }
 
 type txInfoResponse struct {
-	Blockhash   string `json:"blockhash"`
-	Blockheight int64  `json:"blockheight"`
-	Timestamp   string `json:"time"`
+	BlockHash   string `json:"blockhash"`
+	BlockHeight int64  `json:"blockheight"`
 }
 
 func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (BroadcastStatus, string, error) {
@@ -78,25 +77,47 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 }
 
 func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoResponse, error) {
-	var info txInfoResponse
+	type wocStatusRequest struct {
+		Txids []string `json:"txids"`
+	}
+
+	type wocStatusResponse []struct {
+		TxID          string `json:"txid"`
+		BlockHash     string `json:"blockhash"`
+		BlockHeight   int64  `json:"blockheight"`
+		BlockTime     int64  `json:"blocktime"`
+		Confirmations int    `json:"confirmations"`
+	}
+
+	var resp wocStatusResponse
+
+	url := fmt.Sprintf("%s/txs/status", woc.url)
 
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
-		SetResult(&info).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		SetBody(wocStatusRequest{
+			Txids: []string{txid},
+		}).
+		SetResult(&resp)
 
-	url := fmt.Sprintf("%s/tx/%s/info", woc.url, txid)
-	res, err := req.Get(url)
+	res, err := req.Post(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch tx info: %w", err)
+		return nil, fmt.Errorf("failed to call WoC: %w", err)
 	}
 
 	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("failed to retrieve tx info: status %d, body: %s", res.StatusCode(), res.String())
+		return nil, fmt.Errorf("unexpected WoC status: %d", res.StatusCode())
 	}
 
-	return &info, nil
+	if len(resp) == 0 {
+		return nil, fmt.Errorf("no data returned for txid: %s", txid)
+	}
+
+	return &txInfoResponse{
+		BlockHash:   resp[0].BlockHash,
+		BlockHeight: resp[0].BlockHeight,
+	}, nil
 }
 
 func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx []byte) wdk.PostedTxID {
@@ -113,7 +134,10 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 
 	resultStatus, notes := classifyBroadcastStatus(status)
 
-	blockHash, blockHeight, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid, &notes)
+	blockHash, blockHeight, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
+	if fetchErr != nil {
+		notes = append(notes, fmt.Sprintf("failed to fetch tx info: %v", fetchErr))
+	}
 
 	return wdk.PostedTxID{
 		Result:       resultStatus,
@@ -127,11 +151,10 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 	}
 }
 
-func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string, notes *[]string) (string, int64, error) {
+func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (string, int64, error) {
 	info, err := woc.fetchTxInfo(ctx, txid)
 	if err != nil {
-		*notes = append(*notes, fmt.Sprintf("failed to fetch tx info: %v", err))
 		return "", 0, fmt.Errorf("failed to fetch tx info: %w", err)
 	}
-	return info.Blockhash, info.Blockheight, nil
+	return info.BlockHash, info.BlockHeight, nil
 }

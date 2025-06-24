@@ -64,8 +64,20 @@ func (p *chunkProcessor) process() (err error) {
 	}
 
 	for _, basket := range p.chunk.OutputBaskets {
-		if err = p.mergeBaskets(basket); err != nil {
+		if err = p.upsertBaskets(basket); err != nil {
 			return fmt.Errorf("failed to merge basket %q: %w", basket.Name, err)
+		}
+	}
+
+	for _, provenTxReq := range p.chunk.ProvenTxReqs {
+		if err = p.upsertProvenTxReqs(provenTxReq); err != nil {
+			return fmt.Errorf("failed to merge proven tx req for TxID %q: %w", provenTxReq.TxID, err)
+		}
+	}
+
+	for _, provenTx := range p.chunk.ProvenTxs {
+		if err = p.upsertProvenTx(provenTx); err != nil {
+			return fmt.Errorf("failed to merge proven tx for TxID %q: %w", provenTx.TxID, err)
 		}
 	}
 
@@ -96,7 +108,8 @@ func (p *chunkProcessor) mergeUser() error {
 	return nil
 }
 
-func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error {
+func (p *chunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error {
+	// TODO: Upsert with UpdatedAt from chunkBasket.
 	isNew, err := p.parent.repo.UpsertOutputBasket(p.ctx, p.user.ID, chunkBasket.BasketConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to upsert output basket %q: %w", chunkBasket.Name, err)
@@ -107,6 +120,49 @@ func (p *chunkProcessor) mergeBaskets(chunkBasket *wdk.TableOutputBasket) error 
 	p.updateSyncState(wdk.OutputBasketEntityName, 1)
 
 	// TODO: Most probably, we need to update the sync state (with IDMap) - But I postpone this until it is actually needed.
+
+	return nil
+}
+
+func (p *chunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxReq) error {
+	isNew, err := p.parent.repo.UpsertKnownTxForSync(p.ctx, &entity.KnownTx{
+		CreatedAt: chunkProvenTxReq.CreatedAt,
+		UpdatedAt: chunkProvenTxReq.UpdatedAt,
+		TxID:      chunkProvenTxReq.TxID,
+		Status:    chunkProvenTxReq.Status,
+		Attempts:  chunkProvenTxReq.Attempts,
+		Notified:  chunkProvenTxReq.Notified,
+		RawTx:     chunkProvenTxReq.RawTx,
+		InputBEEF: chunkProvenTxReq.InputBEEF,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert proven tx req for TxID %q: %w", chunkProvenTxReq.TxID, err)
+	}
+
+	p.updateResult(chunkProvenTxReq.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.ProvenTxReqEntityName, 1)
+
+	return nil
+}
+
+func (p *chunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {
+	isNew, err := p.parent.repo.UpsertKnownTxForSync(p.ctx, &entity.KnownTx{
+		CreatedAt:   chunkProvenTx.CreatedAt,
+		UpdatedAt:   chunkProvenTx.UpdatedAt,
+		TxID:        chunkProvenTx.TxID,
+		Status:      wdk.ProvenTxStatusCompleted,
+		RawTx:       chunkProvenTx.RawTx,
+		BlockHeight: to.Ptr(chunkProvenTx.Height),
+		MerklePath:  chunkProvenTx.MerklePath,
+		MerkleRoot:  to.Ptr(chunkProvenTx.MerkleRoot),
+		BlockHash:   to.Ptr(chunkProvenTx.BlockHash),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert proven tx for TxID %q: %w", chunkProvenTx.TxID, err)
+	}
+
+	p.updateResult(chunkProvenTx.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.ProvenTxEntityName, 1)
 
 	return nil
 }
@@ -136,5 +192,7 @@ func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64
 // NOTE: The user pointer is not taken into account.
 func (p *chunkProcessor) emptyChunk() bool {
 	// TODO: Add more entities when implemented.
-	return len(p.chunk.OutputBaskets) == 0
+	return len(p.chunk.OutputBaskets) == 0 &&
+		len(p.chunk.ProvenTxs) == 0 &&
+		len(p.chunk.ProvenTxReqs) == 0
 }

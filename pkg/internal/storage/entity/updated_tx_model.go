@@ -19,7 +19,7 @@ type UpdatedTx struct {
 	Tx            *transaction.Transaction
 }
 
-func (ut *UpdatedTx) GetLockingScript(vout uint32) (*string, error) {
+func (ut *UpdatedTx) GetLockingScriptBytes(vout uint32) ([]byte, error) {
 	if ut.Tx == nil {
 		return nil, fmt.Errorf("transaction is nil")
 	}
@@ -31,5 +31,5 @@ func (ut *UpdatedTx) GetLockingScript(vout uint32) (*string, error) {
 	if voutInt >= len(ut.Tx.Outputs) {
 		return nil, fmt.Errorf("output index %d is out of range of provided tx outputs count %d", vout, len(ut.Tx.Outputs))
 	}
-	return to.Ptr(ut.Tx.Outputs[voutInt].LockingScript.String()), nil
+	return ut.Tx.Outputs[voutInt].LockingScript.Bytes(), nil
 }

@@ -56,3 +56,8 @@ type ProvenTxRepo interface {
 	SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
 	FindProvenTxRawTXs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 }
+
+type KeyValueRepo interface {
+	Get(ctx context.Context, key string) ([]byte, bool, error)
+	Set(ctx context.Context, key string, value []byte) error
+}

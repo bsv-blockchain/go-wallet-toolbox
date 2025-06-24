@@ -9,8 +9,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
-github.com/bsv-blockchain/go-sdk v1.2.0 h1:Eb5+1snt/Q4d/2LdbPyrokJUaDTGVtXApct7e7iqY+8=
-github.com/bsv-blockchain/go-sdk v1.2.0/go.mod h1:v//5tDobbCNhhZvHlEyP8SvuE+N3UFpWToH0+lOw9QM=
+github.com/bsv-blockchain/go-sdk v1.2.1 h1:yQXHpHPIxoyvU+DERzaSuUEQF/ejVjcsdPhNV+z8OTI=
+github.com/bsv-blockchain/go-sdk v1.2.1/go.mod h1:v//5tDobbCNhhZvHlEyP8SvuE+N3UFpWToH0+lOw9QM=
 github.com/bsv-blockchain/universal-test-vectors v0.5.0 h1:DhMyIR0wl4Krnh2hoLBWou/3FfCcXCFOolSOrADpO50=
 github.com/bsv-blockchain/universal-test-vectors v0.5.0/go.mod h1:x/t+oK2TganJmNd1utrwayHxaBE6wR5+R6J/4bR2HGg=
 github.com/cenkalti/backoff/v4 v4.2.1 h1:y4OZtCnogmCPw98Zjyt5a6+QwPLGkiQsYW5oUqylYbM=
@@ -65,8 +65,8 @@ github.com/go-softwarelab/common v1.1.0 h1:KNASgdhIWtqsUJtZkrR376r1Nwe0hncL+Js/D
 github.com/go-softwarelab/common v1.1.0/go.mod h1:OBlpZUPWzz+YhTt+fQgHGTxgJBq3IDESJSIyOKC0/6Y=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
 github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
-github.com/go-viper/mapstructure/v2 v2.2.1 h1:ZAaOCxANMuZx5RCeg0mBdEZk7DZasvvZIxtHqx8aGss=
-github.com/go-viper/mapstructure/v2 v2.2.1/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
+github.com/go-viper/mapstructure/v2 v2.3.0 h1:27XbWsHIqhbdR5TIC911OfYvgSaW93HM+dX7970Q7jk=
+github.com/go-viper/mapstructure/v2 v2.3.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
 github.com/gogo/protobuf v1.3.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 h1:au07oEsX2xN0ktxqI+Sida1w446QrXBRJ0nee3SNZlA=

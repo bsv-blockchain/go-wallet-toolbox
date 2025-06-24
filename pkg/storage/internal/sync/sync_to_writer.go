@@ -9,18 +9,23 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const (
-	maxSyncChunkSize = 10_000_000 // ~10 MB
-	maxSyncItems     = 1000
-)
-
 type ReaderToWriter struct{}
 
 func NewReaderToWriter() *ReaderToWriter {
 	return &ReaderToWriter{}
 }
 
-func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writer wdk.WalletStorageProvider) (inserts, updates int, err error) {
+func (s *ReaderToWriter) Sync(
+	ctx context.Context,
+	auth wdk.AuthID,
+	reader, writer wdk.WalletStorageProvider,
+	opts ...wdk.SyncToWriterOption,
+) (inserts, updates int, err error) {
+	options := wdk.DefaultSyncToWriterOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	writerSettings, err := writer.MakeAvailable(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to make writer storage available: %w", err)
@@ -71,8 +76,8 @@ func (s *ReaderToWriter) Sync(ctx context.Context, auth wdk.AuthID, reader, writ
 			IdentityKey:            userIdentityKey,
 
 			Since:        syncState.When,
-			MaxRoughSize: maxSyncChunkSize,
-			MaxItems:     maxSyncItems,
+			MaxRoughSize: options.MaxSyncChunkSize,
+			MaxItems:     options.MaxSyncItems,
 			Offsets:      s.buildOffsets(syncMap),
 		}
 

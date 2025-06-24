@@ -77,7 +77,7 @@ func (m *WalletStorageManager) GetAuth(ctx context.Context) (wdk.AuthID, error) 
 
 // SyncToWriter synchronizes wallet data from the active storage to the provided writer storage provider.
 // NOTE: reader(source) => writer(backup)
-func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.WalletStorageProvider) (inserts, updates int, err error) {
+func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.WalletStorageProvider, opts ...wdk.SyncToWriterOption) (inserts, updates int, err error) {
 	// TODO: add locking mechanism to ensure that the active storage is not being modified while syncing
 
 	if writer == nil {
@@ -87,7 +87,7 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 	reader := m.getActiveReader()
 	auth := wdk.AuthID{IdentityKey: m.identityKey}
 
-	inserts, updates, err = sync.NewReaderToWriter().Sync(ctx, auth, reader, writer)
+	inserts, updates, err = sync.NewReaderToWriter().Sync(ctx, auth, reader, writer, opts...)
 	if err != nil {
 		err = fmt.Errorf("failed to sync from reader to writer: %w", err)
 	}

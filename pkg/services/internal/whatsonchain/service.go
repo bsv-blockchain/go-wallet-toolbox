@@ -183,16 +183,12 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 
 	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
 	delayDuration := 3 * time.Second
-	var delay bool
-
 	for i, txid := range txIDs {
-		if delay {
+		if i != 0 {
 			if err := waitOrCancel(ctx, delayDuration, txid); err != nil {
 				return nil, err
 			}
 		}
-		delay = true
-
 		result := woc.processSingleTx(ctx, txid, rawTxs[i])
 		txResults = append(txResults, result)
 	}
