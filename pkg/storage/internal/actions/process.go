@@ -151,7 +151,7 @@ func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*e
 		fromDB := output.LockingScript
 		providedInArgs := tx.Outputs[voutInt].LockingScript.Bytes()
 		if !bytes.Equal(providedInArgs, fromDB) {
-			return fmt.Errorf("locking script mismatch at vout: %d, provided %s, calculated from raw tx: %s", voutInt, providedInArgs, fromDB)
+			return fmt.Errorf("locking script mismatch at vout: %d, provided %x, calculated from raw tx: %x", voutInt, providedInArgs, fromDB)
 		}
 	}
 	return nil
