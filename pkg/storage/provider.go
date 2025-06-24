@@ -8,6 +8,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
@@ -395,6 +396,15 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 // GetSyncChunk retrieves a sync chunk based on the provided arguments.
 // It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	settings, err := p.repo.ReadSettings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read settings: %w", err)
+	}
+
+	if settings.StorageIdentityKey != args.FromStorageIdentityKey {
+		return nil, fmt.Errorf("fromStorageIdentityKey %s does not match the storage identity key %s", args.FromStorageIdentityKey, settings.StorageIdentityKey)
+	}
+
 	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
@@ -432,4 +442,19 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
 	}
 	return result, nil
+}
+
+// FindKnownTx retrieves a known transaction by txID
+// NOTE: It returns nil if the transaction is not found
+func (p *Provider) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
+	if err := primitives.TXIDHexString(txID).Validate(); err != nil {
+		return nil, fmt.Errorf("invalid transaction ID: %w", err)
+	}
+
+	knownTx, err := p.repo.FindProvenTx(ctx, txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find known tx: %w", err)
+	}
+
+	return knownTx, nil
 }

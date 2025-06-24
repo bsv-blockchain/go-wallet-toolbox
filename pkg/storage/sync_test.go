@@ -15,11 +15,51 @@ import (
 
 func TestSyncProcess(t *testing.T) {
 	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
+	ownedMinedTx := seed.OwnsMinedTransaction()
+	ownedTx := seed.OwnsTransaction()
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 2, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and:
+	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+
+	thenDBState.HasKnownTX(ownedMinedTx.ID()).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		HasRawTx().
+		IsMined()
+
+	thenDBState.HasKnownTX(ownedTx.ID()).
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx()
+
+	// TODO: Check if the data is actually synced. FindProvenTxReqs can be used (it is in a public interface, so we need to implement it anyway)
+}
+
+func TestSyncProcessOnlyUsers(t *testing.T) {
+	// given:
 	givenSourceDB, cleanup := testabilities.Given(t)
 	defer cleanup()
 
 	sourceProvider := givenSourceDB.Provider().GORM()
-
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	// and:
@@ -70,6 +110,41 @@ func TestSyncWithManyCustomBaskets(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, customBasketsCount, inserts)
 	assert.Equal(t, 1, updates)
+}
+
+func TestSyncProcessWithManyTransactions(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
+
+	const maxItemsPerSingleSync = 10
+	numberOfTxs := int(maxItemsPerSingleSync * 2.5)
+	seed.PopulateTransactionsBatch(numberOfTxs)
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider, wdk.WithMaxSyncItems(maxItemsPerSingleSync))
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, numberOfTxs, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and:
+	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState.HasKnownTXs(seed.GetAllOwnedTransactionIDs()...)
+
+	// TODO: Check if the data is actually synced. FindProvenTxReqs can be used (it is in a public interface, so we need to implement it anyway)
 }
 
 func TestSyncProcessWithMergeUser(t *testing.T) {

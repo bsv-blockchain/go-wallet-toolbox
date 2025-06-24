@@ -32,10 +32,24 @@ type StorageFixture interface {
 	MockProvider() *mocks.MockWalletStorageProvider
 
 	Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture
+
+	StorageIdentityKey() string
 }
 
 type FaucetFixture interface {
-	TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models.UserUTXO)
+	TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO)
+}
+
+type TopUpOptions struct {
+	Mined bool
+}
+
+type TopUpOpts func(*TopUpOptions)
+
+func WithMinedTopUp() TopUpOpts {
+	return func(opts *TopUpOptions) {
+		opts.Mined = true
+	}
 }
 
 type storageFixture struct {
@@ -104,6 +118,14 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 		db:         s.db,
 		basketName: basket.Name,
 	}
+}
+
+func (s *storageFixture) StorageIdentityKey() string {
+	s.t.Helper()
+	identityKey, err := wdk.IdentityKey(s.storagePrivKey)
+	require.NoError(s.t, err)
+
+	return identityKey
 }
 
 func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {

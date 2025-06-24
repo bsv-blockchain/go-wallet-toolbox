@@ -19,6 +19,7 @@ type ServicesFixture interface {
 	Services() WalletServicesFixture
 
 	Network() defs.BSVNetwork
+	Transport() *httpmock.MockTransport
 }
 
 type WalletServicesFixture interface {
@@ -114,4 +115,10 @@ func (f *servicesFixture) NewServicesWithConfig(config defs.WalletServices) *ser
 
 func (f *servicesFixture) Network() defs.BSVNetwork {
 	return f.network
+}
+
+func (f *servicesFixture) Transport() *httpmock.MockTransport {
+	f.t.Helper()
+	require.NotNil(f.t, f.transport, "Transport() called without setting up services fixture")
+	return f.transport
 }
