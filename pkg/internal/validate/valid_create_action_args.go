@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
@@ -62,6 +63,9 @@ func WalletCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 
 	seenInputs := make(map[wdk.OutPoint]struct{})
 	for i, input := range args.Inputs {
+		if err := primitives.TXIDHexString(input.Outpoint.TxID).Validate(); err != nil {
+			return fmt.Errorf("txid from outpoint in input %d is invalid: %w", i, err)
+		}
 		if _, exists := seenInputs[input.Outpoint]; exists {
 			return fmt.Errorf("duplicate input outpoint at index %d: %s.%d", i, input.Outpoint.TxID, input.Outpoint.Vout)
 		}
@@ -73,7 +77,7 @@ func WalletCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 
 	for i, output := range args.Outputs {
 		if err := validateCreateActionOutput(&output); err != nil {
-			return fmt.Errorf("invalid output as %d: %w", i, err)
+			return fmt.Errorf("invalid output at index %d: %w", i, err)
 		}
 	}
 	return nil
