@@ -441,7 +441,7 @@ func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *wdk
 		SourceTxID:            txID,
 		SourceVout:            utxo.Vout,
 		SourceSatoshis:        utxo.Satoshis,
-		SourceLockingScript:   *utxo.LockingScript,
+		SourceLockingScript:   utxo.LockingScript.Hex(),
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(txutils.P2PKHUnlockingScriptLength)),
 		ProvidedBy:            providedBy,
 		Type:                  wdk.OutputType(utxo.Type),

@@ -45,8 +45,44 @@ type SyncChunk struct {
 	ToStorageIdentityKey   string `json:"toStorageIdentityKey"`
 	UserIdentityKey        string `json:"userIdentityKey"`
 
-	User          *TableUser           `json:"user,omitempty"`
-	OutputBaskets []*TableOutputBasket `json:"outputBaskets,omitempty"`
+	User *TableUser `json:"user,omitempty"`
+
+	// ATTENTION: The TS version keeps loading chunks (infinite-loop) if at least one of the entities is "undefined"
+	// That's why `omitempty` is not used below and the slices are pre-initialized in NewSyncChunk.
+	OutputBaskets     []*TableOutputBasket     `json:"outputBaskets"`
+	ProvenTxs         []*TableProvenTx         `json:"provenTxs"`
+	ProvenTxReqs      []*TableProvenTxReq      `json:"provenTxReqs"`
+	TxLabels          []*TableTxLabel          `json:"txLabels"`
+	OutputTags        []*TableOutputTag        `json:"outputTags"`
+	Transactions      []*TableTransaction      `json:"transactions"`
+	Outputs           []*TableOutput           `json:"outputs"`
+	TxLabelMaps       []*TableTxLabelMap       `json:"txLabelMaps"`
+	OutputTagMaps     []*TableOutputTagMap     `json:"outputTagMaps"`
+	Certificates      []*TableCertificate      `json:"certificates"`
+	CertificateFields []*TableCertificateField `json:"certificateFields"`
+	Commissions       []*TableCommission       `json:"commissions"`
+}
+
+// NewSyncChunk creates a new SyncChunk with provided storage and user identity keys and initializes entity slices.
+func NewSyncChunk(fromStorageIdentityKey, toStorageIdentityKey, userIdentityKey string) *SyncChunk {
+	return &SyncChunk{
+		FromStorageIdentityKey: fromStorageIdentityKey,
+		ToStorageIdentityKey:   toStorageIdentityKey,
+		UserIdentityKey:        userIdentityKey,
+
+		OutputBaskets:     make([]*TableOutputBasket, 0),
+		ProvenTxs:         make([]*TableProvenTx, 0),
+		ProvenTxReqs:      make([]*TableProvenTxReq, 0),
+		TxLabels:          make([]*TableTxLabel, 0),
+		OutputTags:        make([]*TableOutputTag, 0),
+		Transactions:      make([]*TableTransaction, 0),
+		Outputs:           make([]*TableOutput, 0),
+		TxLabelMaps:       make([]*TableTxLabelMap, 0),
+		OutputTagMaps:     make([]*TableOutputTagMap, 0),
+		Certificates:      make([]*TableCertificate, 0),
+		CertificateFields: make([]*TableCertificateField, 0),
+		Commissions:       make([]*TableCommission, 0),
+	}
 }
 
 // FindOrInsertSyncStateAuthResponse represents the result of finding or inserting a sync state with authentication.
