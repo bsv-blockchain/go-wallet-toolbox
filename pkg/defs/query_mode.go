@@ -6,8 +6,11 @@ import "fmt"
 type QueryMode string
 
 const (
-	QueryModeAny QueryMode = "any" // QueryModeAny is used to indicate that any of the provided query parameters can match.
-	QueryModeAll QueryMode = "all" // QueryModeAll is used to indicate that all of the provided query parameters must match.
+	// QueryModeAny is used to indicate that any of the provided query parameters can match.
+	QueryModeAny QueryMode = "any"
+
+	// QueryModeAll is used to indicate that all of the provided query parameters must match.
+	QueryModeAll QueryMode = "all"
 )
 
 // ParseQueryMode parses a string into a QueryMode, matching values case-insensitively to "any" or "all".
@@ -23,6 +26,16 @@ func (q *QueryMode) Value() (QueryMode, error) {
 		return QueryModeAny, nil
 	}
 	return ParseQueryMode(string(*q))
+}
+
+// MustGetValue returns the validated QueryMode value or panics if the value is invalid.
+// It guarantees a valid QueryMode result and triggers a panic on error from Value.
+func (q *QueryMode) MustGetValue() QueryMode {
+	value, err := q.Value()
+	if err != nil {
+		panic(fmt.Sprintf("invalid query mode: %s", *q))
+	}
+	return value
 }
 
 // Validate checks if the QueryMode receiver contains a valid value, returning an error if not valid.

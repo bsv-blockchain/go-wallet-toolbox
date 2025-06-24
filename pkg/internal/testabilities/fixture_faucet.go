@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
@@ -76,6 +77,17 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		BasketName:       &f.basketName,
 
 		Transaction: transaction,
+
+		Tags: []*models.Tag{
+			{
+				Name:   fixtures.CreateActionTestTag,
+				UserID: f.user.ID,
+			},
+			{
+				Name:   fixtures.FaucetTag(f.index),
+				UserID: f.user.ID,
+			},
+		},
 	}
 
 	utxo := &models.UserUTXO{
@@ -90,6 +102,8 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 	tx := f.db.DB.WithContext(f.t.Context())
 	tx.Create(utxo)
 	tx.Create(provenTxReq)
+
+	f.index++
 
 	return spec, utxo
 }

@@ -3,6 +3,8 @@ package actions
 import (
 	"context"
 	"fmt"
+	"slices"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
@@ -10,7 +12,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	commonslices "github.com/go-softwarelab/common/pkg/slices"
-	"slices"
 )
 
 func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) {
@@ -23,16 +24,11 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 		wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal,
 	}
 
-	labelQueryMode, err := args.LabelQueryMode.Value()
-	if err != nil {
-		return entity.ListActionsFilter{}, fmt.Errorf("failed to get label query mode: %w", err)
-	}
-
 	return entity.ListActionsFilter{
 		UserID:         userID,
 		Labels:         labelNames,
 		Status:         statuses,
-		LabelQueryMode: labelQueryMode,
+		LabelQueryMode: args.LabelQueryMode.MustGetValue(),
 		Limit:          must.ConvertToIntFromUnsigned(args.Limit),
 		Offset:         must.ConvertToIntFromUnsigned(args.Offset),
 	}, nil

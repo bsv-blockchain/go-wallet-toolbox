@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -93,6 +94,21 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 
 		if filter.IncludeTags {
 			query = query.Preload("Tags")
+		}
+
+		if len(filter.Tags) > 0 {
+			labelSubQuery := tx.Model(&models.OutputTags{}).
+				Select("output_id").
+				Where("tag_name IN ?", filter.Tags).
+				Where("tag_user_id = ?", filter.UserID)
+
+			if filter.TagsQueryMode == defs.QueryModeAll {
+				labelSubQuery = labelSubQuery.
+					Group("output_id").
+					Having("COUNT(DISTINCT tag_name) = ?", len(filter.Tags))
+			}
+
+			query = query.Where("id IN (?)", labelSubQuery)
 		}
 
 		if err := query.Count(&total).Error; err != nil {

@@ -1,12 +1,15 @@
 package wdk
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+import (
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+)
 
 // ListOutputsArgs defines the query parameters for listing outputs
 type ListOutputsArgs struct {
 	Basket                    primitives.StringUnder300                   `json:"basket,omitempty"`
 	Tags                      []primitives.StringUnder300                 `json:"tags,omitempty"`
-	TagQueryMode              string                                      `json:"tagQueryMode,omitempty"` // 'all' or 'any'
+	TagQueryMode              *defs.QueryMode                             `json:"tagQueryMode,omitempty"` // 'all' or 'any'
 	IncludeLockingScripts     bool                                        `json:"includeLockingScripts,omitempty"`
 	IncludeTransactions       bool                                        `json:"includeTransactions,omitempty"`
 	IncludeCustomInstructions bool                                        `json:"includeCustomInstructions,omitempty"`

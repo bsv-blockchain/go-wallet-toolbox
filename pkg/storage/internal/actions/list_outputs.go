@@ -3,7 +3,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"iter"
 	"log/slog"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -32,9 +32,6 @@ func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, provenTxRepo Pr
 }
 
 func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
-	// TODO: Handle args.Tags
-	// TODO: Handle args.TagQueryMode
-
 	// TODO: Handle args.KnownTxids
 	// TODO: Handle args.IncludeLabels
 
@@ -88,6 +85,11 @@ func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) enti
 		IncludeTags:               args.IncludeTags,
 		IncludeLockingScripts:     args.IncludeLockingScripts,
 		IncludeCustomInstructions: args.IncludeCustomInstructions,
+		TagsQueryMode:             args.TagQueryMode.MustGetValue(),
+
+		Tags: slices.Map(args.Tags, func(tag primitives.StringUnder300) string {
+			return string(tag)
+		}),
 	}
 }
 

@@ -1,15 +1,17 @@
 package storage_test
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -207,6 +209,80 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	// and:
 	beef := testutils.BEEFFromHex(t, *actualResult.BEEF)
 	require.Len(t, beef.Transactions, 2) // parent transaction with BUMP and the internalized one (with no BUMP)
+}
+
+func TestListOutputs_FilterTags(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and:
+	faucet := given.Faucet(activeStorage, testusers.Alice)
+	faucet.TopUp(1000)
+	faucet.TopUp(1001)
+
+	listArgs := wdk.ListOutputsArgs{
+		Basket:      "",
+		Limit:       100,
+		Offset:      0,
+		IncludeTags: true,
+		Tags: []primitives.StringUnder300{
+			primitives.StringUnder300(fixtures.FaucetTag(0)),
+		},
+	}
+
+	// when:
+	actualResult, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), listArgs)
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, actualResult.Outputs, 1)
+	require.Equal(t, primitives.PositiveInteger(1), actualResult.TotalOutputs)
+
+	foundOutput := actualResult.Outputs[0]
+	assert.Contains(t, foundOutput.Tags, primitives.StringUnder300(fixtures.CreateActionTestTag))
+	assert.Contains(t, foundOutput.Tags, primitives.StringUnder300(fixtures.FaucetTag(0)))
+}
+
+func TestListOutputs_FilterTagsAllMode(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and:
+	faucet := given.Faucet(activeStorage, testusers.Alice)
+	faucet.TopUp(1000)
+	faucet.TopUp(1001)
+
+	listArgs := wdk.ListOutputsArgs{
+		Basket:      "",
+		Limit:       100,
+		Offset:      0,
+		IncludeTags: true,
+		Tags: []primitives.StringUnder300{
+			fixtures.CreateActionTestTag,
+			primitives.StringUnder300(fixtures.FaucetTag(1)),
+		},
+		TagQueryMode: to.Ptr(defs.QueryModeAll),
+	}
+
+	// when:
+	actualResult, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), listArgs)
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, actualResult.Outputs, 1)
+
+	// and:
+	foundOutput := actualResult.Outputs[0]
+	assert.Contains(t, foundOutput.Tags, primitives.StringUnder300(fixtures.CreateActionTestTag))
+	assert.Contains(t, foundOutput.Tags, primitives.StringUnder300(fixtures.FaucetTag(1)))
 }
 
 func TestListOutputs_FilterByBasketName(t *testing.T) {
