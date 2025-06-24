@@ -1,5 +1,7 @@
 package primitives
 
+import "encoding/hex"
+
 // ExplicitByteArray is a byte array, json-serialized to an explicit array of [0..255] numbers.
 // Overloads default JSON serialization to a base64 string.
 type ExplicitByteArray []byte
@@ -37,4 +39,9 @@ func (b ExplicitByteArray) MarshalJSON() ([]byte, error) {
 	result = append(result, ']')
 
 	return result, nil
+}
+
+// Hex returns the hexadecimal representation of the byte array.
+func (b ExplicitByteArray) Hex() string {
+	return hex.EncodeToString(b)
 }

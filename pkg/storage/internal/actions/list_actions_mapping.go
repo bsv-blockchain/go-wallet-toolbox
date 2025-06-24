@@ -133,6 +133,8 @@ func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, ou
 func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.WalletActionOutput {
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
+		lockingScript := o.LockingScript.Hex()
+
 		result = append(result, wdk.WalletActionOutput{
 			Satoshis:          must.ConvertToUInt64(o.Satoshis),
 			Spendable:         o.Spendable,
@@ -140,7 +142,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.W
 			OutputIndex:       o.Vout,
 			OutputDescription: o.Description,
 			Basket:            optional.OfPtr(o.BasketName).OrZeroValue(),
-			LockingScript:     optional.OfPtr(o.LockingScript).OrZeroValue(),
+			LockingScript:     lockingScript,
 		})
 	}
 
@@ -190,7 +192,7 @@ func (l *listActions) mapToWalletActionInputs(inputs []*entity.Output, rawTx []b
 		}
 
 		if includeSourceLockingScripts.Value() && o.LockingScript != nil {
-			input.SourceLockingScript = *o.LockingScript
+			input.SourceLockingScript = o.LockingScript.Hex()
 		}
 
 		if tx != nil && includeUnlockingScripts.Value() {

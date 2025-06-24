@@ -333,3 +333,32 @@ func (p *ProvenTxReq) SetStatusForProvenTxAboveAttempts(ctx context.Context, att
 	}
 	return nil
 }
+
+func (p *ProvenTxReq) FindProvenTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
+	var model models.ProvenTxReq
+	err := p.db.WithContext(ctx).
+		Model(&model).
+		Where("tx_id = ? ", txID).
+		First(&model).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find proven tx: %w", err)
+	}
+
+	return &entity.KnownTx{
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
+		TxID:        model.TxID,
+		Status:      model.Status,
+		Attempts:    model.Attempts,
+		Notified:    model.Notified,
+		RawTx:       model.RawTx,
+		InputBEEF:   model.InputBeef,
+		BlockHeight: model.BlockHeight,
+		MerklePath:  model.MerklePath,
+		MerkleRoot:  model.MerkleRoot,
+		BlockHash:   model.BlockHash,
+	}, nil
+}

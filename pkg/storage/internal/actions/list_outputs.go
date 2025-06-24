@@ -108,7 +108,7 @@ func (l *listOutputs) outputModelToResult(m *entity.Output) *wdk.WalletOutput {
 	}
 
 	if m.LockingScript != nil {
-		result.LockingScript = to.Ptr(primitives.HexString(*m.LockingScript))
+		result.LockingScript = to.Ptr(primitives.HexString(m.LockingScript.Hex()))
 	}
 
 	return result

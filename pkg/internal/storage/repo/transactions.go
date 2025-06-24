@@ -117,6 +117,15 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 		}
 	})
 
+	var lockingScript []byte
+	if output.LockingScript != nil {
+		var err error
+		lockingScript, err = output.LockingScript.ToBytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert locking script to bytes: %w", err)
+		}
+	}
+
 	out := models.Output{
 		Vout:               output.Vout,
 		UserID:             userID,
@@ -129,7 +138,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 		Type:               string(output.Type),
 		DerivationPrefix:   output.DerivationPrefix,
 		DerivationSuffix:   output.DerivationSuffix,
-		LockingScript:      (*string)(output.LockingScript),
+		LockingScript:      lockingScript,
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
 		BasketName:         output.BasketName,
@@ -269,7 +278,7 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 
 	for _, output := range changeOutputs {
 		output.Spendable = true
-		output.LockingScript, err = updatedTx.GetLockingScript(output.Vout)
+		output.LockingScript, err = updatedTx.GetLockingScriptBytes(output.Vout)
 		if err != nil {
 			return fmt.Errorf("failed to get locking script: %w", err)
 		}
@@ -374,6 +383,10 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
+		}
+
+		if total == 0 {
+			return nil
 		}
 
 		if err := query.

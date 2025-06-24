@@ -37,11 +37,11 @@ func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyn
 		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
 	}
 
-	chunk := &wdk.SyncChunk{
-		FromStorageIdentityKey: args.FromStorageIdentityKey,
-		ToStorageIdentityKey:   args.ToStorageIdentityKey,
-		UserIdentityKey:        args.IdentityKey,
-	}
+	chunk := wdk.NewSyncChunk(
+		args.FromStorageIdentityKey,
+		args.ToStorageIdentityKey,
+		args.IdentityKey,
+	)
 
 	if args.Since == nil || user.UpdatedAt.After(*args.Since) {
 		chunk.User = user.ToWDK()

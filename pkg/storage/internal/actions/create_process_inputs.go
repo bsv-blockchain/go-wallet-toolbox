@@ -219,7 +219,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 }
 
 func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionInput, output *entity.Output) (*xinputDefinition, error) {
-	if output.LockingScript == nil || len(*output.LockingScript) == 0 || output.Satoshis <= 0 {
+	if len(output.LockingScript) == 0 || output.Satoshis <= 0 {
 		return nil, fmt.Errorf("output %s has no locking script or positive satoshis", xinput.Outpoint)
 	}
 
@@ -230,7 +230,7 @@ func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionI
 	return &xinputDefinition{
 		ValidCreateActionInput: xinput,
 		Satoshis:               satoshi.MustFrom(output.Satoshis),
-		LockingScript:          *output.LockingScript,
+		LockingScript:          output.LockingScript.Hex(),
 		knownOutput:            output,
 	}, nil
 }
