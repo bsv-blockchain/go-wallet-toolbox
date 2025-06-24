@@ -9,7 +9,7 @@ import (
 type ListOutputsArgs struct {
 	Basket                    primitives.StringUnder300                   `json:"basket,omitempty"`
 	Tags                      []primitives.StringUnder300                 `json:"tags,omitempty"`
-	TagQueryMode              *defs.QueryMode                             `json:"tagQueryMode,omitempty"` // 'all' or 'any'
+	TagQueryMode              *defs.QueryMode                             `json:"tagQueryMode,omitempty"`
 	IncludeLockingScripts     bool                                        `json:"includeLockingScripts,omitempty"`
 	IncludeTransactions       bool                                        `json:"includeTransactions,omitempty"`
 	IncludeCustomInstructions bool                                        `json:"includeCustomInstructions,omitempty"`

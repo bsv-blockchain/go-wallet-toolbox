@@ -14,7 +14,7 @@ type Output struct {
 	SpentBy       *uint
 	Satoshis      int64
 
-	TxID *string //NOTE: TxID could be nil if the owning transaction is not yet processed.
+	TxID *string //NOTE: TxID can be nil if the owning transaction is not yet processed.
 	Vout uint32
 
 	LockingScript      *string

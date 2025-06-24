@@ -99,7 +99,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
 }
 
-func TestCreateActionOutputTagsTags(t *testing.T) {
+func TestCreateActionOutputTags(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
