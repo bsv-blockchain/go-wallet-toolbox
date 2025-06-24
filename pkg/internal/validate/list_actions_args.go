@@ -11,11 +11,9 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 	if args == nil {
 		return fmt.Errorf("args cannot be nil")
 	}
-
-	if args.LabelQueryMode != nil {
-		if err := args.LabelQueryMode.Validate(); err != nil {
-			return fmt.Errorf("invalid labelQueryMode: %s", *args.LabelQueryMode)
-		}
+	
+	if err := args.LabelQueryMode.Validate(); err != nil {
+		return fmt.Errorf("invalid labelQueryMode: %s", *args.LabelQueryMode)
 	}
 
 	if args.Limit > MaxPaginationLimit {

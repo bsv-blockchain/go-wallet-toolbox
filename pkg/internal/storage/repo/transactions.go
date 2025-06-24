@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -362,7 +363,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 				Where("label_name IN ?", filter.Labels).
 				Where("label_user_id = ?", userID)
 
-			if filter.IncludeAllLabels {
+			if filter.LabelQueryMode == defs.QueryModeAll {
 				labelSubQuery = labelSubQuery.
 					Group("transaction_id").
 					Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))

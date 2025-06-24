@@ -1,6 +1,7 @@
 package validate_test
 
 import (
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"strings"
 	"testing"
 
@@ -17,7 +18,14 @@ func TestListActionsArgs(t *testing.T) {
 	}{
 		"valid labels and defaults": {
 			args: &wdk.ListActionsArgs{
-				LabelQueryMode:  to.Ptr(primitives.LabelQueryModeString("any")),
+				LabelQueryMode:  to.Ptr(defs.QueryModeAny),
+				Labels:          []primitives.StringUnder300{"valid-label"},
+				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
+			},
+		},
+		"valid empty string as query mode": {
+			args: &wdk.ListActionsArgs{
+				LabelQueryMode:  to.Ptr(defs.QueryMode("")),
 				Labels:          []primitives.StringUnder300{"valid-label"},
 				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
@@ -26,7 +34,7 @@ func TestListActionsArgs(t *testing.T) {
 			args: &wdk.ListActionsArgs{
 				Limit:           validate.MaxPaginationLimit,
 				Offset:          validate.MaxPaginationOffset,
-				LabelQueryMode:  to.Ptr(primitives.LabelQueryModeString("all")),
+				LabelQueryMode:  to.Ptr(defs.QueryModeAll),
 				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
 		},
@@ -56,7 +64,7 @@ func TestWrongListActionsArgs(t *testing.T) {
 			args: &wdk.ListActionsArgs{Offset: validate.MaxPaginationOffset + 1},
 		},
 		"invalid labelQueryMode": {
-			args: &wdk.ListActionsArgs{LabelQueryMode: to.Ptr(primitives.LabelQueryModeString("unknown"))},
+			args: &wdk.ListActionsArgs{LabelQueryMode: to.Ptr(defs.QueryMode("unknown"))},
 		},
 		"seekPermissions set to false": {
 			args: &wdk.ListActionsArgs{SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(false))},

@@ -3,9 +3,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strings"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
@@ -13,21 +10,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	commonslices "github.com/go-softwarelab/common/pkg/slices"
+	"slices"
 )
-
-func (l *listActions) boolFromLabelQueryMode(labelQueryMode *primitives.LabelQueryModeString) (bool, error) {
-	if labelQueryMode == nil {
-		return false, nil
-	}
-	switch strings.ToLower(string(*labelQueryMode)) {
-	case "all":
-		return true, nil
-	case "any":
-		return false, nil
-	default:
-		return false, fmt.Errorf("invalid LabelQueryMode: %s", *labelQueryMode)
-	}
-}
 
 func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) {
 	labelNames := commonslices.Map(args.Labels, func(label primitives.StringUnder300) string {
@@ -38,18 +22,19 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 		wdk.TxStatusCompleted, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnproven,
 		wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal,
 	}
-	labelQueryMode, err := l.boolFromLabelQueryMode(args.LabelQueryMode)
+
+	labelQueryMode, err := args.LabelQueryMode.Value()
 	if err != nil {
-		return entity.ListActionsFilter{}, fmt.Errorf("failed to parse LabelQueryMode: %w", err)
+		return entity.ListActionsFilter{}, fmt.Errorf("failed to get label query mode: %w", err)
 	}
 
 	return entity.ListActionsFilter{
-		UserID:           userID,
-		Labels:           labelNames,
-		Status:           statuses,
-		IncludeAllLabels: labelQueryMode,
-		Limit:            must.ConvertToIntFromUnsigned(args.Limit),
-		Offset:           must.ConvertToIntFromUnsigned(args.Offset),
+		UserID:         userID,
+		Labels:         labelNames,
+		Status:         statuses,
+		LabelQueryMode: labelQueryMode,
+		Limit:          must.ConvertToIntFromUnsigned(args.Limit),
+		Offset:         must.ConvertToIntFromUnsigned(args.Offset),
 	}, nil
 }
 
