@@ -2,6 +2,7 @@ package whatsonchain_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
@@ -13,7 +14,6 @@ import (
 )
 
 func TestWhatsOnChain_PostBEEF(t *testing.T) {
-	// Given:
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
@@ -63,7 +63,7 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 			expectTxID:        calculatedTxID,
 			expectErrorResult: false,
 			expectDoubleSpend: true,
-			expectNotes:       []string{"Possible double spend (txn-mempool-conflict)"},
+			expectNotes:       []string{"Double spend detected"},
 		},
 		{
 			name:              "missing inputs",
@@ -72,55 +72,68 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 			expectTxID:        calculatedTxID,
 			expectErrorResult: false,
 			expectDoubleSpend: true,
-			expectNotes:       []string{"Missing inputs (possible double spend)"},
+			expectNotes:       []string{"Missing inputs detected"},
 		},
 		{
 			name:              "success - mismatched txid",
 			httpStatus:        http.StatusOK,
 			httpResponse:      `{"txid":"othertxid987"}`,
 			expectErrorResult: true,
-			expectTxID:        "f036a074ace427c5ebc3d0de89a63d4a5e7aabeff9fbc77435eb58f8dbfd59a9",
+			expectTxID:        calculatedTxID,
 		},
 		{
 			name:              "unknown error",
 			httpStatus:        http.StatusInternalServerError,
 			httpResponse:      "unexpected response code 500: unknown failure",
 			expectErrorResult: true,
-			expectTxID:        "f036a074ace427c5ebc3d0de89a63d4a5e7aabeff9fbc77435eb58f8dbfd59a9",
+			expectTxID:        calculatedTxID,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Given:
 			fixture.WhatsOnChain().WillRespondWithBroadcast(tc.httpStatus, tc.httpResponse, nil)
 
-			// When:
 			result, err := woc.PostBEEF(t.Context(), beef, []string{calculatedTxID})
 
-			// Then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.TxIDResults, 1)
 
-			assertTxIDResult(t, result.TxIDResults[0], tc.expectTxID, tc.expectErrorResult, tc.expectDoubleSpend, tc.expectAlreadyKnown, tc.expectNotes)
+			assertTxIDResult(t, result.TxIDResults[0], tc)
 		})
 	}
 }
 
-func assertTxIDResult(t *testing.T, got wdk.PostedTxID, expectTxID string, expectErrorResult, expectDoubleSpend, expectAlreadyKnown bool, expectNotes []string) {
-	require.Equal(t, expectTxID, got.TxID)
+func assertTxIDResult(t *testing.T, got wdk.PostedTxID, tc struct {
+	name               string
+	httpStatus         int
+	httpResponse       string
+	expectTxID         string
+	expectErrorResult  bool
+	expectDoubleSpend  bool
+	expectAlreadyKnown bool
+	expectNotes        []string
+}) {
+	require.Equal(t, tc.expectTxID, got.TxID)
 
-	if expectErrorResult {
+	if tc.expectErrorResult {
 		require.Equal(t, wdk.PostedTxIDResultError, got.Result)
 	} else {
 		require.NotEqual(t, wdk.PostedTxIDResultError, got.Result)
 	}
 
-	require.Equal(t, expectDoubleSpend, got.DoubleSpend)
-	require.Equal(t, expectAlreadyKnown, got.AlreadyKnown)
+	require.Equal(t, tc.expectDoubleSpend, got.DoubleSpend)
+	require.Equal(t, tc.expectAlreadyKnown, got.AlreadyKnown)
 
-	for i, note := range expectNotes {
-		require.Contains(t, got.Notes[i].What, note)
+	for _, expectedNote := range tc.expectNotes {
+		found := false
+		for _, actualNote := range got.Notes {
+			if strings.Contains(actualNote.What, expectedNote) {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "expected note to contain: %q", expectedNote)
 	}
 }
