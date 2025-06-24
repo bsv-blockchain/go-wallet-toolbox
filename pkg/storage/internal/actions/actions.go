@@ -39,7 +39,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 		),
 		process:               newProcessAction(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, services),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.ProvenTxReq),
-		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.ProvenTxReq),
+		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.ProvenTxReq, repos.KeyValue),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.ProvenTxReq, repos.OutputBaskets),
 	}
 }
