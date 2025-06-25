@@ -92,10 +92,13 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Given:
 			fixture.WhatsOnChain().WillRespondWithBroadcast(tc.httpStatus, tc.httpResponse, nil)
 
+			// When:
 			result, err := woc.PostBEEF(t.Context(), beef, []string{calculatedTxID})
 
+			// Then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.TxIDResults, 1)

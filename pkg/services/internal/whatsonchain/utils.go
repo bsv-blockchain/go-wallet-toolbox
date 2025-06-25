@@ -48,7 +48,7 @@ func classifyBroadcastStatus(status BroadcastStatus) (wdk.PostedTxIDResultStatus
 	case StatusError:
 		return wdk.PostedTxIDResultError, []string{"Broadcast status error"}
 	default:
-		return wdk.PostedTxIDResultError, []string{"Unknown error"}
+		return wdk.PostedTxIDResultError, []string{fmt.Sprintf("Unknown error: unexpected BroadcastStatus value '%v'", status)}
 	}
 }
 
@@ -64,11 +64,14 @@ func convertNotes(notes []string) wdk.Notes {
 	return converted
 }
 
-func containsI(a string, b string) bool {
-	return strings.Contains(
-		strings.ToLower(a),
-		strings.ToLower(b),
-	)
+func containsI(subject string, contains ...string) bool {
+	subject = strings.ToLower(subject)
+	for _, c := range contains {
+		if strings.Contains(subject, strings.ToLower(c)) {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonNilError(errs ...error) error {

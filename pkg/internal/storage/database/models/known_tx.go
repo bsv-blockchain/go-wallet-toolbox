@@ -7,7 +7,7 @@ import (
 	"gorm.io/datatypes"
 )
 
-type ProvenTxReq struct {
+type KnownTx struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -28,7 +28,7 @@ type ProvenTxReq struct {
 	BlockHash   *string
 }
 
-func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any) {
+func (p *KnownTx) AddNote(when time.Time, what string, attrs map[string]any) {
 	note := HistoryNote{
 		When:  when,
 		What:  what,
@@ -45,6 +45,6 @@ func (p *ProvenTxReq) AddNote(when time.Time, what string, attrs map[string]any)
 }
 
 // HasMerklePath returns true if the MerklePath field contains data, indicating the presence of a Merkle proof.
-func (p *ProvenTxReq) HasMerklePath() bool {
+func (p *KnownTx) HasMerklePath() bool {
 	return len(p.MerklePath) > 0
 }

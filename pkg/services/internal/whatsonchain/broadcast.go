@@ -29,9 +29,9 @@ type txBroadcastResponse struct {
 	TxID string `json:"txid"`
 }
 
-type txInfoResponse struct {
-	BlockHash   string `json:"blockhash"`
-	BlockHeight int64  `json:"blockheight"`
+type txInfoResult struct {
+	BlockHash   string
+	BlockHeight int64
 }
 
 func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (BroadcastStatus, string, error) {
@@ -58,7 +58,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		responseText := res.String()
 
 		switch {
-		case containsI(responseText, "already in mempool"), containsI(responseText, "txn-already-known"):
+		case containsI(responseText, "already in mempool", "txn-already-known"):
 			return StatusAlreadyBroadcasted, txid, nil
 		case containsI(responseText, "txn-mempool-conflict"):
 			return StatusDoubleSpend, txid, nil
@@ -76,7 +76,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 	return StatusSuccess, txid, nil
 }
 
-func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoResponse, error) {
+func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
 	type wocStatusRequest struct {
 		Txids []string `json:"txids"`
 	}
@@ -114,7 +114,7 @@ func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoR
 		return nil, fmt.Errorf("no data returned for txid: %s", txid)
 	}
 
-	return &txInfoResponse{
+	return &txInfoResult{
 		BlockHash:   resp[0].BlockHash,
 		BlockHeight: resp[0].BlockHeight,
 	}, nil
@@ -134,7 +134,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 
 	resultStatus, notes := classifyBroadcastStatus(status)
 
-	blockHash, blockHeight, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
+	txInfo, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
 		notes = append(notes, fmt.Sprintf("failed to fetch tx info: %v", fetchErr))
 	}
@@ -144,17 +144,20 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		TxID:         returnedTxid,
 		DoubleSpend:  status == StatusDoubleSpend || status == StatusMissingInputs,
 		AlreadyKnown: status == StatusAlreadyBroadcasted,
-		BlockHash:    blockHash,
-		BlockHeight:  blockHeight,
+		BlockHash:    txInfo.BlockHash,
+		BlockHeight:  txInfo.BlockHeight,
 		Error:        firstNonNilError(fetchErr),
 		Notes:        convertNotes(notes),
 	}
 }
 
-func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (string, int64, error) {
+func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
 	info, err := woc.fetchTxInfo(ctx, txid)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to fetch tx info: %w", err)
+		return nil, fmt.Errorf("failed to fetch tx info: %w", err)
 	}
-	return info.BlockHash, info.BlockHeight, nil
+	return &txInfoResult{
+		BlockHash:   info.BlockHash,
+		BlockHeight: info.BlockHeight,
+	}, nil
 }

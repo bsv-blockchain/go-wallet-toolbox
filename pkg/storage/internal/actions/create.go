@@ -62,7 +62,7 @@ type create struct {
 	basketRepo    BasketRepo
 	txRepo        TransactionsRepo
 	outputRepo    OutputRepo
-	provenTxRepo  ProvenTxRepo
+	knownTxRepo   KnownTxRepo
 	commission    *commission.ScriptGenerator
 	commissionCfg defs.Commission
 	random        wdk.Randomizer
@@ -75,7 +75,7 @@ func newCreateAction(
 	basketRepo BasketRepo,
 	txRepo TransactionsRepo,
 	outputRepo OutputRepo,
-	provenTxRepo ProvenTxRepo,
+	knownTxRepo KnownTxRepo,
 	random wdk.Randomizer,
 ) *create {
 	logger = logging.Child(logger, "createAction")
@@ -86,7 +86,7 @@ func newCreateAction(
 		txRepo:        txRepo,
 		commissionCfg: commissionCfg,
 		outputRepo:    outputRepo,
-		provenTxRepo:  provenTxRepo,
+		knownTxRepo:   knownTxRepo,
 		random:        random,
 	}
 
@@ -451,7 +451,7 @@ func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *wdk
 	}
 
 	if includeRawTxs {
-		sourceTx, err := c.provenTxRepo.FindProvenTxRawTX(ctx, txID)
+		sourceTx, err := c.knownTxRepo.FindKnownTxRawTx(ctx, txID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find source transaction of TxID = %s: %w", txID, err)
 		}
