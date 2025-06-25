@@ -11,5 +11,5 @@ type ProcessActionArgs struct {
 	Reference  *string                      `json:"reference,omitempty"`
 	TxID       *primitives.TXIDHexString    `json:"txid,omitempty"`
 	RawTx      primitives.ExplicitByteArray `json:"rawTx,omitempty"`
-	SendWith   []string                     `json:"sendWith"`
+	SendWith   []primitives.TXIDHexString   `json:"sendWith"`
 }

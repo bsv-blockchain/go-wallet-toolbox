@@ -15,6 +15,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -59,6 +60,8 @@ type storageFixture struct {
 	testServer *httptest.Server
 	db         *database.Database
 
+	providerFixture ProviderFixture
+
 	storagePrivKey string
 	storageName    string
 }
@@ -86,19 +89,7 @@ func (s *storageFixture) MockProvider() *mocks.MockWalletStorageProvider {
 
 func (s *storageFixture) Provider() ProviderFixture {
 	s.t.Helper()
-	return &providerFixture{
-		t:       s.t,
-		require: s.require,
-		logger:  s.logger,
-		db:      s.db,
-
-		network:        defs.NetworkTestnet,
-		commission:     defs.Commission{},
-		feeModel:       defs.DefaultFeeModel(),
-		randomizer:     randomizer.New(),
-		storagePrivKey: s.storagePrivKey,
-		storageName:    s.storageName,
-	}
+	return s.providerFixture
 }
 
 func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture {
@@ -129,25 +120,44 @@ func (s *storageFixture) StorageIdentityKey() string {
 }
 
 func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
-	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
-	return &storageFixture{
-		t:              t,
-		require:        require.New(t),
-		logger:         logging.NewTestLogger(t),
-		db:             db,
-		storagePrivKey: fixtures.StorageServerPrivKey,
-		storageName:    fixtures.StorageName,
-	}, dbCleanup
+	return newStorageFixture(t, fixtures.StorageServerPrivKey, fixtures.StorageName, configModifiers...)
 }
 
 func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
-	db, dbCleanup := dbfixtures.TestDatabase(t, dbfixtures.WithSQLiteFileName(name))
-	return &storageFixture{
+	return newStorageFixture(t, identityKey, name, dbfixtures.WithSQLiteFileName(name))
+}
+
+func newStorageFixture(t testing.TB, identityKey string, name string, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
+	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
+
+	s := &storageFixture{
 		t:              t,
 		require:        require.New(t),
 		logger:         logging.NewTestLogger(t),
 		db:             db,
 		storagePrivKey: identityKey,
 		storageName:    name,
-	}, dbCleanup
+	}
+
+	network := defs.NetworkTestnet
+
+	servicesFixture := testservices.GivenServicesWithNetwork(t, network)
+
+	s.providerFixture = &providerFixture{
+		t:       s.t,
+		require: s.require,
+		logger:  s.logger,
+		db:      s.db,
+
+		ServicesFixture: servicesFixture,
+
+		network:        network,
+		commission:     defs.Commission{},
+		feeModel:       defs.DefaultFeeModel(),
+		randomizer:     randomizer.New(),
+		storagePrivKey: s.storagePrivKey,
+		storageName:    s.storageName,
+	}
+
+	return s, dbCleanup
 }

@@ -47,13 +47,13 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 	}
 }
 
-func DefaultWalletCreateActionArgs(t *testing.T) sdk.CreateActionArgs {
+func DefaultWalletCreateActionArgs(t *testing.T, opts ...func(*sdk.CreateActionArgs)) sdk.CreateActionArgs {
 	t.Helper()
 
 	var lockingScript, err = script.NewFromHex("76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac")
 	require.NoError(t, err, "Failed to decode locking script: INVALID TEST SETUP")
 
-	return sdk.CreateActionArgs{
+	args := to.OptionsWithDefault(sdk.CreateActionArgs{
 		Description: "test transaction",
 		InputBEEF:   nil,
 		Inputs:      nil,
@@ -74,5 +74,7 @@ func DefaultWalletCreateActionArgs(t *testing.T) sdk.CreateActionArgs {
 			SignAndProcess:         to.Ptr(true),
 			RandomizeOutputs:       to.Ptr(false),
 		},
-	}
+	}, opts...)
+
+	return args
 }

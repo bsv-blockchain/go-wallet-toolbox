@@ -32,9 +32,11 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("create action is meant to create a new transaction")
 	}
 
-	deducedIsSignAction := args.IsNewTx && (!args.Options.SignAndProcess.Value() || containsNilUnlockingScript(args.Inputs))
-	if args.IsSignAction != deducedIsSignAction {
-		return fmt.Errorf("inconsistent IsSignAction with IsNewTx and Options.SignAndProcess and Inputs.UnlockingScript")
+	deducedIsSignAction := args.IsNewTx && !args.Options.SignAndProcess.Value()
+	if deducedIsSignAction && !args.IsSignAction {
+		// because wallet is removing unlocking scripts before sending,
+		// therefore we can only check the situation, when IsNewTx and SignAndProcess are true but IsSignAction is false
+		return fmt.Errorf("inconsistent IsSignAction (%v) with IsNewTx (%v) and Options.SignAndProcess (%v)", args.IsSignAction, args.IsNewTx, args.Options.SignAndProcess.Value())
 	}
 
 	deducedIsDelayed := args.Options.AcceptDelayedBroadcast.Value()
@@ -131,13 +133,4 @@ func validateCreateActionOutput(output *wdk.ValidCreateActionOutput) error {
 	}
 
 	return nil
-}
-
-func containsNilUnlockingScript(inputs []wdk.ValidCreateActionInput) bool {
-	for _, input := range inputs {
-		if input.UnlockingScript == nil {
-			return true
-		}
-	}
-	return false
 }

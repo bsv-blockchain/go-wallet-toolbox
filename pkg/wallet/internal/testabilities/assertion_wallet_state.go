@@ -30,6 +30,7 @@ type WalletStateAssertion interface {
 }
 
 type WalletActionAssertion interface {
+	WithStatus(expected sdk.ActionStatus) WalletActionAssertion
 	WithDescription(expected string) WalletActionAssertion
 	WithLabels(expected ...string) WalletActionAssertion
 	WithTxID(expected string) WalletActionAssertion
@@ -95,6 +96,12 @@ type walletActionAssertion struct {
 	testing.TB
 	wallet WalletReader
 	action *sdk.Action
+}
+
+func (a *walletActionAssertion) WithStatus(expected sdk.ActionStatus) WalletActionAssertion {
+	a.Helper()
+	assert.Equal(a, expected, a.action.Status, "Action status does not match")
+	return a
 }
 
 func (a *walletActionAssertion) WithDescription(expected string) WalletActionAssertion {

@@ -1,4 +1,4 @@
-package mapping
+package actions
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-type CreateActionTransactionAssembler struct {
+type createActionTransactionAssembler struct {
 	tx                 *transaction.Transaction
 	keyDeriver         *wallet.KeyDeriver
 	createActionResult *wdk.StorageCreateActionResult
@@ -23,8 +23,8 @@ type CreateActionTransactionAssembler struct {
 	inputBEEF          *transaction.Beef
 }
 
-func NewCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, createActionResult *wdk.StorageCreateActionResult, args wallet.CreateActionArgs) *CreateActionTransactionAssembler {
-	return &CreateActionTransactionAssembler{
+func newCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, createActionResult *wdk.StorageCreateActionResult, args wallet.CreateActionArgs) *createActionTransactionAssembler {
+	return &createActionTransactionAssembler{
 		keyDeriver:         keyDeriver,
 		createActionResult: createActionResult,
 		args:               args,
@@ -32,7 +32,7 @@ func NewCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, createAc
 	}
 }
 
-func (a *CreateActionTransactionAssembler) Assemble() (*transaction.Transaction, error) {
+func (a *createActionTransactionAssembler) Assemble() (*transaction.Transaction, error) {
 	err := a.parseInputBEEF()
 	if err != nil {
 		return nil, err
@@ -53,12 +53,12 @@ func (a *CreateActionTransactionAssembler) Assemble() (*transaction.Transaction,
 	return a.tx, nil
 }
 
-func (a *CreateActionTransactionAssembler) fillTransactionHeader() {
+func (a *createActionTransactionAssembler) fillTransactionHeader() {
 	a.tx.Version = a.createActionResult.Version
 	a.tx.LockTime = a.createActionResult.LockTime
 }
 
-func (a *CreateActionTransactionAssembler) fillInputs() error {
+func (a *createActionTransactionAssembler) fillInputs() error {
 	inputs := seq.MapOrErr(a.inputs(), a.toTxInput)
 	err := seqerr.ForEach(inputs, a.tx.AddInput)
 	if err != nil {
@@ -67,7 +67,7 @@ func (a *CreateActionTransactionAssembler) fillInputs() error {
 	return nil
 }
 
-func (a *CreateActionTransactionAssembler) fillOutputs() error {
+func (a *createActionTransactionAssembler) fillOutputs() error {
 	outputs := seq.MapOrErr(a.outputs(), a.toTxOutput)
 	err := seqerr.ForEach(outputs, a.tx.AddOutput)
 	if err != nil {
@@ -76,17 +76,17 @@ func (a *CreateActionTransactionAssembler) fillOutputs() error {
 	return nil
 }
 
-func (a *CreateActionTransactionAssembler) inputs() iter.Seq[*wdk.StorageCreateTransactionSdkInput] {
+func (a *createActionTransactionAssembler) inputs() iter.Seq[*wdk.StorageCreateTransactionSdkInput] {
 	return seq.SortBy(seq.FromSlice(a.createActionResult.Inputs), func(it *wdk.StorageCreateTransactionSdkInput) int { return it.Vin })
 }
 
-func (a *CreateActionTransactionAssembler) outputs() iter.Seq[*wdk.StorageCreateTransactionSdkOutput] {
+func (a *createActionTransactionAssembler) outputs() iter.Seq[*wdk.StorageCreateTransactionSdkOutput] {
 	return seq.SortBy(seq.FromSlice(a.createActionResult.Outputs), func(it *wdk.StorageCreateTransactionSdkOutput) uint32 {
 		return it.Vout
 	})
 }
 
-func (a *CreateActionTransactionAssembler) toTxInput(it *wdk.StorageCreateTransactionSdkInput) (*transaction.TransactionInput, error) {
+func (a *createActionTransactionAssembler) toTxInput(it *wdk.StorageCreateTransactionSdkInput) (*transaction.TransactionInput, error) {
 	sourceTxID, err := chainhash.NewHashFromHex(it.SourceTxID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse input %d source txid returned from storage: %w", it.Vin, err)
@@ -102,7 +102,7 @@ func (a *CreateActionTransactionAssembler) toTxInput(it *wdk.StorageCreateTransa
 
 }
 
-func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash) (*transaction.TransactionInput, error) {
+func (a *createActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash) (*transaction.TransactionInput, error) {
 	if it.Type != wdk.OutputTypeP2PKH {
 		return nil, fmt.Errorf("unexpected locking script type %q on input %d managed by storage", it.Type, it.Vin)
 	}
@@ -140,7 +140,7 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 	return input, nil
 }
 
-func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash) (*transaction.TransactionInput, error) {
+func (a *createActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash) (*transaction.TransactionInput, error) {
 	if it.Vin < 0 {
 		return nil, fmt.Errorf("unexpected negative input index %d", it.Vin)
 	}
@@ -161,11 +161,11 @@ func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCrea
 	}, nil
 }
 
-func (a *CreateActionTransactionAssembler) isInputFromArgs(it *wdk.StorageCreateTransactionSdkInput) bool {
+func (a *createActionTransactionAssembler) isInputFromArgs(it *wdk.StorageCreateTransactionSdkInput) bool {
 	return len(a.args.Inputs) > it.Vin
 }
 
-func (a *CreateActionTransactionAssembler) parseInputBEEF() error {
+func (a *createActionTransactionAssembler) parseInputBEEF() error {
 	inputBEEF, err := transaction.NewBeefFromBytes(a.createActionResult.InputBeef)
 	if err != nil {
 		return fmt.Errorf("cannot parse inputBeef: %w", err)
@@ -174,7 +174,7 @@ func (a *CreateActionTransactionAssembler) parseInputBEEF() error {
 	return nil
 }
 
-func (a *CreateActionTransactionAssembler) toTxOutput(it *wdk.StorageCreateTransactionSdkOutput) (*transaction.TransactionOutput, error) {
+func (a *createActionTransactionAssembler) toTxOutput(it *wdk.StorageCreateTransactionSdkOutput) (*transaction.TransactionOutput, error) {
 	var err error
 	isChange := it.ProvidedBy == wdk.ProvidedByStorage && it.Purpose == "change"
 
@@ -198,7 +198,7 @@ func (a *CreateActionTransactionAssembler) toTxOutput(it *wdk.StorageCreateTrans
 	}, nil
 }
 
-func (a *CreateActionTransactionAssembler) changeLockingScript(it *wdk.StorageCreateTransactionSdkOutput) (*script.Script, error) {
+func (a *createActionTransactionAssembler) changeLockingScript(it *wdk.StorageCreateTransactionSdkOutput) (*script.Script, error) {
 	keyID := brc29.KeyID{
 		DerivationPrefix: a.createActionResult.DerivationPrefix,
 		DerivationSuffix: to.Value(it.DerivationSuffix),

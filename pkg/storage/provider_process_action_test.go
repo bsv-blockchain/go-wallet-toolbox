@@ -36,7 +36,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
@@ -78,7 +78,7 @@ func TestProcessActionTwice(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
@@ -154,7 +154,7 @@ func TestProcessActionErrorCases(t *testing.T) {
 				Reference:  to.Ptr(createActionResult.Reference),
 				TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 				RawTx:      signedTx.Bytes(),
-				SendWith:   []string{},
+				SendWith:   []primitives.TXIDHexString{},
 			})
 
 			// when:
@@ -192,7 +192,7 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
@@ -240,7 +240,7 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:

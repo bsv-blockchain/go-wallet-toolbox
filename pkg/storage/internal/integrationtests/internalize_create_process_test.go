@@ -114,7 +114,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 			Reference:  to.Ptr(createdTxReference),
 			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		// when:
@@ -219,7 +219,7 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 			Reference:  to.Ptr(createdTxReference),
 			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		// when:
@@ -351,7 +351,7 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 			Reference:  to.Ptr(createdTxReference),
 			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		// when:
