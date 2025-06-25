@@ -39,7 +39,6 @@ const (
 // WalletServices is a struct that has options for wallet services
 type WalletServices struct {
 	Chain                           BSVNetwork        `mapstructure:"-"`
-	BitailsAPIKey                   *string           `mapstructure:"bitails_api_key"`
 	FiatExchangeRates               FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
 	FiatUpdateInterval              *time.Duration    `mapstructure:"fiat_update_interval"`
 	DisableMapiCallback             bool              `mapstructure:"disable_mapi_callback"`

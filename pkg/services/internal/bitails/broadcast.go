@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type broadcastRequest struct {

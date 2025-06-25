@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestPostBEEF(t *testing.T) {
@@ -19,7 +20,6 @@ func TestPostBEEF(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
-		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
 		beef, err := sdk.NewBeefFromTransaction(tx)
 		require.NoError(t, err)
@@ -73,10 +73,10 @@ func TestPostBEEF(t *testing.T) {
 
 		services := given.Services().WithDefaultConfig()
 
-		// when:
+		// When
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// then:
+		// Then
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
