@@ -32,7 +32,7 @@ type ValidSyncChunkAssertion interface {
 	BasketsCount(length int) ValidSyncChunkAssertion
 	BasketAtIndex(index int) BasketAssertion
 
-	KnownTxsCount(length int) ValidSyncChunkAssertion
+	ProvenTxReqsCount(length int) ValidSyncChunkAssertion
 	ProvenTxReqAtIndex(index int) ProvenTxReqAssertion
 
 	ProvenTxsCount(length int) ValidSyncChunkAssertion
@@ -144,7 +144,7 @@ func (s *syncChunkAssertion) WithoutUser() ValidSyncChunkAssertion {
 func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.Helper()
 	s.BasketsCount(0)
-	s.KnownTxsCount(0)
+	s.ProvenTxReqsCount(0)
 	s.ProvenTxsCount(0)
 	s.TransactionsCount(0)
 	return s
@@ -205,7 +205,7 @@ func (b *basketAssertion) IsDefaultBasket() BasketAssertion {
 	return b
 }
 
-func (s *syncChunkAssertion) KnownTxsCount(length int) ValidSyncChunkAssertion {
+func (s *syncChunkAssertion) ProvenTxReqsCount(length int) ValidSyncChunkAssertion {
 	s.Helper()
 	assert.Len(s, s.chunk.ProvenTxReqs, length)
 	return s

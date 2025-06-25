@@ -1,8 +1,6 @@
 package testabilities
 
 import (
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-softwarelab/common/pkg/seq"
 	"testing"
 	"time"
 
@@ -12,7 +10,9 @@ import (
 	pkgtestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )

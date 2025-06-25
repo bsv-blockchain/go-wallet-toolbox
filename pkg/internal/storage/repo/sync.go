@@ -3,7 +3,6 @@ package repo
 import (
 	"context"
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/to"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -12,6 +11,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -108,7 +108,7 @@ func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...quer
 		err = tx.WithContext(ctx).
 			Model(&models.KnownTx{}).
 			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName, , clause.InnerJoin)).
+			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName, clause.InnerJoin)).
 			Scopes(scopes.FromQueryOpts(opts)...).
 			Scopes(s.provenTxWhereExistsScope(userID)).
 			Find(&resultModels).Error
@@ -147,7 +147,7 @@ func (s *Sync) FindTransactionsForSync(ctx context.Context, userID int, opts ...
 		// Make sure all numeric IDs of KnownTxs needed by user's transactions are present in the numeric ID lookup table.
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select("?, tx_id", s.naming.provenTxReqTableName).
+				Select("?, tx_id", s.naming.knownTxTableName).
 				Scopes(filters...).
 				Where("tx_id IS NOT NULL").
 				Find(&models.Transaction{})
@@ -159,8 +159,8 @@ func (s *Sync) FindTransactionsForSync(ctx context.Context, userID int, opts ...
 		err = tx.WithContext(ctx).
 			Model(&models.Transaction{}).
 			Select(fmt.Sprintf("%s.*, num.num_id, known_tx.block_height", s.naming.transactionsTableName)).
-			Scopes(s.joinWithNumericIDLookupScope(fmt.Sprintf("%s.tx_id", s.naming.transactionsTableName), s.naming.provenTxReqTableName, clause.LeftJoin)).
-			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.naming.provenTxReqTableName, s.naming.transactionsTableName)).
+			Scopes(s.joinWithNumericIDLookupScope(fmt.Sprintf("%s.tx_id", s.naming.transactionsTableName), s.naming.knownTxTableName, clause.LeftJoin)).
+			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.naming.knownTxTableName, s.naming.transactionsTableName)).
 			Scopes(filters...).
 			Find(&resultModels).Error
 		if err != nil {
