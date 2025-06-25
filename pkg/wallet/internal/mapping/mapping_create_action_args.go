@@ -1,12 +1,11 @@
 package mapping
 
 import (
-	"encoding/hex"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/is"
@@ -26,7 +25,7 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) wdk.V
 		Inputs:      slices.Map(args.Inputs, mapCreateActionInput),
 		Outputs:     slices.Map(args.Outputs, mapCreateActionOutput),
 		LockTime:    args.LockTime,
-		Version:     args.Version,
+		Version:     to.IfThen(args.Version != 0, args.Version).ElseThen(1),
 		Labels:      slices.Map(args.Labels, stringToStringUnder300),
 		Options:     options,
 
@@ -53,23 +52,20 @@ func withoutUnlockingScript(input wdk.ValidCreateActionInput) bool {
 }
 
 func mapCreateActionInput(input sdk.CreateActionInput) wdk.ValidCreateActionInput {
-	var unlockingScript *primitives.HexString
-	if len(input.UnlockingScript) != 0 {
-		script := primitives.HexString(hex.EncodeToString(input.UnlockingScript))
-		unlockingScript = &script
-	}
-
 	var unlockingScriptLength *primitives.PositiveInteger
-	if input.UnlockingScriptLength > 0 {
+	if len(input.UnlockingScript) > 0 {
+		unlockingScriptLength = to.Ptr(primitives.PositiveInteger(len(input.UnlockingScript)))
+	} else if input.UnlockingScriptLength > 0 {
 		length := primitives.PositiveInteger(input.UnlockingScriptLength)
 		unlockingScriptLength = &length
 	}
 
 	return wdk.ValidCreateActionInput{
-		Outpoint:              mapOutpoint(input.Outpoint),
-		InputDescription:      primitives.String5to2000Bytes(input.InputDescription),
-		SequenceNumber:        primitives.PositiveInteger(input.SequenceNumber),
-		UnlockingScript:       unlockingScript,
+		Outpoint:         mapOutpoint(input.Outpoint),
+		InputDescription: primitives.String5to2000Bytes(input.InputDescription),
+		SequenceNumber:   primitives.PositiveInteger(input.SequenceNumber),
+		// NOTICE: We don't want to send the unlocking script to the storage.
+		UnlockingScript:       nil,
 		UnlockingScriptLength: unlockingScriptLength,
 	}
 }
@@ -87,7 +83,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 	}
 
 	return wdk.ValidCreateActionOutput{
-		LockingScript:      primitives.HexString(output.LockingScript),
+		LockingScript:      primitives.HexString(script.NewFromBytes(output.LockingScript).String()),
 		Satoshis:           primitives.SatoshiValue(output.Satoshis),
 		OutputDescription:  primitives.String5to2000Bytes(output.OutputDescription),
 		Basket:             basket,

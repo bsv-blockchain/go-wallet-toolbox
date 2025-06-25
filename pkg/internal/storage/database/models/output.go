@@ -13,7 +13,7 @@ type Output struct {
 	Vout          uint32 `gorm:"index"`
 	Satoshis      int64
 
-	LockingScript      *string `gorm:"type:string"`
+	LockingScript      []byte
 	CustomInstructions *string `gorm:"type:string"`
 
 	DerivationPrefix *string

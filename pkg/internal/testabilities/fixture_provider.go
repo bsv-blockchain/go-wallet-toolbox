@@ -9,9 +9,11 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +24,8 @@ type ProviderFixture interface {
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
 
 	ARC() testservices.ARCFixture
+	WhatsOnChain() testservices.WhatsOnChainFixture
+	ServicesSniffer() *testutils.HTTPSniffer
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -44,6 +48,7 @@ type providerFixture struct {
 	db              *database.Database
 	activeStorage   *storage.Provider
 	servicesFixture testservices.ServicesFixture
+	servicesSniffer *testutils.HTTPSniffer
 }
 
 func (p *providerFixture) WithNetwork(network defs.BSVNetwork) ProviderFixture {
@@ -71,8 +76,19 @@ func (p *providerFixture) withServices() ProviderFixture {
 
 	p.servicesFixture.ARC().IsUpAndRunning()
 
-	p.services = services.New(p.logger, defs.DefaultServicesConfig(p.network), services.WithRestyClient(p.servicesFixture.ARC().HttpClient()))
+	mockTransport := p.servicesFixture.Transport()
+	p.servicesSniffer = testutils.NewHTTPSniffer(mockTransport)
+	client := resty.New()
+	client.SetTransport(p.servicesSniffer)
+
+	p.services = services.New(p.logger, defs.DefaultServicesConfig(p.network), services.WithRestyClient(client))
 	return p
+}
+
+func (p *providerFixture) ServicesSniffer() *testutils.HTTPSniffer {
+	p.t.Helper()
+	require.NotNil(p.t, p.servicesSniffer, "Sniffer() called without setting up services fixture")
+	return p.servicesSniffer
 }
 
 func (p *providerFixture) ARC() testservices.ARCFixture {
@@ -83,6 +99,16 @@ func (p *providerFixture) ARC() testservices.ARCFixture {
 
 	return p.servicesFixture.ARC()
 }
+
+func (p *providerFixture) WhatsOnChain() testservices.WhatsOnChainFixture {
+	p.t.Helper()
+	if p.servicesFixture == nil {
+		p.t.Fatal("WOC() called without setting up services fixture")
+	}
+
+	return p.servicesFixture.WhatsOnChain()
+}
+
 func (p *providerFixture) GORM() *storage.Provider {
 	p.t.Helper()
 	provider := p.GORMWithCleanDatabase()

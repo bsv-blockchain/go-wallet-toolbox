@@ -2,6 +2,7 @@ package primitives
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strings"
@@ -78,6 +79,11 @@ func (b StringUnder300) Validate() error {
 // HexString is a string in hexadecimal format
 type HexString string
 
+// String returns the string representation of the HexString
+func (h HexString) String() string {
+	return string(h)
+}
+
 var hexRegex = regexp.MustCompile("^[0-9a-fA-F]+$")
 
 // Validate checks if the string is a valid hexadecimal string
@@ -90,6 +96,16 @@ func (h HexString) Validate() error {
 		return fmt.Errorf("hexadecimal string")
 	}
 	return nil
+}
+
+// ToBytes converts the HexString to a byte slice, returning an error if decoding fails.
+func (h HexString) ToBytes() ([]byte, error) {
+	b, err := hex.DecodeString(string(h))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode hex string: %w", err)
+	}
+
+	return b, nil
 }
 
 // PubKeyHex is a compressed DER secp256k1 public key, exactly 66 hex characters (33 bytes) in length.

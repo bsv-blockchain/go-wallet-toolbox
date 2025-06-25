@@ -1,0 +1,96 @@
+package testabilities
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
+	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/require"
+)
+
+type FaucetFixture interface {
+	TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *sdk.Payment)
+}
+
+type faucetFixture struct {
+	testing.TB
+	userWallet *wallet.Wallet
+	index      int
+}
+
+func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *sdk.Payment) {
+	f.Helper()
+
+	_, senderKey := sdk.AnyoneKey()
+
+	paymentRemittance := &sdk.Payment{
+		DerivationPrefix:  fixtures.DerivationPrefix,
+		DerivationSuffix:  fixtures.DerivationSuffix,
+		SenderIdentityKey: senderKey.ToDERHex(),
+	}
+
+	lockingScript := brc29LockingScript(f, f.userWallet, senderKey, paymentRemittance)
+
+	spec := txtestabilities.GivenTX().
+		WithInput(satoshi.MustAdd(satoshis, 1).MustUInt64()).
+		WithOutputScript(satoshis.MustUInt64(), lockingScript).
+		WithOPReturn(fmt.Sprintf("faucet index %d", f.index))
+
+	beef, err := spec.TX().AtomicBEEF(false)
+	require.NoError(f, err, "Failed to create BEEF for top up transaction")
+
+	f.internalizeTopUp(beef, paymentRemittance)
+
+	f.index++
+
+	return spec, paymentRemittance
+}
+
+func (f *faucetFixture) internalizeTopUp(beef []byte, paymentRemittance *sdk.Payment) {
+	action, err := f.userWallet.InternalizeAction(f.Context(), sdk.InternalizeActionArgs{
+		Tx: beef,
+		Outputs: []sdk.InternalizeOutput{{
+			OutputIndex:       0,
+			Protocol:          sdk.InternalizeProtocolWalletPayment,
+			PaymentRemittance: paymentRemittance,
+		},
+		},
+		Labels: []string{
+			"faucet=mocked", "source=faucet",
+		},
+		Description: "funds from faucet",
+	}, "")
+	require.NoError(f, err, "failed to internalize top up transaction - check the test setup and InternalizeAction method")
+	require.NotNil(f, action, "internalize action result should not be nil - check the InternalizeAction method")
+	require.True(f, action.Accepted, "internalize action should accept the transaction - check the InternalizeAction method")
+}
+
+func brc29LockingScript(t testing.TB, userWallet sdk.Interface, senderKey *primitives.PublicKey, paymentRemittance *sdk.Payment) *script.Script {
+	targetPubKey, err := userWallet.GetPublicKey(t.Context(), sdk.GetPublicKeyArgs{
+		ForSelf: true,
+		EncryptionArgs: sdk.EncryptionArgs{
+			Counterparty: sdk.Counterparty{
+				Type:         sdk.CounterpartyTypeOther,
+				Counterparty: senderKey,
+			},
+			ProtocolID: brc29.Protocol,
+			KeyID:      fmt.Sprintf("%s %s", paymentRemittance.DerivationPrefix, paymentRemittance.DerivationSuffix),
+		},
+	}, "")
+	require.NoError(t, err, "Failed to derive public key for top up - check the test setup and GetPublicKey method")
+
+	address, err := script.NewAddressFromPublicKey(targetPubKey.PublicKey, false)
+	require.NoError(t, err, "Failed to create address on which the top up should be sent")
+
+	lockingScript, err := p2pkh.Lock(address)
+	require.NoError(t, err, "Failed to create locking script for top up")
+	return lockingScript
+}
