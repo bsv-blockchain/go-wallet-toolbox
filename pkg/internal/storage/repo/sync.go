@@ -16,8 +16,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const basketStringIDClause = "CONCAT(user_id, '.', name)"
-
 type Sync struct {
 	db *gorm.DB
 
@@ -37,6 +35,7 @@ type OutputBasketWithNum struct {
 }
 
 func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error) {
+	const basketStringIDClause = "CONCAT(user_id, '.', name)"
 	var resultModels []*OutputBasketWithNum
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -174,6 +173,83 @@ func (s *Sync) FindTransactionsForSync(ctx context.Context, userID int, opts ...
 	}
 
 	return slices.Map(resultModels, s.mapModelToTableTransaction), nil
+}
+
+type OutputReadModel struct {
+	models.Output
+	BasketNumID *int `gorm:"column:basket_num_id"`
+}
+
+func (s *Sync) FindOutputsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutput, error) {
+	const basketStringIDClause = "CONCAT(user_id, '.', basket_name)"
+	var resultModels []*OutputReadModel
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		queryopts.ModifyOptions(opts, func(options *queryopts.Options) {
+			if options.Since != nil && options.Since.TableName == "" {
+				// Prevent from an issue with ambiguous created_at column
+				options.Since.TableName = s.naming.outputsTableName
+			}
+		})
+		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
+
+		// Make sure all numeric IDs of OutputBaskets needed by user's outputs are present in the numeric ID lookup table.
+		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.naming.outputBasketTableName).
+				Scopes(filters...).
+				Where("basket_name IS NOT NULL").
+				Find(&models.Output{})
+		})
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).
+			Model(&models.Output{}).
+			Select(fmt.Sprintf("%s.*, num.num_id as basket_num_id", s.naming.outputsTableName)).
+			Scopes(filters...).
+			Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName, clause.LeftJoin)).
+			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+				return db.Select("id, tx_id")
+			}).
+			Find(&resultModels).Error
+		if err != nil {
+			return fmt.Errorf("failed to find outputs for sync: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return slices.Map(resultModels, s.mapModelToTableOutput), nil
+}
+
+func (s *Sync) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOutput {
+	return &wdk.TableOutput{
+		CreatedAt:          model.CreatedAt,
+		UpdatedAt:          model.UpdatedAt,
+		OutputID:           model.ID,
+		UserID:             model.UserID,
+		TransactionID:      model.TransactionID,
+		Spendable:          model.Spendable,
+		Change:             model.Change,
+		OutputDescription:  model.Description,
+		Vout:               model.Vout,
+		Satoshis:           model.Satoshis,
+		ProvidedBy:         model.ProvidedBy,
+		Purpose:            model.Purpose,
+		Type:               model.Type,
+		TxID:               to.IfThen(model.Transaction != nil, model.Transaction.TxID).ElseThen(nil),
+		DerivationPrefix:   model.DerivationPrefix,
+		DerivationSuffix:   model.DerivationSuffix,
+		CustomInstructions: model.CustomInstructions,
+		LockingScript:      model.LockingScript,
+		SenderIdentityKey:  model.SenderIdentityKey,
+		BasketID:           model.BasketNumID,
+	}
 }
 
 func (s *Sync) mapModelToTableTransaction(model *TransactionWithKnownTx) *wdk.TableTransaction {

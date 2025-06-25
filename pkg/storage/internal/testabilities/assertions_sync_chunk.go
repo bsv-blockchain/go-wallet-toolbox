@@ -40,6 +40,8 @@ type ValidSyncChunkAssertion interface {
 
 	TransactionsCount(length int) ValidSyncChunkAssertion
 	TransactionAtIndex(index int) TransactionAssertion
+
+	OutputsCount(length int) ValidSyncChunkAssertion
 }
 
 type BasketAssertion interface {
@@ -334,4 +336,10 @@ func (t *transactionAssertion) WithReference(reference string) TransactionAssert
 	t.parent.Helper()
 	assert.Equal(t.parent, reference, string(t.tx.Reference))
 	return t
+}
+
+func (s *syncChunkAssertion) OutputsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.Outputs, length, "Expected chunk to have %d outputs", length)
+	return s
 }

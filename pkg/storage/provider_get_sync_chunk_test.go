@@ -12,6 +12,7 @@ import (
 )
 
 func TestGetSyncChunk(t *testing.T) {
+	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
@@ -67,6 +68,9 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.TransactionAtIndex(3).
 		WithTxID(ownedTx1.ID()).
 		WithoutProvenTxID()
+
+	// and outputs:
+	thenChunk.OutputsCount(33)
 
 	// TODO: Remember to add more assertions for other entities when implemented
 }

@@ -27,10 +27,5 @@ type TableOutput struct {
 	CustomInstructions *string                      `json:"customInstructions,omitempty"`
 	LockingScript      primitives.ExplicitByteArray `json:"lockingScript,omitempty"`
 	SenderIdentityKey  *string                      `json:"senderIdentityKey,omitempty"`
-
-	// BasketName links the output to a specific basket. It is not a part of JSON RPC API.
-	BasketName *string `json:"-"`
-
-	// TODO: Link this field for sync/backup purposes.
-	//BasketID           *int      `json:"basketId,omitempty"`
+	BasketID           *int                         `json:"basketId,omitempty"`
 }

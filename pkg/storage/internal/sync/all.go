@@ -5,5 +5,6 @@ func all(repo Repository) []Chunker {
 		newChunkerBaskets(repo),
 		newChunkerKnownTxs(repo),
 		newChunkerUserTransactions(repo),
+		newChunkerOutputs(repo),
 	}
 }

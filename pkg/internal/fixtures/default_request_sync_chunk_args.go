@@ -9,7 +9,7 @@ func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey
 		FromStorageIdentityKey: fromIdentityKey,
 		ToStorageIdentityKey:   toIdentityKey,
 		IdentityKey:            userIdentityKey,
-		MaxItems:               10,
+		MaxItems:               1000,
 		MaxRoughSize:           100_000,
 
 		Offsets: []wdk.SyncOffsets{
@@ -27,6 +27,10 @@ func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey
 			},
 			{
 				Name:   wdk.TransactionEntityName,
+				Offset: 0,
+			},
+			{
+				Name:   wdk.OutputEntityName,
 				Offset: 0,
 			},
 			// TODO: Add more offsets for other entities when implemented
