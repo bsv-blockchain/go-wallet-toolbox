@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -109,6 +110,13 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 }
 
 func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*models.Output, error) {
+	tags := slices.Map(output.Tags, func(tag string) *models.Tag {
+		return &models.Tag{
+			Name:   tag,
+			UserID: userID,
+		}
+	})
+
 	var lockingScript []byte
 	if output.LockingScript != nil {
 		var err error
@@ -134,6 +142,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
 		BasketName:         output.BasketName,
+		Tags:               tags,
 	}
 
 	if out.Spendable && out.Change {
@@ -358,18 +367,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		}
 
 		if len(filter.Labels) > 0 {
-			labelSubQuery := tx.Model(&models.TransactionLabels{}).
-				Select("transaction_id").
-				Where("label_name IN ?", filter.Labels).
-				Where("label_user_id = ?", userID)
-
-			if filter.IncludeAllLabels {
-				labelSubQuery = labelSubQuery.
-					Group("transaction_id").
-					Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
-			}
-
-			query = query.Where("id IN (?)", labelSubQuery)
+			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
 		if err := query.Count(&total).Error; err != nil {
@@ -424,4 +422,19 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
 	}
 	return labelsMap, nil
+}
+
+func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
+	return func(query *gorm.DB) *gorm.DB {
+		subQuery := tx.Model(&models.TransactionLabels{}).
+			Select("transaction_id").
+			Where("label_name IN ?", filter.Labels).
+			Where("label_user_id = ?", userID)
+
+		if filter.LabelQueryMode == defs.QueryModeAll {
+			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+		}
+
+		return query.Where("id IN (?)", subQuery)
+	}
 }

@@ -44,4 +44,5 @@ type NewOutput struct {
 	Description        string
 	Vout               uint32
 	SenderIdentityKey  *string
+	Tags               []string
 }
