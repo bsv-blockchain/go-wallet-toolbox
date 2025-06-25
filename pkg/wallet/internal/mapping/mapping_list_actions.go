@@ -2,8 +2,8 @@ package mapping
 
 import (
 	"fmt"
-	"math"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -24,13 +24,13 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 
 	switch args.LabelQueryMode {
 	case sdk.QueryModeAll:
-		labelQueryMode := primitives.LabelQueryModeString("all")
+		labelQueryMode := defs.QueryModeAll
 		result.LabelQueryMode = &labelQueryMode
 	case sdk.QueryModeAny:
-		labelQueryMode := primitives.LabelQueryModeString("any")
+		labelQueryMode := defs.QueryModeAny
 		result.LabelQueryMode = &labelQueryMode
 	default:
-		labelQueryMode := primitives.LabelQueryModeString("any")
+		labelQueryMode := defs.QueryModeAny
 		result.LabelQueryMode = &labelQueryMode
 	}
 
@@ -72,25 +72,23 @@ func MapListActionsResult(result *wdk.ListActionsResult) (*sdk.ListActionsResult
 		return nil, fmt.Errorf("failed to map actions: %w", err)
 	}
 
-	if result.TotalActions > math.MaxUint32 {
-		return nil, fmt.Errorf("total actions count %d exceeds uint32 maximum", result.TotalActions)
+	totalActions, err := to.UInt32(result.TotalActions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert total actions to uint32: %w", err)
 	}
 
 	return &sdk.ListActionsResult{
-		TotalActions: uint32(result.TotalActions),
+		TotalActions: totalActions,
 		Actions:      actions,
 	}, nil
 }
 
 // mapListActionsAction maps wdk.WalletAction to sdk.Action
 func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
-	var txidHash chainhash.Hash
-
 	hash, err := chainhash.NewHashFromHex(action.TxID)
 	if err != nil {
 		return sdk.Action{}, fmt.Errorf("failed to convert txid to hash: %w", err)
 	}
-	txidHash = *hash
 
 	satoshis, err := to.UInt64(action.Satoshis)
 	if err != nil {
@@ -102,8 +100,13 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 		return sdk.Action{}, fmt.Errorf("failed to map action status: %w", err)
 	}
 
+	inputs, err := slices.MapOrError(action.Inputs, mapActionInput)
+	if err != nil {
+		return sdk.Action{}, fmt.Errorf("failed to map action inputs: %w", err)
+	}
+
 	result := sdk.Action{
-		Txid:        txidHash,
+		Txid:        *hash,
 		Satoshis:    satoshis,
 		Status:      status,
 		IsOutgoing:  action.IsOutgoing,
@@ -111,7 +114,7 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 		Labels:      action.Labels,
 		Version:     action.Version,
 		LockTime:    action.LockTime,
-		Inputs:      slices.Map(action.Inputs, mapActionInput),
+		Inputs:      inputs,
 		Outputs:     slices.Map(action.Outputs, mapActionOutput),
 	}
 
@@ -152,7 +155,7 @@ func scriptBytes(hexString string) []byte {
 }
 
 // mapActionInput maps wdk.WalletActionInput to sdk.ActionInput
-func mapActionInput(input wdk.WalletActionInput) sdk.ActionInput {
+func mapActionInput(input wdk.WalletActionInput) (sdk.ActionInput, error) {
 	result := sdk.ActionInput{
 		SourceSatoshis:   input.SourceSatoshis,
 		InputDescription: input.InputDescription,
@@ -160,15 +163,17 @@ func mapActionInput(input wdk.WalletActionInput) sdk.ActionInput {
 	}
 
 	if input.SourceOutpoint != "" {
-		if outpoint, err := transaction.OutpointFromString(input.SourceOutpoint); err == nil {
-			result.SourceOutpoint = *outpoint
+		outpoint, err := transaction.OutpointFromString(input.SourceOutpoint)
+		if err != nil {
+			return sdk.ActionInput{}, fmt.Errorf("failed to parse source outpoint: %w", err)
 		}
+		result.SourceOutpoint = *outpoint
 	}
 
 	result.SourceLockingScript = scriptBytes(input.SourceLockingScript)
 	result.UnlockingScript = scriptBytes(input.UnlockingScript)
 
-	return result
+	return result, nil
 }
 
 // mapActionOutput maps wdk.WalletActionOutput to sdk.ActionOutput
