@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -132,14 +133,14 @@ func (p *process) validateStateOfTableTx(reference string, tableTx *wdk.TableTra
 	return nil
 }
 
-func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*wdk.TableOutput) error {
+func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*entity.Output) error {
 	for _, output := range outputs {
 		if output.Change {
 			continue
 		}
 
 		if output.LockingScript == nil {
-			return fmt.Errorf("locking script is nil for output %d", output.OutputID)
+			return fmt.Errorf("locking script is nil for output %d", output.ID)
 		}
 
 		voutInt := must.ConvertToIntFromUnsigned(output.Vout)
@@ -147,10 +148,10 @@ func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*w
 			return fmt.Errorf("output index %d is out of range of provided tx outputs count %d", voutInt, len(tx.Outputs))
 		}
 
-		fromDB := output.LockingScript.Hex()
-		providedInArgs := tx.Outputs[voutInt].LockingScript.String()
-		if providedInArgs != fromDB {
-			return fmt.Errorf("locking script mismatch at vout: %d, provided %s, calculated from raw tx: %s", voutInt, providedInArgs, fromDB)
+		fromDB := output.LockingScript
+		providedInArgs := tx.Outputs[voutInt].LockingScript.Bytes()
+		if !bytes.Equal(providedInArgs, fromDB) {
+			return fmt.Errorf("locking script mismatch at vout: %d, provided %x, calculated from raw tx: %x", voutInt, providedInArgs, fromDB)
 		}
 	}
 	return nil

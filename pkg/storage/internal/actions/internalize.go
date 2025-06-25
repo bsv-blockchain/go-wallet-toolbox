@@ -12,6 +12,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -149,6 +150,11 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 
 		case wdk.BasketInsertionProtocol:
 			remittance := outputSpec.InsertionRemittance
+
+			tags := slices.Map(remittance.Tags, func(tag primitives.StringUnder300) string {
+				return string(tag)
+			})
+
 			newOutputs = append(newOutputs, &entity.NewOutput{
 				Vout:               outputSpec.OutputIndex,
 				Spendable:          true,
@@ -159,6 +165,7 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 				CustomInstructions: remittance.CustomInstructions,
 				Change:             false,
 				ProvidedBy:         wdk.ProvidedByYou,
+				Tags:               tags,
 			})
 		}
 	}
