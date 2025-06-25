@@ -367,18 +367,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		}
 
 		if len(filter.Labels) > 0 {
-			labelSubQuery := tx.Model(&models.TransactionLabels{}).
-				Select("transaction_id").
-				Where("label_name IN ?", filter.Labels).
-				Where("label_user_id = ?", userID)
-
-			if filter.LabelQueryMode == defs.QueryModeAll {
-				labelSubQuery = labelSubQuery.
-					Group("transaction_id").
-					Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
-			}
-
-			query = query.Where("id IN (?)", labelSubQuery)
+			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
 		if err := query.Count(&total).Error; err != nil {
@@ -433,4 +422,19 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
 	}
 	return labelsMap, nil
+}
+
+func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
+	return func(query *gorm.DB) *gorm.DB {
+		subQuery := tx.Model(&models.TransactionLabels{}).
+			Select("transaction_id").
+			Where("label_name IN ?", filter.Labels).
+			Where("label_user_id = ?", userID)
+
+		if filter.LabelQueryMode == defs.QueryModeAll {
+			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+		}
+
+		return query.Where("id IN (?)", subQuery)
+	}
 }

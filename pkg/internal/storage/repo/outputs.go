@@ -97,18 +97,7 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 		}
 
 		if len(filter.Tags) > 0 {
-			labelSubQuery := tx.Model(&models.OutputTags{}).
-				Select("output_id").
-				Where("tag_name IN ?", filter.Tags).
-				Where("tag_user_id = ?", filter.UserID)
-
-			if filter.TagsQueryMode == defs.QueryModeAll {
-				labelSubQuery = labelSubQuery.
-					Group("output_id").
-					Having("COUNT(DISTINCT tag_name) = ?", len(filter.Tags))
-			}
-
-			query = query.Where("id IN (?)", labelSubQuery)
+			query = query.Scopes(o.tagFilterScope(tx, filter))
 		}
 
 		if err := query.Count(&total).Error; err != nil {
@@ -272,4 +261,19 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
 		output.TxID = model.Transaction.TxID
 	}
 	return output
+}
+
+func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) func(db *gorm.DB) *gorm.DB {
+	return func(query *gorm.DB) *gorm.DB {
+		subQuery := tx.Model(&models.OutputTags{}).
+			Select("output_id").
+			Where("tag_name IN ?", filter.Tags).
+			Where("tag_user_id = ?", filter.UserID)
+
+		if filter.TagsQueryMode == defs.QueryModeAll {
+			subQuery = subQuery.Group("output_id").Having("COUNT(DISTINCT tag_name) = ?", len(filter.Tags))
+		}
+
+		return query.Where("id IN (?)", subQuery)
+	}
 }
