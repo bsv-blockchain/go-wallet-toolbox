@@ -11,6 +11,8 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
+// TODO: Add a testcase where a transaction is CreatedAndSigned but not yet "processed" - to check if it works when User's Transaction ID is not set
+
 func TestGetSyncChunk(t *testing.T) {
 	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
@@ -22,6 +24,7 @@ func TestGetSyncChunk(t *testing.T) {
 	seed := given.SeedDB(activeStorage, testusers.Alice)
 	ownedTx1 := seed.OwnsTransaction()
 	ownedTx2 := seed.OwnsMinedTransaction()
+	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
 	// and:
 	args := given.RequestSyncChunk(testusers.Alice).Args()
@@ -38,11 +41,30 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.BasketsCount(1).
 		BasketAtIndex(0).WithUserID(testusers.Alice.ID).HasValidID().IsDefaultBasket()
 
-	thenChunk.KnownTxsCount(1)
-	thenChunk.ProvenTxReqAtIndex(0).AlignsWithTxSpec(ownedTx1)
+	thenChunk.ProvenTxReqsCount(2)
+	thenChunk.ProvenTxReqAtIndex(0).WithTxID(internalizedTxID)
+	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx1)
 
 	thenChunk.ProvenTxsCount(1)
 	thenChunk.ProvenTxAtIndex(0).AlignsWithTxSpec(ownedTx2).HasMerklePath()
+
+	thenChunk.TransactionsCount(4)
+	thenChunk.TransactionAtIndex(0).
+		WithoutTxID().
+		WithoutProvenTxID().
+		WithReference(createActionResult.Reference)
+
+	thenChunk.TransactionAtIndex(1).
+		WithTxID(internalizedTxID).
+		WithoutProvenTxID()
+
+	thenChunk.TransactionAtIndex(2).
+		WithTxID(ownedTx2.ID()).
+		WithProvenTxID(chunk.ProvenTxs[0].ProvenTxID)
+
+	thenChunk.TransactionAtIndex(3).
+		WithTxID(ownedTx1.ID()).
+		WithoutProvenTxID()
 
 	// TODO: Remember to add more assertions for other entities when implemented
 }
@@ -136,7 +158,7 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 	then.Chunk(chunk).WithoutError(err).
 		WithGeneralInfo(&args).
 		BasketsCount(1).
-		KnownTxsCount(1).
+		ProvenTxReqsCount(1).
 		ProvenTxsCount(1)
 }
 
@@ -159,7 +181,7 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 	then.Chunk(chunk).WithoutError(err).
 		WithGeneralInfo(&args).
 		BasketsCount(1).
-		KnownTxsCount(0).
+		ProvenTxReqsCount(0).
 		ProvenTxsCount(0)
 }
 
@@ -191,7 +213,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.WithGeneralInfo(&args)
 
 	thenChunk.BasketsCount(1).
-		KnownTxsCount(0).
+		ProvenTxReqsCount(0).
 		ProvenTxsCount(0)
 
 	// given::
@@ -205,7 +227,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.WithGeneralInfo(&args)
 	thenChunk.BasketsCount(0).
 		ProvenTxsCount(1).
-		KnownTxsCount(0)
+		ProvenTxReqsCount(0)
 
 	// given:
 	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 1).Args()
@@ -218,5 +240,5 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.WithGeneralInfo(&args)
 	thenChunk.BasketsCount(0).
 		ProvenTxsCount(0).
-		KnownTxsCount(1)
+		ProvenTxReqsCount(1)
 }

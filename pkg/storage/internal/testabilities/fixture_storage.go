@@ -2,8 +2,6 @@ package testabilities
 
 import (
 	"context"
-	"testing"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
@@ -14,6 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 type StorageFixture interface {

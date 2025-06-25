@@ -23,4 +23,6 @@ type Repository interface {
 
 	FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error)
 	UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error)
+
+	FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error)
 }

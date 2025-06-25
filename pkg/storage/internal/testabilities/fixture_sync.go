@@ -1,6 +1,8 @@
 package testabilities
 
 import (
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"testing"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +27,7 @@ type SyncFixture interface {
 type SeedDBForSync interface {
 	OwnsTransaction() testvectors.TransactionSpec
 	OwnsMinedTransaction() testvectors.TransactionSpec
+	OwnsInternalizedAndNotProcessedTx() (internalizedTxID string, createActionResult *wdk.StorageCreateActionResult)
 	PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync
 
 	GetAllOwnedTransactionIDs() []string
@@ -95,17 +97,21 @@ func (s *requestSyncChunkFixture) WithOffset(entityName wdk.EntityName, offset u
 
 func (s *syncFixture) SeedDB(storage *storage.Provider, user testusers.User) SeedDBForSync {
 	return &seedDbForSync{
-		t:      s.t,
-		faucet: s.Faucet(storage, user),
+		t:              s.t,
+		faucet:         s.Faucet(storage, user),
+		storage:        storage,
+		storageFixture: s.storageFixture,
 	}
 }
 
 type seedDbForSync struct {
-	t           testing.TB
-	faucet      pkgtestabilities.FaucetFixture
-	txCounter   int
-	minedTXs    []testvectors.TransactionSpec
-	notMinedTXs []testvectors.TransactionSpec
+	t              testing.TB
+	faucet         pkgtestabilities.FaucetFixture
+	txCounter      int
+	minedTXs       []testvectors.TransactionSpec
+	notMinedTXs    []testvectors.TransactionSpec
+	storageFixture *storageFixture
+	storage        *storage.Provider
 }
 
 func (s *seedDbForSync) OwnsTransaction() testvectors.TransactionSpec {
@@ -122,6 +128,15 @@ func (s *seedDbForSync) OwnsMinedTransaction() testvectors.TransactionSpec {
 	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter), pkgtestabilities.WithMinedTopUp())
 	s.minedTXs = append(s.minedTXs, txSpec)
 	return txSpec
+}
+
+func (s *seedDbForSync) OwnsInternalizedAndNotProcessedTx() (internalizedTxID string, createActionResult *wdk.StorageCreateActionResult) {
+	s.t.Helper()
+	var signedTx *transaction.Transaction
+	createActionResult, signedTx = s.storageFixture.ActionCreatedAndSigned(s.storage)
+
+	internalizedTxID = signedTx.Inputs[0].SourceTXID.String()
+	return
 }
 
 func (s *seedDbForSync) PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync {

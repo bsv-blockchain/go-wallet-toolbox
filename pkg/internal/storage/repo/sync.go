@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/to"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -54,7 +55,7 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 		err = tx.WithContext(ctx).
 			Model(&models.OutputBasket{}).
 			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName)).
+			Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName, clause.InnerJoin)).
 			Scopes(filters...).
 			Find(&resultModels).Error
 		if err != nil {
@@ -107,7 +108,7 @@ func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...quer
 		err = tx.WithContext(ctx).
 			Model(&models.KnownTx{}).
 			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName)).
+			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName, , clause.InnerJoin)).
 			Scopes(scopes.FromQueryOpts(opts)...).
 			Scopes(s.provenTxWhereExistsScope(userID)).
 			Find(&resultModels).Error
@@ -123,6 +124,71 @@ func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...quer
 
 	provenTxReqs, provenTxs := s.toReqOrProvenTx(resultModels)
 	return provenTxReqs, provenTxs, nil
+}
+
+type TransactionWithKnownTx struct {
+	models.Transaction
+	KnownTxNumID *int `gorm:"column:num_id"`
+	BlockHeight  *uint32
+}
+
+func (s *Sync) FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error) {
+	var resultModels []*TransactionWithKnownTx
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
+
+		// Make sure all numeric IDs of KnownTxs needed by user's transactions are present in the numeric ID lookup table.
+		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select("?, tx_id", s.naming.provenTxReqTableName).
+				Scopes(filters...).
+				Where("tx_id IS NOT NULL").
+				Find(&models.Transaction{})
+		})
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).
+			Model(&models.Transaction{}).
+			Select(fmt.Sprintf("%s.*, num.num_id, known_tx.block_height", s.naming.transactionsTableName)).
+			Scopes(s.joinWithNumericIDLookupScope(fmt.Sprintf("%s.tx_id", s.naming.transactionsTableName), s.naming.provenTxReqTableName, clause.LeftJoin)).
+			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.naming.provenTxReqTableName, s.naming.transactionsTableName)).
+			Scopes(filters...).
+			Find(&resultModels).Error
+		if err != nil {
+			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return slices.Map(resultModels, s.mapModelToTableTransaction), nil
+}
+
+func (s *Sync) mapModelToTableTransaction(model *TransactionWithKnownTx) *wdk.TableTransaction {
+	return &wdk.TableTransaction{
+		CreatedAt:     model.CreatedAt,
+		UpdatedAt:     model.UpdatedAt,
+		TransactionID: model.ID,
+		UserID:        model.UserID,
+		Status:        model.Status,
+		Reference:     primitives.Base64String(model.Reference),
+		IsOutgoing:    model.IsOutgoing,
+		Satoshis:      model.Satoshis,
+		Description:   model.Description,
+		Version:       &model.Version,
+		LockTime:      &model.LockTime,
+		TxID:          model.TxID,
+		InputBEEF:     model.InputBeef,
+
+		//NOTE: ProvenTxID is set only if the transaction is known to be mined (has a numeric ID in the KnownTx table).
+		ProvenTxID: to.IfThen(model.BlockHeight != nil, model.KnownTxNumID).ElseThen(nil),
+	}
 }
 
 func (s *Sync) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) *wdk.TableProvenTxReq {
@@ -279,9 +345,9 @@ func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDs
 
 // joinWithNumericIDLookupScope returns a GORM scope to join a numeric ID lookup table based on the provided string ID clause.
 // The entityName is used to specify the table_name of the entity, and the stringIDClause is used to match the string_id in the numeric ID lookup table.
-func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName string) func(*gorm.DB) *gorm.DB {
+func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName string, join clause.JoinType) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		joinQuery := fmt.Sprintf("INNER JOIN %s as num on num.table_name = ? and num.string_id = %s", s.naming.numericIDLookupTableName, stringIDClause)
+		joinQuery := fmt.Sprintf("%s JOIN %s as num on num.table_name = ? and num.string_id = %s", join, s.naming.numericIDLookupTableName, stringIDClause)
 
 		return db.Joins(joinQuery, entityName)
 	}
