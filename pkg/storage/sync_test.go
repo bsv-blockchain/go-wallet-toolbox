@@ -50,8 +50,6 @@ func TestSyncProcess(t *testing.T) {
 	thenDBState.HasKnownTX(ownedTx.ID()).
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		HasRawTx()
-
-	// TODO: Check if the data is actually synced. FindProvenTxReqs can be used (it is in a public interface, so we need to implement it anyway)
 }
 
 func TestSyncProcessOnlyUsers(t *testing.T) {
@@ -143,8 +141,6 @@ func TestSyncProcessWithManyTransactions(t *testing.T) {
 	// and:
 	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
 	thenDBState.HasKnownTXs(seed.GetAllOwnedTransactionIDs()...)
-
-	// TODO: Check if the data is actually synced. FindProvenTxReqs can be used (it is in a public interface, so we need to implement it anyway)
 }
 
 func TestSyncProcessWithMergeUser(t *testing.T) {

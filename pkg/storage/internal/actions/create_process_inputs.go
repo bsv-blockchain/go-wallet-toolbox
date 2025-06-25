@@ -176,7 +176,7 @@ func (proc *inputsProcessor) processInputBEEF() error {
 		return nil
 	}
 
-	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, notProvidedInInputsTxs, readyToBeInputProvenTxStatuses)
+	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, notProvidedInInputsTxs, readyToBeInputProvenTxStatuses)
 	if err != nil {
 		return fmt.Errorf("failed to check if transactions are known: %w", err)
 	}
@@ -202,7 +202,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 		return proc.missingProofError(missingFullProofs, "provided inputs contain transactions that are missing full proof in the inputBEEF")
 	}
 
-	allKnown, err := proc.parent.provenTxRepo.ExistsAllProvenTxs(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
+	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
 	if err != nil {
 		return fmt.Errorf("failed to check if transactions are known: %w", err)
 	}
@@ -242,7 +242,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	}
 
 	if btx.DataFormat == transaction.TxIDOnly {
-		beefForTx, err := proc.parent.provenTxRepo.BuildValidBEEF(proc.ctx, xinput.Outpoint.TxID, readyToBeInputProvenTxStatuses)
+		beefForTx, err := proc.parent.knownTxRepo.BuildValidBEEF(proc.ctx, xinput.Outpoint.TxID, readyToBeInputProvenTxStatuses)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build beef for tx %s: %w", xinput.Outpoint.TxID, err)
 		}

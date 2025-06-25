@@ -19,16 +19,16 @@ import (
 )
 
 type listOutputs struct {
-	logger       *slog.Logger
-	outputsRepo  OutputRepo
-	provenTxRepo ProvenTxRepo
+	logger      *slog.Logger
+	outputsRepo OutputRepo
+	knownTxRepo KnownTxRepo
 }
 
-func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, provenTxRepo ProvenTxRepo) *listOutputs {
+func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo KnownTxRepo) *listOutputs {
 	return &listOutputs{
-		logger:       logging.Child(logger, "list_outputs"),
-		provenTxRepo: provenTxRepo,
-		outputsRepo:  outputsRepo,
+		logger:      logging.Child(logger, "list_outputs"),
+		knownTxRepo: knownTxRepo,
+		outputsRepo: outputsRepo,
 	}
 }
 
@@ -56,7 +56,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	if args.IncludeTransactions {
 		uniqueTxIDs := l.uniqueTxTDsForAllOutputs(outputModels)
 
-		rawBeef, err := l.provenTxRepo.GetBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids, wdk.ProvenTxReqProblematicStatuses)
+		rawBeef, err := l.knownTxRepo.GetBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids, wdk.ProvenTxReqProblematicStatuses)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
 		}

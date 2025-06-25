@@ -17,27 +17,27 @@ import (
 )
 
 type internalize struct {
-	logger       *slog.Logger
-	txRepo       TransactionsRepo
-	basketRepo   BasketRepo
-	provenTxRepo ProvenTxRepo
-	random       wdk.Randomizer
+	logger      *slog.Logger
+	txRepo      TransactionsRepo
+	basketRepo  BasketRepo
+	knownTxRepo KnownTxRepo
+	random      wdk.Randomizer
 }
 
 func newInternalizeAction(
 	logger *slog.Logger,
 	txRepo TransactionsRepo,
 	basketRepo BasketRepo,
-	provenTxRepo ProvenTxRepo,
+	knownTxRepo KnownTxRepo,
 	random wdk.Randomizer,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:       logger,
-		txRepo:       txRepo,
-		basketRepo:   basketRepo,
-		provenTxRepo: provenTxRepo,
-		random:       random,
+		logger:      logger,
+		txRepo:      txRepo,
+		basketRepo:  basketRepo,
+		knownTxRepo: knownTxRepo,
+		random:      random,
 	}
 }
 
@@ -68,7 +68,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
-	err = in.provenTxRepo.UpsertProvenTxReq(ctx, &entity.UpsertProvenTxReq{
+	err = in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
 		TxID:          txID,
 		RawTx:         tx.Bytes(),
 		InputBeef:     args.Tx,
@@ -76,7 +76,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
 	}, history.InternalizeActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
-		return nil, fmt.Errorf("failed to upsert proven tx request: %w", err)
+		return nil, fmt.Errorf("failed to upsert known tx: %w", err)
 	}
 
 	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{

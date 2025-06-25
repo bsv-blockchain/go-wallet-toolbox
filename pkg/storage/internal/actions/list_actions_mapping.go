@@ -89,7 +89,7 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 		return map[string][]byte{}, nil
 	}
 
-	rawTxMap, err := l.provenTxRepo.FindProvenTxRawTXs(ctx, txIDStrs)
+	rawTxMap, err := l.knownTxRepo.FindKnownTxRawTxs(ctx, txIDStrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load raw transactions: %w", err)
 	}

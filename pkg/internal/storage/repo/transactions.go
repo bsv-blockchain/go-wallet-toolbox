@@ -227,7 +227,7 @@ func (txs *Transactions) SpendTransaction(
 			Where("id = ?", updatedTx.TransactionID).
 			Updates(map[string]any{
 				"tx_id":      updatedTx.TxID,
-				"input_beef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the ProvenTxReq (storage-wide)
+				"input_beef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the KnownTx (storage-wide)
 				"status":     updatedTx.TxStatus,
 			}).Error
 		if err != nil {
@@ -244,7 +244,7 @@ func (txs *Transactions) SpendTransaction(
 			return err
 		}
 
-		return upsertProvenTxReq(tx, &entity.UpsertProvenTxReq{
+		return upsertKnownTx(tx, &entity.UpsertKnownTx{
 			TxID:          updatedTx.TxID,
 			Status:        updatedTx.ReqTxStatus,
 			RawTx:         updatedTx.RawTx,
@@ -320,7 +320,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 			return err
 		}
 
-		return updateProvenTxStatus(tx, txID, provenTxReqStatus, historyNote, historyAttrs)
+		return updateKnownTxStatus(tx, txID, provenTxReqStatus, historyNote, historyAttrs)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)

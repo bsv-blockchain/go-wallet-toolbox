@@ -52,7 +52,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	beef, err := txObj.BEEF()
 	require.NoError(f.t, err)
 
-	provenTxReq := &models.ProvenTxReq{
+	knownTx := &models.KnownTx{
 		TxID:      spec.ID(),
 		Status:    wdk.ProvenTxStatusUnmined,
 		RawTx:     spec.TX().Bytes(),
@@ -63,11 +63,11 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
 		require.NoError(f.t, err)
 
-		provenTxReq.Status = wdk.ProvenTxStatusCompleted
-		provenTxReq.BlockHeight = &txObj.MerklePath.BlockHeight
-		provenTxReq.MerklePath = txObj.MerklePath.Bytes()
-		provenTxReq.MerkleRoot = to.Ptr(merkleRoot)
-		provenTxReq.BlockHash = to.Ptr(TestBlockHash)
+		knownTx.Status = wdk.ProvenTxStatusCompleted
+		knownTx.BlockHeight = &txObj.MerklePath.BlockHeight
+		knownTx.MerklePath = txObj.MerklePath.Bytes()
+		knownTx.MerkleRoot = to.Ptr(merkleRoot)
+		knownTx.BlockHash = to.Ptr(TestBlockHash)
 	}
 
 	transaction := &models.Transaction{
@@ -123,7 +123,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 
 	tx := f.db.DB.WithContext(f.t.Context())
 	tx.Create(utxo)
-	tx.Create(provenTxReq)
+	tx.Create(knownTx)
 
 	f.index++
 
