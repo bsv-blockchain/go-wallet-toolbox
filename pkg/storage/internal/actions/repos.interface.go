@@ -14,11 +14,11 @@ type BasketRepo interface {
 }
 
 type OutputRepo interface {
-	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*wdk.TableOutput, error)
-	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*wdk.TableOutput, error)
-	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*wdk.TableOutput, error)
-	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*wdk.TableOutput, int64, error)
-	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*wdk.TableOutput, outputs map[uint][]*wdk.TableOutput, err error)
+	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error)
+	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error)
+	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
+	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)
+	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
 }
 
 type TransactionsRepo interface {
@@ -43,18 +43,18 @@ type TransactionsRepo interface {
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 }
 
-type ProvenTxRepo interface {
-	UpsertProvenTxReq(ctx context.Context, req *entity.UpsertProvenTxReq, historyNote string, historyAttrs map[string]any) error
-	FindProvenTxRawTX(ctx context.Context, txID string) ([]byte, error)
-	FindProvenTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
-	FindProvenTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.ProvenTxToSync, error)
+type KnownTxRepo interface {
+	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, historyNote string, historyAttrs map[string]any) error
+	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
+	FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
+	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)
 	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
-	UpdateProvenTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error
+	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error
 	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) ([]byte, error)
-	ExistsAllProvenTxs(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
-	IncreaseProvenTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
-	SetStatusForProvenTxAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
-	FindProvenTxRawTXs(ctx context.Context, txIDs []string) (map[string][]byte, error)
+	AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
+	IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
+	SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
+	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 }
 
 type KeyValueRepo interface {

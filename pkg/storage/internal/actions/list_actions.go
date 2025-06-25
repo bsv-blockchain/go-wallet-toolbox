@@ -7,6 +7,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 )
 
@@ -14,16 +15,16 @@ type listActions struct {
 	logger           *slog.Logger
 	transactionsRepo TransactionsRepo
 	outputsRepo      OutputRepo
-	provenTxRepo     ProvenTxRepo
+	knownTxRepo      KnownTxRepo
 	basketRepo       BasketRepo
 }
 
-func newListActions(logger *slog.Logger, transactions TransactionsRepo, outputs OutputRepo, provenTx ProvenTxRepo, basket BasketRepo) *listActions {
+func newListActions(logger *slog.Logger, transactions TransactionsRepo, outputs OutputRepo, knownTxRepo KnownTxRepo, basket BasketRepo) *listActions {
 	return &listActions{
 		logger:           logging.Child(logger, "list_actions"),
 		transactionsRepo: transactions,
 		outputsRepo:      outputs,
-		provenTxRepo:     provenTx,
+		knownTxRepo:      knownTxRepo,
 		basketRepo:       basket,
 	}
 }
@@ -62,7 +63,7 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	return &wdk.ListActionsResult{
-		TotalActions: must.ConvertToUInt64(total),
+		TotalActions: primitives.PositiveInteger(must.ConvertToUInt64(total)),
 		Actions:      actions,
 	}, nil
 }

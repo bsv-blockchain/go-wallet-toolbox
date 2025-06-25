@@ -13,7 +13,7 @@ type Repositories struct {
 	*UTXOs
 	*Transactions
 	*Outputs
-	*ProvenTxReq
+	*KnownTx
 	*Sync
 	*SyncState
 	*KeyValue
@@ -28,7 +28,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		UTXOs:         NewUTXOs(db),
 		Transactions:  NewTransactions(db),
 		Outputs:       NewOutputs(db),
-		ProvenTxReq:   NewProvenTxReqRepo(db),
+		KnownTx:       NewKnownTxRepo(db),
 		Sync:          NewSync(db),
 		SyncState:     NewSyncState(db),
 		KeyValue:      NewKeyValue(db),

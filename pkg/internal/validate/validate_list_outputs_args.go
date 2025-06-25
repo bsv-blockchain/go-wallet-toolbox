@@ -18,6 +18,10 @@ func ListOutputsArgs(args *wdk.ListOutputsArgs) error {
 		return fmt.Errorf("args cannot be nil")
 	}
 
+	if err := args.TagQueryMode.Validate(); err != nil {
+		return fmt.Errorf("invalid tagQueryMode: %s", *args.TagQueryMode)
+	}
+
 	if args.Limit < MinPaginationLimit {
 		return fmt.Errorf("limit must be greater than 0")
 	}

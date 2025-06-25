@@ -38,7 +38,7 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.BasketsCount(1).
 		BasketAtIndex(0).WithUserID(testusers.Alice.ID).HasValidID().IsDefaultBasket()
 
-	thenChunk.ProvenTxReqsCount(1)
+	thenChunk.KnownTxsCount(1)
 	thenChunk.ProvenTxReqAtIndex(0).AlignsWithTxSpec(ownedTx1)
 
 	thenChunk.ProvenTxsCount(1)
@@ -136,7 +136,7 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 	then.Chunk(chunk).WithoutError(err).
 		WithGeneralInfo(&args).
 		BasketsCount(1).
-		ProvenTxReqsCount(1).
+		KnownTxsCount(1).
 		ProvenTxsCount(1)
 }
 
@@ -159,7 +159,7 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 	then.Chunk(chunk).WithoutError(err).
 		WithGeneralInfo(&args).
 		BasketsCount(1).
-		ProvenTxReqsCount(0).
+		KnownTxsCount(0).
 		ProvenTxsCount(0)
 }
 
@@ -191,7 +191,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.WithGeneralInfo(&args)
 
 	thenChunk.BasketsCount(1).
-		ProvenTxReqsCount(0).
+		KnownTxsCount(0).
 		ProvenTxsCount(0)
 
 	// given::
@@ -205,7 +205,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.WithGeneralInfo(&args)
 	thenChunk.BasketsCount(0).
 		ProvenTxsCount(1).
-		ProvenTxReqsCount(0)
+		KnownTxsCount(0)
 
 	// given:
 	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 1).Args()
@@ -218,5 +218,5 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.WithGeneralInfo(&args)
 	thenChunk.BasketsCount(0).
 		ProvenTxsCount(0).
-		ProvenTxReqsCount(1)
+		KnownTxsCount(1)
 }

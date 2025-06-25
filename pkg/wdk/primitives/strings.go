@@ -138,22 +138,3 @@ func (pkh PubKeyHex) Validate() error {
 
 // TXIDHexString is a hexadecimal transaction ID
 type TXIDHexString = HexString
-
-// LabelQueryModeString defines the mode for querying labels in a transaction
-type LabelQueryModeString string
-
-// Validate checks if the label query mode is valid
-// It can be "any", "all", or undefined (empty string).
-// "any" means that at least one of the labels must match, "all" means all labels must match.
-// An empty string is considered undefined and is also valid.
-// If the string is not one of these values, it returns an error.
-func (lqm LabelQueryModeString) Validate() error {
-	switch strings.ToLower(string(lqm)) {
-	case "", "any":
-		return nil
-	case "all":
-		return nil
-	default:
-		return fmt.Errorf("labelQueryMode must be 'any', 'all', or undefined")
-	}
-}

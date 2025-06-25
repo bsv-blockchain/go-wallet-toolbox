@@ -12,31 +12,32 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type internalize struct {
-	logger       *slog.Logger
-	txRepo       TransactionsRepo
-	basketRepo   BasketRepo
-	provenTxRepo ProvenTxRepo
-	random       wdk.Randomizer
+	logger      *slog.Logger
+	txRepo      TransactionsRepo
+	basketRepo  BasketRepo
+	knownTxRepo KnownTxRepo
+	random      wdk.Randomizer
 }
 
 func newInternalizeAction(
 	logger *slog.Logger,
 	txRepo TransactionsRepo,
 	basketRepo BasketRepo,
-	provenTxRepo ProvenTxRepo,
+	knownTxRepo KnownTxRepo,
 	random wdk.Randomizer,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:       logger,
-		txRepo:       txRepo,
-		basketRepo:   basketRepo,
-		provenTxRepo: provenTxRepo,
-		random:       random,
+		logger:      logger,
+		txRepo:      txRepo,
+		basketRepo:  basketRepo,
+		knownTxRepo: knownTxRepo,
+		random:      random,
 	}
 }
 
@@ -67,7 +68,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
-	err = in.provenTxRepo.UpsertProvenTxReq(ctx, &entity.UpsertProvenTxReq{
+	err = in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
 		TxID:          txID,
 		RawTx:         tx.Bytes(),
 		InputBeef:     args.Tx,
@@ -75,7 +76,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
 	}, history.InternalizeActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
-		return nil, fmt.Errorf("failed to upsert proven tx request: %w", err)
+		return nil, fmt.Errorf("failed to upsert known tx: %w", err)
 	}
 
 	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{
@@ -149,6 +150,11 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 
 		case wdk.BasketInsertionProtocol:
 			remittance := outputSpec.InsertionRemittance
+
+			tags := slices.Map(remittance.Tags, func(tag primitives.StringUnder300) string {
+				return string(tag)
+			})
+
 			newOutputs = append(newOutputs, &entity.NewOutput{
 				Vout:               outputSpec.OutputIndex,
 				Spendable:          true,
@@ -159,6 +165,7 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 				CustomInstructions: remittance.CustomInstructions,
 				Change:             false,
 				ProvidedBy:         wdk.ProvidedByYou,
+				Tags:               tags,
 			})
 		}
 	}
