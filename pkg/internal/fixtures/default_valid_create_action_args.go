@@ -22,11 +22,12 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 				Satoshis:           42000,
 				OutputDescription:  "test output",
 				CustomInstructions: to.Ptr(`{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`),
+				Tags:               []primitives.StringUnder300{CreateActionTestTag},
 			},
 		},
 		LockTime: 0,
 		Version:  1,
-		Labels:   []primitives.StringUnder300{"test=true"},
+		Labels:   []primitives.StringUnder300{CreateActionTestLabel},
 		Options: wdk.ValidCreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
 			SendWith:               []primitives.TXIDHexString{},

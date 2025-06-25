@@ -3,32 +3,55 @@ package validate_test
 import (
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
-func TestListOutputsArgs(t *testing.T) {
-	t.Run("valid args", func(t *testing.T) {
-		err := validate.ListOutputsArgs(&wdk.ListOutputsArgs{
-			Limit:  10,
-			Offset: 0,
-		})
-		require.NoError(t, err)
-	})
+func TestListOutputsArgs_Success(t *testing.T) {
+	tests := map[string]*wdk.ListOutputsArgs{
+		"valid args only paging": {
+			Limit: 10,
+		},
+		"valid args with tag query mode: all": {
+			Limit:        100,
+			TagQueryMode: to.Ptr(defs.QueryModeAll),
+		},
+		"valid args with tag query mode: any": {
+			Limit:        100,
+			TagQueryMode: to.Ptr(defs.QueryModeAny),
+		},
+	}
 
-	t.Run("invalid txid", func(t *testing.T) {
-		err := validate.ListOutputsArgs(&wdk.ListOutputsArgs{
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validate.ListOutputsArgs(args)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestListOutputsArgs_Error(t *testing.T) {
+	tests := map[string]*wdk.ListOutputsArgs{
+		"invalid txid": {
 			Limit:      10,
 			KnownTxids: []string{"invalidhex"},
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("zero limit", func(t *testing.T) {
-		err := validate.ListOutputsArgs(&wdk.ListOutputsArgs{
+		},
+		"zero limit": {
 			Limit: 0,
+		},
+		"wrong tag query": {
+			Limit:        10,
+			TagQueryMode: to.Ptr(defs.QueryMode("invalid")),
+		},
+	}
+
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validate.ListOutputsArgs(args)
+			require.Error(t, err)
 		})
-		require.Error(t, err)
-	})
+	}
 }

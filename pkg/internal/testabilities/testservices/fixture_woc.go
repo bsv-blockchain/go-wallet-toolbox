@@ -27,7 +27,7 @@ type WhatsOnChainFixture interface {
 	WillRespondWithBlockHeader(status int, blockHash string, responseBody string)
 	WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture
 	WhenQueryingBlockHeader(blockHash string) WhatsOnChainBlockHeaderQueryFixture
-	WillRespondWithBroadcast(status int, responseBody string, err error)
+	WillRespondWithBroadcast(status int, responseBody string)
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
@@ -254,11 +254,8 @@ func (f *wocFixture) HttpClient() *resty.Client {
 	return client
 }
 
-func (f *wocFixture) WillRespondWithBroadcast(status int, responseBody string, err error) {
+func (f *wocFixture) WillRespondWithBroadcast(status int, responseBody string) {
 	responder := func(req *http.Request) (*http.Response, error) {
-		if err != nil {
-			return nil, err
-		}
 		res := httpmock.NewStringResponse(status, responseBody)
 		res.Header.Set("Content-Type", "application/json")
 		return res, nil

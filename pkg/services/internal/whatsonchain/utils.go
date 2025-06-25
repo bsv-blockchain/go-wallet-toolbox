@@ -82,3 +82,10 @@ func firstNonNilError(errs ...error) error {
 	}
 	return nil
 }
+
+// WithBroadcastDelay allows setting custom broadcast delay for WhatsOnChain service
+func WithBroadcastDelay(delay time.Duration) func(*WhatsOnChain) {
+	return func(woc *WhatsOnChain) {
+		woc.broadcastDelay = delay
+	}
+}

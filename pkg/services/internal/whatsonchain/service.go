@@ -29,6 +29,7 @@ type WhatsOnChain struct {
 
 	bsvExchangeRate   defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
 	bsvUpdateInterval time.Duration
+	broadcastDelay    time.Duration
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
@@ -51,6 +52,11 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 
+	delay := 3 * time.Second
+	if config.BroadcastDelay != nil {
+		delay = *config.BroadcastDelay
+	}
+
 	return &WhatsOnChain{
 		httpClient:        client,
 		apiKey:            config.APIKey,
@@ -58,6 +64,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		logger:            logger,
 		bsvExchangeRate:   config.BSVExchangeRate,
 		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		broadcastDelay:    delay,
 	}
 }
 
@@ -182,10 +189,10 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 	}
 
 	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
-	delayDuration := 3 * time.Second
+
 	for i, txid := range txIDs {
 		if i != 0 {
-			if err := waitOrCancel(ctx, delayDuration, txid); err != nil {
+			if err := waitOrCancel(ctx, woc.broadcastDelay, txid); err != nil {
 				return nil, err
 			}
 		}

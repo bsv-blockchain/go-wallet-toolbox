@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -20,6 +21,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -295,6 +297,10 @@ func (c *create) newOutputs(
 	all := make([]*entity.NewOutput, 0, len32)
 
 	for _, output := range providedOutputs {
+		tags := slices.Map(output.Tags, func(tag primitives.StringUnder300) string {
+			return string(tag)
+		})
+
 		all = append(all, &entity.NewOutput{
 			Satoshis:           satoshi.MustFrom(output.Satoshis),
 			BasketName:         (*string)(output.Basket),
@@ -305,6 +311,7 @@ func (c *create) newOutputs(
 			LockingScript:      &output.LockingScript,
 			CustomInstructions: output.CustomInstructions,
 			Description:        string(output.OutputDescription),
+			Tags:               tags,
 		})
 	}
 
@@ -368,6 +375,9 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 				CustomInstructions: output.CustomInstructions,
 				LockingScript:      optional.OfPtr(output.LockingScript).OrZeroValue(),
 				Basket:             (*primitives.StringUnder300)(output.BasketName),
+				Tags: slices.Map(output.Tags, func(tag string) primitives.StringUnder300 {
+					return primitives.StringUnder300(tag)
+				}),
 			},
 		}
 	}
@@ -395,7 +405,7 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 			SourceTxID:            unknownProvided.Outpoint.TxID,
 			SourceVout:            unknownProvided.Outpoint.Vout,
 			SourceSatoshis:        unknownProvided.Satoshis.Int64(),
-			SourceLockingScript:   unknownProvided.LockingScript,
+			SourceLockingScript:   hex.EncodeToString(unknownProvided.LockingScript),
 			UnlockingScriptLength: unknownProvided.UnlockingScriptLength,
 			ProvidedBy:            wdk.ProvidedByYou,
 			Type:                  wdk.OutputTypeCustom,
@@ -428,20 +438,22 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 	return resultInputs, nil
 }
 
-func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *wdk.TableOutput, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
+func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *entity.Output, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
 	if utxo.TxID == nil {
-		return nil, fmt.Errorf("missing txid for outputID %d", utxo.OutputID)
+		return nil, fmt.Errorf("missing txid for outputID %d", utxo.ID)
 	}
+
 	if utxo.LockingScript == nil {
-		return nil, fmt.Errorf("missing locking script for outputID %d and TxID %s", utxo.OutputID, *utxo.TxID)
+		return nil, fmt.Errorf("missing locking script for outputID %d and TxID %s", utxo.ID, *utxo.TxID)
 	}
+
 	txID := *utxo.TxID
 	result := wdk.StorageCreateTransactionSdkInput{
 		Vin:                   vin,
 		SourceTxID:            txID,
 		SourceVout:            utxo.Vout,
 		SourceSatoshis:        utxo.Satoshis,
-		SourceLockingScript:   utxo.LockingScript.Hex(),
+		SourceLockingScript:   hex.EncodeToString(utxo.LockingScript),
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(txutils.P2PKHUnlockingScriptLength)),
 		ProvidedBy:            providedBy,
 		Type:                  wdk.OutputType(utxo.Type),

@@ -139,13 +139,20 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		notes = append(notes, fmt.Sprintf("failed to fetch tx info: %v", fetchErr))
 	}
 
+	var blockHash string
+	var blockHeight int64
+	if txInfo != nil {
+		blockHash = txInfo.BlockHash
+		blockHeight = txInfo.BlockHeight
+	}
+
 	return wdk.PostedTxID{
 		Result:       resultStatus,
 		TxID:         returnedTxid,
 		DoubleSpend:  status == StatusDoubleSpend || status == StatusMissingInputs,
 		AlreadyKnown: status == StatusAlreadyBroadcasted,
-		BlockHash:    txInfo.BlockHash,
-		BlockHeight:  txInfo.BlockHeight,
+		BlockHash:    blockHash,
+		BlockHeight:  blockHeight,
 		Error:        firstNonNilError(fetchErr),
 		Notes:        convertNotes(notes),
 	}

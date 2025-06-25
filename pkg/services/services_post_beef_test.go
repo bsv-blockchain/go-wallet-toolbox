@@ -103,7 +103,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 		for range txids {
-			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error", nil)
+			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		}
 		services := given.Services().WithDefaultConfig()
 
@@ -152,7 +152,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		// Given
 		given := testservices.GivenServices(t)
 		for range txids {
-			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error", nil)
+			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		}
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 		services := given.Services().WithDefaultConfig()
