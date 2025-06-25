@@ -19,5 +19,5 @@ type Transaction struct {
 	Version     uint32
 	LockTime    uint32
 	TxID        *string
-	InputBeef   []byte
+	InputBEEF   []byte
 }

@@ -341,7 +341,7 @@ func (s *Sync) UpsertTransactionForSync(ctx context.Context, entity *entity.Tran
 		Version:     entity.Version,
 		LockTime:    entity.LockTime,
 		TxID:        entity.TxID,
-		InputBeef:   entity.InputBeef,
+		InputBeef:   entity.InputBEEF,
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

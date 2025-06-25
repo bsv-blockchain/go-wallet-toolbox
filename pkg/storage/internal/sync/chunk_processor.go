@@ -191,7 +191,7 @@ func (p *chunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 		Version:     optional.OfPtr(chunkTransaction.Version).OrZeroValue(),
 		LockTime:    optional.OfPtr(chunkTransaction.LockTime).OrZeroValue(),
 		TxID:        chunkTransaction.TxID,
-		InputBeef:   chunkTransaction.InputBEEF,
+		InputBEEF:   chunkTransaction.InputBEEF,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert transaction for reference %q: %w", chunkTransaction.Reference, err)

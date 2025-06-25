@@ -28,6 +28,12 @@ type KnownTxAssertion interface {
 	HasRawTx() KnownTxAssertion
 }
 
+type UserTransactionAssertion interface {
+	WithStatus(state wdk.TxStatus) UserTransactionAssertion
+	WithProvenTxID(provenTxID string) UserTransactionAssertion
+	WithoutProvenTxID() UserTransactionAssertion
+}
+
 func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
 	t.Helper()
 
@@ -86,6 +92,25 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 		knownTx: knownTx,
 	}
 }
+
+//func (d *dbStateAssertion) HasUserTransaction(txID string) UserTransactionAssertion {
+//	d.Helper()
+//
+//	tx, err := d.storage
+//	require.NoError(d.TB, err, txID)
+//
+//	if tx == nil {
+//		require.Failf(d, "Expected to find the transaction", "transaction ID: %s", txID)
+//		return nil
+//	}
+//
+//	assert.Equal(d, txID, tx.TxID, "Expected user transaction to have the same TxID as the one requested")
+//
+//	return &userTransactionAssertion{
+//		TB:      d.TB,
+//		knownTx: tx,
+//	}
+//}
 
 type knownTxAssertion struct {
 	testing.TB
