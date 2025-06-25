@@ -43,6 +43,7 @@ type WalletServices struct {
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
+	Bitails      Bitails      `mapstructure:"bitails,omitempty"`
 }
 
 // Validate checks the validity of the WalletServices struct
@@ -65,7 +66,9 @@ func (ws *WalletServices) Validate() error {
 		return fmt.Errorf("invalid ARC config: %w", err)
 	}
 
-	// TODO: Double check if ws.WhatsOnChain api key is required
+	if err = ws.Bitails.Validate(); err != nil {
+		return fmt.Errorf("invalid Bitails config: %w", err)
+	}
 
 	return nil
 }

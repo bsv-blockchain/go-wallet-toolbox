@@ -19,18 +19,17 @@ func TestPostBEEF(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
-		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
 		beef, err := sdk.NewBeefFromTransaction(tx)
 		require.NoError(t, err)
 
 		txID := tx.TxID().String()
-		var txids = []string{txID}
+		txids := []string{txID}
 
-		// and:
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txID)
-
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+		given.Bitails().OnBroadcast().WillReturnSuccess(txID)
+		given.Bitails().WillReturnTxInfo(txID, "mocked-block-hash", 99999)
 
 		services := given.Services().WithDefaultConfig()
 
@@ -56,7 +55,6 @@ func TestPostBEEF(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
-		// and:
 		parentTx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
 		parentTxID := parentTx.TxID().String()
 
@@ -65,17 +63,22 @@ func TestPostBEEF(t *testing.T) {
 		beef, err := sdk.NewBeefFromTransaction(childTx)
 		require.NoError(t, err)
 
-		var txids = []string{parentTxID, childTxID}
-		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txids[0], txids[1])
+		txids := []string{parentTxID, childTxID}
 
+		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(parentTxID, childTxID)
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+
+		given.Bitails().OnBroadcast().WillReturnSuccess(parentTxID)
+		given.Bitails().OnBroadcast().WillReturnSuccess(childTxID)
+		given.Bitails().WillReturnTxInfo(parentTxID, "mocked-block-hash", 99999)
+		given.Bitails().WillReturnTxInfo(childTxID, "mocked-block-hash", 99999)
 
 		services := given.Services().WithDefaultConfig()
 
-		// when:
+		// When
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// then:
+		// Then
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
@@ -106,10 +109,17 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		// Given
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
+
 		for range txids {
 			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		}
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+
+		for _, txid := range txids {
+			given.Bitails().OnBroadcast().WillReturnSuccess(txid)
+			given.Bitails().WillReturnTxInfo(txid, "mocked-block-hash", 99999)
+		}
+
 		services := given.Services().WithDefaultConfig()
 
 		// When
@@ -132,11 +142,17 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	t.Run("ARC returns error, rest return success", func(t *testing.T) {
 		// Given
 		given := testservices.GivenServices(t)
-		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txids...)
-		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
-		services := given.Services().WithDefaultConfig()
 
+		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txids...)
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
+
+		for _, txid := range txids {
+			given.Bitails().OnBroadcast().WillReturnSuccess(txid)
+			given.Bitails().WillReturnTxInfo(txid, "mocked-block-hash", 99999)
+		}
+
+		services := given.Services().WithDefaultConfig()
 
 		// When
 		response, err := services.PostBEEF(t.Context(), beef, txids)
@@ -158,11 +174,14 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	t.Run("All services return errors", func(t *testing.T) {
 		// Given
 		given := testservices.GivenServices(t)
+
 		for range txids {
 			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		}
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
+		given.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
+
 		services := given.Services().WithDefaultConfig()
 
 		// When
@@ -178,6 +197,8 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 				assertWoCErrorResult(t, res, txids)
 			case "ARC":
 				assertArcErrorResult(t, res)
+			case "Bitails":
+				assertBitailsErrorResult(t, res, txids)
 			default:
 				t.Fatalf("Unexpected service name: %s", res.Name)
 			}
@@ -198,6 +219,16 @@ func assertWoCErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []
 func assertArcErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult) {
 	require.Error(t, res.Error)
 	require.Nil(t, res.PostedBEEFResult)
+}
+
+func assertBitailsErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
+	require.NoError(t, res.Error)
+	require.NotNil(t, res.PostedBEEFResult)
+	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))
+	for _, txResult := range res.PostedBEEFResult.TxIDResults {
+		require.Equal(t, wdk.PostedTxIDResultError, txResult.Result)
+		require.NotEmpty(t, txResult.Notes)
+	}
 }
 
 func assertServiceSuccess(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
