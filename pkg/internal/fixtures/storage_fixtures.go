@@ -27,3 +27,7 @@ const (
 func FaucetTag(index int) string {
 	return fmt.Sprintf("faucet-%d", index)
 }
+
+func FaucetReference(index int) string {
+	return fmt.Sprintf("faucet-reference-%d", index)
+}

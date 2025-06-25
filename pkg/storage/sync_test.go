@@ -36,7 +36,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 2, inserts)
+	assert.Equal(t, 4, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
@@ -135,7 +135,7 @@ func TestSyncProcessWithManyTransactions(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, numberOfTxs, inserts)
+	assert.Equal(t, 2*numberOfTxs, inserts) // NOTE: One for knownTx and one for (user's) transaction
 	assert.Equal(t, 1, updates)
 
 	// and:

@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/optional"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -65,19 +66,25 @@ func (p *chunkProcessor) process() (err error) {
 
 	for _, basket := range p.chunk.OutputBaskets {
 		if err = p.upsertBaskets(basket); err != nil {
-			return fmt.Errorf("failed to merge basket %q: %w", basket.Name, err)
+			return err
 		}
 	}
 
 	for _, provenTxReq := range p.chunk.ProvenTxReqs {
 		if err = p.upsertProvenTxReqs(provenTxReq); err != nil {
-			return fmt.Errorf("failed to merge proven tx req for TxID %q: %w", provenTxReq.TxID, err)
+			return err
 		}
 	}
 
 	for _, provenTx := range p.chunk.ProvenTxs {
 		if err = p.upsertProvenTx(provenTx); err != nil {
-			return fmt.Errorf("failed to merge proven tx for TxID %q: %w", provenTx.TxID, err)
+			return err
+		}
+	}
+
+	for _, transaction := range p.chunk.Transactions {
+		if err = p.upsertTransaction(transaction); err != nil {
+			return err
 		}
 	}
 
@@ -167,6 +174,38 @@ func (p *chunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error 
 	return nil
 }
 
+func (p *chunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransaction) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkTransaction.UserID {
+		return fmt.Errorf("chunk transaction user ID %d does not match chunk user ID %d", chunkTransaction.UserID, p.chunk.User.UserID)
+	}
+
+	isNew, transactionID, err := p.parent.repo.UpsertTransactionForSync(p.ctx, &entity.Transaction{
+		CreatedAt:   chunkTransaction.CreatedAt,
+		UpdatedAt:   chunkTransaction.UpdatedAt,
+		UserID:      p.user.ID,
+		Status:      chunkTransaction.Status,
+		Reference:   string(chunkTransaction.Reference),
+		IsOutgoing:  chunkTransaction.IsOutgoing,
+		Satoshis:    chunkTransaction.Satoshis,
+		Description: chunkTransaction.Description,
+		Version:     optional.OfPtr(chunkTransaction.Version).OrZeroValue(),
+		LockTime:    optional.OfPtr(chunkTransaction.LockTime).OrZeroValue(),
+		TxID:        chunkTransaction.TxID,
+		InputBeef:   chunkTransaction.InputBEEF,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert transaction for reference %q: %w", chunkTransaction.Reference, err)
+	}
+
+	_ = transactionID
+	// TODO: Most probably, we need to store new TransactionID in the sync state (IDMap) - But I postpone this until it is actually needed.
+
+	p.updateResult(chunkTransaction.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.TransactionEntityName, 1)
+
+	return nil
+}
+
 func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operation) {
 	for _, op := range operations {
 		p.result.Updates += op.updates
@@ -194,5 +233,6 @@ func (p *chunkProcessor) emptyChunk() bool {
 	// TODO: Add more entities when implemented.
 	return len(p.chunk.OutputBaskets) == 0 &&
 		len(p.chunk.ProvenTxs) == 0 &&
-		len(p.chunk.ProvenTxReqs) == 0
+		len(p.chunk.ProvenTxReqs) == 0 &&
+		len(p.chunk.Transactions) == 0
 }

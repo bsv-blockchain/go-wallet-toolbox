@@ -25,4 +25,5 @@ type Repository interface {
 	UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error)
 
 	FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error)
+	UpsertTransactionForSync(ctx context.Context, entity *entity.Transaction) (isNew bool, transactionID uint, err error)
 }

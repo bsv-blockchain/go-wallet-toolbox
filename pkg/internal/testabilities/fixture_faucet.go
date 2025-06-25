@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
@@ -73,7 +74,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	transaction := &models.Transaction{
 		UserID:      f.user.ID,
 		Status:      wdk.TxStatusCompleted,
-		Reference:   MockReference,
+		Reference:   fixtures.FaucetReference(f.index),
 		IsOutgoing:  false,
 		Satoshis:    satoshis.Int64(),
 		Description: "test-faucet-tx",

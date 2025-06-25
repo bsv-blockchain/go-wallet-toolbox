@@ -282,6 +282,8 @@ func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 // UpsertKnownTxForSync updates only non-zero fields of the proven transaction request.
 func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
 	model := models.KnownTx{
+		CreatedAt:   entity.CreatedAt,
+		UpdatedAt:   entity.UpdatedAt,
 		TxID:        entity.TxID,
 		Status:      entity.Status,
 		Attempts:    entity.Attempts,
@@ -322,6 +324,57 @@ func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx)
 	}
 
 	return isNew, nil
+}
+
+func (s *Sync) UpsertTransactionForSync(ctx context.Context, entity *entity.Transaction) (isNew bool, transactionID uint, err error) {
+	model := models.Transaction{
+		Model: gorm.Model{
+			CreatedAt: entity.CreatedAt,
+			UpdatedAt: entity.UpdatedAt,
+		},
+		UserID:      entity.UserID,
+		Status:      entity.Status,
+		Reference:   entity.Reference,
+		IsOutgoing:  entity.IsOutgoing,
+		Satoshis:    entity.Satoshis,
+		Description: entity.Description,
+		Version:     entity.Version,
+		LockTime:    entity.LockTime,
+		TxID:        entity.TxID,
+		InputBeef:   entity.InputBeef,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updateTx := tx.Model(&models.Transaction{}).
+			Scopes(scopes.UserID(entity.UserID)).
+			Where("reference = ?", entity.Reference).
+			Updates(model)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			transactionID = entity.ID
+			return nil
+		}
+
+		err := tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create transaction: %w", err)
+		}
+
+		isNew = true
+		transactionID = model.ID
+
+		return nil
+	})
+
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, transactionID, nil
 }
 
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
