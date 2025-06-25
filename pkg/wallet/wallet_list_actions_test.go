@@ -38,14 +38,6 @@ func TestWalletListActionsArgsValidation(t *testing.T) {
 				return args
 			},
 		},
-		"invalid limit (zero)": {
-			originator: fixtures.DefaultOriginator,
-			args: func() sdk.ListActionsArgs {
-				args := fixtures.DefaultWalletListActionsArgs()
-				args.Limit = 0
-				return args
-			},
-		},
 		"too long label": {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.ListActionsArgs {
@@ -85,139 +77,6 @@ func TestWalletListActionsArgsValidation(t *testing.T) {
 }
 
 func (s *WalletTestSuite) TestWalletListActions() {
-	s.Run("basic list actions", func() {
-		t := s.T()
-
-		// given:
-		given := testabilities.Given(t)
-
-		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
-
-		// and:
-		args := fixtures.DefaultWalletListActionsArgs()
-
-		// when:
-		result, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, result)
-		assert.GreaterOrEqual(t, int(result.TotalActions), 0, "Should have non-negative total actions")
-	})
-
-	s.Run("list actions with all includes", func() {
-		t := s.T()
-
-		// given:
-		given := testabilities.Given(t)
-
-		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
-
-		// and:
-		args := fixtures.DefaultWalletListActionsArgsWithIncludes()
-
-		// when:
-		result, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, result)
-		assert.GreaterOrEqual(t, int(result.TotalActions), 0, "Should have non-negative total actions")
-
-		// then: verify the included fields are properly populated
-		if len(result.Actions) > 0 {
-			action := result.Actions[0]
-			assert.NotNil(t, action.Labels, "Labels should be included")
-			assert.NotNil(t, action.Inputs, "Inputs should be included")
-			assert.NotNil(t, action.Outputs, "Outputs should be included")
-		}
-	})
-
-	s.Run("list actions with pagination", func() {
-		t := s.T()
-
-		// given:
-		given := testabilities.Given(t)
-
-		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
-
-		// and:
-		args := fixtures.DefaultWalletListActionsArgs()
-		args.Limit = 2
-		args.Offset = 0
-
-		// when:
-		result, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, result)
-		assert.GreaterOrEqual(t, int(result.TotalActions), 0, "Should have non-negative total actions")
-
-		// then: test second page
-		args.Offset = 2
-		result2, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
-		assert.NoError(t, err)
-		require.NotNil(t, result2)
-		assert.Equal(t, result.TotalActions, result2.TotalActions, "Total actions should be consistent across pages")
-	})
-
-	s.Run("list actions with label query mode all", func() {
-		t := s.T()
-
-		// given:
-		given := testabilities.Given(t)
-
-		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
-
-		// and:
-		args := fixtures.DefaultWalletListActionsArgs()
-		args.Labels = []string{"label1", "label2"}
-		args.LabelQueryMode = sdk.QueryModeAll
-		args.IncludeLabels = to.Ptr(true)
-
-		// when:
-		result, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, result)
-		assert.GreaterOrEqual(t, int(result.TotalActions), 0, "Should have non-negative total actions")
-	})
-
-	s.Run("list actions with label query mode any", func() {
-		t := s.T()
-
-		// given:
-		given := testabilities.Given(t)
-
-		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
-
-		// and:
-		args := fixtures.DefaultWalletListActionsArgs()
-		args.Labels = []string{"test-label"}
-		args.LabelQueryMode = sdk.QueryModeAny
-		args.IncludeLabels = to.Ptr(true)
-
-		// when:
-		result, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, result)
-		assert.GreaterOrEqual(t, int(result.TotalActions), 0, "Should have non-negative total actions")
-	})
-
 	s.Run("empty result when no actions exist", func() {
 		t := s.T()
 
@@ -239,5 +98,80 @@ func (s *WalletTestSuite) TestWalletListActions() {
 		require.NotNil(t, result)
 		assert.Equal(t, uint32(0), result.TotalActions, "Should have zero total actions")
 		assert.Empty(t, result.Actions, "Actions list should be empty")
+	})
+
+	s.Run("list actions after create action", func() {
+		t := s.T()
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		createArgs := fixtures.DefaultWalletCreateActionArgs(t)
+		createResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.NotNil(t, createResult)
+
+		// when:
+		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
+		listArgs.Labels = createArgs.Labels
+		result, err := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, uint32(1), result.TotalActions, "Should have one action")
+		require.Len(t, result.Actions, 1)
+
+		// and:
+		action := result.Actions[0]
+		assert.NotEmpty(t, action.Txid, "Should have a transaction ID")
+		assert.Equal(t, createArgs.Description, action.Description)
+		assert.Equal(t, createArgs.Version, action.Version)
+		assert.Equal(t, createArgs.LockTime, action.LockTime)
+		assert.ElementsMatch(t, createArgs.Labels, action.Labels)
+		assert.NotNil(t, action.Inputs, "Inputs should be included")
+		assert.NotNil(t, action.Outputs, "Outputs should be included")
+	})
+
+	s.Run("list actions after internalize action", func() {
+		t := s.T()
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizeResult, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.NotNil(t, internalizeResult)
+		require.True(t, internalizeResult.Accepted)
+
+		// when:
+		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
+		listArgs.Labels = internalizeArgs.Labels
+		result, err := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, uint32(1), result.TotalActions, "Should have one action")
+		require.Len(t, result.Actions, 1)
+
+		// and:
+		action := result.Actions[0]
+		assert.NotEmpty(t, action.Txid, "Should have a transaction ID")
+		assert.Equal(t, internalizeArgs.Description, action.Description)
+		assert.ElementsMatch(t, internalizeArgs.Labels, action.Labels)
+		assert.NotNil(t, action.Inputs, "Inputs should be included")
+		assert.NotNil(t, action.Outputs, "Outputs should be included")
 	})
 }

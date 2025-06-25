@@ -7,7 +7,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-func ValidListActionsArgs(args *wdk.ListActionsArgs) error {
+func ListActionsArgs(args *wdk.ListActionsArgs) error {
 	if args == nil {
 		return fmt.Errorf("args cannot be nil")
 	}

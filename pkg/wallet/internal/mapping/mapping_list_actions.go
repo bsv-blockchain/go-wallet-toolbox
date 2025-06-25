@@ -1,8 +1,8 @@
 package mapping
 
 import (
-	"strconv"
-	"strings"
+	"fmt"
+	"math"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // MapListActionsArgs maps sdk.ListActionsArgs to wdk.ListActionsArgs
@@ -34,68 +35,77 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	}
 
 	if args.SeekPermission != nil {
-		seekPermission := primitives.BooleanDefaultTrue(*args.SeekPermission)
-		result.SeekPermissions = &seekPermission
+		result.SeekPermissions = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
 	}
 
 	if args.IncludeInputs != nil {
-		includeInputs := primitives.BooleanDefaultFalse(*args.IncludeInputs)
-		result.IncludeInputs = &includeInputs
+		result.IncludeInputs = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeInputs))
 	}
 
 	if args.IncludeOutputs != nil {
-		includeOutputs := primitives.BooleanDefaultFalse(*args.IncludeOutputs)
-		result.IncludeOutputs = &includeOutputs
+		result.IncludeOutputs = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeOutputs))
 	}
 
 	if args.IncludeLabels != nil {
-		includeLabels := primitives.BooleanDefaultFalse(*args.IncludeLabels)
-		result.IncludeLabels = &includeLabels
+		result.IncludeLabels = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeLabels))
 	}
 
 	if args.IncludeInputSourceLockingScripts != nil {
-		includeInputSourceLockingScripts := primitives.BooleanDefaultFalse(*args.IncludeInputSourceLockingScripts)
-		result.IncludeInputSourceLockingScripts = &includeInputSourceLockingScripts
+		result.IncludeInputSourceLockingScripts = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeInputSourceLockingScripts))
 	}
 
 	if args.IncludeInputUnlockingScripts != nil {
-		includeInputUnlockingScripts := primitives.BooleanDefaultFalse(*args.IncludeInputUnlockingScripts)
-		result.IncludeInputUnlockingScripts = &includeInputUnlockingScripts
+		result.IncludeInputUnlockingScripts = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeInputUnlockingScripts))
 	}
 
 	if args.IncludeOutputLockingScripts != nil {
-		includeOutputLockingScripts := primitives.BooleanDefaultFalse(*args.IncludeOutputLockingScripts)
-		result.IncludeOutputLockingScripts = &includeOutputLockingScripts
+		result.IncludeOutputLockingScripts = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeOutputLockingScripts))
 	}
 
 	return result
 }
 
 // MapListActionsResult maps *wdk.ListActionsResult to *sdk.ListActionsResult
-func MapListActionsResult(result *wdk.ListActionsResult) *sdk.ListActionsResult {
-	return &sdk.ListActionsResult{
-		TotalActions: result.TotalActions,
-		Actions:      slices.Map(result.Actions, mapListActionsAction),
+func MapListActionsResult(result *wdk.ListActionsResult) (*sdk.ListActionsResult, error) {
+	actions, err := slices.MapOrError(result.Actions, mapListActionsAction)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map actions: %w", err)
 	}
+
+	if result.TotalActions > math.MaxUint32 {
+		return nil, fmt.Errorf("total actions count %d exceeds uint32 maximum", result.TotalActions)
+	}
+
+	return &sdk.ListActionsResult{
+		TotalActions: uint32(result.TotalActions),
+		Actions:      actions,
+	}, nil
 }
 
 // mapListActionsAction maps wdk.WalletAction to sdk.Action
-func mapListActionsAction(action wdk.WalletAction) sdk.Action {
+func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 	var txidHash chainhash.Hash
-	if action.TxID != "" {
-		if hash, err := chainhash.NewHashFromHex(action.TxID); err == nil {
-			txidHash = *hash
-		}
+
+	hash, err := chainhash.NewHashFromHex(action.TxID)
+	if err != nil {
+		return sdk.Action{}, fmt.Errorf("failed to convert txid to hash: %w", err)
+	}
+	txidHash = *hash
+
+	satoshis, err := to.UInt64(action.Satoshis)
+	if err != nil {
+		return sdk.Action{}, fmt.Errorf("failed to convert satoshis to uint64: %w", err)
 	}
 
-	if action.Satoshis < 0 {
-		panic("negative satoshis value encountered: data integrity issue")
+	status, err := mapActionStatus(action.Status)
+	if err != nil {
+		return sdk.Action{}, fmt.Errorf("failed to map action status: %w", err)
 	}
 
 	result := sdk.Action{
 		Txid:        txidHash,
-		Satoshis:    uint64(action.Satoshis),
-		Status:      mapActionStatus(action.Status),
+		Satoshis:    satoshis,
+		Status:      status,
 		IsOutgoing:  action.IsOutgoing,
 		Description: action.Description,
 		Labels:      action.Labels,
@@ -105,29 +115,40 @@ func mapListActionsAction(action wdk.WalletAction) sdk.Action {
 		Outputs:     slices.Map(action.Outputs, mapActionOutput),
 	}
 
-	return result
+	return result, nil
 }
 
 // mapActionStatus maps string status to sdk.ActionStatus
-func mapActionStatus(status string) sdk.ActionStatus {
+func mapActionStatus(status string) (sdk.ActionStatus, error) {
 	switch status {
 	case "completed":
-		return sdk.ActionStatusCompleted
+		return sdk.ActionStatusCompleted, nil
 	case "unprocessed":
-		return sdk.ActionStatusUnprocessed
+		return sdk.ActionStatusUnprocessed, nil
 	case "sending":
-		return sdk.ActionStatusSending
+		return sdk.ActionStatusSending, nil
 	case "unproven":
-		return sdk.ActionStatusUnproven
+		return sdk.ActionStatusUnproven, nil
 	case "unsigned":
-		return sdk.ActionStatusUnsigned
+		return sdk.ActionStatusUnsigned, nil
 	case "nosend":
-		return sdk.ActionStatusNoSend
+		return sdk.ActionStatusNoSend, nil
 	case "nonfinal":
-		return sdk.ActionStatusNonFinal
+		return sdk.ActionStatusNonFinal, nil
 	default:
-		return sdk.ActionStatusUnprocessed
+		return "", fmt.Errorf("unknown action status: %s", status)
 	}
+}
+
+// scriptBytes converts a hex string to script bytes, returns nil if conversion fails
+func scriptBytes(hexString string) []byte {
+	if hexString == "" {
+		return nil
+	}
+	if script, err := script.NewFromHex(hexString); err == nil {
+		return script.Bytes()
+	}
+	return nil
 }
 
 // mapActionInput maps wdk.WalletActionInput to sdk.ActionInput
@@ -138,29 +159,14 @@ func mapActionInput(input wdk.WalletActionInput) sdk.ActionInput {
 		SequenceNumber:   input.SequenceNumber,
 	}
 
-	parts := strings.Split(input.SourceOutpoint, ":")
-	if len(parts) == 2 {
-		if txidHash, err := chainhash.NewHashFromHex(parts[0]); err == nil {
-			if vout, err := strconv.ParseUint(parts[1], 10, 32); err == nil {
-				result.SourceOutpoint = transaction.Outpoint{
-					Txid:  *txidHash,
-					Index: uint32(vout),
-				}
-			}
+	if input.SourceOutpoint != "" {
+		if outpoint, err := transaction.OutpointFromString(input.SourceOutpoint); err == nil {
+			result.SourceOutpoint = *outpoint
 		}
 	}
 
-	if input.SourceLockingScript != "" {
-		if lockingScript, err := script.NewFromHex(input.SourceLockingScript); err == nil {
-			result.SourceLockingScript = lockingScript.Bytes()
-		}
-	}
-
-	if input.UnlockingScript != "" {
-		if unlockingScript, err := script.NewFromHex(input.UnlockingScript); err == nil {
-			result.UnlockingScript = unlockingScript.Bytes()
-		}
-	}
+	result.SourceLockingScript = scriptBytes(input.SourceLockingScript)
+	result.UnlockingScript = scriptBytes(input.UnlockingScript)
 
 	return result
 }
@@ -175,12 +181,7 @@ func mapActionOutput(output wdk.WalletActionOutput) sdk.ActionOutput {
 		OutputIndex:        output.OutputIndex,
 		OutputDescription:  output.OutputDescription,
 		Basket:             output.Basket,
-	}
-
-	if output.LockingScript != "" {
-		if lockingScript, err := script.NewFromHex(output.LockingScript); err == nil {
-			result.LockingScript = lockingScript.Bytes()
-		}
+		LockingScript:      scriptBytes(output.LockingScript),
 	}
 
 	return result

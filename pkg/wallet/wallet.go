@@ -194,7 +194,7 @@ func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, orig
 
 	wdkArgs := mapping.MapListActionsArgs(args)
 
-	if err := validate.ValidListActionsArgs(&wdkArgs); err != nil {
+	if err := validate.ListActionsArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid list actions args: %w", err)
 	}
 
@@ -203,7 +203,12 @@ func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, orig
 		return nil, fmt.Errorf("failed to list actions: %w", err)
 	}
 
-	return mapping.MapListActionsResult(result), nil
+	mappedResult, err := mapping.MapListActionsResult(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map list actions result: %w", err)
+	}
+
+	return mappedResult, nil
 }
 
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
