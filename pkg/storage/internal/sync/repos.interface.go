@@ -21,6 +21,6 @@ type Repository interface {
 
 	UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error)
 
-	FindProvenTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error)
+	FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error)
 	UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error)
 }
