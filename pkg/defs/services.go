@@ -25,6 +25,12 @@ const (
 
 	// ArcTestToken is the token for the ARC service on testnet - it's a well-known key and can be public
 	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec
+
+	// BHSTestURL is the URL for the BHS service
+	BHSTestURL = "http://localhost:8080"
+
+	// BHSApiKey is the token for the BHS service
+	BHSApiKey = "41b54b6f-8630-4bad-9d1d-57ce3743562b"
 )
 
 // WalletServices is a struct that has options for wallet services
@@ -73,6 +79,10 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
 	cfg := WalletServices{
+		BHS: BHS{
+			URL:    BHSTestURL,
+			APIKey: BHSApiKey,
+		},
 		Chain: chain,
 		WhatsOnChain: WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),

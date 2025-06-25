@@ -65,12 +65,12 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 	}
 
 	return &BlockHeadersService{
-		httpClient: newRestyHTTPClient(httpClient, logger, config),
+		httpClient: newRestyHTTPClient(httpClient, logger, network, config),
 		cfg:        &config,
 	}
 }
 
-func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, config defs.BHS) *resty.Client {
+func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *resty.Client {
 	const (
 		retries         = 2
 		retriesWaitTime = 2 * time.Second // TODO: Move this section to shared pkg.
@@ -78,7 +78,7 @@ func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, config de
 
 	child := logging.
 		Child(logger, ServiceName).
-		With(slog.String("network", string(config.Network)))
+		With(slog.String("network", string(network)))
 
 	headers := httpx.NewHeaders().
 		AcceptJSON().

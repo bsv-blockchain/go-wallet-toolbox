@@ -3,9 +3,8 @@ package defs
 import "fmt"
 
 type BHS struct {
-	URL     string     `mapstructure:"url"`
-	APIKey  string     `mapstructure:"api_key"`
-	Network BSVNetwork `mapstructure:"network"`
+	URL    string `mapstructure:"url"`
+	APIKey string `mapstructure:"api_key"`
 }
 
 func (b *BHS) Validate() error {
@@ -16,5 +15,5 @@ func (b *BHS) Validate() error {
 		return fmt.Errorf("validation failed: URL must not be empty")
 	}
 
-	return b.Network.Validate()
+	return nil
 }
