@@ -26,7 +26,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.UserUTXO{},
 		models.Transaction{},
 		models.Output{},
-		models.ProvenTxReq{},
+		models.KnownTx{},
 		models.Label{},
 		models.TransactionLabels{},
 		models.NumericIDLookup{},

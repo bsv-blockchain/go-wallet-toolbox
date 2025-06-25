@@ -84,30 +84,30 @@ func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.Tabl
 	}
 }
 
-type ProvenTxReqWithNum struct {
-	models.ProvenTxReq
+type KnownTxWithNum struct {
+	models.KnownTx
 	NumID int
 }
 
-func (s *Sync) FindProvenTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
-	var resultModels []*ProvenTxReqWithNum
+func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
+	var resultModels []*KnownTxWithNum
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select("?, tx_id", s.naming.provenTxReqTableName).
+				Select("?, tx_id", s.naming.knownTxTableName).
 				Scopes(scopes.FromQueryOpts(opts)...).
 				Scopes(s.provenTxWhereExistsScope(userID)).
-				Find(&models.ProvenTxReq{})
+				Find(&models.KnownTx{})
 		})
 		if err != nil {
 			return err
 		}
 
 		err = tx.WithContext(ctx).
-			Model(&models.ProvenTxReq{}).
+			Model(&models.KnownTx{}).
 			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.provenTxReqTableName)).
+			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName)).
 			Scopes(scopes.FromQueryOpts(opts)...).
 			Scopes(s.provenTxWhereExistsScope(userID)).
 			Find(&resultModels).Error
@@ -125,10 +125,10 @@ func (s *Sync) FindProvenTxsForSync(ctx context.Context, userID int, opts ...que
 	return provenTxReqs, provenTxs, nil
 }
 
-func (s *Sync) mapModelToTableProvenTxReqForSync(model *ProvenTxReqWithNum) *wdk.TableProvenTxReq {
+func (s *Sync) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) *wdk.TableProvenTxReq {
 	if model.MerklePath != nil {
 		// this mapping function is designed to convert a model that is guaranteed to be NOT MINED (does not have a Merkle path),
-		panic("ProvenTxReq model must not have MerklePath set when creating TableProvenTxReq for sync")
+		panic("KnownTx model must not have MerklePath set when creating TableProvenTxReq for sync")
 	}
 
 	return &wdk.TableProvenTxReq{
@@ -147,11 +147,11 @@ func (s *Sync) mapModelToTableProvenTxReqForSync(model *ProvenTxReqWithNum) *wdk
 	}
 }
 
-func (s *Sync) mapModelToTableProvenTxForSync(model *ProvenTxReqWithNum) *wdk.TableProvenTx {
+func (s *Sync) mapModelToTableProvenTxForSync(model *KnownTxWithNum) *wdk.TableProvenTx {
 	if model.MerklePath == nil || model.BlockHeight == nil || model.MerkleRoot == nil || model.BlockHash == nil {
 		// this mapping function is designed to convert a model that is guaranteed to be MINED (has a Merkle path),
 		// this should never happen, but if it does, we panic to indicate a programming error
-		panic("ProvenTxReq model must have MerklePath, BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx for sync")
+		panic("KnownTx model must have MerklePath, BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx for sync")
 	}
 
 	return &wdk.TableProvenTx{
@@ -173,7 +173,7 @@ func (s *Sync) mapModelToTableProvenTxForSync(model *ProvenTxReqWithNum) *wdk.Ta
 // - one for proven transactions (ProvenTx) that have a Merkle path (mined transactions).
 // NOTE: In this implementation, there is ONLY ONE table to hold both: requests (ProvenTxReq) and proven transactions (ProvenTx).
 // The function is used to prepare data for syncing, where we need to distinguish between requests and proven transactions.
-func (s *Sync) toReqOrProvenTx(models []*ProvenTxReqWithNum) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx) {
+func (s *Sync) toReqOrProvenTx(models []*KnownTxWithNum) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx) {
 	minedTxs := 0
 	for _, model := range models {
 		if model.HasMerklePath() {
@@ -200,7 +200,7 @@ func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 		whereExistClause := fmt.Sprintf(
 			"EXISTS (SELECT 1 FROM %s as user_tx WHERE user_tx.tx_id = %s.tx_id AND user_tx.user_id = ?)",
 			s.naming.transactionsTableName,
-			s.naming.provenTxReqTableName,
+			s.naming.knownTxTableName,
 		)
 
 		return db.Where(whereExistClause, userID)
@@ -209,7 +209,7 @@ func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 
 // UpsertKnownTxForSync updates only non-zero fields of the proven transaction request.
 func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
-	model := models.ProvenTxReq{
+	model := models.KnownTx{
 		TxID:        entity.TxID,
 		Status:      entity.Status,
 		Attempts:    entity.Attempts,
@@ -223,7 +223,7 @@ func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx)
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.ProvenTxReq{}).
+		updateTx := tx.Model(&models.KnownTx{}).
 			Where("tx_id = ?", entity.TxID).
 			Updates(model)
 

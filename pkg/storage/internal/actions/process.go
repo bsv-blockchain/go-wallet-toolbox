@@ -17,21 +17,21 @@ import (
 )
 
 type process struct {
-	logger       *slog.Logger
-	txRepo       TransactionsRepo
-	outputRepo   OutputRepo
-	provenTxRepo ProvenTxRepo
-	services     wdk.Services
+	logger      *slog.Logger
+	txRepo      TransactionsRepo
+	outputRepo  OutputRepo
+	knownTxRepo KnownTxRepo
+	services    wdk.Services
 }
 
-func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, provenTxRepo ProvenTxRepo, services wdk.Services) *process {
+func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, knownTxRepo KnownTxRepo, services wdk.Services) *process {
 	logger = logging.Child(logger, "processAction")
 	return &process{
-		logger:       logger,
-		txRepo:       txRepo,
-		outputRepo:   outputRepo,
-		provenTxRepo: provenTxRepo,
-		services:     services,
+		logger:      logger,
+		txRepo:      txRepo,
+		outputRepo:  outputRepo,
+		knownTxRepo: knownTxRepo,
+		services:    services,
 	}
 }
 
@@ -89,7 +89,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	// TODO: Commission; but it requires Commission table (it needs to be created & new rows added during "createAction"
 
-	// TODO: Add db transactionID to ProvenTxReq.Notify
+	// TODO: Add db transactionID to KnownTx.Notify
 
 	// TODO: Remove too long locking scripts (len > storage.maxOutputScript)
 
@@ -189,7 +189,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		}, nil
 	}
 
-	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
+	beef, err := p.knownTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -233,9 +233,9 @@ func (p *process) noteForAggregation(aggBroadcastResult *wdk.AggregatedPostedTxI
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
-	reqTxStatus, err := p.provenTxRepo.FindProvenTxStatus(ctx, txID)
+	reqTxStatus, err := p.knownTxRepo.FindKnownTxStatus(ctx, txID)
 	if err != nil {
-		return "", fmt.Errorf("failed to find proven tx status: %w", err)
+		return "", fmt.Errorf("failed to find known tx status: %w", err)
 	}
 
 	switch reqTxStatus.BroadcastStatus() {
