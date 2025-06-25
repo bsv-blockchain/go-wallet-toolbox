@@ -459,15 +459,13 @@ func (p *Provider) FindKnownTx(ctx context.Context, txID string) (*entity.KnownT
 	return knownTx, nil
 }
 
-//func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error) {
-//	tx, err := p.repo.Transactions.FindTransactionByReference(ctx, userID, reference)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to find transaction by ID: %w", err)
-//	}
-//
-//	if tx == nil {
-//		return nil, nil // No transaction found
-//	}
-//
-//	return tx.ToWDK(), nil
-//}
+// FindUserTransactionByReference retrieves a user transaction by userID and its reference.
+// NOTE: It returns nil if the transaction is not found.
+func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
+	txEntity, err := p.repo.Transactions.FindTransactionByReference(ctx, userID, reference)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transaction by ID: %w", err)
+	}
+
+	return txEntity, nil
+}

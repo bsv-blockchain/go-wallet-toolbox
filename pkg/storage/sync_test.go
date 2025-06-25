@@ -24,6 +24,7 @@ func TestSyncProcess(t *testing.T) {
 	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
 	ownedMinedTx := seed.OwnsMinedTransaction()
 	ownedTx := seed.OwnsTransaction()
+	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
 	// and:
 	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
@@ -36,12 +37,13 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 4, inserts)
+	assert.Equal(t, 7, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
 	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
 
+	// and knownTxs:
 	thenDBState.HasKnownTX(ownedMinedTx.ID()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		HasRawTx().
@@ -50,6 +52,26 @@ func TestSyncProcess(t *testing.T) {
 	thenDBState.HasKnownTX(ownedTx.ID()).
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		HasRawTx()
+
+	thenDBState.HasKnownTX(internalizedTxID).
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx()
+
+	// and user's transactions:
+	thenDBState.
+		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedMinedTx.ID())).
+		WithTxID(ownedMinedTx.ID()).
+		WithStatus(wdk.TxStatusCompleted)
+
+	thenDBState.
+		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTx.ID())).
+		WithTxID(ownedTx.ID()).
+		WithStatus(wdk.TxStatusUnproven)
+
+	thenDBState.
+		HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithoutTxID().
+		WithStatus(wdk.TxStatusUnsigned)
 }
 
 func TestSyncProcessOnlyUsers(t *testing.T) {

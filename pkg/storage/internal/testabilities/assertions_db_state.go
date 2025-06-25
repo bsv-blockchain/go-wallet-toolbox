@@ -5,6 +5,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -14,11 +15,14 @@ import (
 
 type StorageReader interface {
 	FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error)
+	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
+	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 }
 
 type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
 	HasKnownTX(txID string) KnownTxAssertion
+	HasUserTransactionByReference(user testusers.User, txID string) UserTransactionAssertion
 }
 
 type KnownTxAssertion interface {
@@ -30,8 +34,8 @@ type KnownTxAssertion interface {
 
 type UserTransactionAssertion interface {
 	WithStatus(state wdk.TxStatus) UserTransactionAssertion
-	WithProvenTxID(provenTxID string) UserTransactionAssertion
-	WithoutProvenTxID() UserTransactionAssertion
+	WithTxID(txID string) UserTransactionAssertion
+	WithoutTxID() UserTransactionAssertion
 }
 
 func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
@@ -50,6 +54,16 @@ func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
 type dbStateAssertion struct {
 	testing.TB
 	storage StorageReader
+}
+
+func (d *dbStateAssertion) userIDByIdentityKey(identityKey string) int {
+	d.Helper()
+
+	addUserResult, err := d.storage.FindOrInsertUser(d.Context(), identityKey)
+	require.NoError(d, err, "Failed to find user by identity key: %s", identityKey)
+	require.False(d, addUserResult.IsNew, "Expected the user to already exist, but it was created: %s", identityKey)
+
+	return addUserResult.User.UserID
 }
 
 func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
@@ -93,25 +107,6 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 	}
 }
 
-//func (d *dbStateAssertion) HasUserTransaction(txID string) UserTransactionAssertion {
-//	d.Helper()
-//
-//	tx, err := d.storage
-//	require.NoError(d.TB, err, txID)
-//
-//	if tx == nil {
-//		require.Failf(d, "Expected to find the transaction", "transaction ID: %s", txID)
-//		return nil
-//	}
-//
-//	assert.Equal(d, txID, tx.TxID, "Expected user transaction to have the same TxID as the one requested")
-//
-//	return &userTransactionAssertion{
-//		TB:      d.TB,
-//		knownTx: tx,
-//	}
-//}
-
 type knownTxAssertion struct {
 	testing.TB
 	knownTx *entity.KnownTx
@@ -145,5 +140,48 @@ func (d *knownTxAssertion) NotMined() KnownTxAssertion {
 func (d *knownTxAssertion) HasRawTx() KnownTxAssertion {
 	d.Helper()
 	assert.NotEmpty(d, d.knownTx.RawTx, "Expected known transaction to have a non-empty RawTx")
+	return d
+}
+
+func (d *dbStateAssertion) HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion {
+	d.Helper()
+
+	userID := d.userIDByIdentityKey(user.IdentityKey(d))
+	tx, err := d.storage.FindUserTransactionByReference(d.Context(), userID, reference) // UserID is not used here, so we pass 0
+	require.NoError(d.TB, err)
+	require.NotNil(d.TB, tx)
+
+	assert.Equal(d, reference, tx.Reference, "Expected user transaction to have the same TxID as the one requested")
+
+	return &userTransactionAssertion{
+		TB:          d.TB,
+		transaction: tx,
+	}
+}
+
+type userTransactionAssertion struct {
+	testing.TB
+	transaction *entity.Transaction
+}
+
+func (d *userTransactionAssertion) WithStatus(status wdk.TxStatus) UserTransactionAssertion {
+	d.Helper()
+	assert.Equal(d, status, d.transaction.Status, "Expected user transaction to have the status %s", status)
+	return d
+}
+
+func (d *userTransactionAssertion) WithTxID(txID string) UserTransactionAssertion {
+	d.Helper()
+	if !assert.NotNil(d, d.transaction.TxID, "Expected user transaction to have a non-empty TxID") {
+		return d
+	}
+
+	assert.Equal(d, txID, *d.transaction.TxID, "Expected user transaction to have the same TxID as the one requested")
+	return d
+}
+
+func (d *userTransactionAssertion) WithoutTxID() UserTransactionAssertion {
+	d.Helper()
+	assert.Nil(d, d.transaction.TxID)
 	return d
 }
