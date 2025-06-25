@@ -67,7 +67,7 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 }
 
 func (s *WalletTestSuite) TestWalletListOutputs() {
-	s.Run("basic list outputs", func() {
+	s.Run("basic list outputs after internalize action", func() {
 		t := s.T()
 
 		// given:
@@ -76,6 +76,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		// and:
 		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
 		defer cleanup()
+
+		// and:
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "Failed to internalize action for test setup")
 
 		// and:
 		args := fixtures.DefaultWalletListOutputsArgs()
@@ -87,9 +92,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.Equal(t, uint64(fixtures.ExpectedValueToInternalize), result.Outputs[0].Satoshis, "Output value should match internalized amount")
 	})
 
-	s.Run("list outputs with custom limit", func() {
+	s.Run("list outputs with custom limit after internalize action", func() {
 		t := s.T()
 
 		// given:
@@ -98,6 +105,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		// and:
 		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
 		defer cleanup()
+
+		// and:
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "Failed to internalize action for test setup")
 
 		// and:
 		args := fixtures.DefaultWalletListOutputsArgs()
@@ -110,9 +122,10 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
 	})
 
-	s.Run("list outputs with include entire transactions", func() {
+	s.Run("list outputs with include entire transactions after internalize action", func() {
 		t := s.T()
 
 		// given:
@@ -121,6 +134,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		// and:
 		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
 		defer cleanup()
+
+		// and:
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "Failed to internalize action for test setup")
 
 		// and:
 		args := fixtures.DefaultWalletListOutputsArgs()
@@ -133,9 +151,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.NotNil(t, result.BEEF, "BEEF should be included when requesting entire transactions")
 	})
 
-	s.Run("list outputs with include locking scripts", func() {
+	s.Run("list outputs with include locking scripts after internalize action", func() {
 		t := s.T()
 
 		// given:
@@ -144,6 +164,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		// and:
 		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
 		defer cleanup()
+
+		// and:
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "Failed to internalize action for test setup")
 
 		// and:
 		args := fixtures.DefaultWalletListOutputsArgs()
@@ -156,5 +181,72 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.NotNil(t, result.Outputs[0].LockingScript, "Locking script should be included")
+		assert.Greater(t, len(result.Outputs[0].LockingScript), 0, "Locking script should not be empty")
+	})
+
+	s.Run("list outputs with basket insertion protocol", func() {
+		t := s.T()
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and: first internalize an action using basket insertion protocol
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolBasketInsertion)
+		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "Failed to internalize action for test setup")
+
+		// and: list outputs from the custom basket
+		args := fixtures.DefaultWalletListOutputsArgs()
+		args.Basket = fixtures.CustomBasket
+		args.IncludeTags = &[]bool{true}[0]
+		args.IncludeLabels = &[]bool{true}[0]
+		args.IncludeCustomInstructions = &[]bool{true}[0]
+
+		// when:
+		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output in custom basket")
+		assert.Equal(t, uint64(fixtures.ExpectedValueToInternalize), result.Outputs[0].Satoshis, "Output value should match internalized amount")
+
+		// and:
+		assert.NotNil(t, result.Outputs[0].Tags, "Tags should be included")
+		assert.Greater(t, len(result.Outputs[0].Tags), 0, "Should have tags")
+		assert.Contains(t, result.Outputs[0].Tags, "tag1", "Should contain expected tag")
+		assert.Contains(t, result.Outputs[0].Tags, "tag2", "Should contain expected tag")
+		assert.NotEmpty(t, result.Outputs[0].CustomInstructions, "Custom instructions should be included")
+	})
+
+	s.Run("list outputs with empty result when no outputs exist", func() {
+		t := s.T()
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		args := fixtures.DefaultWalletListOutputsArgs()
+
+		// when:
+		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Equal(t, 0, len(result.Outputs), "Should have no outputs when none exist")
+		assert.Equal(t, uint32(0), result.TotalOutputs, "Total outputs should be zero")
 	})
 }

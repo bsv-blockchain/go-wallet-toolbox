@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -57,12 +58,12 @@ func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 }
 
 // mapListOutputsOutput maps *wdk.WalletOutput to sdk.Output
-func mapListOutputsOutput(output *wdk.WalletOutput) sdk.Output {
+func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
 	txID, vout := output.Outpoint.MustGet()
 
 	txidHash, err := chainhash.NewHashFromHex(txID)
 	if err != nil {
-		txidHash = &chainhash.Hash{}
+		return sdk.Output{}, fmt.Errorf("failed to parse transaction ID '%s': %w", txID, err)
 	}
 
 	result := sdk.Output{
@@ -92,21 +93,30 @@ func mapListOutputsOutput(output *wdk.WalletOutput) sdk.Output {
 		result.Labels = slices.Map(output.Labels, func(label primitives.StringUnder300) string { return string(label) })
 	}
 
-	return result
+	return result, nil
 }
 
 // MapListOutputsResult maps *wdk.ListOutputsResult to *sdk.ListOutputsResult
-func MapListOutputsResult(result *wdk.ListOutputsResult) *sdk.ListOutputsResult {
+func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult, error) {
 	totalOutputs := min(uint64(result.TotalOutputs), math.MaxUint32)
+
+	outputs := make([]sdk.Output, 0, len(result.Outputs))
+	for _, output := range result.Outputs {
+		mappedOutput, err := mapListOutputsOutput(output)
+		if err != nil {
+			return nil, fmt.Errorf("failed to map output: %w", err)
+		}
+		outputs = append(outputs, mappedOutput)
+	}
 
 	sdkResult := &sdk.ListOutputsResult{
 		TotalOutputs: uint32(totalOutputs), //nolint:gosec // G115: Value is clamped to MaxUint32 by min() function
-		Outputs:      slices.Map(result.Outputs, mapListOutputsOutput),
+		Outputs:      outputs,
 	}
 
 	if result.BEEF != nil {
 		sdkResult.BEEF = []byte(*result.BEEF)
 	}
 
-	return sdkResult
+	return sdkResult, nil
 }

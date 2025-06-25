@@ -230,7 +230,12 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 		return nil, fmt.Errorf("failed to list outputs: %w", err)
 	}
 
-	return mapping.MapListOutputsResult(result), nil
+	mappedResult, err := mapping.MapListOutputsResult(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map list outputs result: %w", err)
+	}
+
+	return mappedResult, nil
 }
 
 // RelinquishOutput relinquishes an output from a basket, removing it from tracking without spending it.
