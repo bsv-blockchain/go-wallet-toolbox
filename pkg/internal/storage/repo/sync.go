@@ -136,6 +136,12 @@ func (s *Sync) FindTransactionsForSync(ctx context.Context, userID int, opts ...
 	var resultModels []*TransactionWithKnownTx
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		queryopts.ModifyOptions(opts, func(options *queryopts.Options) {
+			if options.Since != nil && options.Since.TableName == "" {
+				// Prevent from an issue with ambiguous created_at column
+				options.Since.TableName = s.naming.transactionsTableName
+			}
+		})
 		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
 		// Make sure all numeric IDs of KnownTxs needed by user's transactions are present in the numeric ID lookup table.

@@ -11,8 +11,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
-// TODO: Add a testcase where a transaction is CreatedAndSigned but not yet "processed" - to check if it works when User's Transaction ID is not set
-
 func TestGetSyncChunk(t *testing.T) {
 	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
@@ -38,16 +36,20 @@ func TestGetSyncChunk(t *testing.T) {
 	// and:
 	thenChunk.WithGeneralInfo(&args)
 
+	// and baskets:
 	thenChunk.BasketsCount(1).
 		BasketAtIndex(0).WithUserID(testusers.Alice.ID).HasValidID().IsDefaultBasket()
 
+	// and proven tx requests:
 	thenChunk.ProvenTxReqsCount(2)
 	thenChunk.ProvenTxReqAtIndex(0).WithTxID(internalizedTxID)
 	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx1)
 
+	// and proven txs:
 	thenChunk.ProvenTxsCount(1)
 	thenChunk.ProvenTxAtIndex(0).AlignsWithTxSpec(ownedTx2).HasMerklePath()
 
+	// and user's transactions:
 	thenChunk.TransactionsCount(4)
 	thenChunk.TransactionAtIndex(0).
 		WithoutTxID().
@@ -159,7 +161,8 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 		WithGeneralInfo(&args).
 		BasketsCount(1).
 		ProvenTxReqsCount(1).
-		ProvenTxsCount(1)
+		ProvenTxsCount(1).
+		TransactionsCount(2)
 }
 
 func TestGetSyncChunkMaxItems(t *testing.T) {
@@ -182,7 +185,8 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 		WithGeneralInfo(&args).
 		BasketsCount(1).
 		ProvenTxReqsCount(0).
-		ProvenTxsCount(0)
+		ProvenTxsCount(0).
+		TransactionsCount(0)
 }
 
 func TestGetSyncChunkOneByOne(t *testing.T) {
@@ -241,4 +245,30 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	thenChunk.BasketsCount(0).
 		ProvenTxsCount(0).
 		ProvenTxReqsCount(1)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 2).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(0).
+		TransactionsCount(1)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.TransactionEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(0).
+		TransactionsCount(1)
 }

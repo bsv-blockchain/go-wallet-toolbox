@@ -37,7 +37,7 @@ type RequestSyncChunkFixture interface {
 	NoOffsets() RequestSyncChunkFixture
 	WithSince(t time.Time) RequestSyncChunkFixture
 	WithMaxItems(maxItems uint64) RequestSyncChunkFixture
-	WithOffset(entityName wdk.EntityName, maxItems uint64) RequestSyncChunkFixture
+	WithOffset(entityName wdk.EntityName, offset uint64) RequestSyncChunkFixture
 
 	Args() wdk.RequestSyncChunkArgs
 }

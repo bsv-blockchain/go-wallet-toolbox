@@ -146,6 +146,7 @@ func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.BasketsCount(0)
 	s.KnownTxsCount(0)
 	s.ProvenTxsCount(0)
+	s.TransactionsCount(0)
 	return s
 }
 
