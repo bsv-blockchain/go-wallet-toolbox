@@ -155,6 +155,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		BlockHeight:  blockHeight,
 		Error:        firstNonNilError(fetchErr),
 		Notes:        convertNotes(notes),
+		// NOTE: MerklePath is not fetched here because that would require additional API call
 	}
 }
 

@@ -68,7 +68,7 @@ wallet_services:
     fiat_update_interval: 24h0m0s
     whats_on_chain:
         api_key: ""
-        broadcast_delay: null
+        broadcast_delay: 3s
         bsv_exchange_rate:
             base: USD
             rates: 47.52
