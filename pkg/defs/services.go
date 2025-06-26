@@ -25,6 +25,12 @@ const (
 
 	// ArcTestToken is the token for the ARC service on testnet - it's a well-known key and can be public
 	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec
+
+	// BHSTestURL is the URL for the BHS service
+	BHSTestURL = "http://localhost:8080"
+
+	// BHSApiKey is the token for the BHS service
+	BHSApiKey = "token_abcd_1234567890"
 )
 
 // WalletServices is a struct that has options for wallet services
@@ -40,6 +46,7 @@ type WalletServices struct {
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
+	BHS          BHS          `mapstructure:"bhs"`
 }
 
 // Validate checks the validity of the WalletServices struct
@@ -73,6 +80,10 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 
 	cfg := WalletServices{
 		Chain: chain,
+		BHS: BHS{
+			URL:    BHSTestURL,
+			APIKey: BHSApiKey,
+		},
 		WhatsOnChain: WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
 			BSVExchangeRate: BSVExchangeRate{
