@@ -159,12 +159,5 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 }
 
 func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
-	info, err := woc.fetchTxInfo(ctx, txid)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch tx info: %w", err)
-	}
-	return &txInfoResult{
-		BlockHash:   info.BlockHash,
-		BlockHeight: info.BlockHeight,
-	}, nil
+	return woc.fetchTxInfo(ctx, txid)
 }

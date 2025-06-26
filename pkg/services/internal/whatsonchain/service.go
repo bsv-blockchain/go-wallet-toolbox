@@ -52,11 +52,6 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 
-	delay := 3 * time.Second
-	if config.BroadcastDelay != nil {
-		delay = *config.BroadcastDelay
-	}
-
 	return &WhatsOnChain{
 		httpClient:        client,
 		apiKey:            config.APIKey,
@@ -64,7 +59,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		logger:            logger,
 		bsvExchangeRate:   config.BSVExchangeRate,
 		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
-		broadcastDelay:    delay,
+		broadcastDelay:    config.BroadcastDelay,
 	}
 }
 

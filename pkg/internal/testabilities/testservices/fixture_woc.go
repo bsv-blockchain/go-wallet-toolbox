@@ -28,6 +28,7 @@ type WhatsOnChainFixture interface {
 	WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture
 	WhenQueryingBlockHeader(blockHash string) WhatsOnChainBlockHeaderQueryFixture
 	WillRespondWithBroadcast(status int, responseBody string)
+	WillRespondOnTxStatus(status int, tc TxStatusExpectation)
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
@@ -293,6 +294,43 @@ func (f *wocFixture) WillAlwaysReturnPostBEEFSuccess(txids ...string) {
 
 		return httpmock.NewStringResponse(http.StatusBadRequest, "txid not found"), nil
 	})
+}
+
+type TxStatusExpectation struct {
+	ExpectBlockHash   string
+	ExpectBlockHeight int64
+}
+
+func (f *wocFixture) WillRespondOnTxStatus(status int, tc TxStatusExpectation) {
+	f.TB.Helper()
+
+	f.transport.RegisterResponder("POST",
+		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/txs/status", f.network),
+		func(req *http.Request) (*http.Response, error) {
+			var body struct {
+				Txids []string `json:"txids"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				return httpmock.NewStringResponse(http.StatusBadRequest, "bad request"), nil
+			}
+
+			respItems := []map[string]interface{}{}
+			for _, txid := range body.Txids {
+				respItems = append(respItems, map[string]interface{}{
+					"txid":          txid,
+					"blockhash":     tc.ExpectBlockHash,
+					"blockheight":   tc.ExpectBlockHeight,
+					"confirmations": 10,
+					"time":          1599999999,
+					"blocktime":     1599999999,
+				})
+			}
+
+			respBytes, _ := json.Marshal(respItems)
+			resp := httpmock.NewStringResponse(status, string(respBytes))
+			resp.Header.Set("Content-Type", "application/json")
+			return resp, nil
+		})
 }
 
 func mockBroadcastURL(network defs.BSVNetwork) string {

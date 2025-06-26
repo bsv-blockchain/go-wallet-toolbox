@@ -9,8 +9,8 @@ import (
 type WhatsOnChain struct {
 	APIKey            string          `mapstructure:"api_key"`
 	BSVExchangeRate   BSVExchangeRate `mapstructure:"bsv_exchange_rate"`
+	BroadcastDelay    time.Duration   `mapstructure:"broadcast_delay"`
 	BSVUpdateInterval *time.Duration  `mapstructure:"bsv_update_interval"`
-	BroadcastDelay    *time.Duration  `mapstructure:"broadcast_delay"`
 }
 
 // Validate checks if the WhatsOnChain configuration is valid

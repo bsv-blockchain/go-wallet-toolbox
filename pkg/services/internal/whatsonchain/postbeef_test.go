@@ -1,12 +1,10 @@
 package whatsonchain_test
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -28,7 +26,7 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 	require.NoError(t, err)
 
 	fixture := testabilities.Given(t)
-	woc := fixture.NewWoCService(whatsonchain.WithBroadcastDelay(0))
+	woc := fixture.NewWoCService()
 
 	client := fixture.WhatsOnChain().HttpClient()
 	httpmock.ActivateNonDefault(client.GetClient())
@@ -113,33 +111,10 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 			// Given:
 			fixture.WhatsOnChain().WillRespondWithBroadcast(tc.httpStatus, tc.httpResponse)
 
-			fixture.WhatsOnChain().Transport().RegisterResponder("POST",
-				fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/txs/status", fixture.Network()),
-				func(req *http.Request) (*http.Response, error) {
-					var body struct {
-						Txids []string `json:"txids"`
-					}
-					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-						return httpmock.NewStringResponse(http.StatusBadRequest, "bad request"), nil
-					}
-
-					respItems := []map[string]interface{}{}
-					for _, txid := range body.Txids {
-						respItems = append(respItems, map[string]interface{}{
-							"txid":          txid,
-							"blockhash":     tc.expectBlockHash,
-							"blockheight":   tc.expectBlockHeight,
-							"confirmations": 10,
-							"time":          1599999999,
-							"blocktime":     1599999999,
-						})
-					}
-
-					respBytes, _ := json.Marshal(respItems)
-					resp := httpmock.NewStringResponse(http.StatusOK, string(respBytes))
-					resp.Header.Set("Content-Type", "application/json")
-					return resp, nil
-				})
+			fixture.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+				ExpectBlockHash:   tc.expectBlockHash,
+				ExpectBlockHeight: tc.expectBlockHeight,
+			})
 
 			// When:
 			result, err := woc.PostBEEF(t.Context(), beef, []string{calculatedTxID})
