@@ -198,12 +198,66 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			HasSatoshis(args.Outputs[0].Satoshis).
 			IsNotChange()
 
+	})
+
+	s.Run("return signable transaction with provided input when sign&process is false and validate list actions", func() {
+		t := s.T()
+		const topUpValue = 99904
+		const inputValue = 50000
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		input := given.InputForUser(testusers.Alice).WithSatoshis(inputValue)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+		args.InputBEEF = input.InputBEEFBytes()
+		args.Inputs = []sdk.CreateActionInput{
+			input.CreateActionInput(),
+		}
+		args.Options.SignAndProcess = to.Ptr(false)
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+		require.NotNil(t, result.SignableTransaction, "Wallet result without sign&process contain signable transaction")
+		assert.NotEmpty(t, result.SignableTransaction.Reference, "Signable transaction should have reference")
+
+		// and:
+		require.NotEmpty(t, result.SignableTransaction.Tx, "Signable transaction should have transaction bytes")
+
+		thenTx := asserttx.RestoredFromBEEFBytes(t, result.SignableTransaction.Tx)
+
+		thenTx.HasInputsThatFundsOutputs().HasMinimalFee()
+
+		thenTx.Inputs().AllHaveUnlockingScript().HasTotalInputValue(inputValue)
+
+		thenTx.Outputs().AllHaveLockingScript()
+
+		thenTx.Output(0).
+			HasLockingScript(args.Outputs[0].LockingScript).
+			HasSatoshis(args.Outputs[0].Satoshis).
+			IsNotChange()
+
 		// when: verify that ListActions shows the created action
 		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
 		listArgs.Labels = args.Labels
 		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
 
-		// and:
+		// then:
 		assert.NoError(t, listErr)
 		require.NotNil(t, listResult)
 		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after create")
