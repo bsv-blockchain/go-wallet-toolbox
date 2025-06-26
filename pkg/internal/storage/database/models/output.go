@@ -13,7 +13,7 @@ type Output struct {
 	Vout          uint32 `gorm:"index"`
 	Satoshis      int64
 
-	LockingScript      *string `gorm:"type:string"`
+	LockingScript      []byte
 	CustomInstructions *string `gorm:"type:string"`
 
 	DerivationPrefix *string
@@ -36,4 +36,6 @@ type Output struct {
 	SpentByTransaction *Transaction `gorm:"foreignKey:SpentBy;references:ID"`
 
 	UserUTXO *UserUTXO `gorm:"foreignKey:OutputID"`
+
+	Tags []*Tag `gorm:"many2many:output_tags;"`
 }

@@ -8,6 +8,8 @@ import (
 type naming struct {
 	outputBasketTableName    string
 	numericIDLookupTableName string
+	knownTxTableName         string
+	transactionsTableName    string
 }
 
 func newNaming(db *gorm.DB) *naming {
@@ -15,6 +17,8 @@ func newNaming(db *gorm.DB) *naming {
 	return &naming{
 		outputBasketTableName:    getTableName(db, &models.OutputBasket{}),
 		numericIDLookupTableName: getTableName(db, &models.NumericIDLookup{}),
+		knownTxTableName:         getTableName(db, &models.KnownTx{}),
+		transactionsTableName:    getTableName(db, &models.Transaction{}),
 	}
 }
 

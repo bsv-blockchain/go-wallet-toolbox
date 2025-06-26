@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/config"
+	"github.com/4chain-ag/go-wallet-toolbox/internal/config"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/monitor"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"

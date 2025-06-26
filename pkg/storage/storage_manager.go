@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/managed"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -28,6 +29,7 @@ func NewWalletStorageManager(identityKey string, active wdk.WalletStorageProvide
 	}
 
 	if active == nil {
+		// TODO: We need to revisit this panic, as in TS the active storage is optional an it's almost never assigned during construction.
 		panic("activeStorage storage must be provided")
 	}
 
@@ -71,6 +73,26 @@ func (m *WalletStorageManager) GetAuth(ctx context.Context) (wdk.AuthID, error) 
 		IdentityKey: m.identityKey,
 		IsActive:    to.Ptr(m.activeStorage.Settings.StorageIdentityKey == m.activeStorage.User.ActiveStorage),
 	}, nil
+}
+
+// SyncToWriter synchronizes wallet data from the active storage to the provided writer storage provider.
+// NOTE: reader(source) => writer(backup)
+func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.WalletStorageProvider, opts ...wdk.SyncToWriterOption) (inserts, updates int, err error) {
+	// TODO: add locking mechanism to ensure that the active storage is not being modified while syncing
+
+	if writer == nil {
+		return 0, 0, fmt.Errorf("writer wallet storage must be provided, it's nil")
+	}
+
+	reader := m.getActiveReader()
+	auth := wdk.AuthID{IdentityKey: m.identityKey}
+
+	inserts, updates, err = sync.NewReaderToWriter().Sync(ctx, auth, reader, writer, opts...)
+	if err != nil {
+		err = fmt.Errorf("failed to sync from reader to writer: %w", err)
+	}
+
+	return
 }
 
 func (m *WalletStorageManager) getActiveReader() wdk.WalletStorageProvider {

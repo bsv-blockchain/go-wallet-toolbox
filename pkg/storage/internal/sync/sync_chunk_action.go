@@ -28,7 +28,7 @@ func newSyncChunkAction(logger *slog.Logger, repo Repository) *syncChunkAction {
 }
 
 func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-	user, err := s.repo.FindUserForSync(ctx, args.IdentityKey)
+	user, err := s.repo.FindUser(ctx, args.IdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find user: %w", err)
 	}
@@ -37,17 +37,17 @@ func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyn
 		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
 	}
 
-	chunk := &wdk.SyncChunk{
-		FromStorageIdentityKey: args.FromStorageIdentityKey,
-		ToStorageIdentityKey:   args.ToStorageIdentityKey,
-		UserIdentityKey:        args.IdentityKey,
-	}
+	chunk := wdk.NewSyncChunk(
+		args.FromStorageIdentityKey,
+		args.ToStorageIdentityKey,
+		args.IdentityKey,
+	)
 
 	if args.Since == nil || user.UpdatedAt.After(*args.Since) {
-		chunk.User = user
+		chunk.User = user.ToWDK()
 	}
 
-	if err = s.process(ctx, args, user.UserID, chunk); err != nil {
+	if err = s.process(ctx, args, user.ID, chunk); err != nil {
 		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
 	}
 

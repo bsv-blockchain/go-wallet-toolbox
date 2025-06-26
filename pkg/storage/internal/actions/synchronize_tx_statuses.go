@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -13,7 +14,8 @@ import (
 )
 
 const (
-	syncTxStatusLimit = 100
+	syncTxStatusLimit  = 100
+	lastBlockHeightKey = "synchronize_tx_statuses_last_block_height"
 )
 
 var (
@@ -29,12 +31,13 @@ var (
 type synchronizeTxStatuses struct {
 	lock                 sync.Mutex
 	logger               *slog.Logger
-	provenTxRepo         ProvenTxRepo
+	provenTxRepo         KnownTxRepo
+	keyValueRepo         KeyValueRepo
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
 }
 
-func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.SynchronizeTxStatuses, services wdk.Services, provenTxRepo ProvenTxRepo) *synchronizeTxStatuses {
+func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.SynchronizeTxStatuses, services wdk.Services, provenTxRepo KnownTxRepo, keyValueRepo KeyValueRepo) *synchronizeTxStatuses {
 	logger = logging.Child(logger, "synchronize_tx_statuses")
 
 	if syncTxStatusesConfig.MaxAttempts == 0 {
@@ -44,12 +47,13 @@ func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.Syn
 	return &synchronizeTxStatuses{
 		logger:               logging.Child(logger, "synchronize_tx_statuses"),
 		provenTxRepo:         provenTxRepo,
+		keyValueRepo:         keyValueRepo,
 		syncTxStatusesConfig: syncTxStatusesConfig,
 		services:             services,
 	}
 }
 
-func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error {
+func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resultErr error) {
 	lockAcquired := s.lock.TryLock()
 	if !lockAcquired {
 		s.logger.Warn("synchronizeTxStatuses is already running, skipping this run")
@@ -57,15 +61,32 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 	}
 	defer s.lock.Unlock()
 
-	// TODO Check current block height; skip if already synchronized for this block height
+	checkedForCurrentBlock, currentHeight, err := s.alreadyCheckedForCurrentBlock(ctx)
+	if err != nil {
+		s.logger.Warn("failed to check if already checked for this block", slog.Any("err", err))
+		// We still want to proceed with the synchronization, so we log the error and continue
+	} else {
+		if checkedForCurrentBlock {
+			return nil
+		}
+
+		defer func() {
+			if resultErr != nil {
+				return
+			}
+			if err := s.setLastBlockHeight(ctx, currentHeight); err != nil {
+				resultErr = fmt.Errorf("successfully synchronized tx statuses, but failed to set last block height: %w", err)
+			}
+		}()
+	}
 
 	// TODO: Use pagination (plus created_at older than now) strategy to process all the transactions that need synchronization
-	txsToSync, err := s.provenTxRepo.FindProvenTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
+	txsToSync, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
 	if err != nil {
-		return fmt.Errorf("provenTxRepo.FindTxIDsByStatuses failed: %w", err)
+		return fmt.Errorf("knownTxRepo.FindTxIDsByStatuses failed: %w", err)
 	}
 	if len(txsToSync) == 0 {
-		s.logger.Info("no transactions need synchronization")
+		s.logger.Info("no transactions need synchronization", slog.Any("height", currentHeight))
 		return nil
 	}
 
@@ -85,6 +106,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 				slog.String("txID", txToSync.TxID),
 				slog.Uint64("attempts", txToSync.Attempts),
 				slog.String("status", string(txToSync.Status)),
+				slog.Any("height", currentHeight),
 			)
 
 			failedAttempts = append(failedAttempts, txToSync.TxID)
@@ -96,6 +118,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
 				slog.String("status", string(txToSync.Status)),
+				slog.Any("height", currentHeight),
 			)
 
 			failedAttempts = append(failedAttempts, txToSync.TxID)
@@ -104,7 +127,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 
 		// TODO: Support history notes
 
-		err = s.provenTxRepo.UpdateProvenTxAsMined(ctx, &entity.ProvenTxAsMined{
+		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
 			TxID:        txToSync.TxID,
 			BlockHeight: merkleResult.BlockHeader.Height,
 			MerklePath:  merkleResult.MerklePath.Bytes(),
@@ -116,7 +139,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 		}
 	}
 
-	err = s.provenTxRepo.IncreaseProvenTxAttemptsForTxIDs(ctx, failedAttempts)
+	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
 	if err != nil {
 		return fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
@@ -124,9 +147,69 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) error
 	//NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
 	//updates matching (user) transactions to "failed" and tidies outputs
 	//TODO: Consider if we want to do the same or do it right away here
-	err = s.provenTxRepo.SetStatusForProvenTxAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
+	err = s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
 	if err != nil {
 		return fmt.Errorf("failed to set status for txs above attempts: %w", err)
+	}
+
+	return nil
+}
+
+func (s *synchronizeTxStatuses) alreadyCheckedForCurrentBlock(ctx context.Context) (bool, uint, error) {
+	header, err := s.services.FindChainTipHeader(ctx)
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to find chain tip header: %w", err)
+	}
+
+	lastHeight, ok, err := s.getLastBlockHeight(ctx)
+	if err != nil {
+		return false, 0, err
+	}
+
+	if ok && lastHeight == header.Height {
+		s.logger.Debug("already checked for this block, skipping alreadyCheckedForThisBlock", slog.Any("height", header.Height))
+		return true, header.Height, nil
+	}
+
+	return false, header.Height, nil
+}
+
+type LastHeightValue struct {
+	BlockHeight uint `json:"blockHeight"`
+}
+
+func (s *synchronizeTxStatuses) getLastBlockHeight(ctx context.Context) (uint, bool, error) {
+	obj, ok, err := s.keyValueRepo.Get(ctx, lastBlockHeightKey)
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to get last block height: %w", err)
+	}
+
+	if !ok {
+		// It seems that it is the first time we are checking the block height
+		return 0, false, nil
+	}
+
+	var lastHeight LastHeightValue
+	if err := json.Unmarshal(obj, &lastHeight); err != nil {
+		return 0, false, fmt.Errorf("failed to unmarshal last block height: %w", err)
+	}
+
+	if lastHeight.BlockHeight == 0 {
+		return 0, false, fmt.Errorf("last block height is zero, this should not happen")
+	}
+
+	return lastHeight.BlockHeight, true, nil
+}
+
+func (s *synchronizeTxStatuses) setLastBlockHeight(ctx context.Context, blockHeight uint) error {
+	lastHeight := LastHeightValue{BlockHeight: blockHeight}
+	data, err := json.Marshal(lastHeight)
+	if err != nil {
+		return fmt.Errorf("failed to marshal last block height: %w", err)
+	}
+
+	if err := s.keyValueRepo.Set(ctx, lastBlockHeightKey, data); err != nil {
+		return fmt.Errorf("failed to set last block height: %w", err)
 	}
 
 	return nil

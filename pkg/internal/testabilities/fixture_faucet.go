@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -19,6 +21,7 @@ const (
 	MockReference        = "mock-reference"
 	MockDerivationPrefix = "mock-derivation-prefix"
 	MockDerivationSuffix = "mock-derivation-suffix"
+	TestBlockHash        = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
 )
 
 type faucetFixture struct {
@@ -29,22 +32,42 @@ type faucetFixture struct {
 	index      int
 }
 
-func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models.UserUTXO) {
+func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO) {
 	f.t.Helper()
+	options := TopUpOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
 
 	spec := txtestabilities.GivenTX().
 		WithInput(satoshi.MustAdd(satoshis, 1).MustUInt64()).
 		WithP2PKHOutput(satoshis.MustUInt64()).
 		WithOPReturn(fmt.Sprintf("faucet index %d", f.index))
 
-	beef, err := spec.TX().BEEF()
+	txObj := spec.TX()
+	if options.Mined {
+		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID()))
+	}
+
+	beef, err := txObj.BEEF()
 	require.NoError(f.t, err)
 
-	provenTxReq := &models.ProvenTxReq{
+	knownTx := &models.KnownTx{
 		TxID:      spec.ID(),
 		Status:    wdk.ProvenTxStatusUnmined,
 		RawTx:     spec.TX().Bytes(),
 		InputBeef: beef,
+	}
+
+	if txObj.MerklePath != nil {
+		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
+		require.NoError(f.t, err)
+
+		knownTx.Status = wdk.ProvenTxStatusCompleted
+		knownTx.BlockHeight = &txObj.MerklePath.BlockHeight
+		knownTx.MerklePath = txObj.MerklePath.Bytes()
+		knownTx.MerkleRoot = to.Ptr(merkleRoot)
+		knownTx.BlockHash = to.Ptr(TestBlockHash)
 	}
 
 	transaction := &models.Transaction{
@@ -72,10 +95,21 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		Type:             string(wdk.OutputTypeP2PKH),
 		DerivationPrefix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationPrefix, f.index)),
 		DerivationSuffix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationSuffix, f.index)),
-		LockingScript:    to.Ptr(spec.TX().Outputs[0].LockingScript.String()),
+		LockingScript:    spec.TX().Outputs[0].LockingScript.Bytes(),
 		BasketName:       &f.basketName,
 
 		Transaction: transaction,
+
+		Tags: []*models.Tag{
+			{
+				Name:   fixtures.CreateActionTestTag,
+				UserID: f.user.ID,
+			},
+			{
+				Name:   fixtures.FaucetTag(f.index),
+				UserID: f.user.ID,
+			},
+		},
 	}
 
 	utxo := &models.UserUTXO{
@@ -89,7 +123,9 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 
 	tx := f.db.DB.WithContext(f.t.Context())
 	tx.Create(utxo)
-	tx.Create(provenTxReq)
+	tx.Create(knownTx)
+
+	f.index++
 
 	return spec, utxo
 }

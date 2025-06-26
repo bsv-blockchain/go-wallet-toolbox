@@ -5,244 +5,218 @@ import (
 	"testing"
 	"time"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-// General TODO: Seed database with some data for testing
-
 func TestGetSyncChunk(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
+	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := wdk.RequestSyncChunkArgs{
-		FromStorageIdentityKey: "from_storage",
-		ToStorageIdentityKey:   "to_storage",
-		IdentityKey:            testusers.Alice.IdentityKey(t),
-		MaxItems:               10,
-		MaxRoughSize:           100_000,
+	seed := given.SeedDB(activeStorage, testusers.Alice)
+	ownedTx1 := seed.OwnsTransaction()
+	ownedTx2 := seed.OwnsMinedTransaction()
 
-		Offsets: []wdk.SyncOffsets{
-			{
-				Name:   wdk.OutputBasketEntityName,
-				Offset: 0,
-			},
-			// TODO: Add more offsets for other entities when implemented
-		},
-	}
+	// and:
+	args := given.RequestSyncChunk(testusers.Alice).Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
 	// then:
-	require.NoError(t, err)
-	assert.Equal(t, "from_storage", chunk.FromStorageIdentityKey)
-	assert.Equal(t, "to_storage", chunk.ToStorageIdentityKey)
-	assert.Equal(t, args.IdentityKey, chunk.UserIdentityKey)
+	thenChunk := then.Chunk(chunk).WithoutError(err)
 
-	assert.Equal(t, args.IdentityKey, chunk.User.IdentityKey)
-	assert.Equal(t, givenProvider.StorageIdentityKey(), chunk.User.ActiveStorage)
+	// and:
+	thenChunk.WithGeneralInfo(&args)
 
-	require.Len(t, chunk.OutputBaskets, 1)
-	defaultBasket := chunk.OutputBaskets[0]
-	assert.Equal(t, testusers.Alice.ID, defaultBasket.UserID)
-	assert.True(t, defaultBasket.BasketID > 0)
-	assert.Equal(t, wdk.DefaultBasketConfiguration(), defaultBasket.BasketConfiguration)
+	thenChunk.BasketsCount(1).
+		BasketAtIndex(0).WithUserID(testusers.Alice.ID).HasValidID().IsDefaultBasket()
+
+	thenChunk.KnownTxsCount(1)
+	thenChunk.ProvenTxReqAtIndex(0).AlignsWithTxSpec(ownedTx1)
+
+	thenChunk.ProvenTxsCount(1)
+	thenChunk.ProvenTxAtIndex(0).AlignsWithTxSpec(ownedTx2).HasMerklePath()
+
 	// TODO: Remember to add more assertions for other entities when implemented
 }
 
 func TestGetSyncChunkNoOffsets(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
+	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := wdk.RequestSyncChunkArgs{
-		FromStorageIdentityKey: "from_storage",
-		ToStorageIdentityKey:   "to_storage",
-		IdentityKey:            testusers.Alice.IdentityKey(t),
-		MaxItems:               10,
-		MaxRoughSize:           100_000,
-	}
+	args := given.RequestSyncChunk(testusers.Alice).
+		NoOffsets().
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
 	// then:
-	require.NoError(t, err)
-	assert.Equal(t, "from_storage", chunk.FromStorageIdentityKey)
-	assert.Equal(t, "to_storage", chunk.ToStorageIdentityKey)
-	assert.Equal(t, args.IdentityKey, chunk.UserIdentityKey)
-
-	assert.Equal(t, args.IdentityKey, chunk.User.IdentityKey)
-	assert.Equal(t, givenProvider.StorageIdentityKey(), chunk.User.ActiveStorage)
-
-	require.Len(t, chunk.OutputBaskets, 0)
-	// TODO: Remember to add more assertions for other entities when implemented
+	then.Chunk(chunk).WithoutError(err).
+		WithGeneralInfo(&args).
+		AllCountZero()
 }
 
 func TestGetSyncChunkOffsetsOverMaxItems(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
+	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := wdk.RequestSyncChunkArgs{
-		FromStorageIdentityKey: "from_storage",
-		ToStorageIdentityKey:   "to_storage",
-		IdentityKey:            testusers.Alice.IdentityKey(t),
-		MaxItems:               10,
-		MaxRoughSize:           100_000,
-
-		Offsets: []wdk.SyncOffsets{
-			{
-				Name:   wdk.OutputBasketEntityName,
-				Offset: 100, // This is more than we have in the database
-			},
-			// TODO: Add more offsets for other entities when implemented
-		},
+	args := fixtures.DefaultRequestSyncChunkArgs(testusers.Alice.IdentityKey(t), givenProvider.StorageIdentityKey(), fixtures.SecondStorageIdentityKey)
+	for i := range args.Offsets {
+		args.Offsets[i].Offset = 100 // This is more than we have in the database
 	}
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
 	// then:
-	require.NoError(t, err)
-	assert.Equal(t, "from_storage", chunk.FromStorageIdentityKey)
-	assert.Equal(t, "to_storage", chunk.ToStorageIdentityKey)
-	assert.Equal(t, args.IdentityKey, chunk.UserIdentityKey)
-
-	assert.Equal(t, args.IdentityKey, chunk.User.IdentityKey)
-	assert.Equal(t, givenProvider.StorageIdentityKey(), chunk.User.ActiveStorage)
-
-	require.Len(t, chunk.OutputBaskets, 0)
-	// TODO: Remember to add more assertions for other entities when implemented
+	then.Chunk(chunk).WithoutError(err).
+		WithGeneralInfo(&args).
+		AllCountZero()
 }
 
 func TestGetSyncChunkSinceAsCurrent(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
+	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := wdk.RequestSyncChunkArgs{
-		FromStorageIdentityKey: "from_storage",
-		ToStorageIdentityKey:   "to_storage",
-		IdentityKey:            testusers.Alice.IdentityKey(t),
-		MaxItems:               10,
-		MaxRoughSize:           100_000,
-		Since:                  to.Ptr(time.Now()), // I assume that no items are older than now
-
-		Offsets: []wdk.SyncOffsets{
-			{
-				Name:   wdk.OutputBasketEntityName,
-				Offset: 0,
-			},
-			// TODO: Add more offsets for other entities when implemented
-		},
-	}
+	args := given.RequestSyncChunk(testusers.Alice).
+		WithSince(time.Now().Add(time.Hour)). // assumes that no items are older than now+1Hour
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
 	// then:
-	require.NoError(t, err)
-	assert.Equal(t, "from_storage", chunk.FromStorageIdentityKey)
-	assert.Equal(t, "to_storage", chunk.ToStorageIdentityKey)
-	assert.Equal(t, args.IdentityKey, chunk.UserIdentityKey)
-
-	assert.Nil(t, chunk.User)
-	require.Len(t, chunk.OutputBaskets, 0)
-	// TODO: Remember to add more assertions for other entities when implemented
+	then.Chunk(chunk).WithoutError(err).
+		WithFromStorageIdentityKey(args.FromStorageIdentityKey).
+		WithToStorageIdentityKey(args.ToStorageIdentityKey).
+		WithUserIdentityKey(args.IdentityKey).
+		AllCountZero()
 }
 
 func TestGetSyncChunkSinceAsPast(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
+	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := wdk.RequestSyncChunkArgs{
-		FromStorageIdentityKey: "from_storage",
-		ToStorageIdentityKey:   "to_storage",
-		IdentityKey:            testusers.Alice.IdentityKey(t),
-		MaxItems:               10,
-		MaxRoughSize:           100_000,
-		Since:                  to.Ptr(time.Now().Add(-time.Hour)),
+	seed := given.SeedDB(activeStorage, testusers.Alice)
+	seed.OwnsTransaction()
+	seed.OwnsMinedTransaction()
 
-		Offsets: []wdk.SyncOffsets{
-			{
-				Name:   wdk.OutputBasketEntityName,
-				Offset: 0,
-			},
-			// TODO: Add more offsets for other entities when implemented
-		},
-	}
+	args := given.RequestSyncChunk(testusers.Alice).
+		WithSince(time.Now().Add(-time.Hour)).
+		Args()
 
 	// when:
 	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
 	// then:
-	require.NoError(t, err)
-	assert.Equal(t, "from_storage", chunk.FromStorageIdentityKey)
-	assert.Equal(t, "to_storage", chunk.ToStorageIdentityKey)
-	assert.Equal(t, args.IdentityKey, chunk.UserIdentityKey)
-
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, "from_storage", chunk.FromStorageIdentityKey)
-	assert.Equal(t, "to_storage", chunk.ToStorageIdentityKey)
-	assert.Equal(t, args.IdentityKey, chunk.UserIdentityKey)
-
-	assert.Equal(t, args.IdentityKey, chunk.User.IdentityKey)
-	assert.Equal(t, givenProvider.StorageIdentityKey(), chunk.User.ActiveStorage)
-
-	require.Len(t, chunk.OutputBaskets, 1)
-	// TODO: Remember to add more assertions for other entities when implemented
+	then.Chunk(chunk).WithoutError(err).
+		WithGeneralInfo(&args).
+		BasketsCount(1).
+		KnownTxsCount(1).
+		ProvenTxsCount(1)
 }
 
 func TestGetSyncChunkMaxItems(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
+	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
 	activeStorage := givenProvider.GORM()
 
-	args := wdk.RequestSyncChunkArgs{
-		FromStorageIdentityKey: "from_storage",
-		ToStorageIdentityKey:   "to_storage",
-		IdentityKey:            testusers.Alice.IdentityKey(t),
-		MaxItems:               math.MaxUint64,
-		MaxRoughSize:           100_000,
-
-		Offsets: []wdk.SyncOffsets{
-			{
-				Name:   wdk.OutputBasketEntityName,
-				Offset: 0,
-			},
-		},
-	}
+	args := given.RequestSyncChunk(testusers.Alice).
+		WithMaxItems(math.MaxUint64).
+		Args()
 
 	// when:
-	_, err := activeStorage.GetSyncChunk(t.Context(), args)
+	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
 	// then:
-	require.NoError(t, err)
+	then.Chunk(chunk).WithoutError(err).
+		WithGeneralInfo(&args).
+		BasketsCount(1).
+		KnownTxsCount(0).
+		ProvenTxsCount(0)
+}
+
+func TestGetSyncChunkOneByOne(t *testing.T) {
+	given, then, cleanup := testabilities.NewSync(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	seed := given.SeedDB(activeStorage, testusers.Alice)
+	seed.OwnsTransaction()
+	seed.OwnsMinedTransaction()
+
+	// and:
+	argsFixture := given.RequestSyncChunk(testusers.Alice).
+		WithMaxItems(1)
+
+	args := argsFixture.Args()
+
+	// when:
+	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk := then.Chunk(chunk).WithoutError(err)
+
+	// and:
+	thenChunk.WithGeneralInfo(&args)
+
+	thenChunk.BasketsCount(1).
+		KnownTxsCount(0).
+		ProvenTxsCount(0)
+
+	// given::
+	args = argsFixture.WithOffset(wdk.OutputBasketEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(1).
+		KnownTxsCount(0)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		KnownTxsCount(1)
 }

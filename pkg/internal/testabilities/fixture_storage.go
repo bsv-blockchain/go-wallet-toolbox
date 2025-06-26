@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
@@ -31,10 +32,24 @@ type StorageFixture interface {
 	MockProvider() *mocks.MockWalletStorageProvider
 
 	Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture
+
+	StorageIdentityKey() string
 }
 
 type FaucetFixture interface {
-	TopUp(satoshis satoshi.Value) (txtestabilities.TransactionSpec, *models.UserUTXO)
+	TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO)
+}
+
+type TopUpOptions struct {
+	Mined bool
+}
+
+type TopUpOpts func(*TopUpOptions)
+
+func WithMinedTopUp() TopUpOpts {
+	return func(opts *TopUpOptions) {
+		opts.Mined = true
+	}
 }
 
 type storageFixture struct {
@@ -43,6 +58,9 @@ type storageFixture struct {
 	logger     *slog.Logger
 	testServer *httptest.Server
 	db         *database.Database
+
+	storagePrivKey string
+	storageName    string
 }
 
 func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func()) {
@@ -74,10 +92,12 @@ func (s *storageFixture) Provider() ProviderFixture {
 		logger:  s.logger,
 		db:      s.db,
 
-		network:    defs.NetworkTestnet,
-		commission: defs.Commission{},
-		feeModel:   defs.DefaultFeeModel(),
-		randomizer: randomizer.New(),
+		network:        defs.NetworkTestnet,
+		commission:     defs.Commission{},
+		feeModel:       defs.DefaultFeeModel(),
+		randomizer:     randomizer.New(),
+		storagePrivKey: s.storagePrivKey,
+		storageName:    s.storageName,
 	}
 }
 
@@ -100,12 +120,34 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	}
 }
 
-func Given(t testing.TB) (given StorageFixture, cleanup func()) {
-	db, dbCleanup := dbfixtures.TestDatabase(t)
+func (s *storageFixture) StorageIdentityKey() string {
+	s.t.Helper()
+	identityKey, err := wdk.IdentityKey(s.storagePrivKey)
+	require.NoError(s.t, err)
+
+	return identityKey
+}
+
+func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
+	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
 	return &storageFixture{
-		t:       t,
-		require: require.New(t),
-		logger:  logging.NewTestLogger(t),
-		db:      db,
+		t:              t,
+		require:        require.New(t),
+		logger:         logging.NewTestLogger(t),
+		db:             db,
+		storagePrivKey: fixtures.StorageServerPrivKey,
+		storageName:    fixtures.StorageName,
+	}, dbCleanup
+}
+
+func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
+	db, dbCleanup := dbfixtures.TestDatabase(t, dbfixtures.WithSQLiteFileName(name))
+	return &storageFixture{
+		t:              t,
+		require:        require.New(t),
+		logger:         logging.NewTestLogger(t),
+		db:             db,
+		storagePrivKey: identityKey,
+		storageName:    name,
 	}, dbCleanup
 }

@@ -67,16 +67,37 @@ func (c *WalletStorageProviderClient) ListActions(ctx context.Context, auth wdk.
 	return c.client.ListActions(ctx, auth, args)
 }
 
+// GetSyncChunk retrieves a chunk of sync data for a user between two storages using the provided synchronization arguments.
+// Skipped in WalletStorage interface and not exposed in StorageManager.
+func (c *WalletStorageProviderClient) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	return c.client.GetSyncChunk(ctx, args)
+}
+
+// FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
+// Skipped in WalletStorage interface and not exposed in StorageManager.
+func (c *WalletStorageProviderClient) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey string, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	return c.client.FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName)
+}
+
+// ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
+// Skipped in WalletStorage interface and not exposed in StorageManager.
+func (c *WalletStorageProviderClient) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
+	return c.client.ProcessSyncChunk(ctx, args, chunk)
+}
+
 type rpcWalletStorageProvider struct {
-	Migrate               func(context.Context, string, string) (string, error)
-	MakeAvailable         func(context.Context) (*wdk.TableSettings, error)
-	FindOrInsertUser      func(context.Context, string) (*wdk.FindOrInsertUserResponse, error)
-	InternalizeAction     func(context.Context, wdk.AuthID, wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error)
-	CreateAction          func(context.Context, wdk.AuthID, wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
-	ProcessAction         func(context.Context, wdk.AuthID, wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error)
-	InsertCertificateAuth func(context.Context, wdk.AuthID, *wdk.TableCertificateX) (uint, error)
-	RelinquishCertificate func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
-	ListCertificates      func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
-	ListOutputs           func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
-	ListActions           func(context.Context, wdk.AuthID, wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
+	Migrate                   func(context.Context, string, string) (string, error)
+	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
+	FindOrInsertUser          func(context.Context, string) (*wdk.FindOrInsertUserResponse, error)
+	InternalizeAction         func(context.Context, wdk.AuthID, wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error)
+	CreateAction              func(context.Context, wdk.AuthID, wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
+	ProcessAction             func(context.Context, wdk.AuthID, wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error)
+	InsertCertificateAuth     func(context.Context, wdk.AuthID, *wdk.TableCertificateX) (uint, error)
+	RelinquishCertificate     func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
+	ListCertificates          func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
+	ListOutputs               func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
+	ListActions               func(context.Context, wdk.AuthID, wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
+	GetSyncChunk              func(context.Context, wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error)
+	FindOrInsertSyncStateAuth func(context.Context, wdk.AuthID, string, string) (*wdk.FindOrInsertSyncStateAuthResponse, error)
+	ProcessSyncChunk          func(context.Context, wdk.RequestSyncChunkArgs, *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error)
 }

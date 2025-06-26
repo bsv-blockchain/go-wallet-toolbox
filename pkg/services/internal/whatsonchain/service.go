@@ -14,6 +14,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -164,4 +165,88 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 	}
 
 	return header, nil
+}
+
+// PostBEEF attempts to post beef with given txIDs
+func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
+	if len(txIDs) == 0 {
+		return nil, fmt.Errorf("no txids provided")
+	}
+
+	if beef == nil {
+		return nil, fmt.Errorf("beef is required to post transactions")
+	}
+
+	rawTxs := make([][]byte, 0, len(txIDs))
+	for _, txid := range txIDs {
+		tx := beef.FindTransaction(txid)
+		if tx == nil {
+			return nil, fmt.Errorf("cannot find transaction %s in BEEF to broadcast", txid)
+		}
+
+		rawTxBytes := tx.Bytes()
+		if len(rawTxBytes) == 0 {
+			return nil, fmt.Errorf("empty raw transaction bytes for txid: %s", txid)
+		}
+		rawTxs = append(rawTxs, rawTxBytes)
+	}
+
+	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
+	delayDuration := 3 * time.Second
+	var delay bool
+
+	for i, txid := range txIDs {
+		if delay {
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("context canceled while waiting to broadcast transaction %s: %w", txid, ctx.Err())
+			case <-time.After(delayDuration):
+			}
+		}
+		delay = true
+
+		status, returnedTxid, err := woc.broadcast(ctx, rawTxs[i])
+		notes := []string{}
+		var result wdk.PostedTxIDResultStatus
+
+		if err != nil {
+			result = wdk.PostedTxIDResultError
+			notes = append(notes, fmt.Sprintf("broadcast error: %v", err))
+			returnedTxid = txid
+		} else {
+			switch status {
+			case StatusSuccess:
+				result = wdk.PostedTxIDResultSuccess
+			case StatusAlreadyBroadcasted:
+				result = wdk.PostedTxIDResultAlreadyKnown
+				notes = append(notes, "Transaction already in mempool")
+			case StatusDoubleSpend:
+				result = wdk.PostedTxIDResultDoubleSpend
+				notes = append(notes, "Possible double spend (txn-mempool-conflict)")
+			case StatusMissingInputs:
+				result = wdk.PostedTxIDResultMissingInputs
+				notes = append(notes, "Missing inputs (possible double spend)")
+			case StatusError:
+				result = wdk.PostedTxIDResultError
+				notes = append(notes, "Error broadcasting transaction")
+			default:
+				result = wdk.PostedTxIDResultError
+				notes = append(notes, "Unknown error broadcasting transaction")
+			}
+		}
+
+		convertedNotes := convertNotes(notes)
+
+		txResults = append(txResults, wdk.PostedTxID{
+			Result:       result,
+			TxID:         returnedTxid,
+			DoubleSpend:  status == StatusDoubleSpend || status == StatusMissingInputs,
+			AlreadyKnown: status == StatusAlreadyBroadcasted,
+			Notes:        convertedNotes,
+		})
+	}
+
+	return &wdk.PostedBEEF{
+		TxIDResults: txResults,
+	}, nil
 }

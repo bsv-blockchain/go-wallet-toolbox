@@ -25,17 +25,12 @@ func TestListActions_HappyPath(t *testing.T) {
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
 	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// and:
-	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
-	require.NoError(t, err)
+	_, ownedTransaction := given.ActionCreatedAndProcessed(activeStorage)
 
 	// When:
 	args := wdk.ListActionsArgs{
 		Limit:          10,
 		Offset:         0,
-		LabelQueryMode: to.Ptr(primitives.LabelQueryModeString("any")), // "any=false" or "all=true"
 		IncludeLabels:  to.Ptr(primitives.BooleanDefaultFalse(true)),
 		IncludeOutputs: to.Ptr(primitives.BooleanDefaultFalse(true)),
 		IncludeInputs:  to.Ptr(primitives.BooleanDefaultFalse(true)),
@@ -45,8 +40,29 @@ func TestListActions_HappyPath(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotEmpty(t, result.Actions)
-	assert.Greater(t, int(result.TotalActions), 0)
+
+	assert.Equal(t, primitives.PositiveInteger(2), result.TotalActions)
+	assert.Len(t, result.Actions, 2)
+
+	internalizedTx := result.Actions[0]
+	assert.Equal(t, ownedTransaction.Inputs[0].SourceTXID.String(), internalizedTx.TxID)
+	assert.Len(t, internalizedTx.Inputs, 0)
+
+	createdTx := result.Actions[1]
+	assert.Equal(t, ownedTransaction.TxID().String(), createdTx.TxID)
+	assert.Contains(t, createdTx.Labels, fixtures.CreateActionTestLabel)
+
+	require.Len(t, createdTx.Inputs, 1)
+	createdTxInput := createdTx.Inputs[0]
+	assert.Equal(t,
+		string(primitives.NewOutpointString(ownedTransaction.Inputs[0].SourceTXID.String(), ownedTransaction.Inputs[0].SourceTxOutIndex)),
+		createdTxInput.SourceOutpoint,
+	)
+
+	require.Equal(t, len(ownedTransaction.Outputs), len(createdTx.Outputs))
+
+	resultOutput := createdTx.Outputs[0]
+	assert.Contains(t, resultOutput.Tags, fixtures.CreateActionTestTag)
 }
 
 func TestListActions_InvalidAuth(t *testing.T) {
@@ -74,13 +90,13 @@ func TestListActions_InvalidArgs(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	storage := given.Provider().GORM()
+	activeStorage := given.Provider().GORM()
 
 	// When:
 	args := wdk.ListActionsArgs{
 		Limit: validate.MaxPaginationLimit + 1,
 	}
-	_, err := storage.ListActions(ctx, testusers.Alice.AuthID(), args)
+	_, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.Error(t, err)
@@ -93,7 +109,7 @@ func TestListActions_EmptyResult(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	storage := given.Provider().GORM()
+	activeStorage := given.Provider().GORM()
 
 	expected := &wdk.ListActionsResult{
 		TotalActions: 0,
@@ -105,7 +121,7 @@ func TestListActions_EmptyResult(t *testing.T) {
 		Limit:  10,
 		Offset: 0,
 	}
-	result, err := storage.ListActions(ctx, testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.NoError(t, err)
@@ -151,10 +167,10 @@ func TestListActions_IncludeOutputLockingScripts(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	storage := given.Provider().GORM()
-	given.Faucet(storage, testusers.Alice).TopUp(100_000)
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
-	_, err := storage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
 	require.NoError(t, err)
 
 	// When:
@@ -164,7 +180,7 @@ func TestListActions_IncludeOutputLockingScripts(t *testing.T) {
 		IncludeOutputs:              to.Ptr(primitives.BooleanDefaultFalse(true)),
 		IncludeOutputLockingScripts: to.Ptr(primitives.BooleanDefaultFalse(true)),
 	}
-	result, err := storage.ListActions(ctx, testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.NoError(t, err)
@@ -186,9 +202,9 @@ func TestListActions_IncludeInputSourceLockingScripts(t *testing.T) {
 	ctx := t.Context()
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
-	storage := given.Provider().GORM()
-	given.Faucet(storage, testusers.Alice).TopUp(100_000)
-	_, err := storage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
 	require.NoError(t, err)
 
 	// When:
@@ -198,7 +214,7 @@ func TestListActions_IncludeInputSourceLockingScripts(t *testing.T) {
 		IncludeInputs:                    to.Ptr(primitives.BooleanDefaultFalse(true)),
 		IncludeInputSourceLockingScripts: to.Ptr(primitives.BooleanDefaultFalse(true)),
 	}
-	result, err := storage.ListActions(ctx, testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.NoError(t, err)
@@ -215,9 +231,9 @@ func TestListActions_IncludeInputUnlockingScripts(t *testing.T) {
 	ctx := t.Context()
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
-	storage := given.Provider().GORM()
-	given.Faucet(storage, testusers.Alice).TopUp(100_000)
-	_, err := storage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
 	require.NoError(t, err)
 
 	// When:
@@ -227,7 +243,7 @@ func TestListActions_IncludeInputUnlockingScripts(t *testing.T) {
 		IncludeInputs:                to.Ptr(primitives.BooleanDefaultFalse(true)),
 		IncludeInputUnlockingScripts: to.Ptr(primitives.BooleanDefaultFalse(true)),
 	}
-	result, err := storage.ListActions(ctx, testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.NoError(t, err)
@@ -244,7 +260,7 @@ func TestListActions_SeekPermissionsFalse(t *testing.T) {
 	ctx := t.Context()
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
-	storage := given.Provider().GORM()
+	activeStorage := given.Provider().GORM()
 
 	// When:
 	args := wdk.ListActionsArgs{
@@ -252,7 +268,7 @@ func TestListActions_SeekPermissionsFalse(t *testing.T) {
 		Offset:          0,
 		SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(false)),
 	}
-	_, err := storage.ListActions(ctx, testusers.Alice.AuthID(), args)
+	_, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.Error(t, err)

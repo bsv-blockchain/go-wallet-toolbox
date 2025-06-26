@@ -20,6 +20,7 @@ type StorageFixture interface {
 	testabilities.StorageFixture
 	StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager
 	ActionCreatedAndSigned(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
+	ActionCreatedAndProcessed(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
 }
 
 type storageFixture struct {
@@ -64,11 +65,12 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 				Satoshis:           1000,
 				OutputDescription:  "outputBRC29",
 				CustomInstructions: to.Ptr(`{"derivationPrefix":"Pr==","derivationSuffix":"Su==","type":"BRC29"}`),
+				Tags:               []primitives.StringUnder300{fixtures.CreateActionTestTag},
 			},
 		},
 		LockTime: 0,
 		Version:  1,
-		Labels:   []primitives.StringUnder300{"outputbrc29"},
+		Labels:   []primitives.StringUnder300{fixtures.CreateActionTestLabel},
 		Options: wdk.ValidCreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
 			SendWith:               []primitives.TXIDHexString{},
@@ -97,8 +99,38 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 	return result, tsgenerated.SignedTransaction(s.t)
 }
 
+func (s *storageFixture) ActionCreatedAndProcessed(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
+	s.t.Helper()
+	createActionResult, signedTx := s.ActionCreatedAndSigned(activeStorage)
+	txID := signedTx.TxID().String()
+
+	args := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  false,
+		Reference:  to.Ptr(createActionResult.Reference),
+		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:      signedTx.Bytes(),
+		SendWith:   []string{},
+	}
+
+	_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	require.NoError(s.t, err)
+	return createActionResult, signedTx
+}
+
 func Given(t testing.TB) (given StorageFixture, cleanup func()) {
 	storageFxt, cleanupFunc := testabilities.Given(t)
+
+	return &storageFixture{
+		t:              t,
+		StorageFixture: storageFxt,
+	}, cleanupFunc
+}
+
+func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
+	storageFxt, cleanupFunc := testabilities.GivenCustomStorage(t, identityKey, name)
 
 	return &storageFixture{
 		t:              t,

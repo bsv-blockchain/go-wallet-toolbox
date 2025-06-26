@@ -1,6 +1,8 @@
 package testservices
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -8,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
@@ -16,16 +19,16 @@ import (
 type WhatsOnChainFixture interface {
 	WillRespondWithRates(status int, content string, err error)
 	WillRespondWithRawTx(status int, txID, rawTx string, err error)
-	OnTipBlockHeaderWillRespondWithOneElementList()
+	OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption)
 	OnTipBlockHeaderWillRespondWithEmptyList()
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
 	WillRespondWithMerklePath(status int, txID string, responseBody string)
 	WillRespondWithBlockHeader(status int, blockHash string, responseBody string)
-
 	WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture
 	WhenQueryingBlockHeader(blockHash string) WhatsOnChainBlockHeaderQueryFixture
-
+	WillRespondWithBroadcast(status int, responseBody string, err error)
+	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
 }
@@ -69,8 +72,25 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 	)
 }
 
-func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() {
+type TipBlockHeaderOptions struct {
+	Height uint
+}
+
+type TipBlockHeaderOption = func(*TipBlockHeaderOptions)
+
+func WithTipBlockHeaderHeight(height uint) TipBlockHeaderOption {
+	return func(opts *TipBlockHeaderOptions) {
+		opts.Height = height
+	}
+}
+
+func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption) {
 	f.TB.Helper()
+
+	options := to.OptionsWithDefault(TipBlockHeaderOptions{
+		Height: TestBlockHeight,
+	}, opts...)
+
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
@@ -79,7 +99,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList() {
 				Hash:              TestBlockHash,
 				Confirmations:     TestBlockConfirmations,
 				Size:              TestBlockSize,
-				Height:            TestBlockHeight,
+				Height:            options.Height,
 				Version:           TestBlockVersion,
 				VersionHex:        TestBlockVersionHex,
 				MerkleRoot:        TestBlockMerkleRoot,
@@ -232,4 +252,61 @@ func (f *wocFixture) HttpClient() *resty.Client {
 	client := resty.New()
 	client.GetClient().Transport = f.transport
 	return client
+}
+
+func (f *wocFixture) WillRespondWithBroadcast(status int, responseBody string, err error) {
+	responder := func(req *http.Request) (*http.Response, error) {
+		if err != nil {
+			return nil, err
+		}
+		res := httpmock.NewStringResponse(status, responseBody)
+		res.Header.Set("Content-Type", "application/json")
+		return res, nil
+	}
+
+	url := mockBroadcastURL(f.network)
+	f.transport.RegisterResponder("POST", url, responder)
+}
+
+func (f *wocFixture) WillAlwaysReturnPostBEEFSuccess(txids ...string) {
+	f.Transport().RegisterResponder("POST", mockBroadcastURL(f.network), func(req *http.Request) (*http.Response, error) {
+		var body struct {
+			TxHex string `json:"txhex"`
+		}
+		err := json.NewDecoder(req.Body).Decode(&body)
+		if err != nil {
+			return httpmock.NewStringResponse(http.StatusBadRequest, "bad request"), nil
+		}
+
+		rawTx, err := hex.DecodeString(body.TxHex)
+		if err != nil {
+			return httpmock.NewStringResponse(http.StatusBadRequest, "invalid hex"), nil
+		}
+
+		computedTxid := computeTxID(rawTx)
+
+		for _, txid := range txids {
+			if txid == computedTxid {
+				respBody := fmt.Sprintf(`{"txid":"%s"}`, txid)
+				resp := httpmock.NewStringResponse(http.StatusOK, respBody)
+				resp.Header.Set("Content-Type", "application/json")
+				return resp, nil
+			}
+		}
+
+		return httpmock.NewStringResponse(http.StatusBadRequest, "txid not found"), nil
+	})
+}
+
+func mockBroadcastURL(network defs.BSVNetwork) string {
+	return fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/raw", network)
+}
+
+// computeTxID takes raw transaction bytes and returns the transaction ID (txid) as string.
+func computeTxID(rawTx []byte) string {
+	tx, err := transaction.NewTransactionFromBytes(rawTx)
+	if err != nil {
+		return ""
+	}
+	return tx.TxID().String()
 }
