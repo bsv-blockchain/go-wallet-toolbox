@@ -10,6 +10,27 @@ import (
 )
 
 func TestFindChainTipHeader(t *testing.T) {
+	t.Run("return longest tip block header from block header service when whats on chain service responds with internal server error", func(t *testing.T) {
+		// given:
+		const expectedBlockHeight = 1024
+		given := testservices.GivenServices(t)
+
+		given.BHS().OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(1024))
+		given.BHS().IsUpAndRunning()
+		given.WhatsOnChain().WillRespondWithInternalFailure()
+
+		// and:
+		service := given.Services().WithDefaultConfig()
+
+		// when:
+		actualBlock, err := service.FindChainTipHeader(t.Context())
+
+		// then:
+		require.Nil(t, err)
+		require.NotEmpty(t, actualBlock)
+		require.EqualValues(t, expectedBlockHeight, actualBlock.Height)
+	})
+
 	t.Run("return a single block header after call to the whats on chain service", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
@@ -32,6 +53,7 @@ func TestFindChainTipHeader(t *testing.T) {
 	t.Run("return an error when all block header services responds with internal server error", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
+		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 
 		// and:
@@ -47,8 +69,9 @@ func TestFindChainTipHeader(t *testing.T) {
 
 	t.Run("return an error when all block header services are unreachable", func(t *testing.T) {
 		// given:
-
 		given := testservices.GivenServices(t)
+
+		given.BHS().WillBeUnreachable()
 		target := given.WhatsOnChain().WillBeUnreachable()
 
 		// and:
