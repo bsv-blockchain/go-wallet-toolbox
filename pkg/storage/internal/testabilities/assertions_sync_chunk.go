@@ -42,6 +42,7 @@ type ValidSyncChunkAssertion interface {
 	TransactionAtIndex(index int) TransactionAssertion
 
 	OutputsCount(length int) ValidSyncChunkAssertion
+	OutputAtIndex(index int) OutputAssertion
 }
 
 type BasketAssertion interface {
@@ -66,6 +67,12 @@ type TransactionAssertion interface {
 	WithProvenTxID(provenTxID int) TransactionAssertion
 	WithoutProvenTxID() TransactionAssertion
 	WithReference(reference string) TransactionAssertion
+}
+
+type OutputAssertion interface {
+	WithTransactionID(transactionNumID uint) OutputAssertion
+	WithoutBasketID() OutputAssertion
+	WithBasketID(basketID int) OutputAssertion
 }
 
 type syncAssertion struct {
@@ -342,4 +349,42 @@ func (s *syncChunkAssertion) OutputsCount(length int) ValidSyncChunkAssertion {
 	s.Helper()
 	assert.Len(s, s.chunk.Outputs, length, "Expected chunk to have %d outputs", length)
 	return s
+}
+
+func (s *syncChunkAssertion) OutputAtIndex(index int) OutputAssertion {
+	s.Helper()
+	require.GreaterOrEqual(s, index, 0)
+	require.Less(s, index, len(s.chunk.Outputs))
+	output := s.chunk.Outputs[index]
+	require.NotNil(s, output, "Expected output to be not nil")
+	return &outputAssertion{
+		parent: s,
+		output: output,
+	}
+}
+
+type outputAssertion struct {
+	parent *syncChunkAssertion
+	output *wdk.TableOutput
+}
+
+func (o *outputAssertion) WithTransactionID(transactionNumID uint) OutputAssertion {
+	o.parent.Helper()
+	assert.Equal(o.parent, transactionNumID, o.output.TransactionID, "Expected output to have the same transaction ID as the one requested")
+	return o
+}
+
+func (o *outputAssertion) WithoutBasketID() OutputAssertion {
+	o.parent.Helper()
+	assert.Nil(o.parent, o.output.BasketID, "Expected output to have no BasketID")
+	return o
+}
+
+func (o *outputAssertion) WithBasketID(basketID int) OutputAssertion {
+	o.parent.Helper()
+	if !assert.NotNil(o.parent, o.output.BasketID) {
+		return o
+	}
+	assert.Equal(o.parent, basketID, *o.output.BasketID, "Expected output to have the same BasketID as the one requested")
+	return o
 }

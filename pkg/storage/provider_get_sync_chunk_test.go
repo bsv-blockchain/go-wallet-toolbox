@@ -12,7 +12,6 @@ import (
 )
 
 func TestGetSyncChunk(t *testing.T) {
-	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
 
@@ -71,6 +70,27 @@ func TestGetSyncChunk(t *testing.T) {
 
 	// and outputs:
 	thenChunk.OutputsCount(33)
+	thenChunk.OutputAtIndex(0).
+		WithTransactionID(chunk.Transactions[0].TransactionID).
+		WithoutBasketID()
+
+	for i := 1; i <= 29; i++ {
+		thenChunk.OutputAtIndex(i).
+			WithTransactionID(chunk.Transactions[0].TransactionID).
+			WithBasketID(chunk.OutputBaskets[0].BasketID)
+	}
+
+	thenChunk.OutputAtIndex(30).
+		WithTransactionID(chunk.Transactions[1].TransactionID).
+		WithBasketID(chunk.OutputBaskets[0].BasketID)
+
+	thenChunk.OutputAtIndex(31).
+		WithTransactionID(chunk.Transactions[2].TransactionID).
+		WithBasketID(chunk.OutputBaskets[0].BasketID)
+
+	thenChunk.OutputAtIndex(32).
+		WithTransactionID(chunk.Transactions[3].TransactionID).
+		WithBasketID(chunk.OutputBaskets[0].BasketID)
 
 	// TODO: Remember to add more assertions for other entities when implemented
 }
@@ -166,7 +186,8 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 		BasketsCount(1).
 		ProvenTxReqsCount(1).
 		ProvenTxsCount(1).
-		TransactionsCount(2)
+		TransactionsCount(2).
+		OutputsCount(2)
 }
 
 func TestGetSyncChunkMaxItems(t *testing.T) {
@@ -190,7 +211,8 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 		BasketsCount(1).
 		ProvenTxReqsCount(0).
 		ProvenTxsCount(0).
-		TransactionsCount(0)
+		TransactionsCount(0).
+		OutputsCount(0)
 }
 
 func TestGetSyncChunkOneByOne(t *testing.T) {
@@ -275,4 +297,36 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 		ProvenTxsCount(0).
 		ProvenTxReqsCount(0).
 		TransactionsCount(1)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.TransactionEntityName, 2).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(0).
+		TransactionsCount(0).
+		OutputsCount(1)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.OutputEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(0).
+		TransactionsCount(0).
+		OutputsCount(1)
 }
