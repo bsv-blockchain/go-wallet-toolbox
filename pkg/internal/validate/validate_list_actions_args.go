@@ -16,9 +16,6 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 		return fmt.Errorf("invalid labelQueryMode: %s", *args.LabelQueryMode)
 	}
 
-	if args.Limit == 0 {
-		return fmt.Errorf("limit must be greater than 0")
-	}
 	if args.Limit > MaxPaginationLimit {
 		return fmt.Errorf("limit must be less than or equal to %d", MaxPaginationLimit)
 	}
