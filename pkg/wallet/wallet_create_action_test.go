@@ -198,6 +198,17 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			HasSatoshis(args.Outputs[0].Satoshis).
 			IsNotChange()
 
+		// when: verify that ListActions shows the created action
+		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
+		listArgs.Labels = args.Labels
+		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+
+		// and:
+		assert.NoError(t, listErr)
+		require.NotNil(t, listResult)
+		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after create")
+		require.Len(t, listResult.Actions, 1)
+
 	})
 
 }
