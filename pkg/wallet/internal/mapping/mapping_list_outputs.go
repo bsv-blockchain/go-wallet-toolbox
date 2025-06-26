@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -11,6 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // MapListOutputsArgs maps sdk.ListOutputsArgs to wdk.ListOutputsArgs
@@ -24,11 +26,11 @@ func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 
 	switch args.TagQueryMode {
 	case sdk.QueryModeAll:
-		result.TagQueryMode = "all"
+		result.TagQueryMode = to.Ptr(defs.QueryModeAll)
 	case sdk.QueryModeAny:
-		result.TagQueryMode = "any"
+		result.TagQueryMode = to.Ptr(defs.QueryModeAny)
 	default:
-		result.TagQueryMode = "any"
+		result.TagQueryMode = to.Ptr(defs.QueryModeAny)
 	}
 
 	switch args.Include {
