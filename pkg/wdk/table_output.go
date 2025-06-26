@@ -13,6 +13,7 @@ type TableOutput struct {
 	OutputID           uint                         `json:"outputId"`
 	UserID             int                          `json:"userId"`
 	TransactionID      uint                         `json:"transactionId"`
+	SpentBy            *uint                        `json:"spentBy,omitempty"`
 	Spendable          bool                         `json:"spendable"`
 	Change             bool                         `json:"change"`
 	OutputDescription  string                       `json:"outputDescription"`

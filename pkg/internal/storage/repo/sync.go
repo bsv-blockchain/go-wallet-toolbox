@@ -70,6 +70,80 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 	return slices.Map(resultModels, s.mapModelToTableOutputBasket), nil
 }
 
+func (s *Sync) UpsertOutputBasketForSync(ctx context.Context, entity entity.OutputBasket) (isNew bool, basketNumID uint, err error) {
+	const basketStringIDClause = "CONCAT(user_id, '.', name)"
+	model := models.OutputBasket{
+		CreatedAt:               entity.CreatedAt,
+		UpdatedAt:               entity.UpdatedAt,
+		UserID:                  entity.UserID,
+		Name:                    entity.Name,
+		NumberOfDesiredUTXOs:    entity.NumberOfDesiredUTXOs,
+		MinimumDesiredUTXOValue: entity.MinimumDesiredUTXOValue,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.naming.outputBasketTableName).
+				Where("user_id = ? AND name = ?", entity.UserID, model.Name).
+				Find(&models.OutputBasket{})
+		})
+		if err != nil {
+			return err
+		}
+
+		numID, err := s.findNumericIDForOutputBasket(ctx, tx, entity.UserID, model.Name)
+		if err != nil {
+			return err
+		}
+
+		basketNumID = numID
+
+		updateTx := tx.Model(&models.OutputBasket{}).
+			Where("user_id = ? AND name = ?", entity.UserID, model.Name).
+			Updates(model)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update output basket: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			return nil
+		}
+
+		err = tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create output basket: %w", err)
+		}
+
+		isNew = true
+
+		return nil
+	})
+
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return
+}
+
+func (s *Sync) FindBasketNameByNumIDForSync(ctx context.Context, basketNumID uint) (string, error) {
+	const basketStringIDClause = "CONCAT(user_id, '.', name)"
+	var basketName string
+
+	err := s.db.WithContext(ctx).Model(&models.OutputBasket{}).
+		Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName, clause.InnerJoin)).
+		Where("num.num_id = ?", basketNumID).
+		Select("name").
+		Scan(&basketName).Error
+	if err != nil {
+		return "", fmt.Errorf("failed to find output basket name by numeric ID: %w", err)
+	}
+
+	return basketName, nil
+}
+
 func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.TableOutputBasket {
 	return &wdk.TableOutputBasket{
 		BasketID:  model.NumID,
@@ -249,6 +323,7 @@ func (s *Sync) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOutput {
 		LockingScript:      model.LockingScript,
 		SenderIdentityKey:  model.SenderIdentityKey,
 		BasketID:           model.BasketNumID,
+		SpentBy:            model.SpentBy,
 	}
 }
 
@@ -453,6 +528,62 @@ func (s *Sync) UpsertTransactionForSync(ctx context.Context, entity *entity.Tran
 	return isNew, transactionID, nil
 }
 
+func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (isNew bool, outputID uint, err error) {
+	model := models.Output{
+		Model: gorm.Model{
+			CreatedAt: entity.CreatedAt,
+			UpdatedAt: entity.UpdatedAt,
+		},
+		UserID:             entity.UserID,
+		TransactionID:      entity.TransactionID,
+		SpentBy:            entity.SpentBy,
+		Satoshis:           entity.Satoshis,
+		Description:        entity.Description,
+		Vout:               entity.Vout,
+		LockingScript:      entity.LockingScript,
+		CustomInstructions: entity.CustomInstructions,
+		DerivationPrefix:   entity.DerivationPrefix,
+		DerivationSuffix:   entity.DerivationSuffix,
+		BasketName:         entity.BasketName,
+		Spendable:          entity.Spendable,
+		Change:             entity.Change,
+		Purpose:            entity.Purpose,
+		Type:               entity.Type,
+		SenderIdentityKey:  entity.SenderIdentityKey,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updateTx := tx.Model(&models.Output{}).
+			Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
+			Updates(model)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update output: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			outputID = model.ID
+			return nil
+		}
+
+		err := tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create output: %w", err)
+		}
+
+		isNew = true
+		outputID = model.ID
+
+		return nil
+	})
+
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, outputID, nil
+}
+
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
 // It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
@@ -486,4 +617,22 @@ func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName st
 
 		return db.Joins(joinQuery, entityName)
 	}
+}
+func (s *Sync) findNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, stringID string) (uint, error) {
+	var numericID uint
+	err := tx.WithContext(ctx).
+		Model(&models.NumericIDLookup{}).
+		Select("num_id").
+		Where("table_name = ? AND string_id = ?", tableName, stringID).
+		Scan(&numericID).Error
+	if err != nil {
+		return 0, fmt.Errorf("failed to find numeric ID for %s: %w", stringID, err)
+	}
+
+	return numericID, nil
+}
+
+func (s *Sync) findNumericIDForOutputBasket(ctx context.Context, tx *gorm.DB, userID int, basketName string) (uint, error) {
+	stringID := fmt.Sprintf("%d.%s", userID, basketName)
+	return s.findNumericIDLookup(ctx, tx, s.naming.outputBasketTableName, stringID)
 }

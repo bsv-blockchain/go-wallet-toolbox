@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/must"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -22,22 +23,24 @@ var (
 )
 
 type chunkProcessor struct {
-	parent    *processSyncChunk
-	chunk     *wdk.SyncChunk
-	result    wdk.ProcessSyncChunkResult
-	ctx       context.Context
-	user      *entity.User
-	args      *wdk.RequestSyncChunkArgs
-	syncState *entity.SyncState
+	parent          *processSyncChunk
+	chunk           *wdk.SyncChunk
+	result          wdk.ProcessSyncChunkResult
+	ctx             context.Context
+	user            *entity.User
+	args            *wdk.RequestSyncChunkArgs
+	syncState       *entity.SyncState
+	basketNameCache map[uint]string
 }
 
 func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *entity.User) *chunkProcessor {
 	return &chunkProcessor{
-		ctx:    ctx,
-		parent: parent,
-		chunk:  chunk,
-		args:   args,
-		user:   user,
+		ctx:             ctx,
+		parent:          parent,
+		chunk:           chunk,
+		args:            args,
+		user:            user,
+		basketNameCache: map[uint]string{},
 	}
 }
 
@@ -88,6 +91,12 @@ func (p *chunkProcessor) process() (err error) {
 		}
 	}
 
+	for _, output := range p.chunk.Outputs {
+		if err = p.upsertOutput(output); err != nil {
+			return fmt.Errorf("failed to upsert output: %w", err)
+		}
+	}
+
 	err = p.parent.repo.UpdateSyncState(p.ctx, p.syncState)
 	if err != nil {
 		return fmt.Errorf("failed to update sync state: %w", err)
@@ -116,17 +125,28 @@ func (p *chunkProcessor) mergeUser() error {
 }
 
 func (p *chunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error {
-	// TODO: Upsert with UpdatedAt from chunkBasket.
-	isNew, err := p.parent.repo.UpsertOutputBasket(p.ctx, p.user.ID, chunkBasket.BasketConfiguration)
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkBasket.UserID {
+		return fmt.Errorf("chunk basket user ID %d does not match chunk user ID %d", chunkBasket.UserID, p.chunk.User.UserID)
+	}
+
+	isNew, basketNumID, err := p.parent.repo.UpsertOutputBasketForSync(p.ctx, entity.OutputBasket{
+		Name:                    string(chunkBasket.Name),
+		UserID:                  p.user.ID,
+		CreatedAt:               chunkBasket.CreatedAt,
+		UpdatedAt:               chunkBasket.UpdatedAt,
+		NumberOfDesiredUTXOs:    chunkBasket.NumberOfDesiredUTXOs,
+		MinimumDesiredUTXOValue: chunkBasket.MinimumDesiredUTXOValue,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert output basket %q: %w", chunkBasket.Name, err)
 	}
 
 	// NOTE: Even if the chunkBasket has exactly the same data as in the database, we still consider it an update.
 	p.updateResult(chunkBasket.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.OutputBasketEntityName, 1)
-
-	// TODO: Most probably, we need to update the sync state (with IDMap) - But I postpone this until it is actually needed.
+	p.updateSyncState(wdk.OutputBasketEntityName, 1, idDictionary{
+		readerID: must.ConvertToUInt(chunkBasket.BasketID),
+		writerID: basketNumID,
+	})
 
 	return nil
 }
@@ -197,11 +217,78 @@ func (p *chunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 		return fmt.Errorf("failed to upsert transaction for reference %q: %w", chunkTransaction.Reference, err)
 	}
 
-	_ = transactionID
-	// TODO: Most probably, we need to store new TransactionID in the sync state (IDMap) - But I postpone this until it is actually needed.
-
 	p.updateResult(chunkTransaction.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.TransactionEntityName, 1)
+	p.updateSyncState(wdk.TransactionEntityName, 1, idDictionary{
+		readerID: must.ConvertToUInt(chunkTransaction.TransactionID),
+		writerID: transactionID,
+	})
+
+	return nil
+}
+
+func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkOutput.UserID {
+		return fmt.Errorf("chunk output user ID %d does not match chunk user ID %d", chunkOutput.UserID, p.chunk.User.UserID)
+	}
+
+	var basketName *string
+	if chunkOutput.BasketID != nil {
+		basketIDOnWriterSide, err := p.translateID(wdk.OutputBasketEntityName, must.ConvertToUInt(*chunkOutput.BasketID))
+		if err != nil {
+			return fmt.Errorf("failed to translate basket ID %d: %w", *chunkOutput.BasketID, err)
+		}
+
+		name, err := p.getBasketNameByNumID(basketIDOnWriterSide)
+		if err != nil {
+			return fmt.Errorf("failed to get basket name for basket ID %d: %w", basketIDOnWriterSide, err)
+		}
+
+		basketName = &name
+	}
+
+	transactionIDOnWriterSide, err := p.translateID(wdk.TransactionEntityName, must.ConvertToUInt(chunkOutput.TransactionID))
+	if err != nil {
+		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkOutput.TransactionID, err)
+	}
+
+	var spentByTransactionIDOnWriterSide *uint
+	if chunkOutput.SpentBy != nil {
+		spentByTransactionID, err := p.translateID(wdk.TransactionEntityName, must.ConvertToUInt(*chunkOutput.SpentBy))
+		if err != nil {
+			return fmt.Errorf("failed to translate spent by transaction ID %d: %w", *chunkOutput.SpentBy, err)
+		}
+		spentByTransactionIDOnWriterSide = &spentByTransactionID
+	}
+
+	isNew, _, err := p.parent.repo.UpsertOutputForSync(p.ctx, &entity.Output{
+		CreatedAt:          chunkOutput.CreatedAt,
+		UpdatedAt:          chunkOutput.UpdatedAt,
+		UserID:             p.user.ID,
+		TransactionID:      transactionIDOnWriterSide,
+		SpentBy:            spentByTransactionIDOnWriterSide,
+		Satoshis:           chunkOutput.Satoshis,
+		TxID:               chunkOutput.TxID,
+		Vout:               chunkOutput.Vout,
+		LockingScript:      chunkOutput.LockingScript,
+		CustomInstructions: chunkOutput.CustomInstructions,
+		DerivationPrefix:   chunkOutput.DerivationPrefix,
+		DerivationSuffix:   chunkOutput.DerivationSuffix,
+		Spendable:          chunkOutput.Spendable,
+		Change:             chunkOutput.Change,
+		Description:        chunkOutput.OutputDescription,
+		ProvidedBy:         chunkOutput.ProvidedBy,
+		Purpose:            chunkOutput.Purpose,
+		Type:               chunkOutput.Type,
+		SenderIdentityKey:  chunkOutput.SenderIdentityKey,
+		Tags:               nil, //TODO: Implement it along with tags backup support.
+		BasketName:         basketName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert output for transaction ID %d, vout %d: %w", chunkOutput.TransactionID, chunkOutput.Vout, err)
+	}
+
+	p.updateResult(chunkOutput.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.OutputEntityName, 1)
 
 	return nil
 }
@@ -217,7 +304,12 @@ func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operati
 	}
 }
 
-func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64) {
+type idDictionary struct {
+	readerID uint
+	writerID uint
+}
+
+func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64, ids ...idDictionary) {
 	syncMapEntity, exists := p.syncState.SyncMap[entityName]
 	if !exists {
 		syncMapEntity = wdk.NewSyncMapEntity(entityName)
@@ -225,6 +317,23 @@ func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64
 	}
 
 	syncMapEntity.Count += count
+	for _, id := range ids {
+		syncMapEntity.IDMap[id.readerID] = id.writerID
+	}
+}
+
+func (p *chunkProcessor) translateID(entityName wdk.EntityName, readerID uint) (uint, error) {
+	syncMapEntity, exists := p.syncState.SyncMap[entityName]
+	if !exists {
+		return 0, fmt.Errorf("sync map entity %s not found", entityName)
+	}
+
+	writerID, ok := syncMapEntity.IDMap[readerID]
+	if !ok {
+		return 0, fmt.Errorf("no writer ID found for reader ID %d in entity %s", readerID, entityName)
+	}
+
+	return writerID, nil
 }
 
 // emptyChunk checks if the chunk is empty, meaning it has no row data to process.
@@ -234,5 +343,22 @@ func (p *chunkProcessor) emptyChunk() bool {
 	return len(p.chunk.OutputBaskets) == 0 &&
 		len(p.chunk.ProvenTxs) == 0 &&
 		len(p.chunk.ProvenTxReqs) == 0 &&
-		len(p.chunk.Transactions) == 0
+		len(p.chunk.Transactions) == 0 &&
+		len(p.chunk.Outputs) == 0
+}
+
+func (p *chunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) {
+	// TODO: Cache this
+	if name, ok := p.basketNameCache[basketNumID]; ok {
+		return name, nil
+	}
+
+	basketName, err := p.parent.repo.FindBasketNameByNumIDForSync(p.ctx, basketNumID)
+	if err != nil {
+		return "", fmt.Errorf("failed to find output basket by num ID %d: %w", basketNumID, err)
+	}
+
+	p.basketNameCache[basketNumID] = basketName
+
+	return basketName, nil
 }
