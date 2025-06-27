@@ -36,6 +36,20 @@ func (sm SyncMap) JSON() ([]byte, error) {
 	return data, nil
 }
 
+func (sm SyncMap) MaxUpdatedAt() *time.Time {
+	var maxUpdatedAt *time.Time
+	for _, entity := range sm {
+		if entity.MaxUpdatedAt == nil {
+			continue
+		}
+		if maxUpdatedAt == nil || entity.MaxUpdatedAt.After(*maxUpdatedAt) {
+			maxUpdatedAt = entity.MaxUpdatedAt
+
+		}
+	}
+	return maxUpdatedAt
+}
+
 // SyncMapEntity holds synchronization state for a specific entity, including id mapping, update time and item count.
 type SyncMapEntity struct {
 	// EntityName is the name of the entity in the sync map.

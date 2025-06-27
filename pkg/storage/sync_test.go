@@ -245,3 +245,79 @@ func TestSyncSameSourceAndBackupStorage(t *testing.T) {
 	// then:
 	require.Error(t, err)
 }
+
+func TestSyncProcessWithBasketsNumIDMissmatch(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Bob, sourceProvider)
+
+	// and:
+	// NOTE: This creates a situation where the source storage will generate basketID for Bob = 2, but the backup storage will have basketID = 1
+	_, err := sourceProvider.GetSyncChunk(t.Context(), givenSourceDB.RequestSyncChunk(testusers.Alice).Args())
+	require.NoError(t, err)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Bob)
+	_ = seed.OwnsTransaction()
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 3, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and outputs:
+	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState.Outputs(testusers.Bob, wdk.BasketNameForChange).
+		WithCount(1).
+		WithCountHavingOutpoint(1)
+}
+
+func TestSyncProcessWithRelinquishOutput(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
+	ownedTx := seed.OwnsTransaction()
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 3, inserts)
+	assert.Equal(t, 1, updates)
+
+	// when:
+	err = sourceProvider.RelinquishOutput(t.Context(), testusers.Alice.AuthID(), wdk.RelinquishOutputArgs{
+		Output: string(primitives.NewOutpointString(ownedTx.ID(), 0)),
+	})
+	require.NoError(t, err)
+
+	// and:
+	inserts, updates, err = sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, inserts)
+	assert.Equal(t, 1, updates)
+}

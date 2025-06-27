@@ -63,8 +63,15 @@ func (p *chunkProcessor) process() (err error) {
 	}
 
 	if p.emptyChunk() {
+		err = p.updateSyncStateOnDone()
+		if err != nil {
+			return fmt.Errorf("failed to update sync state on done: %w", err)
+		}
+
+		p.result.MaxUpdatedAt = p.syncState.When
 		p.result.Done = true
-		return nil // No data to process, return early.
+
+		return nil
 	}
 
 	for _, basket := range p.chunk.OutputBaskets {
@@ -102,6 +109,8 @@ func (p *chunkProcessor) process() (err error) {
 		return fmt.Errorf("failed to update sync state: %w", err)
 	}
 
+	p.result.MaxUpdatedAt = p.syncState.SyncMap.MaxUpdatedAt()
+
 	return nil
 }
 
@@ -120,7 +129,7 @@ func (p *chunkProcessor) mergeUser() error {
 		return fmt.Errorf("failed to update user %d: %w", p.chunk.User.UserID, err)
 	}
 
-	p.updateResult(p.chunk.User.UpdatedAt, singleUpdate)
+	p.updateOperations(singleUpdate)
 	return nil
 }
 
@@ -142,8 +151,8 @@ func (p *chunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 	}
 
 	// NOTE: Even if the chunkBasket has exactly the same data as in the database, we still consider it an update.
-	p.updateResult(chunkBasket.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.OutputBasketEntityName, 1, idDictionary{
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.OutputBasketEntityName, chunkBasket.UpdatedAt, 1, idDictionary{
 		readerID: must.ConvertToUInt(chunkBasket.BasketID),
 		writerID: basketNumID,
 	})
@@ -168,8 +177,8 @@ func (p *chunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		return fmt.Errorf("failed to upsert proven tx req for TxID %q: %w", chunkProvenTxReq.TxID, err)
 	}
 
-	p.updateResult(chunkProvenTxReq.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.ProvenTxReqEntityName, 1)
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.ProvenTxReqEntityName, chunkProvenTxReq.UpdatedAt, 1)
 
 	return nil
 }
@@ -190,8 +199,8 @@ func (p *chunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error 
 		return fmt.Errorf("failed to upsert proven tx for TxID %q: %w", chunkProvenTx.TxID, err)
 	}
 
-	p.updateResult(chunkProvenTx.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.ProvenTxEntityName, 1)
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt, 1)
 
 	return nil
 }
@@ -219,8 +228,8 @@ func (p *chunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 		return fmt.Errorf("failed to upsert transaction for reference %q: %w", chunkTransaction.Reference, err)
 	}
 
-	p.updateResult(chunkTransaction.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.TransactionEntityName, 1, idDictionary{
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.TransactionEntityName, chunkTransaction.UpdatedAt, 1, idDictionary{
 		readerID: must.ConvertToUInt(chunkTransaction.TransactionID),
 		writerID: transactionID,
 	})
@@ -289,21 +298,18 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		return fmt.Errorf("failed to upsert output for transaction ID %d, vout %d: %w", chunkOutput.TransactionID, chunkOutput.Vout, err)
 	}
 
-	p.updateResult(chunkOutput.UpdatedAt, to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.OutputEntityName, 1)
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.OutputEntityName, chunkOutput.UpdatedAt, 1)
 
 	return nil
 }
 
-func (p *chunkProcessor) updateResult(updatedAt time.Time, operations ...operation) {
+func (p *chunkProcessor) updateOperations(operations ...operation) {
 	for _, op := range operations {
 		p.result.Updates += op.updates
 		p.result.Inserts += op.inserts
 	}
 
-	if p.result.MaxUpdatedAt == nil || updatedAt.After(*p.result.MaxUpdatedAt) {
-		p.result.MaxUpdatedAt = &updatedAt
-	}
 }
 
 type idDictionary struct {
@@ -311,7 +317,7 @@ type idDictionary struct {
 	writerID uint
 }
 
-func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64, ids ...idDictionary) {
+func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, updatedAt time.Time, count uint64, ids ...idDictionary) {
 	syncMapEntity, exists := p.syncState.SyncMap[entityName]
 	if !exists {
 		syncMapEntity = wdk.NewSyncMapEntity(entityName)
@@ -321,6 +327,10 @@ func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, count uint64
 	syncMapEntity.Count += count
 	for _, id := range ids {
 		syncMapEntity.IDMap[id.readerID] = id.writerID
+	}
+
+	if syncMapEntity.MaxUpdatedAt == nil || updatedAt.After(*syncMapEntity.MaxUpdatedAt) {
+		syncMapEntity.MaxUpdatedAt = &updatedAt
 	}
 }
 
@@ -362,4 +372,23 @@ func (p *chunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) 
 	p.basketNameCache[basketNumID] = basketName
 
 	return basketName, nil
+}
+
+// updateSyncStateOnDone updates the sync state when all the processing process is done.
+// NOTE: By design, this method is called only once when a chunk is empty, meaning no more data to process.
+// That's why it's crucial to call `processChunk` with an empty chunk at the end of the sync process.
+// It resets the count (offsets) of all entities in the sync map and updates the `when` field to the maximum updated_at value.
+// This way, the next sync will start from the latest state of the entities.
+func (p *chunkProcessor) updateSyncStateOnDone() error {
+	p.syncState.When = p.syncState.SyncMap.MaxUpdatedAt()
+	for _, syncMapEntity := range p.syncState.SyncMap {
+		syncMapEntity.Count = 0
+	}
+
+	err := p.parent.repo.UpdateSyncState(p.ctx, p.syncState)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state: %w", err)
+	}
+
+	return nil
 }
