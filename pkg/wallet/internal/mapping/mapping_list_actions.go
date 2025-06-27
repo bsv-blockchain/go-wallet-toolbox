@@ -105,6 +105,11 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 		return sdk.Action{}, fmt.Errorf("failed to map action inputs: %w", err)
 	}
 
+	outputs, err := slices.MapOrError(action.Outputs, mapActionOutput)
+	if err != nil {
+		return sdk.Action{}, fmt.Errorf("failed to map action outputs: %w", err)
+	}
+
 	result := sdk.Action{
 		Txid:        *hash,
 		Satoshis:    satoshis,
@@ -115,7 +120,7 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 		Version:     action.Version,
 		LockTime:    action.LockTime,
 		Inputs:      inputs,
-		Outputs:     slices.Map(action.Outputs, mapActionOutput),
+		Outputs:     outputs,
 	}
 
 	return result, nil
@@ -143,15 +148,16 @@ func mapActionStatus(status string) (sdk.ActionStatus, error) {
 	}
 }
 
-// scriptBytes converts a hex string to script bytes, returns nil if conversion fails
-func scriptBytes(hexString string) []byte {
+// scriptBytes converts a hex string to script bytes, returns nil if hex string is empty
+func scriptBytes(hexString string) ([]byte, error) {
 	if hexString == "" {
-		return nil
+		return nil, nil
 	}
-	if script, err := script.NewFromHex(hexString); err == nil {
-		return script.Bytes()
+	script, err := script.NewFromHex(hexString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse script from hex: %w", err)
 	}
-	return nil
+	return script.Bytes(), nil
 }
 
 // mapActionInput maps wdk.WalletActionInput to sdk.ActionInput
@@ -170,14 +176,28 @@ func mapActionInput(input wdk.WalletActionInput) (sdk.ActionInput, error) {
 		result.SourceOutpoint = *outpoint
 	}
 
-	result.SourceLockingScript = scriptBytes(input.SourceLockingScript)
-	result.UnlockingScript = scriptBytes(input.UnlockingScript)
+	sourceLockingScript, err := scriptBytes(input.SourceLockingScript)
+	if err != nil {
+		return sdk.ActionInput{}, fmt.Errorf("failed to parse source locking script: %w", err)
+	}
+	result.SourceLockingScript = sourceLockingScript
+
+	unlockingScript, err := scriptBytes(input.UnlockingScript)
+	if err != nil {
+		return sdk.ActionInput{}, fmt.Errorf("failed to parse unlocking script: %w", err)
+	}
+	result.UnlockingScript = unlockingScript
 
 	return result, nil
 }
 
 // mapActionOutput maps wdk.WalletActionOutput to sdk.ActionOutput
-func mapActionOutput(output wdk.WalletActionOutput) sdk.ActionOutput {
+func mapActionOutput(output wdk.WalletActionOutput) (sdk.ActionOutput, error) {
+	lockingScript, err := scriptBytes(output.LockingScript)
+	if err != nil {
+		return sdk.ActionOutput{}, fmt.Errorf("failed to parse locking script: %w", err)
+	}
+
 	result := sdk.ActionOutput{
 		Satoshis:           output.Satoshis,
 		Spendable:          output.Spendable,
@@ -186,8 +206,8 @@ func mapActionOutput(output wdk.WalletActionOutput) sdk.ActionOutput {
 		OutputIndex:        output.OutputIndex,
 		OutputDescription:  output.OutputDescription,
 		Basket:             output.Basket,
-		LockingScript:      scriptBytes(output.LockingScript),
+		LockingScript:      lockingScript,
 	}
 
-	return result
+	return result, nil
 }
