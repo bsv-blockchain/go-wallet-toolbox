@@ -14,6 +14,9 @@ const (
 	// DefaultFiatExchangeUpdateInterval is a duration after which the Fiat Exchange Rate should be updated
 	DefaultFiatExchangeUpdateInterval = 24 * time.Hour
 
+	// DefaultWoCBroadcastDelay is the delay after which the WhatsOnChain service will broadcast a transaction
+	DefaultWoCBroadcastDelay = 3 * time.Second
+
 	// ArcURL is the URL for the ARC service
 	ArcURL = "https://arc.taal.com"
 
@@ -80,6 +83,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 				Base:      USD,
 				Rate:      47.52,
 			},
+			BroadcastDelay: DefaultWoCBroadcastDelay,
 		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,
