@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/go-softwarelab/common/pkg/must"
 	"time"
 
@@ -271,7 +272,7 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		spentByTransactionIDOnWriterSide = &spentByTransactionID
 	}
 
-	isNew, _, err := p.parent.repo.UpsertOutputForSync(p.ctx, &entity.Output{
+	output := &entity.Output{
 		CreatedAt:          chunkOutput.CreatedAt,
 		UpdatedAt:          chunkOutput.UpdatedAt,
 		UserID:             p.user.ID,
@@ -293,7 +294,25 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		SenderIdentityKey:  chunkOutput.SenderIdentityKey,
 		Tags:               nil, //TODO: Implement it along with tags backup support.
 		BasketName:         basketName,
-	})
+	}
+
+	if basketName != nil && *basketName == wdk.BasketNameForChange {
+		satoshis, err := to.UInt64(chunkOutput.Satoshis)
+		if err != nil {
+			return fmt.Errorf("failed to convert change-basket's satoshis %d to uint64: %w", chunkOutput.Satoshis, err)
+		}
+
+		output.UserUTXO = &entity.UserUTXO{
+			UserID:             p.user.ID,
+			BasketName:         wdk.BasketNameForChange,
+			Satoshis:           satoshis,
+			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+			CreatedAt:          chunkOutput.CreatedAt,
+			ReservedByID:       nil, //TODO: Talk to Damian how to deal with this - as it cannot be deduced from the output.
+		}
+	}
+
+	isNew, _, err := p.parent.repo.UpsertOutputForSync(p.ctx, output)
 	if err != nil {
 		return fmt.Errorf("failed to upsert output for transaction ID %d, vout %d: %w", chunkOutput.TransactionID, chunkOutput.Vout, err)
 	}

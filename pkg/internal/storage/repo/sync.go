@@ -552,6 +552,18 @@ func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (
 		SenderIdentityKey:  entity.SenderIdentityKey,
 	}
 
+	if entity.UserUTXO != nil {
+		model.UserUTXO = &models.UserUTXO{
+			UserID:             entity.UserUTXO.UserID,
+			OutputID:           entity.UserUTXO.OutputID,
+			BasketName:         entity.UserUTXO.BasketName,
+			Satoshis:           entity.UserUTXO.Satoshis,
+			EstimatedInputSize: entity.UserUTXO.EstimatedInputSize,
+			CreatedAt:          entity.UserUTXO.CreatedAt,
+			ReservedByID:       entity.UserUTXO.ReservedByID,
+		}
+	}
+
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateTx := tx.Model(&models.Output{}).
 			Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).

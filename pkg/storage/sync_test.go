@@ -320,4 +320,13 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, inserts)
 	assert.Equal(t, 1, updates)
+
+	// and outputs:
+	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+
+	thenDBState.AllOutputs(testusers.Alice).
+		WithCount(1)
+
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
+		WithCount(0)
 }

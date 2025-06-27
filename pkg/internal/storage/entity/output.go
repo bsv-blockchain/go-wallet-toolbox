@@ -36,4 +36,6 @@ type Output struct {
 	SenderIdentityKey *string
 
 	Tags []string
+
+	UserUTXO *UserUTXO
 }
