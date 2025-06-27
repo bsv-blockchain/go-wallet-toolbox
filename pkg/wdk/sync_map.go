@@ -36,6 +36,7 @@ func (sm SyncMap) JSON() ([]byte, error) {
 	return data, nil
 }
 
+// MaxUpdatedAt returns the latest non-nil MaxUpdatedAt timestamp among all entities in the SyncMap, or nil if none exist.
 func (sm SyncMap) MaxUpdatedAt() *time.Time {
 	var maxUpdatedAt *time.Time
 	for _, entity := range sm {

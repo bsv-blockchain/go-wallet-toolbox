@@ -31,6 +31,7 @@ type SeedDBForSync interface {
 	PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync
 
 	GetAllOwnedTransactionIDs() []string
+	GetAvailableBalance() uint64
 }
 
 type RequestSyncChunkFixture interface {
@@ -159,4 +160,13 @@ func (s *seedDbForSync) GetAllOwnedTransactionIDs() []string {
 			return spec.ID()
 		}),
 	)
+}
+
+func (s *seedDbForSync) GetAvailableBalance() uint64 {
+	all := seq.Concat(seq.FromSlice(s.notMinedTXs), seq.FromSlice(s.minedTXs))
+	var total uint64
+	for tx := range all {
+		total += tx.TX().TotalOutputSatoshis()
+	}
+	return total
 }

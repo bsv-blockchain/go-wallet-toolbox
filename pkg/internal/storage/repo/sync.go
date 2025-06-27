@@ -167,10 +167,12 @@ func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...quer
 	var resultModels []*KnownTxWithNum
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		filters := scopes.FromQueryOpts(opts)
+
 		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
 				Select("?, tx_id", s.naming.knownTxTableName).
-				Scopes(scopes.FromQueryOpts(opts)...).
+				Scopes(filters...).
 				Scopes(s.provenTxWhereExistsScope(userID)).
 				Find(&models.KnownTx{})
 		})
@@ -182,7 +184,7 @@ func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...quer
 			Model(&models.KnownTx{}).
 			Select("*").
 			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName, clause.InnerJoin)).
-			Scopes(scopes.FromQueryOpts(opts)...).
+			Scopes(filters...).
 			Scopes(s.provenTxWhereExistsScope(userID)).
 			Find(&resultModels).Error
 		if err != nil {
@@ -567,7 +569,10 @@ func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateTx := tx.Model(&models.Output{}).
 			Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
+			Select("*").
 			Updates(model)
+
+		// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
 
 		if updateTx.Error != nil {
 			return fmt.Errorf("failed to update output: %w", updateTx.Error)

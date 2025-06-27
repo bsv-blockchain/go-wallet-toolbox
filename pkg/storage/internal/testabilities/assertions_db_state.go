@@ -2,14 +2,15 @@ package testabilities
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"maps"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,6 +20,7 @@ type StorageReader interface {
 	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
+	CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
 }
 
 type DBStateAssertion interface {
@@ -27,6 +29,11 @@ type DBStateAssertion interface {
 	HasUserTransactionByReference(user testusers.User, txID string) UserTransactionAssertion
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
+
+	// CanCreateActionForSatoshis - is the only way to check if UserUTXOs have been created for the user,
+	// by attempting to create an action for the user (which requires UserUTXOs to exist).
+	// NOTE: No other methods should be called before this one, as it changes DB state.
+	CanCreateActionForSatoshis(user testusers.User, satoshi uint64) //
 }
 
 type KnownTxAssertion interface {
@@ -234,4 +241,31 @@ func (d *outputsListAssertion) WithCountHavingOutpoint(expected int) OutputsList
 	}))
 	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
 	return d
+}
+
+func (d *dbStateAssertion) CanCreateActionForSatoshis(user testusers.User, satoshis uint64) {
+	d.Helper()
+
+	userID := d.userIDByIdentityKey(user.IdentityKey(d))
+	_, err := d.storage.CreateAction(d.Context(), wdk.AuthID{UserID: &userID}, wdk.ValidCreateActionArgs{
+		Description: "test transaction",
+		Outputs: []wdk.ValidCreateActionOutput{
+			{
+				LockingScript:      "76a9144b0d6cbef5a813d2d12dcec1de2584b250dc96a388ac",
+				Satoshis:           primitives.SatoshiValue(satoshis),
+				OutputDescription:  "outputBRC29",
+				Basket:             nil,
+				CustomInstructions: to.Ptr("{\"derivationPrefix\":\"Pr==\",\"derivationSuffix\":\"Su==\",\"type\":\"BRC29\"}"),
+				Tags:               nil,
+			},
+		},
+		LockTime: 0,
+		Version:  1,
+		Options: wdk.ValidCreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
+		},
+		IsNewTx:                      true,
+		IncludeAllSourceTransactions: true,
+	})
+	require.NoError(d.TB, err)
 }

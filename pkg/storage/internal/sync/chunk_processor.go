@@ -3,12 +3,12 @@ package sync
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/go-softwarelab/common/pkg/must"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -296,7 +296,7 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		BasketName:         basketName,
 	}
 
-	if basketName != nil && *basketName == wdk.BasketNameForChange {
+	if chunkOutput.Spendable && basketName != nil && *basketName == wdk.BasketNameForChange {
 		satoshis, err := to.UInt64(chunkOutput.Satoshis)
 		if err != nil {
 			return fmt.Errorf("failed to convert change-basket's satoshis %d to uint64: %w", chunkOutput.Satoshis, err)
@@ -402,6 +402,12 @@ func (p *chunkProcessor) updateSyncStateOnDone() error {
 	p.syncState.When = p.syncState.SyncMap.MaxUpdatedAt()
 	for _, syncMapEntity := range p.syncState.SyncMap {
 		syncMapEntity.Count = 0
+	}
+
+	if p.syncState.When != nil {
+		// Ensure the `when` field is always "after" the last processed time
+		// to avoid duplicate processing of a row (that has the maximum updated_at value) in the next sync.
+		p.syncState.When = to.Ptr(p.syncState.When.Add(time.Nanosecond))
 	}
 
 	err := p.parent.repo.UpdateSyncState(p.ctx, p.syncState)

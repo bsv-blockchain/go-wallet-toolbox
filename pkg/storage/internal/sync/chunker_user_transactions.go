@@ -45,13 +45,7 @@ func (c *chunkerUserTransactions) FirstPage(offsetsLookup OffsetsLookup) *queryo
 }
 
 func (c *chunkerUserTransactions) Process(ctx context.Context, userID int, page *queryopts.Paging, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
-	opts := []queryopts.Options{
-		queryopts.WithPage(*page),
-	}
-
-	if since != nil {
-		opts = append(opts, queryopts.WithSince(queryopts.Since{Time: *since}))
-	}
+	opts := chunkerQueryOptions(page, since)
 
 	transactions, err := c.repo.FindTransactionsForSync(ctx, userID, opts...)
 	if err != nil {

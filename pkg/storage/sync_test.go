@@ -41,7 +41,7 @@ func TestSyncProcess(t *testing.T) {
 	assert.Equal(t, 1, updates)
 
 	// and:
-	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 
 	// and knownTxs:
 	thenDBState.HasKnownTX(ownedMinedTx.ID()).
@@ -81,6 +81,13 @@ func TestSyncProcess(t *testing.T) {
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
 		WithCount(32)
+
+	// and:
+	const fee = 1
+	thenDBState.CanCreateActionForSatoshis(
+		testusers.Alice,
+		seed.GetAvailableBalance()-fee,
+	)
 }
 
 func TestSyncProcessOnlyUsers(t *testing.T) {
@@ -141,7 +148,7 @@ func TestSyncWithManyCustomBaskets(t *testing.T) {
 	assert.Equal(t, 1, updates)
 }
 
-func TestSyncProcessWithManyTransactions(t *testing.T) {
+func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()
@@ -170,13 +177,20 @@ func TestSyncProcessWithManyTransactions(t *testing.T) {
 	assert.Equal(t, 1, updates)
 
 	// and known transactions:
-	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 	thenDBState.HasKnownTXs(seed.GetAllOwnedTransactionIDs()...)
 
 	// and outputs:
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
 		WithCount(numberOfTxs).
 		WithCountHavingOutpoint(numberOfTxs)
+
+	// and:
+	const fee = 4 //NOTE: Minimum fee to cover so many UTXOs as inputs
+	thenDBState.CanCreateActionForSatoshis(
+		testusers.Alice,
+		seed.GetAvailableBalance()-4*fee,
+	)
 }
 
 func TestSyncProcessWithMergeUser(t *testing.T) {
@@ -277,7 +291,7 @@ func TestSyncProcessWithBasketsNumIDMissmatch(t *testing.T) {
 	assert.Equal(t, 1, updates)
 
 	// and outputs:
-	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 	thenDBState.Outputs(testusers.Bob, wdk.BasketNameForChange).
 		WithCount(1).
 		WithCountHavingOutpoint(1)
@@ -293,6 +307,7 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 
 	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
 	ownedTx := seed.OwnsTransaction()
+	_ = ownedTx
 
 	// and:
 	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
@@ -322,11 +337,11 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 	assert.Equal(t, 1, updates)
 
 	// and outputs:
-	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 
 	thenDBState.AllOutputs(testusers.Alice).
 		WithCount(1)
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
-		WithCount(0)
+		WithCount(0) // NOTE: Relinquished output is not in the change basket anymore
 }
