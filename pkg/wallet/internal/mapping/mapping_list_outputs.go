@@ -81,18 +81,14 @@ func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
 		result.CustomInstructions = *output.CustomInstructions
 	}
 
-	if output.LockingScript != nil {
-		if lockingScript, err := script.NewFromHex(string(*output.LockingScript)); err == nil {
-			result.LockingScript = lockingScript.Bytes()
-		}
-	}
+	result.LockingScript = parseLockingScript(output.LockingScript)
 
 	if len(output.Tags) > 0 {
-		result.Tags = slices.Map(output.Tags, func(tag primitives.StringUnder300) string { return string(tag) })
+		result.Tags = mapStrings(output.Tags)
 	}
 
 	if len(output.Labels) > 0 {
-		result.Labels = slices.Map(output.Labels, func(label primitives.StringUnder300) string { return string(label) })
+		result.Labels = mapStrings(output.Labels)
 	}
 
 	return result, nil
@@ -111,8 +107,13 @@ func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult
 		outputs = append(outputs, mappedOutput)
 	}
 
+	totalOutputsUint32, err := to.UInt32(totalOutputs)
+	if err != nil {
+		return nil, fmt.Errorf("total outputs exceeds maximum allowed value: %w", err)
+	}
+
 	sdkResult := &sdk.ListOutputsResult{
-		TotalOutputs: uint32(totalOutputs), //nolint:gosec // G115: Value is clamped to MaxUint32 by min() function
+		TotalOutputs: totalOutputsUint32,
 		Outputs:      outputs,
 	}
 
@@ -121,4 +122,19 @@ func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult
 	}
 
 	return sdkResult, nil
+}
+
+func mapStrings(input []primitives.StringUnder300) []string {
+	return slices.Map(input, func(s primitives.StringUnder300) string { return string(s) })
+}
+
+func parseLockingScript(hexPtr *primitives.HexString) []byte {
+	if hexPtr == nil {
+		return nil
+	}
+	lockingScript, err := script.NewFromHex(string(*hexPtr))
+	if err != nil {
+		return nil
+	}
+	return lockingScript.Bytes()
 }
