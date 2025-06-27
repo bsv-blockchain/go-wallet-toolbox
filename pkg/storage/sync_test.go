@@ -72,6 +72,15 @@ func TestSyncProcess(t *testing.T) {
 		HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
 		WithoutTxID().
 		WithStatus(wdk.TxStatusUnsigned)
+
+	// and outputs:
+	thenDBState.AllOutputs(testusers.Alice).
+		WithCount(33).
+		WithCountHavingOutpoint(3)
+	// TODO: Check tags when backup for tags is implemented
+
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
+		WithCount(32)
 }
 
 func TestSyncProcessOnlyUsers(t *testing.T) {
@@ -160,9 +169,14 @@ func TestSyncProcessWithManyTransactions(t *testing.T) {
 	assert.Equal(t, 3*numberOfTxs, inserts) // NOTE: One for knownTx and one for (user's) transaction and one for output
 	assert.Equal(t, 1, updates)
 
-	// and:
+	// and known transactions:
 	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
 	thenDBState.HasKnownTXs(seed.GetAllOwnedTransactionIDs()...)
+
+	// and outputs:
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
+		WithCount(numberOfTxs).
+		WithCountHavingOutpoint(numberOfTxs)
 }
 
 func TestSyncProcessWithMergeUser(t *testing.T) {

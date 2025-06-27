@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"context"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"maps"
 	"testing"
 
@@ -17,12 +18,15 @@ type StorageReader interface {
 	FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error)
 	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
+	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 }
 
 type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
 	HasKnownTX(txID string) KnownTxAssertion
 	HasUserTransactionByReference(user testusers.User, txID string) UserTransactionAssertion
+	AllOutputs(user testusers.User) OutputsListAssertion
+	Outputs(user testusers.User, basketName string) OutputsListAssertion
 }
 
 type KnownTxAssertion interface {
@@ -36,6 +40,11 @@ type UserTransactionAssertion interface {
 	WithStatus(state wdk.TxStatus) UserTransactionAssertion
 	WithTxID(txID string) UserTransactionAssertion
 	WithoutTxID() UserTransactionAssertion
+}
+
+type OutputsListAssertion interface {
+	WithCount(expected int) OutputsListAssertion
+	WithCountHavingOutpoint(expected int) OutputsListAssertion
 }
 
 func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
@@ -183,5 +192,46 @@ func (d *userTransactionAssertion) WithTxID(txID string) UserTransactionAssertio
 func (d *userTransactionAssertion) WithoutTxID() UserTransactionAssertion {
 	d.Helper()
 	assert.Nil(d, d.transaction.TxID)
+	return d
+}
+
+func (d *dbStateAssertion) Outputs(user testusers.User, basketName string) OutputsListAssertion {
+	d.Helper()
+
+	userID := d.userIDByIdentityKey(user.IdentityKey(d))
+	outputs, err := d.storage.ListOutputs(d.Context(), wdk.AuthID{UserID: &userID}, wdk.ListOutputsArgs{
+		Limit:  1000,
+		Basket: primitives.StringUnder300(basketName),
+	})
+	require.NoError(d.TB, err)
+
+	return &outputsListAssertion{
+		TB:      d.TB,
+		outputs: outputs.Outputs,
+	}
+}
+
+func (d *dbStateAssertion) AllOutputs(user testusers.User) OutputsListAssertion {
+	return d.Outputs(user, "")
+}
+
+type outputsListAssertion struct {
+	testing.TB
+	outputs []*wdk.WalletOutput
+}
+
+func (d *outputsListAssertion) WithCount(expected int) OutputsListAssertion {
+	d.Helper()
+	assert.Len(d, d.outputs, expected, "Expected outputs list to have %d items, but got %d", expected, len(d.outputs))
+	return d
+}
+
+func (d *outputsListAssertion) WithCountHavingOutpoint(expected int) OutputsListAssertion {
+	d.Helper()
+	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
+		err := output.Outpoint.Validate()
+		return err == nil
+	}))
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
 	return d
 }

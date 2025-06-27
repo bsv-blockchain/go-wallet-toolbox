@@ -148,6 +148,8 @@ func (p *chunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 		writerID: basketNumID,
 	})
 
+	p.basketNameCache[basketNumID] = string(chunkBasket.Name)
+
 	return nil
 }
 
@@ -348,7 +350,6 @@ func (p *chunkProcessor) emptyChunk() bool {
 }
 
 func (p *chunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) {
-	// TODO: Cache this
 	if name, ok := p.basketNameCache[basketNumID]; ok {
 		return name, nil
 	}
