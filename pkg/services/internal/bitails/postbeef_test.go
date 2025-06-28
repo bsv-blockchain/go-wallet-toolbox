@@ -6,15 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestBitails_PostBEEF(t *testing.T) {
@@ -84,7 +85,7 @@ func TestBitails_PostBEEF(t *testing.T) {
 			},
 			expectTxID:        calculatedTxID,
 			expectErrorResult: true,
-			expectNotes:       []string{"Returned TxID mismatch"},
+			expectNotes:       []string{"returned txid (othertxid987) does not match expected txid (f036a074ace427c5ebc3d0de89a63d4a5e7aabeff9fbc77435eb58f8dbfd59a9)"},
 		},
 		{
 			name: "internal error",
