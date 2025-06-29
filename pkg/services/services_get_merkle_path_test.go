@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
+	btst "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	tst "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -57,7 +60,7 @@ func TestGetMerklePath(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, response)
 		require.Equal(t, wdk.MerklePathResult{
-			Name:        "ARC",
+			Name:        arc.ServiceName,
 			MerklePath:  nil,
 			BlockHeader: nil,
 		}, *response)
@@ -102,7 +105,7 @@ func TestGetMerklePath(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, response)
 		require.Equal(t, wdk.MerklePathResult{
-			Name:       "ARC",
+			Name:       arc.ServiceName,
 			MerklePath: &merklePath,
 			BlockHeader: &wdk.MerklePathBlockHeader{
 				Height:     2000,
@@ -139,12 +142,12 @@ func TestGetMerklePath(t *testing.T) {
 		merkleRoot, err := merklePath.ComputeRootHex(nil)
 		require.NoError(t, err, "failed to compute merkle root")
 
-		given.WhatsOnChain().WhenQueryingMerklePath(tst.TestTxID).WillReturnTSCProof(200, `{
+		given.WhatsOnChain().WhenQueryingMerklePath(tst.TestTxID).WillReturnTSCProof(200, `[{
 			"index": 0,
 			"txOrId": "`+tst.TestTxID+`",
 			"target": "`+tst.TestTargetHash+`",
 			"nodes": ["`+tst.TestSiblingHash+`"]
-		}`)
+		}]`)
 
 		blockHeaderJSON := fmt.Sprintf(`{
 			"hash": "%s",
@@ -170,5 +173,67 @@ func TestGetMerklePath(t *testing.T) {
 				MerkleRoot: merkleRoot,
 			},
 		}, *response)
+	})
+
+	t.Run("get merkle path from Bitails", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+
+		txID := btst.TestTxID
+		blockHash := btst.TestTargetHash
+		sibling := btst.TestSiblingHash
+
+		txHash := btst.MustHashFromHex(txID)
+		siblingHash := btst.MustHashFromHex(sibling)
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: btst.TestBlockHeight,
+			Path: [][]*sdk.PathElement{{
+				{
+					Offset: 0,
+					Hash:   txHash,
+					Txid:   to.Ptr(true),
+				},
+				{
+					Offset: 1,
+					Hash:   siblingHash,
+				},
+			}},
+		}
+
+		merkleRoot, err := merklePath.ComputeRootHex(&txID)
+		require.NoError(t, err, "failed to compute merkle root")
+
+		given.Bitails().WillReturnTscProof(txID, blockHash, 0, []string{sibling})
+
+		headerWithCorrectMerkleRoot := btst.FakeHeaderHexWithMerkleRoot(merkleRoot)
+		given.Bitails().WillReturnBlockHeader(blockHash, headerWithCorrectMerkleRoot)
+
+		given.Bitails().WillReturnBranchProof(txID, blockHash, merkleRoot, []map[string]string{
+			{
+				"pos":  "0",
+				"hash": sibling,
+			},
+		})
+		given.Bitails().WillReturnTxStatus(txID, btst.TestBlockHeight)
+
+		services := given.Services().WithDefaultConfig()
+
+		// when:
+		response, err := services.MerklePath(t.Context(), txID)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, response)
+
+		require.Equal(t, bitails.ServiceName, response.Name)
+		require.Equal(t, merklePath, *response.MerklePath)
+		require.Equal(t, &wdk.MerklePathBlockHeader{
+			Height:     btst.TestBlockHeight,
+			Hash:       blockHash,
+			MerkleRoot: merkleRoot,
+		}, response.BlockHeader)
+		require.NotEmpty(t, response.Notes)
+		require.Equal(t, "getMerklePathSuccess", response.Notes[0].What)
 	})
 }

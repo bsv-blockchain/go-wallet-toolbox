@@ -26,4 +26,7 @@ const (
 const (
 	HTTPStatusCreated = http.StatusCreated
 	HTTPStatusOK      = http.StatusOK
+	BlockHeaderLength = 80
+	MerkleRootOffset  = 36
+	MerkleRootLength  = 32
 )

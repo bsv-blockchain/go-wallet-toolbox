@@ -4,13 +4,12 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/go-resty/resty/v2"
-	"github.com/jarcoal/httpmock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
+	"github.com/go-resty/resty/v2"
+	"github.com/jarcoal/httpmock"
+	"github.com/stretchr/testify/require"
 )
 
 type ServicesFixture interface {

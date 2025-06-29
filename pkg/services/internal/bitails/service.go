@@ -6,15 +6,14 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-resty/resty/v2"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-resty/resty/v2"
 )
 
 type Bitails struct {
