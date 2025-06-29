@@ -52,18 +52,6 @@ func classifyBroadcastStatus(status BroadcastStatus) (wdk.PostedTxIDResultStatus
 	}
 }
 
-func convertNotes(notes []string) wdk.Notes {
-	converted := make(wdk.Notes, len(notes))
-	for i, note := range notes {
-		now := time.Now()
-		converted[i] = wdk.ReqHistoryNote{
-			When: &now,
-			What: note,
-		}
-	}
-	return converted
-}
-
 func containsI(subject string, contains ...string) bool {
 	subject = strings.ToLower(subject)
 	for _, c := range contains {

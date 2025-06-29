@@ -6,16 +6,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestBitails_PostBEEF(t *testing.T) {
@@ -100,14 +99,13 @@ func TestBitails_PostBEEF(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Given
+			// given:
 			tc.setup()
 
-			// When
+			// when:
 			result, err := bitailsService.PostBEEF(t.Context(), beef, []string{calculatedTxID})
 
-			// Then
-			fmt.Println("Result:", result, "Error:", err)
+			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.TxIDResults, 1)

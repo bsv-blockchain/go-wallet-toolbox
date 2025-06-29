@@ -84,8 +84,8 @@ func (f *bitailsFixture) WillReturnInternalError() {
 
 func (f *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHeight int64) {
 	body := map[string]any{
-		"block_hash":   blockHash,
-		"block_height": blockHeight,
+		"blockHash":   blockHash,
+		"blockHeight": blockHeight,
 	}
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,

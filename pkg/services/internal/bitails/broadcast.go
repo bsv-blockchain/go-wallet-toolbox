@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type broadcastRequest struct {
@@ -42,34 +44,34 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID,
 	resp := respArr[0]
 	result := &wdk.PostedTxID{TxID: txid}
 
-	maybeErr := b.classifyResponseError(resp, result)
+	broadcastErr := b.classifyResponseError(resp, result)
 
 	if resp.TxID != "" && resp.TxID != txid {
 		result.Notes = append(result.Notes, wdk.ReqHistoryNote{
-			When: ptrNow(),
+			When: to.Ptr(time.Now()),
 			What: "Returned TxID mismatch",
 		})
 		result.Result = wdk.PostedTxIDResultError
 		return result, fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid)
 	}
 
-	info, fetchErr := b.fetchTxInfo(ctx, txid)
-	if fetchErr != nil && maybeErr == nil {
-		maybeErr = fmt.Errorf("error fetching tx info: %w", fetchErr)
+	info, infoErr := b.fetchTxInfo(ctx, txid)
+	if infoErr != nil && broadcastErr == nil {
+		broadcastErr = fmt.Errorf("error fetching tx info: %w", infoErr)
 	}
 	if info != nil {
 		result.BlockHash = info.BlockHash
 		result.BlockHeight = info.BlockHeight
 	}
 
-	already, double, note := classifyBroadcastStatus(maybeErr)
+	already, double, note := classifyBroadcastStatus(broadcastErr)
 	result.AlreadyKnown = result.AlreadyKnown || already
 	result.DoubleSpend = result.DoubleSpend || double
 	if note != "" {
-		result.Notes = append(result.Notes, wdk.ReqHistoryNote{When: ptrNow(), What: note})
+		result.Notes = append(result.Notes, wdk.ReqHistoryNote{When: to.Ptr(time.Now()), What: note})
 	}
-	if maybeErr != nil && !(already || double) {
-		result.Error = maybeErr
+	if broadcastErr != nil && !(already || double) {
+		result.Error = broadcastErr
 	}
 
 	return result, nil

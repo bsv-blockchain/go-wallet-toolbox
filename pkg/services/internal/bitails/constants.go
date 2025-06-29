@@ -5,25 +5,33 @@ import (
 	"time"
 )
 
+// Retry configuration constants
 const (
-	// Retry Config
 	Retries         = 2
 	RetriesWaitTime = 2 * time.Second
+)
 
-	// URLs
+// URLs for Bitails API
+const (
 	ProductionURL = "https://api.bitails.io/"
 	TestnetURL    = "https://test-api.bitails.io/"
+)
 
-	// Service
+// Service constants for Bitails
+const (
 	ServiceName             = "Bitails"
 	BroadcastEndpoint       = "tx/broadcast/multi"
 	FetchInfoEndpointFormat = "tx/%s/status"
+)
 
-	// Bitails Error Codes
+// Bitails Error Codes
+const (
 	ErrorCodeAlreadyInMempool = -27
 	ErrorCodeMissingInputs    = -25
+)
 
-	// HTTP Status Codes
+// HTTP Status Codes
+const (
 	HTTPStatusCreated = http.StatusCreated
 	HTTPStatusOK      = http.StatusOK
 )

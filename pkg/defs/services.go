@@ -43,7 +43,7 @@ type WalletServices struct {
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
-	Bitails      Bitails      `mapstructure:"bitails,omitempty"`
+	Bitails      Bitails      `mapstructure:"bitails"`
 }
 
 // Validate checks the validity of the WalletServices struct

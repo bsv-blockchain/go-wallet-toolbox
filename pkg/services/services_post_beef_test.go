@@ -19,6 +19,7 @@ func TestPostBEEF(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
+		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
 		beef, err := sdk.NewBeefFromTransaction(tx)
 		require.NoError(t, err)
@@ -75,10 +76,10 @@ func TestPostBEEF(t *testing.T) {
 
 		services := given.Services().WithDefaultConfig()
 
-		// When
+		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// Then
+		// then:
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
@@ -106,7 +107,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	txids := []string{parentTxID, childTxID}
 
 	t.Run("WoC returns error, rest return success", func(t *testing.T) {
-		// Given
+		// given:
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
@@ -122,10 +123,10 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 
 		services := given.Services().WithDefaultConfig()
 
-		// When
+		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// Then
+		// then:
 		require.NoError(t, err)
 		require.NotEmpty(t, response)
 
@@ -140,7 +141,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	})
 
 	t.Run("ARC returns error, rest return success", func(t *testing.T) {
-		// Given
+		// given:
 		given := testservices.GivenServices(t)
 
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txids...)
@@ -154,10 +155,10 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 
 		services := given.Services().WithDefaultConfig()
 
-		// When
+		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// Then
+		// then:
 		require.NoError(t, err)
 		require.NotEmpty(t, response)
 
@@ -172,7 +173,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	})
 
 	t.Run("All services return errors", func(t *testing.T) {
-		// Given
+		// given:
 		given := testservices.GivenServices(t)
 
 		for range txids {
@@ -184,10 +185,10 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 
 		services := given.Services().WithDefaultConfig()
 
-		// When
+		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// Then
+		// then:
 		require.NoError(t, err)
 		require.NotEmpty(t, response)
 

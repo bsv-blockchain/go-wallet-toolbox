@@ -9,6 +9,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
@@ -38,7 +39,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetRetryWaitTime(RetriesWaitTime).
 		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
 		SetHeaders(headers).
-		AddRetryCondition(retryOnTooManyRequestsStatus).
+		AddRetryCondition(utils.RetryOnTooManyRequestsStatus).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 

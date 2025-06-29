@@ -6,10 +6,9 @@ import (
 )
 
 type fetchInfoResponse struct {
-	TxID        string  `json:"txid"`
-	BlockHash   string  `json:"blockHash"`
-	BlockHeight int64   `json:"blockHeight"`
-	MerklePath  *string `json:"merklePath,omitempty"`
+	TxID        string `json:"txid"`
+	BlockHash   string `json:"block_hash"`
+	BlockHeight int64  `json:"block_height"`
 }
 
 func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoResponse, error) {

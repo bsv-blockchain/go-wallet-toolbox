@@ -3,17 +3,11 @@ package bitails
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-resty/resty/v2"
 )
-
-func retryOnTooManyRequestsStatus(res *resty.Response, err error) bool {
-	return res.StatusCode() == http.StatusTooManyRequests
-}
 
 func extractRawTransactions(beef *transaction.Beef, txIDs []string) ([][]byte, error) {
 	rawTxs := make([][]byte, len(txIDs))
@@ -41,11 +35,6 @@ func convertNotes(notes []string) wdk.Notes {
 		}
 	}
 	return converted
-}
-
-func ptrNow() *time.Time {
-	now := time.Now()
-	return &now
 }
 
 func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note string) {
