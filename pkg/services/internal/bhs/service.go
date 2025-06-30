@@ -22,7 +22,7 @@ type BlockHeadersService struct {
 }
 
 func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-	var block dto.ExtendedTipStateResponse
+	var block dto.TipStateResponse
 	url := fmt.Sprintf("%s/chain/tip/longest", b.cfg.URL)
 	res, err := b.
 		httpClient.

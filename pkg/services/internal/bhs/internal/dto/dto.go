@@ -1,26 +1,41 @@
 package dto
 
 import (
+	"math/big"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/bitcoin-sv/block-headers-service/transports/http/endpoints/api/tips"
 )
 
-type ExtendedTipStateResponse tips.TipStateResponse
-
-func (e *ExtendedTipStateResponse) IsZero() bool {
-	return *e == ExtendedTipStateResponse{}
+type TipResponse struct {
+	Hash             string   `json:"hash"`
+	Version          uint32   `json:"version"`
+	PreviousBlock    string   `json:"prevBlockHash"`
+	MerkleRoot       string   `json:"merkleRoot"`
+	Timestamp        uint64   `json:"creationTimestamp"`
+	DifficultyTarget uint32   `json:"difficultyTarget"`
+	Nonce            uint32   `json:"nonce"`
+	Work             *big.Int `json:"work"`
 }
 
-func (e *ExtendedTipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
+type TipStateResponse struct {
+	Header    TipResponse `json:"header"`
+	State     string      `json:"state"`
+	ChainWork *big.Int    `json:"chainWork"`
+	Height    uint        `json:"height"`
+}
+
+func (t *TipStateResponse) IsZero() bool { return *t == TipStateResponse{} }
+
+func (t *TipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
 	return &wdk.ChainBlockHeader{
 		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      uint32(e.Header.Version), //nolint:gosec
-			PreviousHash: e.Header.PreviousBlock,
-			MerkleRoot:   e.Header.MerkleRoot,
-			Time:         uint64(e.Header.Timestamp),
-			Nonce:        e.Header.Nonce,
+			Version:      t.Header.Version,
+			PreviousHash: t.Header.PreviousBlock,
+			MerkleRoot:   t.Header.MerkleRoot,
+			Time:         t.Header.Timestamp,
+			Nonce:        t.Header.Nonce,
 		},
-		Height: uint(e.Height), //nolint:gosec
-		Hash:   e.Header.Hash,
+		Height: t.Height,
+		Hash:   t.Header.Hash,
 	}
 }
