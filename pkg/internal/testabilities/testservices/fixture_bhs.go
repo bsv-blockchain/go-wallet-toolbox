@@ -45,7 +45,7 @@ type bhsFixture struct {
 	longestChainTip *longestChainTipResponse
 }
 
-func (b bhsFixture) WillRespondWithEmptyLongestTipBlockHeader() {
+func (b *bhsFixture) WillRespondWithEmptyLongestTipBlockHeader() {
 	b.transport.RegisterResponder(
 		http.MethodGet, defs.BHSTestURL+"/chain/tip/longest",
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, longestChainTipResponse{}),
@@ -57,8 +57,6 @@ func (b *bhsFixture) OnLongestTipBlockHeaderResponseWith(opts ...LongestChainTip
 		o(b.longestChainTip)
 	}
 }
-
-var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s(?:\/.*)?$`, defs.BHSTestURL[7:]))
 
 func (b *bhsFixture) WillRespondWithInternalFailure() {
 	b.TB.Helper()
@@ -72,7 +70,7 @@ func (b *bhsFixture) WillRespondWithInternalFailure() {
 }
 
 func (b *bhsFixture) WillBeUnreachable() error {
-	err := net.UnknownNetworkError("tests defined this endpoint as unreachable")
+	err := net.UnknownNetworkError("bhs - tests defined this endpoint as unreachable")
 	b.TB.Helper()
 	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
@@ -97,17 +95,24 @@ func NewBHSFixture(t testing.TB, opts ...Option) BHSFixture {
 	}, opts...)
 
 	return &bhsFixture{
-		TB:        t,
-		transport: options.transport,
-		longestChainTip: &longestChainTipResponse{
-			Height:        800000,
-			Hash:          "0000000000000000000a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e",
-			Version:       536870912,
-			MerkleRoot:    "3a4b5c6d7e8f90123456789abcdef0123456789abcdef0123456789abcdef01",
-			Timestamp:     1719427200,
-			Bits:          386136923,
-			Nonce:         2083236893,
-			PreviousBlock: "00000000000000000008e7b8c6d5f4e3d2c1b0a987654321fedcba9876543210",
-		},
+		TB:              t,
+		transport:       options.transport,
+		longestChainTip: newDefaultLongestChainTipResponse(),
 	}
 }
+
+func newDefaultLongestChainTipResponse() *longestChainTipResponse {
+	return &longestChainTipResponse{
+		Height:        800000,
+		Hash:          "0000000000000000000a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e",
+		Version:       536870912,
+		MerkleRoot:    "3a4b5c6d7e8f90123456789abcdef0123456789abcdef0123456789abcdef01",
+		Timestamp:     1719427200,
+		Bits:          386136923,
+		Nonce:         2083236893,
+		PreviousBlock: "00000000000000000008e7b8c6d5f4e3d2c1b0a987654321fedcba9876543210",
+	}
+}
+
+var bhsTestURLWithoutHTTPprefix = defs.BHSTestURL[7:]
+var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s(?:\/.*)?$`, bhsTestURLWithoutHTTPprefix))

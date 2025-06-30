@@ -2,7 +2,6 @@ package defs
 
 import (
 	"fmt"
-	"strings"
 )
 
 // BSVNetwork represents the Bitcoin SV network type (mainnet or testnet)
@@ -21,7 +20,7 @@ func ParseBSVNetworkStr(network string) (BSVNetwork, error) {
 
 // Validate checks if the value underneath is within valid BSVNetwork values.
 func (n BSVNetwork) Validate() error {
-	switch BSVNetwork(strings.ToLower(string(n))) {
+	switch n {
 	case NetworkMainnet, NetworkTestnet:
 		return nil
 	default:

@@ -38,6 +38,11 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		panic("httpClient is required")
 	}
 
+	err := network.Validate()
+	if err != nil {
+		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
+	}
+
 	headers := httpx.NewHeaders().
 		AcceptJSON().
 		UserAgent().Value("go-wallet-toolbox").

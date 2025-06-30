@@ -10,15 +10,11 @@ type BHS struct {
 }
 
 // Validate checks if the BHS configuration is valid.
-// It ensures that both the URL and APIKey fields are not empty.
+// It ensures that the URL field is not empty.
 // Returns an error if any required field is missing.
 func (b *BHS) Validate() error {
-	if len(b.APIKey) == 0 {
-		return fmt.Errorf("validation failed: APIKey must not be empty")
-	}
 	if len(b.URL) == 0 {
 		return fmt.Errorf("validation failed: URL must not be empty")
 	}
-
 	return nil
 }

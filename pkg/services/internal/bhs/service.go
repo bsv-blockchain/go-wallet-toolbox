@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
@@ -30,21 +29,19 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 		R().
 		SetContext(ctx).
 		SetResult(&block).
-		AddRetryCondition(func(res *resty.Response, err error) bool {
-			return res.StatusCode() == http.StatusTooManyRequests
-		}).
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus).
 		Get(url)
 
 	if err != nil {
-		return nil, fmt.Errorf("error while fetching block header from Block Headers Servcie API (URL: %s): %w", url, err)
+		return nil, fmt.Errorf("error while fetching block header from Block Headers Service API (URL: %s): %w", url, err)
 	}
 
 	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response from  Block Headers Servcie API (URL: %s): status code %d", url, res.StatusCode())
+		return nil, fmt.Errorf("unexpected response from  Block Headers Service API (URL: %s): status code %d", url, res.StatusCode())
 	}
 
 	if block.IsZero() {
-		return nil, fmt.Errorf("unexpected response from  Block Headers Servcie API (URL: %s). Received an empty block header response.", url)
+		return nil, fmt.Errorf("unexpected response from  Block Headers Service API (URL: %s). Received an empty block header response.", url)
 	}
 
 	return block.ConvertToChainBlockHeader(), nil
@@ -60,12 +57,12 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 
 	err := network.Validate()
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
 	}
 
 	err = config.Validate()
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("invalid BHS configuration: %s", err.Error()))
 	}
 
 	return &BlockHeadersService{
@@ -75,10 +72,6 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 }
 
 func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *resty.Client {
-	const (
-		retries         = 2
-		retriesWaitTime = 2 * time.Second // TODO: Move this section to shared pkg.
-	)
 
 	child := logging.
 		Child(logger, ServiceName).
@@ -90,10 +83,10 @@ func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, network d
 		Authorization().IfNotEmpty(config.APIKey)
 
 	return httpClient.Clone().
-		SetRetryCount(retries).
+		SetRetryCount(httpx.DefaultRetryCount).
 		SetBaseURL(config.URL).
-		SetRetryWaitTime(retriesWaitTime).
-		SetRetryMaxWaitTime(retries * retriesWaitTime).
+		SetRetryWaitTime(httpx.DefaultRetryInterval).
+		SetRetryMaxWaitTime(httpx.DefaultRetryCount * httpx.DefaultRetryInterval).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(child)).
 		SetDebug(child.Enabled(context.Background(), slog.LevelDebug))
