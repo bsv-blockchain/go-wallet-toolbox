@@ -56,6 +56,7 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 	client.GetClient().Transport = transport
 
 	servicesConfig := defs.DefaultServicesConfig(network)
+	servicesConfig.WhatsOnChain.BroadcastDelay = 0
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
 	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
