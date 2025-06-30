@@ -90,7 +90,7 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 		return sdk.Action{}, fmt.Errorf("failed to convert txid to hash: %w", err)
 	}
 
-	satoshis, err := to.UInt64(action.Satoshis)
+	satoshis, err := to.Int64(action.Satoshis)
 	if err != nil {
 		return sdk.Action{}, fmt.Errorf("failed to convert satoshis to uint64: %w", err)
 	}
