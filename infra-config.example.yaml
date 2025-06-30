@@ -55,7 +55,6 @@ wallet_services:
         wait_for: ""
     bitails:
         api_key: ""
-        url: ""
     bitails_api_key: null
     chaintracks: null
     chaintracks_fiat_exchange_rates_url: ""

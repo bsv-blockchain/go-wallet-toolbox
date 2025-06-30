@@ -29,8 +29,7 @@ func TestPostBEEF(t *testing.T) {
 
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txID)
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
-		given.Bitails().OnBroadcast().WillReturnSuccess(txID)
-		given.Bitails().WillReturnTxInfo(txID, "mocked-block-hash", 99999)
+		given.Bitails().WillReturnSuccessAndTxInfo(txID, "mocked-block-hash", 99999)
 
 		services := given.Services().WithDefaultConfig()
 
@@ -69,10 +68,8 @@ func TestPostBEEF(t *testing.T) {
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(parentTxID, childTxID)
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 
-		given.Bitails().OnBroadcast().WillReturnSuccess(parentTxID)
-		given.Bitails().OnBroadcast().WillReturnSuccess(childTxID)
-		given.Bitails().WillReturnTxInfo(parentTxID, "mocked-block-hash", 99999)
-		given.Bitails().WillReturnTxInfo(childTxID, "mocked-block-hash", 99999)
+		given.Bitails().WillReturnSuccessAndTxInfo(parentTxID, "mocked-block-hash", 99999)
+		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
 
 		services := given.Services().WithDefaultConfig()
 
@@ -117,8 +114,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 
 		for _, txid := range txids {
-			given.Bitails().OnBroadcast().WillReturnSuccess(txid)
-			given.Bitails().WillReturnTxInfo(txid, "mocked-block-hash", 99999)
+			given.Bitails().WillReturnSuccessAndTxInfo(txid, "mocked-block-hash", 99999)
 		}
 
 		services := given.Services().WithDefaultConfig()
@@ -149,8 +145,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 
 		for _, txid := range txids {
-			given.Bitails().OnBroadcast().WillReturnSuccess(txid)
-			given.Bitails().WillReturnTxInfo(txid, "mocked-block-hash", 99999)
+			given.Bitails().WillReturnSuccessAndTxInfo(txid, "mocked-block-hash", 99999)
 		}
 
 		services := given.Services().WithDefaultConfig()

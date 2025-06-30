@@ -17,6 +17,7 @@ type BitailsFixture interface {
 	WillBeUnreachable() error
 	WillReturnInternalError()
 	WillReturnTxInfo(txid string, blockHash string, blockHeight int64)
+	WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64)
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
 }
@@ -94,6 +95,11 @@ func (f *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHe
 	)
 }
 
+func (f *bitailsFixture) WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64) {
+	f.WillReturnTxInfo(txid, blockHash, blockHeight)
+	f.OnBroadcast().WillReturnSuccess(txid)
+}
+
 type bitailsBroadcastFixture struct {
 	testing.TB
 	transport *httpmock.MockTransport
@@ -101,7 +107,6 @@ type bitailsBroadcastFixture struct {
 }
 
 func (b *bitailsBroadcastFixture) WillReturnSuccess(txid string) {
-	fmt.Printf("WillReturnSuccess: %s\n", txid)
 	body := []map[string]any{
 		{"txid": txid},
 	}

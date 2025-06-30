@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
+	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -37,14 +38,12 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID,
 			TxID:   txid,
 			Result: wdk.PostedTxIDResultError,
 			Error:  fmt.Errorf("%s", msg),
-			Notes:  convertNotes([]string{msg}),
+			Notes:  utils.ConvertNotes([]string{msg}),
 		}, nil
 	}
 
 	resp := respArr[0]
 	result := &wdk.PostedTxID{TxID: txid}
-
-	broadcastErr := b.classifyResponseError(resp, result)
 
 	if resp.TxID != "" && resp.TxID != txid {
 		result.Notes = append(result.Notes, wdk.ReqHistoryNote{
@@ -54,6 +53,8 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID,
 		result.Result = wdk.PostedTxIDResultError
 		return result, fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid)
 	}
+
+	broadcastErr := b.classifyResponseError(resp, result)
 
 	info, infoErr := b.fetchTxInfo(ctx, txid)
 	if infoErr != nil && broadcastErr == nil {
@@ -104,7 +105,7 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 
 	msg := resp.Error.Message
 	result.Data = fmt.Sprintf("code=%d, msg=%s", resp.Error.Code, msg)
-	result.Notes = convertNotes([]string{msg})
+	result.Notes = utils.ConvertNotes([]string{msg})
 
 	switch resp.Error.Code {
 	case ErrorCodeAlreadyInMempool:

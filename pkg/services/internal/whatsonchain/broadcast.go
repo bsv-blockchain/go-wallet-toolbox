@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
+	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
