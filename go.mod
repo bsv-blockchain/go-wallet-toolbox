@@ -3,7 +3,7 @@ module github.com/4chain-ag/go-wallet-toolbox
 go 1.24.3
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.1
+	github.com/bsv-blockchain/go-sdk v1.2.2
 	github.com/bsv-blockchain/universal-test-vectors v0.5.0
 	github.com/filecoin-project/go-jsonrpc v0.8.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
@@ -56,7 +56,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/net v0.40.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
