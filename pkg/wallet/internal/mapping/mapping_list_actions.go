@@ -90,11 +90,6 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 		return sdk.Action{}, fmt.Errorf("failed to convert txid to hash: %w", err)
 	}
 
-	satoshis, err := to.Int64(action.Satoshis)
-	if err != nil {
-		return sdk.Action{}, fmt.Errorf("failed to convert satoshis to uint64: %w", err)
-	}
-
 	status, err := mapActionStatus(action.Status)
 	if err != nil {
 		return sdk.Action{}, fmt.Errorf("failed to map action status: %w", err)
@@ -112,7 +107,7 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 
 	result := sdk.Action{
 		Txid:        *hash,
-		Satoshis:    satoshis,
+		Satoshis:    action.Satoshis,
 		Status:      status,
 		IsOutgoing:  action.IsOutgoing,
 		Description: action.Description,

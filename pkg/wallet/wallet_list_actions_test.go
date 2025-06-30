@@ -98,5 +98,6 @@ func (s *WalletTestSuite) TestWalletListActions() {
 		require.NotNil(t, result)
 		assert.Equal(t, uint32(0), result.TotalActions, "Should have zero total actions")
 		assert.Empty(t, result.Actions, "Actions list should be empty")
+
 	})
 }

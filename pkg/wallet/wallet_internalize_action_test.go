@@ -135,6 +135,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		require.NotNil(t, listResult)
 		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after internalize")
 		require.Len(t, listResult.Actions, 1)
+
 	})
 
 	s.Run("basket insertion protocol", func() {
@@ -157,5 +158,17 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
+
+		// when: verify that ListActions shows the internalized action with basket insertion protocol
+		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
+		listArgs.Labels = args.Labels
+		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, listErr)
+		require.NotNil(t, listResult)
+		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after internalize")
+		require.Len(t, listResult.Actions, 1)
+
 	})
 }
