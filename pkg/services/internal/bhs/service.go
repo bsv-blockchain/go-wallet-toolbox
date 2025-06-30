@@ -72,7 +72,6 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 }
 
 func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *resty.Client {
-
 	child := logging.
 		Child(logger, ServiceName).
 		With(slog.String("network", string(network)))
