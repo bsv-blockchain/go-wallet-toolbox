@@ -19,6 +19,7 @@ type OutputRepo interface {
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
+	SaveOutput(ctx context.Context, output *entity.Output) error
 }
 
 type TransactionsRepo interface {

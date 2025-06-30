@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/optional"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
@@ -16,11 +17,17 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
+type OutputToInternalize struct {
+	*entity.NewOutput
+	existingOutputID *uint
+}
+
 type internalize struct {
 	logger      *slog.Logger
 	txRepo      TransactionsRepo
 	basketRepo  BasketRepo
 	knownTxRepo KnownTxRepo
+	outputRepo  OutputRepo
 	random      wdk.Randomizer
 }
 
@@ -29,6 +36,7 @@ func newInternalizeAction(
 	txRepo TransactionsRepo,
 	basketRepo BasketRepo,
 	knownTxRepo KnownTxRepo,
+	outputRepo OutputRepo,
 	random wdk.Randomizer,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
@@ -37,6 +45,7 @@ func newInternalizeAction(
 		txRepo:      txRepo,
 		basketRepo:  basketRepo,
 		knownTxRepo: knownTxRepo,
+		outputRepo:  outputRepo,
 		random:      random,
 	}
 }
@@ -54,21 +63,69 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	if err != nil {
 		return nil, fmt.Errorf("failed to find transaction by userID and txID: %w", err)
 	}
-	if storedTx != nil {
-		panic("not implemented yet") // TODO: Implement internalize action for known transaction (with merge)
+
+	isMerge := storedTx != nil
+	if isMerge {
+		if storedTx.Status != wdk.TxStatusCompleted &&
+			storedTx.Status != wdk.TxStatusUnproven &&
+			storedTx.Status != wdk.TxStatusNoSend {
+			return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
+		}
 	}
 
-	newOutputs, cumulativeSatoshis, err := in.newOutputs(ctx, userID, tx, args.Outputs)
+	outputs, cumulativeSatoshis, err := in.makeOutputs(ctx, userID, tx, args.Outputs, isMerge)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new outputs: %w", err)
 	}
 
-	reference, err := in.random.Base64(referenceLength)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate random reference: %w", err)
+	if isMerge {
+		err = in.upsertOutputs(ctx, storedTx, outputs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upsert outputs (isMerge): %w", err)
+		}
+	} else {
+		err = in.storeNewTx(ctx, userID, args, txID, tx, cumulativeSatoshis, outputs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to store new transaction: %w", err)
+		}
 	}
 
-	err = in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+	return &wdk.InternalizeActionResult{
+		Accepted: true,
+		IsMerge:  isMerge,
+		TxID:     txID,
+		Satoshis: primitives.SatoshiValue(cumulativeSatoshis.MustUInt64()),
+	}, nil
+}
+
+func (in *internalize) upsertOutputs(ctx context.Context, existingTx *wdk.TableTransaction, outputs []*OutputToInternalize) error {
+	for _, toInternalize := range outputs {
+		outputID := optional.OfPtr(toInternalize.existingOutputID).OrZeroValue() // Zero means it's a new output
+
+		output, err := toInternalize.ToOutput(outputID, existingTx.UserID, existingTx.TransactionID)
+		if err != nil {
+			return fmt.Errorf("failed to convert output-to-internalize spec to entity: %w", err)
+		}
+
+		err = in.outputRepo.SaveOutput(ctx, output)
+		if err != nil {
+			return fmt.Errorf("failed to save output: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (in *internalize) storeNewTx(
+	ctx context.Context,
+	userID int,
+	args *wdk.InternalizeActionArgs,
+	txID string,
+	tx *transaction.Transaction,
+	cumulativeSatoshis satoshi.Value,
+	outputs []*OutputToInternalize,
+) error {
+	err := in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
 		TxID:          txID,
 		RawTx:         tx.Bytes(),
 		InputBeef:     args.Tx,
@@ -76,7 +133,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
 	}, history.InternalizeActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
-		return nil, fmt.Errorf("failed to upsert known tx: %w", err)
+		return fmt.Errorf("failed to upsert known tx: %w", err)
+	}
+
+	reference, err := in.random.Base64(referenceLength)
+	if err != nil {
+		return fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
 	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{
@@ -89,27 +151,29 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		Description: string(args.Description),
 		Satoshis:    cumulativeSatoshis.Int64(),
 		TxID:        to.Ptr(txID),
-		Outputs:     newOutputs,
-		Labels:      args.Labels,
+		Outputs: slices.Map(outputs, func(out *OutputToInternalize) *entity.NewOutput {
+			return out.NewOutput
+		}),
+		Labels: args.Labels,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return fmt.Errorf("failed to create transaction: %w", err)
 	}
-
-	return &wdk.InternalizeActionResult{
-		Accepted: true,
-		IsMerge:  false,
-		TxID:     txID,
-		Satoshis: primitives.SatoshiValue(cumulativeSatoshis.MustUInt64()),
-	}, nil
+	return nil
 }
 
-func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transaction.Transaction, outputSpecs []*wdk.InternalizeOutput) ([]*entity.NewOutput, satoshi.Value, error) {
+func (in *internalize) makeOutputs(
+	ctx context.Context,
+	userID int,
+	tx *transaction.Transaction,
+	outputSpecs []*wdk.InternalizeOutput,
+	isMerge bool,
+) ([]*OutputToInternalize, satoshi.Value, error) {
 	satoshis := satoshi.Zero()
 
 	changeBasketVerified := false
 
-	var newOutputs []*entity.NewOutput
+	var newOutputs []*OutputToInternalize
 	outputsCount, err := to.UInt32(len(tx.Outputs))
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to convert outputs count to uint32: %w", err)
@@ -121,8 +185,27 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 
 		output := tx.Outputs[outputSpec.OutputIndex]
 
+		var existingOutput *entity.Output
+		if isMerge {
+			existingOutput, err = in.outputRepo.FindOutput(ctx, userID, wdk.OutPoint{
+				TxID: tx.TxID().String(),
+				Vout: outputSpec.OutputIndex,
+			})
+			if err != nil {
+				return nil, 0, fmt.Errorf("failed to find existing output: %w", err)
+			}
+			//NOTE: FindOutput can return nil if the output is not found
+		}
+
+		wasChangeOutput := existingOutput != nil && existingOutput.BasketName != nil && *existingOutput.BasketName == wdk.BasketNameForChange
+
 		switch outputSpec.Protocol {
 		case wdk.WalletPaymentProtocol:
+			if wasChangeOutput {
+				// the change output has already been added to the CHANGE basket
+				continue
+			}
+
 			satoshis = satoshi.MustAdd(satoshis, output.Satoshis)
 
 			if !changeBasketVerified {
@@ -133,20 +216,27 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 			}
 
 			remittance := outputSpec.PaymentRemittance
-			newOutputs = append(newOutputs, &entity.NewOutput{
-				Vout:              outputSpec.OutputIndex,
-				Spendable:         true,
-				LockingScript:     to.Ptr(primitives.HexString(output.LockingScript.String())),
-				BasketName:        to.Ptr(wdk.BasketNameForChange),
-				Satoshis:          satoshi.MustFrom(output.Satoshis),
-				SenderIdentityKey: to.Ptr(string(remittance.SenderIdentityKey)),
-				Type:              wdk.OutputTypeP2PKH,
-				ProvidedBy:        wdk.ProvidedByStorage,
-				Purpose:           wdk.ChangePurpose,
-				Change:            true,
-				DerivationPrefix:  to.Ptr(string(remittance.DerivationPrefix)),
-				DerivationSuffix:  to.Ptr(string(remittance.DerivationSuffix)),
-			})
+			out := &OutputToInternalize{
+				NewOutput: &entity.NewOutput{
+					Vout:              outputSpec.OutputIndex,
+					Spendable:         true,
+					LockingScript:     to.Ptr(primitives.HexString(output.LockingScript.String())),
+					BasketName:        to.Ptr(wdk.BasketNameForChange),
+					Satoshis:          satoshi.MustFrom(output.Satoshis),
+					SenderIdentityKey: to.Ptr(string(remittance.SenderIdentityKey)),
+					Type:              wdk.OutputTypeP2PKH,
+					ProvidedBy:        wdk.ProvidedByStorage,
+					Purpose:           wdk.ChangePurpose,
+					Change:            true,
+					DerivationPrefix:  to.Ptr(string(remittance.DerivationPrefix)),
+					DerivationSuffix:  to.Ptr(string(remittance.DerivationSuffix)),
+				},
+			}
+			if existingOutput != nil {
+				out.existingOutputID = to.Ptr(existingOutput.ID)
+			}
+
+			newOutputs = append(newOutputs, out)
 
 		case wdk.BasketInsertionProtocol:
 			remittance := outputSpec.InsertionRemittance
@@ -155,18 +245,32 @@ func (in *internalize) newOutputs(ctx context.Context, userID int, tx *transacti
 				return string(tag)
 			})
 
-			newOutputs = append(newOutputs, &entity.NewOutput{
-				Vout:               outputSpec.OutputIndex,
-				Spendable:          true,
-				LockingScript:      to.Ptr(primitives.HexString(output.LockingScript.String())),
-				BasketName:         to.Ptr(string(remittance.Basket)),
-				Satoshis:           satoshi.MustFrom(output.Satoshis),
-				Type:               wdk.OutputTypeCustom,
-				CustomInstructions: remittance.CustomInstructions,
-				Change:             false,
-				ProvidedBy:         wdk.ProvidedByYou,
-				Tags:               tags,
-			})
+			out := &OutputToInternalize{
+				NewOutput: &entity.NewOutput{
+					Vout:               outputSpec.OutputIndex,
+					Spendable:          true,
+					LockingScript:      to.Ptr(primitives.HexString(output.LockingScript.String())),
+					BasketName:         to.Ptr(string(remittance.Basket)),
+					Satoshis:           satoshi.MustFrom(output.Satoshis),
+					Type:               wdk.OutputTypeCustom,
+					CustomInstructions: remittance.CustomInstructions,
+					Change:             false,
+					ProvidedBy:         wdk.ProvidedByYou,
+					Tags:               tags,
+				},
+			}
+
+			if existingOutput != nil {
+				out.existingOutputID = to.Ptr(existingOutput.ID)
+			}
+
+			newOutputs = append(newOutputs, out)
+
+			if wasChangeOutput {
+				// converting a change output to a user basket CUSTOM output
+				// that effectively means that user's balance (in the change basket) is reduced by the amount of this output
+				satoshis = satoshi.MustSubtract(satoshis, output.Satoshis)
+			}
 		}
 	}
 

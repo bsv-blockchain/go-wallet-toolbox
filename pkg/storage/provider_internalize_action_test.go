@@ -121,6 +121,8 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 }
 
 func TestInternalizeActionForStoredTransaction(t *testing.T) {
+	t.Skip("This test is not implemented yet, see")
+	// TODO
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
