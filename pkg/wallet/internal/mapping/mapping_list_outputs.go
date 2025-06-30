@@ -81,7 +81,11 @@ func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
 		result.CustomInstructions = *output.CustomInstructions
 	}
 
-	result.LockingScript = parseLockingScript(output.LockingScript)
+	lockingScript, err := parseLockingScript(output.LockingScript)
+	if err != nil {
+		return sdk.Output{}, fmt.Errorf("failed to parse locking script: %w", err)
+	}
+	result.LockingScript = lockingScript
 
 	if len(output.Tags) > 0 {
 		result.Tags = mapStrings(output.Tags)
@@ -128,13 +132,13 @@ func mapStrings(input []primitives.StringUnder300) []string {
 	return slices.Map(input, func(s primitives.StringUnder300) string { return string(s) })
 }
 
-func parseLockingScript(hexPtr *primitives.HexString) []byte {
+func parseLockingScript(hexPtr *primitives.HexString) ([]byte, error) {
 	if hexPtr == nil {
-		return nil
+		return nil, nil
 	}
 	lockingScript, err := script.NewFromHex(string(*hexPtr))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse locking script from hex '%s': %w", string(*hexPtr), err)
 	}
-	return lockingScript.Bytes()
+	return lockingScript.Bytes(), nil
 }
