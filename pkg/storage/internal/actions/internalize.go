@@ -94,7 +94,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		Accepted: true,
 		IsMerge:  isMerge,
 		TxID:     txID,
-		Satoshis: primitives.SatoshiValue(cumulativeSatoshis.MustUInt64()),
+		Satoshis: cumulativeSatoshis.Int64(),
 	}, nil
 }
 
