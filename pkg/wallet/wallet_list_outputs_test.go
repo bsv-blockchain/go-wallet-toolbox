@@ -204,9 +204,10 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		// and: list outputs from the custom basket
 		args := fixtures.DefaultWalletListOutputsArgs()
 		args.Basket = fixtures.CustomBasket
-		args.IncludeTags = &[]bool{true}[0]
-		args.IncludeLabels = &[]bool{true}[0]
-		args.IncludeCustomInstructions = &[]bool{true}[0]
+		trueValue := true
+		args.IncludeTags = &trueValue
+		args.IncludeLabels = &trueValue
+		args.IncludeCustomInstructions = &trueValue
 
 		// when:
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
