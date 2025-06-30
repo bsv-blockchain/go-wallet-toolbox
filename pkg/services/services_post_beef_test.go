@@ -29,6 +29,9 @@ func TestPostBEEF(t *testing.T) {
 
 		// and:
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txID)
+
+		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+
 		services := given.Services().WithDefaultConfig()
 
 		// when:
@@ -65,7 +68,8 @@ func TestPostBEEF(t *testing.T) {
 		var txids = []string{parentTxID, childTxID}
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txids[0], txids[1])
 
-		// and:
+		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+
 		services := given.Services().WithDefaultConfig()
 
 		// when:
@@ -103,8 +107,9 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 		for range txids {
-			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error", nil)
+			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		}
+		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 		services := given.Services().WithDefaultConfig()
 
 		// When
@@ -131,6 +136,8 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 		services := given.Services().WithDefaultConfig()
 
+		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+
 		// When
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
@@ -152,8 +159,9 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		// Given
 		given := testservices.GivenServices(t)
 		for range txids {
-			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error", nil)
+			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		}
+		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 		services := given.Services().WithDefaultConfig()
 
