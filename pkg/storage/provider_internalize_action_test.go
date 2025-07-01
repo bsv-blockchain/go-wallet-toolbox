@@ -53,6 +53,12 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	assert.Equal(t, false, result.IsMerge)
 	assert.Equal(t, int64(fixtures.ExpectedValueToInternalize), result.Satoshis)
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(result.TxID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined)
 }
 
 func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
@@ -79,6 +85,12 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	assert.Equal(t, false, result.IsMerge)
 	assert.Equal(t, int64(0), result.Satoshis)
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(result.TxID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined)
 }
 
 func TestInternalizeActionErrorCases(t *testing.T) {
@@ -152,6 +164,12 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(0), result.Satoshis)
+
+		// and db state:
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState.HasKnownTX(result.TxID).
+			NotMined().
+			WithStatus(wdk.ProvenTxStatusUnmined)
 	})
 
 	t.Run("two outputs - two basket insertions", func(t *testing.T) {
@@ -220,6 +238,12 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(0), result.Satoshis)
+
+		// and db state:
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState.HasKnownTX(result.TxID).
+			NotMined().
+			WithStatus(wdk.ProvenTxStatusUnmined)
 	})
 
 	t.Run("switch from change output to custom basket", func(t *testing.T) {
@@ -256,6 +280,12 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(-alreadyOwnedSatoshis), result.Satoshis)
+
+		// and db state:
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState.HasKnownTX(result.TxID).
+			NotMined().
+			WithStatus(wdk.ProvenTxStatusUnmined)
 	})
 
 	t.Run("switch from custom basket to change", func(t *testing.T) {
@@ -320,5 +350,11 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(99904), result.Satoshis)
+
+		// and db state:
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState.HasKnownTX(result.TxID).
+			NotMined().
+			WithStatus(wdk.ProvenTxStatusUnmined)
 	})
 }
