@@ -1,6 +1,8 @@
 package defs
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // BSVNetwork represents the Bitcoin SV network type (mainnet or testnet)
 type BSVNetwork string
