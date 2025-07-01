@@ -51,9 +51,9 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		Authorization().IfNotEmpty(config.APIKey)
 
 	client := httpClient.Clone().
-		SetRetryCount(Retries).
-		SetRetryWaitTime(RetriesWaitTime).
-		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
+		SetRetryCount(httpx.DefaultRetryCount).
+		SetRetryWaitTime(httpx.DefaultRetryInterval).
+		SetRetryMaxWaitTime(httpx.DefaultRetryCount * httpx.DefaultRetryInterval).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
@@ -73,7 +73,7 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResu
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
 	req.SetHeader("Cache-Control", "no-cache")
 
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/hex", woc.url, txID))
@@ -115,7 +115,7 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	var exchangeRateResponse dto.BSVExchangeRateResponse
 	req := woc.httpClient.
 		R().
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
 
 	res, err := req.
 		SetResult(&exchangeRateResponse).

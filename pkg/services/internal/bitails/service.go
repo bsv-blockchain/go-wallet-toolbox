@@ -35,11 +35,11 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		Authorization().IfNotEmpty(config.APIKey)
 
 	client := httpClient.Clone().
-		SetRetryCount(Retries).
-		SetRetryWaitTime(RetriesWaitTime).
-		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
+		SetRetryCount(httpx.DefaultRetryCount).
+		SetRetryWaitTime(httpx.DefaultRetryInterval).
+		SetRetryMaxWaitTime(httpx.DefaultRetryCount * httpx.DefaultRetryInterval).
 		SetHeaders(headers).
-		AddRetryCondition(utils.RetryOnTooManyRequestsStatus).
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 

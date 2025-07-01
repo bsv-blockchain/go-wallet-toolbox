@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
@@ -48,7 +49,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		SetContext(ctx).
 		SetResult(&resp).
 		SetBody(broadcastRequest{TxHex: rawTxHex}).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
 
 	res, err := req.Post(url)
 	if err != nil {

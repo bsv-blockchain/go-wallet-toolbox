@@ -2,13 +2,6 @@ package bitails
 
 import (
 	"net/http"
-	"time"
-)
-
-// Retry configuration constants
-const (
-	Retries         = 2
-	RetriesWaitTime = 2 * time.Second
 )
 
 // URLs for Bitails API

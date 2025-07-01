@@ -2,12 +2,10 @@ package txutils
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-resty/resty/v2"
 )
 
 // ConvertNotes converts a slice of strings into wdk.Notes, assigning the current time to each note.
@@ -38,9 +36,4 @@ func ExtractRawTransactions(beef *transaction.Beef, txIDs []string) ([][]byte, e
 		rawTxs[i] = raw
 	}
 	return rawTxs, nil
-}
-
-// RetryOnTooManyRequestsStatus is a retry condition function for resty that checks if the response status code is 429 (Too Many Requests).
-func RetryOnTooManyRequestsStatus(res *resty.Response, err error) bool {
-	return res.StatusCode() == http.StatusTooManyRequests
 }
