@@ -70,6 +70,10 @@ func Defaults() Config {
 
 // OnPostLoad is called after the configuration is loaded
 func (c *Config) OnPostLoad() error {
+	var err error
+	if c.BSVNetwork, err = defs.ParseBSVNetworkStr(string(c.BSVNetwork)); err != nil {
+		return fmt.Errorf("invalid BSV network: %w", err)
+	}
 	c.Services.Chain = c.BSVNetwork
 
 	// if testnet selected - switch to testnet-ARC if default config points to mainnet-ARC
