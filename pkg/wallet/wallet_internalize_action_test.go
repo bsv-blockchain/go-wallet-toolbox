@@ -6,6 +6,8 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,6 +118,8 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 
 		// and:
 		args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizedTx, err := transaction.NewTransactionFromBEEF(args.Tx)
+		require.NoError(t, err)
 
 		// when:
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
@@ -125,23 +129,23 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
 
-		// when: verify that ListActions shows the internalized action
-		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
-		listArgs.Labels = args.Labels
-		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1)
 
-		// then:
-		assert.NoError(t, listErr)
-		require.NotNil(t, listResult)
-		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after internalize")
-		require.Len(t, listResult.Actions, 1)
+		thenInternalizedAction := thenState.ActionAtIndex(0)
+		thenInternalizedAction.
+			WithTxID(internalizedTx.TxID().String()).
+			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)).
+			WithDescription(args.Description)
 
-		// and:
-		action := listResult.Actions[0]
-		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
-		assert.Equal(t, args.Description, action.Description, "Action description should match")
-		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
-
+		thenInternalizedAction.OutputAtIndex(0).
+			WithSatoshis(internalizedTx.Outputs[0].Satoshis).
+			WithLockingScript(internalizedTx.Outputs[0].LockingScript.Bytes()).
+			WithOutputIndex(0).
+			WithBasket(wdk.BasketNameForChange).
+			WithSpendable(true)
 	})
 
 	s.Run("basket insertion protocol", func() {
@@ -156,6 +160,8 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 
 		// and:
 		args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolBasketInsertion)
+		internalizedTx, err := transaction.NewTransactionFromBEEF(args.Tx)
+		require.NoError(t, err)
 
 		// when:
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
@@ -165,22 +171,22 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
 
-		// when: verify that ListActions shows the internalized action with basket insertion protocol
-		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
-		listArgs.Labels = args.Labels
-		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1)
 
-		// then:
-		assert.NoError(t, listErr)
-		require.NotNil(t, listResult)
-		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after internalize")
-		require.Len(t, listResult.Actions, 1)
+		thenInternalizedAction := thenState.ActionAtIndex(0)
+		thenInternalizedAction.
+			WithTxID(internalizedTx.TxID().String()).
+			WithSatoshis(0).
+			WithDescription(args.Description)
 
-		// and:
-		action := listResult.Actions[0]
-		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
-		assert.Equal(t, args.Description, action.Description, "Action description should match")
-		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
-
+		thenInternalizedAction.OutputAtIndex(0).
+			WithSatoshis(internalizedTx.Outputs[0].Satoshis).
+			WithLockingScript(internalizedTx.Outputs[0].LockingScript.Bytes()).
+			WithOutputIndex(0).
+			WithBasket(fixtures.CustomBasket).
+			WithSpendable(true)
 	})
 }
