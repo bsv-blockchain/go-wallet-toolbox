@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"testing"
 
@@ -210,7 +211,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 						},
 					},
 				},
-				Description: "first internalize",
+				Description: "second internalize",
 			},
 		)
 
@@ -221,7 +222,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(0), result.Satoshis)
 	})
 
-	t.Run("two outputs - switch from change to custom basket", func(t *testing.T) {
+	t.Run("switch from change output to custom basket", func(t *testing.T) {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
@@ -255,5 +256,69 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(-alreadyOwnedSatoshis), result.Satoshis)
+	})
+
+	t.Run("switch from custom basket to change", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		activeStorage := given.Provider().GORM()
+
+		// and:
+		beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
+
+		// when:
+		result, err := activeStorage.InternalizeAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			wdk.InternalizeActionArgs{
+				Tx: beefToInternalize,
+				Outputs: []*wdk.InternalizeOutput{
+					{
+						OutputIndex: 0,
+						Protocol:    wdk.BasketInsertionProtocol,
+						InsertionRemittance: &wdk.BasketInsertion{
+							Basket: "custom_basket",
+							Tags:   []primitives.StringUnder300{"custom_tag"},
+						},
+					},
+				},
+				Description: "first internalize",
+			},
+		)
+
+		// then:
+		require.NoError(t, err)
+		assert.True(t, result.Accepted)
+		assert.False(t, result.IsMerge)
+		assert.Equal(t, int64(0), result.Satoshis)
+
+		// when:
+		result, err = activeStorage.InternalizeAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			wdk.InternalizeActionArgs{
+				Tx: beefToInternalize,
+				Outputs: []*wdk.InternalizeOutput{
+					{
+						OutputIndex: 0,
+						Protocol:    wdk.WalletPaymentProtocol,
+						PaymentRemittance: &wdk.WalletPayment{
+							DerivationPrefix:  fixtures.DerivationPrefix,
+							DerivationSuffix:  fixtures.DerivationSuffix,
+							SenderIdentityKey: fixtures.AnyoneIdentityKey,
+						},
+					},
+				},
+				Description: "second internalize",
+			},
+		)
+
+		// then:
+		require.NoError(t, err)
+		assert.True(t, result.Accepted)
+		assert.True(t, result.IsMerge)
+		assert.Equal(t, int64(99904), result.Satoshis)
 	})
 }
