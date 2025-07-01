@@ -7,10 +7,11 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 )
 
 type BitailsFixture interface {
@@ -85,8 +86,8 @@ func (f *bitailsFixture) WillReturnInternalError() {
 
 func (f *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHeight int64) {
 	body := map[string]any{
-		"blockHash":   blockHash,
-		"blockHeight": blockHeight,
+		"block_hash":   blockHash,
+		"block_height": blockHeight,
 	}
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,

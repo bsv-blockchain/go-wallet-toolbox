@@ -7,8 +7,8 @@ import (
 
 type fetchInfoResponse struct {
 	TxID        string `json:"txid"`
-	BlockHash   string `json:"block_hash"`
-	BlockHeight int64  `json:"block_height"`
+	BlockHash   string `json:"blockhash"`
+	BlockHeight int64  `json:"blockheight"`
 }
 
 func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoResponse, error) {
