@@ -154,12 +154,13 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			WithTxID(txFromFaucet.ID()).
 			WithSatoshis(topUpValue)
 
+		const fee = 2
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - 2) // Pay attention that this is negative value (user spends balance).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is negative value (user spends balance).
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -233,12 +234,13 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			WithTxID(txFromFaucet.ID()).
 			WithSatoshis(topUpValue)
 
+		const fee = 2
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - 2 + inputValue) // Pay attention that this is negative value (user spends balance).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue) // Pay attention that this is negative value (user spends balance).
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
