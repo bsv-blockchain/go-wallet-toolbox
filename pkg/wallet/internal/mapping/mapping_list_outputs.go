@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -18,10 +19,14 @@ import (
 // MapListOutputsArgs maps sdk.ListOutputsArgs to wdk.ListOutputsArgs
 func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 	result := wdk.ListOutputsArgs{
-		Basket: primitives.StringUnder300(args.Basket),
-		Tags:   slices.Map(args.Tags, func(tag string) primitives.StringUnder300 { return primitives.StringUnder300(tag) }),
-		Limit:  primitives.PositiveIntegerDefault10Max10000(args.Limit),
-		Offset: primitives.PositiveInteger(args.Offset),
+		Basket:                    primitives.StringUnder300(args.Basket),
+		Tags:                      slices.Map(args.Tags, func(tag string) primitives.StringUnder300 { return primitives.StringUnder300(tag) }),
+		Limit:                     primitives.PositiveIntegerDefault10Max10000(args.Limit),
+		Offset:                    primitives.PositiveInteger(args.Offset),
+		IncludeCustomInstructions: optional.OfPtr(args.IncludeCustomInstructions).OrZeroValue(),
+		IncludeTags:               optional.OfPtr(args.IncludeTags).OrZeroValue(),
+		IncludeLabels:             optional.OfPtr(args.IncludeLabels).OrZeroValue(),
+		SeekPermission:            optional.OfPtr(args.SeekPermission).OrZeroValue(),
 	}
 
 	switch args.TagQueryMode {
@@ -61,7 +66,10 @@ func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 
 // mapListOutputsOutput maps *wdk.WalletOutput to sdk.Output
 func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
-	txID, vout := output.Outpoint.MustGet()
+	txID, vout, err := output.Outpoint.Get()
+	if err != nil {
+		return sdk.Output{}, fmt.Errorf("failed to get outpoint: %w", err)
+	}
 
 	txidHash, err := chainhash.NewHashFromHex(txID)
 	if err != nil {
@@ -88,11 +96,11 @@ func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
 	result.LockingScript = lockingScript
 
 	if len(output.Tags) > 0 {
-		result.Tags = mapStrings(output.Tags)
+		result.Tags = convertStringLikeSlice[string](output.Tags)
 	}
 
 	if len(output.Labels) > 0 {
-		result.Labels = mapStrings(output.Labels)
+		result.Labels = convertStringLikeSlice[string](output.Labels)
 	}
 
 	return result, nil
@@ -102,13 +110,9 @@ func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
 func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult, error) {
 	totalOutputs := min(uint64(result.TotalOutputs), math.MaxUint32)
 
-	outputs := make([]sdk.Output, 0, len(result.Outputs))
-	for _, output := range result.Outputs {
-		mappedOutput, err := mapListOutputsOutput(output)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map output: %w", err)
-		}
-		outputs = append(outputs, mappedOutput)
+	outputs, err := slices.MapOrError(result.Outputs, mapListOutputsOutput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map outputs: %w", err)
 	}
 
 	totalOutputsUint32, err := to.UInt32(totalOutputs)
@@ -122,14 +126,14 @@ func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult
 	}
 
 	if result.BEEF != nil {
-		sdkResult.BEEF = []byte(*result.BEEF)
+		sdkResult.BEEF = *result.BEEF
 	}
 
 	return sdkResult, nil
 }
 
-func mapStrings(input []primitives.StringUnder300) []string {
-	return slices.Map(input, func(s primitives.StringUnder300) string { return string(s) })
+func convertStringLikeSlice[ResultType, ArgType ~string](input []ArgType) []ResultType {
+	return slices.Map(input, func(s ArgType) ResultType { return ResultType(s) })
 }
 
 func parseLockingScript(hexPtr *primitives.HexString) ([]byte, error) {
