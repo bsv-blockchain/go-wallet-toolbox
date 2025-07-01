@@ -33,7 +33,7 @@ const (
 	BHSTestURL = "http://localhost:8080"
 
 	// BHSApiKey is the token for the BHS service
-	BHSApiKey = "token_abcd_1234567890"
+	BHSApiKey = ""
 )
 
 // WalletServices is a struct that has options for wallet services

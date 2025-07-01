@@ -2,24 +2,9 @@ package txutils
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
-
-// ConvertNotes converts a slice of strings into wdk.Notes, assigning the current time to each note.
-func ConvertNotes(notes []string) wdk.Notes {
-	converted := make(wdk.Notes, len(notes))
-	for i, note := range notes {
-		now := time.Now()
-		converted[i] = wdk.ReqHistoryNote{
-			When: &now,
-			What: note,
-		}
-	}
-	return converted
-}
 
 // ExtractRawTransactions extracts raw transaction bytes from a BEEF object based on the provided transaction IDs.
 func ExtractRawTransactions(beef *transaction.Beef, txIDs []string) ([][]byte, error) {

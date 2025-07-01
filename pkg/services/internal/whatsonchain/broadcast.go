@@ -8,7 +8,7 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 

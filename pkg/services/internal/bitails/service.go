@@ -8,8 +8,9 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
@@ -65,29 +66,27 @@ func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("no txids provided")
 	}
 
-	rawTxs, err := utils.ExtractRawTransactions(beef, txIDs)
+	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract raw transactions: %w", err)
 	}
 
-	var results []wdk.PostedTxID
+	results := make([]wdk.PostedTxID, 0, len(txIDs))
 
 	for i, txID := range txIDs {
 		raw := rawTxs[i]
 		broadcastResult, err := b.broadcast(ctx, raw)
-
-		switch {
-		case err != nil:
+		if err != nil {
 			results = append(results, wdk.PostedTxID{
 				TxID:   txID,
 				Result: wdk.PostedTxIDResultError,
 				Error:  fmt.Errorf("failed to broadcast tx %s: %w", txID, err),
 				Notes:  utils.ConvertNotes([]string{err.Error()}),
 			})
-
-		default:
-			results = append(results, *broadcastResult)
+			continue
 		}
+
+		results = append(results, *broadcastResult)
 	}
 
 	return &wdk.PostedBEEF{TxIDResults: results}, nil

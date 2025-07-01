@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )

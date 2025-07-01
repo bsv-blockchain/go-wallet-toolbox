@@ -13,7 +13,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
-	utils "github.com/4chain-ag/go-wallet-toolbox/pkg/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
@@ -184,7 +183,7 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 		return nil, fmt.Errorf("beef is required to post transactions")
 	}
 
-	rawTxs, err := utils.ExtractRawTransactions(beef, txIDs)
+	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract raw transactions: %w", err)
 	}
