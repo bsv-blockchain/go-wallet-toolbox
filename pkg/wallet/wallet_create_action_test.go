@@ -112,7 +112,7 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		defer cleanup()
 
 		// and:
-		given.Faucet(aliceWallet).TopUp(topUpValue)
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -144,25 +144,31 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			HasSatoshis(args.Outputs[0].Satoshis).
 			IsNotChange()
 
-		// when: verify that ListActions shows the created action
-		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
-		listArgs.Labels = args.Labels
-		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
-		// then:
-		assert.NoError(t, listErr)
-		require.NotNil(t, listResult)
-		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after create")
-		require.Len(t, listResult.Actions, 1)
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID()).
+			WithSatoshis(topUpValue)
 
-		// and:
-		action := listResult.Actions[0]
-		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
-		assert.Equal(t, args.Description, action.Description, "Action description should match")
-		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
-		assert.Equal(t, args.Outputs[0].Satoshis, action.Outputs[0].Satoshis, "Action output satoshis should match")
-		assert.Equal(t, args.Outputs[0].LockingScript, action.Outputs[0].LockingScript, "Action output locking script should match")
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - 2) // Pay attention that this is negative value (user spends balance).
 
+		thenCreatedAction.OutputAtIndex(0).
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(false).
+			WithBasket("")
 	})
 
 	s.Run("return signable transaction with provided input when sign&process is false", func() {
@@ -181,7 +187,7 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		defer cleanup()
 
 		// and:
-		given.Faucet(aliceWallet).TopUp(topUpValue)
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -217,25 +223,31 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			HasSatoshis(args.Outputs[0].Satoshis).
 			IsNotChange()
 
-		// when: verify that ListActions shows the created action
-		listArgs := fixtures.DefaultWalletListActionsArgsWithIncludes()
-		listArgs.Labels = args.Labels
-		listResult, listErr := aliceWallet.ListActions(t.Context(), listArgs, fixtures.DefaultOriginator)
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
-		// then:
-		assert.NoError(t, listErr)
-		require.NotNil(t, listResult)
-		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after create")
-		require.Len(t, listResult.Actions, 1)
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID()).
+			WithSatoshis(topUpValue)
 
-		// and:
-		action := listResult.Actions[0]
-		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
-		assert.Equal(t, args.Description, action.Description, "Action description should match")
-		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
-		assert.Equal(t, args.Outputs[0].Satoshis, action.Outputs[0].Satoshis, "Action output satoshis should match")
-		assert.Equal(t, args.Outputs[0].LockingScript, action.Outputs[0].LockingScript, "Action output locking script should match")
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - 2 + inputValue) // Pay attention that this is negative value (user spends balance).
 
+		thenCreatedAction.OutputAtIndex(0).
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(false).
+			WithBasket("")
 	})
 }
 

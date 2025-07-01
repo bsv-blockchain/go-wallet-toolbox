@@ -8,7 +8,7 @@ import (
 // DefaultWalletListActionsArgs returns default SDK ListActionsArgs for testing
 func DefaultWalletListActionsArgs() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
-		Labels:                           []string{"test-label"},
+		Labels:                           nil,
 		Limit:                            10,
 		Offset:                           0,
 		LabelQueryMode:                   sdk.QueryModeAny,
@@ -25,7 +25,7 @@ func DefaultWalletListActionsArgs() sdk.ListActionsArgs {
 // DefaultWalletListActionsArgsWithIncludes returns SDK ListActionsArgs with all includes enabled
 func DefaultWalletListActionsArgsWithIncludes() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
-		Labels:                           []string{"test-label"},
+		Labels:                           nil,
 		Limit:                            10,
 		Offset:                           0,
 		LabelQueryMode:                   sdk.QueryModeAny,
