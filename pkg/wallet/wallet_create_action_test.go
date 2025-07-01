@@ -112,7 +112,7 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		defer cleanup()
 
 		// and:
-		given.Faucet(aliceWallet).TopUp(topUpValue)
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -144,6 +144,32 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			HasSatoshis(args.Outputs[0].Satoshis).
 			IsNotChange()
 
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID()).
+			WithSatoshis(topUpValue)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is negative value (user spends balance).
+
+		thenCreatedAction.OutputAtIndex(0).
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(false).
+			WithBasket("")
 	})
 
 	s.Run("return signable transaction with provided input when sign&process is false", func() {
@@ -162,7 +188,7 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		defer cleanup()
 
 		// and:
-		given.Faucet(aliceWallet).TopUp(topUpValue)
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -198,8 +224,33 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			HasSatoshis(args.Outputs[0].Satoshis).
 			IsNotChange()
 
-	})
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID()).
+			WithSatoshis(topUpValue)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue) // Pay attention that this is negative value (user spends balance).
+
+		thenCreatedAction.OutputAtIndex(0).
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(false).
+			WithBasket("")
+	})
 }
 
 func (s *WalletTestSuite) TestWalletCreateActionError() {

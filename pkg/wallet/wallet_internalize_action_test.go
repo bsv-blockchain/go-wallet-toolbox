@@ -6,6 +6,8 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,6 +118,8 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 
 		// and:
 		args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizedTx, err := transaction.NewTransactionFromBEEF(args.Tx)
+		require.NoError(t, err)
 
 		// when:
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
@@ -124,6 +128,24 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1)
+
+		thenInternalizedAction := thenState.ActionAtIndex(0)
+		thenInternalizedAction.
+			WithTxID(internalizedTx.TxID().String()).
+			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)).
+			WithDescription(args.Description)
+
+		thenInternalizedAction.OutputAtIndex(0).
+			WithSatoshis(internalizedTx.Outputs[0].Satoshis).
+			WithLockingScript(internalizedTx.Outputs[0].LockingScript.Bytes()).
+			WithOutputIndex(0).
+			WithBasket(wdk.BasketNameForChange).
+			WithSpendable(true)
 	})
 
 	s.Run("basket insertion protocol", func() {
@@ -138,6 +160,8 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 
 		// and:
 		args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolBasketInsertion)
+		internalizedTx, err := transaction.NewTransactionFromBEEF(args.Tx)
+		require.NoError(t, err)
 
 		// when:
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
@@ -146,5 +170,23 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		assert.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1)
+
+		thenInternalizedAction := thenState.ActionAtIndex(0)
+		thenInternalizedAction.
+			WithTxID(internalizedTx.TxID().String()).
+			WithSatoshis(0).
+			WithDescription(args.Description)
+
+		thenInternalizedAction.OutputAtIndex(0).
+			WithSatoshis(internalizedTx.Outputs[0].Satoshis).
+			WithLockingScript(internalizedTx.Outputs[0].LockingScript.Bytes()).
+			WithOutputIndex(0).
+			WithBasket(fixtures.CustomBasket).
+			WithSpendable(true)
 	})
 }

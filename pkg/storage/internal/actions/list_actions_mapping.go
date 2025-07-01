@@ -135,13 +135,14 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.W
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
 		result = append(result, wdk.WalletActionOutput{
-			Satoshis:          must.ConvertToUInt64(o.Satoshis),
-			Spendable:         o.Spendable,
-			Tags:              o.Tags,
-			OutputIndex:       o.Vout,
-			OutputDescription: o.Description,
-			Basket:            optional.OfPtr(o.BasketName).OrZeroValue(),
-			LockingScript:     hex.EncodeToString(o.LockingScript),
+			Satoshis:           must.ConvertToUInt64(o.Satoshis),
+			Spendable:          o.Spendable,
+			Tags:               o.Tags,
+			OutputIndex:        o.Vout,
+			OutputDescription:  o.Description,
+			Basket:             optional.OfPtr(o.BasketName).OrZeroValue(),
+			LockingScript:      hex.EncodeToString(o.LockingScript),
+			CustomInstructions: optional.OfPtr(o.CustomInstructions).OrZeroValue(),
 		})
 	}
 
