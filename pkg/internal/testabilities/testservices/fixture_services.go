@@ -16,7 +16,7 @@ type ServicesFixture interface {
 	Bitails() BitailsFixture
 	WhatsOnChain() WhatsOnChainFixture
 	ARC() ARCFixture
-
+	BHS() BHSFixture
 	Services() WalletServicesFixture
 
 	Network() defs.BSVNetwork
@@ -39,6 +39,7 @@ type servicesFixture struct {
 	woc                  WhatsOnChainFixture
 	arc                  ARCFixture
 	bitails              BitailsFixture
+	bhs                  BHSFixture
 	network              defs.BSVNetwork
 }
 
@@ -62,6 +63,7 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
 	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
 	bitailsFx := NewBitailsFixture(t, WithTransport(transport), WithNetwork(network))
+	bhsFx := NewBHSFixture(t, WithTransport(transport))
 
 	return &servicesFixture{
 		t:                    t,
@@ -72,6 +74,7 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 		walletServicesConfig: &servicesConfig,
 		network:              network,
 		woc:                  wocFx,
+		bhs:                  bhsFx,
 		arc:                  arcFx,
 		bitails:              bitailsFx,
 	}
@@ -87,6 +90,10 @@ func (f *servicesFixture) ARC() ARCFixture {
 
 func (f *servicesFixture) Bitails() BitailsFixture {
 	return f.bitails
+}
+
+func (f *servicesFixture) BHS() BHSFixture {
+	return f.bhs
 }
 
 func (f *servicesFixture) WithDefaultConfig() *services.WalletServices {

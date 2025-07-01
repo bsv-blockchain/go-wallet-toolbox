@@ -55,6 +55,9 @@ wallet_services:
         wait_for: ""
     bitails:
         api_key: ""
+    bhs:
+        api_key: token_abcd_1234567890
+        url: http://localhost:8080
     bitails_api_key: null
     chaintracks: null
     chaintracks_fiat_exchange_rates_url: ""
