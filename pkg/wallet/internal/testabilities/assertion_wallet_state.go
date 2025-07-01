@@ -2,6 +2,8 @@ package testabilities
 
 import (
 	"context"
+	"testing"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -9,7 +11,6 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type WalletReader interface {
@@ -110,7 +111,7 @@ func (a *walletActionAssertion) WithTxID(expected string) WalletActionAssertion 
 func (a *walletActionAssertion) WithoutTxID() WalletActionAssertion {
 	a.Helper()
 	var zeroHash chainhash.Hash
-	assert.Equal(a, zeroHash, a.action.Txid , "Action transaction ID should be empty")
+	assert.Equal(a, zeroHash, a.action.Txid, "Action transaction ID should be empty")
 	return a
 }
 
