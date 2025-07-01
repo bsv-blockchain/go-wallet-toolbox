@@ -2,15 +2,15 @@ package storage_test
 
 import (
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

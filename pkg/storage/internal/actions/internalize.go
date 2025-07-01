@@ -3,7 +3,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/optional"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
@@ -13,6 +12,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
