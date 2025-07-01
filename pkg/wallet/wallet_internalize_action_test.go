@@ -136,6 +136,12 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after internalize")
 		require.Len(t, listResult.Actions, 1)
 
+		// and:
+		action := listResult.Actions[0]
+		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
+		assert.Equal(t, args.Description, action.Description, "Action description should match")
+		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
+
 	})
 
 	s.Run("basket insertion protocol", func() {
@@ -169,6 +175,12 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		require.NotNil(t, listResult)
 		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after internalize")
 		require.Len(t, listResult.Actions, 1)
+
+		// and:
+		action := listResult.Actions[0]
+		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
+		assert.Equal(t, args.Description, action.Description, "Action description should match")
+		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
 
 	})
 }

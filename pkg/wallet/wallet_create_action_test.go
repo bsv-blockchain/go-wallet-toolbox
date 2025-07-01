@@ -155,6 +155,14 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after create")
 		require.Len(t, listResult.Actions, 1)
 
+		// and:
+		action := listResult.Actions[0]
+		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
+		assert.Equal(t, args.Description, action.Description, "Action description should match")
+		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
+		assert.Equal(t, args.Outputs[0].Satoshis, action.Outputs[0].Satoshis, "Action output satoshis should match")
+		assert.Equal(t, args.Outputs[0].LockingScript, action.Outputs[0].LockingScript, "Action output locking script should match")
+
 	})
 
 	s.Run("return signable transaction with provided input when sign&process is false", func() {
@@ -219,6 +227,14 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		require.NotNil(t, listResult)
 		assert.Equal(t, uint32(1), listResult.TotalActions, "Should have one action after create")
 		require.Len(t, listResult.Actions, 1)
+
+		// and:
+		action := listResult.Actions[0]
+		assert.NotEmpty(t, action.Txid.String(), "Action should have a transaction ID")
+		assert.Equal(t, args.Description, action.Description, "Action description should match")
+		assert.Equal(t, args.Labels, action.Labels, "Action labels should match")
+		assert.Equal(t, args.Outputs[0].Satoshis, action.Outputs[0].Satoshis, "Action output satoshis should match")
+		assert.Equal(t, args.Outputs[0].LockingScript, action.Outputs[0].LockingScript, "Action output locking script should match")
 
 	})
 }
