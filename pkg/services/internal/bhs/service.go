@@ -29,7 +29,6 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 		R().
 		SetContext(ctx).
 		SetResult(&block).
-		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus).
 		Get(url)
 
 	if err != nil {
@@ -48,13 +47,6 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 }
 
 func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
-	if httpClient == nil {
-		panic("httpClient is required")
-	}
-	if logger == nil {
-		panic("logger is required")
-	}
-
 	err := network.Validate()
 	if err != nil {
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
@@ -65,13 +57,6 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 		panic(fmt.Sprintf("invalid BHS configuration: %s", err.Error()))
 	}
 
-	return &BlockHeadersService{
-		httpClient: newRestyHTTPClient(httpClient, logger, network, config),
-		cfg:        &config,
-	}
-}
-
-func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *resty.Client {
 	child := logging.
 		Child(logger, ServiceName).
 		With(slog.String("network", string(network)))
@@ -81,12 +66,13 @@ func newRestyHTTPClient(httpClient *resty.Client, logger *slog.Logger, network d
 		UserAgent().Value("go-wallet-toolbox").
 		Authorization().IfNotEmpty(config.APIKey)
 
-	return httpClient.Clone().
-		SetRetryCount(httpx.DefaultRetryCount).
-		SetBaseURL(config.URL).
-		SetRetryWaitTime(httpx.DefaultRetryInterval).
-		SetRetryMaxWaitTime(httpx.DefaultRetryCount * httpx.DefaultRetryInterval).
+	client := httpClient.SetBaseURL(config.URL).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(child)).
 		SetDebug(child.Enabled(context.Background(), slog.LevelDebug))
+
+	return &BlockHeadersService{
+		httpClient: client,
+		cfg:        &config,
+	}
 }

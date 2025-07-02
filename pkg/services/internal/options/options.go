@@ -1,13 +1,15 @@
 package options
 
-import "github.com/go-resty/resty/v2"
+import (
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
+)
 
 type Service struct {
-	HttpClient *resty.Client
+	RestyClientFactory *httpx.RestyClientFactory
 }
 
 func Default() Service {
 	return Service{
-		HttpClient: resty.New(),
+		RestyClientFactory: httpx.NewRestyClientFactory(),
 	}
 }
