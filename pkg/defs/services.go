@@ -33,7 +33,7 @@ const (
 	BHSTestURL = "http://localhost:8080"
 
 	// BHSApiKey is the token for the BHS service
-	BHSApiKey = "token_abcd_1234567890"
+	BHSApiKey = ""
 )
 
 // WalletServices is a struct that has options for wallet services
@@ -49,6 +49,7 @@ type WalletServices struct {
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
+	Bitails      Bitails      `mapstructure:"bitails"`
 	BHS          BHS          `mapstructure:"bhs"`
 }
 
@@ -72,7 +73,9 @@ func (ws *WalletServices) Validate() error {
 		return fmt.Errorf("invalid ARC config: %w", err)
 	}
 
-	// TODO: Double check if ws.WhatsOnChain api key is required
+	if err = ws.Bitails.Validate(); err != nil {
+		return fmt.Errorf("invalid Bitails config: %w", err)
+	}
 
 	return nil
 }

@@ -54,8 +54,10 @@ wallet_services:
         url: https://arc.taal.com
         wait_for: ""
     bhs:
-        api_key: token_abcd_1234567890
+        api_key: ""
         url: http://localhost:8080
+    bitails:
+        api_key: ""
     bitails_api_key: null
     chaintracks: null
     chaintracks_fiat_exchange_rates_url: ""

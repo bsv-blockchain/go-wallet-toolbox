@@ -13,7 +13,7 @@ import (
 )
 
 func TestMerklePath_Success(t *testing.T) {
-	// Given
+	// given:
 	given := tst.Given(t)
 	svc := given.NewWoCService()
 
@@ -69,10 +69,10 @@ func TestMerklePath_Success(t *testing.T) {
 		},
 	}
 
-	// When
+	// when:
 	res, err := svc.MerklePath(t.Context(), txID)
 
-	// Then
+	// then:
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, expected, res)

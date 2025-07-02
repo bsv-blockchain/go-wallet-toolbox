@@ -50,9 +50,9 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		Authorization().IfNotEmpty(config.APIKey)
 
 	client := httpClient.Clone().
-		SetRetryCount(Retries).
-		SetRetryWaitTime(RetriesWaitTime).
-		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
+		SetRetryCount(httpx.DefaultRetryCount).
+		SetRetryWaitTime(httpx.DefaultRetryInterval).
+		SetRetryMaxWaitTime(httpx.DefaultRetryCount * httpx.DefaultRetryInterval).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
@@ -72,7 +72,7 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResu
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
 	req.SetHeader("Cache-Control", "no-cache")
 
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/hex", woc.url, txID))
@@ -114,7 +114,7 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	var exchangeRateResponse dto.BSVExchangeRateResponse
 	req := woc.httpClient.
 		R().
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
 
 	res, err := req.
 		SetResult(&exchangeRateResponse).
@@ -183,9 +183,9 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 		return nil, fmt.Errorf("beef is required to post transactions")
 	}
 
-	rawTxs, err := extractRawTransactions(beef, txIDs)
+	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to extract raw transactions: %w", err)
 	}
 
 	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
