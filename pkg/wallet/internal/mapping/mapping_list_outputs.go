@@ -66,23 +66,26 @@ func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 
 // mapListOutputsOutput maps *wdk.WalletOutput to sdk.Output
 func mapListOutputsOutput(output *wdk.WalletOutput) (sdk.Output, error) {
-	txID, vout, err := output.Outpoint.Get()
-	if err != nil {
-		return sdk.Output{}, fmt.Errorf("failed to get outpoint: %w", err)
-	}
-
-	txidHash, err := chainhash.NewHashFromHex(txID)
-	if err != nil {
-		return sdk.Output{}, fmt.Errorf("failed to parse transaction ID '%s': %w", txID, err)
-	}
-
 	result := sdk.Output{
 		Satoshis:  uint64(output.Satoshis),
 		Spendable: output.Spendable,
-		Outpoint: transaction.Outpoint{
+	}
+
+	if output.Outpoint != "" {
+		txID, vout, err := output.Outpoint.Get()
+		if err != nil {
+			return sdk.Output{}, fmt.Errorf("failed to get outpoint: %w", err)
+		}
+
+		txidHash, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return sdk.Output{}, fmt.Errorf("failed to parse transaction ID '%s': %w", txID, err)
+		}
+
+		result.Outpoint = transaction.Outpoint{
 			Txid:  *txidHash,
 			Index: vout,
-		},
+		}
 	}
 
 	if output.CustomInstructions != nil {

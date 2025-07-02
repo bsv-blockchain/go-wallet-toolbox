@@ -1,13 +1,14 @@
 package testabilities
 
 import (
+	"bytes"
 	"context"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -34,7 +35,7 @@ type WalletActionAssertion interface {
 	WithTxID(expected string) WalletActionAssertion
 	WithoutTxID() WalletActionAssertion
 	WithSatoshis(expected int64) WalletActionAssertion
-	OutputAtIndex(index int, validateOutput bool) WalletActionOutputAssertion
+	OutputAtIndex(index int) WalletActionOutputAssertion
 }
 
 type WalletActionOutputAssertion interface {
@@ -45,6 +46,7 @@ type WalletActionOutputAssertion interface {
 	WithCustomInstructions(expected string) WalletActionOutputAssertion
 	WithSpendable(expected bool) WalletActionOutputAssertion
 	WithBasket(expected string) WalletActionOutputAssertion
+	ListActionsAlignsListOutputs() WalletActionOutputAssertion
 }
 
 func ThenWalletState(t testing.TB, wallet WalletReader) WalletStateAssertion {
@@ -129,25 +131,23 @@ func (a *walletActionAssertion) WithSatoshis(expected int64) WalletActionAsserti
 	return a
 }
 
-func (a *walletActionAssertion) OutputAtIndex(index int, validateOutput bool) WalletActionOutputAssertion {
+func (a *walletActionAssertion) OutputAtIndex(index int) WalletActionOutputAssertion {
 	a.Helper()
 	require.Greater(a, len(a.action.Outputs), index, "Index out of range for action outputs")
 
-	actionOutput := &a.action.Outputs[index]
-
-	if validateOutput {
-		a.checkIfListOutputsAlignsWithAction(a.action.Txid, actionOutput)
-	}
-
 	return &walletActionOutputAssertion{
 		TB:     a.TB,
-		output: actionOutput,
+		output: &a.action.Outputs[index],
+		txID:   a.action.Txid,
+		wallet: a.wallet,
 	}
 }
 
 type walletActionOutputAssertion struct {
 	testing.TB
+	wallet WalletReader
 	output *sdk.ActionOutput
+	txID   chainhash.Hash
 }
 
 func (a *walletActionOutputAssertion) WithSatoshis(expected uint64) WalletActionOutputAssertion {
@@ -198,71 +198,53 @@ func (a *walletActionOutputAssertion) WithBasket(expected string) WalletActionOu
 	return a
 }
 
-func (a *walletActionAssertion) checkIfListOutputsAlignsWithAction(txID chainhash.Hash, actionOutput *sdk.ActionOutput) *wdk.WalletOutput {
+func (a *walletActionOutputAssertion) ListActionsAlignsListOutputs() WalletActionOutputAssertion {
 	listedOutputs, err := a.wallet.ListOutputs(a.Context(), sdk.ListOutputsArgs{
 		Limit:                     validate.MaxPaginationLimit,
 		IncludeCustomInstructions: to.Ptr(true),
 		IncludeTags:               to.Ptr(true),
 		IncludeLabels:             to.Ptr(true),
+		Include:                   sdk.OutputIncludeLockingScripts,
 	}, fixtures.DefaultOriginator)
 	require.NoError(a, err, "Failed to list outputs")
 
-	var zeroHash chainhash.Hash
-
 	assert.Equal(a, 1, seq.Count(seq.Filter(seq.FromSlice(listedOutputs.Outputs), func(output sdk.Output) bool {
-		canCompareOutpoints := !output.Outpoint.Txid.IsEqual(&zeroHash) && !txID.Equal(zeroHash)
-		if canCompareOutpoints {
-			if !equalOutpoints(output.Outpoint, txID.String(), actionOutput.OutputIndex) {
-				return false
-			}
-		}
-
-		return int(output.Satoshis) == int(actionOutput.Satoshis) &&
-			output.Spendable == actionOutput.Spendable &&
-			equalTags(output.Tags, actionOutput.Tags) &&
-			//TODO: output.LockingScript is not set in the test, need to fix this
-			//equalLockingScripts(output.LockingScript, actionOutput.LockingScript) &&
-			equalCustomInstructions(output.CustomInstructions, actionOutput.CustomInstructions)
+		return a.compareActionOutputAndOutput(a.txID, a.output, &output)
 	})), "list outputs does not align with action outputs")
 
-	return &wdk.WalletOutput{}
+	return a
 }
 
-// equalOutpoints compares an outpoint with txid and output index
-func equalOutpoints(outpoint transaction.Outpoint, txid string, outputIndex uint32) bool {
+func (a *walletActionOutputAssertion) compareActionOutputAndOutput(txID chainhash.Hash, actionOutput *sdk.ActionOutput, output *sdk.Output) bool {
+	var zeroHash chainhash.Hash
+	// NOTE: Not processed/signed transactions may have empty txid.
+	canCompareOutpoints := !output.Outpoint.Txid.IsEqual(&zeroHash) && !txID.Equal(zeroHash)
+	if canCompareOutpoints {
+		if !a.equalOutpoints(output.Outpoint, txID.String(), actionOutput.OutputIndex) {
+			return false
+		}
+	}
+
+	return satoshi.MustEqual(output.Satoshis, actionOutput.Satoshis) &&
+		output.Spendable == actionOutput.Spendable &&
+		a.equalTags(output.Tags, actionOutput.Tags) &&
+		bytes.Equal(output.LockingScript, actionOutput.LockingScript) &&
+		output.CustomInstructions == actionOutput.CustomInstructions
+}
+
+func (a *walletActionOutputAssertion) equalOutpoints(outpoint transaction.Outpoint, txid string, outputIndex uint32) bool {
 	return outpoint.Txid.String() == txid && outpoint.Index == outputIndex
 }
 
-// equalTags compares two tag slices for equality
-func equalTags(tags1, tags2 []string) bool {
+func (a *walletActionOutputAssertion) equalTags(tags1, tags2 []string) bool {
 	if len(tags1) != len(tags2) {
 		return false
 	}
+
 	for i, tag1 := range tags1 {
 		if !strings.Contains(tag1, tags2[i]) {
 			return false
 		}
 	}
 	return true
-}
-
-// equalLockingScripts compares locking scripts from different sources
-func equalLockingScripts(outputScript []byte, actionScript []byte) bool {
-	if len(outputScript) == 0 && len(actionScript) == 0 {
-		return true
-	}
-	if len(outputScript) != len(actionScript) {
-		return false
-	}
-	for i := range outputScript {
-		if outputScript[i] != actionScript[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// equalCustomInstructions compares custom instructions from different sources
-func equalCustomInstructions(outputInstructions string, actionInstructions string) bool {
-	return outputInstructions == actionInstructions
 }

@@ -162,7 +162,8 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			WithLabels(fixtures.CreateActionTestLabel).
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
 
-		thenCreatedAction.OutputAtIndex(0, false).
+		thenCreatedAction.OutputAtIndex(0).
+			ListActionsAlignsListOutputs().
 			WithSatoshis(args.Outputs[0].Satoshis).
 			WithLockingScript(args.Outputs[0].LockingScript).
 			WithOutputIndex(0).
@@ -242,7 +243,8 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			WithLabels(fixtures.CreateActionTestLabel).
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue)
 
-		thenCreatedAction.OutputAtIndex(0, false).
+		thenCreatedAction.OutputAtIndex(0).
+			ListActionsAlignsListOutputs().
 			WithSatoshis(args.Outputs[0].Satoshis).
 			WithLockingScript(args.Outputs[0].LockingScript).
 			WithOutputIndex(0).
