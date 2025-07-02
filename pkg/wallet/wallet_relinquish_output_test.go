@@ -7,7 +7,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/assert"
@@ -15,16 +14,6 @@ import (
 )
 
 func TestWalletRelinquishOutputArgsValidation(t *testing.T) {
-	// Helper to create a valid transaction.Outpoint
-	createOutpoint := func(txidStr string, outputIndex uint32) transaction.Outpoint {
-		hash, err := chainhash.NewHashFromHex(txidStr)
-		require.NoError(t, err, "failed to create hash from hex string")
-		return transaction.Outpoint{
-			Txid:  *hash,
-			Index: outputIndex,
-		}
-	}
-
 	errorTestCases := map[string]struct {
 		originator string
 		args       sdk.RelinquishOutputArgs
@@ -33,7 +22,7 @@ func TestWalletRelinquishOutputArgsValidation(t *testing.T) {
 			originator: strings.Repeat("a", 251),
 			args: sdk.RelinquishOutputArgs{
 				Basket: "test-basket",
-				Output: createOutpoint("756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6", 1),
+				Output: *testutils.SdkOutpoint(t, fixtures.MockOutpoint),
 			},
 		},
 
@@ -41,7 +30,7 @@ func TestWalletRelinquishOutputArgsValidation(t *testing.T) {
 			originator: "a." + strings.Repeat("b", 64) + ".c",
 			args: sdk.RelinquishOutputArgs{
 				Basket: "test-basket",
-				Output: createOutpoint("756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6", 1),
+				Output: *testutils.SdkOutpoint(t, fixtures.MockOutpoint),
 			},
 		},
 
@@ -49,7 +38,7 @@ func TestWalletRelinquishOutputArgsValidation(t *testing.T) {
 			originator: fixtures.DefaultOriginator,
 			args: sdk.RelinquishOutputArgs{
 				Basket: strings.Repeat("a", 301),
-				Output: createOutpoint("756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6", 1),
+				Output: *testutils.SdkOutpoint(t, fixtures.MockOutpoint),
 			},
 		},
 	}
