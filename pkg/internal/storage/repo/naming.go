@@ -10,6 +10,7 @@ type naming struct {
 	numericIDLookupTableName string
 	knownTxTableName         string
 	transactionsTableName    string
+	outputsTableName         string
 }
 
 func newNaming(db *gorm.DB) *naming {
@@ -19,6 +20,7 @@ func newNaming(db *gorm.DB) *naming {
 		numericIDLookupTableName: getTableName(db, &models.NumericIDLookup{}),
 		knownTxTableName:         getTableName(db, &models.KnownTx{}),
 		transactionsTableName:    getTableName(db, &models.Transaction{}),
+		outputsTableName:         getTableName(db, &models.Output{}),
 	}
 }
 

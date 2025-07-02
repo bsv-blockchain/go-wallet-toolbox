@@ -35,13 +35,13 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 	}, nil
 }
 
-func (l *listActions) mapTransactionsToActions(txs []*wdk.TableTransaction) ([]uint, []string, []wdk.WalletAction) {
+func (l *listActions) mapTransactionsToActions(txs []*entity.Transaction) ([]uint, []string, []wdk.WalletAction) {
 	transactionIDs := make([]uint, len(txs))
 	var txIDs []string
 	actions := make([]wdk.WalletAction, len(txs))
 
 	for i, tx := range txs {
-		transactionIDs[i] = tx.TransactionID
+		transactionIDs[i] = tx.ID
 		if tx.TxID != nil {
 			txIDs = append(txIDs, *tx.TxID)
 		}
@@ -52,8 +52,8 @@ func (l *listActions) mapTransactionsToActions(txs []*wdk.TableTransaction) ([]u
 			IsOutgoing:  tx.IsOutgoing,
 			Description: tx.Description,
 			TxID:        optional.OfPtr(tx.TxID).OrZeroValue(),
-			Version:     optional.OfPtr(tx.Version).OrZeroValue(),
-			LockTime:    optional.OfPtr(tx.LockTime).OrZeroValue(),
+			Version:     tx.Version,
+			LockTime:    tx.LockTime,
 		}
 	}
 
@@ -97,16 +97,16 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*wdk.TableTransaction, inputMap, outputMap map[uint][]*entity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*entity.Transaction, inputMap, outputMap map[uint][]*entity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
 		if args.IncludeLabels.Value() {
-			l.mapLabelsToAction(action, tx.TransactionID, labelMap)
+			l.mapLabelsToAction(action, tx.ID, labelMap)
 		}
 
 		if args.IncludeOutputs.Value() {
-			l.mapOutputsToAction(action, tx.TransactionID, outputMap)
+			l.mapOutputsToAction(action, tx.ID, outputMap)
 		}
 
 		if args.IncludeInputs.Value() && tx.TxID != nil {
@@ -135,26 +135,27 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.W
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
 		result = append(result, wdk.WalletActionOutput{
-			Satoshis:          must.ConvertToUInt64(o.Satoshis),
-			Spendable:         o.Spendable,
-			Tags:              o.Tags,
-			OutputIndex:       o.Vout,
-			OutputDescription: o.Description,
-			Basket:            optional.OfPtr(o.BasketName).OrZeroValue(),
-			LockingScript:     hex.EncodeToString(o.LockingScript),
+			Satoshis:           must.ConvertToUInt64(o.Satoshis),
+			Spendable:          o.Spendable,
+			Tags:               o.Tags,
+			OutputIndex:        o.Vout,
+			OutputDescription:  o.Description,
+			Basket:             optional.OfPtr(o.BasketName).OrZeroValue(),
+			LockingScript:      hex.EncodeToString(o.LockingScript),
+			CustomInstructions: optional.OfPtr(o.CustomInstructions).OrZeroValue(),
 		})
 	}
 
 	return result
 }
 
-func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *wdk.TableTransaction, inputMap map[uint][]*entity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *entity.Transaction, inputMap map[uint][]*entity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	rawTx := rawTxMap[*tx.TxID]
 	if rawTx == nil {
 		return nil
 	}
 
-	inputs := inputMap[tx.TransactionID]
+	inputs := inputMap[tx.ID]
 	mappedInputs, err := l.mapToWalletActionInputs(inputs, rawTx, args.IncludeInputSourceLockingScripts, args.IncludeInputUnlockingScripts)
 	if err != nil {
 		return fmt.Errorf("failed to map inputs: %w", err)

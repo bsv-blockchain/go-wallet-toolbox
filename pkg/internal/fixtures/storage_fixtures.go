@@ -22,8 +22,14 @@ const (
 	MockOutpoint               = "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6.1" // example outpoint for testing purposes
 	CreateActionTestLabel      = "test_label=true"
 	CreateActionTestTag        = "test_tag=true"
+
+	CreateActionTestCustomInstructions = `{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`
 )
 
 func FaucetTag(index int) string {
 	return fmt.Sprintf("faucet-%d", index)
+}
+
+func FaucetReference(txID string) string {
+	return fmt.Sprintf("faucet-reference-for-txid-%s", txID)
 }
