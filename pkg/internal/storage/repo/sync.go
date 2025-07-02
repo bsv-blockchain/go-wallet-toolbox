@@ -601,6 +601,57 @@ func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (
 	return isNew, outputID, nil
 }
 
+type LabelReadModel struct {
+	models.Label
+	NumID int
+}
+
+func (s *Sync) FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabel, error) {
+	const labelStringIDClause = "CONCAT(user_id, '.', name)"
+	var resultModels []*LabelReadModel
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
+
+		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select(fmt.Sprintf("?, %s", labelStringIDClause), s.naming.labelsTableName).
+				Scopes(filters...).
+				Find(&models.Label{})
+		})
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).
+			Model(&models.Label{}).
+			Select("*").
+			Scopes(filters...).
+			Scopes(s.joinWithNumericIDLookupScope(labelStringIDClause, s.naming.labelsTableName, clause.InnerJoin)).
+			Find(&resultModels).Error
+		if err != nil {
+			return fmt.Errorf("failed to find labels for sync: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return slices.Map(resultModels, s.mapModelToTableTxLabel), nil
+}
+
+func (s *Sync) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {
+	return &wdk.TableTxLabel{
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+		TxLabelID: model.NumID,
+		UserID:    model.UserID,
+		Label:     model.Name,
+	}
+}
+
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
 // It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
 func (s *Sync) upsertNumericIDLookup(ctx context.Context, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {

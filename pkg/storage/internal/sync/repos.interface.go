@@ -29,4 +29,6 @@ type Repository interface {
 
 	FindOutputsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutput, error)
 	UpsertOutputForSync(ctx context.Context, entity *entity.Output) (isNew bool, outputID uint, err error)
+
+	FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabel, error)
 }
