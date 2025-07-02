@@ -251,5 +251,4 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NotEmpty(t, result.Outputs[0].CustomInstructions, "Custom instructions should be included")
 	})
 
-	
 }

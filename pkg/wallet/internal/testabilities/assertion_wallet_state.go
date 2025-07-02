@@ -200,13 +200,13 @@ func (a *walletActionOutputAssertion) WithBasket(expected string) WalletActionOu
 
 func (a *walletActionAssertion) checkIfListOutputsAlignsWithAction(txID chainhash.Hash, actionOutput *sdk.ActionOutput) *wdk.WalletOutput {
 	listedOutputs, err := a.wallet.ListOutputs(a.Context(), sdk.ListOutputsArgs{
-		Limit: validate.MaxPaginationLimit,
+		Limit:                     validate.MaxPaginationLimit,
 		IncludeCustomInstructions: to.Ptr(true),
-		IncludeTags: to.Ptr(true),
-		IncludeLabels: to.Ptr(true),
+		IncludeTags:               to.Ptr(true),
+		IncludeLabels:             to.Ptr(true),
 	}, fixtures.DefaultOriginator)
 	require.NoError(a, err, "Failed to list outputs")
-	
+
 	var zeroHash chainhash.Hash
 
 	assert.Equal(a, 1, seq.Count(seq.Filter(seq.FromSlice(listedOutputs.Outputs), func(output sdk.Output) bool {
