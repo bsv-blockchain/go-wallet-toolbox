@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -20,145 +21,91 @@ type proofResponse struct {
 }
 
 type branchProofResponse struct {
-	BlockHash  string `json:"blockhash"`
-	MerkleRoot string `json:"merkleRoot"`
-	Branches   []struct {
-		Pos  string `json:"pos"`
-		Hash string `json:"hash"`
-	} `json:"branches"`
+	BlockHash  string         `json:"blockhash"`
+	MerkleRoot string         `json:"merkleRoot"`
+	Branches   []merkleBranch `json:"branches"`
 }
+
+type BranchPos string
+
+const (
+	Left  BranchPos = "L"
+	Right BranchPos = "R"
+)
 
 type merkleBranch struct {
-	Hash string `json:"hash"`
-	Pos  string `json:"pos"`
+	Hash string    `json:"hash"`
+	Pos  BranchPos `json:"pos"`
 }
 
-func (bitails *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
-	url := fmt.Sprintf("%stx/%s/proof/tsc", bitails.url, txID)
-
-	var proof proofResponse
-	resp, err := bitails.httpClient.R().
-		SetContext(ctx).
-		SetResult(&proof).
-		Get(url)
-
+// MerklePath fetches a Merkle-path proof for the given txID using Bitails’
+// /tx/{txid}/proof/tsc endpoint and returns it in wdk.MerklePathResult form.
+func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
+	// ── 1. Query TSC proof ──────────────────────────────────────────────
+	proof, err := b.getTscProof(ctx, txID)
 	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to fetch TSC merkle proof: %w", err)
+		return nil, err
+	}
+	if proof == nil { // tx not yet mined (404), nothing to return
+		return &wdk.MerklePathResult{Name: ServiceName}, nil
 	}
 
-	if resp.StatusCode() == http.StatusNotFound {
-		return bitails.merklePathFromBranchProof(ctx, txID)
+	// ── 2. Pull block header (target == block hash) ─────────────────────
+	header, err := b.hashToHeader(ctx, proof.Target)
+	if err != nil {
+		return nil, fmt.Errorf("bitails: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("bitails: unexpected status %d fetching TSC proof", resp.StatusCode())
-	}
-
-	txInfo, err := bitails.fetchTxInfo(ctx, txID)
+	// Look up height (Bitails TSC proof doesn’t contain it)
+	txInfo, err := b.fetchTxInfo(ctx, txID)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to resolve block height: %w", err)
 	}
-	blockHeight, err := to.UInt32(txInfo.BlockHeight)
+	header.Height, err = to.UInt32(txInfo.BlockHeight)
 	if err != nil {
-		return nil, fmt.Errorf("bitails: invalid block height %d for transaction %s: %w", txInfo.BlockHeight, txID, err)
+		return nil, fmt.Errorf("bitails: invalid block height %d for %s: %w",
+			txInfo.BlockHeight, txID, err)
 	}
 
-	header, err := bitails.hashToHeader(ctx, proof.Target)
-	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to fetch block header: %w", err)
-	}
-	header.Height = blockHeight
-
-	merklePath, err := convertTscProofToMerklePath(txID, proof.Index, proof.Nodes, blockHeight)
+	// ── 3. Convert proof → MerklePath ───────────────────────────────────
+	merklePath, err := txutils.ConvertTscProofToMerklePath(
+		txID,
+		proof.Index,
+		proof.Nodes,
+		header.Height,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to convert TSC proof: %w", err)
 	}
 
+	// ── 4. Sanity-check merkle root ─────────────────────────────────────
 	merkleRoot, err := merklePath.ComputeRootHex(&txID)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to compute merkle root: %w", err)
 	}
-
 	if merkleRoot != header.MerkleRoot {
-		return nil, fmt.Errorf("bitails: merkle root mismatch: computed %s, expected %s", merkleRoot, header.MerkleRoot)
+		return nil, fmt.Errorf("bitails: merkle root mismatch (got %s, want %s)",
+			merkleRoot, header.MerkleRoot)
 	}
 
+	// ── 5. Package result ───────────────────────────────────────────────
 	return &wdk.MerklePathResult{
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
-		Notes:       wdk.Notes{{When: to.Ptr(time.Now()), What: "getMerklePathSuccess"}},
+		Notes:       wdk.Notes{{When: to.Ptr(time.Now()), What: "getMerklePathTSC"}},
 	}, nil
 }
 
-func (bitails *Bitails) merklePathFromBranchProof(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
-	url := fmt.Sprintf("%s/tx/%s/proof", bitails.url, txID)
-
-	var proof branchProofResponse
-	resp, err := bitails.httpClient.R().
-		SetContext(ctx).
-		SetResult(&proof).
-		Get(url)
-
-	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to fetch branch merkle proof: %w", err)
-	}
-
-	if resp.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("bitails: unexpected status %d fetching branch proof", resp.StatusCode())
-	}
-
-	header, err := bitails.hashToHeader(ctx, proof.BlockHash)
-	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to fetch block header: %w", err)
-	}
-
-	txInfo, err := bitails.fetchTxInfo(ctx, txID)
-	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to resolve block height: %w", err)
-	}
-	blockHeight, err := to.UInt32(txInfo.BlockHeight)
-	if err != nil {
-		return nil, fmt.Errorf("bitails: invalid block height %d for transaction %s: %w", txInfo.BlockHeight, txID, err)
-	}
-	header.Height = blockHeight
-
-	branches := make([]merkleBranch, len(proof.Branches))
-	for i, b := range proof.Branches {
-		branches[i] = merkleBranch{Hash: b.Hash, Pos: b.Pos}
-	}
-
-	merklePath, err := convertBranchProofToMerklePath(txID, branches, header.Height)
-	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to convert branch proof: %w", err)
-	}
-
-	merkleRoot, err := merklePath.ComputeRootHex(&txID)
-	if err != nil {
-		return nil, fmt.Errorf("bitails: failed to compute merkle root: %w", err)
-	}
-
-	if merkleRoot != header.MerkleRoot {
-		return nil, fmt.Errorf("bitails: merkle root mismatch: computed %s, expected %s", merkleRoot, header.MerkleRoot)
-	}
-
-	return &wdk.MerklePathResult{
-		Name:        ServiceName,
-		MerklePath:  merklePath,
-		BlockHeader: header,
-		Notes:       wdk.Notes{{When: to.Ptr(time.Now()), What: "getMerklePathFallback"}},
-	}, nil
-}
-
-func (bitails *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
+func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
 	var resp struct {
 		Header string `json:"header"`
 	}
 
-	res, err := bitails.httpClient.R().
+	res, err := b.httpClient.R().
 		SetContext(ctx).
 		SetResult(&resp).
-		Get(fmt.Sprintf("%sblock/%s/header", bitails.url, blockHash))
+		Get(fmt.Sprintf("%sblock/%s/header", b.url, blockHash))
 
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to fetch block header: %w", err)
@@ -185,6 +132,24 @@ func (bitails *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wd
 	return &wdk.MerklePathBlockHeader{
 		Hash:       blockHash,
 		MerkleRoot: merkleRootHash.String(),
-		// Height will be filled externally when txID is available
 	}, nil
+}
+
+// getTscProof queries /tx/{txid}/proof/tsc and returns nil on 404.
+func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse, error) {
+	var proof proofResponse
+	res, err := b.httpClient.R().
+		SetContext(ctx).
+		SetResult(&proof).
+		Get(fmt.Sprintf("%stx/%s/proof/tsc", b.url, txID))
+	if err != nil {
+		return nil, fmt.Errorf("bitails: failed to query TSC proof: %w", err)
+	}
+	if res.StatusCode() == http.StatusNotFound {
+		return nil, nil // not in a block yet (or service lagging)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("bitails: unexpected status %d fetching TSC proof", res.StatusCode())
+	}
+	return &proof, nil
 }

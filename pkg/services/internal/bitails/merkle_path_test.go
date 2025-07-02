@@ -12,7 +12,7 @@ import (
 )
 
 func TestBitails_MerklePath(t *testing.T) {
-	// Given
+	// given:
 	fixture := testabilities.Given(t)
 	service := fixture.NewBitailsService()
 
@@ -25,11 +25,11 @@ func TestBitails_MerklePath(t *testing.T) {
 	fixture.Bitails().WillReturnBlockHeader(blockHash, testabilities.TestFakeHeaderBinary)
 	fixture.Bitails().WillReturnTxInfo(txID, blockHash, int64(height))
 
-	// When
+	// when:
 	ctx := context.Background()
 	result, err := service.MerklePath(ctx, txID)
 
-	// Then
+	// then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-softwarelab/common/pkg/to"
-
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // tscProof represents the response from the WoC /tx/{txid}/proof/tsc endpoint
@@ -41,7 +40,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 		return nil, fmt.Errorf("failed to fetch block header: %w", err)
 	}
 
-	merklePath, err := convertTscProofToMerklePath(txID, proof.Index, proof.Nodes, header.Height)
+	merklePath, err := txutils.ConvertTscProofToMerklePath(txID, proof.Index, proof.Nodes, header.Height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert proof to merkle path: %w", err)
 	}
@@ -93,9 +92,7 @@ func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProo
 
 	req := woc.httpClient.R().
 		SetContext(ctx).
-		SetResult(&proofs).
-		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
-
+		SetResult(&proofs)
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/proof/tsc", woc.url, txID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query TSC proof: %w", err)

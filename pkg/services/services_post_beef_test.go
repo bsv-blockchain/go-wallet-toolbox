@@ -19,6 +19,7 @@ func TestPostBEEF(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
+		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
 		beef, err := sdk.NewBeefFromTransaction(tx)
 		require.NoError(t, err)
@@ -72,10 +73,10 @@ func TestPostBEEF(t *testing.T) {
 
 		services := given.Services().WithDefaultConfig()
 
-		// When
+		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
 
-		// Then
+		// then:
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
