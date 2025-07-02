@@ -3,11 +3,11 @@ package testabilities
 import (
 	"bytes"
 	"context"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
