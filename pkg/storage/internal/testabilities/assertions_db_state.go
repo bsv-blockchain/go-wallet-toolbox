@@ -265,7 +265,7 @@ func (d *outputsListAssertion) WithCountHavingTags(expected int, tags ...string)
 		}
 		return false
 	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with tags %v, but got %d", expected, tags, count)
 	return d
 }
 
