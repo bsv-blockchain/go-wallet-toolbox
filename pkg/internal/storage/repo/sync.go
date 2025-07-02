@@ -603,7 +603,7 @@ func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (
 
 type LabelReadModel struct {
 	models.Label
-	NumID int
+	NumID uint
 }
 
 func (s *Sync) FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabel, error) {
@@ -640,6 +640,62 @@ func (s *Sync) FindLabelsForSync(ctx context.Context, userID int, opts ...queryo
 	}
 
 	return slices.Map(resultModels, s.mapModelToTableTxLabel), nil
+}
+
+func (s *Sync) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (isNew bool, labelNumID uint, err error) {
+	const labelStringIDClause = "CONCAT(user_id, '.', name)"
+	model := models.Label{
+		CreatedAt: entity.CreatedAt,
+		UpdatedAt: entity.UpdatedAt,
+		UserID:    entity.UserID,
+		Name:      entity.Name,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select(fmt.Sprintf("?, %s", labelStringIDClause), s.naming.labelsTableName).
+				Where("user_id = ? AND name = ?", entity.UserID, model.Name).
+				Find(&models.Label{})
+		})
+		if err != nil {
+			return err
+		}
+
+		numID, err := s.findNumericIDLookup(ctx, tx, s.naming.labelsTableName, fmt.Sprintf("%d.%s", entity.UserID, model.Name))
+		if err != nil {
+			return err
+		}
+
+		labelNumID = numID
+
+		updateTx := tx.Model(&models.Label{}).
+			Where("user_id = ? AND name = ?", entity.UserID, model.Name).
+			Updates(model)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update label: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			return nil
+		}
+
+		err = tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create label: %w", err)
+		}
+
+		isNew = true
+
+		return nil
+	})
+
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, labelNumID, nil
 }
 
 func (s *Sync) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {

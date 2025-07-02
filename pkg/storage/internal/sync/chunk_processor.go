@@ -105,6 +105,12 @@ func (p *chunkProcessor) process() (err error) {
 		}
 	}
 
+	for _, label := range p.chunk.TxLabels {
+		if err = p.upsertLabel(label); err != nil {
+			return fmt.Errorf("failed to upsert label: %w", err)
+		}
+	}
+
 	err = p.parent.repo.UpdateSyncState(p.ctx, p.syncState)
 	if err != nil {
 		return fmt.Errorf("failed to update sync state: %w", err)
@@ -319,6 +325,30 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
 	p.updateSyncState(wdk.OutputEntityName, chunkOutput.UpdatedAt, 1)
+
+	return nil
+}
+
+func (p *chunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkLabel.UserID {
+		return fmt.Errorf("chunk label user ID %d does not match chunk user ID %d", chunkLabel.UserID, p.chunk.User.UserID)
+	}
+
+	isNew, labelNumID, err := p.parent.repo.UpsertLabelForSync(p.ctx, &entity.Label{
+		CreatedAt: chunkLabel.CreatedAt,
+		UpdatedAt: chunkLabel.UpdatedAt,
+		UserID:    p.user.ID,
+		Name:      chunkLabel.Label,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert label %q: %w", chunkLabel.Label, err)
+	}
+
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.TxLabelEntityName, chunkLabel.UpdatedAt, 1, idDictionary{
+		readerID: chunkLabel.TxLabelID,
+		writerID: labelNumID,
+	})
 
 	return nil
 }

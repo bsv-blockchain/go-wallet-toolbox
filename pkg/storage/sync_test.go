@@ -37,7 +37,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 40, inserts)
+	assert.Equal(t, 41, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
