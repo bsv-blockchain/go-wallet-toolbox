@@ -39,5 +39,10 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		return fmt.Errorf("failed to migrate settings: %w", err)
 	}
 
+	err = m.db.SetupJoinTable(&models.Transaction{}, "Labels", &models.TransactionLabel{})
+	if err != nil {
+		return fmt.Errorf("failed to setup join table for Transaction and Labels: %w", err)
+	}
+
 	return nil
 }

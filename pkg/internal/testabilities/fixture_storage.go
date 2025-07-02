@@ -41,7 +41,8 @@ type FaucetFixture interface {
 }
 
 type TopUpOptions struct {
-	Mined bool
+	Mined  bool
+	Labels []string
 }
 
 type TopUpOpts func(*TopUpOptions)
@@ -49,6 +50,12 @@ type TopUpOpts func(*TopUpOptions)
 func WithMinedTopUp() TopUpOpts {
 	return func(opts *TopUpOptions) {
 		opts.Mined = true
+	}
+}
+
+func WithLabelsTopUp(labels ...string) TopUpOpts {
+	return func(opts *TopUpOptions) {
+		opts.Labels = labels
 	}
 }
 

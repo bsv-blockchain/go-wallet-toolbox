@@ -13,6 +13,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
@@ -70,6 +71,15 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		LockTime:    0,
 		InputBeef:   nil,
 		TxID:        to.Ptr(spec.ID()),
+	}
+
+	if len(options.Labels) > 0 {
+		transaction.Labels = slices.Map(options.Labels, func(label string) *models.Label {
+			return &models.Label{
+				Name:   label,
+				UserID: f.user.ID,
+			}
+		})
 	}
 
 	output := &models.Output{
