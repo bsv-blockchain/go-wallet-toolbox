@@ -44,6 +44,10 @@ type WalletStorageProvider interface {
 	// @Write
 	RelinquishCertificate(ctx context.Context, auth AuthID, args RelinquishCertificateArgs) error
 
+	// RelinquishOutput removes the specified output from the users outputs.
+	// @Write
+	RelinquishOutput(ctx context.Context, auth AuthID, args RelinquishOutputArgs) error
+
 	// ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.
 	// @Read
 	ListCertificates(ctx context.Context, auth AuthID, args ListCertificatesArgs) (*ListCertificatesResult, error)
