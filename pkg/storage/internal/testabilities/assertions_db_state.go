@@ -52,6 +52,7 @@ type UserTransactionAssertion interface {
 type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
 	WithCountHavingOutpoint(expected int) OutputsListAssertion
+	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
 }
 
 func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
@@ -207,8 +208,9 @@ func (d *dbStateAssertion) Outputs(user testusers.User, basketName string) Outpu
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
 	outputs, err := d.storage.ListOutputs(d.Context(), wdk.AuthID{UserID: &userID}, wdk.ListOutputsArgs{
-		Limit:  1000,
-		Basket: primitives.StringUnder300(basketName),
+		Limit:       1000,
+		Basket:      primitives.StringUnder300(basketName),
+		IncludeTags: true,
 	})
 	require.NoError(d.TB, err)
 
@@ -238,6 +240,30 @@ func (d *outputsListAssertion) WithCountHavingOutpoint(expected int) OutputsList
 	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
 		err := output.Outpoint.Validate()
 		return err == nil
+	}))
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
+	return d
+}
+
+func (d *outputsListAssertion) WithCountHavingTags(expected int, tags ...string) OutputsListAssertion {
+	d.Helper()
+
+	lookup := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		lookup[tag] = struct{}{}
+	}
+
+	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
+		contains := 0
+		for _, tag := range output.Tags {
+			if _, ok := lookup[string(tag)]; ok {
+				contains++
+			}
+			if contains >= len(tags) {
+				return true
+			}
+		}
+		return false
 	}))
 	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
 	return d

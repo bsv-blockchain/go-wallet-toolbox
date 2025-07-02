@@ -59,6 +59,8 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined)
+
+	thenDBState.AllOutputs(testusers.Alice).WithCountHavingOutpoint(1)
 }
 
 func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
@@ -91,6 +93,9 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined)
+
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
+	thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCountHavingOutpoint(1)
 }
 
 func TestInternalizeActionErrorCases(t *testing.T) {
@@ -130,6 +135,10 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 
 			// then:
 			require.Error(t, err)
+
+			// and db state:
+			thenDBState := testabilities.ThenDBState(t, activeStorage)
+			thenDBState.AllOutputs(testusers.Alice).WithCount(0)
 		})
 	}
 }
@@ -170,6 +179,9 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
+
+		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
+		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingOutpoint(1)
 	})
 
 	t.Run("two outputs - two basket insertions", func(t *testing.T) {
@@ -198,7 +210,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 						OutputIndex: 0,
 						Protocol:    wdk.BasketInsertionProtocol,
 						InsertionRemittance: &wdk.BasketInsertion{
-							Basket: "custom_basket",
+							Basket: fixtures.CustomBasket,
 							Tags:   []primitives.StringUnder300{"custom_tag", "tag_for_first_output"},
 						},
 					},
@@ -224,7 +236,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 						OutputIndex: 1,
 						Protocol:    wdk.BasketInsertionProtocol,
 						InsertionRemittance: &wdk.BasketInsertion{
-							Basket: "custom_basket",
+							Basket: fixtures.CustomBasket,
 							Tags:   []primitives.StringUnder300{"custom_tag", "tag_for_second_output"},
 						},
 					},
@@ -244,6 +256,14 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
+
+		thenDBState.AllOutputs(testusers.Alice).WithCount(2)
+		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
+		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).
+			WithCountHavingOutpoint(2).
+			WithCountHavingTags(2, "custom_tag").
+			WithCountHavingTags(1, "tag_for_first_output").
+			WithCountHavingTags(1, "tag_for_second_output")
 	})
 
 	t.Run("switch from change output to custom basket", func(t *testing.T) {
@@ -263,7 +283,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		args.Tx = ownedAtomicBeef
 		args.Outputs[0].Protocol = wdk.BasketInsertionProtocol
 		args.Outputs[0].InsertionRemittance = &wdk.BasketInsertion{
-			Basket: "custom_basket",
+			Basket: fixtures.CustomBasket,
 			Tags:   []primitives.StringUnder300{"custom_tag", "tag_for_first_output"},
 		}
 
@@ -286,6 +306,12 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
+
+		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
+		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
+		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).
+			WithCountHavingOutpoint(1).
+			WithCountHavingTags(1, "custom_tag", "tag_for_first_output")
 	})
 
 	t.Run("switch from custom basket to change", func(t *testing.T) {
@@ -356,5 +382,84 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
+
+		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
+		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingOutpoint(1)
+		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCount(0)
 	})
+}
+
+func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	transactionSpec := testvectors.GivenTX().
+		WithInput(20_001).
+		WithP2PKHOutput(10_000).
+		WithP2PKHOutput(10_000)
+	beefBytes, err := transactionSpec.TX().AtomicBEEF(false)
+	require.NoError(t, err)
+
+	// when:
+	result, err := activeStorage.InternalizeAction(
+		context.Background(),
+		testusers.Alice.AuthID(),
+		wdk.InternalizeActionArgs{
+			Tx: beefBytes,
+			Outputs: []*wdk.InternalizeOutput{
+				{
+					OutputIndex: 0,
+					Protocol:    wdk.BasketInsertionProtocol,
+					InsertionRemittance: &wdk.BasketInsertion{
+						Basket: fixtures.CustomBasket,
+					},
+				},
+			},
+			Description: "first internalize",
+		},
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.True(t, result.Accepted)
+	assert.False(t, result.IsMerge)
+	assert.Equal(t, int64(0), result.Satoshis)
+
+	// when:
+	result, err = activeStorage.InternalizeAction(
+		context.Background(),
+		testusers.Bob.AuthID(), //NOTE: This is a different user
+		wdk.InternalizeActionArgs{
+			Tx: beefBytes,
+			Outputs: []*wdk.InternalizeOutput{
+				{
+					OutputIndex: 1,
+					Protocol:    wdk.BasketInsertionProtocol,
+					InsertionRemittance: &wdk.BasketInsertion{
+						Basket: fixtures.CustomBasket,
+					},
+				},
+			},
+			Description: "second internalize",
+		},
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.True(t, result.Accepted)
+	assert.False(t, result.IsMerge)
+	assert.Equal(t, int64(0), result.Satoshis)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(result.TxID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined)
+
+	thenDBState.AllOutputs(testusers.Alice).WithCount(1)
+	thenDBState.AllOutputs(testusers.Bob).WithCount(1)
 }

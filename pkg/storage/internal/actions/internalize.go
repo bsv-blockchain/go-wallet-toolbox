@@ -98,11 +98,11 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}, nil
 }
 
-func (in *internalize) upsertOutputs(ctx context.Context, existingTx *wdk.TableTransaction, outputs []*OutputToInternalize) error {
+func (in *internalize) upsertOutputs(ctx context.Context, existingTx *entity.Transaction, outputs []*OutputToInternalize) error {
 	for _, toInternalize := range outputs {
 		outputID := optional.OfPtr(toInternalize.existingOutputID).OrZeroValue() // Zero means it's a new output
 
-		output, err := toInternalize.ToOutput(outputID, existingTx.UserID, existingTx.TransactionID)
+		output, err := toInternalize.ToOutput(outputID, existingTx.UserID, existingTx.ID)
 		if err != nil {
 			return fmt.Errorf("failed to convert output-to-internalize spec to entity: %w", err)
 		}
