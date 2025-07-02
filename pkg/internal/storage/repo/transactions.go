@@ -408,7 +408,7 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 
 	var rows []resultRow
 	err := txs.db.WithContext(ctx).
-		Model(&models.TransactionLabels{}).
+		Model(&models.TransactionLabel{}).
 		Select("transaction_id, label_name").
 		Where("transaction_id IN ?", txIDs).
 		Where("label_name IS NOT NULL").
@@ -426,7 +426,7 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 
 func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.TransactionLabels{}).
+		subQuery := tx.Model(&models.TransactionLabel{}).
 			Select("transaction_id").
 			Where("label_name IN ?", filter.Labels).
 			Where("label_user_id = ?", userID)

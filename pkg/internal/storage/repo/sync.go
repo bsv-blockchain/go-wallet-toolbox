@@ -617,6 +617,7 @@ func (s *Sync) FindLabelsForSync(ctx context.Context, userID int, opts ...queryo
 			return db.
 				Select(fmt.Sprintf("?, %s", labelStringIDClause), s.naming.labelsTableName).
 				Scopes(filters...).
+				Unscoped().
 				Find(&models.Label{})
 		})
 		if err != nil {
@@ -628,6 +629,7 @@ func (s *Sync) FindLabelsForSync(ctx context.Context, userID int, opts ...queryo
 			Select("*").
 			Scopes(filters...).
 			Scopes(s.joinWithNumericIDLookupScope(labelStringIDClause, s.naming.labelsTableName, clause.InnerJoin)).
+			Unscoped().
 			Find(&resultModels).Error
 		if err != nil {
 			return fmt.Errorf("failed to find labels for sync: %w", err)
@@ -640,6 +642,17 @@ func (s *Sync) FindLabelsForSync(ctx context.Context, userID int, opts ...queryo
 	}
 
 	return slices.Map(resultModels, s.mapModelToTableTxLabel), nil
+}
+
+func (s *Sync) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {
+	return &wdk.TableTxLabel{
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+		TxLabelID: model.NumID,
+		UserID:    model.UserID,
+		Label:     model.Name,
+		IsDeleted: model.DeletedAt.Valid,
+	}
 }
 
 func (s *Sync) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (isNew bool, labelNumID uint, err error) {
@@ -698,13 +711,37 @@ func (s *Sync) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (is
 	return isNew, labelNumID, nil
 }
 
-func (s *Sync) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {
-	return &wdk.TableTxLabel{
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
-		TxLabelID: model.NumID,
-		UserID:    model.UserID,
-		Label:     model.Name,
+type LabelsMapReadModel struct {
+	models.TransactionLabel
+	NumID uint
+}
+
+func (s *Sync) FindLabelsMapForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabelMap, error) {
+	const labelStringIDClause = "CONCAT(label_user_id, '.', label_name)"
+	var resultModels []*LabelsMapReadModel
+
+	err := s.db.WithContext(ctx).
+		Model(models.TransactionLabel{}).
+		Select(fmt.Sprintf("%s.*, num_id", s.naming.labelsMapTableName)).
+		Scopes(scopes.FromQueryOpts(opts)...).
+		Scopes(s.joinWithNumericIDLookupScope(labelStringIDClause, s.naming.labelsTableName, clause.InnerJoin)).
+		Where("label_user_id = ?", userID).
+		Unscoped().
+		Find(&resultModels).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find labels map for sync: %w", err)
+	}
+
+	return slices.Map(resultModels, s.mapModelToTableTxLabelMap), nil
+}
+
+func (s *Sync) mapModelToTableTxLabelMap(model *LabelsMapReadModel) *wdk.TableTxLabelMap {
+	return &wdk.TableTxLabelMap{
+		CreatedAt:     model.CreatedAt,
+		UpdatedAt:     model.UpdatedAt,
+		TransactionID: model.TransactionID,
+		TxLabelID:     model.NumID,
+		IsDeleted:     model.DeletedAt.Valid,
 	}
 }
 

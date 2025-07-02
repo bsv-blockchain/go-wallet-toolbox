@@ -7,5 +7,6 @@ func all(repo Repository) []Chunker {
 		newChunkerUserTransactions(repo),
 		newChunkerOutputs(repo),
 		newChunkerLabels(repo),
+		newChunkerLabelsMap(repo),
 	}
 }

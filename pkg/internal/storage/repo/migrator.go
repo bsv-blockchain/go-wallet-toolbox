@@ -28,7 +28,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.Output{},
 		models.KnownTx{},
 		models.Label{},
-		models.TransactionLabels{},
+		models.TransactionLabel{},
 		models.NumericIDLookup{},
 		models.SyncState{},
 		models.KeyValue{},

@@ -1,6 +1,8 @@
 package repo_test
 
 import (
+	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -70,4 +72,14 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	require.Equal(t, 1, baskets[0].BasketID)
 	require.Equal(t, 2, baskets[1].BasketID)
 	require.Equal(t, 5, baskets[2].BasketID)
+}
+
+func TestSyncAAA(t *testing.T) {
+	// given:
+	db, cleanup := dbfixtures.TestDatabase(t)
+	defer cleanup()
+
+	r := db.DB.Model(&models.Label{}).Association("Transactions").Relationship.JoinTable.Table
+
+	fmt.Printf("%+v\n", r)
 }

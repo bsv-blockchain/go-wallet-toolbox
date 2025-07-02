@@ -12,6 +12,7 @@ type naming struct {
 	transactionsTableName    string
 	outputsTableName         string
 	labelsTableName          string
+	labelsMapTableName       string
 }
 
 func newNaming(db *gorm.DB) *naming {
@@ -23,6 +24,7 @@ func newNaming(db *gorm.DB) *naming {
 		transactionsTableName:    getTableName(db, &models.Transaction{}),
 		outputsTableName:         getTableName(db, &models.Output{}),
 		labelsTableName:          getTableName(db, &models.Label{}),
+		labelsMapTableName:       getTableName(db, &models.TransactionLabel{}),
 	}
 }
 
