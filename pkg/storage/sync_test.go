@@ -24,6 +24,7 @@ func TestSyncProcess(t *testing.T) {
 	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
 	ownedMinedTx := seed.OwnsMinedTransaction()
 	ownedTx := seed.OwnsTransaction()
+	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
 	// and:
 	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
@@ -36,12 +37,13 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 2, inserts)
+	assert.Equal(t, 40, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
-	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 
+	// and knownTxs:
 	thenDBState.HasKnownTX(ownedMinedTx.ID()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		HasRawTx().
@@ -50,6 +52,42 @@ func TestSyncProcess(t *testing.T) {
 	thenDBState.HasKnownTX(ownedTx.ID()).
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		HasRawTx()
+
+	thenDBState.HasKnownTX(internalizedTxID).
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx()
+
+	// and user's transactions:
+	thenDBState.
+		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedMinedTx.ID())).
+		WithTxID(ownedMinedTx.ID()).
+		WithStatus(wdk.TxStatusCompleted)
+
+	thenDBState.
+		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTx.ID())).
+		WithTxID(ownedTx.ID()).
+		WithStatus(wdk.TxStatusUnproven)
+
+	thenDBState.
+		HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithoutTxID().
+		WithStatus(wdk.TxStatusUnsigned)
+
+	// and outputs:
+	thenDBState.AllOutputs(testusers.Alice).
+		WithCount(33).
+		WithCountHavingOutpoint(3)
+	// TODO: Check tags when backup for tags is implemented
+
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
+		WithCount(32)
+
+	// and:
+	const fee = 1
+	thenDBState.CanCreateActionForSatoshis(
+		testusers.Alice,
+		seed.GetAvailableBalance()-fee,
+	)
 }
 
 func TestSyncProcessOnlyUsers(t *testing.T) {
@@ -110,7 +148,7 @@ func TestSyncWithManyCustomBaskets(t *testing.T) {
 	assert.Equal(t, 1, updates)
 }
 
-func TestSyncProcessWithManyTransactions(t *testing.T) {
+func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()
@@ -135,12 +173,24 @@ func TestSyncProcessWithManyTransactions(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, numberOfTxs, inserts)
+	assert.Equal(t, 3*numberOfTxs, inserts) // NOTE: One for knownTx and one for (user's) transaction and one for output
 	assert.Equal(t, 1, updates)
 
-	// and:
-	thenDBState := testabilities.ThenSync(t).DBState(sourceProvider)
+	// and known transactions:
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 	thenDBState.HasKnownTXs(seed.GetAllOwnedTransactionIDs()...)
+
+	// and outputs:
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
+		WithCount(numberOfTxs).
+		WithCountHavingOutpoint(numberOfTxs)
+
+	// and:
+	const fee = 4 //NOTE: Minimum fee to cover so many UTXOs as inputs
+	thenDBState.CanCreateActionForSatoshis(
+		testusers.Alice,
+		seed.GetAvailableBalance()-4*fee,
+	)
 }
 
 func TestSyncProcessWithMergeUser(t *testing.T) {
@@ -208,4 +258,90 @@ func TestSyncSameSourceAndBackupStorage(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
+}
+
+func TestSyncProcessWithBasketsNumIDMissmatch(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Bob, sourceProvider)
+
+	// and:
+	// NOTE: This creates a situation where the source storage will generate basketID for Bob = 2, but the backup storage will have basketID = 1
+	_, err := sourceProvider.GetSyncChunk(t.Context(), givenSourceDB.RequestSyncChunk(testusers.Alice).Args())
+	require.NoError(t, err)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Bob)
+	_ = seed.OwnsTransaction()
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 3, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and outputs:
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
+	thenDBState.Outputs(testusers.Bob, wdk.BasketNameForChange).
+		WithCount(1).
+		WithCountHavingOutpoint(1)
+}
+
+func TestSyncProcessWithRelinquishOutput(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
+	ownedTx := seed.OwnsTransaction()
+	_ = ownedTx
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 3, inserts)
+	assert.Equal(t, 1, updates)
+
+	// when:
+	err = sourceProvider.RelinquishOutput(t.Context(), testusers.Alice.AuthID(), wdk.RelinquishOutputArgs{
+		Output: string(primitives.NewOutpointString(ownedTx.ID(), 0)),
+	})
+	require.NoError(t, err)
+
+	// and:
+	inserts, updates, err = sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and outputs:
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
+
+	thenDBState.AllOutputs(testusers.Alice).
+		WithCount(1)
+
+	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
+		WithCount(0) // NOTE: Relinquished output is not in the change basket anymore
 }

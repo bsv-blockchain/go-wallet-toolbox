@@ -185,7 +185,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	return nil
 }
 
-func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*wdk.TableTransaction, error) {
+func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
 	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
 	if err != nil {
@@ -195,11 +195,11 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 		return nil, fmt.Errorf("failed to find transaction: %w", err)
 	}
 
-	return txs.mapModelToTableTransaction(&transaction), nil
+	return txs.mapModelToTransactionEntity(&transaction), nil
 
 }
 
-func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error) {
+func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
 	transaction := models.Transaction{}
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
@@ -212,7 +212,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
 	}
 
-	return txs.mapModelToTableTransaction(&transaction), nil
+	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
 func (txs *Transactions) SpendTransaction(
@@ -336,25 +336,25 @@ func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) er
 		}).Error
 }
 
-func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *wdk.TableTransaction {
-	return &wdk.TableTransaction{
-		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
-		TransactionID: model.ID,
-		UserID:        model.UserID,
-		Status:        model.Status,
-		Reference:     primitives.Base64String(model.Reference),
-		IsOutgoing:    model.IsOutgoing,
-		Satoshis:      model.Satoshis,
-		Description:   model.Description,
-		Version:       to.Ptr(model.Version),
-		LockTime:      to.Ptr(model.LockTime),
-		TxID:          model.TxID,
-		InputBEEF:     model.InputBeef,
+func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {
+	return &entity.Transaction{
+		ID:          model.ID,
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
+		UserID:      model.UserID,
+		Status:      model.Status,
+		Reference:   model.Reference,
+		IsOutgoing:  model.IsOutgoing,
+		Satoshis:    model.Satoshis,
+		Description: model.Description,
+		Version:     model.Version,
+		LockTime:    model.LockTime,
+		TxID:        model.TxID,
+		InputBEEF:   model.InputBeef,
 	}
 }
 
-func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*wdk.TableTransaction, int64, error) {
+func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error) {
 	var actions []*models.Transaction
 	var total int64
 
@@ -393,7 +393,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		return nil, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return slices.Map(actions, txs.mapModelToTableTransaction), total, nil
+	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil
 }
 
 func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {

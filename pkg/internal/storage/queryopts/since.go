@@ -3,8 +3,9 @@ package queryopts
 import "time"
 
 type Since struct {
-	Time  time.Time
-	Field string
+	Time      time.Time
+	Field     string
+	TableName string
 }
 
 func (p *Since) ApplyDefaults() {

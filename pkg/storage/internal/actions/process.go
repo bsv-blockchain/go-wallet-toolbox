@@ -68,17 +68,17 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	// TODO: Services::nLockTimeIsFinal(tx)
 
-	tableTx, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
+	txEntity, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
 	if err != nil {
 		return fmt.Errorf("failed to find transaction by reference: %w", err)
 	}
 
-	err = p.validateStateOfTableTx(*args.Reference, tableTx)
+	err = p.validateStateOfTableTx(*args.Reference, txEntity)
 	if err != nil {
 		return err
 	}
 
-	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, tableTx.TransactionID)
+	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, txEntity.ID)
 	if err != nil {
 		return fmt.Errorf("failed to find inputs and outputs of transaction: %w", err)
 	}
@@ -98,12 +98,12 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	err = p.txRepo.SpendTransaction(ctx, entity.UpdatedTx{
 		UserID:        userID,
-		TransactionID: tableTx.TransactionID,
+		TransactionID: txEntity.ID,
 		TxID:          txID,
 		TxStatus:      newTxStatus,
 		ReqTxStatus:   newReqStatus,
 		RawTx:         args.RawTx,
-		InputBeef:     tableTx.InputBEEF,
+		InputBeef:     txEntity.InputBEEF,
 		Tx:            tx,
 	}, history.ProcessActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
@@ -113,7 +113,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	return nil
 }
 
-func (p *process) validateStateOfTableTx(reference string, tableTx *wdk.TableTransaction) error {
+func (p *process) validateStateOfTableTx(reference string, tableTx *entity.Transaction) error {
 	if tableTx == nil {
 		return fmt.Errorf("transaction with reference (%s) not found in the database", reference)
 	}

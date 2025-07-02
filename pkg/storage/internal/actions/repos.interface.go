@@ -23,8 +23,8 @@ type OutputRepo interface {
 
 type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
-	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*wdk.TableTransaction, error)
-	FindTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error)
+	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
+	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	SpendTransaction(
 		ctx context.Context,
 		updatedTx entity.UpdatedTx,
@@ -39,7 +39,7 @@ type TransactionsRepo interface {
 		historyNote string,
 		historyAttrs map[string]any,
 	) error
-	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*wdk.TableTransaction, int64, error)
+	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 }
 

@@ -12,7 +12,7 @@ type TableTransaction struct {
 	UpdatedAt     time.Time                    `json:"updated_at"`
 	TransactionID uint                         `json:"transactionId"`
 	UserID        int                          `json:"userId"`
-	ProvenTxID    *string                      `json:"proveTxId"`
+	ProvenTxID    *int                         `json:"proveTxId"`
 	Status        TxStatus                     `json:"status"`
 	Reference     primitives.Base64String      `json:"reference"`
 	IsOutgoing    bool                         `json:"isOutgoing"`
