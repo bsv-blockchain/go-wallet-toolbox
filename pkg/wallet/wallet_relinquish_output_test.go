@@ -84,7 +84,7 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		// when:
 		args := sdk.RelinquishOutputArgs{
 			Basket: "test-basket",
-			Output: fixtures.MockTransactionOutpoint(),
+			Output: *SdkOutpoint(t, "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6:1"),
 		}
 
 		result, err := aliceWallet.RelinquishOutput(t.Context(), args, fixtures.DefaultOriginator)
@@ -249,4 +249,11 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputSuccess() {
 		assert.True(t, result.Relinquished)
 
 	})
+}
+
+func SdkOutpoint(t testing.TB, strOutpoint string) *transaction.Outpoint {
+	t.Helper()
+	outpoint, err := transaction.OutpointFromString(strOutpoint)
+	require.NoError(t, err)
+	return outpoint
 }
