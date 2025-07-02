@@ -2,19 +2,25 @@ package testabilities
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type WalletReader interface {
 	ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error)
+	ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error)
 }
 
 type WalletStateAssertion interface {
@@ -28,7 +34,7 @@ type WalletActionAssertion interface {
 	WithTxID(expected string) WalletActionAssertion
 	WithoutTxID() WalletActionAssertion
 	WithSatoshis(expected int64) WalletActionAssertion
-	OutputAtIndex(index int) WalletActionOutputAssertion
+	OutputAtIndex(index int, validateOutput bool) WalletActionOutputAssertion
 }
 
 type WalletActionOutputAssertion interface {
@@ -68,6 +74,7 @@ func (a *walletStateAssertion) ActionAtIndex(index int, labels ...string) Wallet
 
 	return &walletActionAssertion{
 		TB:     a.TB,
+		wallet: a.wallet,
 		action: &result.Actions[index],
 	}
 }
@@ -84,6 +91,7 @@ func (a *walletStateAssertion) listActions(labels ...string) *sdk.ListActionsRes
 
 type walletActionAssertion struct {
 	testing.TB
+	wallet WalletReader
 	action *sdk.Action
 }
 
@@ -121,12 +129,19 @@ func (a *walletActionAssertion) WithSatoshis(expected int64) WalletActionAsserti
 	return a
 }
 
-func (a *walletActionAssertion) OutputAtIndex(index int) WalletActionOutputAssertion {
+func (a *walletActionAssertion) OutputAtIndex(index int, validateOutput bool) WalletActionOutputAssertion {
 	a.Helper()
 	require.Greater(a, len(a.action.Outputs), index, "Index out of range for action outputs")
+
+	actionOutput := &a.action.Outputs[index]
+
+	if validateOutput {
+		a.checkIfListOutputsAlignsWithAction(a.action.Txid, actionOutput)
+	}
+
 	return &walletActionOutputAssertion{
 		TB:     a.TB,
-		output: &a.action.Outputs[index],
+		output: actionOutput,
 	}
 }
 
@@ -181,4 +196,73 @@ func (a *walletActionOutputAssertion) WithBasket(expected string) WalletActionOu
 	a.Helper()
 	assert.Equal(a, expected, a.output.Basket, "Action output basket does not match")
 	return a
+}
+
+func (a *walletActionAssertion) checkIfListOutputsAlignsWithAction(txID chainhash.Hash, actionOutput *sdk.ActionOutput) *wdk.WalletOutput {
+	listedOutputs, err := a.wallet.ListOutputs(a.Context(), sdk.ListOutputsArgs{
+		Limit: validate.MaxPaginationLimit,
+		IncludeCustomInstructions: to.Ptr(true),
+		IncludeTags: to.Ptr(true),
+		IncludeLabels: to.Ptr(true),
+	}, fixtures.DefaultOriginator)
+	require.NoError(a, err, "Failed to list outputs")
+	
+	var zeroHash chainhash.Hash
+
+	assert.Equal(a, 1, seq.Count(seq.Filter(seq.FromSlice(listedOutputs.Outputs), func(output sdk.Output) bool {
+		canCompareOutpoints := !output.Outpoint.Txid.IsEqual(&zeroHash) && !txID.Equal(zeroHash)
+		if canCompareOutpoints {
+			if !equalOutpoints(output.Outpoint, txID.String(), actionOutput.OutputIndex) {
+				return false
+			}
+		}
+
+		return int(output.Satoshis) == int(actionOutput.Satoshis) &&
+			output.Spendable == actionOutput.Spendable &&
+			equalTags(output.Tags, actionOutput.Tags) &&
+			//TODO: output.LockingScript is not set in the test, need to fix this
+			//equalLockingScripts(output.LockingScript, actionOutput.LockingScript) &&
+			equalCustomInstructions(output.CustomInstructions, actionOutput.CustomInstructions)
+	})), "list outputs does not align with action outputs")
+
+	return &wdk.WalletOutput{}
+}
+
+// equalOutpoints compares an outpoint with txid and output index
+func equalOutpoints(outpoint transaction.Outpoint, txid string, outputIndex uint32) bool {
+	return outpoint.Txid.String() == txid && outpoint.Index == outputIndex
+}
+
+// equalTags compares two tag slices for equality
+func equalTags(tags1, tags2 []string) bool {
+	if len(tags1) != len(tags2) {
+		return false
+	}
+	for i, tag1 := range tags1 {
+		if !strings.Contains(tag1, tags2[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// equalLockingScripts compares locking scripts from different sources
+func equalLockingScripts(outputScript []byte, actionScript []byte) bool {
+	if len(outputScript) == 0 && len(actionScript) == 0 {
+		return true
+	}
+	if len(outputScript) != len(actionScript) {
+		return false
+	}
+	for i := range outputScript {
+		if outputScript[i] != actionScript[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// equalCustomInstructions compares custom instructions from different sources
+func equalCustomInstructions(outputInstructions string, actionInstructions string) bool {
+	return outputInstructions == actionInstructions
 }

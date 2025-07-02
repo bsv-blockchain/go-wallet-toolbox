@@ -140,7 +140,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)).
 			WithDescription(args.Description)
 
-		thenInternalizedAction.OutputAtIndex(0).
+		thenInternalizedAction.OutputAtIndex(0, true).
 			WithSatoshis(internalizedTx.Outputs[0].Satoshis).
 			WithLockingScript(internalizedTx.Outputs[0].LockingScript.Bytes()).
 			WithOutputIndex(0).
@@ -182,7 +182,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 			WithSatoshis(0).
 			WithDescription(args.Description)
 
-		thenInternalizedAction.OutputAtIndex(0).
+		thenInternalizedAction.OutputAtIndex(0, true).
 			WithSatoshis(internalizedTx.Outputs[0].Satoshis).
 			WithLockingScript(internalizedTx.Outputs[0].LockingScript.Bytes()).
 			WithOutputIndex(0).

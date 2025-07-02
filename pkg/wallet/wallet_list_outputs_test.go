@@ -67,6 +67,30 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 }
 
 func (s *WalletTestSuite) TestWalletListOutputs() {
+	s.Run("list outputs with empty result when no outputs exist", func() {
+		t := s.T()
+
+		// given:
+		given := testabilities.Given(t)
+
+		// and:
+		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		defer cleanup()
+
+		// and:
+		args := fixtures.DefaultWalletListOutputsArgs()
+
+		// when:
+		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
+		assert.Equal(t, 0, len(result.Outputs), "Should have no outputs when none exist")
+		assert.Equal(t, uint32(0), result.TotalOutputs, "Total outputs should be zero")
+	})
+
 	s.Run("basic list outputs after internalize action", func() {
 		t := s.T()
 
@@ -227,27 +251,5 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NotEmpty(t, result.Outputs[0].CustomInstructions, "Custom instructions should be included")
 	})
 
-	s.Run("list outputs with empty result when no outputs exist", func() {
-		t := s.T()
-
-		// given:
-		given := testabilities.Given(t)
-
-		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
-
-		// and:
-		args := fixtures.DefaultWalletListOutputsArgs()
-
-		// when:
-		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, result)
-		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Equal(t, 0, len(result.Outputs), "Should have no outputs when none exist")
-		assert.Equal(t, uint32(0), result.TotalOutputs, "Total outputs should be zero")
-	})
+	
 }
