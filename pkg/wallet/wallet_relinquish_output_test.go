@@ -74,7 +74,7 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		// when:
 		args := sdk.RelinquishOutputArgs{
 			Basket: "test-basket",
-			Output: *testutils.SdkOutpoint(t, "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6:1"),
+			Output: *testutils.SdkOutpoint(t, "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6.1"),
 		}
 
 		result, err := aliceWallet.RelinquishOutput(t.Context(), args, fixtures.DefaultOriginator)
