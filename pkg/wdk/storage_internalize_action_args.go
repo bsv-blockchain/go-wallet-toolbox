@@ -107,8 +107,8 @@ type InternalizeActionArgs struct {
 
 // InternalizeActionResult represents the result of an internalize action with a status indicating if it was accepted or not.
 type InternalizeActionResult struct {
-	Accepted bool                    `json:"accepted"`
-	IsMerge  bool                    `json:"isMerge"`
-	TxID     string                  `json:"txid"`
-	Satoshis primitives.SatoshiValue `json:"satoshis"`
+	Accepted bool   `json:"accepted"`
+	IsMerge  bool   `json:"isMerge"`
+	TxID     string `json:"txid"`
+	Satoshis int64  `json:"satoshis"`
 }
