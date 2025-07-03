@@ -14,6 +14,9 @@ const (
 	// DefaultFiatExchangeUpdateInterval is a duration after which the Fiat Exchange Rate should be updated
 	DefaultFiatExchangeUpdateInterval = 24 * time.Hour
 
+	// DefaultWoCBroadcastDelay is the delay after which the WhatsOnChain service will broadcast a transaction
+	DefaultWoCBroadcastDelay = 3 * time.Second
+
 	// ArcURL is the URL for the ARC service
 	ArcURL = "https://arc.taal.com"
 
@@ -25,6 +28,12 @@ const (
 
 	// ArcTestToken is the token for the ARC service on testnet - it's a well-known key and can be public
 	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec
+
+	// BHSTestURL is the URL for the BHS service
+	BHSTestURL = "http://localhost:8080"
+
+	// BHSApiKey is the token for the BHS service
+	BHSApiKey = ""
 )
 
 // WalletServices is a struct that has options for wallet services
@@ -40,6 +49,8 @@ type WalletServices struct {
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
+	Bitails      Bitails      `mapstructure:"bitails"`
+	BHS          BHS          `mapstructure:"bhs"`
 }
 
 // Validate checks the validity of the WalletServices struct
@@ -62,7 +73,9 @@ func (ws *WalletServices) Validate() error {
 		return fmt.Errorf("invalid ARC config: %w", err)
 	}
 
-	// TODO: Double check if ws.WhatsOnChain api key is required
+	if err = ws.Bitails.Validate(); err != nil {
+		return fmt.Errorf("invalid Bitails config: %w", err)
+	}
 
 	return nil
 }
@@ -73,6 +86,10 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 
 	cfg := WalletServices{
 		Chain: chain,
+		BHS: BHS{
+			URL:    BHSTestURL,
+			APIKey: BHSApiKey,
+		},
 		WhatsOnChain: WhatsOnChain{
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
 			BSVExchangeRate: BSVExchangeRate{
@@ -80,6 +97,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 				Base:      USD,
 				Rate:      47.52,
 			},
+			BroadcastDelay: DefaultWoCBroadcastDelay,
 		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,

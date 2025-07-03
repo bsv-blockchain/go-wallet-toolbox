@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
@@ -51,28 +52,17 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	beef, err := txObj.BEEF()
 	require.NoError(f.t, err)
 
-	provenTxReq := &models.ProvenTxReq{
+	knownTx := &models.KnownTx{
 		TxID:      spec.ID(),
 		Status:    wdk.ProvenTxStatusUnmined,
 		RawTx:     spec.TX().Bytes(),
 		InputBeef: beef,
 	}
 
-	if txObj.MerklePath != nil {
-		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
-		require.NoError(f.t, err)
-
-		provenTxReq.Status = wdk.ProvenTxStatusCompleted
-		provenTxReq.BlockHeight = &txObj.MerklePath.BlockHeight
-		provenTxReq.MerklePath = txObj.MerklePath.Bytes()
-		provenTxReq.MerkleRoot = to.Ptr(merkleRoot)
-		provenTxReq.BlockHash = to.Ptr(TestBlockHash)
-	}
-
 	transaction := &models.Transaction{
 		UserID:      f.user.ID,
-		Status:      wdk.TxStatusCompleted,
-		Reference:   MockReference,
+		Status:      wdk.TxStatusUnproven,
+		Reference:   fixtures.FaucetReference(spec.ID()),
 		IsOutgoing:  false,
 		Satoshis:    satoshis.Int64(),
 		Description: "test-faucet-tx",
@@ -98,6 +88,17 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		BasketName:       &f.basketName,
 
 		Transaction: transaction,
+
+		Tags: []*models.Tag{
+			{
+				Name:   fixtures.CreateActionTestTag,
+				UserID: f.user.ID,
+			},
+			{
+				Name:   fixtures.FaucetTag(f.index),
+				UserID: f.user.ID,
+			},
+		},
 	}
 
 	utxo := &models.UserUTXO{
@@ -109,9 +110,24 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		Output: output,
 	}
 
+	if txObj.MerklePath != nil {
+		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
+		require.NoError(f.t, err)
+
+		knownTx.Status = wdk.ProvenTxStatusCompleted
+		knownTx.BlockHeight = &txObj.MerklePath.BlockHeight
+		knownTx.MerklePath = txObj.MerklePath.Bytes()
+		knownTx.MerkleRoot = to.Ptr(merkleRoot)
+		knownTx.BlockHash = to.Ptr(TestBlockHash)
+
+		transaction.Status = wdk.TxStatusCompleted
+	}
+
 	tx := f.db.DB.WithContext(f.t.Context())
 	tx.Create(utxo)
-	tx.Create(provenTxReq)
+	tx.Create(knownTx)
+
+	f.index++
 
 	return spec, utxo
 }

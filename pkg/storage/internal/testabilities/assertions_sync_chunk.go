@@ -37,6 +37,12 @@ type ValidSyncChunkAssertion interface {
 
 	ProvenTxsCount(length int) ValidSyncChunkAssertion
 	ProvenTxAtIndex(index int) ProvenTxAssertion
+
+	TransactionsCount(length int) ValidSyncChunkAssertion
+	TransactionAtIndex(index int) TransactionAssertion
+
+	OutputsCount(length int) ValidSyncChunkAssertion
+	OutputAtIndex(index int) OutputAssertion
 }
 
 type BasketAssertion interface {
@@ -47,11 +53,26 @@ type BasketAssertion interface {
 
 type ProvenTxReqAssertion interface {
 	AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxReqAssertion
+	WithTxID(txID string) ProvenTxReqAssertion
 }
 
 type ProvenTxAssertion interface {
 	AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxAssertion
 	HasMerklePath() ProvenTxAssertion
+}
+
+type TransactionAssertion interface {
+	WithTxID(txID string) TransactionAssertion
+	WithoutTxID() TransactionAssertion
+	WithProvenTxID(provenTxID int) TransactionAssertion
+	WithoutProvenTxID() TransactionAssertion
+	WithReference(reference string) TransactionAssertion
+}
+
+type OutputAssertion interface {
+	WithTransactionID(transactionNumID uint) OutputAssertion
+	WithoutBasketID() OutputAssertion
+	WithBasketID(basketID int) OutputAssertion
 }
 
 type syncAssertion struct {
@@ -82,7 +103,7 @@ func (s *syncAssertion) DBState(storage StorageReader) DBStateAssertion {
 
 func (s *syncChunkAssertion) WithoutError(err error) ValidSyncChunkAssertion {
 	s.Helper()
-	require.NotNil(s, s.chunk, "Expected chunk to be not nil")
+	assert.NotNil(s, s.chunk, "Expected chunk to be not nil")
 	require.NoError(s, err, "Expected no error but got one")
 	return s
 }
@@ -134,6 +155,7 @@ func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.BasketsCount(0)
 	s.ProvenTxReqsCount(0)
 	s.ProvenTxsCount(0)
+	s.TransactionsCount(0)
 	return s
 }
 
@@ -222,6 +244,12 @@ func (p *proveTxReqAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpe
 	return p
 }
 
+func (p *proveTxReqAssertion) WithTxID(txID string) ProvenTxReqAssertion {
+	p.parent.Helper()
+	assert.Equal(p.parent, txID, p.txReq.TxID)
+	return p
+}
+
 func (s *syncChunkAssertion) ProvenTxsCount(length int) ValidSyncChunkAssertion {
 	s.Helper()
 	assert.Len(s, s.chunk.ProvenTxs, length)
@@ -256,4 +284,107 @@ func (p *proveTxAssertion) HasMerklePath() ProvenTxAssertion {
 	p.parent.Helper()
 	assert.NotEmpty(p.parent, p.tx.MerklePath, "Expected tx to have a non-empty MerklePath")
 	return p
+}
+
+func (s *syncChunkAssertion) TransactionsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.Transactions, length, "Expected chunk to have %d transactions", length)
+	return s
+}
+
+func (s *syncChunkAssertion) TransactionAtIndex(index int) TransactionAssertion {
+	s.Helper()
+	require.GreaterOrEqual(s, index, 0)
+	require.Less(s, index, len(s.chunk.Transactions))
+	tx := s.chunk.Transactions[index]
+	require.NotNil(s, tx, "Expected transaction to be not nil")
+	return &transactionAssertion{
+		parent: s,
+		tx:     tx,
+	}
+}
+
+type transactionAssertion struct {
+	parent *syncChunkAssertion
+	tx     *wdk.TableTransaction
+}
+
+func (t *transactionAssertion) WithTxID(txID string) TransactionAssertion {
+	t.parent.Helper()
+	if !assert.NotNil(t.parent, t.tx.TxID) {
+		return t
+	}
+	assert.Equal(t.parent, txID, *t.tx.TxID)
+	return t
+}
+
+func (t *transactionAssertion) WithoutTxID() TransactionAssertion {
+	t.parent.Helper()
+	assert.Nil(t.parent, t.tx.TxID)
+	return t
+}
+
+func (t *transactionAssertion) WithProvenTxID(provenTxID int) TransactionAssertion {
+	t.parent.Helper()
+	if !assert.NotNil(t.parent, t.tx.ProvenTxID) {
+		return t
+	}
+	assert.Equal(t.parent, provenTxID, *t.tx.ProvenTxID)
+	return t
+}
+
+func (t *transactionAssertion) WithoutProvenTxID() TransactionAssertion {
+	t.parent.Helper()
+	assert.Nil(t.parent, t.tx.ProvenTxID)
+	return t
+}
+
+func (t *transactionAssertion) WithReference(reference string) TransactionAssertion {
+	t.parent.Helper()
+	assert.Equal(t.parent, reference, string(t.tx.Reference))
+	return t
+}
+
+func (s *syncChunkAssertion) OutputsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.Outputs, length, "Expected chunk to have %d outputs", length)
+	return s
+}
+
+func (s *syncChunkAssertion) OutputAtIndex(index int) OutputAssertion {
+	s.Helper()
+	require.GreaterOrEqual(s, index, 0)
+	require.Less(s, index, len(s.chunk.Outputs))
+	output := s.chunk.Outputs[index]
+	require.NotNil(s, output, "Expected output to be not nil")
+	return &outputAssertion{
+		parent: s,
+		output: output,
+	}
+}
+
+type outputAssertion struct {
+	parent *syncChunkAssertion
+	output *wdk.TableOutput
+}
+
+func (o *outputAssertion) WithTransactionID(transactionNumID uint) OutputAssertion {
+	o.parent.Helper()
+	assert.Equal(o.parent, transactionNumID, o.output.TransactionID, "Expected output to have the same transaction ID as the one requested")
+	return o
+}
+
+func (o *outputAssertion) WithoutBasketID() OutputAssertion {
+	o.parent.Helper()
+	assert.Nil(o.parent, o.output.BasketID, "Expected output to have no BasketID")
+	return o
+}
+
+func (o *outputAssertion) WithBasketID(basketID int) OutputAssertion {
+	o.parent.Helper()
+	if !assert.NotNil(o.parent, o.output.BasketID) {
+		return o
+	}
+	assert.Equal(o.parent, basketID, *o.output.BasketID, "Expected output to have the same BasketID as the one requested")
+	return o
 }

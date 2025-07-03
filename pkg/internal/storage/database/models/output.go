@@ -36,4 +36,6 @@ type Output struct {
 	SpentByTransaction *Transaction `gorm:"foreignKey:SpentBy;references:ID"`
 
 	UserUTXO *UserUTXO `gorm:"foreignKey:OutputID"`
+
+	Tags []*Tag `gorm:"many2many:output_tags;"`
 }

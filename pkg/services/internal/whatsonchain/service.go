@@ -29,13 +29,15 @@ type WhatsOnChain struct {
 
 	bsvExchangeRate   defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
 	bsvUpdateInterval time.Duration
+	broadcastDelay    time.Duration
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
 	logger = logging.Child(logger, "WoC").With(slog.String("network", string(network)))
 
-	if httpClient == nil {
-		panic("httpClient is required")
+	err := network.Validate()
+	if err != nil {
+		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
 	}
 
 	headers := httpx.NewHeaders().
@@ -43,10 +45,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		UserAgent().Value("go-wallet-toolbox").
 		Authorization().IfNotEmpty(config.APIKey)
 
-	client := httpClient.Clone().
-		SetRetryCount(Retries).
-		SetRetryWaitTime(RetriesWaitTime).
-		SetRetryMaxWaitTime(Retries * RetriesWaitTime).
+	client := httpClient.
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
@@ -58,6 +57,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		logger:            logger,
 		bsvExchangeRate:   config.BSVExchangeRate,
 		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		broadcastDelay:    config.BroadcastDelay,
 	}
 }
 
@@ -65,8 +65,7 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResu
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
-	req.SetHeader("Cache-Control", "no-cache")
+		SetHeader("Cache-Control", "no-cache")
 
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/hex", woc.url, txID))
 	if err != nil {
@@ -105,9 +104,7 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	}
 
 	var exchangeRateResponse dto.BSVExchangeRateResponse
-	req := woc.httpClient.
-		R().
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+	req := woc.httpClient.R()
 
 	res, err := req.
 		SetResult(&exchangeRateResponse).
@@ -172,81 +169,26 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 	if len(txIDs) == 0 {
 		return nil, fmt.Errorf("no txids provided")
 	}
-
 	if beef == nil {
 		return nil, fmt.Errorf("beef is required to post transactions")
 	}
 
-	rawTxs := make([][]byte, 0, len(txIDs))
-	for _, txid := range txIDs {
-		tx := beef.FindTransaction(txid)
-		if tx == nil {
-			return nil, fmt.Errorf("cannot find transaction %s in BEEF to broadcast", txid)
-		}
-
-		rawTxBytes := tx.Bytes()
-		if len(rawTxBytes) == 0 {
-			return nil, fmt.Errorf("empty raw transaction bytes for txid: %s", txid)
-		}
-		rawTxs = append(rawTxs, rawTxBytes)
+	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract raw transactions: %w", err)
 	}
 
 	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
-	delayDuration := 3 * time.Second
-	var delay bool
 
 	for i, txid := range txIDs {
-		if delay {
-			select {
-			case <-ctx.Done():
-				return nil, fmt.Errorf("context canceled while waiting to broadcast transaction %s: %w", txid, ctx.Err())
-			case <-time.After(delayDuration):
+		if i != 0 {
+			if err := waitOrCancel(ctx, woc.broadcastDelay, txid); err != nil {
+				return nil, err
 			}
 		}
-		delay = true
-
-		status, returnedTxid, err := woc.broadcast(ctx, rawTxs[i])
-		notes := []string{}
-		var result wdk.PostedTxIDResultStatus
-
-		if err != nil {
-			result = wdk.PostedTxIDResultError
-			notes = append(notes, fmt.Sprintf("broadcast error: %v", err))
-			returnedTxid = txid
-		} else {
-			switch status {
-			case StatusSuccess:
-				result = wdk.PostedTxIDResultSuccess
-			case StatusAlreadyBroadcasted:
-				result = wdk.PostedTxIDResultAlreadyKnown
-				notes = append(notes, "Transaction already in mempool")
-			case StatusDoubleSpend:
-				result = wdk.PostedTxIDResultDoubleSpend
-				notes = append(notes, "Possible double spend (txn-mempool-conflict)")
-			case StatusMissingInputs:
-				result = wdk.PostedTxIDResultMissingInputs
-				notes = append(notes, "Missing inputs (possible double spend)")
-			case StatusError:
-				result = wdk.PostedTxIDResultError
-				notes = append(notes, "Error broadcasting transaction")
-			default:
-				result = wdk.PostedTxIDResultError
-				notes = append(notes, "Unknown error broadcasting transaction")
-			}
-		}
-
-		convertedNotes := convertNotes(notes)
-
-		txResults = append(txResults, wdk.PostedTxID{
-			Result:       result,
-			TxID:         returnedTxid,
-			DoubleSpend:  status == StatusDoubleSpend || status == StatusMissingInputs,
-			AlreadyKnown: status == StatusAlreadyBroadcasted,
-			Notes:        convertedNotes,
-		})
+		result := woc.processSingleTx(ctx, txid, rawTxs[i])
+		txResults = append(txResults, result)
 	}
 
-	return &wdk.PostedBEEF{
-		TxIDResults: txResults,
-	}, nil
+	return &wdk.PostedBEEF{TxIDResults: txResults}, nil
 }

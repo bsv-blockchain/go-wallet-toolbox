@@ -13,9 +13,10 @@ import (
 )
 
 type ServicesFixture interface {
+	Bitails() BitailsFixture
 	WhatsOnChain() WhatsOnChainFixture
 	ARC() ARCFixture
-
+	BHS() BHSFixture
 	Services() WalletServicesFixture
 
 	Network() defs.BSVNetwork
@@ -37,6 +38,8 @@ type servicesFixture struct {
 	walletServicesConfig *defs.WalletServices
 	woc                  WhatsOnChainFixture
 	arc                  ARCFixture
+	bitails              BitailsFixture
+	bhs                  BHSFixture
 	network              defs.BSVNetwork
 }
 
@@ -52,12 +55,15 @@ func GivenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFixture {
 	transport := httpmock.NewMockTransport()
 	client := resty.New()
-	client.GetClient().Transport = transport
+	client.SetTransport(transport)
 
 	servicesConfig := defs.DefaultServicesConfig(network)
+	servicesConfig.WhatsOnChain.BroadcastDelay = 0
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
 	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
+	bitailsFx := NewBitailsFixture(t, WithTransport(transport), WithNetwork(network))
+	bhsFx := NewBHSFixture(t, WithTransport(transport))
 
 	return &servicesFixture{
 		t:                    t,
@@ -68,7 +74,9 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 		walletServicesConfig: &servicesConfig,
 		network:              network,
 		woc:                  wocFx,
+		bhs:                  bhsFx,
 		arc:                  arcFx,
+		bitails:              bitailsFx,
 	}
 }
 
@@ -78,6 +86,14 @@ func (f *servicesFixture) WhatsOnChain() WhatsOnChainFixture {
 
 func (f *servicesFixture) ARC() ARCFixture {
 	return f.arc
+}
+
+func (f *servicesFixture) Bitails() BitailsFixture {
+	return f.bitails
+}
+
+func (f *servicesFixture) BHS() BHSFixture {
+	return f.bhs
 }
 
 func (f *servicesFixture) WithDefaultConfig() *services.WalletServices {

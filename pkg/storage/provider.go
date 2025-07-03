@@ -451,10 +451,21 @@ func (p *Provider) FindKnownTx(ctx context.Context, txID string) (*entity.KnownT
 		return nil, fmt.Errorf("invalid transaction ID: %w", err)
 	}
 
-	knownTx, err := p.repo.FindProvenTx(ctx, txID)
+	knownTx, err := p.repo.FindKnownTx(ctx, txID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find known tx: %w", err)
 	}
 
 	return knownTx, nil
+}
+
+// FindUserTransactionByReference retrieves a user transaction by userID and its reference.
+// NOTE: It returns nil if the transaction is not found.
+func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
+	txEntity, err := p.repo.Transactions.FindTransactionByReference(ctx, userID, reference)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transaction by ID: %w", err)
+	}
+
+	return txEntity, nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -109,6 +110,13 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 }
 
 func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*models.Output, error) {
+	tags := slices.Map(output.Tags, func(tag string) *models.Tag {
+		return &models.Tag{
+			Name:   tag,
+			UserID: userID,
+		}
+	})
+
 	var lockingScript []byte
 	if output.LockingScript != nil {
 		var err error
@@ -134,6 +142,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
 		BasketName:         output.BasketName,
+		Tags:               tags,
 	}
 
 	if out.Spendable && out.Change {
@@ -176,7 +185,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	return nil
 }
 
-func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*wdk.TableTransaction, error) {
+func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
 	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
 	if err != nil {
@@ -186,11 +195,11 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 		return nil, fmt.Errorf("failed to find transaction: %w", err)
 	}
 
-	return txs.mapModelToTableTransaction(&transaction), nil
+	return txs.mapModelToTransactionEntity(&transaction), nil
 
 }
 
-func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error) {
+func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
 	transaction := models.Transaction{}
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
@@ -203,7 +212,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
 	}
 
-	return txs.mapModelToTableTransaction(&transaction), nil
+	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
 func (txs *Transactions) SpendTransaction(
@@ -218,7 +227,7 @@ func (txs *Transactions) SpendTransaction(
 			Where("id = ?", updatedTx.TransactionID).
 			Updates(map[string]any{
 				"tx_id":      updatedTx.TxID,
-				"input_beef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the ProvenTxReq (storage-wide)
+				"input_beef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the KnownTx (storage-wide)
 				"status":     updatedTx.TxStatus,
 			}).Error
 		if err != nil {
@@ -235,7 +244,7 @@ func (txs *Transactions) SpendTransaction(
 			return err
 		}
 
-		return upsertProvenTxReq(tx, &entity.UpsertProvenTxReq{
+		return upsertKnownTx(tx, &entity.UpsertKnownTx{
 			TxID:          updatedTx.TxID,
 			Status:        updatedTx.ReqTxStatus,
 			RawTx:         updatedTx.RawTx,
@@ -311,7 +320,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 			return err
 		}
 
-		return updateProvenTxStatus(tx, txID, provenTxReqStatus, historyNote, historyAttrs)
+		return updateKnownTxStatus(tx, txID, provenTxReqStatus, historyNote, historyAttrs)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
@@ -327,25 +336,25 @@ func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) er
 		}).Error
 }
 
-func (txs *Transactions) mapModelToTableTransaction(model *models.Transaction) *wdk.TableTransaction {
-	return &wdk.TableTransaction{
-		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
-		TransactionID: model.ID,
-		UserID:        model.UserID,
-		Status:        model.Status,
-		Reference:     primitives.Base64String(model.Reference),
-		IsOutgoing:    model.IsOutgoing,
-		Satoshis:      model.Satoshis,
-		Description:   model.Description,
-		Version:       to.Ptr(model.Version),
-		LockTime:      to.Ptr(model.LockTime),
-		TxID:          model.TxID,
-		InputBEEF:     model.InputBeef,
+func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {
+	return &entity.Transaction{
+		ID:          model.ID,
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
+		UserID:      model.UserID,
+		Status:      model.Status,
+		Reference:   model.Reference,
+		IsOutgoing:  model.IsOutgoing,
+		Satoshis:    model.Satoshis,
+		Description: model.Description,
+		Version:     model.Version,
+		LockTime:    model.LockTime,
+		TxID:        model.TxID,
+		InputBEEF:   model.InputBeef,
 	}
 }
 
-func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*wdk.TableTransaction, int64, error) {
+func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error) {
 	var actions []*models.Transaction
 	var total int64
 
@@ -358,18 +367,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		}
 
 		if len(filter.Labels) > 0 {
-			labelSubQuery := tx.Model(&models.TransactionLabels{}).
-				Select("transaction_id").
-				Where("label_name IN ?", filter.Labels).
-				Where("label_user_id = ?", userID)
-
-			if filter.IncludeAllLabels {
-				labelSubQuery = labelSubQuery.
-					Group("transaction_id").
-					Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
-			}
-
-			query = query.Where("id IN (?)", labelSubQuery)
+			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
 		if err := query.Count(&total).Error; err != nil {
@@ -395,7 +393,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		return nil, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return slices.Map(actions, txs.mapModelToTableTransaction), total, nil
+	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil
 }
 
 func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {
@@ -424,4 +422,19 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
 	}
 	return labelsMap, nil
+}
+
+func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
+	return func(query *gorm.DB) *gorm.DB {
+		subQuery := tx.Model(&models.TransactionLabels{}).
+			Select("transaction_id").
+			Where("label_name IN ?", filter.Labels).
+			Where("label_user_id = ?", userID)
+
+		if filter.LabelQueryMode == defs.QueryModeAll {
+			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+		}
+
+		return query.Where("id IN (?)", subQuery)
+	}
 }

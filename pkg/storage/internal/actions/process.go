@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -17,21 +18,21 @@ import (
 )
 
 type process struct {
-	logger       *slog.Logger
-	txRepo       TransactionsRepo
-	outputRepo   OutputRepo
-	provenTxRepo ProvenTxRepo
-	services     wdk.Services
+	logger      *slog.Logger
+	txRepo      TransactionsRepo
+	outputRepo  OutputRepo
+	knownTxRepo KnownTxRepo
+	services    wdk.Services
 }
 
-func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, provenTxRepo ProvenTxRepo, services wdk.Services) *process {
+func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, knownTxRepo KnownTxRepo, services wdk.Services) *process {
 	logger = logging.Child(logger, "processAction")
 	return &process{
-		logger:       logger,
-		txRepo:       txRepo,
-		outputRepo:   outputRepo,
-		provenTxRepo: provenTxRepo,
-		services:     services,
+		logger:      logger,
+		txRepo:      txRepo,
+		outputRepo:  outputRepo,
+		knownTxRepo: knownTxRepo,
+		services:    services,
 	}
 }
 
@@ -67,17 +68,17 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	// TODO: Services::nLockTimeIsFinal(tx)
 
-	tableTx, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
+	txEntity, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
 	if err != nil {
 		return fmt.Errorf("failed to find transaction by reference: %w", err)
 	}
 
-	err = p.validateStateOfTableTx(*args.Reference, tableTx)
+	err = p.validateStateOfTableTx(*args.Reference, txEntity)
 	if err != nil {
 		return err
 	}
 
-	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, tableTx.TransactionID)
+	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, txEntity.ID)
 	if err != nil {
 		return fmt.Errorf("failed to find inputs and outputs of transaction: %w", err)
 	}
@@ -89,7 +90,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	// TODO: Commission; but it requires Commission table (it needs to be created & new rows added during "createAction"
 
-	// TODO: Add db transactionID to ProvenTxReq.Notify
+	// TODO: Add db transactionID to KnownTx.Notify
 
 	// TODO: Remove too long locking scripts (len > storage.maxOutputScript)
 
@@ -97,12 +98,12 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	err = p.txRepo.SpendTransaction(ctx, entity.UpdatedTx{
 		UserID:        userID,
-		TransactionID: tableTx.TransactionID,
+		TransactionID: txEntity.ID,
 		TxID:          txID,
 		TxStatus:      newTxStatus,
 		ReqTxStatus:   newReqStatus,
 		RawTx:         args.RawTx,
-		InputBeef:     tableTx.InputBEEF,
+		InputBeef:     txEntity.InputBEEF,
 		Tx:            tx,
 	}, history.ProcessActionHistoryNote, history.UserIDHistoryAttr(userID))
 	if err != nil {
@@ -112,7 +113,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	return nil
 }
 
-func (p *process) validateStateOfTableTx(reference string, tableTx *wdk.TableTransaction) error {
+func (p *process) validateStateOfTableTx(reference string, tableTx *entity.Transaction) error {
 	if tableTx == nil {
 		return fmt.Errorf("transaction with reference (%s) not found in the database", reference)
 	}
@@ -132,14 +133,14 @@ func (p *process) validateStateOfTableTx(reference string, tableTx *wdk.TableTra
 	return nil
 }
 
-func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*wdk.TableOutput) error {
+func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*entity.Output) error {
 	for _, output := range outputs {
 		if output.Change {
 			continue
 		}
 
 		if output.LockingScript == nil {
-			return fmt.Errorf("locking script is nil for output %d", output.OutputID)
+			return fmt.Errorf("locking script is nil for output %d", output.ID)
 		}
 
 		voutInt := must.ConvertToIntFromUnsigned(output.Vout)
@@ -147,10 +148,10 @@ func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*w
 			return fmt.Errorf("output index %d is out of range of provided tx outputs count %d", voutInt, len(tx.Outputs))
 		}
 
-		fromDB := output.LockingScript.Hex()
-		providedInArgs := tx.Outputs[voutInt].LockingScript.String()
-		if providedInArgs != fromDB {
-			return fmt.Errorf("locking script mismatch at vout: %d, provided %s, calculated from raw tx: %s", voutInt, providedInArgs, fromDB)
+		fromDB := output.LockingScript
+		providedInArgs := tx.Outputs[voutInt].LockingScript.Bytes()
+		if !bytes.Equal(providedInArgs, fromDB) {
+			return fmt.Errorf("locking script mismatch at vout: %d, provided %x, calculated from raw tx: %x", voutInt, providedInArgs, fromDB)
 		}
 	}
 	return nil
@@ -189,7 +190,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		}, nil
 	}
 
-	beef, err := p.provenTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
+	beef, err := p.knownTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -233,9 +234,9 @@ func (p *process) noteForAggregation(aggBroadcastResult *wdk.AggregatedPostedTxI
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
-	reqTxStatus, err := p.provenTxRepo.FindProvenTxStatus(ctx, txID)
+	reqTxStatus, err := p.knownTxRepo.FindKnownTxStatus(ctx, txID)
 	if err != nil {
-		return "", fmt.Errorf("failed to find proven tx status: %w", err)
+		return "", fmt.Errorf("failed to find known tx status: %w", err)
 	}
 
 	switch reqTxStatus.BroadcastStatus() {

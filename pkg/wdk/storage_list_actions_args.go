@@ -1,6 +1,7 @@
 package wdk
 
 import (
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
@@ -9,7 +10,7 @@ type ListActionsArgs struct {
 	Labels                           []primitives.StringUnder300                 `json:"labels,omitempty"`
 	Limit                            primitives.PositiveIntegerDefault10Max10000 `json:"limit,omitempty"`
 	Offset                           primitives.PositiveIntegerDefault10Max10000 `json:"offset,omitempty"`
-	LabelQueryMode                   *primitives.LabelQueryModeString            `json:"labelQueryMode"`            // "all=true" or "any=false"
+	LabelQueryMode                   *defs.QueryMode                             `json:"labelQueryMode"`
 	SeekPermissions                  *primitives.BooleanDefaultTrue              `json:"seekPermissions,omitempty"` // If false, operation is not allowed
 	IncludeInputs                    *primitives.BooleanDefaultFalse             `json:"includeInputs,omitempty"`
 	IncludeOutputs                   *primitives.BooleanDefaultFalse             `json:"includeOutputs,omitempty"`
@@ -21,8 +22,8 @@ type ListActionsArgs struct {
 
 // ListActionsResult defines the result of listing actions
 type ListActionsResult struct {
-	TotalActions uint64         `json:"totalActions"`
-	Actions      []WalletAction `json:"actions"`
+	TotalActions primitives.PositiveInteger `json:"totalActions"`
+	Actions      []WalletAction             `json:"actions"`
 }
 
 // WalletAction represents a transaction in the wallet

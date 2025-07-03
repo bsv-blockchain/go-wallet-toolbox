@@ -36,6 +36,21 @@ func (sm SyncMap) JSON() ([]byte, error) {
 	return data, nil
 }
 
+// MaxUpdatedAt returns the latest non-nil MaxUpdatedAt timestamp among all entities in the SyncMap, or nil if none exist.
+func (sm SyncMap) MaxUpdatedAt() *time.Time {
+	var maxUpdatedAt *time.Time
+	for _, entity := range sm {
+		if entity.MaxUpdatedAt == nil {
+			continue
+		}
+		if maxUpdatedAt == nil || entity.MaxUpdatedAt.After(*maxUpdatedAt) {
+			maxUpdatedAt = entity.MaxUpdatedAt
+
+		}
+	}
+	return maxUpdatedAt
+}
+
 // SyncMapEntity holds synchronization state for a specific entity, including id mapping, update time and item count.
 type SyncMapEntity struct {
 	// EntityName is the name of the entity in the sync map.
@@ -43,7 +58,7 @@ type SyncMapEntity struct {
 
 	// IDMap maps foreign ids to local ids
 	// NOTE: Some entities don't have idMaps (CertificateField, TxLabelMap and OutputTagMap)
-	IDMap map[int]int `json:"idMap"`
+	IDMap map[uint]uint `json:"idMap"`
 
 	// MaxUpdatedAt - the maximum updated_at value seen for this entity over chunks received during this update cycle.
 	MaxUpdatedAt *time.Time `json:"maxUpdated_at,omitempty"`
@@ -58,6 +73,6 @@ type SyncMapEntity struct {
 func NewSyncMapEntity(entityName EntityName) *SyncMapEntity {
 	return &SyncMapEntity{
 		EntityName: entityName,
-		IDMap:      make(map[int]int),
+		IDMap:      make(map[uint]uint),
 	}
 }

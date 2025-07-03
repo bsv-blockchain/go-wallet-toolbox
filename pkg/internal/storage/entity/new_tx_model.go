@@ -1,6 +1,8 @@
 package entity
 
 import (
+	"fmt"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
@@ -44,4 +46,37 @@ type NewOutput struct {
 	Description        string
 	Vout               uint32
 	SenderIdentityKey  *string
+	Tags               []string
+}
+
+func (no *NewOutput) ToOutput(id uint, userID int, transactionID uint) (*Output, error) {
+	var lockingScript []byte
+	if no.LockingScript != nil {
+		var err error
+		lockingScript, err = no.LockingScript.ToBytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert locking script to bytes: %w", err)
+		}
+	}
+
+	return &Output{
+		ID:                 id,
+		UserID:             userID,
+		TransactionID:      transactionID,
+		Satoshis:           no.Satoshis.Int64(),
+		Vout:               no.Vout,
+		LockingScript:      lockingScript,
+		CustomInstructions: no.CustomInstructions,
+		DerivationPrefix:   no.DerivationPrefix,
+		DerivationSuffix:   no.DerivationSuffix,
+		BasketName:         no.BasketName,
+		Spendable:          no.Spendable,
+		Change:             no.Change,
+		Description:        no.Description,
+		ProvidedBy:         string(no.ProvidedBy),
+		Purpose:            no.Purpose,
+		Type:               string(no.Type),
+		SenderIdentityKey:  no.SenderIdentityKey,
+		Tags:               no.Tags,
+	}, nil
 }

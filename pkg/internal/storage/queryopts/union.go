@@ -17,6 +17,12 @@ func WithSince(since Since) Options {
 	}
 }
 
+func ModifyOptions(opts []Options, modifyFunc func(*Options)) {
+	for i := range opts {
+		modifyFunc(&opts[i])
+	}
+}
+
 func MergeOptions(opts []Options) Options {
 	if len(opts) == 0 {
 		return Options{}

@@ -53,6 +53,11 @@ wallet_services:
         token: mainnet_9596de07e92300c6287e4393594ae39c
         url: https://arc.taal.com
         wait_for: ""
+    bhs:
+        api_key: ""
+        url: http://localhost:8080
+    bitails:
+        api_key: ""
     bitails_api_key: null
     chaintracks: null
     chaintracks_fiat_exchange_rates_url: ""
@@ -68,6 +73,7 @@ wallet_services:
     fiat_update_interval: 24h0m0s
     whats_on_chain:
         api_key: ""
+        broadcast_delay: 3s
         bsv_exchange_rate:
             base: USD
             rates: 47.52
