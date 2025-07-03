@@ -3,7 +3,7 @@ package testabilities
 import (
 	"bytes"
 	"context"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
@@ -241,10 +241,8 @@ func (a *walletActionOutputAssertion) equalTags(tags1, tags2 []string) bool {
 		return false
 	}
 
-	for i, tag1 := range tags1 {
-		if !strings.Contains(tag1, tags2[i]) {
-			return false
-		}
-	}
-	return true
+	slices.Sort(tags1)
+	slices.Sort(tags2)
+
+	return slices.Equal(tags1, tags2)
 }

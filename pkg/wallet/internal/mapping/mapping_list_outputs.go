@@ -45,22 +45,6 @@ func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 		result.IncludeLockingScripts = true
 	}
 
-	if args.IncludeCustomInstructions != nil {
-		result.IncludeCustomInstructions = *args.IncludeCustomInstructions
-	}
-
-	if args.IncludeTags != nil {
-		result.IncludeTags = *args.IncludeTags
-	}
-
-	if args.IncludeLabels != nil {
-		result.IncludeLabels = *args.IncludeLabels
-	}
-
-	if args.SeekPermission != nil {
-		result.SeekPermission = *args.SeekPermission
-	}
-
 	return result
 }
 
