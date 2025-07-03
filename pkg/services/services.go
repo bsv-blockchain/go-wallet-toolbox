@@ -45,10 +45,10 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 		panic("chain is required")
 	}
 
-	wocService := whatsonchain.New(option.HttpClient, logger, config.Chain, config.WhatsOnChain)
-	arcService := arc.NewARCService(logger, option.HttpClient, config.ArcConfig)
-	bitailsService := bitails.New(option.HttpClient, logger, config.Chain, config.Bitails)
-	bhsService := bhs.NewBlockHeadersService(option.HttpClient, logger, config.Chain, config.BHS)
+	wocService := whatsonchain.New(option.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
+	arcService := arc.NewARCService(logger, option.RestyClientFactory.New(), config.ArcConfig)
+	bitailsService := bitails.New(option.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
+	bhsService := bhs.NewBlockHeadersService(option.RestyClientFactory.New(), logger, config.Chain, config.BHS)
 
 	return &WalletServices{
 		chain:        config.Chain,

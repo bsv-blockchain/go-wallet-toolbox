@@ -55,7 +55,7 @@ func GivenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFixture {
 	transport := httpmock.NewMockTransport()
 	client := resty.New()
-	client.GetClient().Transport = transport
+	client.SetTransport(transport)
 
 	servicesConfig := defs.DefaultServicesConfig(network)
 	servicesConfig.WhatsOnChain.BroadcastDelay = 0
