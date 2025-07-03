@@ -8,8 +8,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -68,7 +66,6 @@ func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*w
 	res, err := woc.httpClient.R().
 		SetContext(ctx).
 		SetResult(&hdrResp).
-		AddRetryCondition(retryOnTooManyRequestsStatus).
 		Get(fmt.Sprintf("%s/block/%s/header", woc.url, blockHash))
 
 	if err != nil {
@@ -95,8 +92,7 @@ func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProo
 	var proof tscProof
 	req := woc.httpClient.R().
 		SetContext(ctx).
-		SetResult(&proof).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		SetResult(&proof)
 
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/proof/tsc", woc.url, txID))
 	if err != nil {
@@ -151,8 +147,12 @@ func buildLevel0PathElement(txid string, txidHash *chainhash.Hash, node string, 
 		return nil, 0, fmt.Errorf("invalid node hash at level 0: %w", err)
 	}
 
+	offset, err := to.UInt64(index)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid index %d: %w", index, err)
+	}
 	txidLeaf := &transaction.PathElement{
-		Offset: must.ConvertToUInt64(index),
+		Offset: offset,
 		Hash:   txidHash,
 		Txid:   to.Ptr(true),
 	}
@@ -193,8 +193,12 @@ func buildUpperLevels(nodes []string, startLevel int, startIndex int) ([][]*tran
 func createPathElement(node string, siblingIndex int, isLevel0 bool, txid string) (*transaction.PathElement, error) {
 	const duplicateNodeMarker = "*"
 
+	offset, err := to.UInt64(siblingIndex)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sibling index %d: %w", siblingIndex, err)
+	}
 	element := &transaction.PathElement{
-		Offset: must.ConvertToUInt64(siblingIndex),
+		Offset: offset,
 	}
 
 	if node == duplicateNodeMarker || (isLevel0 && node == txid) {
@@ -208,9 +212,4 @@ func createPathElement(node string, siblingIndex int, isLevel0 bool, txid string
 	}
 
 	return element, nil
-}
-
-// retryOnTooManyRequestsStatus defines retry condition for Too Many Requests response.
-func retryOnTooManyRequestsStatus(res *resty.Response, err error) bool {
-	return res.StatusCode() == http.StatusTooManyRequests
 }

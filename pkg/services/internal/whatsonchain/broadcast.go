@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -46,8 +47,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		R().
 		SetContext(ctx).
 		SetResult(&resp).
-		SetBody(broadcastRequest{TxHex: rawTxHex}).
-		AddRetryCondition(retryOnTooManyRequestsStatus)
+		SetBody(broadcastRequest{TxHex: rawTxHex})
 
 	res, err := req.Post(url)
 	if err != nil {
@@ -128,7 +128,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 			Result: wdk.PostedTxIDResultError,
 			TxID:   txid,
 			Error:  broadcastErr,
-			Notes:  convertNotes([]string{fmt.Sprintf("broadcast error: %v", broadcastErr)}),
+			Notes:  utils.ConvertNotes([]string{fmt.Sprintf("broadcast error: %v", broadcastErr)}),
 		}
 	}
 
@@ -154,7 +154,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		BlockHash:    blockHash,
 		BlockHeight:  blockHeight,
 		Error:        firstNonNilError(fetchErr),
-		Notes:        convertNotes(notes),
+		Notes:        utils.ConvertNotes(notes),
 		// NOTE: MerklePath is not fetched here because that would require additional API call
 	}
 }

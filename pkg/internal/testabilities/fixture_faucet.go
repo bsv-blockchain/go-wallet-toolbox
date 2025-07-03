@@ -59,21 +59,10 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		InputBeef: beef,
 	}
 
-	if txObj.MerklePath != nil {
-		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
-		require.NoError(f.t, err)
-
-		knownTx.Status = wdk.ProvenTxStatusCompleted
-		knownTx.BlockHeight = &txObj.MerklePath.BlockHeight
-		knownTx.MerklePath = txObj.MerklePath.Bytes()
-		knownTx.MerkleRoot = to.Ptr(merkleRoot)
-		knownTx.BlockHash = to.Ptr(TestBlockHash)
-	}
-
 	transaction := &models.Transaction{
 		UserID:      f.user.ID,
-		Status:      wdk.TxStatusCompleted,
-		Reference:   MockReference,
+		Status:      wdk.TxStatusUnproven,
+		Reference:   fixtures.FaucetReference(spec.ID()),
 		IsOutgoing:  false,
 		Satoshis:    satoshis.Int64(),
 		Description: "test-faucet-tx",
@@ -119,6 +108,19 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		BasketName:         f.basketName,
 
 		Output: output,
+	}
+
+	if txObj.MerklePath != nil {
+		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
+		require.NoError(f.t, err)
+
+		knownTx.Status = wdk.ProvenTxStatusCompleted
+		knownTx.BlockHeight = &txObj.MerklePath.BlockHeight
+		knownTx.MerklePath = txObj.MerklePath.Bytes()
+		knownTx.MerkleRoot = to.Ptr(merkleRoot)
+		knownTx.BlockHash = to.Ptr(TestBlockHash)
+
+		transaction.Status = wdk.TxStatusCompleted
 	}
 
 	tx := f.db.DB.WithContext(f.t.Context())

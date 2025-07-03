@@ -9,6 +9,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bhs"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/options"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
@@ -44,40 +45,42 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 		panic("chain is required")
 	}
 
-	woc := whatsonchain.New(option.HttpClient, logger, config.Chain, config.WhatsOnChain)
-	arcService := arc.NewARCService(logger, option.HttpClient, config.ArcConfig)
-	bhsService := bhs.NewBlockHeadersService(option.HttpClient, logger, config.Chain, config.BHS)
+	wocService := whatsonchain.New(option.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
+	arcService := arc.NewARCService(logger, option.RestyClientFactory.New(), config.ArcConfig)
+	bitailsService := bitails.New(option.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
+	bhsService := bhs.NewBlockHeadersService(option.RestyClientFactory.New(), logger, config.Chain, config.BHS)
 
 	return &WalletServices{
 		chain:        config.Chain,
 		config:       &config,
 		logger:       logger,
-		whatsonchain: woc,
+		whatsonchain: wocService,
 
 		rawTxServices: servicequeue.NewQueue1(
 			logger,
 			"RawTx",
-			servicequeue.NewService1(whatsonchain.ServiceName, woc.RawTx),
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.RawTx),
 		),
 
 		postBEEFServices: servicequeue.NewQueue2(
 			logger,
 			"PostBEEF",
 			servicequeue.NewService2(arc.ServiceName, arcService.PostBEEF),
-			servicequeue.NewService2(whatsonchain.ServiceName, woc.PostBEEF),
+			servicequeue.NewService2(whatsonchain.ServiceName, wocService.PostBEEF),
+			servicequeue.NewService2(bitails.ServiceName, bitailsService.PostBEEF),
 		),
 
 		getMerklePathServices: servicequeue.NewQueue1(
 			logger,
 			"MerklePath",
 			servicequeue.NewService1(arc.ServiceName, arcService.MerklePath),
-			servicequeue.NewService1(whatsonchain.ServiceName, woc.MerklePath),
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.MerklePath),
 		),
 
 		chainHeaderServices: servicequeue.NewQueue(
 			logger,
 			"FindChainTipHeader",
-			servicequeue.NewService(whatsonchain.ServiceName, woc.FindChainTipHeader),
+			servicequeue.NewService(whatsonchain.ServiceName, wocService.FindChainTipHeader),
 			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
 		),
 	}

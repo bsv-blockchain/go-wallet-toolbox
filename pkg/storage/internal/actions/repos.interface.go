@@ -19,12 +19,13 @@ type OutputRepo interface {
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
+	SaveOutput(ctx context.Context, output *entity.Output) error
 }
 
 type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
-	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*wdk.TableTransaction, error)
-	FindTransactionByReference(ctx context.Context, userID int, reference string) (*wdk.TableTransaction, error)
+	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
+	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	SpendTransaction(
 		ctx context.Context,
 		updatedTx entity.UpdatedTx,
@@ -39,7 +40,7 @@ type TransactionsRepo interface {
 		historyNote string,
 		historyAttrs map[string]any,
 	) error
-	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*wdk.TableTransaction, int64, error)
+	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 }
 
