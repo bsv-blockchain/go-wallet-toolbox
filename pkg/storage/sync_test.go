@@ -22,8 +22,8 @@ func TestSyncProcess(t *testing.T) {
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
-	ownedMinedTx := seed.OwnsMinedTransaction()
-	ownedTx := seed.OwnsTransaction()
+	ownedMinedTx := seed.SetLabels(commonLabel, customLabelTx1).OwnsMinedTransaction()
+	ownedTx := seed.SetLabels(commonLabel, customLabelTx2).OwnsTransaction()
 	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
 	// and:
@@ -37,7 +37,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 41, inserts)
+	assert.Equal(t, 49, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:

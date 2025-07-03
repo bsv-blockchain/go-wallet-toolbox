@@ -111,6 +111,12 @@ func (p *chunkProcessor) process() (err error) {
 		}
 	}
 
+	for _, labelMap := range p.chunk.TxLabelMaps {
+		if err = p.upsertLabelMap(labelMap); err != nil {
+			return fmt.Errorf("failed to upsert label: %w", err)
+		}
+	}
+
 	err = p.parent.repo.UpdateSyncState(p.ctx, p.syncState)
 	if err != nil {
 		return fmt.Errorf("failed to update sync state: %w", err)
@@ -334,12 +340,26 @@ func (p *chunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 		return fmt.Errorf("chunk label user ID %d does not match chunk user ID %d", chunkLabel.UserID, p.chunk.User.UserID)
 	}
 
-	isNew, labelNumID, err := p.parent.repo.UpsertLabelForSync(p.ctx, &entity.Label{
+	entityLabel := &entity.Label{
 		CreatedAt: chunkLabel.CreatedAt,
 		UpdatedAt: chunkLabel.UpdatedAt,
 		UserID:    p.user.ID,
 		Name:      chunkLabel.Label,
-	})
+	}
+
+	if chunkLabel.IsDeleted {
+		deleted, err := p.parent.repo.DeleteLabelForSync(p.ctx, entityLabel)
+		if err != nil {
+			return fmt.Errorf("failed to delete label %q: %w", chunkLabel.Label, err)
+		}
+
+		if deleted {
+			p.updateOperations(singleUpdate)
+		}
+		return nil
+	}
+
+	isNew, labelNumID, err := p.parent.repo.UpsertLabelForSync(p.ctx, entityLabel)
 	if err != nil {
 		return fmt.Errorf("failed to upsert label %q: %w", chunkLabel.Label, err)
 	}
@@ -349,6 +369,67 @@ func (p *chunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 		readerID: chunkLabel.TxLabelID,
 		writerID: labelNumID,
 	})
+
+	return nil
+}
+
+func (p *chunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) error {
+	transactionIDOnWriterSide, err := p.translateID(wdk.TransactionEntityName, must.ConvertToUInt(chunkLabelMap.TransactionID))
+	if err != nil {
+		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkLabelMap.TransactionID, err)
+	}
+
+	labelNumIDOrWriterSide, err := p.translateID(wdk.TxLabelEntityName, must.ConvertToUInt(chunkLabelMap.TxLabelID))
+	if err != nil {
+		return fmt.Errorf("failed to translate label ID %d: %w", chunkLabelMap.TxLabelID, err)
+	}
+
+	labelEntity, err := p.getLabelByNumID(labelNumIDOrWriterSide)
+	if err != nil {
+		return fmt.Errorf("failed to get label by num ID %d: %w", labelNumIDOrWriterSide, err)
+	}
+
+	if labelEntity == nil {
+		if chunkLabelMap.IsDeleted {
+			// This is the case when the label has already been deleted on upsertLabel (along with matching label map).
+			return nil
+		} else {
+			return fmt.Errorf("label with num ID %d not found for label map with transaction ID %d", labelNumIDOrWriterSide, chunkLabelMap.TransactionID)
+		}
+	}
+
+	if labelEntity.UserID != p.user.ID {
+		return fmt.Errorf("label with num ID %d belongs to user ID %d, but current user ID is %d", labelNumIDOrWriterSide, labelEntity.UserID, p.user.ID)
+	}
+
+	entityLabelMap := &entity.LabelMap{
+		CreatedAt:     chunkLabelMap.CreatedAt,
+		UpdatedAt:     chunkLabelMap.UpdatedAt,
+		Name:          labelEntity.Name,
+		UserID:        labelEntity.UserID,
+		TransactionID: transactionIDOnWriterSide,
+	}
+
+	if chunkLabelMap.IsDeleted {
+		deleted, err := p.parent.repo.DeleteLabelMapForSync(p.ctx, entityLabelMap)
+		if err != nil {
+			return fmt.Errorf("failed to delete label map for TxLabelID %d and TransactionID %d: %w", chunkLabelMap.TxLabelID, chunkLabelMap.TransactionID, err)
+		}
+
+		if deleted {
+			p.updateOperations(singleUpdate)
+		}
+		return nil
+	}
+
+	isNew, err := p.parent.repo.UpsertLabelMapForSync(p.ctx, entityLabelMap)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert transaction label map for TxLabelID %d and TransactionID %d: %w", chunkLabelMap.TxLabelID, chunkLabelMap.TransactionID, err)
+	}
+
+	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
+	p.updateSyncState(wdk.TxLabelMapEntityName, chunkLabelMap.UpdatedAt, 1)
 
 	return nil
 }
@@ -405,7 +486,9 @@ func (p *chunkProcessor) emptyChunk() bool {
 		len(p.chunk.ProvenTxs) == 0 &&
 		len(p.chunk.ProvenTxReqs) == 0 &&
 		len(p.chunk.Transactions) == 0 &&
-		len(p.chunk.Outputs) == 0
+		len(p.chunk.Outputs) == 0 &&
+		len(p.chunk.TxLabels) == 0 &&
+		len(p.chunk.TxLabelMaps) == 0
 }
 
 func (p *chunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) {
@@ -421,6 +504,16 @@ func (p *chunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) 
 	p.basketNameCache[basketNumID] = basketName
 
 	return basketName, nil
+}
+
+func (p *chunkProcessor) getLabelByNumID(labelNumID uint) (*entity.Label, error) {
+	// TODO: Cache this
+	label, err := p.parent.repo.FindLabelByNumIDForSync(p.ctx, labelNumID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find label by num ID %d: %w", labelNumID, err)
+	}
+
+	return label, nil
 }
 
 // updateSyncStateOnDone updates the sync state when all the processing process is done.

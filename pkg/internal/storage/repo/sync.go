@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -71,7 +72,6 @@ func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...query
 }
 
 func (s *Sync) UpsertOutputBasketForSync(ctx context.Context, entity entity.OutputBasket) (isNew bool, basketNumID uint, err error) {
-	const basketStringIDClause = "CONCAT(user_id, '.', name)"
 	model := models.OutputBasket{
 		CreatedAt:               entity.CreatedAt,
 		UpdatedAt:               entity.UpdatedAt,
@@ -82,17 +82,7 @@ func (s *Sync) UpsertOutputBasketForSync(ctx context.Context, entity entity.Outp
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
-			return db.
-				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.naming.outputBasketTableName).
-				Where("user_id = ? AND name = ?", entity.UserID, model.Name).
-				Find(&models.OutputBasket{})
-		})
-		if err != nil {
-			return err
-		}
-
-		numID, err := s.findNumericIDForOutputBasket(ctx, tx, entity.UserID, model.Name)
+		numID, err := s.saveNumericIDForOutputBasket(ctx, tx, entity.UserID, entity.Name)
 		if err != nil {
 			return err
 		}
@@ -656,7 +646,6 @@ func (s *Sync) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {
 }
 
 func (s *Sync) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (isNew bool, labelNumID uint, err error) {
-	const labelStringIDClause = "CONCAT(user_id, '.', name)"
 	model := models.Label{
 		CreatedAt: entity.CreatedAt,
 		UpdatedAt: entity.UpdatedAt,
@@ -665,17 +654,7 @@ func (s *Sync) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (is
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
-			return db.
-				Select(fmt.Sprintf("?, %s", labelStringIDClause), s.naming.labelsTableName).
-				Where("user_id = ? AND name = ?", entity.UserID, model.Name).
-				Find(&models.Label{})
-		})
-		if err != nil {
-			return err
-		}
-
-		numID, err := s.findNumericIDLookup(ctx, tx, s.naming.labelsTableName, fmt.Sprintf("%d.%s", entity.UserID, model.Name))
+		numID, err := s.saveNumericIDForLabel(ctx, tx, entity.UserID, entity.Name)
 		if err != nil {
 			return err
 		}
@@ -711,6 +690,36 @@ func (s *Sync) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (is
 	return isNew, labelNumID, nil
 }
 
+func (s *Sync) DeleteLabelForSync(ctx context.Context, entity *entity.Label) (deleted bool, err error) {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txDelete := tx.Delete(
+			&models.Label{},
+			"user_id = ? AND name = ?", entity.UserID, entity.Name,
+		)
+		if txDelete.Error != nil {
+			return fmt.Errorf("failed to delete label: %w", err)
+		}
+
+		deleted = txDelete.RowsAffected > 0
+
+		err = tx.Delete(
+			&models.TransactionLabel{},
+			"label_user_id = ? AND label_name = ?", entity.UserID, entity.Name,
+		).Error
+		if err != nil {
+			return fmt.Errorf("failed to delete label map entries: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return deleted, nil
+}
+
 type LabelsMapReadModel struct {
 	models.TransactionLabel
 	NumID uint
@@ -743,6 +752,81 @@ func (s *Sync) mapModelToTableTxLabelMap(model *LabelsMapReadModel) *wdk.TableTx
 		TxLabelID:     model.NumID,
 		IsDeleted:     model.DeletedAt.Valid,
 	}
+}
+
+func (s *Sync) FindLabelByNumIDForSync(ctx context.Context, labelNumID uint) (*entity.Label, error) {
+	const labelStringIDClause = "CONCAT(user_id, '.', name)"
+	var label models.Label
+
+	err := s.db.WithContext(ctx).Model(&models.Label{}).
+		Scopes(s.joinWithNumericIDLookupScope(labelStringIDClause, s.naming.labelsTableName, clause.InnerJoin)).
+		Where("num.num_id = ?", labelNumID).
+		First(&label).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find label name by numeric ID: %w", err)
+	}
+
+	return &entity.Label{
+		CreatedAt: label.CreatedAt,
+		UpdatedAt: label.UpdatedAt,
+		UserID:    label.UserID,
+		Name:      label.Name,
+	}, nil
+}
+
+func (s *Sync) UpsertLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (isNew bool, err error) {
+	model := models.TransactionLabel{
+		CreatedAt:     entity.CreatedAt,
+		UpdatedAt:     entity.UpdatedAt,
+		TransactionID: entity.TransactionID,
+		LabelUserID:   entity.UserID,
+		LabelName:     entity.Name,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updateTx := tx.Model(&models.TransactionLabel{}).
+			Where("transaction_id = ? AND label_user_id = ? AND label_name = ?", model.TransactionID, model.LabelUserID, model.LabelName).
+			UpdateColumn("updated_at", model.UpdatedAt)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update label map: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			return nil
+		}
+
+		err := tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create label map: %w", err)
+		}
+
+		isNew = true
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, nil
+}
+
+func (s *Sync) DeleteLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (deleted bool, err error) {
+	txDelete := s.db.WithContext(ctx).Delete(
+		&models.TransactionLabel{},
+		"transaction_id = ? AND label_user_id = ? AND label_name = ?", entity.TransactionID, entity.UserID, entity.Name,
+	)
+	if txDelete.Error != nil {
+		return false, fmt.Errorf("failed to delete label: %w", err)
+	}
+
+	deleted = txDelete.RowsAffected > 0
+	return deleted, nil
 }
 
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
@@ -781,19 +865,59 @@ func (s *Sync) joinWithNumericIDLookupScope(stringIDClause string, entityName st
 }
 func (s *Sync) findNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, stringID string) (uint, error) {
 	var numericID uint
-	err := tx.WithContext(ctx).
+	txScan := tx.WithContext(ctx).
 		Model(&models.NumericIDLookup{}).
 		Select("num_id").
 		Where("table_name = ? AND string_id = ?", tableName, stringID).
-		Scan(&numericID).Error
-	if err != nil {
-		return 0, fmt.Errorf("failed to find numeric ID for %s: %w", stringID, err)
+		Scan(&numericID)
+	if txScan.Error != nil {
+		return 0, fmt.Errorf("failed to find numeric ID for %s: %w", stringID, txScan.Error)
+	}
+
+	if txScan.RowsAffected == 0 {
+		return 0, fmt.Errorf("numeric ID not found for %s", stringID)
 	}
 
 	return numericID, nil
 }
 
-func (s *Sync) findNumericIDForOutputBasket(ctx context.Context, tx *gorm.DB, userID int, basketName string) (uint, error) {
+func (s *Sync) saveNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, stringID string) error {
+	stringIDLookup := &models.NumericIDLookup{
+		TableName: tableName,
+		StringID:  stringID,
+	}
+
+	err := tx.
+		WithContext(ctx).
+		Clauses(clause.OnConflict{
+			DoNothing: true,
+		}).
+		Create(stringIDLookup).Error
+	if err != nil {
+		return fmt.Errorf("failed to save numeric ID lookup for %s: %w", stringID, err)
+	}
+
+	return nil
+}
+
+func (s *Sync) saveNumericIDForOutputBasket(ctx context.Context, tx *gorm.DB, userID int, basketName string) (uint, error) {
 	stringID := fmt.Sprintf("%d.%s", userID, basketName)
+
+	err := s.saveNumericIDLookup(ctx, tx, s.naming.outputBasketTableName, stringID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to save numeric ID lookup for output basket: %w", err)
+	}
+
 	return s.findNumericIDLookup(ctx, tx, s.naming.outputBasketTableName, stringID)
+}
+
+func (s *Sync) saveNumericIDForLabel(ctx context.Context, tx *gorm.DB, userID int, labelName string) (uint, error) {
+	stringID := fmt.Sprintf("%d.%s", userID, labelName)
+
+	err := s.saveNumericIDLookup(ctx, tx, s.naming.labelsTableName, stringID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to save numeric ID lookup for label: %w", err)
+	}
+
+	return s.findNumericIDLookup(ctx, tx, s.naming.labelsTableName, stringID)
 }
