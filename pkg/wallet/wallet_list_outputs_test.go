@@ -18,15 +18,11 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 	}{
 		"too long originator": {
 			originator: strings.Repeat("a", 251),
-			args: func() sdk.ListOutputsArgs {
-				return fixtures.DefaultWalletListOutputsArgs()
-			},
+			args: fixtures.DefaultWalletListOutputsArgs,
 		},
 		"too long originator part": {
 			originator: "a." + strings.Repeat("b", 64) + ".c",
-			args: func() sdk.ListOutputsArgs {
-				return fixtures.DefaultWalletListOutputsArgs()
-			},
+			args: fixtures.DefaultWalletListOutputsArgs,
 		},
 		"invalid limit (too high)": {
 			originator: fixtures.DefaultOriginator,
