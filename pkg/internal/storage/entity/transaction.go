@@ -21,4 +21,5 @@ type Transaction struct {
 	LockTime    uint32
 	TxID        *string
 	InputBEEF   []byte
+	Labels      []string
 }

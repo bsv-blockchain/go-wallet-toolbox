@@ -204,6 +204,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
+		Preload("Labels").
 		First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -351,6 +352,9 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 		LockTime:    model.LockTime,
 		TxID:        model.TxID,
 		InputBEEF:   model.InputBeef,
+		Labels: slices.Map(model.Labels, func(label *models.Label) string {
+			return label.Name
+		}),
 	}
 }
 

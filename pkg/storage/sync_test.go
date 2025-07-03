@@ -61,17 +61,20 @@ func TestSyncProcess(t *testing.T) {
 	thenDBState.
 		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedMinedTx.ID())).
 		WithTxID(ownedMinedTx.ID()).
-		WithStatus(wdk.TxStatusCompleted)
+		WithStatus(wdk.TxStatusCompleted).
+		WithLabels(commonLabel, customLabelTx1)
 
 	thenDBState.
 		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTx.ID())).
 		WithTxID(ownedTx.ID()).
-		WithStatus(wdk.TxStatusUnproven)
+		WithStatus(wdk.TxStatusUnproven).
+		WithLabels(commonLabel, customLabelTx2)
 
 	thenDBState.
 		HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
 		WithoutTxID().
-		WithStatus(wdk.TxStatusUnsigned)
+		WithStatus(wdk.TxStatusUnsigned).
+		WithLabels(fixtures.CreateActionTestLabel)
 
 	// and outputs:
 	thenDBState.AllOutputs(testusers.Alice).

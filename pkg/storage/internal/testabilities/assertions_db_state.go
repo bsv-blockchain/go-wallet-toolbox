@@ -47,6 +47,7 @@ type UserTransactionAssertion interface {
 	WithStatus(state wdk.TxStatus) UserTransactionAssertion
 	WithTxID(txID string) UserTransactionAssertion
 	WithoutTxID() UserTransactionAssertion
+	WithLabels(labels ...string) UserTransactionAssertion
 }
 
 type OutputsListAssertion interface {
@@ -200,6 +201,12 @@ func (d *userTransactionAssertion) WithTxID(txID string) UserTransactionAssertio
 func (d *userTransactionAssertion) WithoutTxID() UserTransactionAssertion {
 	d.Helper()
 	assert.Nil(d, d.transaction.TxID)
+	return d
+}
+
+func (d *userTransactionAssertion) WithLabels(labels ...string) UserTransactionAssertion {
+	d.Helper()
+	assert.ElementsMatch(d, labels, d.transaction.Labels, "Expected user transaction to have the same Labels as the one requested")
 	return d
 }
 
