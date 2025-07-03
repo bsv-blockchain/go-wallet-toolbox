@@ -3,6 +3,7 @@ package services
 import (
 	"net/http"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/options"
 	"github.com/go-resty/resty/v2"
 )
@@ -19,6 +20,6 @@ func WithRestyClient(client *resty.Client) func(*options.Service) {
 		panic("client cannot be nil")
 	}
 	return func(o *options.Service) {
-		o.HttpClient = client
+		o.RestyClientFactory = httpx.NewRestyClientFactoryWithBase(client)
 	}
 }

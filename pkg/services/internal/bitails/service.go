@@ -26,21 +26,13 @@ type Bitails struct {
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.Bitails) *Bitails {
 	logger = logging.Child(logger, "Bitails").With(slog.String("network", string(network)))
 
-	if httpClient == nil {
-		panic("httpClient is required")
-	}
-
 	headers := httpx.NewHeaders().
 		AcceptJSON().
 		UserAgent().Value("go-wallet-toolbox").
 		Authorization().IfNotEmpty(config.APIKey)
 
-	client := httpClient.Clone().
-		SetRetryCount(httpx.DefaultRetryCount).
-		SetRetryWaitTime(httpx.DefaultRetryInterval).
-		SetRetryMaxWaitTime(httpx.DefaultRetryCount * httpx.DefaultRetryInterval).
+	client := httpClient.
 		SetHeaders(headers).
-		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
 

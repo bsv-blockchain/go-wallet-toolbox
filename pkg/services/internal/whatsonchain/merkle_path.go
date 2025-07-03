@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -67,7 +66,6 @@ func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*w
 	res, err := woc.httpClient.R().
 		SetContext(ctx).
 		SetResult(&hdrResp).
-		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus).
 		Get(fmt.Sprintf("%s/block/%s/header", woc.url, blockHash))
 
 	if err != nil {
@@ -94,8 +92,7 @@ func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProo
 	var proof tscProof
 	req := woc.httpClient.R().
 		SetContext(ctx).
-		SetResult(&proof).
-		AddRetryCondition(httpx.RetryOnTooManyRequestsStatus)
+		SetResult(&proof)
 
 	res, err := req.Get(fmt.Sprintf("%s/tx/%s/proof/tsc", woc.url, txID))
 	if err != nil {
