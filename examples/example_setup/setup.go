@@ -41,7 +41,6 @@ func (c *SetupConfig) Validate() error {
 	return nil
 }
 
-// loadConfig loads the config file
 func loadConfig(configFile string) (*SetupConfig, error) {
 	v := viper.New()
 	v.SetConfigFile(configFile)
@@ -59,7 +58,6 @@ func loadConfig(configFile string) (*SetupConfig, error) {
 	return &cfg, nil
 }
 
-// CreateAlice creates a new Setup struct for Alice
 func CreateAlice() *Setup {
 	cfg, err := loadConfig("examples/example_setup/example-config.yaml")
 	if err != nil {
@@ -92,7 +90,6 @@ func CreateAlice() *Setup {
 	}
 }
 
-// CreateWallet creates a new wallet
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func(), error) {
 	storageClient, cleanup, err := storage.NewClient(s.Environment.ServerURL)
 	if err != nil {

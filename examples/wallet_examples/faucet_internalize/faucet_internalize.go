@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Add beef hex directly here or use the txid to get the beef hex from the API
 var beef = ""
 
 var txID = pflag.String("txid", "15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8", "pass the chosen txid or simply change the default value when running the example")
