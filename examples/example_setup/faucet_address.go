@@ -8,6 +8,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
 )
 
+// FaucetAddress generates a BRC29 address for the given wallet
 func FaucetAddress(wallet *Setup) {
 	parts := utils.DerivationParts()
 

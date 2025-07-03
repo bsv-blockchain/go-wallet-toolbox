@@ -5,4 +5,4 @@ alice:
   private_key: "5a39d6a914e96be64873f7b954efa926a7d79f648810fad2e2b3aa11d31f9f69"
 bob:
   identity_key: "03e14a6f57e27ed5399307641be23ec497f19df99ff1ce7ef04ec82200a6f90b2b"
-  private_key: "ca9e9dcb29fd7c7cf5ecebadd1a0dab029e571a570021e7ec699eb90acee333d" 
+  private_key: "ca9e9dcb29fd7c7cf5ecebadd1a0dab029e571a570021e7ec699eb90acee333d"

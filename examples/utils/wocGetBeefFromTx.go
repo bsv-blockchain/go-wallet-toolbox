@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// WocAPIGetBeefForTX fetches a beef from the WhatsonChain API
 func WocAPIGetBeefForTX(network, txid string) (string, error) {
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/beef", network, txid)
 

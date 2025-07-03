@@ -9,6 +9,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
+// InternalizeTxHandler is a helper function to internalize a transaction
 func InternalizeTxHandler(ctx context.Context, internalizeArgs sdk.InternalizeActionArgs, wallet sdk.Interface) (sdk.InternalizeActionResult, error) {
 
 	iar, err := wallet.InternalizeAction(ctx, internalizeArgs, "originator")
@@ -19,6 +20,7 @@ func InternalizeTxHandler(ctx context.Context, internalizeArgs sdk.InternalizeAc
 	return *iar, nil
 }
 
+// InternalizeFromFaucet is a helper function to internalize a transaction from the faucet
 func InternalizeFromFaucet(ctx context.Context, env Environment, beefHex string, wallet sdk.Interface) error {
 
 	beef, err := hex.DecodeString(beefHex)
