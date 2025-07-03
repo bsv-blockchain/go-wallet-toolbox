@@ -65,12 +65,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}
 
 	isMerge := storedTx != nil
-	if isMerge {
-		if storedTx.Status != wdk.TxStatusCompleted &&
-			storedTx.Status != wdk.TxStatusUnproven &&
-			storedTx.Status != wdk.TxStatusNoSend {
-			return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
-		}
+	if isMerge && !in.isAllowedMergeStatus(storedTx.Status) {
+		return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
 	}
 
 	outputs, cumulativeSatoshis, err := in.makeOutputs(ctx, userID, tx, args.Outputs, isMerge)
@@ -286,4 +282,15 @@ func (in *internalize) checkChangeBasket(ctx context.Context, userID int) error 
 		return fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 	return nil
+}
+
+func (in *internalize) isAllowedMergeStatus(status wdk.TxStatus) bool {
+	switch status {
+	case wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusNoSend:
+		return true
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+		fallthrough
+	default:
+		return false
+	}
 }
