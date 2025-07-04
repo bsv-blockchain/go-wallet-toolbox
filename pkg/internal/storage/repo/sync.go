@@ -488,20 +488,24 @@ func (s *Sync) UpsertTransactionForSync(ctx context.Context, entity *entity.Tran
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		txModel := models.Transaction{}
-		updateTx := tx.Model(&txModel).
+
+		updateTx := tx.Model(&models.Transaction{}).
 			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 			Scopes(scopes.UserID(entity.UserID)).
 			Where("reference = ?", entity.Reference).
-			Updates(model).
-			Scan(&txModel)
+			Updates(model)
 
 		if updateTx.Error != nil {
 			return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
 		}
 
 		if updateTx.RowsAffected > 0 {
-			transactionID = txModel.ID
+			resultTxModel := models.Transaction{}
+			if err = updateTx.Scan(&resultTxModel).Error; err != nil {
+				return fmt.Errorf("failed to scan updated transaction: %w", err)
+			}
+
+			transactionID = resultTxModel.ID
 			return nil
 		}
 
@@ -561,6 +565,7 @@ func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateTx := tx.Model(&models.Output{}).
+			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 			Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
 			Select("*").
 			Updates(model)
@@ -572,7 +577,12 @@ func (s *Sync) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (
 		}
 
 		if updateTx.RowsAffected > 0 {
-			outputID = model.ID
+			resultOutputModel := models.Output{}
+			if err = updateTx.Scan(&resultOutputModel).Error; err != nil {
+				return fmt.Errorf("failed to scan updated output: %w", err)
+			}
+
+			outputID = resultOutputModel.ID
 			return nil
 		}
 
