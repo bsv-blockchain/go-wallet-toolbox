@@ -249,3 +249,17 @@ func (mr *MockWalletStorageProviderMockRecorder) RelinquishCertificate(ctx, auth
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelinquishCertificate", reflect.TypeOf((*MockWalletStorageProvider)(nil).RelinquishCertificate), ctx, auth, args)
 }
+
+// RelinquishOutput mocks base method.
+func (m *MockWalletStorageProvider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RelinquishOutput", ctx, auth, args)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RelinquishOutput indicates an expected call of RelinquishOutput.
+func (mr *MockWalletStorageProviderMockRecorder) RelinquishOutput(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelinquishOutput", reflect.TypeOf((*MockWalletStorageProvider)(nil).RelinquishOutput), ctx, auth, args)
+}

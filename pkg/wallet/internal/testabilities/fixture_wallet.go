@@ -12,6 +12,7 @@ import (
 
 type WalletFixture interface {
 	AliceWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func())
+	BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func())
 	Wallet() WalletBuilder
 	Faucet(userWallet *wallet.Wallet) FaucetFixture
 	InputForUser(user testusers.User) CreateActionInputBuilder
@@ -51,6 +52,10 @@ func newGiven(t testing.TB) *walletFixture {
 
 func (w *walletFixture) AliceWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func()) {
 	return w.Wallet().WithActiveStorage(storageType).ForUser(testusers.Alice)
+}
+
+func (w *walletFixture) BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func()) {
+	return w.Wallet().WithActiveStorage(storageType).ForUser(testusers.Bob)
 }
 
 func (w *walletFixture) Wallet() WalletBuilder {

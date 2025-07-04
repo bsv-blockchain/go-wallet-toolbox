@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 )
 
 type proofResponse struct {
@@ -20,43 +21,21 @@ type proofResponse struct {
 	Nodes  []string `json:"nodes"`
 }
 
-type branchProofResponse struct {
-	BlockHash  string         `json:"blockhash"`
-	MerkleRoot string         `json:"merkleRoot"`
-	Branches   []merkleBranch `json:"branches"`
-}
-
-type BranchPos string
-
-const (
-	Left  BranchPos = "L"
-	Right BranchPos = "R"
-)
-
-type merkleBranch struct {
-	Hash string    `json:"hash"`
-	Pos  BranchPos `json:"pos"`
-}
-
 // MerklePath fetches a Merkle-path proof for the given txID using Bitails’
-// /tx/{txid}/proof/tsc endpoint and returns it in wdk.MerklePathResult form.
 func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
-	// ── 1. Query TSC proof ──────────────────────────────────────────────
 	proof, err := b.getTscProof(ctx, txID)
 	if err != nil {
 		return nil, err
 	}
-	if proof == nil { // tx not yet mined (404), nothing to return
+	if proof == nil {
 		return &wdk.MerklePathResult{Name: ServiceName}, nil
 	}
 
-	// ── 2. Pull block header (target == block hash) ─────────────────────
 	header, err := b.hashToHeader(ctx, proof.Target)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: %w", err)
 	}
 
-	// Look up height (Bitails TSC proof doesn’t contain it)
 	txInfo, err := b.fetchTxInfo(ctx, txID)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to resolve block height: %w", err)
@@ -67,7 +46,6 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 			txInfo.BlockHeight, txID, err)
 	}
 
-	// ── 3. Convert proof → MerklePath ───────────────────────────────────
 	merklePath, err := txutils.ConvertTscProofToMerklePath(
 		txID,
 		proof.Index,
@@ -78,7 +56,6 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		return nil, fmt.Errorf("bitails: failed to convert TSC proof: %w", err)
 	}
 
-	// ── 4. Sanity-check merkle root ─────────────────────────────────────
 	merkleRoot, err := merklePath.ComputeRootHex(&txID)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to compute merkle root: %w", err)
@@ -88,7 +65,6 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 			merkleRoot, header.MerkleRoot)
 	}
 
-	// ── 5. Package result ───────────────────────────────────────────────
 	return &wdk.MerklePathResult{
 		Name:        ServiceName,
 		MerklePath:  merklePath,
