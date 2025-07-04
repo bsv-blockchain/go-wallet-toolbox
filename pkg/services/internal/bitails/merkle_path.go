@@ -7,11 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/go-softwarelab/common/pkg/to"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type proofResponse struct {

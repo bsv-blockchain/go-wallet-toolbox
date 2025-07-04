@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/olekukonko/tablewriter"
-	"github.com/olekukonko/tablewriter/tw"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
@@ -103,38 +101,73 @@ func main() {
 	printMerklePath(result.MerklePath, "Merkle Path for txID: "+txID)
 }
 
-func printMetadata(result *wdk.MerklePathResult, txID string) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.Header([]string{"Field", "Value"})
+func renderTable(title string, headers []string, rows [][]string) {
+	if title != "" {
+		fmt.Printf("%s\n", title)
+	}
 
-	table.Append([]string{"Service", result.Name})
+	colWidth := make([]int, len(headers))
+	for i, h := range headers {
+		colWidth[i] = len(h)
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			if l := len(cell); l > colWidth[i] {
+				colWidth[i] = l
+			}
+		}
+	}
+
+	printRow := func(cells []string) {
+		for i, cell := range cells {
+			fmt.Printf("%-*s  ", colWidth[i], cell)
+		}
+		fmt.Println()
+	}
+
+	printRow(headers)
+
+	for i := range headers {
+		fmt.Printf("%s  ", strings.Repeat("-", colWidth[i]))
+	}
+	fmt.Println()
+
+	for _, row := range rows {
+		printRow(row)
+	}
+}
+
+func printMetadata(result *wdk.MerklePathResult, txID string) {
+	var rows [][]string
+
+	rows = append(rows, []string{"Service", result.Name})
+
 	if result.BlockHeader != nil {
-		table.Append([]string{"Block Hash", result.BlockHeader.Hash})
-		table.Append([]string{"Block Height", fmt.Sprint(result.BlockHeader.Height)})
-		table.Append([]string{"Merkle Root", result.BlockHeader.MerkleRoot})
+		rows = append(rows,
+			[]string{"Block Hash", result.BlockHeader.Hash},
+			[]string{"Block Height", fmt.Sprint(result.BlockHeader.Height)},
+			[]string{"Merkle Root", result.BlockHeader.MerkleRoot},
+		)
 	}
 
 	for _, note := range result.Notes {
-		table.Append([]string{"Note", fmt.Sprintf("%s at %v", note.What, note.When.Format(time.RFC3339))})
+		rows = append(rows,
+			[]string{"Note", fmt.Sprintf("%s at %s", note.What, note.When.Format(time.RFC3339))},
+		)
 	}
 
 	root, err := result.MerklePath.ComputeRootHex(&txID)
 	if err != nil {
-		table.Append([]string{"Computed Merkle Root", fmt.Sprintf("Error: %v", err)})
+		rows = append(rows, []string{"Computed Merkle Root", fmt.Sprintf("ERROR: %v", err)})
 	} else {
-		table.Append([]string{"Computed Merkle Root", root})
+		rows = append(rows, []string{"Computed Merkle Root", root})
 	}
 
-	table.Caption(tw.Caption{Text: "Merkle Path Metadata"})
-	if err := table.Render(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to render table: %v\n", err)
-		return
-	}
+	renderTable("Merkle Path Metadata", []string{"Field", "Value"}, rows)
 }
 
 func printMerklePath(tbl *transaction.MerklePath, title string) {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.Header([]string{"Level", "Offset", "Hash", "Is TxID"})
+	var rows [][]string
 
 	for lvl, elems := range tbl.Path {
 		for _, el := range elems {
@@ -142,7 +175,7 @@ func printMerklePath(tbl *transaction.MerklePath, title string) {
 			if el.Txid != nil && *el.Txid {
 				isTx = "yes"
 			}
-			table.Append([]string{
+			rows = append(rows, []string{
 				fmt.Sprint(lvl),
 				fmt.Sprint(el.Offset),
 				el.Hash.String(),
@@ -151,9 +184,9 @@ func printMerklePath(tbl *transaction.MerklePath, title string) {
 		}
 	}
 
-	table.Caption(tw.Caption{Text: fmt.Sprintf("Block Height: %d | %s", tbl.BlockHeight, title)})
-	if err := table.Render(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to render Merkle Path table: %v\n", err)
-		return
-	}
+	renderTable(
+		fmt.Sprintf("Block Height: %d | %s", tbl.BlockHeight, title),
+		[]string{"Level", "Offset", "Hash", "Is TxID"},
+		rows,
+	)
 }
