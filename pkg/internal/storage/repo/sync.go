@@ -488,7 +488,6 @@ func (s *Sync) UpsertTransactionForSync(ctx context.Context, entity *entity.Tran
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-
 		updateTx := tx.Model(&models.Transaction{}).
 			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 			Scopes(scopes.UserID(entity.UserID)).

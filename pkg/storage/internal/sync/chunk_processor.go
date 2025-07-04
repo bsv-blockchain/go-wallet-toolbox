@@ -113,7 +113,7 @@ func (p *chunkProcessor) process() (err error) {
 
 	for _, labelMap := range p.chunk.TxLabelMaps {
 		if err = p.upsertLabelMap(labelMap); err != nil {
-			return fmt.Errorf("failed to upsert label: %w", err)
+			return fmt.Errorf("failed to upsert label map: %w", err)
 		}
 	}
 
