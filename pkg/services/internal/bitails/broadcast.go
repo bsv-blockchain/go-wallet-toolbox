@@ -82,11 +82,16 @@ func (b *Bitails) sendBroadcastRequest(ctx context.Context, rawHex string) ([]br
 	reqBody := broadcastRequest{Raws: []string{rawHex}}
 	var respArr []broadcastResponse
 
+	url, err := broadcastURL(b.url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build broadcast URL: %w", err)
+	}
+
 	r, err := b.httpClient.R().
 		SetContext(ctx).
 		SetBody(reqBody).
 		SetResult(&respArr).
-		Post(b.url + BroadcastEndpoint)
+		Post(url)
 	if err != nil {
 		return nil, fmt.Errorf("%s request failed: %w", ServiceName, err)
 	}

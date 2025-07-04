@@ -42,12 +42,12 @@ func TestMerklePath_Success(t *testing.T) {
 	merkleRoot, err := merklePath.ComputeRootHex(nil)
 	require.NoError(t, err, "failed to compute merkle root")
 
-	mockMerklePathResponse := fmt.Sprintf(`{
+	mockMerklePathResponse := fmt.Sprintf(`[{
 		"index": 0,
 		"txOrId": "%s",
 		"target": "%s",
 		"nodes": ["%s"]
-	}`, txID, tst.TestTargetHash, siblingHash)
+	}]`, txID, tst.TestTargetHash, siblingHash)
 
 	given.WhatsOnChain().WillRespondWithMerklePath(http.StatusOK, txID, mockMerklePathResponse)
 

@@ -12,7 +12,7 @@ type fetchInfoResponse struct {
 }
 
 func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoResponse, error) {
-	url, err := buildTxStatusURL(b.url, txid)
+	url, err := txStatusURL(b.url, txid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL for fetching tx info: %w", err)
 	}
