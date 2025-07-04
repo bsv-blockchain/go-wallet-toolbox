@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"maps"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -18,21 +20,25 @@ import (
 )
 
 type process struct {
-	logger      *slog.Logger
-	txRepo      TransactionsRepo
-	outputRepo  OutputRepo
-	knownTxRepo KnownTxRepo
-	services    wdk.Services
+	logger         *slog.Logger
+	commissionCfg  defs.Commission
+	txRepo         TransactionsRepo
+	outputRepo     OutputRepo
+	knownTxRepo    KnownTxRepo
+	commissionRepo CommissionRepo
+	services       wdk.Services
 }
 
-func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, outputRepo OutputRepo, knownTxRepo KnownTxRepo, services wdk.Services) *process {
+func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, commissionCfg defs.Commission, outputRepo OutputRepo, knownTxRepo KnownTxRepo, commissionRepo CommissionRepo, services wdk.Services) *process {
 	logger = logging.Child(logger, "processAction")
 	return &process{
-		logger:      logger,
-		txRepo:      txRepo,
-		outputRepo:  outputRepo,
-		knownTxRepo: knownTxRepo,
-		services:    services,
+		logger:         logger,
+		commissionCfg:  commissionCfg,
+		txRepo:         txRepo,
+		outputRepo:     outputRepo,
+		knownTxRepo:    knownTxRepo,
+		commissionRepo: commissionRepo,
+		services:       services,
 	}
 }
 
@@ -88,7 +94,11 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return err
 	}
 
-	// TODO: Commission; but it requires Commission table (it needs to be created & new rows added during "createAction"
+	if p.commissionCfg.Satoshis > 0 {
+		if err := p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
+			return fmt.Errorf("commission validation failed: %w", err)
+		}
+	}
 
 	// TODO: Add db transactionID to KnownTx.Notify
 
@@ -154,6 +164,36 @@ func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*e
 			return fmt.Errorf("locking script mismatch at vout: %d, provided %x, calculated from raw tx: %x", voutInt, providedInArgs, fromDB)
 		}
 	}
+	return nil
+}
+
+func (p *process) validateCommission(ctx context.Context, userID int, transactionID uint, outputs []*entity.Output) error {
+	commissionEntity, err := p.commissionRepo.FindCommission(ctx, userID, transactionID)
+	if err != nil {
+		return fmt.Errorf("failed to find commission for user %d and transaction %d: %w", userID, transactionID, err)
+	}
+
+	if commissionEntity == nil {
+		return fmt.Errorf("commission not found for user %d and transaction %d", userID, transactionID)
+	}
+
+	if len(commissionEntity.LockingScript) == 0 {
+		return fmt.Errorf("commission locking script is empty for user %d and transaction %d", userID, transactionID)
+	}
+
+	includesCommissionOutput := seq.Exists(
+		seq.FromSlice(outputs),
+		func(output *entity.Output) bool {
+			return satoshi.MustEqual(output.Satoshis, commissionEntity.Satoshis) &&
+				output.LockingScript != nil &&
+				bytes.Equal(output.LockingScript, commissionEntity.LockingScript)
+		},
+	)
+
+	if !includesCommissionOutput {
+		return fmt.Errorf("transaction %d did not include an output to cover service fee", transactionID)
+	}
+
 	return nil
 }
 

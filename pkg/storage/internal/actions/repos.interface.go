@@ -65,4 +65,5 @@ type KeyValueRepo interface {
 
 type CommissionRepo interface {
 	AddCommission(ctx context.Context, commission *entity.Commission) error
+	FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error)
 }
