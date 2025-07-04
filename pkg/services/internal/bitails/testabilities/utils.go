@@ -2,36 +2,37 @@ package testabilities
 
 import (
 	"encoding/hex"
-	"log"
+	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/stretchr/testify/require"
 )
 
-// MustHashFromHex creates a Hash from hex or panics on failure.
-func MustHashFromHex(hex string) *chainhash.Hash {
-	h, err := chainhash.NewHashFromHex(hex)
-	if err != nil {
-		log.Panicf("invalid hex for hash: %v", err)
-	}
+// HashFromHex creates a *chainhash.Hash from a hex string.
+// It marks the helper, asserts no error, and returns the hash.
+func HashFromHex(t testing.TB, hexStr string) *chainhash.Hash {
+	t.Helper()
+
+	h, err := chainhash.NewHashFromHex(hexStr)
+	require.NoError(t, err, "invalid hex for hash")
+	require.NotNil(t, h, "hash must not be nil")
+
 	return h
 }
 
-// FakeHeaderHexWithMerkleRoot returns a fake block header hex string with the given Merkle root in little-endian.
-func FakeHeaderHexWithMerkleRoot(merkleRootHex string) string {
-	header := make([]byte, TestBlockHeaderLength)
+// FakeHeaderHexWithMerkleRoot builds a fake 80-byte block header hex string
+// with the supplied merkle-root.  The headers version/time/nonce
+// fields are all zero only the merkle-root matters for tests.
+func FakeHeaderHexWithMerkleRoot(t testing.TB, merkleRootHex string) string {
+	t.Helper()
 
+	header := make([]byte, TestBlockHeaderLength) // 80 bytes
 	merkleRootBytes, err := hex.DecodeString(merkleRootHex)
-	if err != nil {
-		log.Fatalf("failed to decode merkle root hex: %v", err)
-	}
-
-	if len(merkleRootBytes) != TestMerkleRootLength {
-		log.Fatalf("invalid merkle root length: %d", len(merkleRootBytes))
-	}
+	require.NoError(t, err, "cannot decode merkle root hex")
+	require.Equal(t, TestMerkleRootLength, len(merkleRootBytes), "merkle root must be 32 bytes")
 
 	for i := 0; i < TestMerkleRootLength; i++ {
 		header[TestMerkleRootOffset+i] = merkleRootBytes[TestMerkleRootLength-1-i]
 	}
-
 	return hex.EncodeToString(header)
 }

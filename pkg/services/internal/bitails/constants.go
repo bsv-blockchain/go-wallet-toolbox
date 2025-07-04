@@ -12,8 +12,7 @@ const (
 
 // Service constants for Bitails
 const (
-	ServiceName       = "Bitails"
-	BroadcastEndpoint = "tx/broadcast/multi"
+	ServiceName = "Bitails"
 )
 
 // Bitails Error Codes

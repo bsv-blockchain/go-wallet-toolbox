@@ -42,7 +42,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 
 	merklePath, err := txutils.ConvertTscProofToMerklePath(txID, proof.Index, proof.Nodes, header.Height)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert proof to merkle path: %w", err)
+		return nil, fmt.Errorf("failed to convert proof for tx %s to merkle path: %w", txID, err)
 	}
 
 	merkleRoot, err := merklePath.ComputeRootHex(&txID)

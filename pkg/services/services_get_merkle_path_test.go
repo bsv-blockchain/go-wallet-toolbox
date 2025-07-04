@@ -183,8 +183,8 @@ func TestGetMerklePath(t *testing.T) {
 		blockHash := btst.TestTargetHash
 		sibling := btst.TestSiblingHash
 
-		txHash := btst.MustHashFromHex(txID)
-		siblingHash := btst.MustHashFromHex(sibling)
+		txHash := btst.HashFromHex(t, txID)
+		siblingHash := btst.HashFromHex(t, sibling)
 
 		merklePath := sdk.MerklePath{
 			BlockHeight: btst.TestBlockHeight,
@@ -206,7 +206,7 @@ func TestGetMerklePath(t *testing.T) {
 
 		given.Bitails().WillReturnTscProof(txID, blockHash, 0, []string{sibling})
 
-		headerWithCorrectMerkleRoot := btst.FakeHeaderHexWithMerkleRoot(merkleRoot)
+		headerWithCorrectMerkleRoot := btst.FakeHeaderHexWithMerkleRoot(t, merkleRoot)
 		given.Bitails().WillReturnBlockHeader(blockHash, headerWithCorrectMerkleRoot)
 
 		given.Bitails().WillReturnBranchProof(txID, blockHash, merkleRoot, []map[string]string{

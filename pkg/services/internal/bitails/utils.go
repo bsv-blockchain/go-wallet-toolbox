@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-
-	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note string) {
@@ -25,56 +21,33 @@ func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note st
 	}
 }
 
-// buildTxStatusURL constructs a full URL to fetch the status of a transaction.
-func buildTxStatusURL(baseURL, txID string) (string, error) {
+// buildURL joins baseURL with any number of path segments, preserving the
+func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid base URL %q: %w", baseURL, err)
 	}
-	u.Path = path.Join(u.Path, "tx", txID, "status")
+	relativePath := path.Join(segments...)
+	u = u.ResolveReference(&url.URL{Path: relativePath})
 	return u.String(), nil
 }
 
-func convertBranchProofToMerklePath(txid string, branches []merkleBranch, blockHeight uint32) (*transaction.MerklePath, error) {
-	txidHash, err := chainhash.NewHashFromHex(txid)
-	if err != nil {
-		return nil, fmt.Errorf("invalid txid: %w", err)
-	}
+// /tx/{txid}/status
+func txStatusURL(baseURL, txID string) (string, error) {
+	return buildURL(baseURL, "tx", txID, "status")
+}
 
-	treeHeight := len(branches) + 1
-	path := make([][]*transaction.PathElement, treeHeight)
+// /tx/{txid}/proof/tsc
+func tscProofURL(baseURL, txID string) (string, error) {
+	return buildURL(baseURL, "tx", txID, "proof", "tsc")
+}
 
-	txidLeaf := &transaction.PathElement{
-		Offset: 0,
-		Hash:   txidHash,
-		Txid:   to.Ptr(true),
-	}
-	path[0] = []*transaction.PathElement{txidLeaf}
+// /block/{blockHash}/header
+func blockHeaderURL(baseURL, blockHash string) (string, error) {
+	return buildURL(baseURL, "block", blockHash, "header")
+}
 
-	offset := uint64(0)
-
-	for i, b := range branches {
-		siblingHash, err := chainhash.NewHashFromHex(b.Hash)
-		if err != nil {
-			return nil, fmt.Errorf("invalid branch hash: %w", err)
-		}
-
-		offset = offset / 2
-		if b.Pos == Left {
-			offset = offset*2 + 1
-		} else if b.Pos == Right {
-			offset = offset * 2
-		} else {
-			return nil, fmt.Errorf("invalid branch position: %q", b.Pos)
-		}
-
-		path[i+1] = []*transaction.PathElement{{
-			Offset:    offset,
-			Hash:      siblingHash,
-			Txid:      nil,
-			Duplicate: nil,
-		}}
-	}
-
-	return transaction.NewMerklePath(blockHeight, path), nil
+// /tx/broadcast/multi
+func broadcastURL(baseURL string) (string, error) {
+	return buildURL(baseURL, "tx", "broadcast", "multi")
 }

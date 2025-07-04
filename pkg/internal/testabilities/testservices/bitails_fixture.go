@@ -199,7 +199,7 @@ func (f *bitailsFixture) WillReturnBlockHeader(blockHash, rawHeader string) {
 func (f *bitailsFixture) WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string) {
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/proof$`, regexp.QuoteMeta(txid))),
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/proof(?:\?.*)?(?:/.*)?$`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
 			"blockhash":  blockHash,
 			"merkleRoot": merkleRoot,

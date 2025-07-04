@@ -60,8 +60,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		return nil, fmt.Errorf("bitails: failed to compute merkle root: %w", err)
 	}
 	if merkleRoot != header.MerkleRoot {
-		return nil, fmt.Errorf("bitails: merkle root mismatch (got %s, want %s)",
-			merkleRoot, header.MerkleRoot)
+		return nil, fmt.Errorf("bitails: merkle root mismatch (got %s, want %s) for txID %s in block %s", merkleRoot, header.MerkleRoot, txID, header.Hash)
 	}
 
 	return &wdk.MerklePathResult{
@@ -73,6 +72,11 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 }
 
 func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
+	url, err := blockHeaderURL(b.url, blockHash)
+	if err != nil {
+		return nil, err
+	}
+
 	var resp struct {
 		Header string `json:"header"`
 	}
@@ -80,7 +84,7 @@ func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.Merk
 	res, err := b.httpClient.R().
 		SetContext(ctx).
 		SetResult(&resp).
-		Get(fmt.Sprintf("%sblock/%s/header", b.url, blockHash))
+		Get(url)
 
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to fetch block header: %w", err)
@@ -112,16 +116,20 @@ func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.Merk
 
 // getTscProof queries /tx/{txid}/proof/tsc and returns nil on 404.
 func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse, error) {
+	url, err := tscProofURL(b.url, txID)
+	if err != nil {
+		return nil, err
+	}
 	var proof proofResponse
 	res, err := b.httpClient.R().
 		SetContext(ctx).
 		SetResult(&proof).
-		Get(fmt.Sprintf("%stx/%s/proof/tsc", b.url, txID))
+		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("bitails: failed to query TSC proof: %w", err)
 	}
 	if res.StatusCode() == http.StatusNotFound {
-		return nil, nil // not in a block yet (or service lagging)
+		return nil, nil
 	}
 	if res.StatusCode() != http.StatusOK {
 		return nil, fmt.Errorf("bitails: unexpected status %d fetching TSC proof", res.StatusCode())
