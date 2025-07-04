@@ -2,11 +2,11 @@ package storage_test
 
 import (
 	"context"
-	pkgtestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	pkgtestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
