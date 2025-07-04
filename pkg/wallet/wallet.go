@@ -259,8 +259,24 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 
 // RelinquishOutput relinquishes an output from a basket, removing it from tracking without spending it.
 func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutputArgs, originator string) (*sdk.RelinquishOutputResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	wdkArgs := mapping.MapRelinquishOutputArgs(args)
+
+	if err := validate.ValidRelinquishOutputArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid relinquish output args: %w", err)
+	}
+
+	err := w.storage.RelinquishOutput(ctx, wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to relinquish output: %w", err)
+	}
+
+	return &sdk.RelinquishOutputResult{
+		Relinquished: true,
+	}, nil
 }
 
 // RevealCounterpartyKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,

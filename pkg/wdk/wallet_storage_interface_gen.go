@@ -31,6 +31,9 @@ type WalletStorageBasic interface {
 	// RelinquishCertificate revokes the specified certificate from the users certificates.
 	// @Write
 	RelinquishCertificate(ctx context.Context, args RelinquishCertificateArgs) error
+	// RelinquishOutput removes the specified output from the users outputs.
+	// @Write
+	RelinquishOutput(ctx context.Context, args RelinquishOutputArgs) error
 	// ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.
 	// @Read
 	ListCertificates(ctx context.Context, args ListCertificatesArgs) (*ListCertificatesResult, error)

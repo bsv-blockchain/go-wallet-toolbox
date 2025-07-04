@@ -71,6 +71,16 @@ func (m *WalletStorageManager) RelinquishCertificate(ctx context.Context, args w
 	return m.getActiveWriter().RelinquishCertificate(ctx, auth, args)
 }
 
+// RelinquishOutput removes the specified output from the users outputs.
+func (m *WalletStorageManager) RelinquishOutput(ctx context.Context, args wdk.RelinquishOutputArgs) error {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveWriter().RelinquishOutput(ctx, auth, args)
+}
+
 // ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.
 func (m *WalletStorageManager) ListCertificates(ctx context.Context, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	auth, err := m.GetAuth(ctx)
