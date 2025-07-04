@@ -86,6 +86,15 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 			}
 		}),
 		Outputs: outputs,
+		Commission: to.If(newTx.Commission != nil, func() *models.Commission {
+			return &models.Commission{
+				UserID:        newTx.UserID,
+				Satoshis:      newTx.Commission.Satoshis,
+				KeyOffset:     newTx.Commission.KeyOffset,
+				IsRedeemed:    newTx.Commission.IsRedeemed,
+				LockingScript: newTx.Commission.LockingScript,
+			}
+		}).ElseThen(nil),
 	}
 
 	return model, nil

@@ -27,7 +27,8 @@ type NewTx struct {
 	ReservedOutputIDs []uint
 	Outputs           []*NewOutput
 
-	Labels []primitives.StringUnder300
+	Labels     []primitives.StringUnder300
+	Commission *Commission
 }
 
 // NewOutput represents an output of a new transaction.

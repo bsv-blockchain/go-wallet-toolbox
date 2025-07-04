@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"iter"
-	"log/slog"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
@@ -23,6 +20,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"iter"
+	"log/slog"
 )
 
 const (
@@ -59,15 +58,16 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 }
 
 type create struct {
-	logger        *slog.Logger
-	funder        funder.Funder
-	basketRepo    BasketRepo
-	txRepo        TransactionsRepo
-	outputRepo    OutputRepo
-	knownTxRepo   KnownTxRepo
-	commission    *commission.ScriptGenerator
-	commissionCfg defs.Commission
-	random        wdk.Randomizer
+	logger         *slog.Logger
+	funder         funder.Funder
+	basketRepo     BasketRepo
+	txRepo         TransactionsRepo
+	outputRepo     OutputRepo
+	knownTxRepo    KnownTxRepo
+	commissionRepo CommissionRepo
+	commission     *commission.ScriptGenerator
+	commissionCfg  defs.Commission
+	random         wdk.Randomizer
 }
 
 func newCreateAction(
@@ -78,18 +78,20 @@ func newCreateAction(
 	txRepo TransactionsRepo,
 	outputRepo OutputRepo,
 	knownTxRepo KnownTxRepo,
+	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:        logger,
-		funder:        funder,
-		basketRepo:    basketRepo,
-		txRepo:        txRepo,
-		commissionCfg: commissionCfg,
-		outputRepo:    outputRepo,
-		knownTxRepo:   knownTxRepo,
-		random:        random,
+		logger:         logger,
+		funder:         funder,
+		basketRepo:     basketRepo,
+		txRepo:         txRepo,
+		commissionCfg:  commissionCfg,
+		outputRepo:     outputRepo,
+		knownTxRepo:    knownTxRepo,
+		commissionRepo: commissionRepo,
+		random:         random,
 	}
 
 	if commissionCfg.Enabled() {
@@ -117,8 +119,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	xoutputs := seq.PointersFromSlice(params.Outputs)
 
 	var commOut *serviceChargeOutput
+	var commEntity *entity.Commission
 	if c.commission != nil {
-		commOut, err = c.createCommissionOutput()
+		commOut, commEntity, err = c.createCommissionOutput(userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to collect outputs: %w", err)
 		}
@@ -183,6 +186,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
 		Labels:            params.Labels,
 		InputBeef:         inputBeef,
+		Commission:        commEntity,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -209,20 +213,30 @@ type serviceChargeOutput struct {
 	KeyOffset string
 }
 
-func (c *create) createCommissionOutput() (*serviceChargeOutput, error) {
+func (c *create) createCommissionOutput(userID int) (*serviceChargeOutput, *entity.Commission, error) {
 	lockingScript, keyOffset, err := c.commission.Generate()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate commission script: %w", err)
+		return nil, nil, fmt.Errorf("failed to generate commission script: %w", err)
 	}
 
-	return &serviceChargeOutput{
+	commOut := &serviceChargeOutput{
 		ValidCreateActionOutput: wdk.ValidCreateActionOutput{
-			LockingScript:     primitives.HexString(lockingScript),
+			LockingScript:     primitives.HexString(lockingScript.String()),
 			Satoshis:          primitives.SatoshiValue(c.commissionCfg.Satoshis),
 			OutputDescription: "Storage Service Charge",
 		},
 		KeyOffset: keyOffset,
-	}, nil
+	}
+
+	commissionEntity := &entity.Commission{
+		UserID:        userID,
+		Satoshis:      c.commissionCfg.Satoshis,
+		KeyOffset:     keyOffset,
+		IsRedeemed:    false,
+		LockingScript: lockingScript.Bytes(),
+	}
+
+	return commOut, commissionEntity, nil
 }
 
 func (c *create) targetSat(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {

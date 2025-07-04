@@ -23,4 +23,5 @@ type Transaction struct {
 	Inputs        []*Output   `gorm:"foreignKey:SpentBy"`
 	Labels        []*Label    `gorm:"many2many:transaction_labels;"`
 	ReservedUtxos []*UserUTXO `gorm:"foreignKey:ReservedByID"`
+	Commission    *Commission `gorm:"foreignKey:TransactionID"`
 }

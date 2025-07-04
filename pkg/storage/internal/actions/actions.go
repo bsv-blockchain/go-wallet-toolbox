@@ -28,6 +28,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			repos.Transactions,
 			repos.Outputs,
 			repos.KnownTx,
+			repos.Commission,
 			randomizer,
 		),
 		internalize: newInternalizeAction(

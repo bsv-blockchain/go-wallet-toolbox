@@ -31,7 +31,7 @@ func TestLockScriptWithKeyOffsetFromPubKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// NOTE: these values are cross-checked with the original/TS code
-	assert.Equal(t, "76a914b95556849619ac10419b6a591b6920cb6deef47b88ac", lockingScript)
+	assert.Equal(t, "76a914b95556849619ac10419b6a591b6920cb6deef47b88ac", lockingScript.String())
 	assert.Equal(t, offsetPrivKey, keyOffset)
 }
 
@@ -52,10 +52,12 @@ func TestLockScriptWithKeyOffset_Uniqueness(t *testing.T) {
 		lockingScript, keyOffset, err := generator.Generate()
 		require.NoError(t, err)
 
-		lockingScripts[lockingScript] = struct{}{}
+		scriptHex := lockingScript.String()
+
+		lockingScripts[scriptHex] = struct{}{}
 		keyOffsets[keyOffset] = struct{}{}
 
-		_, err = script.DecodeScriptHex(lockingScript)
+		_, err = script.DecodeScriptHex(scriptHex)
 		require.NoError(t, err)
 
 		_, err = primitives.PrivateKeyFromWif(keyOffset)

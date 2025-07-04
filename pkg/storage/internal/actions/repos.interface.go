@@ -62,3 +62,7 @@ type KeyValueRepo interface {
 	Get(ctx context.Context, key string) ([]byte, bool, error)
 	Set(ctx context.Context, key string, value []byte) error
 }
+
+type CommissionRepo interface {
+	AddCommission(ctx context.Context, commission *entity.Commission) error
+}
