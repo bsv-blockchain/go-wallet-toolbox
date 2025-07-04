@@ -1,20 +1,27 @@
 package testabilities
 
 import (
+	"bytes"
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type WalletReader interface {
 	ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error)
+	ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error)
 }
 
 type WalletStateAssertion interface {
@@ -39,6 +46,7 @@ type WalletActionOutputAssertion interface {
 	WithCustomInstructions(expected string) WalletActionOutputAssertion
 	WithSpendable(expected bool) WalletActionOutputAssertion
 	WithBasket(expected string) WalletActionOutputAssertion
+	ListActionsAlignsListOutputs() WalletActionOutputAssertion
 }
 
 func ThenWalletState(t testing.TB, wallet WalletReader) WalletStateAssertion {
@@ -68,6 +76,7 @@ func (a *walletStateAssertion) ActionAtIndex(index int, labels ...string) Wallet
 
 	return &walletActionAssertion{
 		TB:     a.TB,
+		wallet: a.wallet,
 		action: &result.Actions[index],
 	}
 }
@@ -84,6 +93,7 @@ func (a *walletStateAssertion) listActions(labels ...string) *sdk.ListActionsRes
 
 type walletActionAssertion struct {
 	testing.TB
+	wallet WalletReader
 	action *sdk.Action
 }
 
@@ -124,15 +134,20 @@ func (a *walletActionAssertion) WithSatoshis(expected int64) WalletActionAsserti
 func (a *walletActionAssertion) OutputAtIndex(index int) WalletActionOutputAssertion {
 	a.Helper()
 	require.Greater(a, len(a.action.Outputs), index, "Index out of range for action outputs")
+
 	return &walletActionOutputAssertion{
 		TB:     a.TB,
 		output: &a.action.Outputs[index],
+		txID:   a.action.Txid,
+		wallet: a.wallet,
 	}
 }
 
 type walletActionOutputAssertion struct {
 	testing.TB
+	wallet WalletReader
 	output *sdk.ActionOutput
+	txID   chainhash.Hash
 }
 
 func (a *walletActionOutputAssertion) WithSatoshis(expected uint64) WalletActionOutputAssertion {
@@ -181,4 +196,53 @@ func (a *walletActionOutputAssertion) WithBasket(expected string) WalletActionOu
 	a.Helper()
 	assert.Equal(a, expected, a.output.Basket, "Action output basket does not match")
 	return a
+}
+
+func (a *walletActionOutputAssertion) ListActionsAlignsListOutputs() WalletActionOutputAssertion {
+	listedOutputs, err := a.wallet.ListOutputs(a.Context(), sdk.ListOutputsArgs{
+		Limit:                     validate.MaxPaginationLimit,
+		IncludeCustomInstructions: to.Ptr(true),
+		IncludeTags:               to.Ptr(true),
+		IncludeLabels:             to.Ptr(true),
+		Include:                   sdk.OutputIncludeLockingScripts,
+	}, fixtures.DefaultOriginator)
+	require.NoError(a, err, "Failed to list outputs")
+
+	assert.Equal(a, 1, seq.Count(seq.Filter(seq.FromSlice(listedOutputs.Outputs), func(output sdk.Output) bool {
+		return a.compareActionOutputAndOutput(a.txID, a.output, &output)
+	})), "list outputs does not align with action outputs")
+
+	return a
+}
+
+func (a *walletActionOutputAssertion) compareActionOutputAndOutput(txID chainhash.Hash, actionOutput *sdk.ActionOutput, output *sdk.Output) bool {
+	var zeroHash chainhash.Hash
+	// NOTE: Not processed/signed transactions may have empty txid.
+	canCompareOutpoints := !output.Outpoint.Txid.IsEqual(&zeroHash) && !txID.Equal(zeroHash)
+	if canCompareOutpoints {
+		if !a.equalOutpoints(output.Outpoint, txID.String(), actionOutput.OutputIndex) {
+			return false
+		}
+	}
+
+	return satoshi.MustEqual(output.Satoshis, actionOutput.Satoshis) &&
+		output.Spendable == actionOutput.Spendable &&
+		a.equalTags(output.Tags, actionOutput.Tags) &&
+		bytes.Equal(output.LockingScript, actionOutput.LockingScript) &&
+		output.CustomInstructions == actionOutput.CustomInstructions
+}
+
+func (a *walletActionOutputAssertion) equalOutpoints(outpoint transaction.Outpoint, txid string, outputIndex uint32) bool {
+	return outpoint.Txid.String() == txid && outpoint.Index == outputIndex
+}
+
+func (a *walletActionOutputAssertion) equalTags(tags1, tags2 []string) bool {
+	if len(tags1) != len(tags2) {
+		return false
+	}
+
+	slices.Sort(tags1)
+	slices.Sort(tags2)
+
+	return slices.Equal(tags1, tags2)
 }
