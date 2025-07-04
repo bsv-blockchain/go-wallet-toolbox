@@ -42,6 +42,7 @@ type TransactionsRepo interface {
 	) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
+	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 }
 
 type KnownTxRepo interface {

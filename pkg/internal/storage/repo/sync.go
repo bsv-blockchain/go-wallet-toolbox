@@ -488,17 +488,20 @@ func (s *Sync) UpsertTransactionForSync(ctx context.Context, entity *entity.Tran
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.Transaction{}).
+		txModel := models.Transaction{}
+		updateTx := tx.Model(&txModel).
+			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 			Scopes(scopes.UserID(entity.UserID)).
 			Where("reference = ?", entity.Reference).
-			Updates(model)
+			Updates(model).
+			Scan(&txModel)
 
 		if updateTx.Error != nil {
 			return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
 		}
 
 		if updateTx.RowsAffected > 0 {
-			transactionID = entity.ID
+			transactionID = txModel.ID
 			return nil
 		}
 

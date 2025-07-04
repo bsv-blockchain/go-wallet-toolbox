@@ -6,7 +6,9 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/assert"
@@ -347,4 +349,77 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
 		WithCount(0) // NOTE: Relinquished output is not in the change basket anymore
+}
+
+func TestSyncProcessWhenLabelChanges(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	const (
+		label1    = "label1"
+		label2    = "label2"
+		reference = "YWFhYWFhYWFhYWFh"
+	)
+
+	// and:
+	beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
+	internalizeArgs := wdk.InternalizeActionArgs{
+		Tx: beefToInternalize,
+		Outputs: []*wdk.InternalizeOutput{
+			{
+				OutputIndex: 0,
+				Protocol:    wdk.BasketInsertionProtocol,
+				InsertionRemittance: &wdk.BasketInsertion{
+					Basket: "custom_basket",
+					Tags:   []primitives.StringUnder300{"custom_tag"},
+				},
+			},
+		},
+		Labels:      []primitives.StringUnder300{commonLabel, label1},
+		Description: "first internalize",
+	}
+	_, err := sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
+	require.NoError(t, err)
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 8, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and:
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
+		WithLabels(commonLabel, label1)
+
+	// when:
+	internalizeArgs.Labels = []primitives.StringUnder300{commonLabel, label2}
+	_, err = sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
+	require.NoError(t, err)
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+	inserts, updates, err = sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, inserts)
+	assert.Equal(t, 2, updates)
+
+	// and:
+	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
+		WithLabels(commonLabel, label1, label2)
 }
