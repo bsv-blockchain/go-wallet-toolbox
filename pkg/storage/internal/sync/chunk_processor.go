@@ -32,6 +32,7 @@ type chunkProcessor struct {
 	args            *wdk.RequestSyncChunkArgs
 	syncState       *entity.SyncState
 	basketNameCache map[uint]string
+	labelCache      map[uint]*entity.Label
 }
 
 func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *entity.User) *chunkProcessor {
@@ -42,6 +43,7 @@ func newChunkProcessor(ctx context.Context, parent *processSyncChunk, chunk *wdk
 		args:            args,
 		user:            user,
 		basketNameCache: map[uint]string{},
+		labelCache:      map[uint]*entity.Label{},
 	}
 }
 
@@ -507,11 +509,16 @@ func (p *chunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) 
 }
 
 func (p *chunkProcessor) getLabelByNumID(labelNumID uint) (*entity.Label, error) {
-	// TODO: Cache this
+	if label, ok := p.labelCache[labelNumID]; ok {
+		return label, nil
+	}
+
 	label, err := p.parent.repo.FindLabelByNumIDForSync(p.ctx, labelNumID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find label by num ID %d: %w", labelNumID, err)
 	}
+
+	p.labelCache[labelNumID] = label
 
 	return label, nil
 }
