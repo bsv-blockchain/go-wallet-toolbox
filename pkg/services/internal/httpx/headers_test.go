@@ -3,7 +3,7 @@ package httpx_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/stretchr/testify/assert"
 )
 

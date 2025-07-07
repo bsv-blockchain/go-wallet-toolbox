@@ -3,10 +3,10 @@ package funder_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 )
 
 func TestFunderSQLFund(t *testing.T) {

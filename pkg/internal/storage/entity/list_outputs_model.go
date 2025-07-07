@@ -1,6 +1,6 @@
 package entity
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 
 // ListOutputsFilter is the filter used to fetch outputs from repo
 type ListOutputsFilter struct {

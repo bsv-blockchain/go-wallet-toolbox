@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 // Migrate migrates a wallet storage database.
 func (m *WalletStorageManager) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {

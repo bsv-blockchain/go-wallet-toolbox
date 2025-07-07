@@ -3,7 +3,7 @@ package wdk
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // TODO: Check if the types below can be replaced by go-sdk types

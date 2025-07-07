@@ -1,6 +1,6 @@
 package txutils
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 const P2PKHUnlockingScriptLength = 107
 

@@ -1,6 +1,6 @@
 package wdk
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 
 // WalletCertificate is a wallet certificate object
 type WalletCertificate struct {

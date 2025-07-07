@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func waitOrCancel(ctx context.Context, delay time.Duration, txid string) error {
