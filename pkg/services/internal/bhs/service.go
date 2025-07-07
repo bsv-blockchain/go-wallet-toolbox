@@ -69,7 +69,7 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 	client := httpClient.SetBaseURL(config.URL).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(child)).
-		SetDebug(child.Enabled(context.Background(), slog.LevelDebug))
+		SetDebug(logging.IsDebug(logger))
 
 	return &BlockHeadersService{
 		httpClient: client,

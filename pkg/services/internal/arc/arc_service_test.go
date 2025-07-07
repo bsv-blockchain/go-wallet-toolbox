@@ -1,7 +1,6 @@
 package arc_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -36,7 +35,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		txID := tx.TxID().String()
 
 		// when:
-		res, err := service.PostBEEF(context.Background(), beef, nil)
+		res, err := service.PostBEEF(t.Context(), beef, nil)
 
 		// then:
 		assert.NoError(t, err)
@@ -72,7 +71,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		var txids = []string{txID}
 
 		// when:
-		res, err := service.PostBEEF(context.Background(), beef, txids)
+		res, err := service.PostBEEF(t.Context(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
@@ -112,7 +111,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		var txids = []string{parentTxID, childTxID}
 
 		// when:
-		res, err := service.PostBEEF(context.Background(), beef, txids)
+		res, err := service.PostBEEF(t.Context(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
@@ -154,7 +153,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		var txids = []string{txID}
 
 		// when:
-		res, err := service.PostBEEF(context.Background(), beef, txids)
+		res, err := service.PostBEEF(t.Context(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
@@ -222,7 +221,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			service := given.NewArcService()
 
 			// when:
-			res, err := service.PostBEEF(context.Background(), test.BEEF(t), nil)
+			res, err := service.PostBEEF(t.Context(), test.BEEF(t), nil)
 
 			// then:
 			assert.Error(t, err)
@@ -274,7 +273,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			require.NoError(t, err)
 
 			// when:
-			res, err := service.PostBEEF(context.Background(), beef, nil)
+			res, err := service.PostBEEF(t.Context(), beef, nil)
 
 			// then:
 			assert.Error(t, err)
@@ -356,7 +355,7 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			test.setupARCQueryTx(given.ARC().WhenQueryingTx(parentTxID))
 
 			// when:
-			res, err := service.PostBEEF(context.Background(), beef, txids)
+			res, err := service.PostBEEF(t.Context(), beef, txids)
 
 			// then:
 			assert.NoError(t, err)
@@ -480,7 +479,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 			service := given.NewArcService()
 
 			// when:
-			res, err := service.MerklePath(context.Background(), txID)
+			res, err := service.MerklePath(t.Context(), txID)
 
 			// then:
 			assert.Error(t, err)
@@ -502,7 +501,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
 
 		// when:
-		res, err := service.MerklePath(context.Background(), txID)
+		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
 		assert.NoError(t, err)
@@ -549,7 +548,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 			WillReturnTransactionWithMerklePath(merklePath)
 
 		// when:
-		res, err := service.MerklePath(context.Background(), txID)
+		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
 		assert.NoError(t, err)

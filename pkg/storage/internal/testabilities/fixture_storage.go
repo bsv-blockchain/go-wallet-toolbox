@@ -1,7 +1,6 @@
 package testabilities
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -33,7 +32,7 @@ func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorag
 }
 
 func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
-	ctx := context.Background()
+	ctx := s.t.Context()
 	internalizeArgs := wdk.InternalizeActionArgs{
 		Tx: tsgenerated.AtomicBeefToInternalize(s.t),
 		Outputs: []*wdk.InternalizeOutput{
@@ -89,7 +88,7 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 	}
 
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		ctx,
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -115,7 +114,7 @@ func (s *storageFixture) ActionCreatedAndProcessed(activeStorage *storage.Provid
 		SendWith:   []string{},
 	}
 
-	_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	_, err := activeStorage.ProcessAction(s.t.Context(), testusers.Alice.AuthID(), args)
 	require.NoError(s.t, err)
 	return createActionResult, signedTx
 }

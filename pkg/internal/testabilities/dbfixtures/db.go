@@ -1,7 +1,6 @@
 package dbfixtures
 
 import (
-	"context"
 	"regexp"
 	"testing"
 
@@ -51,7 +50,7 @@ func TestDatabase(t testing.TB, configModifiers ...DBConfigModifier) (db *databa
 	db, err := database.NewDatabase(dbConfig, logger)
 	require.NoError(t, err)
 	repos := db.CreateRepositories()
-	err = repos.Migrate(context.Background())
+	err = repos.Migrate(t.Context())
 	require.NoError(t, err)
 	return db, func() {}
 }

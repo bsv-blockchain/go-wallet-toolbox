@@ -1,7 +1,6 @@
 package funder_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -13,7 +12,7 @@ import (
 func TestFunderSQLFund(t *testing.T) {
 	const smallTransactionSize = 44
 	const transactionSizeForHigherFee = 1001
-	var ctx = context.Background()
+	var ctx = t.Context()
 
 	testCasesErrors := map[string]struct {
 		thereAreUTXOInDB func(testabilities.FunderFixture, *entity.OutputBasket)

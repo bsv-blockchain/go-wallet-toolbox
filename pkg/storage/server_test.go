@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -41,7 +40,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return("current-migration-version", nil)
 
 		// when:
-		migrationVersion, err := client.Migrate(context.Background(), fixtures.StorageName, fixtures.StorageIdentityKey)
+		migrationVersion, err := client.Migrate(t.Context(), fixtures.StorageName, fixtures.StorageIdentityKey)
 
 		// then:
 		require.NoError(t, err)
@@ -76,7 +75,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(storageResult, nil)
 
 		// when:
-		response, err := client.MakeAvailable(context.Background())
+		response, err := client.MakeAvailable(t.Context())
 
 		// then:
 		require.NoError(t, err)
@@ -114,7 +113,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(storageResult, nil)
 
 		// when:
-		response, err := client.FindOrInsertUser(context.Background(), fixtures.StorageIdentityKey)
+		response, err := client.FindOrInsertUser(t.Context(), fixtures.StorageIdentityKey)
 
 		// then:
 		require.NoError(t, err)
@@ -171,7 +170,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(storageResult, nil)
 
 		// when:
-		result, err := client.InternalizeAction(context.Background(), testusers.Alice.AuthID(), args)
+		result, err := client.InternalizeAction(t.Context(), testusers.Alice.AuthID(), args)
 
 		// then:
 		assert.NoError(t, err)
@@ -288,7 +287,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(storageResult, nil)
 
 		// when:
-		result, err := client.CreateAction(context.Background(), testusers.Alice.AuthID(), args)
+		result, err := client.CreateAction(t.Context(), testusers.Alice.AuthID(), args)
 
 		// then:
 		assert.NoError(t, err)
@@ -350,7 +349,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(storageResult, nil)
 
 		// when:
-		result, err := client.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+		result, err := client.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 		// then:
 		assert.NoError(t, err)
@@ -381,7 +380,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(uint(1), nil)
 
 		// when:
-		result, err := client.InsertCertificateAuth(context.Background(), testusers.Alice.AuthID(), certToInsert)
+		result, err := client.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
@@ -415,7 +414,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(nil)
 
 		// when:
-		err := client.RelinquishCertificate(context.Background(), testusers.Alice.AuthID(), relinquishArgs)
+		err := client.RelinquishCertificate(t.Context(), testusers.Alice.AuthID(), relinquishArgs)
 
 		// then:
 		require.NoError(t, err)
@@ -465,7 +464,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(storageResult, nil)
 
 		// when:
-		response, err := client.ListCertificates(context.Background(), testusers.Alice.AuthID(), listArgs)
+		response, err := client.ListCertificates(t.Context(), testusers.Alice.AuthID(), listArgs)
 
 		// then:
 		require.NoError(t, err)
@@ -513,7 +512,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(expectedResult, nil)
 
 		// when:
-		actualResult, err := client.ListOutputs(context.Background(), testusers.Alice.AuthID(), listArgs)
+		actualResult, err := client.ListOutputs(t.Context(), testusers.Alice.AuthID(), listArgs)
 
 		// then:
 		require.NoError(t, err)
@@ -562,7 +561,7 @@ func TestRPCCommunication(t *testing.T) {
 			Return(expectedResult, nil)
 
 		// When:
-		actualResult, err := client.ListActions(context.Background(), testusers.Alice.AuthID(), args)
+		actualResult, err := client.ListActions(t.Context(), testusers.Alice.AuthID(), args)
 
 		// Then:
 		require.NoError(t, err)

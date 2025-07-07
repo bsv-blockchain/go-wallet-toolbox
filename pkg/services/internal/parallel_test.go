@@ -73,7 +73,7 @@ func TestMapParallel(t *testing.T) {
 			tasks := seq.Map(seq.FromSlice(test.expectedResults), test.typeOfTask)
 
 			// when:
-			taskResults := internal.MapParallel(context.Background(), tasks, func(_ context.Context, task *Task) *types.Result[string] {
+			taskResults := internal.MapParallel(t.Context(), tasks, func(_ context.Context, task *Task) *types.Result[string] {
 				return task.Run(t)
 			})
 
@@ -87,7 +87,7 @@ func TestMapParallel(t *testing.T) {
 	t.Run("handle nil sequence", func(t *testing.T) {
 
 		// when:
-		taskResults := internal.MapParallel(context.Background(), nil, func(_ context.Context, task *Task) *types.Result[string] {
+		taskResults := internal.MapParallel(t.Context(), nil, func(_ context.Context, task *Task) *types.Result[string] {
 			return task.Run(t)
 		})
 
@@ -109,7 +109,7 @@ func TestMapParallel(t *testing.T) {
 		tasks := seq.Map(seq.FromSlice(expectedResults), FastTask)
 
 		// when:
-		taskResults := internal.MapParallel(context.Background(), tasks, func(_ context.Context, task *Task) *types.Result[string] {
+		taskResults := internal.MapParallel(t.Context(), tasks, func(_ context.Context, task *Task) *types.Result[string] {
 			return task.Run(t)
 		})
 
@@ -130,7 +130,7 @@ func TestMapParallel(t *testing.T) {
 		tasks := seq.Map(seq.FromSlice(expectedResults), SlowTask)
 
 		// when: the context is closed
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		// and:

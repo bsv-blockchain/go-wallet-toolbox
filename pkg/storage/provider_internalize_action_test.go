@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -23,7 +22,7 @@ func TestInternalizeActionNilAuth(t *testing.T) {
 	activeStorage := given.Provider().GORM()
 
 	// when:
-	_, err := activeStorage.InternalizeAction(context.Background(), wdk.AuthID{UserID: nil}, fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol))
+	_, err := activeStorage.InternalizeAction(t.Context(), wdk.AuthID{UserID: nil}, fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol))
 
 	// then:
 	require.Error(t, err)
@@ -41,7 +40,7 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.InternalizeAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -75,7 +74,7 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.InternalizeAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -128,7 +127,7 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 
 			// when:
 			_, err := activeStorage.InternalizeAction(
-				context.Background(),
+				t.Context(),
 				testusers.Alice.AuthID(),
 				args,
 			)
@@ -162,7 +161,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			args,
 		)
@@ -201,7 +200,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			wdk.InternalizeActionArgs{
 				Tx: beefBytes,
@@ -227,7 +226,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// when:
 		result, err = activeStorage.InternalizeAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			wdk.InternalizeActionArgs{
 				Tx: beefBytes,
@@ -289,7 +288,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			args,
 		)
@@ -326,7 +325,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			wdk.InternalizeActionArgs{
 				Tx: beefToInternalize,
@@ -352,7 +351,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// when:
 		result, err = activeStorage.InternalizeAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			wdk.InternalizeActionArgs{
 				Tx: beefToInternalize,
@@ -406,7 +405,7 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.InternalizeAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.InternalizeActionArgs{
 			Tx: beefBytes,
@@ -431,8 +430,8 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 
 	// when:
 	result, err = activeStorage.InternalizeAction(
-		context.Background(),
-		testusers.Bob.AuthID(), //NOTE: This is a different user
+		t.Context(),
+		testusers.Bob.AuthID(), // NOTE: This is a different user
 		wdk.InternalizeActionArgs{
 			Tx: beefBytes,
 			Outputs: []*wdk.InternalizeOutput{

@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -19,7 +18,7 @@ func TestMakeAvailable(t *testing.T) {
 	activeStorage := given.Provider().GORMWithCleanDatabase()
 
 	// when:
-	tableSettings, err := activeStorage.MakeAvailable(context.Background())
+	tableSettings, err := activeStorage.MakeAvailable(t.Context())
 
 	// then:
 	require.NoError(t, err)
