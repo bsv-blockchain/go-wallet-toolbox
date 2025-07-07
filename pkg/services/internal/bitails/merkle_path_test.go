@@ -1,7 +1,6 @@
 package bitails_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ func TestBitails_MerklePath(t *testing.T) {
 	fixture.Bitails().WillReturnTxInfo(txID, blockHash, int64(height))
 
 	// when:
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := service.MerklePath(ctx, txID)
 
 	// then:
