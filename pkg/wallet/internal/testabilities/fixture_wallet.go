@@ -9,6 +9,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,8 +48,8 @@ func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
 	}
 
 	cleanup = func() {
-		for i := len(w.cleanupFuncs) - 1; i >= 0; i-- {
-			w.cleanupFuncs[i]()
+		for cleanupFunc := range seq.FromSliceReversed(w.cleanupFuncs) {
+			cleanupFunc()
 		}
 	}
 

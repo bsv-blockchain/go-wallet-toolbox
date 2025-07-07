@@ -310,6 +310,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithSend() {
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is negative value (user spends balance).
 
 		thenCreatedAction.OutputAtIndex(0).
+			ListActionsAlignsListOutputs().
 			WithSatoshis(args.Outputs[0].Satoshis).
 			WithLockingScript(args.Outputs[0].LockingScript).
 			WithOutputIndex(0).
@@ -466,7 +467,7 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		require.Error(t, err, "Wallet should return error when not delayed broadcast failed")
 
 		// and:
-		// TODO: replacace with better assertions for error - when we will have custom type for it
+		// TODO: replace with better assertions for error - when we will have custom type for it
 		assert.ErrorContains(t, err, "undelayed result require review")
 	})
 

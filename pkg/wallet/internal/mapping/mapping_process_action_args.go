@@ -15,11 +15,10 @@ func MapProcessActionArgs(txid *chainhash.Hash, tx *transaction.Transaction, ref
 		IsNoSend:   wdkArgs.IsNoSend,
 		IsDelayed:  wdkArgs.IsDelayed,
 		SendWith:   to.IfThen(wdkArgs.IsSendWith, wdkArgs.Options.SendWith).ElseThen(nil),
+		TxID:       to.Ptr(primitives.TXIDHexString(txid.String())),
+		RawTx:      tx.Bytes(),
+		Reference:  &reference,
 	}
 
-	processActionArgs.TxID = to.Ptr(primitives.TXIDHexString(txid.String()))
-	processActionArgs.RawTx = tx.Bytes()
-
-	processActionArgs.Reference = &reference
 	return processActionArgs
 }
