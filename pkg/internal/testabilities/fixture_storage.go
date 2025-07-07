@@ -1,7 +1,6 @@
 package testabilities
 
 import (
-	"context"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
@@ -116,7 +115,7 @@ func (s *storageFixture) Faucet(activeStorage *storage.Provider, user testusers.
 	s.require.NoError(err)
 
 	basket, err := s.db.CreateRepositories().
-		FindBasketByName(context.Background(), user.ID, wdk.BasketNameForChange)
+		FindBasketByName(s.t.Context(), user.ID, wdk.BasketNameForChange)
 	require.NoError(s.t, err)
 
 	return &faucetFixture{

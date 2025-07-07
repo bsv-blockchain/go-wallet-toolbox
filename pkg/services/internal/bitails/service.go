@@ -34,7 +34,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	client := httpClient.
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
-		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
+		SetDebug(logging.IsDebug(logger))
 
 	baseURL := ProductionURL
 	if strings.ToLower(string(network)) == "test" {

@@ -1,7 +1,6 @@
 package testabilities
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -139,7 +138,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	)
 	p.require.NoError(err)
 
-	_, err = activeStorage.Migrate(context.Background(), p.storageName, storageIdentityKey)
+	_, err = activeStorage.Migrate(p.t.Context(), p.storageName, storageIdentityKey)
 	p.require.NoError(err)
 
 	p.activeStorage = activeStorage
@@ -157,7 +156,7 @@ func (p *providerFixture) StorageIdentityKey() string {
 
 func (p *providerFixture) seedUsers(provider *storage.Provider) {
 	for _, user := range testusers.All() {
-		res, err := provider.FindOrInsertUser(context.Background(), user.IdentityKey(p.t))
+		res, err := provider.FindOrInsertUser(p.t.Context(), user.IdentityKey(p.t))
 		p.require.NoError(err)
 
 		user.ID = res.User.UserID

@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"context"
 	"encoding/hex"
 	"slices"
 	"testing"
@@ -29,7 +28,7 @@ func TestCreateActionNilAuth(t *testing.T) {
 	activeStorage := given.Provider().GORM()
 
 	// when:
-	_, err := activeStorage.CreateAction(context.Background(), wdk.AuthID{UserID: nil}, fixtures.DefaultValidCreateActionArgs())
+	_, err := activeStorage.CreateAction(t.Context(), wdk.AuthID{UserID: nil}, fixtures.DefaultValidCreateActionArgs())
 
 	// then:
 	require.Error(t, err)
@@ -51,7 +50,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -119,7 +118,7 @@ func TestCreateActionOutputTags(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -153,7 +152,7 @@ func TestCreateActionWithSignActionHappyPath(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -183,7 +182,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	args := fixtures.DefaultValidCreateActionArgs()
 
 	// when:
-	result, err := activeStorage.CreateAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -233,7 +232,7 @@ func TestCreateActionShuffleOutputs(t *testing.T) {
 		faucet.TopUp(100_000)
 
 		result, _ := activeStorage.CreateAction(
-			context.Background(),
+			t.Context(),
 			testusers.Alice.AuthID(),
 			args,
 		)
@@ -262,7 +261,7 @@ func TestZeroFunds(t *testing.T) {
 
 	// when:
 	_, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Bob.AuthID(),
 		args,
 	)
@@ -286,7 +285,7 @@ func TestInsufficientFunds(t *testing.T) {
 
 	// when:
 	_, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -310,7 +309,7 @@ func TestReservedUTXO(t *testing.T) {
 
 	// when:
 	_, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -320,7 +319,7 @@ func TestReservedUTXO(t *testing.T) {
 
 	// when:
 	_, err = activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -356,7 +355,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -422,7 +421,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -485,7 +484,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -551,7 +550,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 
 	// when:
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -622,7 +621,7 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 
 	// when:
 	_, err := activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		args,
 	)
