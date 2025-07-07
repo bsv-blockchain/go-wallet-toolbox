@@ -10,7 +10,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/metadata"
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/metadata"
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 

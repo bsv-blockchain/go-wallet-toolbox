@@ -1,17 +1,16 @@
 package testabilities
 
 import (
-	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +32,7 @@ func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorag
 }
 
 func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction) {
-	ctx := context.Background()
+	ctx := s.t.Context()
 	internalizeArgs := wdk.InternalizeActionArgs{
 		Tx: tsgenerated.AtomicBeefToInternalize(s.t),
 		Outputs: []*wdk.InternalizeOutput{
@@ -89,7 +88,7 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 	}
 
 	result, err := activeStorage.CreateAction(
-		context.Background(),
+		ctx,
 		testusers.Alice.AuthID(),
 		args,
 	)
@@ -115,7 +114,7 @@ func (s *storageFixture) ActionCreatedAndProcessed(activeStorage *storage.Provid
 		SendWith:   []primitives.TXIDHexString{},
 	}
 
-	_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	_, err := activeStorage.ProcessAction(s.t.Context(), testusers.Alice.AuthID(), args)
 	require.NoError(s.t, err)
 	return createActionResult, signedTx
 }

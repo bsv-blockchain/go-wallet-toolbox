@@ -1,14 +1,13 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/server"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/server"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ func TestTracer(t *testing.T) {
 	// and client:
 	var client mockClient
 	closer, err := jsonrpc.NewMergeClient(
-		context.Background(),
+		t.Context(),
 		testSrv.URL,
 		"MockHandler",
 		[]any{&client},

@@ -1,7 +1,7 @@
 package testservices
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/jarcoal/httpmock"
 )
 

@@ -1,18 +1,17 @@
 package testabilities
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
@@ -128,7 +127,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	)
 	p.require.NoError(err)
 
-	_, err = activeStorage.Migrate(context.Background(), p.storageName, storageIdentityKey)
+	_, err = activeStorage.Migrate(p.t.Context(), p.storageName, storageIdentityKey)
 	p.require.NoError(err)
 
 	p.activeStorage = activeStorage
@@ -146,7 +145,7 @@ func (p *providerFixture) StorageIdentityKey() string {
 
 func (p *providerFixture) seedUsers(provider *storage.Provider) {
 	for _, user := range testusers.All() {
-		res, err := provider.FindOrInsertUser(context.Background(), user.IdentityKey(p.t))
+		res, err := provider.FindOrInsertUser(p.t.Context(), user.IdentityKey(p.t))
 		p.require.NoError(err)
 
 		user.ID = res.User.UserID

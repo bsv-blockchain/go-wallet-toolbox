@@ -1,7 +1,7 @@
 package servicequeue
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/go-softwarelab/common/pkg/types"
 )
 

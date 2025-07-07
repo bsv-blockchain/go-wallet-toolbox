@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/filecoin-project/go-jsonrpc"
 )
 

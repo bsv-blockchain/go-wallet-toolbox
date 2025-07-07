@@ -3,7 +3,7 @@ package defs
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // Commission represents the commission configuration for a storage provider.

@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/extractor"
-	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/generator"
-	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/metadata"
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/extractor"
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/generator"
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/metadata"
 )
 
 func main() {

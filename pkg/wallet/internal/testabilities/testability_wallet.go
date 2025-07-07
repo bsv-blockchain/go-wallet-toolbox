@@ -4,7 +4,7 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/stretchr/testify/require"
 )
 

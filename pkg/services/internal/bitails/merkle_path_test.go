@@ -1,12 +1,11 @@
 package bitails_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +25,7 @@ func TestBitails_MerklePath(t *testing.T) {
 	fixture.Bitails().WillReturnTxInfo(txID, blockHash, int64(height))
 
 	// when:
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := service.MerklePath(ctx, txID)
 
 	// then:

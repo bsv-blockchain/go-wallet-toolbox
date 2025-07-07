@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -1,19 +1,18 @@
 package funder_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 )
 
 func TestFunderSQLFund(t *testing.T) {
 	const smallTransactionSize = 44
 	const transactionSizeForHigherFee = 1001
-	var ctx = context.Background()
+	var ctx = t.Context()
 
 	testCasesErrors := map[string]struct {
 		thereAreUTXOInDB func(testabilities.FunderFixture, *entity.OutputBasket)

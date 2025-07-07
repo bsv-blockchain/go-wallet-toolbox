@@ -1,14 +1,13 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,13 +50,13 @@ func TestInsertCertificateAuth(t *testing.T) {
 		}}
 
 		// when: insert certificate for Alice
-		_, err := activeStorage.InsertCertificateAuth(context.Background(), testusers.Alice.AuthID(), certToInsert)
+		_, err := activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
 
 		// when: listing certificates
-		certs, err := activeStorage.ListCertificates(context.Background(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{})
+		certs, err := activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{})
 
 		// then:
 		require.NoError(t, err)
@@ -104,20 +103,20 @@ func TestInsertCertificateAuth(t *testing.T) {
 		}}
 
 		// when: insert certificate for Bob
-		_, err := activeStorage.InsertCertificateAuth(context.Background(), testusers.Bob.AuthID(), certToInsert)
+		_, err := activeStorage.InsertCertificateAuth(t.Context(), testusers.Bob.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
 
 		// when:
 		certToInsert.Type = "ZXhhbXBsZVR5cGUy"
-		_, err = activeStorage.InsertCertificateAuth(context.Background(), testusers.Bob.AuthID(), certToInsert)
+		_, err = activeStorage.InsertCertificateAuth(t.Context(), testusers.Bob.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
 
 		// when: listing certificates
-		certs, err := activeStorage.ListCertificates(context.Background(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
+		certs, err := activeStorage.ListCertificates(t.Context(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
 
 		// then:
 		require.NoError(t, err)
@@ -127,7 +126,7 @@ func TestInsertCertificateAuth(t *testing.T) {
 
 	t.Run("should delete a certificate for Bob", func(t *testing.T) {
 		// given:
-		certs, err := activeStorage.ListCertificates(context.Background(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
+		certs, err := activeStorage.ListCertificates(t.Context(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
 		require.NoError(t, err)
 		require.Equal(t, primitives.PositiveInteger(2), certs.TotalCertificates)
 
@@ -152,7 +151,7 @@ func TestInsertCertificateAuth(t *testing.T) {
 		}}
 
 		// when:
-		err = activeStorage.RelinquishCertificate(context.Background(), testusers.Bob.AuthID(), wdk.RelinquishCertificateArgs{
+		err = activeStorage.RelinquishCertificate(t.Context(), testusers.Bob.AuthID(), wdk.RelinquishCertificateArgs{
 			Type:         "ZXhhbXBsZVR5cGUy",
 			SerialNumber: fixtures.SerialNumber,
 			Certifier:    fixtures.Certifier,
@@ -162,7 +161,7 @@ func TestInsertCertificateAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		// when: list certificates
-		certs, err = activeStorage.ListCertificates(context.Background(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
+		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
 
 		// then:
 		require.NoError(t, err)
@@ -181,13 +180,13 @@ func TestInsertCertificateAuthFailure(t *testing.T) {
 
 	t.Run("should fail to insert a certificate when no UserID provided in auth and when certificate UserID is different than authID", func(t *testing.T) {
 		// when:
-		_, err := activeStorage.InsertCertificateAuth(context.Background(), wdk.AuthID{}, &wdk.TableCertificateX{})
+		_, err := activeStorage.InsertCertificateAuth(t.Context(), wdk.AuthID{}, &wdk.TableCertificateX{})
 
 		// then:
 		require.ErrorContains(t, err, "access is denied due to an authorization error")
 
 		// and when:
-		_, err = activeStorage.InsertCertificateAuth(context.Background(), testusers.Alice.AuthID(), &wdk.TableCertificateX{
+		_, err = activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), &wdk.TableCertificateX{
 			TableCertificate: wdk.TableCertificate{
 				UserID: testusers.Bob.ID,
 			},
@@ -199,7 +198,7 @@ func TestInsertCertificateAuthFailure(t *testing.T) {
 
 	t.Run("should fail to relinquish a certificate when no UserID provided in auth", func(t *testing.T) {
 		// when:
-		err := activeStorage.RelinquishCertificate(context.Background(), wdk.AuthID{}, wdk.RelinquishCertificateArgs{})
+		err := activeStorage.RelinquishCertificate(t.Context(), wdk.AuthID{}, wdk.RelinquishCertificateArgs{})
 
 		// then:
 		require.ErrorContains(t, err, "access is denied due to an authorization error")
@@ -207,7 +206,7 @@ func TestInsertCertificateAuthFailure(t *testing.T) {
 
 	t.Run("should fail to list certificate when no UserID provided in auth", func(t *testing.T) {
 		// when:
-		_, err := activeStorage.ListCertificates(context.Background(), wdk.AuthID{}, wdk.ListCertificatesArgs{})
+		_, err := activeStorage.ListCertificates(t.Context(), wdk.AuthID{}, wdk.ListCertificatesArgs{})
 
 		// then:
 		require.ErrorContains(t, err, "access is denied due to an authorization error")
@@ -215,7 +214,7 @@ func TestInsertCertificateAuthFailure(t *testing.T) {
 
 	t.Run("should fail to delete certificate when no cert is found", func(t *testing.T) {
 		// when:
-		err := activeStorage.RelinquishCertificate(context.Background(), testusers.Alice.AuthID(), wdk.RelinquishCertificateArgs{
+		err := activeStorage.RelinquishCertificate(t.Context(), testusers.Alice.AuthID(), wdk.RelinquishCertificateArgs{
 			Type:         "bm90LXR5cGU=",
 			SerialNumber: fixtures.SerialNumber,
 			Certifier:    fixtures.Certifier,
@@ -238,27 +237,27 @@ func TestListCertificates(t *testing.T) {
 		// given:
 		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID)
 		// when: insert 1st certificate for Bob
-		_, err := activeStorage.InsertCertificateAuth(context.Background(), testusers.Alice.AuthID(), certToInsert)
+		_, err := activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
 
 		// when: update 2nd cert type and insert
 		certToInsert.Type = "ZXhhbXBsZVR5cGUy"
-		_, err = activeStorage.InsertCertificateAuth(context.Background(), testusers.Alice.AuthID(), certToInsert)
+		_, err = activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
 
 		// when: update 3nd cert type and insert
 		certToInsert.Type = "ZXhhbXBsZVR5cGUz"
-		_, err = activeStorage.InsertCertificateAuth(context.Background(), testusers.Alice.AuthID(), certToInsert)
+		_, err = activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), certToInsert)
 
 		// then:
 		require.NoError(t, err)
 
 		// when: listing certificates with limit 1
-		certs, err := activeStorage.ListCertificates(context.Background(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
+		certs, err := activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
 			Limit: primitives.PositiveIntegerDefault10Max10000(1),
 		})
 
@@ -268,7 +267,7 @@ func TestListCertificates(t *testing.T) {
 		require.Equal(t, 1, len(certs.Certificates))
 
 		// when: listing certificates with limit 2
-		certs, err = activeStorage.ListCertificates(context.Background(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
+		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
 			Limit: primitives.PositiveIntegerDefault10Max10000(2),
 		})
 
@@ -278,7 +277,7 @@ func TestListCertificates(t *testing.T) {
 		require.Equal(t, 2, len(certs.Certificates))
 
 		// when: listing certificates with limit 1 and offset 2
-		certs, err = activeStorage.ListCertificates(context.Background(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
+		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
 			Offset: primitives.PositiveInteger(2),
 		})
 

@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bhs/internal/dto"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs/internal/dto"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -69,7 +69,7 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 	client := httpClient.SetBaseURL(config.URL).
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(child)).
-		SetDebug(child.Enabled(context.Background(), slog.LevelDebug))
+		SetDebug(logging.IsDebug(logger))
 
 	return &BlockHeadersService{
 		httpClient: client,

@@ -1,8 +1,8 @@
 package testabilities
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 )
 
 type ServicesFixture interface {

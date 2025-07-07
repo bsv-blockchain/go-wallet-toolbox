@@ -9,8 +9,8 @@ import (
 	"slices"
 	"text/template"
 
-	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/extractor"
-	"github.com/4chain-ag/go-wallet-toolbox/tools/client-gen/metadata"
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/extractor"
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/metadata"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/seq"
 	slicesx "github.com/go-softwarelab/common/pkg/slices"

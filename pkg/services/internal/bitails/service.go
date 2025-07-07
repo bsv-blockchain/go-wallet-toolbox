@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/utils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -34,7 +34,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	client := httpClient.
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
-		SetDebug(logger.Enabled(context.Background(), slog.LevelDebug))
+		SetDebug(logging.IsDebug(logger))
 
 	baseURL := ProductionURL
 	if strings.ToLower(string(network)) == "test" {

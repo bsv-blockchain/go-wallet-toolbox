@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"

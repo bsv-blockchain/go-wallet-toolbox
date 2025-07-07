@@ -1,7 +1,7 @@
 package scopes
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
