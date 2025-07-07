@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -40,7 +39,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 	}
 
 	// when:
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -82,14 +81,14 @@ func TestProcessActionTwice(t *testing.T) {
 	}
 
 	// when:
-	_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
 
 	// when:
 	args.IsNewTx = false
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -158,7 +157,7 @@ func TestProcessActionErrorCases(t *testing.T) {
 			})
 
 			// when:
-			_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+			_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 			// then:
 			require.Error(t, err)
@@ -196,7 +195,7 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 	}
 
 	// when:
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -244,7 +243,7 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 	}
 
 	// when:
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)

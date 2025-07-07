@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,7 +31,7 @@ func TestTracer(t *testing.T) {
 	// and client:
 	var client mockClient
 	closer, err := jsonrpc.NewMergeClient(
-		context.Background(),
+		t.Context(),
 		testSrv.URL,
 		"MockHandler",
 		[]any{&client},
