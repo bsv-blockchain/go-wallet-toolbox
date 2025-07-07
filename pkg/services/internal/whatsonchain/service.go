@@ -8,15 +8,17 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const ServiceName = "WhatsOnChain"
@@ -27,9 +29,12 @@ type WhatsOnChain struct {
 	apiKey     string
 	logger     *slog.Logger
 
-	bsvExchangeRate   defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
-	bsvUpdateInterval time.Duration
-	broadcastDelay    time.Duration
+	bsvExchangeRate                defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
+	bsvUpdateInterval              time.Duration
+	broadcastDelay                 time.Duration
+	rootForHeightValidationTimeout time.Duration
+	rootForHeightValidationRetries int
+	rootCache                      map[uint32]*chainhash.Hash
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
@@ -38,6 +43,11 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	err := network.Validate()
 	if err != nil {
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
+	}
+
+	url, err := makeBaseURL(network)
+	if err != nil {
+		panic(fmt.Sprintf("failed to build base URL for WhatsOnChain: %s", err.Error()))
 	}
 
 	headers := httpx.NewHeaders().
@@ -51,13 +61,16 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetDebug(logging.IsDebug(logger))
 
 	return &WhatsOnChain{
-		httpClient:        client,
-		apiKey:            config.APIKey,
-		url:               fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s", network),
-		logger:            logger,
-		bsvExchangeRate:   config.BSVExchangeRate,
-		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
-		broadcastDelay:    config.BroadcastDelay,
+		httpClient:                     client,
+		apiKey:                         config.APIKey,
+		url:                            url,
+		logger:                         logger,
+		bsvExchangeRate:                config.BSVExchangeRate,
+		bsvUpdateInterval:              to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		broadcastDelay:                 config.BroadcastDelay,
+		rootForHeightValidationTimeout: config.RootForHeightValidationTimeout,
+		rootForHeightValidationRetries: config.RootForHeightValidationRetries,
+		rootCache:                      make(map[uint32]*chainhash.Hash),
 	}
 }
 
