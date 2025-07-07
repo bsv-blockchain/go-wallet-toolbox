@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/crud"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -14,6 +13,7 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
@@ -471,6 +471,7 @@ func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID in
 	return txEntity, nil
 }
 
+// CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.
 func (p *Provider) CommissionEntity() crud.Commission {
 	return crud.NewCommission(p.repo.Commission)
 }

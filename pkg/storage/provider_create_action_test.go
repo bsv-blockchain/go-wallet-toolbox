@@ -206,12 +206,14 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Nil(t, commissionOutput.CustomInstructions)
 	assert.Empty(t, commissionOutput.Tags)
 
-	// then:
+	// when:
 	commissions, err := activeStorage.CommissionEntity().
 		WithIsRedeemed(false).
 		WithUserID(testusers.Alice.ID).
 		WithSatoshisGreaterThan(0).
 		Find(t.Context())
+
+	// then:
 	require.NoError(t, err)
 	require.Len(t, commissions, 1)
 	require.Equal(t, uint64(10), commissions[0].Satoshis)

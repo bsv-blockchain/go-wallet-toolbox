@@ -3,14 +3,17 @@ package crud
 import (
 	"context"
 	"fmt"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 )
 
+// CommissionOperations defines operations for retrieving commission records from a data store.
 type CommissionOperations interface {
 	Find(ctx context.Context) ([]*entity.Commission, error)
 }
 
+// Commission defines an interface for querying commission records with various filters and operations on the dataset.
 type Commission interface {
 	CommissionOperations
 
@@ -29,6 +32,8 @@ type commission struct {
 	opts []queryopts.Options
 }
 
+// NewCommission creates and returns a new Commission instance using the provided commissionRepo implementation.
+// The returned Commission can be used to build queries for commission records with various filters and options.
 func NewCommission(repo commissionRepo) Commission {
 	return &commission{
 		repo: repo,

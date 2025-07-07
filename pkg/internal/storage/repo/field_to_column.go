@@ -2,13 +2,15 @@ package repo
 
 import (
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"reflect"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 )
 
 type fieldToColumn struct {
 	lookup      map[string]string
 	columnNames map[string]struct{}
+	fieldNames  map[string]struct{}
 }
 
 func newFieldToColumn(fieldNamesStruct, columnNamesStruct any) *fieldToColumn {
@@ -62,17 +64,22 @@ func newFieldToColumn(fieldNamesStruct, columnNamesStruct any) *fieldToColumn {
 	return &fieldToColumn{
 		lookup:      lookup,
 		columnNames: columnNames,
+		fieldNames:  fieldNames,
 	}
 }
 
 func (f *fieldToColumn) Validate() error {
-	if len(f.lookup) == 0 || len(f.lookup) != len(f.columnNames) {
+	if len(f.lookup) == 0 || len(f.lookup) != len(f.fieldNames) {
 		return fmt.Errorf("field to column mapping is empty or does not match the number of column names")
 	}
 
-	for fieldName := range f.lookup {
-		if _, ok := f.columnNames[fieldName]; !ok {
-			return fmt.Errorf("field name %s is not a valid column name", fieldName)
+	for fieldName, columnName := range f.lookup {
+		if _, ok := f.fieldNames[fieldName]; !ok {
+			return fmt.Errorf("field name %s is not a valid field name", fieldName)
+		}
+
+		if _, ok := f.columnNames[columnName]; !ok {
+			return fmt.Errorf("column name %s is not a valid column name", columnName)
 		}
 	}
 
@@ -82,6 +89,10 @@ func (f *fieldToColumn) Validate() error {
 func (f *fieldToColumn) Mapping(fieldName, columnName string) error {
 	if _, ok := f.lookup[fieldName]; ok {
 		return fmt.Errorf("field name %s is already mapped to column %s", fieldName, f.lookup[fieldName])
+	}
+
+	if _, ok := f.fieldNames[fieldName]; !ok {
+		return fmt.Errorf("field name %s is not a valid field name", fieldName)
 	}
 
 	if _, ok := f.columnNames[columnName]; !ok {

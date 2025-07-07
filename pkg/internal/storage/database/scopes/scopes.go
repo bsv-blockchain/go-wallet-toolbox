@@ -2,6 +2,7 @@ package scopes
 
 import (
 	"fmt"
+
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
