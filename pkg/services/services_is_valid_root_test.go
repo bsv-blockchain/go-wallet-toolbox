@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	wocTst "github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	wocTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/require"
 )
 
