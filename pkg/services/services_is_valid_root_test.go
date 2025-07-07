@@ -16,8 +16,8 @@ import (
 func TestWalletServices_IsValidRootForHeight(t *testing.T) {
 	const height = wocTst.TestBlockHeight
 
-	goodRoot, _ := chainhash.NewHashFromHex(wocTst.TestMerkleRootHex)
-	badRoot := func() *chainhash.Hash { h := *goodRoot; h[0] ^= 0xff; return &h }()
+	validRoot, _ := chainhash.NewHashFromHex(wocTst.TestMerkleRootHex)
+	invalidRoot := func() *chainhash.Hash { h := *validRoot; h[0] ^= 0xff; return &h }()
 
 	var ctxDuringRequest context.Context
 
@@ -40,7 +40,7 @@ func TestWalletServices_IsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusOK, height, wocTst.TestMerkleRootHex)
 			},
-			root: goodRoot,
+			root: validRoot,
 			ctx:  t.Context(),
 			want: want{ok: true},
 		},
@@ -50,7 +50,7 @@ func TestWalletServices_IsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusOK, height, wocTst.TestMerkleRootHex)
 			},
-			root: badRoot,
+			root: invalidRoot,
 			ctx:  t.Context(),
 			want: want{ok: false},
 		},
@@ -60,7 +60,7 @@ func TestWalletServices_IsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusNotFound, height, "not found")
 			},
-			root: goodRoot,
+			root: validRoot,
 			ctx:  t.Context(),
 			want: want{ok: false},
 		},
@@ -69,7 +69,7 @@ func TestWalletServices_IsValidRootForHeight(t *testing.T) {
 			setup: func(f testservices.ServicesFixture) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 			},
-			root: goodRoot,
+			root: validRoot,
 			ctx:  t.Context(),
 			want: want{ok: false, expectErr: true},
 		},
@@ -87,7 +87,7 @@ func TestWalletServices_IsValidRootForHeight(t *testing.T) {
 						return nil, context.Canceled
 					})
 			},
-			root: goodRoot,
+			root: validRoot,
 			ctx:  nil, // replaced below
 			want: want{ok: false, expectErr: true, canceled: true},
 		},

@@ -1,4 +1,3 @@
-// pkg/services/internal/whatsonchain/is_valid_root_test.go
 package whatsonchain_test
 
 import (
@@ -20,8 +19,8 @@ func TestIsValidRootForHeight(t *testing.T) {
 		err error
 	}
 
-	goodRoot, _ := chainhash.NewHashFromHex(tst.TestMerkleRootHex)
-	badRoot := func() *chainhash.Hash { h := *goodRoot; h[0] ^= 0xff; return &h }()
+	validRoot, _ := chainhash.NewHashFromHex(tst.TestMerkleRootHex)
+	invalidRoot := func() *chainhash.Hash { h := *validRoot; h[0] ^= 0xff; return &h }()
 
 	var ctxDuringRequest context.Context
 
@@ -39,7 +38,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
 			},
-			root:  goodRoot,
+			root:  validRoot,
 			ctx:   t.Context(),
 			want1: want{ok: true},
 			want2: want{ok: true},
@@ -50,7 +49,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
 			},
-			root:  badRoot,
+			root:  invalidRoot,
 			ctx:   t.Context(),
 			want1: want{ok: false},
 			want2: want{ok: false},
@@ -61,7 +60,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusNotFound, tst.TestBlockHeight, "not found")
 			},
-			root:  goodRoot,
+			root:  validRoot,
 			ctx:   t.Context(),
 			want1: want{ok: false},
 			want2: want{ok: false},
@@ -77,7 +76,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 				f.WhatsOnChain().
 					WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
 			},
-			root:  goodRoot,
+			root:  validRoot,
 			ctx:   t.Context(),
 			want1: want{ok: true},
 			want2: want{ok: true},
@@ -94,7 +93,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 						return nil, context.Canceled
 					})
 			},
-			root:  goodRoot,
+			root:  validRoot,
 			ctx:   nil, // replaced below
 			want1: want{ok: false, err: context.Canceled},
 			want2: want{ok: false, err: context.Canceled},

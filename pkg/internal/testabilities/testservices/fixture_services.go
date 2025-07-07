@@ -59,7 +59,6 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 
 	servicesConfig := defs.DefaultServicesConfig(network)
 	servicesConfig.WhatsOnChain.BroadcastDelay = 0
-	servicesConfig.WhatsOnChain.RootForHeightValidationTimeout = 0
 	servicesConfig.WhatsOnChain.RootForHeightValidationRetries = 1
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))

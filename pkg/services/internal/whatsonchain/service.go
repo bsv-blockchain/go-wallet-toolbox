@@ -33,7 +33,7 @@ type WhatsOnChain struct {
 	broadcastDelay                 time.Duration
 	rootForHeightValidationTimeout time.Duration
 	rootForHeightValidationRetries int
-	rootCache                      map[uint32]*chainhash.Hash
+	rootCache                      map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {

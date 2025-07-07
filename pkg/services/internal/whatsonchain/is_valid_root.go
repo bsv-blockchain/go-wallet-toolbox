@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 )
 
 // IsValidRootForHeight checks if the provided Merkle root is valid for the given block height.
 func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
-
 	if cached, ok := woc.rootCache[height]; ok {
 		return cached.IsEqual(root), nil
 	}
@@ -19,17 +17,22 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 	var lastErr error
 
 	for range woc.rootForHeightValidationRetries {
-		ok, err := woc.fetchAndCompare(ctx, root, height)
+		attemptCtx := ctx
+		var cancel context.CancelFunc
+		if woc.rootForHeightValidationTimeout > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, woc.rootForHeightValidationTimeout)
+			defer cancel()
+		}
+		ok, err := woc.fetchAndCompare(attemptCtx, root, height)
 		if err == nil {
 			return ok, nil
 		}
-		lastErr = err
 
-		select {
-		case <-ctx.Done():
-			return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, ctx.Err())
-		case <-time.After(woc.rootForHeightValidationTimeout):
+		if ce := attemptCtx.Err(); ce != nil {
+			return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, ce)
 		}
+
+		lastErr = err
 	}
 
 	return false, fmt.Errorf("WoC: %w (after %d retries)", lastErr, woc.rootForHeightValidationRetries)

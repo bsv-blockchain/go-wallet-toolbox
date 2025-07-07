@@ -7,7 +7,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type WoCServiceFixture interface {
@@ -33,12 +32,12 @@ func (f *wocServiceFixture) NewWoCService(opts ...func(*whatsonchain.WhatsOnChai
 	client := f.WhatsOnChain().HttpClient()
 	network := f.Network()
 
-	config := to.OptionsWithDefault(defs.WhatsOnChain{
+	config := defs.WhatsOnChain{
 		BroadcastDelay:                 0,
 		BSVExchangeRate:                defs.BSVExchangeRate{},
 		RootForHeightValidationTimeout: 0,
 		RootForHeightValidationRetries: 1,
-	})
+	}
 
 	service := whatsonchain.New(client, logger, network, config)
 
