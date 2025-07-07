@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/crud"
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
@@ -468,4 +469,8 @@ func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID in
 	}
 
 	return txEntity, nil
+}
+
+func (p *Provider) CommissionEntity() crud.Commission {
+	return crud.NewCommission(p.repo.Commission)
 }

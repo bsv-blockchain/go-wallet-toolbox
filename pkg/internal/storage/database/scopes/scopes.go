@@ -1,6 +1,7 @@
 package scopes
 
 import (
+	"fmt"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -49,15 +50,24 @@ func Since(since *queryopts.Since) func(*gorm.DB) *gorm.DB {
 	}
 }
 
+func Filter(filter *queryopts.Filter) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where(fmt.Sprintf("%s %s ?", filter.Field, filter.Cmp), filter.Value)
+	}
+}
+
 func FromQueryOpts(opts []queryopts.Options) []func(*gorm.DB) *gorm.DB {
 	options := queryopts.MergeOptions(opts)
 
-	var sc []func(*gorm.DB) *gorm.DB
+	sc := make([]func(*gorm.DB) *gorm.DB, 0, len(options.Filters)+2)
 	if options.Page != nil {
 		sc = append(sc, Paginate(options.Page))
 	}
 	if options.Since != nil {
 		sc = append(sc, Since(options.Since))
+	}
+	for _, filter := range options.Filters {
+		sc = append(sc, Filter(filter))
 	}
 
 	return sc

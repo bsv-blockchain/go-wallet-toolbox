@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/go-softwarelab/common/pkg/slices"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -11,6 +13,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var commissionFieldToColumn = newFieldToColumn(entity.CommissionFieldNames, models.CommissionColumnNames).QueryOptsModifier()
 
 type Commission struct {
 	db *gorm.DB
@@ -57,12 +61,38 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 		return nil, fmt.Errorf("failed to find commission: %w", err)
 	}
 
+	return mapModelToEntityCommission(commission), nil
+}
+
+func (c *Commission) FindCommissions(ctx context.Context, opts ...queryopts.Options) ([]*entity.Commission, error) {
+	queryopts.ModifyOptions(opts, commissionFieldToColumn)
+
+	var commissions []*models.Commission
+	err := c.db.WithContext(ctx).
+		Scopes(scopes.FromQueryOpts(opts)...).
+		Model(&models.Commission{}).
+		Find(&commissions).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find commissions: %w", err)
+	}
+
+	return slices.Map(commissions, mapModelToEntityCommission), nil
+}
+
+func mapModelToEntityCommission(model *models.Commission) *entity.Commission {
+	if model == nil {
+		return nil
+	}
+
 	return &entity.Commission{
-		UserID:        commission.UserID,
-		TransactionID: commission.TransactionID,
-		Satoshis:      commission.Satoshis,
-		KeyOffset:     commission.KeyOffset,
-		IsRedeemed:    commission.IsRedeemed,
-		LockingScript: commission.LockingScript,
-	}, nil
+		ID:            model.ID,
+		CreatedAt:     model.CreatedAt,
+		UpdatedAt:     model.UpdatedAt,
+		UserID:        model.UserID,
+		TransactionID: model.TransactionID,
+		Satoshis:      model.Satoshis,
+		KeyOffset:     model.KeyOffset,
+		IsRedeemed:    model.IsRedeemed,
+		LockingScript: model.LockingScript,
+	}
 }

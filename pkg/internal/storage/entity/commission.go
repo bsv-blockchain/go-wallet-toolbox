@@ -14,3 +14,25 @@ type Commission struct {
 	IsRedeemed    bool
 	LockingScript []byte
 }
+
+var CommissionFieldNames = struct {
+	ID            string
+	CreatedAt     string
+	UpdatedAt     string
+	UserID        string
+	TransactionID string
+	Satoshis      string
+	KeyOffset     string
+	IsRedeemed    string
+	LockingScript string
+}{
+	ID:            "id",
+	CreatedAt:     "created_at",
+	UpdatedAt:     "updated_at",
+	UserID:        "user_id",
+	TransactionID: "transaction_id",
+	Satoshis:      "satoshis",
+	KeyOffset:     "key_offset",
+	IsRedeemed:    "is_redeemed",
+	LockingScript: "locking_script",
+}
