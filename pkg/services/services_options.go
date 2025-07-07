@@ -3,8 +3,8 @@ package services
 import (
 	"net/http"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/options"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/options"
 	"github.com/go-resty/resty/v2"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 

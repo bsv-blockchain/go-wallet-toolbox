@@ -1,6 +1,6 @@
 package testutils
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 func ProvidedByYouCondition(p *wdk.StorageCreateTransactionSdkOutput) bool {
 	return p.ProvidedBy == wdk.ProvidedByYou

@@ -3,7 +3,7 @@ package wdk
 import (
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // TableSyncState represents the current synchronization state of a database table for a given user and storage.

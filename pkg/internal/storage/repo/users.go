@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 )
