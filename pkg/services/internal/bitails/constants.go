@@ -12,8 +12,7 @@ const (
 
 // Service constants for Bitails
 const (
-	ServiceName       = "Bitails"
-	BroadcastEndpoint = "tx/broadcast/multi"
+	ServiceName = "Bitails"
 )
 
 // Bitails Error Codes
@@ -26,4 +25,7 @@ const (
 const (
 	HTTPStatusCreated = http.StatusCreated
 	HTTPStatusOK      = http.StatusOK
+	BlockHeaderLength = 80
+	MerkleRootOffset  = 36
+	MerkleRootLength  = 32
 )
