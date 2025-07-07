@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -21,7 +22,7 @@ type Wallet struct {
 	proto      *sdk.ProtoWallet
 	storage    wdk.WalletStorage
 	keyDeriver *sdk.KeyDeriver
-	wallet_opts.Opts
+	*wallet_opts.Opts
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
@@ -49,15 +50,17 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 
 	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
 
+	opts := &wallet_opts.Opts{
+		IncludeAllSourceTransactions: true,
+		AutoKnownTxids:               false,
+		TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
+	}
+
 	return &Wallet{
 		proto:      proto,
 		storage:    storageManager,
 		keyDeriver: keyDeriver,
-		Opts: wallet_opts.Opts{
-			IncludeAllSourceTransactions: true,
-			AutoKnownTxids:               false,
-			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
-		},
+		Opts:       opts,
 	}, nil
 }
 
@@ -133,45 +136,17 @@ func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureAr
 
 // CreateAction creates a new Bitcoin transaction based on the provided inputs, outputs, labels, locks, and other options.
 func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
-	if err := validate.Originator(originator); err != nil {
-		return nil, fmt.Errorf("invalid originator: %w", err)
+	action := &actions.CreateAction{
+		KeyDeriver: w.keyDeriver,
+		Storage:    w.storage,
+		WalletOpts: w.Opts,
 	}
 
-	// TODO: mapping.MapCreateActionArgs should handle known tx ids - needs some merging and validation of BEEF
-	wdkArgs := mapping.MapCreateActionArgs(args, w.Opts)
-
-	if err := validate.WalletCreateActionArgs(&wdkArgs); err != nil {
-		return nil, fmt.Errorf("invalid create action args: %w", err)
+	result, err := action.CreateAction(ctx, args, originator)
+	if err != nil {
+		return nil, fmt.Errorf("create action failed: %w", err)
 	}
-
-	if wdkArgs.IsNewTx {
-		storageCreateActionResult, err := w.storage.CreateAction(ctx, wdkArgs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create action: %w", err)
-		}
-
-		tx, err := w.assemblyTransaction(storageCreateActionResult, args)
-		if err != nil {
-			return nil, fmt.Errorf("invalid result from storage - failed to build transaction: %w", err)
-		}
-
-		if wdkArgs.IsSignAction {
-			// TODO: maybe we should build and store PendingSignAction in wallet - because ts is using it in signAction
-			// 	but let's wait with that for wallet.SignAction to be implemented.
-
-			result, err := mapping.SignableTransactionResult(tx, wdkArgs, storageCreateActionResult)
-			if err != nil {
-				return nil, fmt.Errorf("failed to build signable transaction: %w", err)
-			}
-			return result, nil
-		}
-	}
-
-	// TODO: support wallet.returnTxidOnly option - verifyReturnedTxidOnlyAtomicBEEF
-	// TODO: merge BEEF Party ??
-	// TODO: verify broadcasting result
-
-	return nil, fmt.Errorf("CreateAction is not yet fully implemented")
+	return result, nil
 }
 
 // SignAction signs a transaction previously created using CreateAction.

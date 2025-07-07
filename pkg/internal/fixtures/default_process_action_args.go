@@ -20,6 +20,6 @@ func DefaultProcessActionArgs(t *testing.T) wdk.ProcessActionArgs {
 		Reference:  to.Ptr(Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(spec.ID())),
 		RawTx:      spec.TX().Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 }

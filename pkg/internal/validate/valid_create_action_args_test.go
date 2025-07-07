@@ -48,9 +48,10 @@ func TestWrongCreateActionArgs(t *testing.T) {
 				return args
 			},
 		},
-		"IsSignAction is set even though there are no nil unlocking scripts": {
+		"IsSignAction is set even though it is not SignAndProcess": {
 			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
-				args.IsSignAction = true
+				args.IsSignAction = false
+				args.Options.SignAndProcess = to.Ptr(primitives.BooleanDefaultTrue(false))
 				return args
 			},
 		},

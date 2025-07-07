@@ -322,7 +322,7 @@ func TestRPCCommunication(t *testing.T) {
 			Reference:  to.Ptr("Y2NjY2NjY2NjY2Nj"),
 			TxID:       to.Ptr(primitives.TXIDHexString(tx.TxID().String())),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		storageResult := &wdk.ProcessActionResult{

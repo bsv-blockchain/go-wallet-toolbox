@@ -5,62 +5,69 @@ import (
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/require"
 )
 
+type CreateActionInputBuilder = walletargs.CreateActionInputBuilder
+
 type WalletFixture interface {
-	AliceWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func())
-	BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func())
+	AliceWalletWithStorage(storageType StorageType) *wallet.Wallet
+	BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet)
 	Wallet() WalletBuilder
 	Faucet(userWallet *wallet.Wallet) FaucetFixture
 	InputForUser(user testusers.User) CreateActionInputBuilder
-}
-
-type CreateActionInputBuilder interface {
-	WithDescription(description string) CreateActionInputBuilder
-	WithSatoshis(satoshis int) CreateActionInputBuilder
-	CreateActionInput() sdk.CreateActionInput
-	InputBEEFBytes() []byte
-}
-
-type WalletBuilder interface {
-	WithActiveStorage(storageType StorageType) WalletBuilder
-	WithRemoteStorage() WalletBuilder
-	WithSQLiteStorage() WalletBuilder
-	ForUser(user testusers.User) (userWallet *wallet.Wallet, cleanup func())
+	Services() ServicesFixture
 }
 
 type walletFixture struct {
 	testing.TB
-	usersSetups  map[testusers.User]*userWalletSetup
-	usersFaucets map[string]*faucetFixture
+	storageFixture testabilities.StorageFixture
+	usersSetups    map[testusers.User]*userWalletSetup
+	usersFaucets   map[string]*faucetFixture
+	cleanupFuncs   []func()
 }
 
-func Given(t testing.TB) WalletFixture {
+func Given(t testing.TB) (given WalletFixture, cleanup func()) {
 	return newGiven(t)
 }
 
-func newGiven(t testing.TB) *walletFixture {
-	return &walletFixture{
-		TB:           t,
-		usersSetups:  make(map[testusers.User]*userWalletSetup),
-		usersFaucets: make(map[string]*faucetFixture),
+func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
+	storageFixture, storageCleanup := testabilities.Given(t)
+
+	w := &walletFixture{
+		TB:             t,
+		usersSetups:    make(map[testusers.User]*userWalletSetup),
+		usersFaucets:   make(map[string]*faucetFixture),
+		cleanupFuncs:   []func(){storageCleanup},
+		storageFixture: storageFixture,
 	}
+
+	cleanup = func() {
+		for cleanupFunc := range seq.FromSliceReversed(w.cleanupFuncs) {
+			cleanupFunc()
+		}
+	}
+
+	return w, cleanup
 }
 
-func (w *walletFixture) AliceWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func()) {
+func (w *walletFixture) AliceWalletWithStorage(storageType StorageType) *wallet.Wallet {
 	return w.Wallet().WithActiveStorage(storageType).ForUser(testusers.Alice)
 }
 
-func (w *walletFixture) BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet, cleanup func()) {
+func (w *walletFixture) BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet) {
 	return w.Wallet().WithActiveStorage(storageType).ForUser(testusers.Bob)
 }
 
 func (w *walletFixture) Wallet() WalletBuilder {
 	return &walletBuilder{
 		TB:            w.TB,
+		givenStorage:  w.storageFixture,
 		walletFixture: w,
 	}
 }
@@ -85,16 +92,20 @@ func (w *walletFixture) Faucet(userWallet *wallet.Wallet) FaucetFixture {
 }
 
 func (w *walletFixture) InputForUser(user testusers.User) CreateActionInputBuilder {
-	return &createActionInputBuilder{
-		TB:          w.TB,
-		user:        user,
-		description: "self provided input from tests",
-		satoshis:    1,
+	return walletargs.NewCreateActionInputBuilder(w.TB, user)
+}
+
+func (w *walletFixture) Services() ServicesFixture {
+	return &servicesFixture{
+		ServicesFixture: w.storageFixture.Provider(),
 	}
 }
 
 func (w *walletFixture) addUserWalletSetup(setup *userWalletSetup) {
 	w.usersSetups[setup.user] = setup
+	if setup.cleanupFunc != nil {
+		w.cleanupFuncs = append(w.cleanupFuncs, setup.cleanupFunc)
+	}
 }
 
 type userWalletSetup struct {
@@ -102,4 +113,5 @@ type userWalletSetup struct {
 	wallet      *wallet.Wallet
 	storage     wdk.WalletStorageProvider
 	storageType StorageType
+	cleanupFunc func()
 }

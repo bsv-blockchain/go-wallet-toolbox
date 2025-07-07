@@ -1,4 +1,4 @@
-package testabilities
+package walletargs
 
 import (
 	"testing"
@@ -10,9 +10,30 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	testTx "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
+
+type CreateActionInputSource interface {
+	InputBEEFBytes() []byte
+	CreateActionInput() sdk.CreateActionInput
+}
+
+type CreateActionInputBuilder interface {
+	WithDescription(description string) CreateActionInputBuilder
+	WithSatoshis(satoshis int) CreateActionInputBuilder
+	CreateActionInputSource
+}
+
+func NewCreateActionInputBuilder(t testing.TB, user testusers.User) CreateActionInputBuilder {
+	return &createActionInputBuilder{
+		TB:          t,
+		description: "self provided input from tests",
+		satoshis:    1,
+		user:        user,
+	}
+}
 
 type createActionInputBuilder struct {
 	testing.TB
@@ -27,7 +48,7 @@ func (b *createActionInputBuilder) WithDescription(description string) CreateAct
 }
 
 func (b *createActionInputBuilder) WithSatoshis(satoshis int) CreateActionInputBuilder {
-	b.satoshis = uint64(satoshis)
+	b.satoshis = must.ConvertToUInt64(satoshis)
 	return b
 }
 

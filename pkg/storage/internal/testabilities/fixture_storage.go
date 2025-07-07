@@ -111,7 +111,7 @@ func (s *storageFixture) ActionCreatedAndProcessed(activeStorage *storage.Provid
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	_, err := activeStorage.ProcessAction(s.t.Context(), testusers.Alice.AuthID(), args)

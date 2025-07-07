@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func New(tb testing.TB) (given WalletFixture, then WalletAssertions) {
-	g := newGiven(tb)
+func New(tb testing.TB) (given WalletFixture, then WalletAssertions, cleanup func()) {
+	g, cleanup := newGiven(tb)
 	t := newThen(g, tb)
-	return g, t
+	return g, t, cleanup
 }
 
 type WalletAssertions interface {
