@@ -8,7 +8,6 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -167,10 +166,13 @@ func (p *chunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 
 	// NOTE: Even if the chunkBasket has exactly the same data as in the database, we still consider it an update.
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.OutputBasketEntityName, chunkBasket.UpdatedAt, 1, idDictionary{
-		readerID: must.ConvertToUInt(chunkBasket.BasketID),
+	err = p.updateSyncState(wdk.OutputBasketEntityName, chunkBasket.UpdatedAt, 1, idDictionary{
+		readerID: chunkBasket.BasketID,
 		writerID: basketNumID,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for output basket %q: %w", chunkBasket.Name, err)
+	}
 
 	p.basketNameCache[basketNumID] = string(chunkBasket.Name)
 
@@ -193,7 +195,10 @@ func (p *chunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 	}
 
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.ProvenTxReqEntityName, chunkProvenTxReq.UpdatedAt, 1)
+	err = p.updateSyncState(wdk.ProvenTxReqEntityName, chunkProvenTxReq.UpdatedAt, 1)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for proven tx req %q: %w", chunkProvenTxReq.TxID, err)
+	}
 
 	return nil
 }
@@ -215,7 +220,10 @@ func (p *chunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error 
 	}
 
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt, 1)
+	err = p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt, 1)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for proven tx %q: %w", chunkProvenTx.TxID, err)
+	}
 
 	return nil
 }
@@ -243,11 +251,19 @@ func (p *chunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 		return fmt.Errorf("failed to upsert transaction for reference %q: %w", chunkTransaction.Reference, err)
 	}
 
+	readerID, err := to.IntFromUnsigned(chunkTransaction.TransactionID)
+	if err != nil {
+		return fmt.Errorf("failed to convert transaction ID %d to int: %w", chunkTransaction.TransactionID, err)
+	}
+
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.TransactionEntityName, chunkTransaction.UpdatedAt, 1, idDictionary{
-		readerID: must.ConvertToUInt(chunkTransaction.TransactionID),
+	err = p.updateSyncState(wdk.TransactionEntityName, chunkTransaction.UpdatedAt, 1, idDictionary{
+		readerID: readerID,
 		writerID: transactionID,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for transaction with reference %q: %w", chunkTransaction.Reference, err)
+	}
 
 	return nil
 }
@@ -259,7 +275,7 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 
 	var basketName *string
 	if chunkOutput.BasketID != nil {
-		basketIDOnWriterSide, err := p.translateID(wdk.OutputBasketEntityName, must.ConvertToUInt(*chunkOutput.BasketID))
+		basketIDOnWriterSide, err := p.translateID(wdk.OutputBasketEntityName, *chunkOutput.BasketID)
 		if err != nil {
 			return fmt.Errorf("failed to translate basket ID %d: %w", *chunkOutput.BasketID, err)
 		}
@@ -272,14 +288,14 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		basketName = &name
 	}
 
-	transactionIDOnWriterSide, err := p.translateID(wdk.TransactionEntityName, must.ConvertToUInt(chunkOutput.TransactionID))
+	transactionIDOnWriterSide, err := p.translateIDFromUnsigned(wdk.TransactionEntityName, chunkOutput.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkOutput.TransactionID, err)
 	}
 
 	var spentByTransactionIDOnWriterSide *uint
 	if chunkOutput.SpentBy != nil {
-		spentByTransactionID, err := p.translateID(wdk.TransactionEntityName, must.ConvertToUInt(*chunkOutput.SpentBy))
+		spentByTransactionID, err := p.translateIDFromUnsigned(wdk.TransactionEntityName, *chunkOutput.SpentBy)
 		if err != nil {
 			return fmt.Errorf("failed to translate spent by transaction ID %d: %w", *chunkOutput.SpentBy, err)
 		}
@@ -332,7 +348,10 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 	}
 
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.OutputEntityName, chunkOutput.UpdatedAt, 1)
+	err = p.updateSyncState(wdk.OutputEntityName, chunkOutput.UpdatedAt, 1)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for output with transaction ID %d and vout %d: %w", chunkOutput.TransactionID, chunkOutput.Vout, err)
+	}
 
 	return nil
 }
@@ -366,22 +385,30 @@ func (p *chunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 		return fmt.Errorf("failed to upsert label %q: %w", chunkLabel.Label, err)
 	}
 
+	readerID, err := to.IntFromUnsigned(chunkLabel.TxLabelID)
+	if err != nil {
+		return fmt.Errorf("failed to convert label ID %d to int: %w", chunkLabel.TxLabelID, err)
+	}
+
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.TxLabelEntityName, chunkLabel.UpdatedAt, 1, idDictionary{
-		readerID: chunkLabel.TxLabelID,
+	err = p.updateSyncState(wdk.TxLabelEntityName, chunkLabel.UpdatedAt, 1, idDictionary{
+		readerID: readerID,
 		writerID: labelNumID,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for label %q: %w", chunkLabel.Label, err)
+	}
 
 	return nil
 }
 
 func (p *chunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) error {
-	transactionIDOnWriterSide, err := p.translateID(wdk.TransactionEntityName, must.ConvertToUInt(chunkLabelMap.TransactionID))
+	transactionIDOnWriterSide, err := p.translateIDFromUnsigned(wdk.TransactionEntityName, chunkLabelMap.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkLabelMap.TransactionID, err)
 	}
 
-	labelNumIDOrWriterSide, err := p.translateID(wdk.TxLabelEntityName, must.ConvertToUInt(chunkLabelMap.TxLabelID))
+	labelNumIDOrWriterSide, err := p.translateIDFromUnsigned(wdk.TxLabelEntityName, chunkLabelMap.TxLabelID)
 	if err != nil {
 		return fmt.Errorf("failed to translate label ID %d: %w", chunkLabelMap.TxLabelID, err)
 	}
@@ -425,13 +452,15 @@ func (p *chunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) erro
 	}
 
 	isNew, err := p.parent.repo.UpsertLabelMapForSync(p.ctx, entityLabelMap)
-
 	if err != nil {
 		return fmt.Errorf("failed to upsert transaction label map for TxLabelID %d and TransactionID %d: %w", chunkLabelMap.TxLabelID, chunkLabelMap.TransactionID, err)
 	}
 
 	p.updateOperations(to.IfThen(isNew, singleInsert).ElseThen(singleUpdate))
-	p.updateSyncState(wdk.TxLabelMapEntityName, chunkLabelMap.UpdatedAt, 1)
+	err = p.updateSyncState(wdk.TxLabelMapEntityName, chunkLabelMap.UpdatedAt, 1)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for label map with TxLabelID %d and TransactionID %d: %w", chunkLabelMap.TxLabelID, chunkLabelMap.TransactionID, err)
+	}
 
 	return nil
 }
@@ -445,11 +474,11 @@ func (p *chunkProcessor) updateOperations(operations ...operation) {
 }
 
 type idDictionary struct {
-	readerID uint
+	readerID int
 	writerID uint
 }
 
-func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, updatedAt time.Time, count uint64, ids ...idDictionary) {
+func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, updatedAt time.Time, count uint64, ids ...idDictionary) error {
 	syncMapEntity, exists := p.syncState.SyncMap[entityName]
 	if !exists {
 		syncMapEntity = wdk.NewSyncMapEntity(entityName)
@@ -458,15 +487,22 @@ func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, updatedAt ti
 
 	syncMapEntity.Count += count
 	for _, id := range ids {
-		syncMapEntity.IDMap[id.readerID] = id.writerID
+		writerIDInt, err := to.IntFromUnsigned(id.writerID)
+		if err != nil {
+			return fmt.Errorf("failed to convert writer ID %d to int: %w", id.writerID, err)
+		}
+
+		syncMapEntity.IDMap[id.readerID] = writerIDInt
 	}
 
 	if syncMapEntity.MaxUpdatedAt == nil || updatedAt.After(*syncMapEntity.MaxUpdatedAt) {
 		syncMapEntity.MaxUpdatedAt = &updatedAt
 	}
+
+	return nil
 }
 
-func (p *chunkProcessor) translateID(entityName wdk.EntityName, readerID uint) (uint, error) {
+func (p *chunkProcessor) translateID(entityName wdk.EntityName, readerID int) (uint, error) {
 	syncMapEntity, exists := p.syncState.SyncMap[entityName]
 	if !exists {
 		return 0, fmt.Errorf("sync map entity %s not found", entityName)
@@ -477,7 +513,20 @@ func (p *chunkProcessor) translateID(entityName wdk.EntityName, readerID uint) (
 		return 0, fmt.Errorf("no writer ID found for reader ID %d in entity %s", readerID, entityName)
 	}
 
-	return writerID, nil
+	writerIDUint, err := to.UInt(writerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert writer ID %d to uint: %w", writerID, err)
+	}
+
+	return writerIDUint, nil
+}
+
+func (p *chunkProcessor) translateIDFromUnsigned(entityName wdk.EntityName, readerID uint) (uint, error) {
+	readerIDInt, err := to.IntFromUnsigned(readerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert reader ID %d to int: %w", readerID, err)
+	}
+	return p.translateID(entityName, readerIDInt)
 }
 
 // emptyChunk checks if the chunk is empty, meaning it has no row data to process.

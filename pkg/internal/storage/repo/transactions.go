@@ -444,7 +444,6 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 			Where("id = ?", transactionID).
 			Preload("Labels").
 			First(&transactionModel).Error
-
 		if err != nil {
 			return fmt.Errorf("failed to find transaction: %w", err)
 		}
