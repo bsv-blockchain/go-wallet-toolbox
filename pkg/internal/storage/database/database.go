@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models/query"
 	"log/slog"
 	"strings"
 
@@ -77,6 +78,8 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConnections)
 	sqlDB.SetConnMaxLifetime(cfg.MaxConnectionTime)
 	sqlDB.SetConnMaxIdleTime(cfg.MaxConnectionIdleTime)
+
+	query.SetDefault(db)
 
 	return db, nil
 }

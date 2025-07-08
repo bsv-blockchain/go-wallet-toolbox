@@ -3,7 +3,6 @@ package queryopts
 type Options struct {
 	Page  *Paging
 	Since *Since
-	Filters []*Filter
 }
 
 func WithPage(page Paging) Options {
@@ -15,12 +14,6 @@ func WithPage(page Paging) Options {
 func WithSince(since Since) Options {
 	return Options{
 		Since: &since,
-	}
-}
-
-func WithFilters(filter ...*Filter) Options {
-	return Options{
-		Filters: filter,
 	}
 }
 
@@ -42,9 +35,6 @@ func MergeOptions(opts []Options) Options {
 		}
 		if opt.Since != nil {
 			result.Since = opt.Since
-		}
-		if opt.Filters != nil {
-			result.Filters = append(result.Filters, opt.Filters...)
 		}
 	}
 

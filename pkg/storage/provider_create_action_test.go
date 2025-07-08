@@ -207,16 +207,14 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Empty(t, commissionOutput.Tags)
 
 	// when:
-	commissions, err := activeStorage.CommissionEntity().
-		WithIsRedeemed(false).
-		WithUserID(testusers.Alice.ID).
-		WithSatoshisGreaterThan(0).
+	commissions, err := activeStorage.CommissionEntity().Read().
+		IsRedeemed(false).
+		Satoshis().Equals(10).
 		Find(t.Context())
 
 	// then:
 	require.NoError(t, err)
 	require.Len(t, commissions, 1)
-	require.Equal(t, uint64(10), commissions[0].Satoshis)
 }
 
 func TestCreateActionShuffleOutputs(t *testing.T) {

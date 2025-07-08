@@ -1,6 +1,9 @@
 package entity
 
-import "time"
+import (
+	"github.com/go-softwarelab/common/pkg/types"
+	"time"
+)
 
 type Commission struct {
 	ID        uint
@@ -15,24 +18,24 @@ type Commission struct {
 	LockingScript []byte
 }
 
-var CommissionFieldNames = struct {
-	ID            string
-	CreatedAt     string
-	UpdatedAt     string
-	UserID        string
-	TransactionID string
-	Satoshis      string
-	KeyOffset     string
-	IsRedeemed    string
-	LockingScript string
-}{
-	ID:            "id",
-	CreatedAt:     "created_at",
-	UpdatedAt:     "updated_at",
-	UserID:        "user_id",
-	TransactionID: "transaction_id",
-	Satoshis:      "satoshis",
-	KeyOffset:     "key_offset",
-	IsRedeemed:    "is_redeemed",
-	LockingScript: "locking_script",
+type CommissionSpecification struct {
+	ID         *uint
+	IsRedeemed *bool
+	Satoshis   *ComparableNumber[uint64]
+}
+
+type NumberCmpOperator string
+
+const (
+	GreaterThan        NumberCmpOperator = ">"
+	LessThan           NumberCmpOperator = "<"
+	Equal              NumberCmpOperator = "="
+	NotEqual           NumberCmpOperator = "!="
+	GreaterThanOrEqual NumberCmpOperator = ">="
+	LessThanOrEqual    NumberCmpOperator = "<="
+)
+
+type ComparableNumber[T types.Number] struct {
+	Value T
+	Cmp   NumberCmpOperator
 }

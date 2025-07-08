@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models/query"
+	"gorm.io/gen"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -13,8 +15,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-var commissionFieldToColumn = newFieldToColumn(entity.CommissionFieldNames, models.CommissionColumnNames).QueryOptsModifier()
 
 type Commission struct {
 	db *gorm.DB
@@ -64,14 +64,40 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 	return mapModelToEntityCommission(commission), nil
 }
 
-func (c *Commission) FindCommissions(ctx context.Context, opts ...queryopts.Options) ([]*entity.Commission, error) {
-	queryopts.ModifyOptions(opts, commissionFieldToColumn)
+func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {
+	var conditions []gen.Condition
+	if spec != nil {
+		if spec.ID != nil {
+			conditions = append(conditions, query.Commission.ID.Eq(*spec.ID))
+		} else {
+			if spec.IsRedeemed != nil {
+				conditions = append(conditions, query.Commission.IsRedeemed.Is(*spec.IsRedeemed))
+			}
+			if spec.Satoshis != nil {
+				switch spec.Satoshis.Cmp {
+				case entity.Equal:
+					conditions = append(conditions, query.Commission.Satoshis.Eq(spec.Satoshis.Value))
+				case entity.GreaterThan:
+					conditions = append(conditions, query.Commission.Satoshis.Gt(spec.Satoshis.Value))
+				case entity.LessThan:
+					conditions = append(conditions, query.Commission.Satoshis.Lt(spec.Satoshis.Value))
+				case entity.GreaterThanOrEqual:
+					conditions = append(conditions, query.Commission.Satoshis.Gte(spec.Satoshis.Value))
+				case entity.LessThanOrEqual:
+					conditions = append(conditions, query.Commission.Satoshis.Lte(spec.Satoshis.Value))
+				case entity.NotEqual:
+					conditions = append(conditions, query.Commission.Satoshis.Neq(spec.Satoshis.Value))
+				default:
+					return nil, fmt.Errorf("unsupported comparison operator: %s", spec.Satoshis.Cmp)
+				}
+			}
+		}
+	}
 
-	var commissions []*models.Commission
-	err := c.db.WithContext(ctx).
-		Scopes(scopes.FromQueryOpts(opts)...).
-		Model(&models.Commission{}).
-		Find(&commissions).Error
+	commissions, err := query.Commission.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(query.Commission, opts)...).
+		Where(conditions...).
+		Find()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find commissions: %w", err)
 	}
