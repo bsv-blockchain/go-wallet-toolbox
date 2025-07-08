@@ -22,20 +22,6 @@ type ScriptHistoryResult struct {
 	History    []ScriptHistoryItem `json:"history"`    // Array of transactions using this script
 }
 
-// BulkScriptHistoryResult represents the result of a bulk script history query
-type BulkScriptHistoryResult struct {
-	Name    string                         `json:"name"`    // Service name that provided the result
-	Results map[string]ScriptHistoryResult `json:"results"` // Map of script hash to its history result
-}
-
-// CombinedScriptHistoryResult represents both confirmed and unconfirmed script history
-type CombinedScriptHistoryResult struct {
-	Name               string              `json:"name"`               // Service name that provided the result
-	ScriptHash         string              `json:"scriptHash"`         // The script hash that was queried
-	ConfirmedHistory   ScriptHistoryResult `json:"confirmedHistory"`   // Confirmed transactions
-	UnconfirmedHistory ScriptHistoryResult `json:"unconfirmedHistory"` // Unconfirmed transactions
-}
-
 // ScriptHashHistoryResponse represents the response from the script history endpoints
 type ScriptHashHistoryResponse struct {
 	// ScriptHash is the script hash for which the history is being retrieved (not always present)
