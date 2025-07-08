@@ -479,8 +479,6 @@ func (q *wocScriptHistoryQueryFixture) WillReturnConfirmedHistoryWithPagination(
 		}
 	}
 
-	fmt.Println(url)
-
 	q.fixture.transport.RegisterResponder(
 		http.MethodGet,
 		url,
