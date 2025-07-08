@@ -199,3 +199,8 @@ func (s *WalletServices) HashToHeader(hash string) (*wdk.ChainBlockHeader, error
 func (s *WalletServices) NLockTimeIsFinal(txOrLockTime any) bool {
 	panic("Not implemented yet")
 }
+
+// ScriptHistory retrieves both confirmed and unconfirmed transaction history for a script hash
+func (ws *WalletServices) ScriptHistory(ctx context.Context, scriptHash string, opts *wdk.GetConfirmedScriptHistoryOpts) (*wdk.ScriptHistoryResult, error) {
+	return ws.whatsonchain.GetScriptHistory(ctx, scriptHash, opts)
+}
