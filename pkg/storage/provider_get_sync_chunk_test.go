@@ -11,6 +11,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+const (
+	commonLabel    = "common_label"
+	customLabelTx1 = "customLabelTx1"
+	customLabelTx2 = "customLabelTx2"
+)
+
 func TestGetSyncChunk(t *testing.T) {
 	given, then, cleanup := testabilities.NewSync(t)
 	defer cleanup()
@@ -20,8 +26,8 @@ func TestGetSyncChunk(t *testing.T) {
 	activeStorage := givenProvider.GORM()
 
 	seed := given.SeedDB(activeStorage, testusers.Alice)
-	ownedTx1 := seed.OwnsTransaction()
-	ownedTx2 := seed.OwnsMinedTransaction()
+	ownedTx1 := seed.SetLabels(commonLabel, customLabelTx1).OwnsTransaction()
+	ownedTx2 := seed.SetLabels(commonLabel, customLabelTx2).OwnsMinedTransaction()
 	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
 	// and:
@@ -91,6 +97,12 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.OutputAtIndex(32).
 		WithTransactionID(chunk.Transactions[3].TransactionID).
 		WithBasketID(chunk.OutputBaskets[0].BasketID)
+
+	// and labels:
+	thenChunk.
+		LabelsCount(4). // 3 + 1 (from OwnsInternalizedAndNotProcessedTx)
+		WithTxLabels(chunk.Transactions[2].TransactionID, commonLabel, customLabelTx2).
+		WithTxLabels(chunk.Transactions[3].TransactionID, commonLabel, customLabelTx1)
 
 	// TODO: Remember to add more assertions for other entities when implemented
 }
@@ -170,6 +182,7 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 	activeStorage := givenProvider.GORM()
 
 	seed := given.SeedDB(activeStorage, testusers.Alice)
+	seed.SetLabels(commonLabel)
 	seed.OwnsTransaction()
 	seed.OwnsMinedTransaction()
 
@@ -187,7 +200,9 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 		ProvenTxReqsCount(1).
 		ProvenTxsCount(1).
 		TransactionsCount(2).
-		OutputsCount(2)
+		OutputsCount(2).
+		LabelsCount(1).
+		LabelsMapCount(2)
 }
 
 func TestGetSyncChunkMaxItems(t *testing.T) {
@@ -212,7 +227,9 @@ func TestGetSyncChunkMaxItems(t *testing.T) {
 		ProvenTxReqsCount(0).
 		ProvenTxsCount(0).
 		TransactionsCount(0).
-		OutputsCount(0)
+		OutputsCount(0).
+		LabelsCount(0).
+		LabelsMapCount(0)
 }
 
 func TestGetSyncChunkOneByOne(t *testing.T) {
@@ -224,6 +241,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	activeStorage := givenProvider.GORM()
 
 	seed := given.SeedDB(activeStorage, testusers.Alice)
+	seed.SetLabels(commonLabel)
 	seed.OwnsTransaction()
 	seed.OwnsMinedTransaction()
 
@@ -329,4 +347,39 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 		ProvenTxReqsCount(0).
 		TransactionsCount(0).
 		OutputsCount(1)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.OutputEntityName, 2).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(0).
+		TransactionsCount(0).
+		OutputsCount(0).
+		LabelsCount(1)
+
+	// given:
+	args = argsFixture.WithOffset(wdk.TxLabelEntityName, 1).Args()
+
+	// when:
+	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+
+	// then:
+	thenChunk = then.Chunk(chunk).WithoutError(err)
+	thenChunk.WithGeneralInfo(&args)
+
+	thenChunk.BasketsCount(0).
+		ProvenTxsCount(0).
+		ProvenTxReqsCount(0).
+		TransactionsCount(0).
+		OutputsCount(0).
+		LabelsCount(0).
+		LabelsMapCount(1)
 }
