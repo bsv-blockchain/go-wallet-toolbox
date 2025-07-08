@@ -3,7 +3,6 @@ package sync
 import (
 	"context"
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/types"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -11,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/go-softwarelab/common/pkg/types"
 )
 
 type operation struct {
