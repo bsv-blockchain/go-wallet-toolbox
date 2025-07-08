@@ -21,12 +21,33 @@ func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note st
 	}
 }
 
-// buildTxStatusURL constructs a full URL to fetch the status of a transaction.
-func buildTxStatusURL(baseURL, txID string) (string, error) {
+// buildURL joins baseURL with any number of path segments, preserving the
+func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid base URL %q: %w", baseURL, err)
 	}
-	u.Path = path.Join(u.Path, "tx", txID, "status")
+	relativePath := path.Join(segments...)
+	u = u.ResolveReference(&url.URL{Path: relativePath})
 	return u.String(), nil
+}
+
+// /tx/{txid}/status
+func txStatusURL(baseURL, txID string) (string, error) {
+	return buildURL(baseURL, "tx", txID, "status")
+}
+
+// /tx/{txid}/proof/tsc
+func tscProofURL(baseURL, txID string) (string, error) {
+	return buildURL(baseURL, "tx", txID, "proof", "tsc")
+}
+
+// /block/{blockHash}/header
+func blockHeaderURL(baseURL, blockHash string) (string, error) {
+	return buildURL(baseURL, "block", blockHash, "header")
+}
+
+// /tx/broadcast/multi
+func broadcastURL(baseURL string) (string, error) {
+	return buildURL(baseURL, "tx", "broadcast", "multi")
 }

@@ -3,7 +3,7 @@ package wdk
 import (
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // TableProvenTxReq represents a persisted request for a proven transaction, including status and metadata for processing.

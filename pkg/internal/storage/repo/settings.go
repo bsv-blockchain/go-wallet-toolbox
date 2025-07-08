@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

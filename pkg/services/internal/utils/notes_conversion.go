@@ -3,7 +3,7 @@ package utils
 import (
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // ConvertNotes converts a slice of strings into wdk.Notes, assigning the current time to each note.

@@ -6,7 +6,7 @@ import (
 	"context"
 )
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 type WalletStorageProviderClient struct {
 	client *rpcWalletStorageProvider
@@ -52,6 +52,11 @@ func (c *WalletStorageProviderClient) RelinquishCertificate(ctx context.Context,
 	return c.client.RelinquishCertificate(ctx, auth, args)
 }
 
+// RelinquishOutput removes the specified output from the users outputs.
+func (c *WalletStorageProviderClient) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+	return c.client.RelinquishOutput(ctx, auth, args)
+}
+
 // ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.
 func (c *WalletStorageProviderClient) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	return c.client.ListCertificates(ctx, auth, args)
@@ -94,6 +99,7 @@ type rpcWalletStorageProvider struct {
 	ProcessAction             func(context.Context, wdk.AuthID, wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error)
 	InsertCertificateAuth     func(context.Context, wdk.AuthID, *wdk.TableCertificateX) (uint, error)
 	RelinquishCertificate     func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
+	RelinquishOutput          func(context.Context, wdk.AuthID, wdk.RelinquishOutputArgs) error
 	ListCertificates          func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
 	ListOutputs               func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	ListActions               func(context.Context, wdk.AuthID, wdk.ListActionsArgs) (*wdk.ListActionsResult, error)

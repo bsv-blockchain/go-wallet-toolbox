@@ -3,7 +3,7 @@ package testabilities
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/mocks"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 )
 
 type mockedStorageAssertion struct {

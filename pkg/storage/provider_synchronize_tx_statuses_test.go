@@ -1,15 +1,14 @@
 package storage_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +30,7 @@ func TestSynchronizeTx(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -64,7 +63,7 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 	_ = givenProvider.WhatsOnChain().WillBeUnreachable()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
@@ -92,7 +91,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -106,7 +105,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
 	// when:
-	err = activeStorage.SynchronizeTransactionStatuses(context.Background())
+	err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -138,7 +137,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -160,7 +159,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 		)
 
 	// when:
-	err = activeStorage.SynchronizeTransactionStatuses(context.Background())
+	err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -192,7 +191,7 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 
 	// when:
 	for range defs.DefaultSynchronizeTxStatuses().MaxAttempts + 1 {
-		err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
 	}
 
@@ -241,7 +240,7 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 			test.setupARCMock(arcQueryFixture)
 
 			// when:
-			err := activeStorage.SynchronizeTransactionStatuses(context.Background())
+			err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 			// then:
 			require.NoError(t, err)

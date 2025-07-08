@@ -1,4 +1,4 @@
-module github.com/4chain-ag/go-wallet-toolbox
+module github.com/bsv-blockchain/go-wallet-toolbox
 
 go 1.24.3
 

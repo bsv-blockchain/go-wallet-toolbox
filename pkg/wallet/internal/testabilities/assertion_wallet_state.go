@@ -6,13 +6,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +30,7 @@ type WalletStateAssertion interface {
 }
 
 type WalletActionAssertion interface {
+	WithStatus(expected sdk.ActionStatus) WalletActionAssertion
 	WithDescription(expected string) WalletActionAssertion
 	WithLabels(expected ...string) WalletActionAssertion
 	WithTxID(expected string) WalletActionAssertion
@@ -95,6 +96,12 @@ type walletActionAssertion struct {
 	testing.TB
 	wallet WalletReader
 	action *sdk.Action
+}
+
+func (a *walletActionAssertion) WithStatus(expected sdk.ActionStatus) WalletActionAssertion {
+	a.Helper()
+	assert.Equal(a, expected, a.action.Status, "Action status does not match")
+	return a
 }
 
 func (a *walletActionAssertion) WithDescription(expected string) WalletActionAssertion {

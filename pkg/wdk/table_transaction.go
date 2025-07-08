@@ -3,7 +3,7 @@ package wdk
 import (
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // TableTransaction is a struct that represents transaction details

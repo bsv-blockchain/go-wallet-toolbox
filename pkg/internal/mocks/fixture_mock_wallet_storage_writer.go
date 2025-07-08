@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.uber.org/mock/gomock"
 )
@@ -25,6 +25,7 @@ type StorageProviderResponses struct {
 	ProcessAction         StorageProviderMethodResponse[*wdk.ProcessActionResult]
 	InsertCertificateAuth StorageProviderMethodResponse[uint]
 	RelinquishCertificate StorageProviderMethodOnlyErrorResponse
+	RelinquishOutput      StorageProviderMethodOnlyErrorResponse
 	ListCertificates      StorageProviderMethodResponse[*wdk.ListCertificatesResult]
 	ListOutputs           StorageProviderMethodResponse[*wdk.ListOutputsResult]
 }
@@ -116,6 +117,7 @@ func ExpectNoInteraction() func(*StorageProviderResponses) {
 		responses.ProcessAction.times(zero)
 		responses.InsertCertificateAuth.times(zero)
 		responses.RelinquishCertificate.times(zero)
+		responses.RelinquishOutput.times(zero)
 		responses.ListCertificates.times(zero)
 		responses.ListOutputs.times(zero)
 	}
@@ -132,6 +134,7 @@ func SetupMockStorageProvider(t testing.TB, provider *MockWalletStorageProvider,
 	responses.ProcessAction.limitCallTimes(provider.EXPECT().ProcessAction(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.ProcessAction.result()))
 	responses.InsertCertificateAuth.limitCallTimes(provider.EXPECT().InsertCertificateAuth(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.InsertCertificateAuth.result()))
 	responses.RelinquishCertificate.limitCallTimes(provider.EXPECT().RelinquishCertificate(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.RelinquishCertificate.result()))
+	responses.RelinquishOutput.limitCallTimes(provider.EXPECT().RelinquishOutput(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.RelinquishOutput.result()))
 	responses.ListCertificates.limitCallTimes(provider.EXPECT().ListCertificates(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.ListCertificates.result()))
 	responses.ListOutputs.limitCallTimes(provider.EXPECT().ListOutputs(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.ListOutputs.result()))
 }
@@ -247,6 +250,9 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 		},
 		InsertCertificateAuth: StorageProviderMethodResponse[uint]{
 			Success: uint(1),
+		},
+		RelinquishOutput: StorageProviderMethodOnlyErrorResponse{
+			Error: nil,
 		},
 		ListCertificates: StorageProviderMethodResponse[*wdk.ListCertificatesResult]{
 			Success: &wdk.ListCertificatesResult{

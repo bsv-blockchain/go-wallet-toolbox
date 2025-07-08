@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 // Migrate migrates a wallet storage database.
 func (m *WalletStorageManager) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
@@ -69,6 +69,16 @@ func (m *WalletStorageManager) RelinquishCertificate(ctx context.Context, args w
 	}
 
 	return m.getActiveWriter().RelinquishCertificate(ctx, auth, args)
+}
+
+// RelinquishOutput removes the specified output from the users outputs.
+func (m *WalletStorageManager) RelinquishOutput(ctx context.Context, args wdk.RelinquishOutputArgs) error {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveWriter().RelinquishOutput(ctx, auth, args)
 }
 
 // ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.

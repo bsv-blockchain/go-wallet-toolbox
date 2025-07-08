@@ -1,14 +1,13 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -36,11 +35,11 @@ func TestProcessActionHappyPath(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -78,18 +77,18 @@ func TestProcessActionTwice(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
-	_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
 
 	// when:
 	args.IsNewTx = false
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -154,11 +153,11 @@ func TestProcessActionErrorCases(t *testing.T) {
 				Reference:  to.Ptr(createActionResult.Reference),
 				TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 				RawTx:      signedTx.Bytes(),
-				SendWith:   []string{},
+				SendWith:   []primitives.TXIDHexString{},
 			})
 
 			// when:
-			_, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+			_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 			// then:
 			require.Error(t, err)
@@ -192,11 +191,11 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
@@ -240,11 +239,11 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 		Reference:  to.Ptr(createActionResult.Reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
-		SendWith:   []string{},
+		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	// when:
-	result, err := activeStorage.ProcessAction(context.Background(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)

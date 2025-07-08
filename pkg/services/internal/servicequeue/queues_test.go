@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/types"
@@ -170,7 +170,7 @@ func TestQueueOneByOne(t *testing.T) {
 			)
 
 			// when:
-			r, err := queue.OneByOne(context.Background())
+			r, err := queue.OneByOne(t.Context())
 
 			// then:
 			test.errorExpectation(t, err)
@@ -192,7 +192,7 @@ func TestQueueOneByOne(t *testing.T) {
 			)
 
 			// when:
-			r, err := queue.OneByOne(context.Background(), secondArgument)
+			r, err := queue.OneByOne(t.Context(), secondArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -214,7 +214,7 @@ func TestQueueOneByOne(t *testing.T) {
 			)
 
 			// when:
-			r, err := queue.OneByOne(context.Background(), secondArgument, thirdArgument)
+			r, err := queue.OneByOne(t.Context(), secondArgument, thirdArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -236,7 +236,7 @@ func TestQueueOneByOne(t *testing.T) {
 			)
 
 			// when:
-			r, err := queue.OneByOne(context.Background(), secondArgument, thirdArgument, fourthArgument)
+			r, err := queue.OneByOne(t.Context(), secondArgument, thirdArgument, fourthArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -319,7 +319,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background())
+			results, err := queue.All(t.Context())
 
 			// then:
 			test.errorExpectation(t, err)
@@ -342,7 +342,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background(), secondArgument)
+			results, err := queue.All(t.Context(), secondArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -365,7 +365,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background(), secondArgument, thirdArgument)
+			results, err := queue.All(t.Context(), secondArgument, thirdArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -388,7 +388,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background(), secondArgument, thirdArgument, fourthArgument)
+			results, err := queue.All(t.Context(), secondArgument, thirdArgument, fourthArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -442,7 +442,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background())
+			results, err := queue.All(t.Context())
 
 			// debug: show example of error from panicking service
 			slices.ForEach(results, func(result *servicequeue.NamedResult[*TestServiceResult]) {
@@ -489,7 +489,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background(), secondArgument)
+			results, err := queue.All(t.Context(), secondArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -529,7 +529,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background(), secondArgument, thirdArgument)
+			results, err := queue.All(t.Context(), secondArgument, thirdArgument)
 
 			// then:
 			test.errorExpectation(t, err)
@@ -569,7 +569,7 @@ func TestQueueParallel(t *testing.T) {
 			)
 
 			// when:
-			results, err := queue.All(context.Background(), secondArgument, thirdArgument, fourthArgument)
+			results, err := queue.All(t.Context(), secondArgument, thirdArgument, fourthArgument)
 
 			// then:
 			test.errorExpectation(t, err)

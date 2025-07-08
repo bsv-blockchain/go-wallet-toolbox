@@ -7,7 +7,7 @@ import (
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/client_gen.go
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out wallet_storage_interface_gen.go -skip-methods "GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl wallet_storage.tpl
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/storage_manager_gen.go -skip-methods "MakeAvailable,GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl manager.tpl
-//go:generate go tool mockgen -destination=../internal/mocks/mock_wallet_storage_writer.go -package=mocks github.com/4chain-ag/go-wallet-toolbox/pkg/wdk WalletStorageProvider
+//go:generate go tool mockgen -destination=../internal/mocks/mock_wallet_storage_writer.go -package=mocks github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk WalletStorageProvider
 
 // WalletStorageProvider is an interface for writing to the wallet storage
 type WalletStorageProvider interface {
@@ -43,6 +43,10 @@ type WalletStorageProvider interface {
 	// RelinquishCertificate revokes the specified certificate from the users certificates.
 	// @Write
 	RelinquishCertificate(ctx context.Context, auth AuthID, args RelinquishCertificateArgs) error
+
+	// RelinquishOutput removes the specified output from the users outputs.
+	// @Write
+	RelinquishOutput(ctx context.Context, auth AuthID, args RelinquishOutputArgs) error
 
 	// ListCertificates retrieves a paginated list of certificates based on the provided filter and pagination arguments.
 	// @Read

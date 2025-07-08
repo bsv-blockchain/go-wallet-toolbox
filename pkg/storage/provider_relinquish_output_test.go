@@ -1,14 +1,13 @@
 package storage_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +23,7 @@ func TestRelinquishOutput(t *testing.T) {
 
 	// when:
 	err := activeStorage.RelinquishOutput(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Basket: wdk.BasketNameForChange,
@@ -34,7 +33,7 @@ func TestRelinquishOutput(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+	listOutputsResult, err := activeStorage.ListOutputs(t.Context(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
 		Limit:  10,
 		Basket: wdk.BasketNameForChange,
 	})
@@ -43,7 +42,7 @@ func TestRelinquishOutput(t *testing.T) {
 
 	// and:
 	_, err = activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		fixtures.DefaultValidCreateActionArgs(),
 	)
@@ -62,7 +61,7 @@ func TestRelinquishOutputWithoutBasketSpecified(t *testing.T) {
 
 	// when:
 	err := activeStorage.RelinquishOutput(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
@@ -71,7 +70,7 @@ func TestRelinquishOutputWithoutBasketSpecified(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+	listOutputsResult, err := activeStorage.ListOutputs(t.Context(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
 		Limit:  10,
 		Basket: wdk.BasketNameForChange,
 	})
@@ -80,7 +79,7 @@ func TestRelinquishOutputWithoutBasketSpecified(t *testing.T) {
 
 	// and:
 	_, err = activeStorage.CreateAction(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		fixtures.DefaultValidCreateActionArgs(),
 	)
@@ -96,7 +95,7 @@ func TestRelinquishNotExistingOutput(t *testing.T) {
 
 	// when:
 	err := activeStorage.RelinquishOutput(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Output: fixtures.MockOutpoint,
@@ -121,7 +120,7 @@ func TestRelinquishOutputOneOfTwo(t *testing.T) {
 
 	// when:
 	err := activeStorage.RelinquishOutput(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
@@ -130,7 +129,7 @@ func TestRelinquishOutputOneOfTwo(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	listOutputsResult, err := activeStorage.ListOutputs(context.Background(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+	listOutputsResult, err := activeStorage.ListOutputs(t.Context(), testusers.Alice.AuthID(), wdk.ListOutputsArgs{
 		Limit:  10,
 		Basket: wdk.BasketNameForChange,
 	})
@@ -150,7 +149,7 @@ func TestRelinquishOutputWithNotMatchingBasket(t *testing.T) {
 
 	// when:
 	err := activeStorage.RelinquishOutput(
-		context.Background(),
+		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Basket: "other-basket",

@@ -1,6 +1,6 @@
 package wdk
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 
 // RelinquishCertificateArgs represents the arguments for relinquishing certificate
 type RelinquishCertificateArgs struct {

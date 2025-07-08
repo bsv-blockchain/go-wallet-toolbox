@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
@@ -18,6 +18,10 @@ type BitailsFixture interface {
 	WillReturnInternalError()
 	WillReturnTxInfo(txid string, blockHash string, blockHeight int64)
 	WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64)
+	WillReturnTscProof(txid, target string, index int, nodes []string)
+	WillReturnBlockHeader(blockHash, rawHeader string)
+	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
+	WillReturnTxStatus(txid string, blockHeight int)
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
 }
@@ -165,5 +169,52 @@ func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body an
 		http.MethodPost,
 		regexp.MustCompile(`https?://.*\.bitails\.io/tx/broadcast/multi`),
 		responder,
+	)
+}
+
+func (f *bitailsFixture) WillReturnTscProof(txid, target string, index int, nodes []string) {
+	body := map[string]any{
+		"index":  index,
+		"txOrId": txid,
+		"target": target,
+		"nodes":  nodes,
+	}
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/proof/tsc`, regexp.QuoteMeta(txid))),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
+	)
+}
+
+func (f *bitailsFixture) WillReturnBlockHeader(blockHash, rawHeader string) {
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/block/%s/header`, regexp.QuoteMeta(blockHash))),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
+			"header": rawHeader,
+		}),
+	)
+}
+
+func (f *bitailsFixture) WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string) {
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/proof(?:\?.*)?(?:/.*)?$`, regexp.QuoteMeta(txid))),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
+			"blockhash":  blockHash,
+			"merkleRoot": merkleRoot,
+			"branches":   branches,
+		}),
+	)
+}
+
+func (f *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
+	body := map[string]any{
+		"blockHeight": blockHeight,
+	}
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
 }

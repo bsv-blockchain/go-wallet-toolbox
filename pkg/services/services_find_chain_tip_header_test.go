@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
 

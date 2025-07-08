@@ -3,12 +3,12 @@ package testabilities
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,10 +23,18 @@ const (
 	StorageTypeMocked StorageType = "mocked"
 )
 
+type WalletBuilder interface {
+	WithActiveStorage(storageType StorageType) WalletBuilder
+	WithRemoteStorage() WalletBuilder
+	WithSQLiteStorage() WalletBuilder
+	ForUser(user testusers.User) *wallet.Wallet
+}
+
 type walletBuilder struct {
 	testing.TB
 	walletFixture *walletFixture
 	storageType   StorageType
+	givenStorage  testabilities.StorageFixture
 }
 
 func (w *walletBuilder) WithActiveStorage(storageType StorageType) WalletBuilder {
@@ -46,7 +54,7 @@ func (w *walletBuilder) WithMockedStorage() WalletBuilder {
 	return w.WithActiveStorage(StorageTypeMocked)
 }
 
-func (w *walletBuilder) ForUser(user testusers.User) (userWallet *wallet.Wallet, cleanup func()) {
+func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	privKey := user.PrivateKey(w)
 	keyDeriver := sdk.NewKeyDeriver(privKey)
 	activeStorage, cleanup := w.storage()
@@ -59,27 +67,26 @@ func (w *walletBuilder) ForUser(user testusers.User) (userWallet *wallet.Wallet,
 		wallet:      userWallet,
 		storage:     activeStorage,
 		storageType: w.storageType,
+		cleanupFunc: cleanup,
 	})
 
-	return userWallet, cleanup
+	return userWallet
 }
 
 func (w *walletBuilder) storage() (storage wdk.WalletStorageProvider, cleanup func()) {
-	givenStorage, storageCleanup := testabilities.Given(w)
-	sqliteStorage := givenStorage.Provider().GORM()
+	sqliteStorage := w.givenStorage.Provider().GORM()
 	switch w.storageType {
 	case StorageTypeSQLite:
-		return sqliteStorage, storageCleanup
+		return sqliteStorage, nil
 	case StorageTypeRemote:
-		serverCleanup := givenStorage.StartedRPCServerFor(sqliteStorage)
-		storageClient, clientCleanup := givenStorage.RPCClient()
+		serverCleanup := w.givenStorage.StartedRPCServerFor(sqliteStorage)
+		storageClient, clientCleanup := w.givenStorage.RPCClient()
 		return storageClient, func() {
 			clientCleanup()
 			serverCleanup()
-			storageCleanup()
 		}
 	case StorageTypeMocked:
-		return givenStorage.MockProvider(), func() {}
+		return w.givenStorage.MockProvider(), nil
 	default:
 		w.Fatalf("invalid test setup: not implemented support for storage type: %s", w.storageType)
 		return

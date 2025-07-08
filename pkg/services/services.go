@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/arc"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bhs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/options"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/servicequeue"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/options"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -75,6 +75,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"MerklePath",
 			servicequeue.NewService1(arc.ServiceName, arcService.MerklePath),
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.MerklePath),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.MerklePath),
 		),
 
 		chainHeaderServices: servicequeue.NewQueue(

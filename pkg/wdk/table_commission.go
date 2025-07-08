@@ -3,7 +3,7 @@ package wdk
 import (
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // TableCommission represents a commission entry with audit fields, user and transaction links, and payout details.

@@ -1,31 +1,38 @@
 package testabilities
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
 )
 
+type ServicesFixture interface {
+	Bitails() testservices.BitailsFixture
+	WhatsOnChain() testservices.WhatsOnChainFixture
+	ARC() testservices.ARCFixture
+	BHS() testservices.BHSFixture
+	ServicesSniffer() *testutils.HTTPSniffer
+	Transport() *httpmock.MockTransport
+}
+
 type ProviderFixture interface {
+	ServicesFixture
+
 	WithNetwork(network defs.BSVNetwork) ProviderFixture
 	WithCommission(commission defs.Commission) ProviderFixture
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
-
-	ARC() testservices.ARCFixture
-	WhatsOnChain() testservices.WhatsOnChainFixture
-	ServicesSniffer() *testutils.HTTPSniffer
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -34,6 +41,8 @@ type ProviderFixture interface {
 }
 
 type providerFixture struct {
+	testservices.ServicesFixture
+
 	network        defs.BSVNetwork
 	commission     defs.Commission
 	feeModel       defs.FeeModel
@@ -47,7 +56,6 @@ type providerFixture struct {
 	logger          *slog.Logger
 	db              *database.Database
 	activeStorage   *storage.Provider
-	servicesFixture testservices.ServicesFixture
 	servicesSniffer *testutils.HTTPSniffer
 }
 
@@ -72,11 +80,9 @@ func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixt
 }
 
 func (p *providerFixture) withServices() ProviderFixture {
-	p.servicesFixture = testservices.GivenServicesWithNetwork(p.t, p.network)
+	p.ARC().IsUpAndRunning()
 
-	p.servicesFixture.ARC().IsUpAndRunning()
-
-	mockTransport := p.servicesFixture.Transport()
+	mockTransport := p.Transport()
 	p.servicesSniffer = testutils.NewHTTPSniffer(mockTransport)
 	client := resty.New()
 	client.SetTransport(p.servicesSniffer)
@@ -89,24 +95,6 @@ func (p *providerFixture) ServicesSniffer() *testutils.HTTPSniffer {
 	p.t.Helper()
 	require.NotNil(p.t, p.servicesSniffer, "Sniffer() called without setting up services fixture")
 	return p.servicesSniffer
-}
-
-func (p *providerFixture) ARC() testservices.ARCFixture {
-	p.t.Helper()
-	if p.servicesFixture == nil {
-		p.t.Fatal("ARC() called without setting up services fixture")
-	}
-
-	return p.servicesFixture.ARC()
-}
-
-func (p *providerFixture) WhatsOnChain() testservices.WhatsOnChainFixture {
-	p.t.Helper()
-	if p.servicesFixture == nil {
-		p.t.Fatal("WOC() called without setting up services fixture")
-	}
-
-	return p.servicesFixture.WhatsOnChain()
 }
 
 func (p *providerFixture) GORM() *storage.Provider {
@@ -139,7 +127,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	)
 	p.require.NoError(err)
 
-	_, err = activeStorage.Migrate(context.Background(), p.storageName, storageIdentityKey)
+	_, err = activeStorage.Migrate(p.t.Context(), p.storageName, storageIdentityKey)
 	p.require.NoError(err)
 
 	p.activeStorage = activeStorage
@@ -157,7 +145,7 @@ func (p *providerFixture) StorageIdentityKey() string {
 
 func (p *providerFixture) seedUsers(provider *storage.Provider) {
 	for _, user := range testusers.All() {
-		res, err := provider.FindOrInsertUser(context.Background(), user.IdentityKey(p.t))
+		res, err := provider.FindOrInsertUser(p.t.Context(), user.IdentityKey(p.t))
 		p.require.NoError(err)
 
 		user.ID = res.User.UserID

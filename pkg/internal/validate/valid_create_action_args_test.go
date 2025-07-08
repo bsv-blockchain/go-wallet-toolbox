@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
@@ -48,9 +48,10 @@ func TestWrongCreateActionArgs(t *testing.T) {
 				return args
 			},
 		},
-		"IsSignAction is set even though there are no nil unlocking scripts": {
+		"IsSignAction is set even though it is not SignAndProcess": {
 			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
-				args.IsSignAction = true
+				args.IsSignAction = false
+				args.Options.SignAndProcess = to.Ptr(primitives.BooleanDefaultTrue(false))
 				return args
 			},
 		},
