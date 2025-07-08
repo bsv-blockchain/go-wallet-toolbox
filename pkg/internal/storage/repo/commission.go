@@ -48,11 +48,7 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 }
 
 func (c *Commission) FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error) {
-	commission := &models.Commission{}
-	err := c.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID)).
-		Where("transaction_id = ?", transactionID).
-		First(commission).Error
+	commission, err := genquery.Commission.WithContext(ctx).GetByUserIDAndTransactionID(userID, transactionID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -60,7 +56,7 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 		return nil, fmt.Errorf("failed to find commission: %w", err)
 	}
 
-	return mapModelToEntityCommission(commission), nil
+	return mapModelToEntityCommission(&commission), nil
 }
 
 func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {

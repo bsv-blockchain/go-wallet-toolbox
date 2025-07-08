@@ -11,10 +11,9 @@ import (
 
 //go:generate go run gorm_gen.go
 
-// Dynamic SQL
-type Querier interface {
-	// SELECT * FROM @@table WHERE IsRedeemed = @isRedeemed{{end}}
-	FilterWithIsRedeemed(isRedeemed bool) ([]gen.T, error)
+type CommissionQuerier interface {
+	// SELECT * FROM @@table WHERE user_id = @userID AND transaction_id = @transactionID{{end}}
+	GetByUserIDAndTransactionID(userID int, transactionID uint) (gen.T, error)
 }
 
 func main() {
@@ -34,7 +33,7 @@ func main() {
 	g.ApplyBasic(models.Commission{})
 
 	// Generate Type Safe API with Dynamic SQL defined on Querier interface for `model.User` and `model.Company`
-	g.ApplyInterface(func(Querier) {}, models.Commission{})
+	g.ApplyInterface(func(CommissionQuerier) {}, models.Commission{})
 
 	// Generate the code
 	g.Execute()

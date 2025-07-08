@@ -188,19 +188,20 @@ type ICommissionDo interface {
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
 
-	FilterWithIsRedeemed(isRedeemed bool) (result []models.Commission, err error)
+	GetByUserIDAndTransactionID(userID int, transactionID uint) (result models.Commission, err error)
 }
 
-// SELECT * FROM @@table WHERE IsRedeemed = @isRedeemed{{end}}
-func (c commissionDo) FilterWithIsRedeemed(isRedeemed bool) (result []models.Commission, err error) {
+// SELECT * FROM @@table WHERE user_id = @userID AND transaction_id = @transactionID{{end}}
+func (c commissionDo) GetByUserIDAndTransactionID(userID int, transactionID uint) (result models.Commission, err error) {
 	var params []interface{}
 
 	var generateSQL strings.Builder
-	params = append(params, isRedeemed)
-	generateSQL.WriteString("SELECT * FROM commissions WHERE IsRedeemed = ? ")
+	params = append(params, userID)
+	params = append(params, transactionID)
+	generateSQL.WriteString("SELECT * FROM commissions WHERE user_id = ? AND transaction_id = ? ")
 
 	var executeSQL *gorm.DB
-	executeSQL = c.UnderlyingDB().Raw(generateSQL.String(), params...).Find(&result) // ignore_security_alert
+	executeSQL = c.UnderlyingDB().Raw(generateSQL.String(), params...).Take(&result) // ignore_security_alert
 	err = executeSQL.Error
 
 	return

@@ -3,34 +3,27 @@ package crud
 import (
 	"context"
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/go-softwarelab/common/pkg/types"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
+// Commission provides query-building capabilities for retrieving and filtering commission records from a data source.
 type Commission interface {
 	Read() CommissionReader
 }
 
+// CommissionReadOperations defines read operations for querying Commission entities from a data source.
 type CommissionReadOperations interface {
 	Find(ctx context.Context, opts ...queryopts.Options) ([]*entity.Commission, error)
 }
 
-type NumericCondition[T comparable] interface {
-	Equals(value T) CommissionReader
-	GreaterThan(value T) CommissionReader
-	LessThan(value T) CommissionReader
-	GreaterThanOrEqual(value T) CommissionReader
-	LessThanOrEqual(value T) CommissionReader
-}
-
+// CommissionReader provides a fluent interface for building commission queries with filtering and chaining conditions.
 type CommissionReader interface {
 	CommissionReadOperations
 
 	ID(id uint) CommissionReadOperations
-	Satoshis() NumericCondition[uint64]
+	Satoshis() NumericCondition[CommissionReader, uint64]
 	IsRedeemed(value bool) CommissionReader
 }
 
@@ -73,61 +66,11 @@ func (c *commission) IsRedeemed(value bool) CommissionReader {
 	return c
 }
 
-func (c *commission) Satoshis() NumericCondition[uint64] {
-	return &numericCondition[uint64]{
+func (c *commission) Satoshis() NumericCondition[CommissionReader, uint64] {
+	return &numericCondition[CommissionReader, uint64]{
 		parent: c,
 		conditionSetter: func(spec *entity.ComparableNumber[uint64]) {
 			c.spec.Satoshis = spec
 		},
 	}
-}
-
-type numericCondition[T types.Number] struct {
-	parent          *commission
-	conditionSetter func(spec *entity.ComparableNumber[T])
-}
-
-func (c *numericCondition[T]) Equals(value T) CommissionReader {
-	c.conditionSetter(&entity.ComparableNumber[T]{
-		Value: value,
-		Cmp:   entity.Equal,
-	})
-
-	return c.parent
-}
-
-func (c *numericCondition[T]) GreaterThan(value T) CommissionReader {
-	c.conditionSetter(&entity.ComparableNumber[T]{
-		Value: value,
-		Cmp:   entity.GreaterThan,
-	})
-
-	return c.parent
-}
-
-func (c *numericCondition[T]) LessThan(value T) CommissionReader {
-	c.conditionSetter(&entity.ComparableNumber[T]{
-		Value: value,
-		Cmp:   entity.LessThan,
-	})
-
-	return c.parent
-}
-
-func (c *numericCondition[T]) GreaterThanOrEqual(value T) CommissionReader {
-	c.conditionSetter(&entity.ComparableNumber[T]{
-		Value: value,
-		Cmp:   entity.GreaterThanOrEqual,
-	})
-
-	return c.parent
-}
-
-func (c *numericCondition[T]) LessThanOrEqual(value T) CommissionReader {
-	c.conditionSetter(&entity.ComparableNumber[T]{
-		Value: value,
-		Cmp:   entity.LessThanOrEqual,
-	})
-
-	return c.parent
 }
