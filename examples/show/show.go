@@ -24,30 +24,9 @@ func Step(actor, description string) {
 	fmt.Println(strings.Repeat("-", 50))
 }
 
-// Notice displays an educational notice or important information
-func Notice(message string) {
-	fmt.Printf("\n%s💡 NOTICE:%s %s\n", ColorYellow+ColorBold, ColorReset, message)
-}
-
 // Success displays a success message
 func Success(message string) {
 	fmt.Printf("%s✅ SUCCESS:%s %s\n", ColorGreen+ColorBold, ColorReset, message)
-}
-
-// Error displays an error message
-func Error(message string) {
-	fmt.Printf("%s❌ ERROR:%s %s\n", ColorRed+ColorBold, ColorReset, message)
-}
-
-// Warning displays a warning message
-func Warning(message string) {
-	fmt.Printf("%s⚠️  WARNING:%s %s\n", ColorYellow+ColorBold, ColorReset, message)
-}
-
-// Address displays a blockchain address in a formatted way
-func Address(address string) {
-	fmt.Printf("\n%s📧 ADDRESS:%s\n", ColorCyan+ColorBold, ColorReset)
-	fmt.Printf("   %s\n", address)
 }
 
 // Transaction displays transaction information
@@ -76,14 +55,15 @@ func Info(label, value string) {
 // FaucetInstructions displays formatted faucet instructions
 func FaucetInstructions(address string) {
 	Header("FAUCET ADDRESS")
-	Notice("You need to fund this address from a testnet faucet")
-	Address(address)
+	fmt.Printf("\n%s💡 NOTICE:%s %s\n", ColorYellow+ColorBold, ColorReset, "You need to fund this address from a testnet faucet")
+	fmt.Printf("\n%s📧 ADDRESS:%s\n", ColorCyan+ColorBold, ColorReset)
+	fmt.Printf("   %s\n", address)
 	fmt.Println("")
 	fmt.Printf("%sAvailable Testnet Faucets:%s\n", ColorBold, ColorReset)
 	fmt.Println("• https://scrypt.io/faucet")
 	fmt.Println("• https://witnessonchain.com/faucet/tbsv")
 	fmt.Println("")
-	Warning("Make sure to use TESTNET faucets only!")
+	fmt.Printf("%s⚠️  WARNING:%s %s\n", ColorYellow+ColorBold, ColorReset, "Make sure to use TESTNET faucets only!")
 }
 
 // ProcessStart indicates the beginning of a process

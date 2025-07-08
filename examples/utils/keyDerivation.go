@@ -4,8 +4,12 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+)
+
+const (
+	DefaultBase64Prefix = "SfKxPIJNgdI="
+	DefaultBase64Suffix = "NaGLC6fMH50="
 )
 
 // DerivationPartsResult represents the result of derivation parts calculation
@@ -29,9 +33,9 @@ type DerivationBytesOpts struct {
 // DerivationParts creates derivation parts with default prefix and suffix
 // senderIdentityKey is optional - if not provided, a new random key will be generated
 func DerivationParts(senderIdentityKey ...string) DerivationPartsResult {
-	prefix := "someprefix" // set this to any string you want to change the address
-	suffix := "somesuffix" // set this to any string you want to change the address
-	bytes := DerivationBytes(prefix, suffix, nil)
+	prefix := "" // empty string will use default base64 prefix
+	suffix := "" // empty string will use default base64 suffix
+	bytes := derivationBytes(prefix, suffix, nil)
 
 	derivationPrefix := base64.StdEncoding.EncodeToString(bytes.DerivationPrefix)
 	derivationSuffix := base64.StdEncoding.EncodeToString(bytes.DerivationSuffix)
@@ -40,11 +44,8 @@ func DerivationParts(senderIdentityKey ...string) DerivationPartsResult {
 	if len(senderIdentityKey) > 0 && senderIdentityKey[0] != "" {
 		identityKey = senderIdentityKey[0]
 	} else {
-		privateKey, err := primitives.NewPrivateKey()
-		if err != nil {
-			panic(err)
-		}
-		identityKey = privateKey.PubKey().ToDERHex()
+		_, publicKey := sdk.AnyoneKey()
+		identityKey = publicKey.ToDERHex()
 	}
 
 	paymentRemittance := &sdk.Payment{
@@ -54,19 +55,17 @@ func DerivationParts(senderIdentityKey ...string) DerivationPartsResult {
 	}
 
 	return DerivationPartsResult{
-		KeyID:             KeyID(derivationPrefix, derivationSuffix),
+		KeyID:             keyID(derivationPrefix, derivationSuffix),
 		IdentityKey:       identityKey,
 		PaymentRemittance: paymentRemittance,
 	}
 }
 
-// KeyID creates a key ID from derivation prefix and suffix
-func KeyID(derivationPrefix, derivationSuffix string) string {
+func keyID(derivationPrefix, derivationSuffix string) string {
 	return fmt.Sprintf("%s %s", derivationPrefix, derivationSuffix)
 }
 
-// DerivationBytes creates derivation bytes from prefix and suffix
-func DerivationBytes(prefix, suffix string, opts *DerivationBytesOpts) DerivationBytesResult {
+func derivationBytes(prefix, suffix string, opts *DerivationBytesOpts) DerivationBytesResult {
 	var derivationPrefix []byte
 	var derivationSuffix []byte
 
@@ -75,23 +74,26 @@ func DerivationBytes(prefix, suffix string, opts *DerivationBytesOpts) Derivatio
 		encoding = opts.Encoding
 	}
 
-	switch encoding {
-	case "base64":
-		derivationPrefix, _ = base64.StdEncoding.DecodeString(prefix)
-	default:
-		derivationPrefix = []byte(prefix)
+	if prefix == "" {
+		derivationPrefix, _ = base64.StdEncoding.DecodeString(DefaultBase64Prefix)
+	} else {
+		switch encoding {
+		case "base64":
+			derivationPrefix, _ = base64.StdEncoding.DecodeString(prefix)
+		default:
+			derivationPrefix = []byte(prefix)
+		}
 	}
 
-	encoding = "utf8"
-	if opts != nil && opts.Encoding != "" {
-		encoding = opts.Encoding
-	}
-
-	switch encoding {
-	case "base64":
-		derivationSuffix, _ = base64.StdEncoding.DecodeString(suffix)
-	default:
-		derivationSuffix = []byte(suffix)
+	if suffix == "" {
+		derivationSuffix, _ = base64.StdEncoding.DecodeString(DefaultBase64Suffix)
+	} else {
+		switch encoding {
+		case "base64":
+			derivationSuffix, _ = base64.StdEncoding.DecodeString(suffix)
+		default:
+			derivationSuffix = []byte(suffix)
+		}
 	}
 
 	return DerivationBytesResult{
