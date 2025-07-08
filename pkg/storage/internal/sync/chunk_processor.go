@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/types"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -275,7 +276,7 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 
 	var basketName *string
 	if chunkOutput.BasketID != nil {
-		basketIDOnWriterSide, err := p.translateID(wdk.OutputBasketEntityName, *chunkOutput.BasketID)
+		basketIDOnWriterSide, err := translateID(p, wdk.OutputBasketEntityName, *chunkOutput.BasketID)
 		if err != nil {
 			return fmt.Errorf("failed to translate basket ID %d: %w", *chunkOutput.BasketID, err)
 		}
@@ -288,14 +289,14 @@ func (p *chunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		basketName = &name
 	}
 
-	transactionIDOnWriterSide, err := p.translateIDFromUnsigned(wdk.TransactionEntityName, chunkOutput.TransactionID)
+	transactionIDOnWriterSide, err := translateID(p, wdk.TransactionEntityName, chunkOutput.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkOutput.TransactionID, err)
 	}
 
 	var spentByTransactionIDOnWriterSide *uint
 	if chunkOutput.SpentBy != nil {
-		spentByTransactionID, err := p.translateIDFromUnsigned(wdk.TransactionEntityName, *chunkOutput.SpentBy)
+		spentByTransactionID, err := translateID(p, wdk.TransactionEntityName, *chunkOutput.SpentBy)
 		if err != nil {
 			return fmt.Errorf("failed to translate spent by transaction ID %d: %w", *chunkOutput.SpentBy, err)
 		}
@@ -403,12 +404,12 @@ func (p *chunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 }
 
 func (p *chunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) error {
-	transactionIDOnWriterSide, err := p.translateIDFromUnsigned(wdk.TransactionEntityName, chunkLabelMap.TransactionID)
+	transactionIDOnWriterSide, err := translateID(p, wdk.TransactionEntityName, chunkLabelMap.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkLabelMap.TransactionID, err)
 	}
 
-	labelNumIDOrWriterSide, err := p.translateIDFromUnsigned(wdk.TxLabelEntityName, chunkLabelMap.TxLabelID)
+	labelNumIDOrWriterSide, err := translateID(p, wdk.TxLabelEntityName, chunkLabelMap.TxLabelID)
 	if err != nil {
 		return fmt.Errorf("failed to translate label ID %d: %w", chunkLabelMap.TxLabelID, err)
 	}
@@ -502,33 +503,6 @@ func (p *chunkProcessor) updateSyncState(entityName wdk.EntityName, updatedAt ti
 	return nil
 }
 
-func (p *chunkProcessor) translateID(entityName wdk.EntityName, readerID int) (uint, error) {
-	syncMapEntity, exists := p.syncState.SyncMap[entityName]
-	if !exists {
-		return 0, fmt.Errorf("sync map entity %s not found", entityName)
-	}
-
-	writerID, ok := syncMapEntity.IDMap[readerID]
-	if !ok {
-		return 0, fmt.Errorf("no writer ID found for reader ID %d in entity %s", readerID, entityName)
-	}
-
-	writerIDUint, err := to.UInt(writerID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert writer ID %d to uint: %w", writerID, err)
-	}
-
-	return writerIDUint, nil
-}
-
-func (p *chunkProcessor) translateIDFromUnsigned(entityName wdk.EntityName, readerID uint) (uint, error) {
-	readerIDInt, err := to.IntFromUnsigned(readerID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert reader ID %d to int: %w", readerID, err)
-	}
-	return p.translateID(entityName, readerIDInt)
-}
-
 // emptyChunk checks if the chunk is empty, meaning it has no row data to process.
 // NOTE: The user pointer is not taken into account.
 func (p *chunkProcessor) emptyChunk() bool {
@@ -595,4 +569,28 @@ func (p *chunkProcessor) updateSyncStateOnDone() error {
 	}
 
 	return nil
+}
+
+func translateID[T types.Number](p *chunkProcessor, entityName wdk.EntityName, readerID T) (uint, error) {
+	syncMapEntity, exists := p.syncState.SyncMap[entityName]
+	if !exists {
+		return 0, fmt.Errorf("sync map entity %s not found", entityName)
+	}
+
+	readerIDInt, err := to.Int(readerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert reader ID %v to int: %w", readerID, err)
+	}
+
+	writerID, ok := syncMapEntity.IDMap[readerIDInt]
+	if !ok {
+		return 0, fmt.Errorf("no writer ID found for reader ID %v in entity %s", readerID, entityName)
+	}
+
+	writerIDUint, err := to.UInt(writerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert writer ID %d to uint: %w", writerID, err)
+	}
+
+	return writerIDUint, nil
 }
