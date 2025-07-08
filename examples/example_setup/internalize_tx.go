@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/examples/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/utils"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 

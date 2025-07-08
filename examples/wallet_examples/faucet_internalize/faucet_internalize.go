@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/examples/example_setup"
-	"github.com/4chain-ag/go-wallet-toolbox/examples/show"
-	"github.com/4chain-ag/go-wallet-toolbox/examples/utils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/example_setup"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/show"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/spf13/pflag"
 )
 

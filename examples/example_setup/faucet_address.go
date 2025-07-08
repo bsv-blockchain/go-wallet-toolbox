@@ -3,9 +3,9 @@ package example_setup
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/examples/show"
-	"github.com/4chain-ag/go-wallet-toolbox/examples/utils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/show"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 )
 
 // FaucetAddress generates a BRC29 address for the given wallet

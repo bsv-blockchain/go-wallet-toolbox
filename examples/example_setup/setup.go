@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/spf13/viper"
 )
 
@@ -86,7 +86,7 @@ func CreateAlice() *Setup {
 			ServerURL:  cfg.ServerURL,
 		},
 		IdentityKey: *identityKey,
-		PrivateKey: *privateKey,
+		PrivateKey:  *privateKey,
 	}
 }
 
