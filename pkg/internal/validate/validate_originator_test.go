@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/stretchr/testify/require"
 )
 

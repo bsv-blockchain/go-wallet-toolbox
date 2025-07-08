@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,11 +45,11 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 	for name, test := range errorTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given, then := testabilities.New(t)
+			given, then, cleanup := testabilities.New(t)
+			defer cleanup()
 
 			// and:
-			aliceWallet, cleanup := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
-			defer cleanup()
+			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
 
 			// when:
 			result, err := aliceWallet.ListOutputs(t.Context(), test.args(), test.originator)
@@ -67,11 +67,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		args := fixtures.DefaultWalletListOutputsArgs()
@@ -91,11 +91,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
@@ -120,11 +120,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
@@ -149,11 +149,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
@@ -179,11 +179,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
@@ -210,11 +210,11 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and: first internalize an action using basket insertion protocol
 		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolBasketInsertion)

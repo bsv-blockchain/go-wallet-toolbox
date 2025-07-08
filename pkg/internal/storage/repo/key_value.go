@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
 )
 

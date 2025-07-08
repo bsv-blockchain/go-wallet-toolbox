@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/randomizer"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -113,7 +113,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 			Reference:  to.Ptr(createdTxReference),
 			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		// when:
@@ -218,7 +218,7 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 			Reference:  to.Ptr(createdTxReference),
 			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		// when:
@@ -350,7 +350,7 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 			Reference:  to.Ptr(createdTxReference),
 			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 			RawTx:      tx.Bytes(),
-			SendWith:   []string{},
+			SendWith:   []primitives.TXIDHexString{},
 		}
 
 		// when:

@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,11 +46,11 @@ func TestWalletRelinquishOutputArgsValidation(t *testing.T) {
 	for name, test := range errorTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given, then := testabilities.New(t)
+			given, then, cleanup := testabilities.New(t)
+			defer cleanup()
 
 			// and:
-			aliceWallet, cleanup := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
-			defer cleanup()
+			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
 
 			// when:
 			result, err := aliceWallet.RelinquishOutput(t.Context(), test.args, test.originator)
@@ -67,9 +67,11 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		t := s.T()
 
 		// given:
-		given := testabilities.Given(t)
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		given, cleanup := testabilities.Given(t)
 		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// when:
 		args := sdk.RelinquishOutputArgs{
@@ -90,9 +92,11 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		const topUpValue = 100_000
 
 		// given:
-		given := testabilities.Given(t)
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		given, cleanup := testabilities.Given(t)
 		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
@@ -119,10 +123,13 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		const topUpValue = 100_000
 
 		// given:
-		given := testabilities.Given(t)
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
@@ -148,14 +155,15 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		const topUpValue = 100_000
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
-		aliceWallet, aliceCleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer aliceCleanup()
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
-		bobWallet, bobCleanup := given.BobWalletWithStorage(s.StorageType)
-		defer bobCleanup()
+		bobWallet := given.BobWalletWithStorage(s.StorageType)
 
+		// and:
 		txFromBobFaucet, _ := given.Faucet(bobWallet).TopUp(topUpValue)
 
 		// when:
@@ -177,16 +185,16 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 }
 
 func (s *WalletTestSuite) TestWalletRelinquishOutputSuccess() {
-	s.StorageType = testabilities.StorageTypeSQLite
 	s.Run("successfully relinquish output", func() {
 		t := s.T()
 		const topUpValue = 100_000
 
 		// given:
-		given := testabilities.Given(t)
-
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		given, cleanup := testabilities.Given(t)
 		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
@@ -213,14 +221,16 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputSuccess() {
 		const topUpValue2 = 100_000
 
 		// given:
-		given := testabilities.Given(t)
-
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
+		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
-		faucet := given.Faucet(aliceWallet)
-		tx1, _ := faucet.TopUp(topUpValue1)
-		_, _ = faucet.TopUp(topUpValue2)
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		tx1, _ := given.Faucet(aliceWallet).TopUp(topUpValue1)
+
+		given.Faucet(aliceWallet).TopUp(topUpValue2)
 
 		// when:
 		args := sdk.RelinquishOutputArgs{

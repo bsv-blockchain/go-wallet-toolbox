@@ -3,7 +3,7 @@ package validate
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func ValidBasketConfiguration(config *wdk.BasketConfiguration) error {

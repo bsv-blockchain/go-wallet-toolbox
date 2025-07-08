@@ -3,12 +3,12 @@ package brc29_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script/interpreter"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

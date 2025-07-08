@@ -3,8 +3,8 @@ package testabilities
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
 )
 
 func New(t testing.TB) (given FunderFixture, then FunderAssertion, cleanup func()) {

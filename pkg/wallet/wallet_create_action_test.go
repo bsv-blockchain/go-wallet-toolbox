@@ -4,16 +4,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const testValueForFunding = 99904
 
 func TestWalletCreateActionArgsValidation(t *testing.T) {
 	errorTestCases := map[string]struct {
@@ -82,11 +85,11 @@ func TestWalletCreateActionArgsValidation(t *testing.T) {
 	for name, test := range errorTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			given, then := testabilities.New(t)
+			given, then, cleanup := testabilities.New(t)
+			defer cleanup()
 
 			// and:
-			aliceWallet, cleanup := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
-			defer cleanup()
+			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
 
 			// when:
 			action, err := aliceWallet.CreateAction(t.Context(), test.args(), test.originator)
@@ -99,24 +102,23 @@ func TestWalletCreateActionArgsValidation(t *testing.T) {
 	}
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
-	s.Run("return signable transaction when sign&process is false", func() {
+func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSend() {
+	s.Run("return signable transaction when signAndProcess is false", func() {
 		t := s.T()
-		const topUpValue = 99904
+		const topUpValue = testValueForFunding
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t)
-		args.Options.SignAndProcess = to.Ptr(false)
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false))
 
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
@@ -157,7 +159,7 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		const fee = 2
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
-			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
+			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
@@ -172,32 +174,32 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 			WithSpendable(false).
 			WithBasket("")
 	})
+}
 
-	s.Run("return signable transaction with provided input when sign&process is false", func() {
+func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSendAndProvidedInput() {
+	s.Run("return signable transaction with provided input when signAndProcess is false", func() {
 		t := s.T()
-		const topUpValue = 99904
+		const topUpValue = testValueForFunding
 		const inputValue = 100
 
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
 		input := given.InputForUser(testusers.Alice).WithSatoshis(inputValue)
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t)
-		args.InputBEEF = input.InputBEEFBytes()
-		args.Inputs = []sdk.CreateActionInput{
-			input.CreateActionInput(),
-		}
-		args.Options.SignAndProcess = to.Ptr(false)
+		args := fixtures.DefaultWalletCreateActionArgs(t,
+			walletargs.WithInput(input),
+			walletargs.WithSignAndProcess(false),
+		)
 
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
@@ -238,7 +240,7 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 		const fee = 2
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
-			WithoutTxID(). //NOTE: Signable transaction does not have txid in DB yet.
+			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue)
@@ -255,15 +257,159 @@ func (s *WalletTestSuite) TestWalletCreateActionSuccess() {
 	})
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionError() {
+func (s *WalletTestSuite) TestWalletCreateActionNewWithSend() {
+	s.Run("create new action", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+
+		// and:
+		assert.NotEmpty(t, result.Txid, "Wallet result should have transaction id")
+		assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
+		assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
+		assert.Equal(t, result.SendWithResults[0].Txid, result.Txid, "Wallet result should have same txid as the one from send with result")
+		assert.Equal(t, result.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+
+		// and check the state of wallet:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID()).
+			WithSatoshis(topUpValue)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithTxID(result.Txid.String()).
+			WithStatus(sdk.ActionStatusUnproven).
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is negative value (user spends balance).
+
+		thenCreatedAction.OutputAtIndex(0).
+			ListActionsAlignsListOutputs().
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(false).
+			WithBasket("")
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionNewWithSendAndTXIDOnly() {
+	s.Run("create new action with return TXID only", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+		args.Options.ReturnTXIDOnly = to.Ptr(true)
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, result, "Wallet should return result")
+
+		// and:
+		require.Empty(t, result.Tx, "Wallet result should not have transaction bytes")
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionNewWithSendAndProvidedInput() {
+	s.Run("create new action with all funds from provided input", func() {
+		t := s.T()
+		const inputValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		input := given.InputForUser(testusers.Alice).WithSatoshis(inputValue)
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithInput(input))
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+
+		// and:
+		assert.NotEmpty(t, result.Txid, "Wallet result should have transaction id")
+		assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
+		assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
+		assert.Equal(t, result.SendWithResults[0].Txid, result.Txid, "Wallet result should have same txid as the one from send with result")
+		assert.Equal(t, result.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+
+		// and check the state of wallet:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(0)
+		thenCreatedAction.
+			WithTxID(result.Txid.String()).
+			WithStatus(sdk.ActionStatusUnproven).
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(inputValue - int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is positive value, because provided input must be higher than output to fund the transaction.
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionNewNotEnoughFundsError() {
 	s.Run("return error when user have not enough funds", func() {
 		t := s.T()
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -278,11 +424,11 @@ func (s *WalletTestSuite) TestWalletCreateActionError() {
 	s.Run("return error when user have not enough funds and when sign&process is false", func() {
 		t := s.T()
 		// given:
-		given := testabilities.Given(t)
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
 		// and:
-		aliceWallet, cleanup := given.AliceWalletWithStorage(s.StorageType)
-		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -292,6 +438,64 @@ func (s *WalletTestSuite) TestWalletCreateActionError() {
 		// then:
 		assert.Error(t, err)
 		require.Nil(t, result)
+
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
+	s.Run("return error when want non delayed broadcast and all services are down", func() {
+		t := s.T()
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		input := given.InputForUser(testusers.Alice).WithSatoshis(testValueForFunding)
+
+		// and:
+		given.Services().AllDown()
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithInput(input))
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.Nil(t, result, "Wallet shouldn't return result when all services are down")
+		require.Error(t, err, "Wallet should return error when not delayed broadcast failed")
+
+		// and:
+		// TODO: replace with better assertions for error - when we will have custom type for it
+		assert.ErrorContains(t, err, "undelayed result require review")
+	})
+
+	s.Run("return signable transaction when all services are down, but sign and process is false", func() {
+		t := s.T()
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		input := given.InputForUser(testusers.Alice).WithSatoshis(testValueForFunding)
+
+		// and:
+		given.Services().AllDown()
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t,
+			walletargs.WithInput(input),
+			walletargs.WithSignAndProcess(false),
+		)
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err, "Wallet should not fail for signable transaction when all services are down")
+		require.NotNil(t, result, "Wallet should return signable transaction when all services are down")
 
 	})
 }

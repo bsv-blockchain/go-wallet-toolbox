@@ -3,9 +3,9 @@ package commission_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/commission"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

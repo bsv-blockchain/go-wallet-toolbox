@@ -3,8 +3,8 @@ package funder
 import (
 	"context"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 )
 
 type Funder interface {
