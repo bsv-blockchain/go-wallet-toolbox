@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -32,6 +33,13 @@ type WhatsOnChainFixture interface {
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
+
+	WillRespondWithConfirmedScriptHistory(status int, scriptHash string, response interface{})
+	WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, response interface{})
+	WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string)
+	WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture
+	WithValidScriptHistoryData() ScriptHistoryDataBuilder
+	WithScriptHistoryValidationError(scriptHash string, expectedError string)
 }
 
 type wocFixture struct {
@@ -344,4 +352,273 @@ func computeTxID(rawTx []byte) string {
 		return ""
 	}
 	return tx.TxID().String()
+}
+
+type WhatsOnChainScriptHistoryQueryFixture interface {
+	WillReturnConfirmedHistory(status int, response wdk.ScriptHashHistoryResponse)
+	WillReturnUnconfirmedHistory(status int, response wdk.ScriptHashHistoryResponse)
+	WillReturnConfirmedHistoryWithPagination(status int, response wdk.ScriptHashHistoryResponse, opts *wdk.GetConfirmedScriptHistoryOpts)
+	WillReturnAPIError(errorMsg string)
+	WillReturnHTTPError(status int)
+}
+
+type ScriptHistoryDataBuilder interface {
+	WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder
+	WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder
+	WithEmptyHistory() ScriptHistoryDataBuilder
+	WithScriptHash(scriptHash string) ScriptHistoryDataBuilder
+	Build() (confirmedResponse, unconfirmedResponse wdk.ScriptHashHistoryResponse)
+	SetupMocks(fixture WhatsOnChainFixture)
+}
+
+func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHash string, response interface{}) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", f.network, scriptHash)
+
+	if response != nil {
+		f.transport.RegisterResponder(
+			http.MethodGet,
+			url,
+			httpmock.NewJsonResponderOrPanic(status, response),
+		)
+	} else {
+		f.transport.RegisterResponder(
+			http.MethodGet,
+			url,
+			httpmock.NewStringResponder(status, ""),
+		)
+	}
+}
+
+func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, response interface{}) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unconfirmed/history", f.network, scriptHash)
+
+	if response != nil {
+		f.transport.RegisterResponder(
+			http.MethodGet,
+			url,
+			httpmock.NewJsonResponderOrPanic(status, response),
+		)
+	} else {
+		f.transport.RegisterResponder(
+			http.MethodGet,
+			url,
+			httpmock.NewStringResponder(status, ""),
+		)
+	}
+}
+
+func (f *wocFixture) WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string) {
+	f.TB.Helper()
+
+	errorResponse := wdk.ScriptHashHistoryResponse{
+		Result: []wdk.ScriptHashHistoryItem{},
+		Error:  errorMsg,
+	}
+
+	f.WillRespondWithConfirmedScriptHistory(status, scriptHash, errorResponse)
+}
+
+func (f *wocFixture) WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture {
+	return &wocScriptHistoryQueryFixture{
+		fixture:    f,
+		scriptHash: scriptHash,
+	}
+}
+
+func (f *wocFixture) WithValidScriptHistoryData() ScriptHistoryDataBuilder {
+	return &scriptHistoryDataBuilder{
+		fixture:          f,
+		scriptHash:       "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832", // default valid hash
+		confirmedCount:   3,
+		unconfirmedCount: 2,
+		startHeight:      800000,
+	}
+}
+
+func (f *wocFixture) WithScriptHistoryValidationError(scriptHash string, expectedError string) {
+	f.TB.Helper()
+}
+
+type wocScriptHistoryQueryFixture struct {
+	fixture    *wocFixture
+	scriptHash string
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnConfirmedHistory(status int, response wdk.ScriptHashHistoryResponse) {
+	q.fixture.WillRespondWithConfirmedScriptHistory(status, q.scriptHash, response)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnUnconfirmedHistory(status int, response wdk.ScriptHashHistoryResponse) {
+	q.fixture.WillRespondWithUnconfirmedScriptHistory(status, q.scriptHash, response)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnConfirmedHistoryWithPagination(status int, response wdk.ScriptHashHistoryResponse, opts *wdk.GetConfirmedScriptHistoryOpts) {
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", q.fixture.network, q.scriptHash)
+
+	if opts != nil {
+		params := make([]string, 0)
+
+		if opts.Height != nil {
+			params = append(params, fmt.Sprintf("height=%d", *opts.Height))
+		}
+		if opts.Limit != nil {
+			params = append(params, fmt.Sprintf("limit=%d", *opts.Limit))
+		}
+		if opts.Order != nil {
+			params = append(params, fmt.Sprintf("order=%s", opts.Order.String()))
+		}
+		if opts.NextPageToken != nil && *opts.NextPageToken != "" {
+			params = append(params, fmt.Sprintf("token=%s", *opts.NextPageToken))
+		}
+
+		if len(params) > 0 {
+			url += "?" + strings.Join(params, "&")
+		}
+	}
+
+	fmt.Println(url)
+
+	q.fixture.transport.RegisterResponder(
+		http.MethodGet,
+		url,
+		httpmock.NewJsonResponderOrPanic(status, response),
+	)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnAPIError(errorMsg string) {
+	errorResponse := wdk.ScriptHashHistoryResponse{
+		Result: []wdk.ScriptHashHistoryItem{},
+		Error:  errorMsg,
+	}
+	q.WillReturnConfirmedHistory(http.StatusOK, errorResponse)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnHTTPError(status int) {
+	q.WillReturnConfirmedHistory(status, wdk.ScriptHashHistoryResponse{})
+}
+
+type scriptHistoryDataBuilder struct {
+	fixture          *wocFixture
+	scriptHash       string
+	confirmedCount   int
+	unconfirmedCount int
+	startHeight      int
+	emptyHistory     bool
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
+	b.confirmedCount = count
+	b.startHeight = startHeight
+	b.emptyHistory = false
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder {
+	b.unconfirmedCount = count
+	b.emptyHistory = false
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithEmptyHistory() ScriptHistoryDataBuilder {
+	b.emptyHistory = true
+	b.confirmedCount = 0
+	b.unconfirmedCount = 0
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithScriptHash(scriptHash string) ScriptHistoryDataBuilder {
+	b.scriptHash = scriptHash
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) Build() (confirmedResponse, unconfirmedResponse wdk.ScriptHashHistoryResponse) {
+	if b.emptyHistory {
+		return wdk.ScriptHashHistoryResponse{
+				Result: []wdk.ScriptHashHistoryItem{},
+				Error:  "",
+			}, wdk.ScriptHashHistoryResponse{
+				Result: []wdk.ScriptHashHistoryItem{},
+				Error:  "",
+			}
+	}
+
+	confirmedItems := make([]wdk.ScriptHashHistoryItem, b.confirmedCount)
+	for i := 0; i < b.confirmedCount; i++ {
+		confirmedItems[i] = wdk.ScriptHashHistoryItem{
+			TxID:   fmt.Sprintf("confirmed_tx_%064d", i),
+			Height: to.Ptr(b.startHeight + i),
+		}
+	}
+
+	unconfirmedItems := make([]wdk.ScriptHashHistoryItem, b.unconfirmedCount)
+	for i := 0; i < b.unconfirmedCount; i++ {
+		unconfirmedItems[i] = wdk.ScriptHashHistoryItem{
+			TxID:   fmt.Sprintf("unconfirmed_tx_%054d", i),
+			Height: nil, // unconfirmed
+		}
+	}
+
+	confirmedResponse = wdk.ScriptHashHistoryResponse{
+		Result: confirmedItems,
+		Error:  "",
+	}
+
+	unconfirmedResponse = wdk.ScriptHashHistoryResponse{
+		Result: unconfirmedItems,
+		Error:  "",
+	}
+
+	return confirmedResponse, unconfirmedResponse
+}
+
+func (b *scriptHistoryDataBuilder) SetupMocks(fixture WhatsOnChainFixture) {
+	confirmedResp, unconfirmedResp := b.Build()
+	fixture.WillRespondWithConfirmedScriptHistory(http.StatusOK, b.scriptHash, confirmedResp)
+	fixture.WillRespondWithUnconfirmedScriptHistory(http.StatusOK, b.scriptHash, unconfirmedResp)
+}
+
+func ValidScriptHashes() map[string]string {
+	return map[string]string{
+		"p2pkh_standard": "76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac",
+		"p2sh_standard":  "a914b7536c788d8ca2de4d867a2b5b02acef97f35aef87",
+		"script_hash_32": "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832",
+		"script_hash_20": "1234567890abcdef1234567890abcdef12345678",
+	}
+}
+
+func InvalidScriptHashes() map[string]struct {
+	Hash          string
+	ExpectedError string
+} {
+	return map[string]struct {
+		Hash          string
+		ExpectedError string
+	}{
+		"empty": {
+			Hash:          "",
+			ExpectedError: "scripthash cannot be empty",
+		},
+		"too_short": {
+			Hash:          "a914b7536c",
+			ExpectedError: "invalid scripthash length: too short",
+		},
+		"too_long": {
+			Hash:          "a914b7536c788d8ca2de4d867a2b5b02acef97f35aef488aca914b7536c788d8ca2de4d867a2b5b02acef97f35aef488ac",
+			ExpectedError: "invalid scripthash length: too long",
+		},
+		"invalid_hex": {
+			Hash:          "g914b7536c788d8ca2de4d867a2b5b02acef97f35aef488ac",
+			ExpectedError: "invalid scripthash format",
+		},
+		"non_hex_chars": {
+			Hash:          "a914b7536c788d8ca2de4d867a2b5b02acef97f35aef488@c",
+			ExpectedError: "invalid scripthash format",
+		},
+		"whitespace": {
+			Hash:          "a914b7536c788d8ca2de4d867a2b5b02acef97f35aef488 c",
+			ExpectedError: "invalid scripthash format",
+		},
+	}
 }
