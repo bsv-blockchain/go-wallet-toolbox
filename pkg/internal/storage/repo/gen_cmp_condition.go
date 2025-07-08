@@ -2,7 +2,8 @@ package repo
 
 import (
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 )

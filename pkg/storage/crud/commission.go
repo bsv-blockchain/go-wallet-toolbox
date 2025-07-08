@@ -3,10 +3,11 @@ package crud
 import (
 	"context"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
+	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
-	"time"
 )
 
 // Commission provides query-building capabilities for retrieving and filtering commission records from a data source.

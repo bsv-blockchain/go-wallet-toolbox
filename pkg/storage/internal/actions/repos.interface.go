@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 
+	pkgentity "github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -64,6 +65,6 @@ type KeyValueRepo interface {
 }
 
 type CommissionRepo interface {
-	AddCommission(ctx context.Context, commission *entity.Commission) error
-	FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error)
+	AddCommission(ctx context.Context, commission *pkgentity.Commission) error
+	FindCommission(ctx context.Context, userID int, transactionID uint) (*pkgentity.Commission, error)
 }

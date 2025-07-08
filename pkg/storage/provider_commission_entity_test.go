@@ -2,14 +2,15 @@ package storage_test
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestCommission(t *testing.T) {

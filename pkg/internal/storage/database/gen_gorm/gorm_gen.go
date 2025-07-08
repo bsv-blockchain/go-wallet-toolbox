@@ -1,12 +1,12 @@
 package main
 
 import (
-	"gorm.io/driver/sqlite"
-	"gorm.io/gen"
-	"gorm.io/gorm"
 	"log"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gen"
+	"gorm.io/gorm"
 )
 
 //go:generate go run gorm_gen.go

@@ -3,6 +3,7 @@ package entity
 import (
 	"fmt"
 
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
@@ -28,7 +29,7 @@ type NewTx struct {
 	Outputs           []*NewOutput
 
 	Labels     []primitives.StringUnder300
-	Commission *Commission
+	Commission *entity.Commission
 }
 
 // NewOutput represents an output of a new transaction.

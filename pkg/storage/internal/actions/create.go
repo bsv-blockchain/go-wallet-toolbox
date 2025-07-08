@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -120,7 +121,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	xoutputs := seq.PointersFromSlice(params.Outputs)
 
 	var commOut *serviceChargeOutput
-	var commEntity *entity.Commission
+	var commEntity *pkgentity.Commission
 	if c.commission != nil {
 		commOut, commEntity, err = c.createCommissionOutput(userID)
 		if err != nil {
@@ -214,7 +215,7 @@ type serviceChargeOutput struct {
 	KeyOffset string
 }
 
-func (c *create) createCommissionOutput(userID int) (*serviceChargeOutput, *entity.Commission, error) {
+func (c *create) createCommissionOutput(userID int) (*serviceChargeOutput, *pkgentity.Commission, error) {
 	lockingScript, keyOffset, err := c.commission.Generate()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate commission script: %w", err)
@@ -229,7 +230,7 @@ func (c *create) createCommissionOutput(userID int) (*serviceChargeOutput, *enti
 		KeyOffset: keyOffset,
 	}
 
-	commissionEntity := &entity.Commission{
+	commissionEntity := &pkgentity.Commission{
 		UserID:        userID,
 		Satoshis:      c.commissionCfg.Satoshis,
 		KeyOffset:     keyOffset,
