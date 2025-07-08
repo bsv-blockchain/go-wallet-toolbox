@@ -59,7 +59,7 @@ func loadConfig(configFile string) (*SetupConfig, error) {
 }
 
 func CreateAlice() *Setup {
-	cfg, err := loadConfig("examples/example_setup/example-config.yaml")
+	cfg, err := loadConfig("examples/internal/example_setup/example-config.yaml")
 	if err != nil {
 		panic(fmt.Errorf("failed to load config: %w", err))
 	}

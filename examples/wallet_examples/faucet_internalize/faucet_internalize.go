@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/example_setup"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/show"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/spf13/pflag"
 )
@@ -33,7 +33,7 @@ func main() {
 	defer cleanup()
 
 	if beef == "" {
-		beef, err = utils.WocAPIGetBeefForTX(string(defs.NetworkTestnet), *txID)
+		beef, err = utils.WocAPIGetBeefForTX(defs.NetworkTestnet, *txID)
 		if err != nil {
 			panic(fmt.Errorf("failed to get beef for tx: %w", err))
 		}
