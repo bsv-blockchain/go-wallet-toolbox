@@ -9,6 +9,8 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
+//go:generate go run gorm_gen.go
+
 // Dynamic SQL
 type Querier interface {
 	// SELECT * FROM @@table WHERE IsRedeemed = @isRedeemed{{end}}
@@ -17,7 +19,7 @@ type Querier interface {
 
 func main() {
 	g := gen.NewGenerator(gen.Config{
-		OutPath: "./query",
+		OutPath: "../genquery",
 		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface, // generate mode
 	})
 

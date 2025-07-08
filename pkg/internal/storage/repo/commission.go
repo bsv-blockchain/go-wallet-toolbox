@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models/query"
-	"gorm.io/gen"
-
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gen"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -65,44 +64,39 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 }
 
 func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {
-	var conditions []gen.Condition
-	if spec != nil {
-		if spec.ID != nil {
-			conditions = append(conditions, query.Commission.ID.Eq(*spec.ID))
-		} else {
-			if spec.IsRedeemed != nil {
-				conditions = append(conditions, query.Commission.IsRedeemed.Is(*spec.IsRedeemed))
-			}
-			if spec.Satoshis != nil {
-				switch spec.Satoshis.Cmp {
-				case entity.Equal:
-					conditions = append(conditions, query.Commission.Satoshis.Eq(spec.Satoshis.Value))
-				case entity.GreaterThan:
-					conditions = append(conditions, query.Commission.Satoshis.Gt(spec.Satoshis.Value))
-				case entity.LessThan:
-					conditions = append(conditions, query.Commission.Satoshis.Lt(spec.Satoshis.Value))
-				case entity.GreaterThanOrEqual:
-					conditions = append(conditions, query.Commission.Satoshis.Gte(spec.Satoshis.Value))
-				case entity.LessThanOrEqual:
-					conditions = append(conditions, query.Commission.Satoshis.Lte(spec.Satoshis.Value))
-				case entity.NotEqual:
-					conditions = append(conditions, query.Commission.Satoshis.Neq(spec.Satoshis.Value))
-				default:
-					return nil, fmt.Errorf("unsupported comparison operator: %s", spec.Satoshis.Cmp)
-				}
-			}
-		}
-	}
+	table := genquery.Commission
 
-	commissions, err := query.Commission.WithContext(ctx).
-		Scopes(scopes.FromQueryOptsForGen(query.Commission, opts)...).
-		Where(conditions...).
+	commissions, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(c.conditionsBySpec(spec)...).
 		Find()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find commissions: %w", err)
 	}
 
 	return slices.Map(commissions, mapModelToEntityCommission), nil
+}
+
+func (c *Commission) conditionsBySpec(spec *entity.CommissionSpecification) []gen.Condition {
+	if spec == nil {
+		return []gen.Condition{}
+	}
+
+	if spec.ID != nil {
+		return []gen.Condition{genquery.Commission.ID.Eq(*spec.ID)}
+	}
+
+	var conditions []gen.Condition
+
+	if spec.IsRedeemed != nil {
+		conditions = append(conditions, genquery.Commission.IsRedeemed.Is(*spec.IsRedeemed))
+	}
+
+	if spec.Satoshis != nil {
+		conditions = append(conditions, cmpCondition(genquery.Commission.Satoshis, spec.Satoshis.Cmp, spec.Satoshis.Value))
+	}
+
+	return conditions
 }
 
 func mapModelToEntityCommission(model *models.Commission) *entity.Commission {

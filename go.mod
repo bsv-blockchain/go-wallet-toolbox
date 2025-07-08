@@ -21,7 +21,9 @@ require (
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
+	gorm.io/gen v0.3.27
 	gorm.io/gorm v1.30.0
+	gorm.io/plugin/dbresolver v1.6.0
 )
 
 require (
@@ -64,9 +66,7 @@ require (
 	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	gorm.io/gen v0.3.27 // indirect
 	gorm.io/hints v1.1.2 // indirect
-	gorm.io/plugin/dbresolver v1.6.0 // indirect
 )
 
 tool go.uber.org/mock/mockgen

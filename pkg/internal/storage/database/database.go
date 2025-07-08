@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models/query"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"log/slog"
 	"strings"
 
@@ -79,7 +79,7 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 	sqlDB.SetConnMaxLifetime(cfg.MaxConnectionTime)
 	sqlDB.SetConnMaxIdleTime(cfg.MaxConnectionIdleTime)
 
-	query.SetDefault(db)
+	genquery.SetDefault(db)
 
 	return db, nil
 }
