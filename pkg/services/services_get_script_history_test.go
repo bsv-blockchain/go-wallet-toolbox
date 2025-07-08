@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,8 +206,8 @@ func (s *ScriptHistoryFixtureTestSuite) TestGetScriptHistory_LargeHistory() {
 
 	// then
 	s.Require().NoError(err)
-	s.Assert().Len(result.History, 1050) 
-	
+	s.Assert().Len(result.History, 1050)
+
 	for i := 0; i < 1000; i++ {
 		s.Assert().NotNil(result.History[i].Height)
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func validateScriptHash(scriptHash string) error {
