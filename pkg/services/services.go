@@ -200,7 +200,7 @@ func (s *WalletServices) NLockTimeIsFinal(txOrLockTime any) bool {
 	panic("Not implemented yet")
 }
 
-// ScriptHistory retrieves both confirmed and unconfirmed transaction history for a script hash
+// GetScriptHistory retrieves both confirmed and unconfirmed transaction history for a script hash
 func (ws *WalletServices) GetScriptHistory(ctx context.Context, scriptHash string, opts *wdk.GetConfirmedScriptHistoryOpts) (*wdk.ScriptHistoryResult, error) {
 	result, err := ws.whatsonchain.GetScriptHistory(ctx, scriptHash, opts)
 	if err != nil {
