@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 )
@@ -16,31 +17,25 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 
 	var lastErr error
 
-	for range woc.rootForHeightValidationRetries {
-		attemptCtx := ctx
-		var cancel context.CancelFunc
-		if woc.rootForHeightValidationTimeout > 0 {
-			attemptCtx, cancel = context.WithTimeout(ctx, woc.rootForHeightValidationTimeout)
-			defer cancel()
-		}
-		ok, err := woc.fetchAndCompare(attemptCtx, root, height)
+	for range woc.rootForHeightRetries {
+		ok, err := woc.fetchAndCompare(ctx, root, height)
 		if err == nil {
 			return ok, nil
 		}
-
-		if ce := attemptCtx.Err(); ce != nil {
-			return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, ce)
-		}
-
 		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, ctx.Err())
+		case <-time.After(woc.rootForHeightRetryInterval):
+		}
 	}
 
-	return false, fmt.Errorf("WoC: %w (after %d retries)", lastErr, woc.rootForHeightValidationRetries)
+	return false, fmt.Errorf("WoC: %w (after %d retries)", lastErr, woc.rootForHeightRetries)
 }
 
 // fetchAndCompare fetches the block header for the given height and compares its Merkle root with the provided root.
 func (woc *WhatsOnChain) fetchAndCompare(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
-
 	url, err := blockHeaderURL(woc.url, height)
 	if err != nil {
 		return false, fmt.Errorf("failed to build block header URL for height %d: %w", height, err)

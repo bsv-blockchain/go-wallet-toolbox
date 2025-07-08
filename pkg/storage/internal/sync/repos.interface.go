@@ -29,4 +29,12 @@ type Repository interface {
 
 	FindOutputsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutput, error)
 	UpsertOutputForSync(ctx context.Context, entity *entity.Output) (isNew bool, outputID uint, err error)
+
+	FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabel, error)
+	UpsertLabelForSync(ctx context.Context, entity *entity.Label) (isNew bool, labelNumID uint, err error)
+	DeleteLabelForSync(ctx context.Context, entity *entity.Label) (deleted bool, err error)
+	FindLabelsMapForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabelMap, error)
+	FindLabelByNumIDForSync(ctx context.Context, labelNumID uint) (*entity.Label, error)
+	DeleteLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (deleted bool, err error)
+	UpsertLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (isNew bool, err error)
 }

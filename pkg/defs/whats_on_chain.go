@@ -7,12 +7,12 @@ import (
 
 // WhatsOnChain is a struct that configures WhatsOnChain service
 type WhatsOnChain struct {
-	APIKey                         string          `mapstructure:"api_key"`
-	BSVExchangeRate                BSVExchangeRate `mapstructure:"bsv_exchange_rate"`
-	BroadcastDelay                 time.Duration   `mapstructure:"broadcast_delay"`
-	BSVUpdateInterval              *time.Duration  `mapstructure:"bsv_update_interval"`
-	RootForHeightValidationTimeout time.Duration   `mapstructure:"root_for_height_validation_timeout"`
-	RootForHeightValidationRetries int             `mapstructure:"root_for_height_validation_retries"`
+	APIKey                     string          `mapstructure:"api_key"`
+	BSVExchangeRate            BSVExchangeRate `mapstructure:"bsv_exchange_rate"`
+	BroadcastDelay             time.Duration   `mapstructure:"broadcast_delay"`
+	BSVUpdateInterval          *time.Duration  `mapstructure:"bsv_update_interval"`
+	RootForHeightRetryInterval time.Duration   `mapstructure:"root_for_height_validation_timeout"`
+	RootForHeightRetries       int             `mapstructure:"root_for_height_validation_retries"`
 }
 
 // Validate checks if the WhatsOnChain configuration is valid

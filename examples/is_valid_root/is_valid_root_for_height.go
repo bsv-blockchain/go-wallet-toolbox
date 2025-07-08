@@ -15,7 +15,7 @@ import (
 
 func main() {
 	const (
-		height     = uint32(903321)
+		height = uint32(903321)
 		// https://whatsonchain.com/block-height/903321?tab=json
 		rootHex = "559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd"
 	)
