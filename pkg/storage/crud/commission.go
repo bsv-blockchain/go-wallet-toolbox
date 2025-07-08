@@ -6,16 +6,20 @@ import (
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
+	"time"
 )
 
 // Commission provides query-building capabilities for retrieving and filtering commission records from a data source.
 type Commission interface {
 	Read() CommissionReader
+	Create(ctx context.Context, commission *entity.Commission) error
+	Update(ctx context.Context, spec *entity.CommissionUpdateSpecification) error
 }
 
 // CommissionReadOperations defines read operations for querying Commission entities from a data source.
 type CommissionReadOperations interface {
-	Find(ctx context.Context, opts ...queryopts.Options) ([]*entity.Commission, error)
+	Find(ctx context.Context) ([]*entity.Commission, error)
+	Count(ctx context.Context) (int64, error)
 }
 
 // CommissionReader provides a fluent interface for building commission queries with filtering and chaining conditions.
@@ -25,15 +29,23 @@ type CommissionReader interface {
 	ID(id uint) CommissionReadOperations
 	Satoshis() NumericCondition[CommissionReader, uint64]
 	IsRedeemed(value bool) CommissionReader
+	UserID(userID int) CommissionReader
+	Since(value time.Time, column entity.SinceField) CommissionReader
+	Paged(limit, offset int, desc bool) CommissionReader
 }
 
 type commissionRepo interface {
-	FindCommissions(ctx context.Context, spec *entity.CommissionSpecification, opts ...queryopts.Options) ([]*entity.Commission, error)
+	FindCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) ([]*entity.Commission, error)
+	CountCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) (int64, error)
+	AddCommission(ctx context.Context, commission *entity.Commission) error
+	UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error
 }
 
 type commission struct {
-	repo commissionRepo
-	spec entity.CommissionSpecification
+	repo   commissionRepo
+	spec   entity.CommissionReadSpecification
+	since  *queryopts.Since
+	paging *queryopts.Paging
 }
 
 // NewCommission creates and returns a new Commission instance using the provided commissionRepo implementation.
@@ -48,12 +60,44 @@ func (c *commission) Read() CommissionReader {
 	return c
 }
 
-func (c *commission) Find(ctx context.Context, opts ...queryopts.Options) ([]*entity.Commission, error) {
-	commissions, err := c.repo.FindCommissions(ctx, &c.spec, opts...)
+func (c *commission) Create(ctx context.Context, commission *entity.Commission) error {
+	if commission == nil {
+		return fmt.Errorf("commission cannot be nil")
+	}
+
+	err := c.repo.AddCommission(ctx, commission)
+	if err != nil {
+		return fmt.Errorf("failed to create commission: %w", err)
+	}
+	return nil
+}
+
+func (c *commission) Update(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
+	if spec == nil {
+		return fmt.Errorf("update specification cannot be nil")
+	}
+
+	err := c.repo.UpdateCommission(ctx, spec)
+	if err != nil {
+		return fmt.Errorf("failed to update commission: %w", err)
+	}
+	return nil
+}
+
+func (c *commission) Find(ctx context.Context) ([]*entity.Commission, error) {
+	commissions, err := c.repo.FindCommissions(ctx, &c.spec, c.queryopts()...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find commissions: %w", err)
 	}
 	return commissions, nil
+}
+
+func (c *commission) Count(ctx context.Context) (int64, error) {
+	count, err := c.repo.CountCommissions(ctx, &c.spec, c.queryopts()...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count commissions: %w", err)
+	}
+	return count, nil
 }
 
 func (c *commission) ID(id uint) CommissionReadOperations {
@@ -66,6 +110,11 @@ func (c *commission) IsRedeemed(value bool) CommissionReader {
 	return c
 }
 
+func (c *commission) UserID(userID int) CommissionReader {
+	c.spec.UserID = to.Ptr(userID)
+	return c
+}
+
 func (c *commission) Satoshis() NumericCondition[CommissionReader, uint64] {
 	return &numericCondition[CommissionReader, uint64]{
 		parent: c,
@@ -73,4 +122,36 @@ func (c *commission) Satoshis() NumericCondition[CommissionReader, uint64] {
 			c.spec.Satoshis = spec
 		},
 	}
+}
+
+func (c *commission) Since(value time.Time, column entity.SinceField) CommissionReader {
+	c.since = &queryopts.Since{
+		Time:  value,
+		Field: to.IfThen(column == entity.SinceFieldCreatedAt, "created_at").ElseThen("updated_at"),
+	}
+	return c
+}
+
+func (c *commission) Paged(limit, offset int, desc bool) CommissionReader {
+	c.paging = &queryopts.Paging{
+		Limit:  limit,
+		Offset: offset,
+		SortBy: "id",
+		Sort:   to.IfThen(desc, "DESC").ElseThen("ASC"),
+	}
+	return c
+}
+
+func (c *commission) queryopts() []queryopts.Options {
+	var opts []queryopts.Options
+
+	if c.since != nil {
+		opts = append(opts, queryopts.WithSince(*c.since))
+	}
+
+	if c.paging != nil {
+		opts = append(opts, queryopts.WithPage(*c.paging))
+	}
+
+	return opts
 }

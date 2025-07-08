@@ -16,7 +16,14 @@ func PaginateForGen(getter genTableGetter, page *queryopts.Paging) func(gen.Dao)
 			return dao
 		}
 
-		return dao.Order(sortBy.Desc()).Offset(page.Offset).Limit(page.Limit)
+		var sortByExpr field.Expr
+		if page.IsDesc() {
+			sortByExpr = sortBy.Desc()
+		} else {
+			sortByExpr = sortBy.Asc()
+		}
+
+		return dao.Order(sortByExpr).Offset(page.Offset).Limit(page.Limit)
 	}
 }
 

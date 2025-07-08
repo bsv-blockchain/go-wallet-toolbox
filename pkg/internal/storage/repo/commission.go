@@ -59,7 +59,30 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 	return mapModelToEntityCommission(&commission), nil
 }
 
-func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {
+func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
+	table := genquery.Commission
+
+	toUpdate := map[string]any{}
+	if spec.IsRedeemed != nil {
+		toUpdate[table.IsRedeemed.ColumnName().String()] = *spec.IsRedeemed
+	}
+	if spec.Satoshis != nil {
+		toUpdate[table.Satoshis.ColumnName().String()] = *spec.Satoshis
+	}
+
+	if len(toUpdate) == 0 {
+		return nil
+	}
+
+	_, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(toUpdate)
+	if err != nil {
+		return fmt.Errorf("failed to update commission: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {
 	table := genquery.Commission
 
 	commissions, err := table.WithContext(ctx).
@@ -73,7 +96,21 @@ func (c *Commission) FindCommissions(ctx context.Context, spec *entity.Commissio
 	return slices.Map(commissions, mapModelToEntityCommission), nil
 }
 
-func (c *Commission) conditionsBySpec(spec *entity.CommissionSpecification) []gen.Condition {
+func (c *Commission) CountCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) (int64, error) {
+	table := genquery.Commission
+
+	count, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(c.conditionsBySpec(spec)...).
+		Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count commissions: %w", err)
+	}
+
+	return count, nil
+}
+
+func (c *Commission) conditionsBySpec(spec *entity.CommissionReadSpecification) []gen.Condition {
 	if spec == nil {
 		return []gen.Condition{}
 	}
@@ -90,6 +127,10 @@ func (c *Commission) conditionsBySpec(spec *entity.CommissionSpecification) []ge
 
 	if spec.Satoshis != nil {
 		conditions = append(conditions, cmpCondition(genquery.Commission.Satoshis, spec.Satoshis.Cmp, spec.Satoshis.Value))
+	}
+
+	if spec.UserID != nil {
+		conditions = append(conditions, genquery.Commission.UserID.Eq(*spec.UserID))
 	}
 
 	return conditions
