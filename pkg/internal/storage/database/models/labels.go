@@ -13,4 +13,6 @@ type Label struct {
 
 	Name   string `gorm:"primarykey"`
 	UserID int    `gorm:"primarykey"`
+
+	Transactions []*Transaction `gorm:"many2many:transaction_labels;"`
 }

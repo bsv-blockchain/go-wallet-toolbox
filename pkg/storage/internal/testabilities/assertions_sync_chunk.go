@@ -43,6 +43,10 @@ type ValidSyncChunkAssertion interface {
 
 	OutputsCount(length int) ValidSyncChunkAssertion
 	OutputAtIndex(index int) OutputAssertion
+
+	LabelsCount(length int) ValidSyncChunkAssertion
+	LabelsMapCount(length int) ValidSyncChunkAssertion
+	WithTxLabels(transactionID uint, labels ...string) ValidSyncChunkAssertion
 }
 
 type BasketAssertion interface {
@@ -156,6 +160,8 @@ func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.ProvenTxReqsCount(0)
 	s.ProvenTxsCount(0)
 	s.TransactionsCount(0)
+	s.LabelsCount(0)
+	s.LabelsMapCount(0)
 	return s
 }
 
@@ -387,4 +393,47 @@ func (o *outputAssertion) WithBasketID(basketID int) OutputAssertion {
 	}
 	assert.Equal(o.parent, basketID, *o.output.BasketID, "Expected output to have the same BasketID as the one requested")
 	return o
+}
+
+func (s *syncChunkAssertion) LabelsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.TxLabels, length, "Expected chunk to have %d labels", length)
+	return s
+}
+
+func (s *syncChunkAssertion) WithTxLabels(transactionID uint, labels ...string) ValidSyncChunkAssertion {
+	s.Helper()
+
+	for _, label := range labels {
+		s.withLabel(transactionID, label)
+	}
+
+	return s
+}
+
+func (s *syncChunkAssertion) LabelsMapCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.TxLabelMaps, length, "Expected chunk to have %d label maps", length)
+	return s
+}
+
+func (s *syncChunkAssertion) withLabel(transactionID uint, label string) ValidSyncChunkAssertion {
+	s.Helper()
+	require.NotEmpty(s, s.chunk.TxLabels)
+	require.NotEmpty(s, s.chunk.TxLabelMaps)
+
+	labelLookup := make(map[uint]*wdk.TableTxLabel)
+	for _, txLabel := range s.chunk.TxLabels {
+		labelLookup[txLabel.TxLabelID] = txLabel
+	}
+
+	assert.Condition(s, func() bool {
+		for _, connection := range s.chunk.TxLabelMaps {
+			if connection.TransactionID == transactionID && labelLookup[connection.TxLabelID].Label == label {
+				return true
+			}
+		}
+		return false
+	}, "Expected chunk to contain label '%s' for transaction ID %d", label, transactionID)
+	return s
 }

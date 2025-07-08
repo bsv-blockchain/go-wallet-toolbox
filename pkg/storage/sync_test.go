@@ -6,7 +6,9 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/assert"
@@ -22,8 +24,8 @@ func TestSyncProcess(t *testing.T) {
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
-	ownedMinedTx := seed.OwnsMinedTransaction()
-	ownedTx := seed.OwnsTransaction()
+	ownedMinedTx := seed.SetLabels(commonLabel, customLabelTx1).OwnsMinedTransaction()
+	ownedTx := seed.SetLabels(commonLabel, customLabelTx2).OwnsTransaction()
 	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
 	// and:
@@ -37,7 +39,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 40, inserts)
+	assert.Equal(t, 49, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
@@ -61,17 +63,20 @@ func TestSyncProcess(t *testing.T) {
 	thenDBState.
 		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedMinedTx.ID())).
 		WithTxID(ownedMinedTx.ID()).
-		WithStatus(wdk.TxStatusCompleted)
+		WithStatus(wdk.TxStatusCompleted).
+		WithLabels(commonLabel, customLabelTx1)
 
 	thenDBState.
 		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTx.ID())).
 		WithTxID(ownedTx.ID()).
-		WithStatus(wdk.TxStatusUnproven)
+		WithStatus(wdk.TxStatusUnproven).
+		WithLabels(commonLabel, customLabelTx2)
 
 	thenDBState.
 		HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
 		WithoutTxID().
-		WithStatus(wdk.TxStatusUnsigned)
+		WithStatus(wdk.TxStatusUnsigned).
+		WithLabels(fixtures.CreateActionTestLabel)
 
 	// and outputs:
 	thenDBState.AllOutputs(testusers.Alice).
@@ -344,4 +349,77 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
 		WithCount(0) // NOTE: Relinquished output is not in the change basket anymore
+}
+
+func TestSyncProcessWhenLabelChanges(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	const (
+		label1    = "label1"
+		label2    = "label2"
+		reference = "YWFhYWFhYWFhYWFh"
+	)
+
+	// and:
+	beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
+	internalizeArgs := wdk.InternalizeActionArgs{
+		Tx: beefToInternalize,
+		Outputs: []*wdk.InternalizeOutput{
+			{
+				OutputIndex: 0,
+				Protocol:    wdk.BasketInsertionProtocol,
+				InsertionRemittance: &wdk.BasketInsertion{
+					Basket: "custom_basket",
+					Tags:   []primitives.StringUnder300{"custom_tag"},
+				},
+			},
+		},
+		Labels:      []primitives.StringUnder300{commonLabel, label1},
+		Description: "first internalize",
+	}
+	_, err := sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
+	require.NoError(t, err)
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, 8, inserts)
+	assert.Equal(t, 1, updates)
+
+	// and:
+	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
+		WithLabels(commonLabel, label1)
+
+	// when:
+	internalizeArgs.Labels = []primitives.StringUnder300{commonLabel, label2}
+	_, err = sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
+	require.NoError(t, err)
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+	inserts, updates, err = sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, inserts)
+	assert.Equal(t, 2, updates)
+
+	// and:
+	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
+		WithLabels(commonLabel, label1, label2)
 }
