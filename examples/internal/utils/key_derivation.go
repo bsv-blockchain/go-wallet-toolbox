@@ -24,7 +24,6 @@ type DerivationBytesResult struct {
 }
 
 // DerivationParts creates derivation parts with default prefix and suffix
-// senderIdentityKey is optional - if not provided, a new random key will be generated
 func DerivationParts() PaymentRemittance {
 	prefix := "" // empty string will use default base64 prefix
 	suffix := "" // empty string will use default base64 suffix

@@ -10,7 +10,7 @@ import (
 
 // WocAPIGetBeefForTX fetches a beef from the WhatsonChain API
 func WocAPIGetBeefForTX(network defs.BSVNetwork, txid string) (string, error) {
-	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/beef", string(network), txid)
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/beef", network, txid)
 
 	client := resty.New()
 	resp, err := client.R().Get(url)
