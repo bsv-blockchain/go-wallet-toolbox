@@ -121,9 +121,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	xoutputs := seq.PointersFromSlice(params.Outputs)
 
 	var commOut *serviceChargeOutput
-	var commEntity *pkgentity.Commission
 	if c.commission != nil {
-		commOut, commEntity, err = c.createCommissionOutput(userID)
+		commOut, err = c.createCommissionOutput()
 		if err != nil {
 			return nil, fmt.Errorf("failed to collect outputs: %w", err)
 		}
@@ -188,7 +187,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
 		Labels:            params.Labels,
 		InputBeef:         inputBeef,
-		Commission:        commEntity,
+		Commission:        c.createCommissionEntity(userID, commOut),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -212,13 +211,14 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 type serviceChargeOutput struct {
 	wdk.ValidCreateActionOutput
-	KeyOffset string
+	KeyOffset          string
+	LockingScriptBytes []byte
 }
 
-func (c *create) createCommissionOutput(userID int) (*serviceChargeOutput, *pkgentity.Commission, error) {
+func (c *create) createCommissionOutput() (*serviceChargeOutput, error) {
 	lockingScript, keyOffset, err := c.commission.Generate()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate commission script: %w", err)
+		return nil, fmt.Errorf("failed to generate commission script: %w", err)
 	}
 
 	commOut := &serviceChargeOutput{
@@ -227,18 +227,25 @@ func (c *create) createCommissionOutput(userID int) (*serviceChargeOutput, *pkge
 			Satoshis:          primitives.SatoshiValue(c.commissionCfg.Satoshis),
 			OutputDescription: "Storage Service Charge",
 		},
-		KeyOffset: keyOffset,
+		KeyOffset:          keyOffset,
+		LockingScriptBytes: lockingScript.Bytes(),
 	}
 
-	commissionEntity := &pkgentity.Commission{
+	return commOut, nil
+}
+
+func (c *create) createCommissionEntity(userID int, commOut *serviceChargeOutput) *pkgentity.Commission {
+	if commOut == nil {
+		return nil
+	}
+
+	return &pkgentity.Commission{
 		UserID:        userID,
 		Satoshis:      c.commissionCfg.Satoshis,
-		KeyOffset:     keyOffset,
+		KeyOffset:     commOut.KeyOffset,
 		IsRedeemed:    false,
-		LockingScript: lockingScript.Bytes(),
+		LockingScript: commOut.LockingScriptBytes,
 	}
-
-	return commOut, commissionEntity, nil
 }
 
 func (c *create) targetSat(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {
