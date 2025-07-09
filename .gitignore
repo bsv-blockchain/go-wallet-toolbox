@@ -42,3 +42,6 @@ infra-config.*.yaml
 # SQLite databases
 storage.sqlite
 storage.*.sqlite
+
+# Example config
+examples/internal/example_setup/examples-config.yaml

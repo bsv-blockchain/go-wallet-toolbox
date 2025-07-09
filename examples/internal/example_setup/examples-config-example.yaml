@@ -1,4 +1,4 @@
-network: test
+network: "test"
 server_url: "http://localhost:8100"
 alice:
   identity_key: "020c0ca23c75f7312bad0c5d81bff858bdcf468d3ad69a60b46ae90cafef557b03"
