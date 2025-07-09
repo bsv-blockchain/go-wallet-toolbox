@@ -17,6 +17,12 @@ const (
 	// DefaultWoCBroadcastDelay is the delay after which the WhatsOnChain service will broadcast a transaction
 	DefaultWoCBroadcastDelay = 3 * time.Second
 
+	// DefaultRootForHeightRetryInterval is the timeout for fetching the root for height validation
+	DefaultRootForHeightRetryInterval = 1 * time.Second
+
+	// DefaultRootForHeightRetries is the number of retries for fetching the root for height validation
+	DefaultRootForHeightRetries = 3
+
 	// ArcURL is the URL for the ARC service
 	ArcURL = "https://arc.taal.com"
 
@@ -96,7 +102,9 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 				Base:      USD,
 				Rate:      47.52,
 			},
-			BroadcastDelay: DefaultWoCBroadcastDelay,
+			BroadcastDelay:             DefaultWoCBroadcastDelay,
+			RootForHeightRetryInterval: DefaultRootForHeightRetryInterval,
+			RootForHeightRetries:       DefaultRootForHeightRetries,
 		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,
