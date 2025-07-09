@@ -123,7 +123,7 @@ func TestGetMerklePath(t *testing.T) {
 		siblingHash := tst.MustHashFromHex(tst.TestSiblingHash)
 
 		merklePath := sdk.MerklePath{
-			BlockHeight: tst.BlockHeight,
+			BlockHeight: tst.TestBlockHeight,
 			Path: [][]*sdk.PathElement{
 				{
 					{
@@ -153,7 +153,7 @@ func TestGetMerklePath(t *testing.T) {
 			"hash": "%s",
 			"height": %d,
 			"merkleRoot": "%s"
-		}`, tst.TestTargetHash, tst.BlockHeight, merkleRoot)
+		}`, tst.TestTargetHash, tst.TestBlockHeight, merkleRoot)
 
 		given.WhatsOnChain().WhenQueryingBlockHeader(tst.TestTargetHash).WillReturnBlockHeaderJSON(200, blockHeaderJSON)
 		services := given.Services().WithDefaultConfig()
@@ -168,7 +168,7 @@ func TestGetMerklePath(t *testing.T) {
 			Name:       whatsonchain.ServiceName,
 			MerklePath: &merklePath,
 			BlockHeader: &wdk.MerklePathBlockHeader{
-				Height:     tst.BlockHeight,
+				Height:     tst.TestBlockHeight,
 				Hash:       tst.TestTargetHash,
 				MerkleRoot: merkleRoot,
 			},
