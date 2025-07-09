@@ -3,10 +3,17 @@ package whatsonchain
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
+
+const (
+	wocRoot = "https://api.whatsonchain.com/v1/bsv"
 )
 
 func waitOrCancel(ctx context.Context, delay time.Duration, txid string) error {
@@ -52,4 +59,42 @@ func firstNonNilError(errs ...error) error {
 		}
 	}
 	return nil
+}
+
+// buildURL joins baseURL with any number of path segments.
+func buildURL(baseURL string, segments ...string) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid base URL %q: %w", baseURL, err)
+	}
+
+	basePath := strings.TrimSuffix(u.Path, "/")
+	fullPath := path.Join(append([]string{basePath}, segments...)...)
+
+	if !strings.HasPrefix(fullPath, "/") {
+		fullPath = "/" + fullPath
+	}
+	u.Path = fullPath
+
+	return u.String(), nil
+}
+
+// makeBaseURL returns "<wocRoot>/<network>"
+func makeBaseURL(network defs.BSVNetwork) (string, error) {
+	return buildURL(wocRoot, string(network))
+}
+
+// /block/{height}/header
+func blockHeaderURL(baseURL string, height uint32) (string, error) {
+	return buildURL(baseURL, "block", fmt.Sprint(height), "header")
+}
+
+// /block/{blockHash}/header   (hash, not height)
+func blockHeaderByHashURL(baseURL, blockHash string) (string, error) {
+	return buildURL(baseURL, "block", blockHash, "header")
+}
+
+// /tx/{txid}/proof/tsc
+func tscProofURL(baseURL, txid string) (string, error) {
+	return buildURL(baseURL, "tx", txid, "proof", "tsc")
 }

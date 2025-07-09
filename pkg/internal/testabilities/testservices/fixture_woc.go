@@ -25,6 +25,7 @@ type WhatsOnChainFixture interface {
 	WillRespondWithInternalFailure()
 	WillRespondWithMerklePath(status int, txID string, responseBody string)
 	WillRespondWithBlockHeader(status int, blockHash string, responseBody string)
+	WillRespondWithBlockHeaderByHeight(status int, height uint32, merkleRoot string)
 	WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture
 	WhenQueryingBlockHeader(blockHash string) WhatsOnChainBlockHeaderQueryFixture
 	WillRespondWithBroadcast(status int, responseBody string)
@@ -344,4 +345,32 @@ func computeTxID(rawTx []byte) string {
 		return ""
 	}
 	return tx.TxID().String()
+}
+
+// WillRespondWithBlockHeaderByHeight registers responders for any URL / block/{height}/header
+func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, merkleRoot string) {
+	f.TB.Helper()
+
+	responder := httpmock.NewJsonResponderOrPanic(
+		status,
+		map[string]string{"merkleroot": merkleRoot},
+	)
+
+	host := "https://api.whatsonchain.com"
+
+	prefixes := []string{
+		fmt.Sprintf("/v1/bsv/%s", f.network),
+		fmt.Sprintf("/v1/%s", f.network),
+	}
+
+	for _, p := range prefixes {
+		pathOnly := fmt.Sprintf("%s/block/%d/header", p, height)
+		absolute := host + pathOnly
+
+		f.transport.RegisterResponder(http.MethodGet, pathOnly, responder)
+		f.transport.RegisterResponder(http.MethodGet, absolute, responder)
+	}
+
+	rx := fmt.Sprintf(`=~^/v1(?:/bsv)?/%s/block/%d/header$`, f.network, height)
+	f.transport.RegisterResponder(http.MethodGet, rx, responder)
 }

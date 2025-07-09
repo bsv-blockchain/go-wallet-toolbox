@@ -23,7 +23,7 @@ func TestMerklePath_Success(t *testing.T) {
 	siblingHashObj := tst.MustHashFromHex(siblingHash)
 
 	merklePath := transaction.MerklePath{
-		BlockHeight: tst.BlockHeight,
+		BlockHeight: tst.TestBlockHeight,
 		Path: [][]*transaction.PathElement{
 			{
 				{
@@ -55,7 +55,7 @@ func TestMerklePath_Success(t *testing.T) {
 		"hash": "%s",
 		"height": %d,
 		"merkleRoot": "%s"
-	}`, tst.TestTargetHash, tst.BlockHeight, merkleRoot)
+	}`, tst.TestTargetHash, tst.TestBlockHeight, merkleRoot)
 
 	given.WhatsOnChain().WillRespondWithBlockHeader(http.StatusOK, tst.TestTargetHash, mockBlockHeaderResponse)
 
@@ -63,7 +63,7 @@ func TestMerklePath_Success(t *testing.T) {
 		Name:       "WhatsOnChain",
 		MerklePath: &merklePath,
 		BlockHeader: &wdk.MerklePathBlockHeader{
-			Height:     tst.BlockHeight,
+			Height:     tst.TestBlockHeight,
 			MerkleRoot: merkleRoot,
 			Hash:       tst.TestTargetHash,
 		},

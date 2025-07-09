@@ -61,12 +61,16 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 }
 
 func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
+	url, err := blockHeaderByHashURL(woc.url, blockHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build block header URL for hash %s: %w", blockHash, err)
+	}
+
 	var hdrResp blockHeaderResponse
 	res, err := woc.httpClient.R().
 		SetContext(ctx).
 		SetResult(&hdrResp).
-		Get(fmt.Sprintf("%s/block/%s/header", woc.url, blockHash))
-
+		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch block header: %w", err)
 	}
@@ -88,12 +92,16 @@ func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*w
 
 // getTscProof retrieves the TSC proof from WoC.
 func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProof, error) {
+	url, err := tscProofURL(woc.url, txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build TSC proof URL for txID %s: %w", txID, err)
+	}
 	var proofs []tscProof
 
 	req := woc.httpClient.R().
 		SetContext(ctx).
 		SetResult(&proofs)
-	res, err := req.Get(fmt.Sprintf("%s/tx/%s/proof/tsc", woc.url, txID))
+	res, err := req.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query TSC proof: %w", err)
 	}
