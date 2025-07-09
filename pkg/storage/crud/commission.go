@@ -43,10 +43,9 @@ type commissionRepo interface {
 }
 
 type commission struct {
-	repo   commissionRepo
-	spec   entity.CommissionReadSpecification
-	since  *queryopts.Since
-	paging *queryopts.Paging
+	repo           commissionRepo
+	spec           entity.CommissionReadSpecification
+	pagingAndSince pagingAndSinceParams
 }
 
 // NewCommission creates and returns a new Commission instance using the provided commissionRepo implementation.
@@ -86,7 +85,7 @@ func (c *commission) Update(ctx context.Context, spec *entity.CommissionUpdateSp
 }
 
 func (c *commission) Find(ctx context.Context) ([]*entity.Commission, error) {
-	commissions, err := c.repo.FindCommissions(ctx, &c.spec, c.queryopts()...)
+	commissions, err := c.repo.FindCommissions(ctx, &c.spec, c.pagingAndSince.QueryOpts()...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find commissions: %w", err)
 	}
@@ -94,7 +93,7 @@ func (c *commission) Find(ctx context.Context) ([]*entity.Commission, error) {
 }
 
 func (c *commission) Count(ctx context.Context) (int64, error) {
-	count, err := c.repo.CountCommissions(ctx, &c.spec, c.queryopts()...)
+	count, err := c.repo.CountCommissions(ctx, &c.spec, c.pagingAndSince.Since()...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count commissions: %w", err)
 	}
@@ -126,7 +125,7 @@ func (c *commission) Satoshis() NumericCondition[CommissionReader, uint64] {
 }
 
 func (c *commission) Since(value time.Time, column entity.SinceField) CommissionReader {
-	c.since = &queryopts.Since{
+	c.pagingAndSince.since = &queryopts.Since{
 		Time:  value,
 		Field: to.IfThen(column == entity.SinceFieldCreatedAt, "created_at").ElseThen("updated_at"),
 	}
@@ -134,25 +133,11 @@ func (c *commission) Since(value time.Time, column entity.SinceField) Commission
 }
 
 func (c *commission) Paged(limit, offset int, desc bool) CommissionReader {
-	c.paging = &queryopts.Paging{
+	c.pagingAndSince.paging = &queryopts.Paging{
 		Limit:  limit,
 		Offset: offset,
 		SortBy: "id",
 		Sort:   to.IfThen(desc, "DESC").ElseThen("ASC"),
 	}
 	return c
-}
-
-func (c *commission) queryopts() []queryopts.Options {
-	var opts []queryopts.Options
-
-	if c.since != nil {
-		opts = append(opts, queryopts.WithSince(*c.since))
-	}
-
-	if c.paging != nil {
-		opts = append(opts, queryopts.WithPage(*c.paging))
-	}
-
-	return opts
 }

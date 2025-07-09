@@ -7,21 +7,163 @@ import (
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
+	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommission(t *testing.T) {
+const (
+	seedCommissionIterations = 10
+	seededCommissionsCount   = 2 * seedCommissionIterations
+)
+
+func TestCommissionsCount(t *testing.T) {
+	tests := map[string]struct {
+		reader func(reader crud.CommissionReader)
+		count  int64
+	}{
+		"get all rows": {
+			count: seededCommissionsCount,
+		},
+		"get by id": {
+			reader: func(reader crud.CommissionReader) {
+				reader.ID(1)
+			},
+			count: 1,
+		},
+		"filter Alice's commissions": {
+			reader: func(reader crud.CommissionReader) {
+				reader.UserID(testusers.Alice.ID)
+			},
+			count: seedCommissionIterations,
+		},
+		"filter by Satoshis: equals": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().Equals(1000)
+			},
+			count: 2,
+		},
+		"filter by Satoshis: greater than": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().GreaterThan(1000)
+			},
+			count: seededCommissionsCount - 2,
+		},
+		"filter by Satoshis: greater than or equal": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().GreaterThanOrEqual(1000)
+			},
+			count: seededCommissionsCount,
+		},
+		"filter by Satoshis: less than": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().LessThan(1000)
+			},
+			count: 0,
+		},
+		"filter by Satoshis: less than or equal": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().LessThanOrEqual(1000)
+			},
+			count: 2,
+		},
+		"since as now": {
+			reader: func(reader crud.CommissionReader) {
+				time.Sleep(10 * time.Millisecond) // Ensure none of the commissions are created at the exact same time
+				reader.Since(time.Now(), entity.SinceFieldCreatedAt)
+			},
+			count: 0,
+		},
+		"since as 1 hour ago": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Since(time.Now().Add(-time.Hour), entity.SinceFieldCreatedAt)
+			},
+			count: seededCommissionsCount,
+		},
+		"filter by IsRedeemed: true": {
+			reader: func(reader crud.CommissionReader) {
+				reader.IsRedeemed(true)
+			},
+			count: 0,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			activeStorage := seedDbWithCommissions(t)
+
+			reader := activeStorage.CommissionEntity().Read()
+
+			if test.reader != nil {
+				test.reader(reader)
+			}
+
+			count, err := reader.Count(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, test.count, count, "expected count to be %d, got %d", test.count, count)
+		})
+	}
+}
+
+func TestCommissionUpdate(t *testing.T) {
+	activeStorage := seedDbWithCommissions(t)
+
+	// when:
+	err := activeStorage.CommissionEntity().Update(t.Context(), &entity.CommissionUpdateSpecification{
+		ID:         1,
+		IsRedeemed: to.Ptr(true),
+	})
+
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	notRedeemedCount, err := activeStorage.CommissionEntity().Read().IsRedeemed(true).Count(t.Context())
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), notRedeemedCount)
+}
+
+func TestCommissionFind(t *testing.T) {
+	// given:
+	activeStorage := seedDbWithCommissions(t)
+
+	// when:
+	commissions, err := activeStorage.CommissionEntity().Read().ID(1).Find(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, commissions, 1)
+	assert.Equal(t, uint(1), commissions[0].ID)
+	assert.Equal(t, testusers.Alice.ID, commissions[0].UserID)
+	assert.Equal(t, "key_offset_0", commissions[0].KeyOffset)
+	assert.Equal(t, false, commissions[0].IsRedeemed)
+}
+
+func TestCommissionPagedFind(t *testing.T) {
+	// given:
+	activeStorage := seedDbWithCommissions(t)
+
+	// when:
+	commissionsPaged, err := activeStorage.CommissionEntity().Read().Paged(5, 5, false).Find(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, commissionsPaged, 5)
+	assert.Equal(t, uint(6), commissionsPaged[0].ID)
+	assert.Equal(t, uint(10), commissionsPaged[4].ID)
+}
+
+func seedDbWithCommissions(t testing.TB) *storage.Provider {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
 	// given:
 	activeStorage := given.Provider().GORM()
 
-	const loopCount = 10
-	for i := range loopCount {
+	for i := range seedCommissionIterations {
 		newCommission := &entity.Commission{
 			UserID:        testusers.Alice.ID,
 			TransactionID: uint(i),
@@ -45,95 +187,5 @@ func TestCommission(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// when:
-	count, err := activeStorage.CommissionEntity().Read().Count(t.Context())
-
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2*loopCount), count)
-
-	// when:
-	aliceCount, err := activeStorage.CommissionEntity().Read().
-		UserID(testusers.Alice.ID).
-		Count(t.Context())
-
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(loopCount), aliceCount)
-
-	// when:
-	commissionID1, err := activeStorage.CommissionEntity().Read().ID(1).Find(t.Context())
-
-	// then:
-	require.NoError(t, err)
-	require.Len(t, commissionID1, 1)
-	assert.Equal(t, uint(1), commissionID1[0].ID)
-	assert.Equal(t, testusers.Alice.ID, commissionID1[0].UserID)
-	assert.Equal(t, "key_offset_0", commissionID1[0].KeyOffset)
-	assert.Equal(t, false, commissionID1[0].IsRedeemed)
-
-	// when:
-	err = activeStorage.CommissionEntity().Update(t.Context(), &entity.CommissionUpdateSpecification{
-		ID:         commissionID1[0].ID,
-		IsRedeemed: to.Ptr(true),
-	})
-
-	// then:
-	require.NoError(t, err)
-
-	// when:
-	notRedeemedCount, err := activeStorage.CommissionEntity().Read().IsRedeemed(false).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2*loopCount-1), notRedeemedCount)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Satoshis().Equals(1000).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2), count)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Satoshis().GreaterThan(1000).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2*loopCount-2), count)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Satoshis().GreaterThanOrEqual(1000).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2*loopCount), count)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Satoshis().LessThan(1000).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), count)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Satoshis().LessThanOrEqual(1000).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2), count)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Since(time.Now(), entity.SinceFieldCreatedAt).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), count)
-
-	// when:
-	count, err = activeStorage.CommissionEntity().Read().Since(time.Now().Add(-time.Hour), entity.SinceFieldCreatedAt).Count(t.Context())
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, int64(2*loopCount), count)
-
-	// when:
-	paged, err := activeStorage.CommissionEntity().Read().Paged(5, 5, false).Find(t.Context())
-	// then:
-	require.NoError(t, err)
-	require.Len(t, paged, 5)
-	assert.Equal(t, uint(6), paged[0].ID)
-	assert.Equal(t, uint(10), paged[4].ID)
+	return activeStorage
 }

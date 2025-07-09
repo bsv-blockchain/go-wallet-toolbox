@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 )
@@ -17,21 +18,15 @@ func PaginateForGen(getter genTableGetter, page *queryopts.Paging) func(gen.Dao)
 			return dao
 		}
 
-		var sortByExpr field.Expr
-		if page.IsDesc() {
-			sortByExpr = sortBy.Desc()
-		} else {
-			sortByExpr = sortBy.Asc()
-		}
+		sortByExpr := to.If(page.IsDesc(), sortBy.Desc).Else(sortBy.Asc)
 
 		return dao.Order(sortByExpr).Offset(page.Offset).Limit(page.Limit)
 	}
 }
 
 func SinceForGen(getter genTableGetter, since *queryopts.Since) func(gen.Dao) gen.Dao {
+	since.ApplyDefaults()
 	return func(dao gen.Dao) gen.Dao {
-		since.ApplyDefaults()
-
 		sinceByExpr, ok := getter.GetFieldByName(since.Field)
 		if !ok {
 			_ = dao.AddError(fmt.Errorf("field %s not found", since.Field))

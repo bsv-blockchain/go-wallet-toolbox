@@ -49,7 +49,10 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 }
 
 func (c *Commission) FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error) {
-	commission, err := genquery.Commission.WithContext(ctx).GetByUserIDAndTransactionID(userID, transactionID)
+	table := genquery.Commission
+	commission, err := table.WithContext(ctx).
+		Where(table.UserID.Eq(userID), table.TransactionID.Eq(transactionID)).
+		Take()
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -57,7 +60,7 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 		return nil, fmt.Errorf("failed to find commission: %w", err)
 	}
 
-	return mapModelToEntityCommission(&commission), nil
+	return mapModelToEntityCommission(commission), nil
 }
 
 func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
@@ -66,9 +69,6 @@ func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.Commissi
 	toUpdate := map[string]any{}
 	if spec.IsRedeemed != nil {
 		toUpdate[table.IsRedeemed.ColumnName().String()] = *spec.IsRedeemed
-	}
-	if spec.Satoshis != nil {
-		toUpdate[table.Satoshis.ColumnName().String()] = *spec.Satoshis
 	}
 
 	if len(toUpdate) == 0 {

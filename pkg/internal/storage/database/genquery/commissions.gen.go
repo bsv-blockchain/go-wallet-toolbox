@@ -7,7 +7,6 @@ package genquery
 import (
 	"context"
 	"database/sql"
-	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -187,24 +186,6 @@ type ICommissionDo interface {
 	Returning(value interface{}, columns ...string) ICommissionDo
 	UnderlyingDB() *gorm.DB
 	schema.Tabler
-
-	GetByUserIDAndTransactionID(userID int, transactionID uint) (result models.Commission, err error)
-}
-
-// SELECT * FROM @@table WHERE user_id = @userID AND transaction_id = @transactionID{{end}}
-func (c commissionDo) GetByUserIDAndTransactionID(userID int, transactionID uint) (result models.Commission, err error) {
-	var params []interface{}
-
-	var generateSQL strings.Builder
-	params = append(params, userID)
-	params = append(params, transactionID)
-	generateSQL.WriteString("SELECT * FROM commissions WHERE user_id = ? AND transaction_id = ? ")
-
-	var executeSQL *gorm.DB
-	executeSQL = c.UnderlyingDB().Raw(generateSQL.String(), params...).Take(&result) // ignore_security_alert
-	err = executeSQL.Error
-
-	return
 }
 
 func (c commissionDo) Debug() ICommissionDo {

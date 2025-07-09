@@ -1,9 +1,8 @@
 package repo
 
 import (
-	"fmt"
-
 	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
+	"github.com/go-softwarelab/common/pkg/types"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 )
@@ -17,7 +16,7 @@ type fieldExpr[T any] interface {
 	Neq(value T) field.Expr
 }
 
-func cmpCondition(fieldExpr fieldExpr[uint64], cmp entity.NumberCmpOperator, value uint64) gen.Condition {
+func cmpCondition[T types.Number](fieldExpr fieldExpr[T], cmp entity.NumberCmpOperator, value T) gen.Condition {
 	switch cmp {
 	case entity.Equal:
 		return fieldExpr.Eq(value)
@@ -32,6 +31,6 @@ func cmpCondition(fieldExpr fieldExpr[uint64], cmp entity.NumberCmpOperator, val
 	case entity.NotEqual:
 		return fieldExpr.Neq(value)
 	default:
-		panic(fmt.Sprintf("unsupported comparison operator: %s", cmp))
+		panic("unsupported comparison operator")
 	}
 }

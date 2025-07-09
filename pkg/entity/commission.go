@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// Commission represents a record of commission allocated on a transaction for a specific user.
 type Commission struct {
 	ID        uint
 	CreatedAt time.Time
@@ -17,6 +18,7 @@ type Commission struct {
 	LockingScript []byte
 }
 
+// CommissionReadSpecification defines filter criteria for querying commissions based on ID, redemption, user, or satoshi amount.
 type CommissionReadSpecification struct {
 	ID         *uint
 	IsRedeemed *bool
@@ -24,8 +26,9 @@ type CommissionReadSpecification struct {
 	Satoshis   *ComparableNumber[uint64]
 }
 
+// CommissionUpdateSpecification defines the fields for updating a commission record in persistent storage.
+// Only non-nil fields are updated, allowing for partial updates of commission records.
 type CommissionUpdateSpecification struct {
 	ID         uint
 	IsRedeemed *bool
-	Satoshis   *uint64
 }
