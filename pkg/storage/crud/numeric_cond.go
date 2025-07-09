@@ -13,6 +13,8 @@ type NumericCondition[Parent any, T types.Number] interface {
 	LessThan(value T) Parent
 	GreaterThanOrEqual(value T) Parent
 	LessThanOrEqual(value T) Parent
+	Between(left, right T) Parent
+	NotBetween(left, right T) Parent
 }
 
 type numericCondition[Parent any, T types.Number] struct {
@@ -60,6 +62,26 @@ func (c *numericCondition[Parent, T]) LessThanOrEqual(value T) Parent {
 	c.conditionSetter(&entity.ComparableNumber[T]{
 		Value: value,
 		Cmp:   entity.LessThanOrEqual,
+	})
+
+	return c.parent
+}
+
+func (c *numericCondition[Parent, T]) Between(left, right T) Parent {
+	c.conditionSetter(&entity.ComparableNumber[T]{
+		Value:  left,
+		Value2: right,
+		Cmp:    entity.Between,
+	})
+
+	return c.parent
+}
+
+func (c *numericCondition[Parent, T]) NotBetween(left, right T) Parent {
+	c.conditionSetter(&entity.ComparableNumber[T]{
+		Value:  left,
+		Value2: right,
+		Cmp:    entity.NotBetween,
 	})
 
 	return c.parent

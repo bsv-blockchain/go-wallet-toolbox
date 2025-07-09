@@ -7,16 +7,27 @@ import (
 	"gorm.io/gen/field"
 )
 
-type fieldExpr[T any] interface {
+type fieldExpr[T types.Ordered] interface {
 	Eq(value T) field.Expr
 	Gt(value T) field.Expr
 	Lt(value T) field.Expr
 	Gte(value T) field.Expr
 	Lte(value T) field.Expr
 	Neq(value T) field.Expr
+	Between(left T, right T) field.Expr
+	NotBetween(left T, right T) field.Expr
 }
 
-func cmpCondition[T types.Number](fieldExpr fieldExpr[T], cmp entity.NumberCmpOperator, value T) gen.Condition {
+type comparableExpr[T types.Ordered] interface {
+	Comparator() entity.NumberCmpOperator
+	GetValue() T
+	GetValue2() T
+}
+
+func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExpr[T]) gen.Condition {
+	value := cmpExpr.GetValue()
+	cmp := cmpExpr.Comparator()
+
 	switch cmp {
 	case entity.Equal:
 		return fieldExpr.Eq(value)
@@ -30,7 +41,18 @@ func cmpCondition[T types.Number](fieldExpr fieldExpr[T], cmp entity.NumberCmpOp
 		return fieldExpr.Lte(value)
 	case entity.NotEqual:
 		return fieldExpr.Neq(value)
+	case entity.Between:
+		return fieldExpr.Between(ordered(value, cmpExpr.GetValue2()))
+	case entity.NotBetween:
+		return fieldExpr.NotBetween(ordered(value, cmpExpr.GetValue2()))
 	default:
 		panic("unsupported comparison operator")
 	}
+}
+
+func ordered[T types.Ordered](a, b T) (T, T) {
+	if a > b {
+		return b, a
+	}
+	return a, b
 }

@@ -127,7 +127,7 @@ func (c *Commission) conditionsBySpec(spec *entity.CommissionReadSpecification) 
 	}
 
 	if spec.Satoshis != nil {
-		conditions = append(conditions, cmpCondition(genquery.Commission.Satoshis, spec.Satoshis.Cmp, spec.Satoshis.Value))
+		conditions = append(conditions, cmpCondition(genquery.Commission.Satoshis, spec.Satoshis))
 	}
 
 	if spec.UserID != nil {

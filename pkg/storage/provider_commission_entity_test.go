@@ -70,6 +70,18 @@ func TestCommissionsCount(t *testing.T) {
 			},
 			count: 2,
 		},
+		"filter by Satoshis: between": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().Between(1000, 1005)
+			},
+			count: 12,
+		},
+		"filter by Satoshis: not between": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().NotBetween(1000, 1005)
+			},
+			count: seededCommissionsCount - 12,
+		},
 		"since as now": {
 			reader: func(reader crud.CommissionReader) {
 				time.Sleep(10 * time.Millisecond) // Ensure none of the commissions are created at the exact same time
