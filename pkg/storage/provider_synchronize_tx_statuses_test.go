@@ -26,7 +26,7 @@ func TestSynchronizeTx(t *testing.T) {
 	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID()).WillReturnWithMindedTx()
+	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
@@ -37,7 +37,7 @@ func TestSynchronizeTx(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		IsMined()
 
@@ -57,7 +57,7 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID()).WillReturnWithMindedTx()
+	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
 
 	// NOTE: WhatsOnChain is unreachable, so we simulate that the chain tip is not available
 	_ = givenProvider.WhatsOnChain().WillBeUnreachable()
@@ -67,7 +67,7 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		IsMined()
 
@@ -98,7 +98,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		NotMined()
 
 	// and:
@@ -112,7 +112,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		NotMined()
 
 	// and:
@@ -144,7 +144,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		NotMined()
 
 	// and:
@@ -152,7 +152,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
 	// given:
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID()).WillReturnWithMindedTx()
+	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().
 		OnTipBlockHeaderWillRespondWithOneElementList(
 			testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight + 1),
@@ -166,7 +166,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		IsMined()
 
 	// and:
@@ -187,7 +187,7 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID()).WillReturnTransactionWithoutMerklePath()
+	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnTransactionWithoutMerklePath()
 
 	// when:
 	for range defs.DefaultSynchronizeTxStatuses().MaxAttempts + 1 {
@@ -197,7 +197,7 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID()).
+		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusInvalid).
 		NotMined()
 }
@@ -235,7 +235,7 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 			txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 			// and:
-			arcQueryFixture := givenProvider.ARC().WhenQueryingTx(txSpec.ID())
+			arcQueryFixture := givenProvider.ARC().WhenQueryingTx(txSpec.ID().String())
 			givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 			test.setupARCMock(arcQueryFixture)
 
