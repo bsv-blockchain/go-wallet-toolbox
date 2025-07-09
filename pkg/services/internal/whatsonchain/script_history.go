@@ -37,9 +37,7 @@ func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, script
 	var history dto.ScriptHashHistoryResponse
 	url := fmt.Sprintf("%s/script/%s/unconfirmed/history", woc.url, scriptHash)
 
-	res, err := woc.httpClient.
-		SetRetryCount(woc.scriptHashHistoryRetries).
-		SetRetryWaitTime(woc.scriptHashHistoryRetryInterval).
+	res, err := woc.httpClientForScriptHashHistory.
 		R().
 		SetContext(ctx).
 		SetResult(&history).
@@ -65,9 +63,7 @@ func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHa
 	var history dto.ScriptHashHistoryResponse
 	url := fmt.Sprintf("%s/script/%s/confirmed/history", woc.url, scriptHash)
 
-	res, err := woc.httpClient.
-		SetRetryCount(woc.scriptHashHistoryRetries).
-		SetRetryWaitTime(woc.scriptHashHistoryRetryInterval).
+	res, err := woc.httpClientForScriptHashHistory.
 		R().
 		SetContext(ctx).
 		SetResult(&history).
