@@ -1,217 +1,185 @@
 package services_test
 
 import (
-	"context"
-	"net/http"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
-// ScriptHistoryFixtureTestSuite demonstrates usage of the new fixture methods
-type ScriptHistoryFixtureTestSuite struct {
-	suite.Suite
-	given testabilities.WoCServiceFixture
-	woc   *whatsonchain.WhatsOnChain
-}
-
-func TestScriptHistoryFixtureTestSuite(t *testing.T) {
-	suite.Run(t, new(ScriptHistoryFixtureTestSuite))
-}
-
-func (s *ScriptHistoryFixtureTestSuite) SetupTest() {
-	s.given = testabilities.Given(s.T())
-	s.woc = s.given.NewWoCService()
-}
-
-func (s *ScriptHistoryFixtureTestSuite) TearDownTest() {
-	s.given.WhatsOnChain().Transport().Reset()
-}
-
-func (s *ScriptHistoryFixtureTestSuite) TestGetScriptHistory_UsingBuilderPattern() {
+func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {
 	// given
-	scriptHashes := testservices.ValidScriptHashes()
-	scriptHash := scriptHashes["script_hash_32"]
+	given := testabilities.Given(t)
+	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	s.given.WhatsOnChain().
-		WithValidScriptHistoryData().
-		WithScriptHash(scriptHash).
-		WithConfirmedTransactions(5, 800000).
-		WithUnconfirmedTransactions(2).
-		SetupMocks(s.given.WhatsOnChain())
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnConfirmedHistory(200, `{
+			"result": [
+				{"tx_hash": "tx1", "height": 800000},
+				{"tx_hash": "tx2", "height": 800001}
+			],
+			"error": ""
+		}`)
+
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnUnconfirmedHistory(200, `{
+			"result": [
+				{"tx_hash": "tx3", "height": null}
+			],
+			"error": ""
+		}`)
+
+	woc := given.NewWoCService()
 
 	// when
-	result, err := s.woc.GetScriptHistory(context.Background(), scriptHash, nil)
+	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
 
 	// then
-	s.Require().NoError(err)
-	s.Assert().Equal(whatsonchain.ServiceName, result.Name)
-	s.Assert().Equal(scriptHash, result.ScriptHash)
-	s.Assert().Len(result.History, 7) // 5 confirmed + 2 unconfirmed
-
-	for i := 0; i < 5; i++ {
-		s.Assert().NotNil(result.History[i].Height)
-		s.Assert().Equal(800000+i, *result.History[i].Height)
-	}
-
-	for i := 5; i < 7; i++ {
-		s.Assert().Nil(result.History[i].Height)
-	}
+	require.NoError(t, err)
+	assert.Len(t, result.History, 3)
+	assert.Equal(t, "tx1", result.History[0].TxHash)
+	assert.Equal(t, 800000, *result.History[0].Height)
+	assert.Equal(t, "tx3", result.History[2].TxHash)
+	assert.Nil(t, result.History[2].Height)
 }
 
-func (s *ScriptHistoryFixtureTestSuite) TestGetScriptHistory_UsingQueryFixture() {
+func TestWhatsOnChain_GetScriptHistory_ValidationErrors(t *testing.T) {
 	// given
-	scriptHashes := testservices.ValidScriptHashes()
-	scriptHash := scriptHashes["p2pkh_standard"]
+	given := testabilities.Given(t)
+	woc := given.NewWoCService()
 
-	confirmedResponse := wdk.ScriptHashHistoryResponse{
-		Result: []wdk.ScriptHashHistoryItem{
-			{
-				TxID:   "tx_confirmed_001",
-				Height: to.Ptr(800000),
-			},
+	invalidTestCases := map[string]struct {
+		scriptHash    string
+		expectedError string
+	}{
+		"empty scripthash": {
+			scriptHash:    "",
+			expectedError: "scripthash cannot be empty",
 		},
-		Error: "",
-	}
-
-	unconfirmedResponse := wdk.ScriptHashHistoryResponse{
-		Result: []wdk.ScriptHashHistoryItem{
-			{
-				TxID:   "tx_unconfirmed_001",
-				Height: nil,
-			},
+		"too short scripthash": {
+			scriptHash:    "a914b7536c",
+			expectedError: "invalid scripthash length: too short",
 		},
-		Error: "",
-	}
-
-	s.given.WhatsOnChain().
-		WhenQueryingScriptHistory(scriptHash).
-		WillReturnConfirmedHistory(http.StatusOK, confirmedResponse)
-
-	s.given.WhatsOnChain().
-		WhenQueryingScriptHistory(scriptHash).
-		WillReturnUnconfirmedHistory(http.StatusOK, unconfirmedResponse)
-
-	// when
-	result, err := s.woc.GetScriptHistory(context.Background(), scriptHash, nil)
-
-	// then
-	s.Require().NoError(err)
-	s.Assert().Len(result.History, 2)
-	s.Assert().Equal("tx_confirmed_001", result.History[0].TxHash)
-	s.Assert().Equal("tx_unconfirmed_001", result.History[1].TxHash)
-}
-
-func (s *ScriptHistoryFixtureTestSuite) TestGetConfirmedScriptHistory_WithPagination() {
-	// given
-	scriptHashes := testservices.ValidScriptHashes()
-	scriptHash := scriptHashes["p2sh_standard"]
-
-	opts := &wdk.GetConfirmedScriptHistoryOpts{
-		Order:         to.Ptr(wdk.ScriptHistoryOrderDesc),
-		Limit:         to.Ptr(50),
-		Height:        to.Ptr(800000),
-		NextPageToken: to.Ptr("pagination_token_123"),
-	}
-
-	response := wdk.ScriptHashHistoryResponse{
-		Result: []wdk.ScriptHashHistoryItem{
-			{
-				TxID:   "paginated_tx_001",
-				Height: to.Ptr(800001),
-			},
+		"too long scripthash": {
+			scriptHash:    "a914b7536c788d8ca2de4d867a2b5b02acef97f35aef488aca914b7536c788d8ca2de4d867a2b5b02acef97f35aef488ac",
+			expectedError: "invalid scripthash length: too long",
 		},
-		Error: "",
+		"invalid hex characters": {
+			scriptHash:    "this is not valid hex!! this is not valid hex!!",
+			expectedError: "invalid scripthash format",
+		},
 	}
-	unconfirmedResponse := wdk.ScriptHashHistoryResponse{
-		Result: []wdk.ScriptHashHistoryItem{},
-		Error:  "",
-	}
 
-	s.given.WhatsOnChain().
-		WhenQueryingScriptHistory(scriptHash).
-		WillReturnConfirmedHistoryWithPagination(http.StatusOK, response, opts)
-
-	s.given.WhatsOnChain().
-		WhenQueryingScriptHistory(scriptHash).
-		WillReturnUnconfirmedHistory(http.StatusOK, unconfirmedResponse)
-
-	// when
-	result, err := s.woc.GetScriptHistory(context.Background(), scriptHash, opts)
-
-	// then
-	s.Require().NoError(err)
-	s.Assert().Len(result.History, 1)
-	s.Assert().Equal("paginated_tx_001", result.History[0].TxHash)
-}
-
-func (s *ScriptHistoryFixtureTestSuite) TestGetScriptHistory_ValidationErrors() {
-	invalidHashes := testservices.InvalidScriptHashes()
-
-	for name, testCase := range invalidHashes {
-		s.T().Run(name, func(t *testing.T) {
-			s.given.WhatsOnChain().WithScriptHistoryValidationError(testCase.Hash, testCase.ExpectedError)
-
+	for name, testCase := range invalidTestCases {
+		t.Run(name, func(t *testing.T) {
 			// when
-			result, err := s.woc.GetScriptHistory(context.Background(), testCase.Hash, nil)
+			result, err := woc.GetScriptHistory(t.Context(), testCase.scriptHash)
 
 			// then
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), testCase.ExpectedError)
+			assert.Contains(t, err.Error(), testCase.expectedError)
 			assert.Nil(t, result)
 		})
 	}
 }
 
-func (s *ScriptHistoryFixtureTestSuite) TestGetScriptHistory_EmptyHistory() {
+func TestWhatsOnChain_GetScriptHistory_APIError(t *testing.T) {
 	// given
-	scriptHashes := testservices.ValidScriptHashes()
-	scriptHash := scriptHashes["p2pkh_standard"]
+	given := testabilities.Given(t)
+	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	s.given.WhatsOnChain().
-		WithValidScriptHistoryData().
-		WithScriptHash(scriptHash).
-		WithEmptyHistory().
-		SetupMocks(s.given.WhatsOnChain())
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnConfirmedHistory(200, `{
+			"result": [],
+			"error": "Script not found"
+		}`)
+
+	woc := given.NewWoCService()
 
 	// when
-	result, err := s.woc.GetScriptHistory(context.Background(), scriptHash, nil)
+	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
 
 	// then
-	s.Require().NoError(err)
-	s.Assert().Empty(result.History)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API error: Script not found")
+	assert.Nil(t, result)
 }
 
-func (s *ScriptHistoryFixtureTestSuite) TestGetScriptHistory_LargeHistory() {
+func TestWhatsOnChain_GetScriptHistory_HTTPError(t *testing.T) {
 	// given
-	scriptHashes := testservices.ValidScriptHashes()
-	scriptHash := scriptHashes["script_hash_32"]
+	given := testabilities.Given(t)
+	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	s.given.WhatsOnChain().
-		WithValidScriptHistoryData().
-		WithScriptHash(scriptHash).
-		WithConfirmedTransactions(1000, 700000).
-		WithUnconfirmedTransactions(50).
-		SetupMocks(s.given.WhatsOnChain())
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnHTTPError(404)
+
+	woc := given.NewWoCService()
 
 	// when
-	result, err := s.woc.GetScriptHistory(context.Background(), scriptHash, nil)
+	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
 
 	// then
-	s.Require().NoError(err)
-	s.Assert().Len(result.History, 1050)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected status code 404")
+	assert.Nil(t, result)
+}
 
-	for i := 0; i < 1000; i++ {
-		s.Assert().NotNil(result.History[i].Height)
-	}
-	for i := 1000; i < 1050; i++ {
-		s.Assert().Nil(result.History[i].Height)
-	}
+func TestWhatsOnChain_GetScriptHistory_OnlyConfirmed(t *testing.T) {
+	// given
+	given := testabilities.Given(t)
+	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
+
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnConfirmedHistory(200, `{
+			"result": [{"tx_hash": "confirmed_tx", "height": 800000}],
+			"error": ""
+		}`)
+
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnUnconfirmedHistory(200, `{
+			"result": [],
+			"error": ""
+		}`)
+
+	woc := given.NewWoCService()
+
+	// when
+	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+
+	// then
+	require.NoError(t, err)
+	assert.Len(t, result.History, 1)
+	assert.Equal(t, "confirmed_tx", result.History[0].TxHash)
+	assert.NotNil(t, result.History[0].Height)
+	assert.Equal(t, 800000, *result.History[0].Height)
+}
+
+func TestWhatsOnChain_GetScriptHistory_OnlyUnconfirmed(t *testing.T) {
+	// given
+	given := testabilities.Given(t)
+	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
+
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnConfirmedHistory(200, `{
+			"result": [],
+			"error": ""
+		}`)
+
+	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
+		WillReturnUnconfirmedHistory(200, `{
+			"result": [{"tx_hash": "unconfirmed_tx", "height": null}],
+			"error": ""
+		}`)
+
+	woc := given.NewWoCService()
+
+	// when
+	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+
+	// then
+	require.NoError(t, err)
+	assert.Len(t, result.History, 1)
+	assert.Equal(t, "unconfirmed_tx", result.History[0].TxHash)
+	assert.Nil(t, result.History[0].Height)
 }
