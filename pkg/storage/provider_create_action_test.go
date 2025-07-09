@@ -210,6 +210,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	commissions, err := activeStorage.CommissionEntity().Read().
 		IsRedeemed(false).
 		Satoshis().Equals(10).
+		UserID(testusers.Alice.ID).
 		Find(t.Context())
 
 	// then:
