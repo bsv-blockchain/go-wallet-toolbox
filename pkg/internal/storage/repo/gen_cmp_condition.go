@@ -19,7 +19,7 @@ type fieldExpr[T types.Ordered] interface {
 }
 
 type comparableExpr[T types.Ordered] interface {
-	Comparator() entity.NumberCmpOperator
+	Comparator() entity.CmpOperator
 	GetValue() T
 	GetValue2() T
 }

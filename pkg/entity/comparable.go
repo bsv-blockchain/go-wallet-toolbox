@@ -2,12 +2,12 @@ package entity
 
 import "github.com/go-softwarelab/common/pkg/types"
 
-// NumberCmpOperator defines comparison operations for numeric types such as equality, inequality, and range-based checks.
-type NumberCmpOperator int
+// CmpOperator defines an integer-based enumeration representing various comparison operators
+type CmpOperator int
 
-// Possible values for NumberCmpOperator, representing different comparison operations.
+// Possible values for CmpOperator, representing different comparison operations.
 const (
-	GreaterThan NumberCmpOperator = iota
+	GreaterThan CmpOperator = iota
 	LessThan
 	Equal
 	NotEqual
@@ -23,11 +23,11 @@ const (
 type ComparableNumber[T types.Number] struct {
 	Value  T
 	Value2 T
-	Cmp    NumberCmpOperator
+	Cmp    CmpOperator
 }
 
-// Comparator returns the current NumberCmpOperator that specifies the comparison logic for the ComparableNumber instance.
-func (c *ComparableNumber[T]) Comparator() NumberCmpOperator {
+// Comparator returns the current CmpOperator that specifies the comparison logic for the ComparableNumber instance.
+func (c *ComparableNumber[T]) Comparator() CmpOperator {
 	return c.Cmp
 }
 
