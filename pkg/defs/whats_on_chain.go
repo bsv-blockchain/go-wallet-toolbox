@@ -11,8 +11,8 @@ type WhatsOnChain struct {
 	BSVExchangeRate            BSVExchangeRate `mapstructure:"bsv_exchange_rate"`
 	BroadcastDelay             time.Duration   `mapstructure:"broadcast_delay"`
 	BSVUpdateInterval          *time.Duration  `mapstructure:"bsv_update_interval"`
-	RootForHeightRetryInterval time.Duration   `mapstructure:"root_for_height_validation_timeout"`
-	RootForHeightRetries       int             `mapstructure:"root_for_height_validation_retries"`
+	RootForHeightRetryInterval time.Duration   `mapstructure:"root_for_height_retry_interval"`
+	RootForHeightRetries       int             `mapstructure:"root_for_height_retries"`
 }
 
 // Validate checks if the WhatsOnChain configuration is valid

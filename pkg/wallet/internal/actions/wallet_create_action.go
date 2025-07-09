@@ -20,7 +20,7 @@ type WalletStorageCreateAction interface {
 type CreateAction struct {
 	KeyDeriver *wallet.KeyDeriver
 	Storage    WalletStorageCreateAction
-	WalletOpts *wallet_opts.Opts
+	WalletOpts *wallet_opts.Flags
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string

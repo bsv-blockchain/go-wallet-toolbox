@@ -3,6 +3,10 @@ package wallet_opts
 import sdk "github.com/bsv-blockchain/go-sdk/wallet"
 
 type Opts struct {
+	Flags
+}
+
+type Flags struct {
 	// IncludeAllSourceTransactions
 	// If true, signableTransactions will include sourceTransaction for each input,
 	// including those that do not require signature and those that were also contained in the inputBEEF.
