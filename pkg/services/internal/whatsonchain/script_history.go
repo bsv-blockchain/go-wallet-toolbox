@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 func validateScriptHash(scriptHash string) error {
@@ -30,8 +33,8 @@ func validateScriptHash(scriptHash string) error {
 	return nil
 }
 
-func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-	var history wdk.ScriptHashHistoryResponse
+func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) ([]wdk.ScriptHistoryItem, error) {
+	var history dto.ScriptHashHistoryResponse
 	url := fmt.Sprintf("%s/script/%s/unconfirmed/history", woc.url, scriptHash)
 
 	res, err := woc.httpClient.R().
@@ -51,45 +54,18 @@ func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, script
 		return nil, fmt.Errorf("API error: %s", history.Error)
 	}
 
-	historyItems := make([]wdk.ScriptHistoryItem, len(history.Result))
-	for i, item := range history.Result {
-		historyItems[i] = wdk.ScriptHistoryItem{
-			TxHash: item.TxID,
-			Height: item.Height,
-		}
-	}
-
-	return &wdk.ScriptHistoryResult{
-		Name:       ServiceName,
-		ScriptHash: scriptHash,
-		History:    historyItems,
-	}, nil
+	historyItems := slices.Map(history.Result, toScriptHistoryItem)
+	return historyItems, nil
 }
 
-func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHash string, opts *wdk.GetConfirmedScriptHistoryOpts) (*wdk.ScriptHistoryResult, error) {
-	var history wdk.ScriptHashHistoryResponse
+func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHash string) ([]wdk.ScriptHistoryItem, error) {
+	var history dto.ScriptHashHistoryResponse
 	url := fmt.Sprintf("%s/script/%s/confirmed/history", woc.url, scriptHash)
 
-	req := woc.httpClient.R().
+	res, err := woc.httpClient.R().
 		SetContext(ctx).
-		SetResult(&history)
-
-	if opts != nil {
-		if opts.Order != nil {
-			req.SetQueryParam("order", opts.Order.String())
-		}
-		if opts.Limit != nil {
-			req.SetQueryParam("limit", fmt.Sprintf("%d", *opts.Limit))
-		}
-		if opts.Height != nil {
-			req.SetQueryParam("height", fmt.Sprintf("%d", *opts.Height))
-		}
-		if opts.NextPageToken != nil && *opts.NextPageToken != "" {
-			req.SetQueryParam("token", *opts.NextPageToken)
-		}
-	}
-
-	res, err := req.Get(url)
+		SetResult(&history).
+		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get confirmed script history: %w", err)
 	}
@@ -102,28 +78,17 @@ func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHa
 		return nil, fmt.Errorf("API error: %s", history.Error)
 	}
 
-	historyItems := make([]wdk.ScriptHistoryItem, len(history.Result))
-	for i, item := range history.Result {
-		historyItems[i] = wdk.ScriptHistoryItem{
-			TxHash: item.TxID,
-			Height: item.Height,
-		}
-	}
-
-	return &wdk.ScriptHistoryResult{
-		Name:       ServiceName,
-		ScriptHash: scriptHash,
-		History:    historyItems,
-	}, nil
+	historyItems := slices.Map(history.Result, toScriptHistoryItem)
+	return historyItems, nil
 }
 
 // GetScriptHistory retrieves both confirmed and unconfirmed script history.
-func (woc *WhatsOnChain) GetScriptHistory(ctx context.Context, scriptHash string, opts *wdk.GetConfirmedScriptHistoryOpts) (*wdk.ScriptHistoryResult, error) {
+func (woc *WhatsOnChain) GetScriptHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
 	if err := validateScriptHash(scriptHash); err != nil {
 		return nil, err
 	}
 
-	confirmedHistory, err := woc.getConfirmedScriptHistory(ctx, scriptHash, opts)
+	confirmedHistory, err := woc.getConfirmedScriptHistory(ctx, scriptHash)
 	if err != nil {
 		return nil, err
 	}
@@ -132,13 +97,18 @@ func (woc *WhatsOnChain) GetScriptHistory(ctx context.Context, scriptHash string
 		return nil, err
 	}
 
-	combinedHistory := make([]wdk.ScriptHistoryItem, 0, len(confirmedHistory.History)+len(unconfirmedHistory.History))
-	combinedHistory = append(combinedHistory, confirmedHistory.History...)
-	combinedHistory = append(combinedHistory, unconfirmedHistory.History...)
+	combinedHistory := seq.Collect(seq.Concat(seq.FromSlice(confirmedHistory), seq.FromSlice(unconfirmedHistory)))
 
 	return &wdk.ScriptHistoryResult{
 		Name:       ServiceName,
 		ScriptHash: scriptHash,
 		History:    combinedHistory,
 	}, nil
+}
+
+func toScriptHistoryItem(item dto.ScriptHashHistoryItem) wdk.ScriptHistoryItem {
+	return wdk.ScriptHistoryItem{
+		TxHash: item.TxID,
+		Height: item.Height,
+	}
 }

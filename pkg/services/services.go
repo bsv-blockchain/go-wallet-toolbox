@@ -31,6 +31,7 @@ type WalletServices struct {
 	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
 	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
 	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
+	scriptHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -200,10 +201,13 @@ func (s *WalletServices) NLockTimeIsFinal(txOrLockTime any) bool {
 	panic("Not implemented yet")
 }
 
-// GetScriptHistory retrieves both confirmed and unconfirmed transaction history for a script hash
-func (ws *WalletServices) GetScriptHistory(ctx context.Context, scriptHash string, opts *wdk.GetConfirmedScriptHistoryOpts) (*wdk.ScriptHistoryResult, error) {
-	result, err := ws.whatsonchain.GetScriptHistory(ctx, scriptHash, opts)
+// GetScriptHashHistory retrieves both confirmed and unconfirmed transaction history for a script hash
+func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
+	result, err := s.scriptHistoryServices.OneByOne(ctx, scriptHash)
 	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("script hash %s not found in history", scriptHash)
+		}
 		return nil, fmt.Errorf("failed to get script history: %w", err)
 	}
 	return result, nil
