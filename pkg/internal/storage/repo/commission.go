@@ -130,6 +130,14 @@ func (c *Commission) conditionsBySpec(spec *entity.CommissionReadSpecification) 
 		conditions = append(conditions, cmpCondition(genquery.Commission.Satoshis, spec.Satoshis))
 	}
 
+	if spec.TransactionID != nil {
+		conditions = append(conditions, cmpCondition(genquery.Commission.TransactionID, spec.TransactionID))
+	}
+
+	if spec.KeyOffset != nil {
+		conditions = append(conditions, cmpCondition(genquery.Commission.KeyOffset, spec.KeyOffset))
+	}
+
 	if spec.UserID != nil {
 		conditions = append(conditions, genquery.Commission.UserID.Eq(*spec.UserID))
 	}

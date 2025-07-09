@@ -82,6 +82,78 @@ func TestCommissionsCount(t *testing.T) {
 			},
 			count: seededCommissionsCount - 12,
 		},
+		"filter by Satoshis: between when values are wrongly swapped": {
+			reader: func(reader crud.CommissionReader) {
+				reader.Satoshis().Between(1005, 1000)
+			},
+			count: 12,
+		},
+		"filter by transaction id: equals": {
+			reader: func(reader crud.CommissionReader) {
+				reader.TransactionID().Equals(1)
+			},
+			count: 2,
+		},
+		"filter by transaction id: not equal": {
+			reader: func(reader crud.CommissionReader) {
+				reader.TransactionID().NotEquals(1)
+			},
+			count: seededCommissionsCount - 2,
+		},
+		"filter by transaction id: in": {
+			reader: func(reader crud.CommissionReader) {
+				reader.TransactionID().In(1, 2, 3)
+			},
+			count: 6,
+		},
+		"filter by transaction id: not in": {
+			reader: func(reader crud.CommissionReader) {
+				reader.TransactionID().NotIn(1, 2, 3)
+			},
+			count: seededCommissionsCount - 6,
+		},
+		"filter by key offset: equals": {
+			reader: func(reader crud.CommissionReader) {
+				reader.KeyOffset().Equals("key_offset_0")
+			},
+			count: 2,
+		},
+		"filter by key offset: not equal": {
+			reader: func(reader crud.CommissionReader) {
+				reader.KeyOffset().NotEquals("key_offset_0")
+			},
+			count: seededCommissionsCount - 2,
+		},
+		"filter by key offset: in": {
+			reader: func(reader crud.CommissionReader) {
+				reader.KeyOffset().In("key_offset_0", "key_offset_1", "key_offset_2")
+			},
+			count: 6,
+		},
+		"filter by key offset: not in": {
+			reader: func(reader crud.CommissionReader) {
+				reader.KeyOffset().NotIn("key_offset_0", "key_offset_1", "key_offset_2")
+			},
+			count: seededCommissionsCount - 6,
+		},
+		"filter by key offset: like to get all": {
+			reader: func(reader crud.CommissionReader) {
+				reader.KeyOffset().Like("%offset%")
+			},
+			count: seededCommissionsCount,
+		},
+		"filter by key offset: like to get one": {
+			reader: func(reader crud.CommissionReader) {
+				reader.UserID(testusers.Alice.ID).KeyOffset().Like("___________0")
+			},
+			count: 1,
+		},
+		"filter by key offset: not like": {
+			reader: func(reader crud.CommissionReader) {
+				reader.KeyOffset().NotLike("%offset%")
+			},
+			count: 0,
+		},
 		"since as now": {
 			reader: func(reader crud.CommissionReader) {
 				time.Sleep(10 * time.Millisecond) // Ensure none of the commissions are created at the exact same time

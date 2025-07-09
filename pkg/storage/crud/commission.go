@@ -29,6 +29,8 @@ type CommissionReader interface {
 
 	ID(id uint) CommissionReadOperations
 	Satoshis() NumericCondition[CommissionReader, uint64]
+	TransactionID() NumericCondition[CommissionReader, uint]
+	KeyOffset() StringCondition[CommissionReader]
 	IsRedeemed(value bool) CommissionReader
 	UserID(userID int) CommissionReader
 	Since(value time.Time, column entity.SinceField) CommissionReader
@@ -118,8 +120,26 @@ func (c *commission) UserID(userID int) CommissionReader {
 func (c *commission) Satoshis() NumericCondition[CommissionReader, uint64] {
 	return &numericCondition[CommissionReader, uint64]{
 		parent: c,
-		conditionSetter: func(spec *entity.ComparableNumber[uint64]) {
+		conditionSetter: func(spec *entity.Comparable[uint64]) {
 			c.spec.Satoshis = spec
+		},
+	}
+}
+
+func (c *commission) TransactionID() NumericCondition[CommissionReader, uint] {
+	return &numericCondition[CommissionReader, uint]{
+		parent: c,
+		conditionSetter: func(spec *entity.Comparable[uint]) {
+			c.spec.TransactionID = spec
+		},
+	}
+}
+
+func (c *commission) KeyOffset() StringCondition[CommissionReader] {
+	return &stringCondition[CommissionReader]{
+		parent: c,
+		conditionSetter: func(spec *entity.Comparable[string]) {
+			c.spec.KeyOffset = spec
 		},
 	}
 }

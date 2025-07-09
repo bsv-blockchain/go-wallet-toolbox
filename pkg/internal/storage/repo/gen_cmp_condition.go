@@ -16,12 +16,17 @@ type fieldExpr[T types.Ordered] interface {
 	Neq(value T) field.Expr
 	Between(left T, right T) field.Expr
 	NotBetween(left T, right T) field.Expr
+	Like(value T) field.Expr
+	NotLike(value T) field.Expr
+	In(values ...T) field.Expr
+	NotIn(values ...T) field.Expr
 }
 
 type comparableExpr[T types.Ordered] interface {
 	Comparator() entity.CmpOperator
 	GetValue() T
-	GetValue2() T
+	GetValueRight() T
+	GetInValues() []T
 }
 
 func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExpr[T]) gen.Condition {
@@ -42,9 +47,17 @@ func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExp
 	case entity.NotEqual:
 		return fieldExpr.Neq(value)
 	case entity.Between:
-		return fieldExpr.Between(ordered(value, cmpExpr.GetValue2()))
+		return fieldExpr.Between(ordered(value, cmpExpr.GetValueRight()))
 	case entity.NotBetween:
-		return fieldExpr.NotBetween(ordered(value, cmpExpr.GetValue2()))
+		return fieldExpr.NotBetween(ordered(value, cmpExpr.GetValueRight()))
+	case entity.Like:
+		return fieldExpr.Like(value)
+	case entity.NotLike:
+		return fieldExpr.NotLike(value)
+	case entity.In:
+		return fieldExpr.In(cmpExpr.GetInValues()...)
+	case entity.NotIn:
+		return fieldExpr.NotIn(cmpExpr.GetInValues()...)
 	default:
 		panic("unsupported comparison operator")
 	}

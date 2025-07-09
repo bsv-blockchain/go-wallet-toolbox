@@ -20,10 +20,12 @@ type Commission struct {
 
 // CommissionReadSpecification defines filter criteria for querying commissions based on ID, redemption, user, or satoshi amount.
 type CommissionReadSpecification struct {
-	ID         *uint
-	IsRedeemed *bool
-	UserID     *int
-	Satoshis   *ComparableNumber[uint64]
+	ID            *uint
+	IsRedeemed    *bool
+	UserID        *int
+	Satoshis      *Comparable[uint64]
+	TransactionID *Comparable[uint]
+	KeyOffset     *Comparable[string]
 }
 
 // CommissionUpdateSpecification defines the fields for updating a commission record in persistent storage.
