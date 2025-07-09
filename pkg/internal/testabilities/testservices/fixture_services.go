@@ -59,6 +59,8 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 
 	servicesConfig := defs.DefaultServicesConfig(network)
 	servicesConfig.WhatsOnChain.BroadcastDelay = 0
+	servicesConfig.WhatsOnChain.ScriptHashHistoryRetries = 1
+	servicesConfig.WhatsOnChain.ScriptHashHistoryRetryInterval = 0
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
 	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))

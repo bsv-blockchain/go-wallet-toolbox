@@ -17,6 +17,12 @@ const (
 	// DefaultWoCBroadcastDelay is the delay after which the WhatsOnChain service will broadcast a transaction
 	DefaultWoCBroadcastDelay = 3 * time.Second
 
+	// DefaultScriptHashHistoryRetries is the number of retries for fetching script hash history
+	DefaultScriptHashHistoryRetries = 2
+
+	// DefaultScriptHashHistoryRetryInterval is the interval between retries for fetching script hash history
+	DefaultScriptHashHistoryRetryInterval = 2 * time.Second
+
 	// ArcURL is the URL for the ARC service
 	ArcURL = "https://arc.taal.com"
 

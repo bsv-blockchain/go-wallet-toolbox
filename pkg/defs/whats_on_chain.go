@@ -11,6 +11,9 @@ type WhatsOnChain struct {
 	BSVExchangeRate   BSVExchangeRate `mapstructure:"bsv_exchange_rate"`
 	BroadcastDelay    time.Duration   `mapstructure:"broadcast_delay"`
 	BSVUpdateInterval *time.Duration  `mapstructure:"bsv_update_interval"`
+
+	ScriptHashHistoryRetries       int           `mapstructure:"script_hash_history_retries"`
+	ScriptHashHistoryRetryInterval time.Duration `mapstructure:"script_hash_history_retry_interval"`
 }
 
 // Validate checks if the WhatsOnChain configuration is valid

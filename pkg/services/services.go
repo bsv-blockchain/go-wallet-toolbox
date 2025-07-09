@@ -85,6 +85,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			servicequeue.NewService(whatsonchain.ServiceName, wocService.FindChainTipHeader),
 			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
 		),
+
+		scriptHistoryServices: servicequeue.NewQueue1(
+			logger,
+			"GetScriptHashHistory",
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetScriptHashHistory),
+		),
 	}
 }
 
