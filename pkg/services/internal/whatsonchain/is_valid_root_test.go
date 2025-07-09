@@ -19,16 +19,14 @@ func TestIsValidRootForHeight(t *testing.T) {
 		err error
 	}
 
-	validRoot, _ := chainhash.NewHashFromHex(tst.TestMerkleRootHex)
+	validRoot, err := chainhash.NewHashFromHex(tst.TestMerkleRootHex)
+	require.NoError(t, err, "failed to parse test Merkle root hex")
 	invalidRoot := func() *chainhash.Hash { h := *validRoot; h[0] ^= 0xff; return &h }()
-
-	var ctxDuringRequest context.Context
 
 	cases := []struct {
 		name  string
 		setup func(tst.WoCServiceFixture)
 		root  *chainhash.Hash
-		ctx   context.Context
 		want1 want
 		want2 want
 	}{
@@ -36,10 +34,10 @@ func TestIsValidRootForHeight(t *testing.T) {
 			name: "happy path + cache",
 			setup: func(f tst.WoCServiceFixture) {
 				f.WhatsOnChain().
-					WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
+					WillRespondWithBlockHeaderByHeight(http.StatusOK,
+						tst.TestBlockHeight, tst.TestMerkleRootHex)
 			},
 			root:  validRoot,
-			ctx:   t.Context(),
 			want1: want{ok: true},
 			want2: want{ok: true},
 		},
@@ -47,10 +45,10 @@ func TestIsValidRootForHeight(t *testing.T) {
 			name: "mismatching root",
 			setup: func(f tst.WoCServiceFixture) {
 				f.WhatsOnChain().
-					WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
+					WillRespondWithBlockHeaderByHeight(http.StatusOK,
+						tst.TestBlockHeight, tst.TestMerkleRootHex)
 			},
 			root:  invalidRoot,
-			ctx:   t.Context(),
 			want1: want{ok: false},
 			want2: want{ok: false},
 		},
@@ -58,10 +56,10 @@ func TestIsValidRootForHeight(t *testing.T) {
 			name: "height not found (404)",
 			setup: func(f tst.WoCServiceFixture) {
 				f.WhatsOnChain().
-					WillRespondWithBlockHeaderByHeight(http.StatusNotFound, tst.TestBlockHeight, "not found")
+					WillRespondWithBlockHeaderByHeight(http.StatusNotFound,
+						tst.TestBlockHeight, "not found")
 			},
 			root:  validRoot,
-			ctx:   t.Context(),
 			want1: want{ok: false},
 			want2: want{ok: false},
 		},
@@ -71,32 +69,14 @@ func TestIsValidRootForHeight(t *testing.T) {
 				tr := f.WhatsOnChain().Transport()
 				pat := `=~.*?/block/` + strconv.Itoa(int(tst.TestBlockHeight)) + `/header$`
 				tr.RegisterResponder(http.MethodGet, pat,
-					httpmock.NewStringResponder(http.StatusInternalServerError, "boom"),
-				)
+					httpmock.NewStringResponder(http.StatusInternalServerError, "boom"))
 				f.WhatsOnChain().
-					WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
+					WillRespondWithBlockHeaderByHeight(http.StatusOK,
+						tst.TestBlockHeight, tst.TestMerkleRootHex)
 			},
 			root:  validRoot,
-			ctx:   t.Context(),
 			want1: want{ok: true},
 			want2: want{ok: true},
-		},
-		{
-			name: "context canceled during request",
-			setup: func(f tst.WoCServiceFixture) {
-				local, cancel := context.WithCancelCause(t.Context())
-				ctxDuringRequest = local
-				pat := `=~.*?/block/` + strconv.Itoa(int(tst.TestBlockHeight)) + `/header$`
-				f.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, pat,
-					func(_ *http.Request) (*http.Response, error) {
-						cancel(context.Canceled)
-						return nil, context.Canceled
-					})
-			},
-			root:  validRoot,
-			ctx:   nil, // replaced below
-			want1: want{ok: false, err: context.Canceled},
-			want2: want{ok: false, err: context.Canceled},
 		},
 	}
 
@@ -110,13 +90,8 @@ func TestIsValidRootForHeight(t *testing.T) {
 			svc := fix.NewWoCService()
 			tr := fix.WhatsOnChain().Transport()
 
-			ctx := tc.ctx
-			if ctx == nil && ctxDuringRequest != nil {
-				ctx = ctxDuringRequest
-			}
-
 			// when:
-			got, err := svc.IsValidRootForHeight(ctx, tc.root, tst.TestBlockHeight)
+			got, err := svc.IsValidRootForHeight(t.Context(), tc.root, tst.TestBlockHeight)
 
 			// then:
 			require.True(t, errors.Is(err, tc.want1.err))
@@ -124,7 +99,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 
 			// when:
 			tr.Reset()
-			got, err = svc.IsValidRootForHeight(ctx, tc.root, tst.TestBlockHeight)
+			got, err = svc.IsValidRootForHeight(t.Context(), tc.root, tst.TestBlockHeight)
 
 			// then:
 			require.True(t, errors.Is(err, tc.want2.err))
@@ -132,4 +107,37 @@ func TestIsValidRootForHeight(t *testing.T) {
 			require.Equal(t, 0, tr.GetTotalCallCount())
 		})
 	}
+}
+
+func TestIsValidRootForHeight_ContextCancelled(t *testing.T) {
+	root, err := chainhash.NewHashFromHex(tst.TestMerkleRootHex)
+	require.NoError(t, err, "failed to parse test Merkle root hex")
+
+	// given:
+	fix := tst.Given(t)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	pat := `=~.*?/block/` + strconv.Itoa(int(tst.TestBlockHeight)) + `/header$`
+	fix.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, pat,
+		func(_ *http.Request) (*http.Response, error) {
+			cancel(context.Canceled)
+			return nil, context.Canceled
+		})
+	svc := fix.NewWoCService()
+	tr := fix.WhatsOnChain().Transport()
+
+	// when:
+	got, err := svc.IsValidRootForHeight(ctx, root, tst.TestBlockHeight)
+
+	// then:
+	require.True(t, errors.Is(err, context.Canceled))
+	require.False(t, got)
+
+	// when:
+	tr.Reset()
+	got, err = svc.IsValidRootForHeight(ctx, root, tst.TestBlockHeight)
+
+	// then:
+	require.True(t, errors.Is(err, context.Canceled))
+	require.False(t, got)
+	require.Equal(t, 0, tr.GetTotalCallCount())
 }

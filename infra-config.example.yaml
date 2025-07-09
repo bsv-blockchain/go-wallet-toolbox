@@ -78,5 +78,5 @@ wallet_services:
             rates: 47.52
             timestamp: {}
         bsv_update_interval: 15m0s
-        root_for_height_validation_retries: 3
-        root_for_height_validation_timeout: 1s
+        root_for_height_retries: 3
+        root_for_height_retry_interval: 1s
