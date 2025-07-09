@@ -6,7 +6,7 @@ import "time"
 type TableTxLabel struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	TxLabelID int       `json:"txLabelId"`
+	TxLabelID uint      `json:"txLabelId"`
 	UserID    int       `json:"userId"`
 	Label     string    `json:"label"`
 	IsDeleted bool      `json:"isDeleted"`

@@ -3,7 +3,7 @@ package entity
 import (
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type Transaction struct {
@@ -21,4 +21,5 @@ type Transaction struct {
 	LockTime    uint32
 	TxID        *string
 	InputBEEF   []byte
+	Labels      []string
 }

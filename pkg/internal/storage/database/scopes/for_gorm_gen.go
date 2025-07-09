@@ -3,7 +3,7 @@ package scopes
 import (
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gen"
 	"gorm.io/gen/field"

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -213,6 +213,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
+		Preload("Labels").
 		First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -360,6 +361,9 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 		LockTime:    model.LockTime,
 		TxID:        model.TxID,
 		InputBEEF:   model.InputBeef,
+		Labels: slices.Map(model.Labels, func(label *models.Label) string {
+			return label.Name
+		}),
 	}
 }
 
@@ -417,7 +421,7 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 
 	var rows []resultRow
 	err := txs.db.WithContext(ctx).
-		Model(&models.TransactionLabels{}).
+		Model(&models.TransactionLabel{}).
 		Select("transaction_id, label_name").
 		Where("transaction_id IN ?", txIDs).
 		Where("label_name IS NOT NULL").
@@ -433,9 +437,48 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 	return labelsMap, nil
 }
 
+func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error {
+	newLabels := slices.Map(labels, func(value string) any {
+		return &models.Label{
+			Name:   value,
+			UserID: userID,
+		}
+	})
+
+	transactionModel := models.Transaction{}
+
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(models.Transaction{}).
+			Select("*").
+			Where("id = ?", transactionID).
+			Preload("Labels").
+			First(&transactionModel).Error
+		if err != nil {
+			return fmt.Errorf("failed to find transaction: %w", err)
+		}
+
+		association := tx.
+			Model(&transactionModel).
+			Association("Labels")
+
+		err = association.Append(newLabels...)
+		if err != nil {
+			return fmt.Errorf("failed to append new labels: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to replace labels: %w", err)
+	}
+
+	return nil
+}
+
 func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.TransactionLabels{}).
+		subQuery := tx.Model(&models.TransactionLabel{}).
 			Select("transaction_id").
 			Where("label_name IN ?", filter.Labels).
 			Where("label_user_id = ?", userID)

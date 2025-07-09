@@ -1,13 +1,13 @@
 package mapping
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -16,7 +16,7 @@ import (
 )
 
 // MapCreateActionArgs maps sdk.CreateActionArgs to wdk.ValidCreateActionArgs
-func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) wdk.ValidCreateActionArgs {
+func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.ValidCreateActionArgs {
 	options := mapCreateActionOptions(to.Value(args.Options), opts)
 
 	wdkArgs := &wdk.ValidCreateActionArgs{
@@ -92,7 +92,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 	}
 }
 
-func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Opts) wdk.ValidCreateActionOptions {
+func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Flags) wdk.ValidCreateActionOptions {
 	return wdk.ValidCreateActionOptions{
 		SignAndProcess:         (*primitives.BooleanDefaultTrue)(options.SignAndProcess),
 		AcceptDelayedBroadcast: (*primitives.BooleanDefaultTrue)(options.AcceptDelayedBroadcast),

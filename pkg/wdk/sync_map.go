@@ -58,7 +58,7 @@ type SyncMapEntity struct {
 
 	// IDMap maps foreign ids to local ids
 	// NOTE: Some entities don't have idMaps (CertificateField, TxLabelMap and OutputTagMap)
-	IDMap map[uint]uint `json:"idMap"`
+	IDMap map[int]int `json:"idMap"`
 
 	// MaxUpdatedAt - the maximum updated_at value seen for this entity over chunks received during this update cycle.
 	MaxUpdatedAt *time.Time `json:"maxUpdated_at,omitempty"`
@@ -73,6 +73,6 @@ type SyncMapEntity struct {
 func NewSyncMapEntity(entityName EntityName) *SyncMapEntity {
 	return &SyncMapEntity{
 		EntityName: entityName,
-		IDMap:      make(map[uint]uint),
+		IDMap:      make(map[int]int),
 	}
 }

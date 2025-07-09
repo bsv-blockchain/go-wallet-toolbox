@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/stretchr/testify/require"
 )
 

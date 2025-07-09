@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/defs"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/validate"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/mapping"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -21,13 +22,44 @@ type Wallet struct {
 	proto      *sdk.ProtoWallet
 	storage    wdk.WalletStorage
 	keyDeriver *sdk.KeyDeriver
-	wallet_opts.Opts
+	flags      *wallet_opts.Flags
+}
+
+// WithIncludeAllSourceTransactions - default: `true`
+// If true, signableTransactions will include sourceTransaction for each input,
+// including those that do not require signature and those that were also contained in the inputBEEF.
+func WithIncludeAllSourceTransactions(value bool) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.IncludeAllSourceTransactions = value
+	}
+}
+
+// WithAutoKnownTxids - default: `false`
+// If true, txids that are known to the wallet's party beef do not need to be returned from storage.
+func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.AutoKnownTxids = value
+	}
+}
+
+// WithTrustSelf - default: `known`
+// controls behavior of input BEEF validation.
+// If "known", input transactions may omit supporting validity proof data for all TXIDs known to this wallet.
+// If "", input BEEFs must be complete and valid.
+func WithTrustSelf(value sdk.TrustSelf) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		if value == "" {
+			opts.TrustSelf = nil
+		} else {
+			opts.TrustSelf = &value
+		}
+	}
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
-// TODO: add support for opts pattern and handle optional parameters as it is in the Typescript version.
-func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
+// TODO: add support for optional parameters (like services, wallet storage manager, etc.) as it is in the Typescript version.
+func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource, activeStorage wdk.WalletStorageProvider, opts ...func(*wallet_opts.Opts)) (*Wallet, error) {
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
@@ -49,15 +81,19 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 
 	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
 
-	return &Wallet{
-		proto:      proto,
-		storage:    storageManager,
-		keyDeriver: keyDeriver,
-		Opts: wallet_opts.Opts{
+	options := to.OptionsWithDefault(wallet_opts.Opts{
+		Flags: wallet_opts.Flags{
 			IncludeAllSourceTransactions: true,
 			AutoKnownTxids:               false,
 			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
 		},
+	}, opts...)
+
+	return &Wallet{
+		proto:      proto,
+		storage:    storageManager,
+		keyDeriver: keyDeriver,
+		flags:      &options.Flags,
 	}, nil
 }
 
@@ -133,45 +169,17 @@ func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureAr
 
 // CreateAction creates a new Bitcoin transaction based on the provided inputs, outputs, labels, locks, and other options.
 func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
-	if err := validate.Originator(originator); err != nil {
-		return nil, fmt.Errorf("invalid originator: %w", err)
+	action := &actions.CreateAction{
+		KeyDeriver: w.keyDeriver,
+		Storage:    w.storage,
+		WalletOpts: w.flags,
 	}
 
-	// TODO: mapping.MapCreateActionArgs should handle known tx ids - needs some merging and validation of BEEF
-	wdkArgs := mapping.MapCreateActionArgs(args, w.Opts)
-
-	if err := validate.WalletCreateActionArgs(&wdkArgs); err != nil {
-		return nil, fmt.Errorf("invalid create action args: %w", err)
+	result, err := action.CreateAction(ctx, args, originator)
+	if err != nil {
+		return nil, fmt.Errorf("create action failed: %w", err)
 	}
-
-	if wdkArgs.IsNewTx {
-		storageCreateActionResult, err := w.storage.CreateAction(ctx, wdkArgs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create action: %w", err)
-		}
-
-		tx, err := w.assemblyTransaction(storageCreateActionResult, args)
-		if err != nil {
-			return nil, fmt.Errorf("invalid result from storage - failed to build transaction: %w", err)
-		}
-
-		if wdkArgs.IsSignAction {
-			// TODO: maybe we should build and store PendingSignAction in wallet - because ts is using it in signAction
-			// 	but let's wait with that for wallet.SignAction to be implemented.
-
-			result, err := mapping.SignableTransactionResult(tx, wdkArgs, storageCreateActionResult)
-			if err != nil {
-				return nil, fmt.Errorf("failed to build signable transaction: %w", err)
-			}
-			return result, nil
-		}
-	}
-
-	// TODO: support wallet.returnTxidOnly option - verifyReturnedTxidOnlyAtomicBEEF
-	// TODO: merge BEEF Party ??
-	// TODO: verify broadcasting result
-
-	return nil, fmt.Errorf("CreateAction is not yet fully implemented")
+	return result, nil
 }
 
 // SignAction signs a transaction previously created using CreateAction.

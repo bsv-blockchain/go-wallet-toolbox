@@ -5,7 +5,7 @@ import (
 	"iter"
 	"reflect"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/types"
 )
 

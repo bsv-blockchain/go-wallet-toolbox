@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/funder"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
 )
 

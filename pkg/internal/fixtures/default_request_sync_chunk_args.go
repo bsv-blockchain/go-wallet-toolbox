@@ -1,7 +1,7 @@
 package fixtures
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey string) wdk.RequestSyncChunkArgs {
@@ -31,6 +31,14 @@ func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey
 			},
 			{
 				Name:   wdk.OutputEntityName,
+				Offset: 0,
+			},
+			{
+				Name:   wdk.TxLabelEntityName,
+				Offset: 0,
+			},
+			{
+				Name:   wdk.TxLabelMapEntityName,
 				Offset: 0,
 			},
 			// TODO: Add more offsets for other entities when implemented

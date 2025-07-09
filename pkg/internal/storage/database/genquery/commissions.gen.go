@@ -17,7 +17,7 @@ import (
 
 	"gorm.io/plugin/dbresolver"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
 func newCommission(db *gorm.DB, opts ...gen.DOOption) commission {

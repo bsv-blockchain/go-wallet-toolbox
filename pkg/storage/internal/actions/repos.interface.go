@@ -4,10 +4,10 @@ import (
 	"context"
 	"iter"
 
-	pkgentity "github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type BasketRepo interface {
@@ -43,6 +43,7 @@ type TransactionsRepo interface {
 	) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
+	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 }
 
 type KnownTxRepo interface {

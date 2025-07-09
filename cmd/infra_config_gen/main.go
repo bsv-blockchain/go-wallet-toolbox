@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/infra"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
 
 func main() {

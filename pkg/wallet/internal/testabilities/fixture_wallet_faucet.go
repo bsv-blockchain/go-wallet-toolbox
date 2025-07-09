@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/brc29"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wallet"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/require"
 )

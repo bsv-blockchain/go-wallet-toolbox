@@ -1,6 +1,6 @@
 package entity
 
-import "github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 type KnownTxForStatusSync struct {
 	TxID     string

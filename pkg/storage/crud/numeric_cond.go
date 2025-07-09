@@ -1,7 +1,7 @@
 package crud
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/go-softwarelab/common/pkg/types"
 )
 

@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/satoshi"
-	pkgtestabilities "github.com/4chain-ag/go-wallet-toolbox/pkg/internal/testabilities"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/storage"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -29,6 +29,8 @@ type SeedDBForSync interface {
 	OwnsMinedTransaction() testvectors.TransactionSpec
 	OwnsInternalizedAndNotProcessedTx() (internalizedTxID string, createActionResult *wdk.StorageCreateActionResult)
 	PopulateTransactionsBatch(numberOfTxs int) SeedDBForSync
+
+	SetLabels(labels ...string) SeedDBForSync
 
 	GetAllOwnedTransactionIDs() []string
 	GetAvailableBalance() uint64
@@ -106,19 +108,20 @@ func (s *syncFixture) SeedDB(storage *storage.Provider, user testusers.User) See
 }
 
 type seedDbForSync struct {
-	t              testing.TB
-	faucet         pkgtestabilities.FaucetFixture
-	txCounter      int
-	minedTXs       []testvectors.TransactionSpec
-	notMinedTXs    []testvectors.TransactionSpec
-	storageFixture *storageFixture
-	storage        *storage.Provider
+	t                testing.TB
+	faucet           pkgtestabilities.FaucetFixture
+	txCounter        int
+	minedTXs         []testvectors.TransactionSpec
+	notMinedTXs      []testvectors.TransactionSpec
+	storageFixture   *storageFixture
+	storage          *storage.Provider
+	labelsForNextTxs []string
 }
 
 func (s *seedDbForSync) OwnsTransaction() testvectors.TransactionSpec {
 	s.t.Helper()
 	s.txCounter += 1
-	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter))
+	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter), pkgtestabilities.WithLabelsTopUp(s.labelsForNextTxs...))
 	s.notMinedTXs = append(s.notMinedTXs, txSpec)
 	return txSpec
 }
@@ -126,7 +129,11 @@ func (s *seedDbForSync) OwnsTransaction() testvectors.TransactionSpec {
 func (s *seedDbForSync) OwnsMinedTransaction() testvectors.TransactionSpec {
 	s.t.Helper()
 	s.txCounter += 1
-	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter), pkgtestabilities.WithMinedTopUp())
+	opts := []pkgtestabilities.TopUpOpts{
+		pkgtestabilities.WithLabelsTopUp(s.labelsForNextTxs...),
+		pkgtestabilities.WithMinedTopUp(),
+	}
+	txSpec, _ := s.faucet.TopUp(satoshi.MustAdd(1000, s.txCounter), opts...)
 	s.minedTXs = append(s.minedTXs, txSpec)
 	return txSpec
 }
@@ -169,4 +176,9 @@ func (s *seedDbForSync) GetAvailableBalance() uint64 {
 		total += tx.TX().TotalOutputSatoshis()
 	}
 	return total
+}
+
+func (s *seedDbForSync) SetLabels(labels ...string) SeedDBForSync {
+	s.labelsForNextTxs = labels
+	return s
 }

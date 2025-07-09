@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
 )
 
@@ -28,7 +28,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.Output{},
 		models.KnownTx{},
 		models.Label{},
-		models.TransactionLabels{},
+		models.TransactionLabel{},
 		models.NumericIDLookup{},
 		models.SyncState{},
 		models.KeyValue{},
@@ -38,6 +38,11 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate settings: %w", err)
+	}
+
+	err = m.db.SetupJoinTable(&models.Transaction{}, "Labels", &models.TransactionLabel{})
+	if err != nil {
+		return fmt.Errorf("failed to setup join table for Transaction and Labels: %w", err)
 	}
 
 	return nil

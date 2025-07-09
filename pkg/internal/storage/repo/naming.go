@@ -1,7 +1,7 @@
 package repo
 
 import (
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
 )
 
@@ -11,6 +11,8 @@ type naming struct {
 	knownTxTableName         string
 	transactionsTableName    string
 	outputsTableName         string
+	labelsTableName          string
+	labelsMapTableName       string
 }
 
 func newNaming(db *gorm.DB) *naming {
@@ -21,6 +23,8 @@ func newNaming(db *gorm.DB) *naming {
 		knownTxTableName:         getTableName(db, &models.KnownTx{}),
 		transactionsTableName:    getTableName(db, &models.Transaction{}),
 		outputsTableName:         getTableName(db, &models.Output{}),
+		labelsTableName:          getTableName(db, &models.Label{}),
+		labelsMapTableName:       getTableName(db, &models.TransactionLabel{}),
 	}
 }
 

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/entity"
-	"github.com/4chain-ag/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
