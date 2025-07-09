@@ -42,7 +42,6 @@ func main() {
 
 		show.Step("Alice", "Retrieving BEEF data for transaction")
 		show.Transaction(txID)
-
 	}
 
 	show.Step("Alice", "Internalizing transaction from faucet")

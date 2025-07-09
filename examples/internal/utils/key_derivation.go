@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/base64"
+	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
@@ -48,15 +49,22 @@ func DerivationParts() PaymentRemittance {
 func derivationBytes(prefix string, suffix string) DerivationBytesResult {
 	var derivationPrefix []byte
 	var derivationSuffix []byte
+	var err error
 
 	if prefix == "" {
-		derivationPrefix, _ = base64.StdEncoding.DecodeString(defaultBase64Prefix)
+		derivationPrefix, err = base64.StdEncoding.DecodeString(defaultBase64Prefix)
+		if err != nil {
+			panic(fmt.Errorf("failed to decode default base64 prefix: %w", err))
+		}
 	} else {
 		derivationPrefix = []byte(prefix)
 	}
 
 	if suffix == "" {
-		derivationSuffix, _ = base64.StdEncoding.DecodeString(defaultBase64Suffix)
+		derivationSuffix, err = base64.StdEncoding.DecodeString(defaultBase64Suffix)
+		if err != nil {
+			panic(fmt.Errorf("failed to decode default base64 suffix: %w", err))
+		}
 	} else {
 		derivationSuffix = []byte(suffix)
 	}
