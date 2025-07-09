@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -27,9 +28,12 @@ type WhatsOnChain struct {
 	apiKey     string
 	logger     *slog.Logger
 
-	bsvExchangeRate   defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
-	bsvUpdateInterval time.Duration
-	broadcastDelay    time.Duration
+	bsvExchangeRate            defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
+	bsvUpdateInterval          time.Duration
+	broadcastDelay             time.Duration
+	rootForHeightRetryInterval time.Duration
+	rootForHeightRetries       int
+	rootCache                  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
 
 	scriptHashHistoryRetries       int
 	scriptHashHistoryRetryInterval time.Duration
@@ -43,6 +47,11 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
 	}
 
+	url, err := makeBaseURL(network)
+	if err != nil {
+		panic(fmt.Sprintf("failed to build base URL for WhatsOnChain: %s", err.Error()))
+	}
+
 	headers := httpx.NewHeaders().
 		AcceptJSON().
 		UserAgent().Value("go-wallet-toolbox").
@@ -54,13 +63,16 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetDebug(logging.IsDebug(logger))
 
 	return &WhatsOnChain{
-		httpClient:                     client,
-		apiKey:                         config.APIKey,
-		url:                            fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s", network),
-		logger:                         logger,
-		bsvExchangeRate:                config.BSVExchangeRate,
-		bsvUpdateInterval:              to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
-		broadcastDelay:                 config.BroadcastDelay,
+		httpClient:                              client,
+		apiKey:                                  config.APIKey,
+		url:                                     url,
+		logger:                                  logger,
+		bsvExchangeRate:                         config.BSVExchangeRate,
+		bsvUpdateInterval:                       to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		broadcastDelay:                          config.BroadcastDelay,
+		rootForHeightRetryInterval: config.RootForHeightRetryInterval,
+		rootForHeightRetries:       config.RootForHeightRetries,
+		rootCache:                  make(map[uint32]*chainhash.Hash),
 		scriptHashHistoryRetries:       config.ScriptHashHistoryRetries,
 		scriptHashHistoryRetryInterval: config.ScriptHashHistoryRetryInterval,
 	}

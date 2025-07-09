@@ -75,7 +75,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}
 
 	if isMerge {
-		err = in.upsertOutputs(ctx, storedTx, outputs)
+		err = in.upsertExistingTx(ctx, storedTx, outputs, args.Labels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upsert outputs (isMerge): %w", err)
 		}
@@ -94,7 +94,16 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}, nil
 }
 
-func (in *internalize) upsertOutputs(ctx context.Context, existingTx *entity.Transaction, outputs []*OutputToInternalize) error {
+func convertStringLikeSlice[ResultType, ArgType ~string](input []ArgType) []ResultType {
+	return slices.Map(input, func(s ArgType) ResultType { return ResultType(s) })
+}
+
+func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *entity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
+	err := in.txRepo.AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
+	if err != nil {
+		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)
+	}
+
 	for _, toInternalize := range outputs {
 		outputID := optional.OfPtr(toInternalize.existingOutputID).OrZeroValue() // Zero means it's a new output
 

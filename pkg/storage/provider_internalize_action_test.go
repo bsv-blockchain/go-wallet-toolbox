@@ -1,10 +1,12 @@
 package storage_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -385,6 +387,44 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
 		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingOutpoint(1)
 		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCount(0)
+	})
+
+	t.Run("add label during withMerge internalize", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		activeStorage := given.Provider().GORM()
+
+		// and:
+		const (
+			alreadyOwnedSatoshis = 100_000
+			initialLabel         = "initial_label"
+			labelToAdd           = "label_for_merge"
+		)
+		ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).
+			TopUp(alreadyOwnedSatoshis, pkgtestabilities.WithLabelsTopUp(initialLabel))
+		ownedAtomicBeef, _ := ownedTxSpec.TX().AtomicBEEF(false)
+
+		// and:
+		args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
+		args.Tx = ownedAtomicBeef
+		args.Labels = []primitives.StringUnder300{labelToAdd}
+
+		// when:
+		_, err := activeStorage.InternalizeAction(
+			context.Background(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+
+		// then:
+		require.NoError(t, err)
+
+		// and db state:
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID())).
+			WithLabels(initialLabel, labelToAdd)
 	})
 }
 

@@ -59,6 +59,8 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 
 	servicesConfig := defs.DefaultServicesConfig(network)
 	servicesConfig.WhatsOnChain.BroadcastDelay = 0
+	servicesConfig.WhatsOnChain.RootForHeightRetries = 1
+	servicesConfig.WhatsOnChain.RootForHeightRetryInterval = 0
 	servicesConfig.WhatsOnChain.ScriptHashHistoryRetries = 1
 	servicesConfig.WhatsOnChain.ScriptHashHistoryRetryInterval = 0
 

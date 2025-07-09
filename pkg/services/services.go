@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -31,6 +32,7 @@ type WalletServices struct {
 	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
 	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
 	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
+	validatorServices     servicequeue.Queue2[*chainhash.Hash, uint32, bool]
 	scriptHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
@@ -84,6 +86,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"FindChainTipHeader",
 			servicequeue.NewService(whatsonchain.ServiceName, wocService.FindChainTipHeader),
 			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
+		),
+
+		validatorServices: servicequeue.NewQueue2(
+			logger,
+			"IsValidRootForHeight",
+			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsValidRootForHeight),
 		),
 
 		scriptHistoryServices: servicequeue.NewQueue1(
@@ -205,6 +213,18 @@ func (s *WalletServices) HashToHeader(hash string) (*wdk.ChainBlockHeader, error
 // TODO: txOrLockTime type = string | number[] | BsvTransaction | number
 func (s *WalletServices) NLockTimeIsFinal(txOrLockTime any) bool {
 	panic("Not implemented yet")
+}
+
+// IsValidRootForHeight verifies the Merkle-root for a block height.
+func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+	ok, err := s.validatorServices.OneByOne(ctx, root, height)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return false, fmt.Errorf("all IsValidRootForHeight providers failed for height %d", height)
+		}
+		return false, fmt.Errorf("failed to validate Merkle root %s for height %d: %w", root, height, err)
+	}
+	return ok, nil
 }
 
 // GetScriptHashHistory retrieves both confirmed and unconfirmed transaction history for a script hash
