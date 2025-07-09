@@ -16,7 +16,7 @@ import (
 )
 
 // MapCreateActionArgs maps sdk.CreateActionArgs to wdk.ValidCreateActionArgs
-func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Opts) wdk.ValidCreateActionArgs {
+func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.ValidCreateActionArgs {
 	options := mapCreateActionOptions(to.Value(args.Options), opts)
 
 	wdkArgs := &wdk.ValidCreateActionArgs{
@@ -92,7 +92,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 	}
 }
 
-func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Opts) wdk.ValidCreateActionOptions {
+func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Flags) wdk.ValidCreateActionOptions {
 	return wdk.ValidCreateActionOptions{
 		SignAndProcess:         (*primitives.BooleanDefaultTrue)(options.SignAndProcess),
 		AcceptDelayedBroadcast: (*primitives.BooleanDefaultTrue)(options.AcceptDelayedBroadcast),

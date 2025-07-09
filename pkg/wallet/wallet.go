@@ -22,13 +22,44 @@ type Wallet struct {
 	proto      *sdk.ProtoWallet
 	storage    wdk.WalletStorage
 	keyDeriver *sdk.KeyDeriver
-	*wallet_opts.Opts
+	flags      *wallet_opts.Flags
+}
+
+// WithIncludeAllSourceTransactions - default: `true`
+// If true, signableTransactions will include sourceTransaction for each input,
+// including those that do not require signature and those that were also contained in the inputBEEF.
+func WithIncludeAllSourceTransactions(value bool) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.IncludeAllSourceTransactions = value
+	}
+}
+
+// WithAutoKnownTxids - default: `false`
+// If true, txids that are known to the wallet's party beef do not need to be returned from storage.
+func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.AutoKnownTxids = value
+	}
+}
+
+// WithTrustSelf - default: `known`
+// controls behavior of input BEEF validation.
+// If "known", input transactions may omit supporting validity proof data for all TXIDs known to this wallet.
+// If "", input BEEFs must be complete and valid.
+func WithTrustSelf(value sdk.TrustSelf) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		if value == "" {
+			opts.TrustSelf = nil
+		} else {
+			opts.TrustSelf = &value
+		}
+	}
 }
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
-// TODO: add support for opts pattern and handle optional parameters as it is in the Typescript version.
-func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource, activeStorage wdk.WalletStorageProvider) (*Wallet, error) {
+// TODO: add support for optional parameters (like services, wallet storage manager, etc.) as it is in the Typescript version.
+func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource, activeStorage wdk.WalletStorageProvider, opts ...func(*wallet_opts.Opts)) (*Wallet, error) {
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
@@ -50,17 +81,19 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 
 	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
 
-	opts := &wallet_opts.Opts{
-		IncludeAllSourceTransactions: true,
-		AutoKnownTxids:               false,
-		TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
-	}
+	options := to.OptionsWithDefault(wallet_opts.Opts{
+		Flags: wallet_opts.Flags{
+			IncludeAllSourceTransactions: true,
+			AutoKnownTxids:               false,
+			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
+		},
+	}, opts...)
 
 	return &Wallet{
 		proto:      proto,
 		storage:    storageManager,
 		keyDeriver: keyDeriver,
-		Opts:       opts,
+		flags:      &options.Flags,
 	}, nil
 }
 
@@ -139,7 +172,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	action := &actions.CreateAction{
 		KeyDeriver: w.keyDeriver,
 		Storage:    w.storage,
-		WalletOpts: w.Opts,
+		WalletOpts: w.flags,
 	}
 
 	result, err := action.CreateAction(ctx, args, originator)
