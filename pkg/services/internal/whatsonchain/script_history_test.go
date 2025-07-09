@@ -10,13 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetScriptHistory_UsingQueryFixture(t *testing.T) {
+func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {
 	// given
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
-	// Use the builder pattern instead of plain response objects
 	given.WhatsOnChain().
-		WithValidScriptHistoryData().
+		ScriptHistoryData().
 		WithScriptHash(scriptHash).
 		WithConfirmedTransactions(1, 800000).
 		WithUnconfirmedTransactions(1).
@@ -34,43 +33,6 @@ func TestGetScriptHistory_UsingQueryFixture(t *testing.T) {
 	assert.Equal(t, "u0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[1].TxHash)
 }
 
-func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {
-	// given
-	given := testabilities.Given(t)
-	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
-
-	confirmedJSON := `{
-		"result": [
-			{"tx_hash": "tx1", "height": 800000},
-			{"tx_hash": "tx2", "height": 800001}
-		],
-		"error": ""
-	}`
-
-	unconfirmedJSON := `{
-		"result": [
-			{"tx_hash": "tx3", "height": null}
-		],
-		"error": ""
-	}`
-
-	given.WhatsOnChain().WillRespondWithConfirmedScriptHistory(http.StatusOK, scriptHash, confirmedJSON)
-	given.WhatsOnChain().WillRespondWithUnconfirmedScriptHistory(http.StatusOK, scriptHash, unconfirmedJSON)
-
-	woc := given.NewWoCService()
-
-	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
-
-	// then
-	require.NoError(t, err)
-	assert.Len(t, result.History, 3)
-	assert.Equal(t, "tx1", result.History[0].TxHash)
-	assert.Equal(t, 800000, *result.History[0].Height)
-	assert.Equal(t, "tx3", result.History[2].TxHash)
-	assert.Nil(t, result.History[2].Height)
-}
-
 func TestServices_GetScriptHistory_EmptyHistory(t *testing.T) {
 	// given
 	given := testabilities.Given(t)
@@ -78,7 +40,7 @@ func TestServices_GetScriptHistory_EmptyHistory(t *testing.T) {
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
 	given.WhatsOnChain().
-		WithValidScriptHistoryData().
+		ScriptHistoryData().
 		WithScriptHash(scriptHash).
 		WithEmptyHistory().
 		WillBeReturned()
@@ -99,12 +61,14 @@ func TestWhatsOnChain_GetScriptHistory_ConfirmedAPIError(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	errorJSON := `{
-		"result": [],
-		"error": "Script not found"
-	}`
+	errorMsg := "Script not found"
 
-	given.WhatsOnChain().WillRespondWithConfirmedScriptHistory(http.StatusOK, scriptHash, errorJSON)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactionsError(errorMsg).
+		WithConfirmedStatusCode(http.StatusOK).
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -113,7 +77,7 @@ func TestWhatsOnChain_GetScriptHistory_ConfirmedAPIError(t *testing.T) {
 
 	// then
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API error: Script not found")
+	assert.Contains(t, err.Error(), errorMsg)
 	assert.Nil(t, result)
 }
 
@@ -122,18 +86,16 @@ func TestWhatsOnChain_GetScriptHistory_UnconfirmedAPIError(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	confirmedJSON := `{
-		"result": [],
-		"error": ""
-	}`
+	errorMsg := "Script not found"
 
-	errorJSON := `{
-		"result": [],
-		"error": "Script not found"
-	}`
-
-	given.WhatsOnChain().WillRespondWithConfirmedScriptHistory(http.StatusOK, scriptHash, confirmedJSON)
-	given.WhatsOnChain().WillRespondWithUnconfirmedScriptHistory(http.StatusOK, scriptHash, errorJSON)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactions(0, 0).
+		WithConfirmedStatusCode(http.StatusOK).
+		WithUnconfirmedTransactionsError(errorMsg).
+		WithUnconfirmedStatusCode(http.StatusOK).
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -191,7 +153,7 @@ func TestGetScriptHistory_LargeHistory(t *testing.T) {
 			scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
 			given.WhatsOnChain().
-				WithValidScriptHistoryData().
+				ScriptHistoryData().
 				WithScriptHash(scriptHash).
 				WithConfirmedTransactions(tc.confirmedCount, tc.startHeight).
 				WithUnconfirmedTransactions(tc.unconfirmedCount).
@@ -260,35 +222,16 @@ func TestWhatsOnChain_GetScriptHistory_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestWhatsOnChain_GetScriptHistory_APIError(t *testing.T) {
-	// given
-	given := testabilities.Given(t)
-	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
-
-	errorJSON := `{
-		"result": [],
-		"error": "Script not found"
-	}`
-
-	given.WhatsOnChain().WillRespondWithConfirmedScriptHistory(http.StatusOK, scriptHash, errorJSON)
-
-	woc := given.NewWoCService()
-
-	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
-
-	// then
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API error: Script not found")
-	assert.Nil(t, result)
-}
-
 func TestWhatsOnChain_GetScriptHistory_HTTPError(t *testing.T) {
 	// given
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	given.WhatsOnChain().WillRespondWithConfirmedScriptHistory(http.StatusNotFound, scriptHash, "")
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactionsNotFound().
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -307,7 +250,7 @@ func TestWhatsOnChain_GetScriptHistory_OnlyConfirmed(t *testing.T) {
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
 	given.WhatsOnChain().
-		WithValidScriptHistoryData().
+		ScriptHistoryData().
 		WithScriptHash(scriptHash).
 		WithConfirmedTransactions(1, 800000).
 		WithUnconfirmedTransactions(0).
@@ -332,7 +275,7 @@ func TestWhatsOnChain_GetScriptHistory_OnlyUnconfirmed(t *testing.T) {
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
 	given.WhatsOnChain().
-		WithValidScriptHistoryData().
+		ScriptHistoryData().
 		WithScriptHash(scriptHash).
 		WithConfirmedTransactions(0, 0).
 		WithUnconfirmedTransactions(1).

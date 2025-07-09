@@ -13,22 +13,12 @@ func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnConfirmedHistory(200, `{
-			"result": [
-				{"tx_hash": "tx1", "height": 800000},
-				{"tx_hash": "tx2", "height": 800001}
-			],
-			"error": ""
-		}`)
-
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnUnconfirmedHistory(200, `{
-			"result": [
-				{"tx_hash": "tx3", "height": null}
-			],
-			"error": ""
-		}`)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactions(2, 800000).
+		WithUnconfirmedTransactions(1).
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -38,9 +28,9 @@ func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {
 	// then
 	require.NoError(t, err)
 	assert.Len(t, result.History, 3)
-	assert.Equal(t, "tx1", result.History[0].TxHash)
+	assert.Equal(t, "c0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
 	assert.Equal(t, 800000, *result.History[0].Height)
-	assert.Equal(t, "tx3", result.History[2].TxHash)
+	assert.Equal(t, "u0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[2].TxHash)
 	assert.Nil(t, result.History[2].Height)
 }
 
@@ -89,11 +79,11 @@ func TestWhatsOnChain_GetScriptHistory_APIError(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnConfirmedHistory(200, `{
-			"result": [],
-			"error": "Script not found"
-		}`)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactionsError("Script not found").
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -111,8 +101,12 @@ func TestWhatsOnChain_GetScriptHistory_HTTPError(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnHTTPError(404)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactionsError("Not found").
+		WithConfirmedStatusCode(404).
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -130,17 +124,12 @@ func TestWhatsOnChain_GetScriptHistory_OnlyConfirmed(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnConfirmedHistory(200, `{
-			"result": [{"tx_hash": "confirmed_tx", "height": 800000}],
-			"error": ""
-		}`)
-
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnUnconfirmedHistory(200, `{
-			"result": [],
-			"error": ""
-		}`)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactions(1, 800000).
+		WithUnconfirmedTransactions(0).
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -150,7 +139,7 @@ func TestWhatsOnChain_GetScriptHistory_OnlyConfirmed(t *testing.T) {
 	// then
 	require.NoError(t, err)
 	assert.Len(t, result.History, 1)
-	assert.Equal(t, "confirmed_tx", result.History[0].TxHash)
+	assert.Equal(t, "c0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
 	assert.NotNil(t, result.History[0].Height)
 	assert.Equal(t, 800000, *result.History[0].Height)
 }
@@ -160,17 +149,12 @@ func TestWhatsOnChain_GetScriptHistory_OnlyUnconfirmed(t *testing.T) {
 	given := testabilities.Given(t)
 	scriptHash := "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnConfirmedHistory(200, `{
-			"result": [],
-			"error": ""
-		}`)
-
-	given.WhatsOnChain().WhenQueryingScriptHistory(scriptHash).
-		WillReturnUnconfirmedHistory(200, `{
-			"result": [{"tx_hash": "unconfirmed_tx", "height": null}],
-			"error": ""
-		}`)
+	given.WhatsOnChain().
+		ScriptHistoryData().
+		WithScriptHash(scriptHash).
+		WithConfirmedTransactions(0, 0).
+		WithUnconfirmedTransactions(1).
+		WillBeReturned()
 
 	woc := given.NewWoCService()
 
@@ -180,6 +164,6 @@ func TestWhatsOnChain_GetScriptHistory_OnlyUnconfirmed(t *testing.T) {
 	// then
 	require.NoError(t, err)
 	assert.Len(t, result.History, 1)
-	assert.Equal(t, "unconfirmed_tx", result.History[0].TxHash)
+	assert.Equal(t, "u0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
 	assert.Nil(t, result.History[0].Height)
 }

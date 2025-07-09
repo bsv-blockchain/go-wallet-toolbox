@@ -38,7 +38,7 @@ type WhatsOnChainFixture interface {
 	WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, responseJSON string)
 	WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string)
 	WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture
-	WithValidScriptHistoryData() ScriptHistoryDataBuilder
+	ScriptHistoryData() ScriptHistoryDataBuilder
 	WithScriptHistoryValidationError(scriptHash string, expectedError string)
 }
 
@@ -366,6 +366,14 @@ type ScriptHistoryDataBuilder interface {
 	WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder
 	WithEmptyHistory() ScriptHistoryDataBuilder
 	WithScriptHash(scriptHash string) ScriptHistoryDataBuilder
+	WithConfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder
+	WithUnconfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder
+	WithConfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder
+	WithUnconfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder
+	WithConfirmedTransactionsNotFound() ScriptHistoryDataBuilder
+	WithUnconfirmedTransactionsNotFound(errorMsg string) ScriptHistoryDataBuilder
+	WithConfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder
+	WithUnconfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder
 	BuildJSON() (confirmedJSON, unconfirmedJSON string)
 	WillBeReturned()
 }
@@ -414,16 +422,6 @@ func (f *wocFixture) WhenQueryingScriptHistory(scriptHash string) WhatsOnChainSc
 	}
 }
 
-func (f *wocFixture) WithValidScriptHistoryData() ScriptHistoryDataBuilder {
-	return &scriptHistoryDataBuilder{
-		fixture:          f,
-		scriptHash:       "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832", // default valid hash
-		confirmedCount:   3,
-		unconfirmedCount: 2,
-		startHeight:      800000,
-	}
-}
-
 func (f *wocFixture) WithScriptHistoryValidationError(scriptHash string, expectedError string) {
 	f.TB.Helper()
 }
@@ -466,24 +464,87 @@ func (q *wocScriptHistoryQueryFixture) WillReturnHTTPError(status int) {
 }
 
 type scriptHistoryDataBuilder struct {
-	fixture          *wocFixture
-	scriptHash       string
-	confirmedCount   int
-	unconfirmedCount int
-	startHeight      int
-	emptyHistory     bool
+	fixture               *wocFixture
+	scriptHash            string
+	confirmedCount        int
+	unconfirmedCount      int
+	startHeight           int
+	emptyHistory          bool
+	confirmedError        string
+	unconfirmedError      string
+	confirmedStatusCode   int
+	unconfirmedStatusCode int
+}
+
+func (f *wocFixture) ScriptHistoryData() ScriptHistoryDataBuilder {
+	return &scriptHistoryDataBuilder{
+		fixture:               f,
+		scriptHash:            "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832",
+		confirmedCount:        3,
+		unconfirmedCount:      2,
+		startHeight:           800000,
+		emptyHistory:          false,
+		confirmedError:        "",
+		unconfirmedError:      "",
+		confirmedStatusCode:   http.StatusOK,
+		unconfirmedStatusCode: http.StatusOK,
+	}
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder {
+	b.confirmedStatusCode = statusCode
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder {
+	b.unconfirmedStatusCode = statusCode
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder {
+	b.confirmedError = errorMsg
+	b.confirmedCount = 0
+	b.emptyHistory = false
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder {
+	b.unconfirmedError = errorMsg
+	b.unconfirmedCount = 0
+	b.emptyHistory = false
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactionsNotFound() ScriptHistoryDataBuilder {
+	return b.WithConfirmedTransactionsError("").WithConfirmedStatusCode(http.StatusNotFound)
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsNotFound(errorMsg string) ScriptHistoryDataBuilder {
+	return b.WithUnconfirmedTransactionsError(errorMsg).WithUnconfirmedStatusCode(http.StatusNotFound)
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder {
+	return b.WithConfirmedTransactionsError(errorMsg).WithConfirmedStatusCode(http.StatusInternalServerError)
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder {
+	return b.WithUnconfirmedTransactionsError(errorMsg).WithUnconfirmedStatusCode(http.StatusInternalServerError)
 }
 
 func (b *scriptHistoryDataBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
 	b.confirmedCount = count
 	b.startHeight = startHeight
 	b.emptyHistory = false
+	b.confirmedError = ""
+	b.confirmedStatusCode = http.StatusOK
 	return b
 }
 
 func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder {
 	b.unconfirmedCount = count
 	b.emptyHistory = false
+	b.unconfirmedError = ""
+	b.unconfirmedStatusCode = http.StatusOK
 	return b
 }
 
@@ -491,6 +552,8 @@ func (b *scriptHistoryDataBuilder) WithEmptyHistory() ScriptHistoryDataBuilder {
 	b.emptyHistory = true
 	b.confirmedCount = 0
 	b.unconfirmedCount = 0
+	b.confirmedError = ""
+	b.confirmedStatusCode = http.StatusOK
 	return b
 }
 
@@ -505,7 +568,6 @@ func (b *scriptHistoryDataBuilder) BuildJSON() (confirmedJSON, unconfirmedJSON s
 		return `{"result": [], "error": ""}`, `{"result": [], "error": ""}`
 	}
 
-	// Build confirmed transactions JSON
 	confirmedItems := make([]string, b.confirmedCount)
 	for i := 0; i < b.confirmedCount; i++ {
 		confirmedItems[i] = fmt.Sprintf(`{
@@ -523,16 +585,28 @@ func (b *scriptHistoryDataBuilder) BuildJSON() (confirmedJSON, unconfirmedJSON s
 		}`, i)
 	}
 
-	confirmedJSON = fmt.Sprintf(`{
+	if b.confirmedError != "" {
+		confirmedJSON = fmt.Sprintf(`{
+			"result": [],
+			"error": "%s"
+		}`, b.confirmedError)
+	} else {
+		confirmedJSON = fmt.Sprintf(`{
 		"result": [%s],
 		"error": ""
 	}`, strings.Join(confirmedItems, ","))
-
-	unconfirmedJSON = fmt.Sprintf(`{
+	}
+	if b.unconfirmedError != "" {
+		unconfirmedJSON = fmt.Sprintf(`{
+			"result": [],
+			"error": "%s"
+		}`, b.unconfirmedError)
+	} else {
+		unconfirmedJSON = fmt.Sprintf(`{
 		"result": [%s],
 		"error": ""
 	}`, strings.Join(unconfirmedItems, ","))
-
+	}
 	return confirmedJSON, unconfirmedJSON
 }
 
@@ -540,6 +614,7 @@ func (b *scriptHistoryDataBuilder) WillBeReturned() {
 	b.fixture.TB.Helper()
 
 	confirmedResp, unconfirmedResp := b.BuildJSON()
-	b.fixture.WillRespondWithConfirmedScriptHistory(http.StatusOK, b.scriptHash, confirmedResp)
-	b.fixture.WillRespondWithUnconfirmedScriptHistory(http.StatusOK, b.scriptHash, unconfirmedResp)
+
+	b.fixture.WillRespondWithConfirmedScriptHistory(b.confirmedStatusCode, b.scriptHash, confirmedResp)
+	b.fixture.WillRespondWithUnconfirmedScriptHistory(b.unconfirmedStatusCode, b.scriptHash, unconfirmedResp)
 }
