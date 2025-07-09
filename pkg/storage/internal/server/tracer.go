@@ -25,9 +25,11 @@ func tracer(logger *slog.Logger) jsonrpc.Tracer {
 
 		if logging.IsDebug(logger) {
 			args = append(args, slog.String("handler", params[0].Type().String()))
+
 			for i, param := range params[1:] {
 				args = append(args, slog.Any(fmt.Sprintf("param_%d", i), reflectValueToLoggable(param)))
 			}
+
 			for i, result := range results {
 				args = append(args, slog.Any(fmt.Sprintf("result_%d", i), reflectValueToLoggable(result)))
 			}
