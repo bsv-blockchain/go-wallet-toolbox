@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
@@ -13,8 +14,8 @@ import (
 
 type Setup struct {
 	Environment Environment
-	IdentityKey ec.PublicKey
-	PrivateKey  ec.PrivateKey
+	IdentityKey *ec.PublicKey
+	PrivateKey  *ec.PrivateKey
 }
 
 type Environment struct {
@@ -85,8 +86,8 @@ func CreateAlice() *Setup {
 			BSVNetwork: cfg.Network,
 			ServerURL:  cfg.ServerURL,
 		},
-		IdentityKey: *identityKey,
-		PrivateKey:  *privateKey,
+		IdentityKey: identityKey,
+		PrivateKey:  privateKey,
 	}
 }
 
@@ -96,19 +97,12 @@ func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func(), error
 		return nil, nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
-	userWallet, err := wallet.New(s.Environment.BSVNetwork, &s.PrivateKey, storageClient)
+	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageClient)
 	if err != nil {
 		cleanup()
 		return nil, nil, fmt.Errorf("failed to create wallet: %w", err)
 	}
 
-	identityKey := s.IdentityKey.ToDERHex()
-	user, err := storageClient.FindOrInsertUser(ctx, identityKey)
-	if err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("failed to find or insert user: %w", err)
-	}
-
-	fmt.Printf("CreateWallet: User %d: %s\n", user.User.UserID, identityKey)
+	show.Info("CreateWallet", s.IdentityKey.ToDERHex())
 	return userWallet, cleanup, nil
 }

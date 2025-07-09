@@ -29,6 +29,11 @@ func Success(message string) {
 	fmt.Printf("%s✅ SUCCESS:%s %s\n", ColorGreen+ColorBold, ColorReset, message)
 }
 
+// Error displays an error message
+func Error(message string) {
+	fmt.Printf("%s❌ ERROR:%s %s\n", ColorRed+ColorBold, ColorReset, message)
+}
+
 // Transaction displays transaction information
 func Transaction(txid string) {
 	fmt.Printf("\n%s🔗 TRANSACTION:%s\n", ColorPurple+ColorBold, ColorReset)
@@ -48,8 +53,8 @@ func Header(title string) {
 }
 
 // Info displays general information
-func Info(label, value string) {
-	fmt.Printf("%s%s:%s %s\n", ColorCyan, label, ColorReset, value)
+func Info(label string, value interface{}) {
+	fmt.Printf("%s%s:%s %+v\n", ColorCyan, label, ColorReset, value)
 }
 
 // FaucetInstructions displays formatted faucet instructions
@@ -76,4 +81,18 @@ func ProcessStart(processName string) {
 func ProcessComplete(processName string) {
 	Separator()
 	fmt.Printf("%s🎉 COMPLETED:%s %s\n\n", ColorGreen+ColorBold, ColorReset, processName)
+}
+
+// WalletSuccess displays a successful wallet method call with its arguments and result
+func WalletSuccess(methodName string, args interface{}, result interface{}) {
+	fmt.Printf("\n%s WALLET CALL:%s %s%s%s\n", ColorBlue+ColorBold, ColorReset, ColorGreen, methodName, ColorReset)
+	fmt.Printf("%sArgs:%s %+v\n", ColorCyan, ColorReset, args)
+	fmt.Printf("%s✅ Result:%s %+v\n", ColorGreen+ColorBold, ColorReset, result)
+}
+
+// WalletError displays a failed wallet method call with its arguments and error
+func WalletError(methodName string, args interface{}, err error) {
+	fmt.Printf("\n%s WALLET CALL:%s %s%s%s\n", ColorBlue+ColorBold, ColorReset, ColorRed, methodName, ColorReset)
+	fmt.Printf("%sArgs:%s %+v\n", ColorCyan, ColorReset, args)
+	fmt.Printf("%s❌ Error:%s %v\n", ColorRed+ColorBold, ColorReset, err)
 }

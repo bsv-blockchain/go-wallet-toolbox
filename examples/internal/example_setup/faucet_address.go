@@ -18,9 +18,9 @@ func FaucetAddress(wallet *Setup) {
 	}
 
 	address, err := brc29.Address(
-		&wallet.PrivateKey,
+		wallet.PrivateKey,
 		keyID,
-		&wallet.IdentityKey,
+		wallet.IdentityKey,
 		brc29.WithTestNet(),
 	)
 	if err != nil {
