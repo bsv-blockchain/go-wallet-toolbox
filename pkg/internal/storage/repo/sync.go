@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo/syncrepo"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -18,6 +19,8 @@ import (
 )
 
 type Sync struct {
+	*syncrepo.SyncBasket
+	*syncrepo.SyncKnownTx
 	db *gorm.DB
 
 	naming *naming
@@ -27,168 +30,15 @@ func NewSync(db *gorm.DB) *Sync {
 	return &Sync{
 		db:     db,
 		naming: newNaming(db),
-	}
-}
 
-type OutputBasketWithNum struct {
-	models.OutputBasket
-	NumID int
-}
-
-func (s *Sync) FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error) {
-	const basketStringIDClause = "CONCAT(user_id, '.', name)"
-	var resultModels []*OutputBasketWithNum
-
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
-
-		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
-			return db.
-				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.naming.outputBasketTableName).
-				Scopes(filters...).
-				Find(&models.OutputBasket{})
-		})
-		if err != nil {
-			return err
-		}
-
-		err = tx.WithContext(ctx).
-			Model(&models.OutputBasket{}).
-			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName, clause.InnerJoin)).
-			Scopes(filters...).
-			Find(&resultModels).Error
-		if err != nil {
-			return fmt.Errorf("failed to find output baskets for sync: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("transaction failed: %w", err)
-	}
-
-	return slices.Map(resultModels, s.mapModelToTableOutputBasket), nil
-}
-
-func (s *Sync) UpsertOutputBasketForSync(ctx context.Context, entity entity.OutputBasket) (isNew bool, basketNumID uint, err error) {
-	model := models.OutputBasket{
-		CreatedAt:               entity.CreatedAt,
-		UpdatedAt:               entity.UpdatedAt,
-		UserID:                  entity.UserID,
-		Name:                    entity.Name,
-		NumberOfDesiredUTXOs:    entity.NumberOfDesiredUTXOs,
-		MinimumDesiredUTXOValue: entity.MinimumDesiredUTXOValue,
-	}
-
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		numID, err := s.saveNumericIDForOutputBasket(ctx, tx, entity.UserID, entity.Name)
-		if err != nil {
-			return err
-		}
-
-		basketNumID = numID
-
-		updateTx := tx.Model(&models.OutputBasket{}).
-			Where("user_id = ? AND name = ?", entity.UserID, model.Name).
-			Updates(model)
-
-		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update output basket: %w", updateTx.Error)
-		}
-
-		if updateTx.RowsAffected > 0 {
-			return nil
-		}
-
-		err = tx.Create(&model).Error
-		if err != nil {
-			return fmt.Errorf("failed to create output basket: %w", err)
-		}
-
-		isNew = true
-
-		return nil
-	})
-
-	if err != nil {
-		return false, 0, fmt.Errorf("transaction failed: %w", err)
-	}
-
-	return
-}
-
-func (s *Sync) FindBasketNameByNumIDForSync(ctx context.Context, basketNumID uint) (string, error) {
-	const basketStringIDClause = "CONCAT(user_id, '.', name)"
-	var basketName string
-
-	err := s.db.WithContext(ctx).Model(&models.OutputBasket{}).
-		Scopes(s.joinWithNumericIDLookupScope(basketStringIDClause, s.naming.outputBasketTableName, clause.InnerJoin)).
-		Where("num.num_id = ?", basketNumID).
-		Select("name").
-		Scan(&basketName).Error
-	if err != nil {
-		return "", fmt.Errorf("failed to find output basket name by numeric ID: %w", err)
-	}
-
-	return basketName, nil
-}
-
-func (s *Sync) mapModelToTableOutputBasket(model *OutputBasketWithNum) *wdk.TableOutputBasket {
-	return &wdk.TableOutputBasket{
-		BasketID:  model.NumID,
-		UserID:    model.UserID,
-		CreatedAt: model.CreatedAt,
-		UpdatedAt: model.UpdatedAt,
-		BasketConfiguration: wdk.BasketConfiguration{
-			Name:                    primitives.StringUnder300(model.Name),
-			NumberOfDesiredUTXOs:    model.NumberOfDesiredUTXOs,
-			MinimumDesiredUTXOValue: model.MinimumDesiredUTXOValue,
-		},
+		SyncBasket:  syncrepo.NewSyncBasket(db),
+		SyncKnownTx: syncrepo.NewSyncKnownTx(db),
 	}
 }
 
 type KnownTxWithNum struct {
 	models.KnownTx
 	NumID int
-}
-
-func (s *Sync) FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
-	var resultModels []*KnownTxWithNum
-
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		filters := scopes.FromQueryOpts(opts)
-
-		err := s.upsertNumericIDLookup(ctx, tx, func(db *gorm.DB) *gorm.DB {
-			return db.
-				Select("?, tx_id", s.naming.knownTxTableName).
-				Scopes(filters...).
-				Scopes(s.provenTxWhereExistsScope(userID)).
-				Find(&models.KnownTx{})
-		})
-		if err != nil {
-			return err
-		}
-
-		err = tx.WithContext(ctx).
-			Model(&models.KnownTx{}).
-			Select("*").
-			Scopes(s.joinWithNumericIDLookupScope("tx_id", s.naming.knownTxTableName, clause.InnerJoin)).
-			Scopes(filters...).
-			Scopes(s.provenTxWhereExistsScope(userID)).
-			Find(&resultModels).Error
-		if err != nil {
-			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("transaction failed: %w", err)
-	}
-
-	provenTxReqs, provenTxs := s.toReqOrProvenTx(resultModels)
-	return provenTxReqs, provenTxs, nil
 }
 
 type TransactionWithKnownTx struct {
@@ -338,76 +188,6 @@ func (s *Sync) mapModelToTableTransaction(model *TransactionWithKnownTx) *wdk.Ta
 		//NOTE: ProvenTxID is set only if the transaction is known to be mined (has a numeric ID in the KnownTx table).
 		ProvenTxID: to.IfThen(model.BlockHeight != nil, model.KnownTxNumID).ElseThen(nil),
 	}
-}
-
-func (s *Sync) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) *wdk.TableProvenTxReq {
-	if model.MerklePath != nil {
-		// this mapping function is designed to convert a model that is guaranteed to be NOT MINED (does not have a Merkle path),
-		panic("KnownTx model must not have MerklePath set when creating TableProvenTxReq for sync")
-	}
-
-	return &wdk.TableProvenTxReq{
-		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
-		ProvenTxReqID: model.NumID,
-		Status:        model.Status,
-		Attempts:      model.Attempts,
-		Notified:      model.Notified,
-		TxID:          model.TxID,
-		Batch:         nil,  // TODO: For now batch broadcasting is not supported, will be added later
-		History:       "{}", // TODO: History feature will be reworked later, then we can address this and think if we even want to sync "history" field
-		Notify:        "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
-		RawTx:         model.RawTx,
-		InputBEEF:     model.InputBeef,
-	}
-}
-
-func (s *Sync) mapModelToTableProvenTxForSync(model *KnownTxWithNum) *wdk.TableProvenTx {
-	if model.MerklePath == nil || model.BlockHeight == nil || model.MerkleRoot == nil || model.BlockHash == nil {
-		// this mapping function is designed to convert a model that is guaranteed to be MINED (has a Merkle path),
-		// this should never happen, but if it does, we panic to indicate a programming error
-		panic("KnownTx model must have MerklePath, BlockHeight, MerkleRoot, and BlockHash set when creating TableProvenTx for sync")
-	}
-
-	return &wdk.TableProvenTx{
-		CreatedAt:  model.CreatedAt,
-		UpdatedAt:  model.UpdatedAt,
-		ProvenTxID: model.NumID,
-		TxID:       model.TxID,
-		Height:     *model.BlockHeight,
-		Index:      0, // TODO: JS version also contains an index, it could be done in separate task later
-		MerklePath: model.MerklePath,
-		RawTx:      model.RawTx,
-		BlockHash:  *model.BlockHash,
-		MerkleRoot: *model.MerkleRoot,
-	}
-}
-
-// toReqOrProvenTx produced two slices:
-// - one for requests (ProvenTxReq) that do not have a Merkle path (not mined transactions)
-// - one for proven transactions (ProvenTx) that have a Merkle path (mined transactions).
-// NOTE: In this implementation, there is ONLY ONE table to hold both: requests (ProvenTxReq) and proven transactions (ProvenTx).
-// The function is used to prepare data for syncing, where we need to distinguish between requests and proven transactions.
-func (s *Sync) toReqOrProvenTx(models []*KnownTxWithNum) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx) {
-	minedTxs := 0
-	for _, model := range models {
-		if model.HasMerklePath() {
-			minedTxs++
-		}
-	}
-
-	provenTxReqs := make([]*wdk.TableProvenTxReq, 0, len(models)-minedTxs)
-	provenTxs := make([]*wdk.TableProvenTx, 0, minedTxs)
-
-	for _, model := range models {
-		if model.HasMerklePath() {
-			provenTxs = append(provenTxs, s.mapModelToTableProvenTxForSync(model))
-		} else {
-			provenTxReqs = append(provenTxReqs, s.mapModelToTableProvenTxReqForSync(model))
-		}
-	}
-
-	return provenTxReqs, provenTxs
 }
 
 func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {

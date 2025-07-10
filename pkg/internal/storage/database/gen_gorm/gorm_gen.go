@@ -24,18 +24,7 @@ func main() {
 
 	g.UseDB(db)
 
-	g.ApplyBasic(models.Commission{})
-
-	// Uncomment and adjust the following lines to generate additional interfaces or methods as needed.
-	// For example, to generate a custom interface for CommissionQuerier:
-	//g.ApplyInterface(func(CommissionQuerier) {}, models.Commission{})
+	g.ApplyBasic(models.Commission{}, models.NumericIDLookup{}, models.OutputBasket{}, models.KnownTx{})
 
 	g.Execute()
 }
-
-// Uncomment the following lines to define a custom interface for querying commissions.
-// For example, to get a commission by user ID and transaction ID:
-//type CommissionQuerier interface {
-//	// SELECT * FROM @@table WHERE user_id = @userID AND transaction_id = @transactionID{{end}}
-//	GetByUserIDAndTransactionID(userID int, transactionID uint) (gen.T, error)
-//}

@@ -16,34 +16,49 @@ import (
 )
 
 var (
-	Q          = new(Query)
-	Commission *commission
+	Q               = new(Query)
+	Commission      *commission
+	KnownTx         *knownTx
+	NumericIDLookup *numericIDLookup
+	OutputBasket    *outputBasket
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	Commission = &Q.Commission
+	KnownTx = &Q.KnownTx
+	NumericIDLookup = &Q.NumericIDLookup
+	OutputBasket = &Q.OutputBasket
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:         db,
-		Commission: newCommission(db, opts...),
+		db:              db,
+		Commission:      newCommission(db, opts...),
+		KnownTx:         newKnownTx(db, opts...),
+		NumericIDLookup: newNumericIDLookup(db, opts...),
+		OutputBasket:    newOutputBasket(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	Commission commission
+	Commission      commission
+	KnownTx         knownTx
+	NumericIDLookup numericIDLookup
+	OutputBasket    outputBasket
 }
 
 func (q *Query) Available() bool { return q.db != nil }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:         db,
-		Commission: q.Commission.clone(db),
+		db:              db,
+		Commission:      q.Commission.clone(db),
+		KnownTx:         q.KnownTx.clone(db),
+		NumericIDLookup: q.NumericIDLookup.clone(db),
+		OutputBasket:    q.OutputBasket.clone(db),
 	}
 }
 
@@ -57,18 +72,27 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:         db,
-		Commission: q.Commission.replaceDB(db),
+		db:              db,
+		Commission:      q.Commission.replaceDB(db),
+		KnownTx:         q.KnownTx.replaceDB(db),
+		NumericIDLookup: q.NumericIDLookup.replaceDB(db),
+		OutputBasket:    q.OutputBasket.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	Commission ICommissionDo
+	Commission      ICommissionDo
+	KnownTx         IKnownTxDo
+	NumericIDLookup INumericIDLookupDo
+	OutputBasket    IOutputBasketDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		Commission: q.Commission.WithContext(ctx),
+		Commission:      q.Commission.WithContext(ctx),
+		KnownTx:         q.KnownTx.WithContext(ctx),
+		NumericIDLookup: q.NumericIDLookup.WithContext(ctx),
+		OutputBasket:    q.OutputBasket.WithContext(ctx),
 	}
 }
 
