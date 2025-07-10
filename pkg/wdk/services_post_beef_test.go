@@ -556,5 +556,5 @@ func TestAggregated(t *testing.T) {
 }
 
 func mockTxID(num uint64) string {
-	return testabilities.GivenTX().WithInput(2 + num).WithP2PKHOutput(1 + num).ID()
+	return testabilities.GivenTX().WithInput(2 + num).WithP2PKHOutput(1 + num).ID().String()
 }

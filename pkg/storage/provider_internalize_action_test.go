@@ -155,11 +155,10 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		// and:
 		const alreadyOwnedSatoshis = 100_000
 		ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(alreadyOwnedSatoshis)
-		ownedAtomicBeef, _ := ownedTxSpec.TX().AtomicBEEF(false)
 
 		// and:
 		args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
-		args.Tx = ownedAtomicBeef
+		args.Tx = ownedTxSpec.AtomicBEEF().Bytes()
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
@@ -170,7 +169,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		assert.Equal(t, ownedTxSpec.ID(), result.TxID)
+		assert.Equal(t, ownedTxSpec.ID().String(), result.TxID)
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(0), result.Satoshis)
@@ -197,15 +196,13 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 			WithInput(20_001).
 			WithP2PKHOutput(10_000).
 			WithP2PKHOutput(10_000)
-		beefBytes, err := transactionSpec.TX().AtomicBEEF(false)
-		require.NoError(t, err)
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
 			t.Context(),
 			testusers.Alice.AuthID(),
 			wdk.InternalizeActionArgs{
-				Tx: beefBytes,
+				Tx: transactionSpec.AtomicBEEF().Bytes(),
 				Outputs: []*wdk.InternalizeOutput{
 					{
 						OutputIndex: 0,
@@ -231,7 +228,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 			t.Context(),
 			testusers.Alice.AuthID(),
 			wdk.InternalizeActionArgs{
-				Tx: beefBytes,
+				Tx: transactionSpec.AtomicBEEF().Bytes(),
 				Outputs: []*wdk.InternalizeOutput{
 					{
 						OutputIndex: 1,
@@ -277,11 +274,10 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		// and:
 		const alreadyOwnedSatoshis = 100_000
 		ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(alreadyOwnedSatoshis)
-		ownedAtomicBeef, _ := ownedTxSpec.TX().AtomicBEEF(false)
 
 		// and:
 		args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
-		args.Tx = ownedAtomicBeef
+		args.Tx = ownedTxSpec.AtomicBEEF().Bytes()
 		args.Outputs[0].Protocol = wdk.BasketInsertionProtocol
 		args.Outputs[0].InsertionRemittance = &wdk.BasketInsertion{
 			Basket: fixtures.CustomBasket,
@@ -297,7 +293,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		assert.Equal(t, ownedTxSpec.ID(), result.TxID)
+		assert.Equal(t, ownedTxSpec.ID().String(), result.TxID)
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(-alreadyOwnedSatoshis), result.Satoshis)
@@ -404,11 +400,10 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		)
 		ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).
 			TopUp(alreadyOwnedSatoshis, pkgtestabilities.WithLabelsTopUp(initialLabel))
-		ownedAtomicBeef, _ := ownedTxSpec.TX().AtomicBEEF(false)
 
 		// and:
 		args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
-		args.Tx = ownedAtomicBeef
+		args.Tx = ownedTxSpec.AtomicBEEF().Bytes()
 		args.Labels = []primitives.StringUnder300{labelToAdd}
 
 		// when:
@@ -423,7 +418,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// and db state:
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
-		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID())).
+		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID().String())).
 			WithLabels(initialLabel, labelToAdd)
 	})
 }
@@ -440,15 +435,13 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 		WithInput(20_001).
 		WithP2PKHOutput(10_000).
 		WithP2PKHOutput(10_000)
-	beefBytes, err := transactionSpec.TX().AtomicBEEF(false)
-	require.NoError(t, err)
 
 	// when:
 	result, err := activeStorage.InternalizeAction(
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.InternalizeActionArgs{
-			Tx: beefBytes,
+			Tx: transactionSpec.AtomicBEEF().Bytes(),
 			Outputs: []*wdk.InternalizeOutput{
 				{
 					OutputIndex: 0,
@@ -473,7 +466,7 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 		t.Context(),
 		testusers.Bob.AuthID(), // NOTE: This is a different user
 		wdk.InternalizeActionArgs{
-			Tx: beefBytes,
+			Tx: transactionSpec.AtomicBEEF().Bytes(),
 			Outputs: []*wdk.InternalizeOutput{
 				{
 					OutputIndex: 1,

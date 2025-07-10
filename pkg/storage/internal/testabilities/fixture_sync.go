@@ -164,7 +164,7 @@ func (s *seedDbForSync) GetAllOwnedTransactionIDs() []string {
 	all := seq.Concat(seq.FromSlice(s.notMinedTXs), seq.FromSlice(s.minedTXs))
 	return seq.Collect(
 		seq.Map(all, func(spec testvectors.TransactionSpec) string {
-			return spec.ID()
+			return spec.ID().String()
 		}),
 	)
 }

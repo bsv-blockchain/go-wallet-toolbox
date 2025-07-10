@@ -153,7 +153,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSend() {
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
 		thenState.ActionAtIndex(0).
-			WithTxID(txFromFaucet.ID()).
+			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
 		const fee = 2
@@ -234,7 +234,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSendAndProvidedInput() 
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
 		thenState.ActionAtIndex(0).
-			WithTxID(txFromFaucet.ID()).
+			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
 		const fee = 2
@@ -297,7 +297,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithSend() {
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
 		thenState.ActionAtIndex(0).
-			WithTxID(txFromFaucet.ID()).
+			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
 		const fee = 2

@@ -119,7 +119,7 @@ func TestProcessActionErrorCases(t *testing.T) {
 		},
 		"tx id missmatch": {
 			argsModifier: func(args wdk.ProcessActionArgs) wdk.ProcessActionArgs {
-				otherID := testvectors.GivenTX().WithInput(2).WithP2PKHOutput(1).ID()
+				otherID := testvectors.GivenTX().WithInput(2).WithP2PKHOutput(1).ID().String()
 				args.TxID = to.Ptr(primitives.TXIDHexString(otherID))
 				return args
 			},
@@ -179,7 +179,7 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 	txID := signedTx.TxID().String()
 
 	// and:
-	otherTXID := testvectors.GivenTX().WithInput(2).WithP2PKHOutput(1).ID()
+	otherTXID := testvectors.GivenTX().WithInput(2).WithP2PKHOutput(1).ID().String()
 	givenProvider.ARC().WhenQueryingTx(txID).WillReturnDoubleSpending(otherTXID)
 
 	// and:
