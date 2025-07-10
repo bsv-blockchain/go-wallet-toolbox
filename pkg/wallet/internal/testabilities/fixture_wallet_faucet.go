@@ -44,10 +44,9 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 		WithOutputScript(satoshis.MustUInt64(), lockingScript).
 		WithOPReturn(fmt.Sprintf("faucet index %d", f.index))
 
-	beef, err := spec.TX().AtomicBEEF(false)
-	require.NoError(f, err, "Failed to create BEEF for top up transaction")
+	atomicBeef := spec.AtomicBEEF().Bytes()
 
-	f.internalizeTopUp(beef, paymentRemittance)
+	f.internalizeTopUp(atomicBeef, paymentRemittance)
 
 	f.index++
 

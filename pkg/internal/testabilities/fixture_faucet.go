@@ -47,14 +47,14 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 
 	txObj := spec.TX()
 	if options.Mined {
-		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID()))
+		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String()))
 	}
 
 	beef, err := txObj.BEEF()
 	require.NoError(f.t, err)
 
 	knownTx := &models.KnownTx{
-		TxID:      spec.ID(),
+		TxID:      spec.ID().String(),
 		Status:    wdk.ProvenTxStatusUnmined,
 		RawTx:     spec.TX().Bytes(),
 		InputBeef: beef,
@@ -63,14 +63,14 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	transaction := &models.Transaction{
 		UserID:      f.user.ID,
 		Status:      wdk.TxStatusUnproven,
-		Reference:   fixtures.FaucetReference(spec.ID()),
+		Reference:   fixtures.FaucetReference(spec.ID().String()),
 		IsOutgoing:  false,
 		Satoshis:    satoshis.Int64(),
 		Description: "test-faucet-tx",
 		Version:     1,
 		LockTime:    0,
 		InputBeef:   nil,
-		TxID:        to.Ptr(spec.ID()),
+		TxID:        to.Ptr(spec.ID().String()),
 	}
 
 	if len(options.Labels) > 0 {
@@ -121,7 +121,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	}
 
 	if txObj.MerklePath != nil {
-		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID()))
+		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID().String()))
 		require.NoError(f.t, err)
 
 		knownTx.Status = wdk.ProvenTxStatusCompleted

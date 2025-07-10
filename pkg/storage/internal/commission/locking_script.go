@@ -31,23 +31,23 @@ func (l *ScriptGenerator) SetOffsetGenerator(generator func() (*primitives.Priva
 
 // Generate creates a locking script and randomizes a key offset (WIF formatted private key) from the given public key.
 // NOTE: It is used to add Service Charge output to the transaction.
-func (l *ScriptGenerator) Generate() (lockingScript string, keyOffset string, err error) {
+func (l *ScriptGenerator) Generate() (lockingScript *script.Script, keyOffset string, err error) {
 	offsetPub, keyOffset, err := l.offsetPubKey()
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
 	address, err := script.NewAddressFromPublicKey(offsetPub, true)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create address from public key: %w", err)
+		return nil, "", fmt.Errorf("failed to create address from public key: %w", err)
 	}
 
 	lockingScriptObj, err := p2pkh.Lock(address)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create locking script: %w", err)
+		return nil, "", fmt.Errorf("failed to create locking script: %w", err)
 	}
 
-	return lockingScriptObj.String(), keyOffset, nil
+	return lockingScriptObj, keyOffset, nil
 }
 
 func (l *ScriptGenerator) offsetPubKey() (offsetPubKey *primitives.PublicKey, keyOffset string, err error) {
