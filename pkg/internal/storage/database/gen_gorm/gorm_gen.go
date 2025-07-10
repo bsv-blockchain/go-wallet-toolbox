@@ -47,7 +47,7 @@ func main() {
 
 func applyTransactionMethodWorkaround(filePath string) {
 	// Read the entire content of the generated file.
-	input, err := os.ReadFile(filePath)
+	input, err := os.ReadFile(filePath) //nolint:gosec
 	if err != nil {
 		log.Fatalf("WORKAROUND FAILED: Could not read generated file '%s': %v", filePath, err)
 	}

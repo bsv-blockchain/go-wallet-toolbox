@@ -3,6 +3,7 @@ package syncrepo
 import (
 	"context"
 	"fmt"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -134,7 +135,6 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 
 	return isNew, transactionID, nil
 }
-
 
 func (s *SyncTransaction) mapModelToTableTransaction(model *TransactionWithKnownTx) *wdk.TableTransaction {
 	return &wdk.TableTransaction{

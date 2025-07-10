@@ -2,7 +2,6 @@ package repo
 
 import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo/syncrepo"
-
 	"gorm.io/gorm"
 )
 
