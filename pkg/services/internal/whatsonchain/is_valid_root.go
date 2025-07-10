@@ -18,6 +18,9 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 	var lastErr error
 
 	for range woc.rootForHeightRetries {
+		if ctx.Err() != nil {
+			return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, ctx.Err())
+		}
 		ok, err := woc.fetchAndCompare(ctx, root, height)
 		if err == nil {
 			return ok, nil
