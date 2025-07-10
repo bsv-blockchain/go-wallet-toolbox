@@ -23,12 +23,6 @@ const (
 	// DefaultRootForHeightRetries is the number of retries for fetching the root for height validation
 	DefaultRootForHeightRetries = 3
 
-	// DefaultScriptHashHistoryRetries is the number of retries for fetching script hash history
-	DefaultScriptHashHistoryRetries = 2
-
-	// DefaultScriptHashHistoryRetryInterval is the interval between retries for fetching script hash history
-	DefaultScriptHashHistoryRetryInterval = 2 * time.Second
-
 	// ArcURL is the URL for the ARC service
 	ArcURL = "https://arc.taal.com"
 

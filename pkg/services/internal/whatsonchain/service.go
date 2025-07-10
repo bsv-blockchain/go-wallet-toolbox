@@ -34,10 +34,6 @@ type WhatsOnChain struct {
 	rootForHeightRetryInterval time.Duration
 	rootForHeightRetries       int
 	rootCache                  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
-
-	httpClientForScriptHashHistory *resty.Client
-	scriptHashHistoryRetries       int
-	scriptHashHistoryRetryInterval time.Duration
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
@@ -63,24 +59,17 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logging.IsDebug(logger))
 
-	clientForScriptHashHistory := client.
-		SetRetryCount(config.ScriptHashHistoryRetries).
-		SetRetryWaitTime(config.ScriptHashHistoryRetryInterval)
-
 	return &WhatsOnChain{
-		httpClient:                     client,
-		apiKey:                         config.APIKey,
-		url:                            url,
-		logger:                         logger,
-		bsvExchangeRate:                config.BSVExchangeRate,
-		bsvUpdateInterval:              to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
-		broadcastDelay:                 config.BroadcastDelay,
-		rootForHeightRetryInterval:     config.RootForHeightRetryInterval,
-		rootForHeightRetries:           config.RootForHeightRetries,
-		rootCache:                      make(map[uint32]*chainhash.Hash),
-		httpClientForScriptHashHistory: clientForScriptHashHistory,
-		scriptHashHistoryRetries:       config.ScriptHashHistoryRetries,
-		scriptHashHistoryRetryInterval: config.ScriptHashHistoryRetryInterval,
+		httpClient:                 client,
+		apiKey:                     config.APIKey,
+		url:                        url,
+		logger:                     logger,
+		bsvExchangeRate:            config.BSVExchangeRate,
+		bsvUpdateInterval:          to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
+		broadcastDelay:             config.BroadcastDelay,
+		rootForHeightRetryInterval: config.RootForHeightRetryInterval,
+		rootForHeightRetries:       config.RootForHeightRetries,
+		rootCache:                  make(map[uint32]*chainhash.Hash),
 	}
 }
 
@@ -214,12 +203,4 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 	}
 
 	return &wdk.PostedBEEF{TxIDResults: txResults}, nil
-}
-
-func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-	result, err := woc.GetScriptHistory(ctx, scriptHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get script history: %w", err)
-	}
-	return result, nil
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 func validateScriptHash(scriptHash string) error {
@@ -33,16 +33,14 @@ func validateScriptHash(scriptHash string) error {
 	return nil
 }
 
-func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) ([]wdk.ScriptHistoryItem, error) {
+func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) (iter.Seq[wdk.ScriptHistoryItem], error) {
 	var history dto.ScriptHashHistoryResponse
 	url := fmt.Sprintf("%s/script/%s/unconfirmed/history", woc.url, scriptHash)
-
-	res, err := woc.httpClientForScriptHashHistory.
+	res, err := woc.httpClient.
 		R().
 		SetContext(ctx).
 		SetResult(&history).
 		Get(url)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get unconfirmed script history: %w", err)
 	}
@@ -55,15 +53,14 @@ func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, script
 		return nil, fmt.Errorf("API error: %s", history.Error)
 	}
 
-	historyItems := slices.Map(history.Result, toScriptHistoryItem)
+	historyItems := seq.Map(seq.FromSlice(history.Result), toScriptHistoryItem)
 	return historyItems, nil
 }
 
-func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHash string) ([]wdk.ScriptHistoryItem, error) {
+func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHash string) (iter.Seq[wdk.ScriptHistoryItem], error) {
 	var history dto.ScriptHashHistoryResponse
 	url := fmt.Sprintf("%s/script/%s/confirmed/history", woc.url, scriptHash)
-
-	res, err := woc.httpClientForScriptHashHistory.
+	res, err := woc.httpClient.
 		R().
 		SetContext(ctx).
 		SetResult(&history).
@@ -80,12 +77,12 @@ func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHa
 		return nil, fmt.Errorf("API error: %s", history.Error)
 	}
 
-	historyItems := slices.Map(history.Result, toScriptHistoryItem)
+	historyItems := seq.Map(seq.FromSlice(history.Result), toScriptHistoryItem)
 	return historyItems, nil
 }
 
-// GetScriptHistory retrieves both confirmed and unconfirmed script history.
-func (woc *WhatsOnChain) GetScriptHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
+// GetScriptHashHistory retrieves both confirmed and unconfirmed script history.
+func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
 	if err := validateScriptHash(scriptHash); err != nil {
 		return nil, err
 	}
@@ -99,7 +96,7 @@ func (woc *WhatsOnChain) GetScriptHistory(ctx context.Context, scriptHash string
 		return nil, err
 	}
 
-	combinedHistory := seq.Collect(seq.Concat(seq.FromSlice(confirmedHistory), seq.FromSlice(unconfirmedHistory)))
+	combinedHistory := seq.Collect(seq.Concat(confirmedHistory, unconfirmedHistory))
 
 	return &wdk.ScriptHistoryResult{
 		Name:       ServiceName,

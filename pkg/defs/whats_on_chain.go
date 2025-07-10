@@ -13,9 +13,6 @@ type WhatsOnChain struct {
 	BSVUpdateInterval          *time.Duration  `mapstructure:"bsv_update_interval"`
 	RootForHeightRetryInterval time.Duration   `mapstructure:"root_for_height_retry_interval"`
 	RootForHeightRetries       int             `mapstructure:"root_for_height_retries"`
-
-	ScriptHashHistoryRetries       int           `mapstructure:"script_hash_history_retries"`
-	ScriptHashHistoryRetryInterval time.Duration `mapstructure:"script_hash_history_retry_interval"`
 }
 
 // Validate checks if the WhatsOnChain configuration is valid

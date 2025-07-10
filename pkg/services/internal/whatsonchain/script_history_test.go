@@ -24,7 +24,7 @@ func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestServices_GetScriptHistory_EmptyHistory(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestWhatsOnChain_GetScriptHistory_ConfirmedAPIError(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.Error(t, err)
@@ -100,7 +100,7 @@ func TestWhatsOnChain_GetScriptHistory_UnconfirmedAPIError(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.Error(t, err)
@@ -162,7 +162,7 @@ func TestGetScriptHistory_LargeHistory(t *testing.T) {
 			woc := given.NewWoCService()
 
 			// when
-			result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+			result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 			// then
 			require.NoError(t, err)
@@ -212,7 +212,7 @@ func TestWhatsOnChain_GetScriptHistory_ValidationErrors(t *testing.T) {
 	for name, testCase := range invalidTestCases {
 		t.Run(name, func(t *testing.T) {
 			// when
-			result, err := woc.GetScriptHistory(t.Context(), testCase.scriptHash)
+			result, err := woc.GetScriptHashHistory(t.Context(), testCase.scriptHash)
 
 			// then
 			require.Error(t, err)
@@ -236,7 +236,7 @@ func TestWhatsOnChain_GetScriptHistory_HTTPError(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.Error(t, err)
@@ -259,7 +259,7 @@ func TestWhatsOnChain_GetScriptHistory_OnlyConfirmed(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.NoError(t, err)
@@ -284,7 +284,7 @@ func TestWhatsOnChain_GetScriptHistory_OnlyUnconfirmed(t *testing.T) {
 	woc := given.NewWoCService()
 
 	// when
-	result, err := woc.GetScriptHistory(t.Context(), scriptHash)
+	result, err := woc.GetScriptHashHistory(t.Context(), scriptHash)
 
 	// then
 	require.NoError(t, err)
