@@ -49,6 +49,10 @@ func (c *SetupConfig) Validate() error {
 		return fmt.Errorf("invalid BSV network: %w", err)
 	}
 
+	if c.Network == "" {
+		return fmt.Errorf("network is required")
+	}
+
 	if c.ServerURL == "" {
 		return fmt.Errorf("server_url is required")
 	}
@@ -60,6 +64,7 @@ func (c *SetupConfig) Validate() error {
 	if c.Bob.IdentityKey == "" || c.Bob.PrivateKey == "" {
 		return fmt.Errorf("bob.identity_key and bob.private_key are required")
 	}
+	
 	return nil
 }
 
