@@ -24,15 +24,15 @@ type Environment struct {
 }
 
 type SetupConfig struct {
-	Network   defs.BSVNetwork `mapstructure:"network"`
-	ServerURL string          `mapstructure:"server_url"`
-	Alice     UserConfig      `mapstructure:"alice"`
-	Bob       UserConfig      `mapstructure:"bob"`
+	Network   defs.BSVNetwork `mapstructure:"network" yaml:"network"`
+	ServerURL string          `mapstructure:"server_url" yaml:"server_url"`
+	Alice     UserConfig      `mapstructure:"alice" yaml:"alice"`
+	Bob       UserConfig      `mapstructure:"bob" yaml:"bob"`
 }
 
 type UserConfig struct {
-	IdentityKey string `mapstructure:"identity_key"`
-	PrivateKey  string `mapstructure:"private_key"`
+	IdentityKey string `mapstructure:"identity_key" yaml:"identity_key"`
+	PrivateKey  string `mapstructure:"private_key" yaml:"private_key"`
 }
 
 func defaultSetupConfig() SetupConfig {
@@ -64,8 +64,12 @@ func (c *SetupConfig) Validate() error {
 	if c.Bob.IdentityKey == "" || c.Bob.PrivateKey == "" {
 		return fmt.Errorf("bob.identity_key and bob.private_key are required")
 	}
-	
+
 	return nil
+}
+
+func (c *SetupConfig) ToYAMLFile(filename string) error {
+	return config.ToYAMLFile(c, filename)
 }
 
 func loadConfig() (*SetupConfig, error) {
