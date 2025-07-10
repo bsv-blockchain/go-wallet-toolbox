@@ -420,15 +420,13 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
 		InputDescription:      "provided unknown-by-storage input",
 	}}
-	inputBEEF, err := unknownParentTx.TX().BEEF()
-	require.NoError(t, err)
-	args.InputBEEF = inputBEEF
+	args.InputBEEF = unknownParentTx.BEEF().Bytes()
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -455,7 +453,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
-	assert.Equal(t, input.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, input.SourceTxID, unknownParentTx.ID().String())
 	assert.Equal(t, uint32(0), input.SourceVout)
 	assert.Equal(t, int64(100_000), input.SourceSatoshis)
 	assert.NotEmpty(t, input.SourceLockingScript)
@@ -483,15 +481,13 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
 		InputDescription:      "provided unknown-by-storage input",
 	}}
-	inputBEEF, err := unknownParentTx.TX().BEEF()
-	require.NoError(t, err)
-	args.InputBEEF = inputBEEF
+	args.InputBEEF = unknownParentTx.BEEF().Bytes()
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -518,7 +514,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
-	assert.Equal(t, input.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, input.SourceTxID, unknownParentTx.ID().String())
 	assert.Equal(t, uint32(0), input.SourceVout)
 	assert.Equal(t, int64(100_000), input.SourceSatoshis)
 	assert.NotEmpty(t, input.SourceLockingScript)
@@ -549,15 +545,13 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
 		InputDescription:      "provided unknown-by-storage input",
 	}}
-	inputBEEF, err := unknownParentTx.TX().BEEF()
-	require.NoError(t, err)
-	args.InputBEEF = inputBEEF
+	args.InputBEEF = unknownParentTx.BEEF().Bytes()
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -584,7 +578,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	require.Equal(t, 2, len(result.Inputs))
 	providedInput := result.Inputs[0]
 	assert.Equal(t, 0, providedInput.Vin)
-	assert.Equal(t, providedInput.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, providedInput.SourceTxID, unknownParentTx.ID().String())
 	assert.Equal(t, uint32(0), providedInput.SourceVout)
 	assert.Equal(t, int64(25_000), providedInput.SourceSatoshis)
 	assert.NotEmpty(t, providedInput.SourceLockingScript)
@@ -596,7 +590,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 
 	allocatedInput := result.Inputs[1]
 	assert.Equal(t, 1, allocatedInput.Vin)
-	assert.Equal(t, allocatedInput.SourceTxID, ownedTxSpec.ID())
+	assert.Equal(t, allocatedInput.SourceTxID, ownedTxSpec.ID().String())
 	assert.Equal(t, uint32(0), allocatedInput.SourceVout)
 	assert.Equal(t, int64(25_000), allocatedInput.SourceSatoshis)
 	assert.Equal(t, wdk.ProvidedByStorage, allocatedInput.ProvidedBy)
@@ -623,7 +617,7 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
