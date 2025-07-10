@@ -44,32 +44,40 @@ func defaultSetupConfig() SetupConfig {
 	}
 }
 
+func (u *UserConfig) Verify() error {
+	if len(u.IdentityKey) == 0 {
+		return fmt.Errorf("identity key value is required")
+	}
+
+	if len(u.PrivateKey) == 0 {
+		return fmt.Errorf("private key value is required")
+	}
+	
+	return nil
+}
+
 func (c *SetupConfig) Validate() error {
 	if _, err := defs.ParseBSVNetworkStr(string(c.Network)); err != nil {
 		return fmt.Errorf("invalid BSV network: %w", err)
-	}
-
-	if c.Network == "" {
-		return fmt.Errorf("network is required")
 	}
 
 	if c.ServerURL == "" {
 		return fmt.Errorf("server_url is required")
 	}
 
-	if c.Alice.IdentityKey == "" || c.Alice.PrivateKey == "" {
-		return fmt.Errorf("alice.identity_key and alice.private_key are required")
+	if err := c.Alice.Verify(); err != nil {
+		return fmt.Errorf("alice user config is invalid: %w", err)
 	}
 
-	if c.Bob.IdentityKey == "" || c.Bob.PrivateKey == "" {
-		return fmt.Errorf("bob.identity_key and bob.private_key are required")
+	if err := c.Bob.Verify(); err != nil {
+		return fmt.Errorf("bob user config is invalid: %w", err)
 	}
-	
+
 	return nil
 }
 
 func loadConfig() (*SetupConfig, error) {
-	configFile := "examples/internal/example_setup/examples-config.yaml"
+	const configFile = "examples/internal/example_setup/examples-config.yaml"
 	loader := config.NewLoader(defaultSetupConfig, "EXAMPLE_SETUP")
 
 	err := loader.SetConfigFilePath(configFile)
