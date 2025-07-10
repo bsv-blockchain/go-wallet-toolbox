@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"gorm.io/gorm"
@@ -77,6 +78,8 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConnections)
 	sqlDB.SetConnMaxLifetime(cfg.MaxConnectionTime)
 	sqlDB.SetConnMaxIdleTime(cfg.MaxConnectionIdleTime)
+
+	genquery.SetDefault(db)
 
 	return db, nil
 }

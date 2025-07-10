@@ -25,12 +25,12 @@ func main() {
 
 	root, err := chainhash.NewHashFromHex(rootHex)
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse root hex %s: %v", rootHex, err))
+		panic(fmt.Errorf("failed to parse root hex %s: %w", rootHex, err))
 	}
 
 	ok, err := srv.IsValidRootForHeight(context.Background(), root, height)
 	if err != nil {
-		panic(fmt.Sprintf("IsValidRootForHeight failed: %v", err))
+		panic(fmt.Errorf("IsValidRootForHeight failed: %w", err))
 	}
 
 	show.IsValidRootForHeightOutput(height, rootHex, ok)
