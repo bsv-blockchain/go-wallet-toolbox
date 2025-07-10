@@ -6,6 +6,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
@@ -40,11 +41,57 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 	return provenTxReqs, provenTxs, nil
 }
 
+func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
+	model := models.KnownTx{
+		CreatedAt:   entity.CreatedAt,
+		UpdatedAt:   entity.UpdatedAt,
+		TxID:        entity.TxID,
+		Status:      entity.Status,
+		Attempts:    entity.Attempts,
+		Notified:    entity.Notified,
+		RawTx:       entity.RawTx,
+		InputBeef:   entity.InputBEEF,
+		BlockHeight: entity.BlockHeight,
+		MerklePath:  entity.MerklePath,
+		MerkleRoot:  entity.MerkleRoot,
+		BlockHash:   entity.BlockHash,
+	}
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updateTx := tx.Model(&models.KnownTx{}).
+			Where("tx_id = ?", entity.TxID).
+			Updates(model)
+
+		if updateTx.Error != nil {
+			return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
+		}
+
+		if updateTx.RowsAffected > 0 {
+			return nil
+		}
+
+		err := tx.Create(&model).Error
+		if err != nil {
+			return fmt.Errorf("failed to create proven tx req: %w", err)
+		}
+
+		isNew = true
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, nil
+}
+
 func (s *SyncKnownTx) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		whereExistClause := fmt.Sprintf(
 			"EXISTS (SELECT 1 FROM %s as user_tx WHERE user_tx.tx_id = %s.tx_id AND user_tx.user_id = ?)",
-			"bsv_transactions", //TODO
+			genquery.Transaction.TableName(),
 			s.tableName(),
 		)
 
