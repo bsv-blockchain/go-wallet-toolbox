@@ -83,9 +83,7 @@ func loadConfig() (*SetupConfig, error) {
 
 	cfg, err := loader.Load()
 	if err != nil {
-		//TODO: add error message description to run the config generator if the config file is not found.
-		// Config generator will be part of another PR.
-		return nil, fmt.Errorf("failed to load config from %s: %w", configFile, err)
+		return nil, fmt.Errorf("failed to load config from %s, to setup the config file run examples_config_gen: %w ", configFile, err)
 	}
 
 	err = cfg.Validate()
