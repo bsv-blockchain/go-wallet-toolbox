@@ -98,11 +98,6 @@ func CreateAlice() *Setup {
 		panic(fmt.Errorf("failed to load config: %w", err))
 	}
 
-	err = cfg.Validate()
-	if err != nil {
-		panic(fmt.Errorf("config validation failed: %w", err))
-	}
-
 	privateKey, err := ec.PrivateKeyFromHex(cfg.Alice.PrivateKey)
 	if err != nil {
 		panic(fmt.Errorf("failed to parse Alice's private key: %w", err))
