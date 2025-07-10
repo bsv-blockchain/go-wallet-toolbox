@@ -22,6 +22,7 @@ type BitailsFixture interface {
 	WillReturnBlockHeader(blockHash, rawHeader string)
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
 	WillReturnTxStatus(txid string, blockHeight int)
+	WillReturnNetworkInfo(status int, blocks uint32)
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
 }
@@ -217,4 +218,12 @@ func (f *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
+}
+
+func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
+	b.TB.Helper()
+
+	body := map[string]any{"blocks": blocks}
+	pat := `=~.*?/network/info$`
+	b.transport.RegisterResponder(http.MethodGet, pat, httpmock.NewJsonResponderOrPanic(status, body))
 }

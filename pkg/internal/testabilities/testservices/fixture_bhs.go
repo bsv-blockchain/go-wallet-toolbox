@@ -7,9 +7,11 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type longestChainTipResponse struct {
@@ -37,6 +39,8 @@ type BHSFixture interface {
 	WillRespondWithInternalFailure()
 	WillRespondWithEmptyLongestTipBlockHeader()
 	OnLongestTipBlockHeaderResponseWith(opts ...LongestChainTipOptions)
+	DefaultLongestTip() *longestChainTipResponse
+	HttpClient() *resty.Client
 }
 
 type bhsFixture struct {
@@ -47,8 +51,9 @@ type bhsFixture struct {
 
 func (b *bhsFixture) WillRespondWithEmptyLongestTipBlockHeader() {
 	b.transport.RegisterResponder(
-		http.MethodGet, defs.BHSTestURL+"/chain/tip/longest",
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, longestChainTipResponse{}),
+		http.MethodGet,
+		defs.BHSTestURL+tipLongestPath,
+		httpmock.NewStringResponder(http.StatusOK, "{}"),
 	)
 }
 
@@ -81,9 +86,15 @@ func (b *bhsFixture) WillBeUnreachable() error {
 }
 
 func (b *bhsFixture) IsUpAndRunning() BHSFixture {
+	resp := map[string]any{
+		"header":    b.longestChainTip,
+		"height":    b.longestChainTip.Height,
+		"state":     "ACTIVE",
+		"chainWork": 0,
+	}
 	b.transport.RegisterResponder(
-		http.MethodGet, defs.BHSTestURL+"/chain/tip/longest",
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, b.longestChainTip),
+		http.MethodGet, defs.BHSTestURL+tipLongestPath,
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, resp),
 	)
 	return b
 }
@@ -114,5 +125,17 @@ func newDefaultLongestChainTipResponse() *longestChainTipResponse {
 	}
 }
 
+const tipLongestPath = "/api/v1/chain/tip/longest"
+
 var bhsTestURLWithoutHTTPprefix = defs.BHSTestURL[7:]
-var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s(?:\/.*)?$`, bhsTestURLWithoutHTTPprefix))
+var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s%s$`, regexp.QuoteMeta(bhsTestURLWithoutHTTPprefix), tipLongestPath))
+
+func (f *bhsFixture) HttpClient() *resty.Client {
+	client := resty.New()
+	client.SetTransport(f.transport)
+	return client
+}
+
+func (b *bhsFixture) DefaultLongestTip() *longestChainTipResponse {
+	return b.longestChainTip
+}

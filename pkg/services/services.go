@@ -33,6 +33,7 @@ type WalletServices struct {
 	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
 	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
 	validatorServices     servicequeue.Queue2[*chainhash.Hash, uint32, bool]
+	heightServices        servicequeue.Queue[uint32]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -92,6 +93,14 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"IsValidRootForHeight",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsValidRootForHeight),
 		),
+
+		heightServices: servicequeue.NewQueue(
+			logger,
+			"GetHeight",
+			servicequeue.NewService(bhs.ServiceName, bhsService.GetHeight),
+			servicequeue.NewService(whatsonchain.ServiceName, wocService.GetHeight),
+			servicequeue.NewService(bitails.ServiceName, bitailsService.GetHeight),
+		),
 	}
 }
 
@@ -132,7 +141,12 @@ func (s *WalletServices) HeaderForHeight(height int64) ([]int64, error) {
 
 // Height returns the height of the active chain
 func (s *WalletServices) Height() int64 {
-	panic("Not implemented yet")
+	h, err := s.heightServices.OneByOne(context.TODO())
+	if err != nil {
+		s.logger.Warn("all GetHeight providers failed", "error", err)
+		return 0
+	}
+	return int64(h)
 }
 
 // BsvExchangeRate returns approximate exchange rate US Dollar / BSV, USD / BSV
