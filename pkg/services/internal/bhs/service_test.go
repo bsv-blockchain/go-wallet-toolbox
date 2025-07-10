@@ -25,8 +25,7 @@ func TestBlockHeadersService_GetHeight(t *testing.T) {
 		{
 			name: "happy path",
 			setup: func(f testservices.BHSFixture) {
-				f.OnLongestTipBlockHeaderResponseWith(
-					testservices.WithLongestChainTipHeight(good))
+				f.OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(good))
 				f.IsUpAndRunning()
 			},
 			wantValue: uint32(good),
@@ -55,8 +54,7 @@ func TestBlockHeadersService_GetHeight(t *testing.T) {
 		{
 			name: "height overflows uint32",
 			setup: func(f testservices.BHSFixture) {
-				f.OnLongestTipBlockHeaderResponseWith(
-					testservices.WithLongestChainTipHeight(overflow))
+				f.OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(overflow))
 				f.IsUpAndRunning()
 			},
 			wantErr: true,
@@ -65,13 +63,16 @@ func TestBlockHeadersService_GetHeight(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// given:
 			fix := bhsTst.Given(t)
 			tc.setup(fix.BHS())
 
 			svc := fix.NewBHSService()
 
+			// when:
 			got, err := svc.GetHeight(t.Context())
 
+			// then:
 			if tc.wantErr {
 				require.Error(t, err)
 				return
@@ -137,12 +138,16 @@ func TestBlockHeadersService_FindChainTipHeader(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// given:
 			fix := bhsTst.Given(t)
 			tc.setup(fix.BHS())
 
 			svc := fix.NewBHSService()
+
+			// when:
 			got, err := svc.FindChainTipHeader(t.Context())
 
+			// then:
 			if tc.wantErr {
 				require.Error(t, err)
 				require.Nil(t, got)

@@ -23,8 +23,7 @@ func TestWalletServices_Height(t *testing.T) {
 		{
 			name: "WhatsOnChain succeeds (primary)",
 			setup: func(f ts.ServicesFixture) {
-				f.WhatsOnChain().
-					WillRespondWithChainInfo(http.StatusOK, wocTip)
+				f.WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, wocTip)
 			},
 			expectValue: int64(wocTip),
 		},
@@ -32,8 +31,7 @@ func TestWalletServices_Height(t *testing.T) {
 			name: "WoC unreachable → Bitails succeeds (first fallback)",
 			setup: func(f ts.ServicesFixture) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
-				f.Bitails().
-					WillReturnNetworkInfo(http.StatusOK, bitTip)
+				f.Bitails().WillReturnNetworkInfo(http.StatusOK, bitTip)
 			},
 			expectValue: int64(bitTip),
 		},
@@ -43,10 +41,7 @@ func TestWalletServices_Height(t *testing.T) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 				f.Bitails().WillReturnNetworkInfo(http.StatusBadGateway, 0)
 
-				// mock BHS tip height
-				f.BHS().
-					OnLongestTipBlockHeaderResponseWith(
-						ts.WithLongestChainTipHeight(uint(bhsTip)))
+				f.BHS().OnLongestTipBlockHeaderResponseWith(ts.WithLongestChainTipHeight(uint(bhsTip)))
 				f.BHS().IsUpAndRunning()
 			},
 			expectValue: int64(bhsTip),

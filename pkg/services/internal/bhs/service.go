@@ -75,7 +75,7 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 	}
 
 	if block.IsZero() {
-		return nil, fmt.Errorf("unexpected response from  Block Headers Service API (URL: %s). Received an empty block header response", url)
+		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s). Received an empty block header response", url)
 	}
 
 	return block.ConvertToChainBlockHeader(), nil

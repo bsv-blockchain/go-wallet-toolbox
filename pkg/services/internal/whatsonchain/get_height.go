@@ -8,9 +8,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-// chainInfoDTO is the payload returned by
-//
-//	GET /v1/bsv/<network>/chain/info
+// GET /v1/bsv/<network>/chain/info
 type chainInfoDTO struct {
 	Blocks uint64 `json:"blocks"`
 }

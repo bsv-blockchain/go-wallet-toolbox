@@ -4,14 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
-	"time"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
-
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 /*
@@ -96,97 +92,33 @@ func main() {
 		panic(fmt.Errorf("failed to get MerklePath: %w", err))
 	}
 
-	printMetadata(result, txID)
-	fmt.Print("\n\n")
-	printMerklePath(result.MerklePath, "Merkle Path for txID: "+txID)
+    show.MerklePathOutput(result, txID)
 }
 
-func renderTable(title string, headers []string, rows [][]string) {
-	if title != "" {
-		fmt.Printf("%s\n", title)
-	}
-
-	colWidth := make([]int, len(headers))
-	for i, h := range headers {
-		colWidth[i] = len(h)
-	}
-	for _, row := range rows {
-		for i, cell := range row {
-			if l := len(cell); l > colWidth[i] {
-				colWidth[i] = l
-			}
-		}
-	}
-
-	printRow := func(cells []string) {
-		for i, cell := range cells {
-			fmt.Printf("%-*s  ", colWidth[i], cell)
-		}
-		fmt.Println()
-	}
-
-	printRow(headers)
-
-	for i := range headers {
-		fmt.Printf("%s  ", strings.Repeat("-", colWidth[i]))
-	}
-	fmt.Println()
-
-	for _, row := range rows {
-		printRow(row)
-	}
-}
-
-func printMetadata(result *wdk.MerklePathResult, txID string) {
-	var rows [][]string
-
-	rows = append(rows, []string{"Service", result.Name})
-
-	if result.BlockHeader != nil {
-		rows = append(rows,
-			[]string{"Block Hash", result.BlockHeader.Hash},
-			[]string{"Block Height", fmt.Sprint(result.BlockHeader.Height)},
-			[]string{"Merkle Root", result.BlockHeader.MerkleRoot},
-		)
-	}
-
-	for _, note := range result.Notes {
-		rows = append(rows,
-			[]string{"Note", fmt.Sprintf("%s at %s", note.What, note.When.Format(time.RFC3339))},
-		)
-	}
-
-	root, err := result.MerklePath.ComputeRootHex(&txID)
-	if err != nil {
-		rows = append(rows, []string{"Computed Merkle Root", fmt.Sprintf("ERROR: %v", err)})
-	} else {
-		rows = append(rows, []string{"Computed Merkle Root", root})
-	}
-
-	renderTable("Merkle Path Metadata", []string{"Field", "Value"}, rows)
-}
-
-func printMerklePath(tbl *transaction.MerklePath, title string) {
-	var rows [][]string
-
-	for lvl, elems := range tbl.Path {
-		for _, el := range elems {
-			isTx := ""
-			if el.Txid != nil && *el.Txid {
-				isTx = "yes"
-			}
-			rows = append(rows, []string{
-				fmt.Sprint(lvl),
-				fmt.Sprint(el.Offset),
-				el.Hash.String(),
-				isTx,
-			})
-		}
-	}
-
-	renderTable(
-		fmt.Sprintf("Block Height: %d | %s", tbl.BlockHeight, title),
-		[]string{"Level", "Offset", "Hash", "Is TxID"},
-		rows,
-	)
-}
+// Output:
+// Merkle Path Metadata
+// Field                 Value
+// --------------------  ----------------------------------------------------------------
+// Service               WhatsOnChain
+// Block Hash            000000000000000004f576c9cdc2b0ee65f04c3f03c08529c380d6a76d262641
+// Block Height          903321
+// Merkle Root           559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd
+// Computed Merkle Root  559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd
+//
+//
+// Block Height: 903321 | Merkle Path for txID: 9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6
+// Level  Offset  Hash                                                              Is TxID
+// -----  ------  ----------------------------------------------------------------  -------
+// 0      0       9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6  yes
+// 0      1       7614658ca0007fa36b4634a53ae3d4be5207414cccd2a418578b77df5ecce63b
+// 1      1       1580364a629685228cb2527893da2553e93a0c8963d9993f76daf1a0d9becd36
+// 2      1       f45a57b6c15a3ca2aa849fa85e224c75a9d9fcc3dffb783ec6445b872079d00f
+// 3      1       a18f3c6fc6fd079a7a8a89a71ad134138418e2e1e8d42654eb7d4b788b47d800
+// 4      1       44f1abc430ea7717f86ca084fd4a5cb20d71d9cb66e2395ec88b5d7bc58f441f
+// 5      1       e8298fc5360ecfe64f22d2442097afcc6307b02d8b718d5588c8b2b07111407b
+// 6      1       e27a8ad3d36d00ad37de836dde518fcfcba6c3067f6a5c227a37cddac877fec0
+// 7      1       56b45af75b2f3d53f80baa93b7ec249b734c5655092805c0fe1d8933d36d517c
+// 8      1       4cf9c5fffb8ee4f2d6c68786059bc54a980f050f99da9f627e21c82f2f1787c6
+// 9      1       2d321206df2b0faea962902329fdd0a519e1d154925714bd284dc80c97b32cbd
+// 10     1       3a27e54bf59f2612512519ce7d6315da551e4572d948fc8c9c5d0058ccfca608
+// 11     1       53bb438fa84b1d17289d5bd5ce696350dc5a3887ab4011ea28dea8eecf1b137e

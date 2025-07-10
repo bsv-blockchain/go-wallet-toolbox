@@ -20,7 +20,7 @@ type bhsServiceFixture struct {
 	t testing.TB
 }
 
-// Given returns a fixture wired to the shared ServicesFixture (so you can still
+// Given returns a fixture wired to the shared ServicesFixture
 func Given(t testing.TB) BHSServiceFixture {
 	return &bhsServiceFixture{
 		ServicesFixture: testservices.GivenServices(t),

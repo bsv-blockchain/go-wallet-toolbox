@@ -1,10 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log/slog"
-	"strings"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
@@ -29,37 +28,12 @@ func main() {
 
 	height := srv.Height()
 
-	headers := []string{"Current Tip Height"}
-	rows := [][]string{{fmt.Sprint(height)}}
-	printTable(headers, rows)
+	show.HeightOutput(height)
 }
 
-// printTable replicates the tiny helper used in the other examples
-func printTable(headers []string, rows [][]string) {
-	colW := make([]int, len(headers))
-	for i, h := range headers {
-		colW[i] = len(h)
-	}
-	for _, r := range rows {
-		for i, cell := range r {
-			if len(cell) > colW[i] {
-				colW[i] = len(cell)
-			}
-		}
-	}
-	printRow := func(cells []string) {
-		for i, c := range cells {
-			fmt.Printf("%-*s  ", colW[i], c)
-		}
-		fmt.Println()
-	}
-
-	printRow(headers)
-	for i := range headers {
-		fmt.Printf("%s  ", strings.Repeat("-", colW[i]))
-	}
-	fmt.Println()
-	for _, r := range rows {
-		printRow(r)
-	}
-}
+// Output:
+// Get Height:
+// Current Tip Height
+// 903321
+//
+// Current Tip Height: 903321
