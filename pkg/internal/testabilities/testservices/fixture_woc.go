@@ -233,7 +233,7 @@ func (f *wocFixture) WillRespondWithMerklePath(status int, txID, responseBody st
 		return resp, nil
 	}
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/proof/tsc", f.network, txID)
-	f.transport.RegisterResponder("GET", url, responder)
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
 func (f *wocFixture) WillRespondWithBlockHeader(status int, blockHash, responseBody string) {
@@ -243,7 +243,7 @@ func (f *wocFixture) WillRespondWithBlockHeader(status int, blockHash, responseB
 		return resp, nil
 	}
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/%s/header", f.network, blockHash)
-	f.transport.RegisterResponder("GET", url, responder)
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
 func (f *wocFixture) WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture {
@@ -272,11 +272,11 @@ func (f *wocFixture) WillRespondWithBroadcast(status int, responseBody string) {
 	}
 
 	url := mockBroadcastURL(f.network)
-	f.transport.RegisterResponder("POST", url, responder)
+	f.transport.RegisterResponder(http.MethodPost, url, responder)
 }
 
 func (f *wocFixture) WillAlwaysReturnPostBEEFSuccess(txids ...string) {
-	f.Transport().RegisterResponder("POST", mockBroadcastURL(f.network), func(req *http.Request) (*http.Response, error) {
+	f.Transport().RegisterResponder(http.MethodPost, mockBroadcastURL(f.network), func(req *http.Request) (*http.Response, error) {
 		var body struct {
 			TxHex string `json:"txhex"`
 		}
@@ -313,7 +313,7 @@ type TxStatusExpectation struct {
 func (f *wocFixture) WillRespondOnTxStatus(status int, tc TxStatusExpectation) {
 	f.TB.Helper()
 
-	f.transport.RegisterResponder("POST",
+	f.transport.RegisterResponder(http.MethodPost,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/txs/status", f.network),
 		func(req *http.Request) (*http.Response, error) {
 			var body struct {
@@ -475,7 +475,7 @@ func (q *wocScriptHistoryQueryFixture) WillReturnConfirmedHistory(status int, re
 		return resp, nil
 	}
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", q.fixture.network, q.scriptHash)
-	q.fixture.transport.RegisterResponder("GET", url, responder)
+	q.fixture.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
 func (q *wocScriptHistoryQueryFixture) WillReturnUnconfirmedHistory(status int, responseJSON string) {
@@ -485,7 +485,7 @@ func (q *wocScriptHistoryQueryFixture) WillReturnUnconfirmedHistory(status int, 
 		return resp, nil
 	}
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unconfirmed/history", q.fixture.network, q.scriptHash)
-	q.fixture.transport.RegisterResponder("GET", url, responder)
+	q.fixture.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
 func (q *wocScriptHistoryQueryFixture) WillReturnHTTPError(status int) {
