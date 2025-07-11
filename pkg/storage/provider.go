@@ -30,9 +30,10 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo        *repo.Repositories
-	actions     *actions.Actions
-	syncActions *sync.Actions
+	repo         *repo.Repositories
+	actions      *actions.Actions
+	random       wdk.Randomizer
+	parentLogger *slog.Logger
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -84,9 +85,10 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Chain:    config.Chain,
 		Database: db,
 
-		repo:        repos,
-		actions:     actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
-		syncActions: sync.New(logger, repos, random),
+		repo:         repos,
+		actions:      actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		random:       random,
+		parentLogger: logger,
 	}, nil
 }
 
@@ -410,7 +412,7 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 
-	chunk, err := p.syncActions.GetSyncChunk(ctx, &args)
+	chunk, err := sync.NewGetSyncChunkAction(p.parentLogger, p.repo, &args).Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sync chunk: %w", err)
 	}
@@ -423,7 +425,9 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 		return nil, ErrAuthorization
 	}
 
-	syncStateResponse, err := p.syncActions.FindOrInsertSyncState(ctx, *auth.UserID, storageIdentityKey, storageName)
+	action := sync.NewFindOrInsertSyncState(p.repo, p.random, *auth.UserID, storageIdentityKey, storageName)
+	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)
 	}

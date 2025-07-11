@@ -64,7 +64,7 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 		p.result.MaxUpdatedAt = p.syncState.When
 		p.result.Done = true
 
-		return nil, nil
+		return &p.result, nil
 	}
 
 	for _, basket := range p.chunk.OutputBaskets {
