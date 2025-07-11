@@ -23,6 +23,7 @@ type ChunkProcessor struct {
 	syncState       *entity.SyncState
 	basketNameCache map[uint]string
 	labelCache      map[uint]*entity.Label
+	tagCache        map[uint]*entity.Tag
 }
 
 func NewChunkProcessor(ctx context.Context, repo Repository, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *entity.User) *ChunkProcessor {
@@ -34,6 +35,7 @@ func NewChunkProcessor(ctx context.Context, repo Repository, chunk *wdk.SyncChun
 		user:            user,
 		basketNameCache: map[uint]string{},
 		labelCache:      map[uint]*entity.Label{},
+		tagCache:        map[uint]*entity.Tag{},
 	}
 }
 
@@ -105,6 +107,18 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 
 	for _, labelMap := range p.chunk.TxLabelMaps {
 		if err = p.upsertLabelMap(labelMap); err != nil {
+			return nil, fmt.Errorf("failed to upsert label map: %w", err)
+		}
+	}
+
+	for _, tag := range p.chunk.OutputTags {
+		if err = p.upsertTag(tag); err != nil {
+			return nil, fmt.Errorf("failed to upsert label: %w", err)
+		}
+	}
+
+	for _, tagMap := range p.chunk.OutputTagMaps {
+		if err = p.upsertTagMap(tagMap); err != nil {
 			return nil, fmt.Errorf("failed to upsert label map: %w", err)
 		}
 	}
@@ -333,13 +347,21 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		}
 	}
 
-	isNew, _, err := p.repo.UpsertOutputForSync(p.ctx, output)
+	isNew, outputID, err := p.repo.UpsertOutputForSync(p.ctx, output)
 	if err != nil {
 		return fmt.Errorf("failed to upsert output for transaction ID %d, vout %d: %w", chunkOutput.TransactionID, chunkOutput.Vout, err)
 	}
 
+	readerID, err := to.IntFromUnsigned(chunkOutput.OutputID)
+	if err != nil {
+		return fmt.Errorf("failed to convert output ID %d to int: %w", chunkOutput.OutputID, err)
+	}
+
 	p.incrementOperations(isNew)
-	err = p.updateSyncState(wdk.OutputEntityName, chunkOutput.UpdatedAt, 1)
+	err = p.updateSyncState(wdk.OutputEntityName, chunkOutput.UpdatedAt, 1, idDictionary{
+		readerID: readerID,
+		writerID: outputID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update sync state for output with transaction ID %d and vout %d: %w", chunkOutput.TransactionID, chunkOutput.Vout, err)
 	}
@@ -456,6 +478,115 @@ func (p *ChunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) erro
 	return nil
 }
 
+func (p *ChunkProcessor) upsertTag(chunkTag *wdk.TableOutputTag) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkTag.UserID {
+		return fmt.Errorf("chunk tag user ID %d does not match chunk user ID %d", chunkTag.UserID, p.chunk.User.UserID)
+	}
+
+	entityTag := &entity.Tag{
+		CreatedAt: chunkTag.CreatedAt,
+		UpdatedAt: chunkTag.UpdatedAt,
+		UserID:    p.user.ID,
+		Name:      chunkTag.Tag,
+	}
+
+	if chunkTag.IsDeleted {
+		deleted, err := p.repo.DeleteTagForSync(p.ctx, entityTag)
+		if err != nil {
+			return fmt.Errorf("failed to delete tag %q: %w", chunkTag.Tag, err)
+		}
+
+		if deleted {
+			p.incrementOperations(false)
+		}
+		return nil
+	}
+
+	isNew, tagNumID, err := p.repo.UpsertTagForSync(p.ctx, entityTag)
+	if err != nil {
+		return fmt.Errorf("failed to upsert tag %q: %w", chunkTag.Tag, err)
+	}
+
+	readerID, err := to.IntFromUnsigned(chunkTag.OutputTagID)
+	if err != nil {
+		return fmt.Errorf("failed to convert tag ID %d to int: %w", chunkTag.OutputTagID, err)
+	}
+
+	p.incrementOperations(isNew)
+	err = p.updateSyncState(wdk.OutputTagEntityName, chunkTag.UpdatedAt, 1, idDictionary{
+		readerID: readerID,
+		writerID: tagNumID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for tag %q: %w", chunkTag.Tag, err)
+	}
+
+	return nil
+}
+
+func (p *ChunkProcessor) upsertTagMap(chunkTagMap *wdk.TableOutputTagMap) error {
+	outputIDOnWriterSide, err := translateID(p, wdk.OutputEntityName, chunkTagMap.OutputID)
+	if err != nil {
+		return fmt.Errorf("failed to translate output ID %d: %w", chunkTagMap.OutputID, err)
+	}
+
+	tagNumIDOrWriterSide, err := translateID(p, wdk.OutputTagEntityName, chunkTagMap.OutputTagID)
+	if err != nil {
+		return fmt.Errorf("failed to translate tag ID %d: %w", chunkTagMap.OutputTagID, err)
+	}
+
+	tagEntity, err := p.getTagByNumID(tagNumIDOrWriterSide)
+	if err != nil {
+		return fmt.Errorf("failed to get tag by num ID %d: %w", tagNumIDOrWriterSide, err)
+	}
+
+	if tagEntity == nil {
+		if chunkTagMap.IsDeleted {
+			// This is the case when the tag has already been deleted on upsertTag (along with matching tag map).
+			return nil
+		} else {
+			return fmt.Errorf("tag with num ID %d not found for tag map with output ID %d", tagNumIDOrWriterSide, chunkTagMap.OutputID)
+		}
+	}
+
+	if tagEntity.UserID != p.user.ID {
+		return fmt.Errorf("tag with num ID %d belongs to user ID %d, but current user ID is %d", tagNumIDOrWriterSide, tagEntity.UserID, p.user.ID)
+	}
+
+	entityTagMap := &entity.TagMap{
+		CreatedAt: chunkTagMap.CreatedAt,
+		UpdatedAt: chunkTagMap.UpdatedAt,
+		Name:      tagEntity.Name,
+		UserID:    tagEntity.UserID,
+		OutputID:  outputIDOnWriterSide,
+	}
+
+	if chunkTagMap.IsDeleted {
+		deleted, err := p.repo.DeleteTagMapForSync(p.ctx, entityTagMap)
+		if err != nil {
+			return fmt.Errorf("failed to delete tag map for OutputTagID %d and OutputID %d: %w", chunkTagMap.OutputTagID, chunkTagMap.OutputID, err)
+		}
+
+		if deleted {
+			p.incrementOperations(false)
+		}
+		return nil
+	}
+
+	isNew, err := p.repo.UpsertTagMapForSync(p.ctx, entityTagMap)
+	if err != nil {
+		return fmt.Errorf("failed to upsert output tag map for OutputTagID %d and OutputID %d: %w", chunkTagMap.OutputTagID, chunkTagMap.OutputID, err)
+	}
+
+	p.incrementOperations(isNew)
+	err = p.updateSyncState(wdk.OutputTagMapEntityName, chunkTagMap.UpdatedAt, 1)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for tag map for OutputTagID %d and OutputID %d: %w", chunkTagMap.OutputTagID, chunkTagMap.OutputID, err)
+	}
+
+	return nil
+}
+
 func (p *ChunkProcessor) incrementOperations(isCreateOperation bool) {
 	if isCreateOperation {
 		p.result.Inserts++
@@ -503,7 +634,9 @@ func (p *ChunkProcessor) emptyChunk() bool {
 		len(p.chunk.Transactions) == 0 &&
 		len(p.chunk.Outputs) == 0 &&
 		len(p.chunk.TxLabels) == 0 &&
-		len(p.chunk.TxLabelMaps) == 0
+		len(p.chunk.TxLabelMaps) == 0 &&
+		len(p.chunk.OutputTags) == 0 &&
+		len(p.chunk.OutputTagMaps) == 0
 }
 
 func (p *ChunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) {
@@ -534,6 +667,21 @@ func (p *ChunkProcessor) getLabelByNumID(labelNumID uint) (*entity.Label, error)
 	p.labelCache[labelNumID] = label
 
 	return label, nil
+}
+
+func (p *ChunkProcessor) getTagByNumID(tagNumID uint) (*entity.Tag, error) {
+	if tag, ok := p.tagCache[tagNumID]; ok {
+		return tag, nil
+	}
+
+	tag, err := p.repo.FindTagByNumIDForSync(p.ctx, tagNumID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find tag by num ID %d: %w", tagNumID, err)
+	}
+
+	p.tagCache[tagNumID] = tag
+
+	return tag, nil
 }
 
 // updateSyncStateOnDone updates the sync state when all the processing process is done.

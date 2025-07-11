@@ -39,7 +39,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 49, inserts)
+	assert.Equal(t, 57, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
@@ -81,8 +81,10 @@ func TestSyncProcess(t *testing.T) {
 	// and outputs:
 	thenDBState.AllOutputs(testusers.Alice).
 		WithCount(33).
-		WithCountHavingOutpoint(3)
-	// TODO: Check tags when backup for tags is implemented
+		WithCountHavingOutpoint(3).
+		WithCountHavingTags(3, fixtures.CreateActionTestTag).
+		WithCountHavingTags(1, fixtures.FaucetTag(0)).
+		WithCountHavingTags(1, fixtures.FaucetTag(1))
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
 		WithCount(32)
@@ -178,7 +180,15 @@ func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 3*numberOfTxs, inserts) // NOTE: One for knownTx and one for (user's) transaction and one for output
+
+	knownTxCount := numberOfTxs
+	userTxsCount := numberOfTxs
+	outputsCount := numberOfTxs
+	tagsCount := numberOfTxs + 1    // One for the "fixtures.CreateActionTestTag"
+	tagMapsCount := 2 * numberOfTxs // Each transaction has two tags
+
+	allCount := knownTxCount + userTxsCount + outputsCount + tagsCount + tagMapsCount
+	assert.Equal(t, allCount, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and known transactions:
@@ -351,7 +361,8 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 		WithCount(0) // NOTE: Relinquished output is not in the change basket anymore
 }
 
-func TestSyncProcessWhenLabelChanges(t *testing.T) {
+func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
+	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()
@@ -362,6 +373,8 @@ func TestSyncProcessWhenLabelChanges(t *testing.T) {
 	const (
 		label1    = "label1"
 		label2    = "label2"
+		tag1      = "tag1"
+		tag2      = "tag2"
 		reference = "YWFhYWFhYWFhYWFh"
 	)
 
@@ -375,7 +388,7 @@ func TestSyncProcessWhenLabelChanges(t *testing.T) {
 				Protocol:    wdk.BasketInsertionProtocol,
 				InsertionRemittance: &wdk.BasketInsertion{
 					Basket: "custom_basket",
-					Tags:   []primitives.StringUnder300{"custom_tag"},
+					Tags:   []primitives.StringUnder300{tag1},
 				},
 			},
 		},
@@ -396,7 +409,7 @@ func TestSyncProcessWhenLabelChanges(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 8, inserts)
+	assert.Equal(t, 10, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
@@ -404,8 +417,11 @@ func TestSyncProcessWhenLabelChanges(t *testing.T) {
 	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
 		WithLabels(commonLabel, label1)
 
+	thenDBState.AllOutputs(testusers.Alice).WithCountHavingTags(1, tag1)
+
 	// when:
 	internalizeArgs.Labels = []primitives.StringUnder300{commonLabel, label2}
+	internalizeArgs.Outputs[0].InsertionRemittance.Tags = []primitives.StringUnder300{tag2}
 	_, err = sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
 	require.NoError(t, err)
 
@@ -416,10 +432,14 @@ func TestSyncProcessWhenLabelChanges(t *testing.T) {
 	inserts, updates, err = sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	require.NoError(t, err)
-	assert.Equal(t, 2, inserts)
+	assert.Equal(t, 4, inserts)
 	assert.Equal(t, 2, updates)
 
 	// and:
 	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
 		WithLabels(commonLabel, label1, label2)
+
+	thenDBState.AllOutputs(testusers.Alice).
+		WithCountHavingTags(0, tag1). //TODO: The tag1 should be removed; TODO: Update how we get id with "Returning" Clause
+		WithCountHavingTags(1, tag2)
 }

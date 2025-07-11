@@ -117,11 +117,11 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.Output{}).
+		updateTx := tx.Model(&model).
 			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
 			Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
 			Select("*").
-			Updates(model)
+			Updates(&model)
 
 		// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
 
@@ -130,12 +130,7 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 		}
 
 		if updateTx.RowsAffected > 0 {
-			resultOutputModel := models.Output{}
-			if err = updateTx.Scan(&resultOutputModel).Error; err != nil {
-				return fmt.Errorf("failed to scan updated output: %w", err)
-			}
-
-			outputID = resultOutputModel.ID
+			outputID = model.ID
 			return nil
 		}
 
