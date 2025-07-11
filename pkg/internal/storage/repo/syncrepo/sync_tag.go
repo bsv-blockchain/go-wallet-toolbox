@@ -3,7 +3,6 @@ package syncrepo
 import (
 	"context"
 	"fmt"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -21,8 +20,8 @@ type SyncTag struct {
 func NewSyncTag(db *gorm.DB) *SyncTag {
 	return &SyncTag{
 		common: &labelTagCommons[models.Tag, models.OutputTag, TagReadModel]{
-			db:        db,
-			tableName: genquery.Tag.TableName(),
+			db:                   db,
+			tableName:            genquery.Tag.TableName(),
 			relationUserIDColumn: genquery.OutputTag.TagUserID.ColumnName().String(),
 			relationNameColumn:   genquery.OutputTag.TagName.ColumnName().String(),
 		},
@@ -57,6 +56,24 @@ func (s *SyncTag) UpsertTagForSync(ctx context.Context, entity *entity.Tag) (isN
 
 func (s *SyncTag) DeleteLabelForSync(ctx context.Context, entity *entity.Tag) (deleted bool, err error) {
 	return s.common.Delete(ctx, entity.UserID, entity.Name)
+}
+
+func (s *SyncTag) FindTagByNumIDForSync(ctx context.Context, numID uint) (*entity.Tag, error) {
+	model, err := s.common.FindByNumID(ctx, numID)
+	if err != nil {
+		return nil, err
+	}
+
+	if model == nil {
+		return nil, nil
+	}
+
+	return &entity.Tag{
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+		UserID:    model.UserID,
+		Name:      model.Name,
+	}, nil
 }
 
 func (s *SyncTag) mapModelToTableTag(model *TagReadModel) *wdk.TableOutputTag {

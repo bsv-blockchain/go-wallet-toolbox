@@ -3,7 +3,6 @@ package syncrepo
 import (
 	"context"
 	"fmt"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -21,8 +20,8 @@ type SyncLabel struct {
 func NewSyncLabel(db *gorm.DB) *SyncLabel {
 	return &SyncLabel{
 		common: &labelTagCommons[models.Label, models.TransactionLabel, LabelReadModel]{
-			db:        db,
-			tableName: genquery.Label.TableName(),
+			db:                   db,
+			tableName:            genquery.Label.TableName(),
 			relationUserIDColumn: genquery.TransactionLabel.LabelUserID.ColumnName().String(),
 			relationNameColumn:   genquery.TransactionLabel.LabelName.ColumnName().String(),
 		},
@@ -57,6 +56,24 @@ func (s *SyncLabel) UpsertLabelForSync(ctx context.Context, entity *entity.Label
 
 func (s *SyncLabel) DeleteLabelForSync(ctx context.Context, entity *entity.Label) (deleted bool, err error) {
 	return s.common.Delete(ctx, entity.UserID, entity.Name)
+}
+
+func (s *SyncLabel) FindLabelByNumIDForSync(ctx context.Context, numID uint) (*entity.Label, error) {
+	model, err := s.common.FindByNumID(ctx, numID)
+	if err != nil {
+		return nil, err
+	}
+
+	if model == nil {
+		return nil, nil
+	}
+
+	return &entity.Label{
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+		UserID:    model.UserID,
+		Name:      model.Name,
+	}, nil
 }
 
 func (s *SyncLabel) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {

@@ -2,7 +2,6 @@ package syncrepo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -60,29 +59,6 @@ func (s *SyncLabelMap) mapModelToTableTxLabelMap(model *LabelsMapReadModel) *wdk
 		TxLabelID:     model.NumID,
 		IsDeleted:     model.DeletedAt.Valid,
 	}
-}
-
-func (s *SyncLabelMap) FindLabelByNumIDForSync(ctx context.Context, labelNumID uint) (*entity.Label, error) {
-	const labelStringIDClause = "CONCAT(user_id, '.', name)"
-	var label models.Label
-
-	err := s.db.WithContext(ctx).Model(&models.Label{}).
-		Scopes(joinWithNumericIDLookupScope(labelStringIDClause, genquery.Label.TableName(), clause.InnerJoin)).
-		Where("num.num_id = ?", labelNumID).
-		First(&label).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to find label name by numeric ID: %w", err)
-	}
-
-	return &entity.Label{
-		CreatedAt: label.CreatedAt,
-		UpdatedAt: label.UpdatedAt,
-		UserID:    label.UserID,
-		Name:      label.Name,
-	}, nil
 }
 
 func (s *SyncLabelMap) UpsertLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (isNew bool, err error) {

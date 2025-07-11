@@ -2,6 +2,7 @@ package syncrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
@@ -18,7 +19,6 @@ type labelTagCommons[Model, RelationModel, ReadModel any] struct {
 }
 
 func (f *labelTagCommons[_, _, ReadModel]) FindChunk(ctx context.Context, userID int, opts ...queryopts.Options) ([]*ReadModel, error) {
-	const stringIDClause = "CONCAT(user_id, '.', name)"
 	var resultModels []*ReadModel
 
 	err := f.db.Transaction(func(tx *gorm.DB) error {
@@ -26,7 +26,7 @@ func (f *labelTagCommons[_, _, ReadModel]) FindChunk(ctx context.Context, userID
 
 		err := upsertNumericIDLookup(ctx, f.db, tx, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select(fmt.Sprintf("?, %s", stringIDClause), f.tableName).
+				Select(fmt.Sprintf("?, %s", f.stringIDClause()), f.tableName).
 				Scopes(filters...).
 				Unscoped().
 				Find(f.zeroModelPtr())
@@ -39,7 +39,7 @@ func (f *labelTagCommons[_, _, ReadModel]) FindChunk(ctx context.Context, userID
 			Model(f.zeroModelPtr()).
 			Select("*").
 			Scopes(filters...).
-			Scopes(joinWithNumericIDLookupScope(stringIDClause, f.tableName, clause.InnerJoin)).
+			Scopes(joinWithNumericIDLookupScope(f.stringIDClause(), f.tableName, clause.InnerJoin)).
 			Unscoped().
 			Find(&resultModels).Error
 		if err != nil {
@@ -121,6 +121,23 @@ func (f *labelTagCommons[_, _, _]) Delete(ctx context.Context, userID int, name 
 	return deleted, nil
 }
 
+func (f *labelTagCommons[Model, _, _]) FindByNumID(ctx context.Context, numID uint) (*Model, error) {
+	label := f.zeroModelPtr()
+
+	err := f.db.WithContext(ctx).
+		Scopes(joinWithNumericIDLookupScope(f.stringIDClause(), f.tableName, clause.InnerJoin)).
+		Where("num.num_id = ?", numID).
+		First(&label).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find %s by numeric ID: %w", f.tableName, err)
+	}
+
+	return label, nil
+}
+
 func (f *labelTagCommons[_, _, _]) saveNumericID(ctx context.Context, tx *gorm.DB, userID int, name string) (uint, error) {
 	stringID := fmt.Sprintf("%d.%s", userID, name)
 
@@ -138,4 +155,8 @@ func (f *labelTagCommons[Model, _, _]) zeroModelPtr() *Model {
 
 func (f *labelTagCommons[_, RelationModel, _]) zeroRelationModelPtr() *RelationModel {
 	return to.Ptr(to.ZeroValue[RelationModel]())
+}
+
+func (f *labelTagCommons[_, _, _]) stringIDClause() string {
+	return "CONCAT(user_id, '.', name)"
 }
