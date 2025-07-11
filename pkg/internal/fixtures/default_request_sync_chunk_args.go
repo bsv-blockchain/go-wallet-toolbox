@@ -41,6 +41,14 @@ func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey
 				Name:   wdk.TxLabelMapEntityName,
 				Offset: 0,
 			},
+			{
+				Name:   wdk.OutputTagEntityName,
+				Offset: 0,
+			},
+			{
+				Name:   wdk.OutputTagMapEntityName,
+				Offset: 0,
+			},
 			// TODO: Add more offsets for other entities when implemented
 		},
 	}

@@ -1,6 +1,8 @@
 package storage_test
 
 import (
+	"fmt"
+	"github.com/go-softwarelab/common/pkg/to"
 	"math"
 	"testing"
 	"time"
@@ -103,6 +105,14 @@ func TestGetSyncChunk(t *testing.T) {
 		LabelsCount(4). // 3 + 1 (from OwnsInternalizedAndNotProcessedTx)
 		WithTxLabels(chunk.Transactions[2].TransactionID, commonLabel, customLabelTx2).
 		WithTxLabels(chunk.Transactions[3].TransactionID, commonLabel, customLabelTx1)
+
+	// and tags:
+	thenChunk.
+		TagsCount(3).
+		TagsMapCount(5).
+		WithOutputTag(chunk.Outputs[0].OutputID, fixtures.CreateActionTestTag).
+		WithOutputTag(chunk.Outputs[31].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(1)).
+		WithOutputTag(chunk.Outputs[32].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(0))
 
 	// TODO: Remember to add more assertions for other entities when implemented
 }
@@ -251,135 +261,182 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 
 	args := argsFixture.Args()
 
-	// when:
-	chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
+	t.Run("one by one for baskets", func(t *testing.T) {
+		// when:
+		chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// then:
-	thenChunk := then.Chunk(chunk).WithoutError(err)
+		// then:
+		thenChunk := then.Chunk(chunk).WithoutError(err)
 
-	// and:
-	thenChunk.WithGeneralInfo(&args)
+		// and:
+		thenChunk.WithGeneralInfo(&args)
 
-	thenChunk.BasketsCount(1).
-		ProvenTxReqsCount(0).
-		ProvenTxsCount(0)
+		thenChunk.BasketsCount(1).
+			ProvenTxReqsCount(0).
+			ProvenTxsCount(0)
+	})
 
-	// given::
-	args = argsFixture.WithOffset(wdk.OutputBasketEntityName, 1).Args()
+	for i := range 2 {
+		mined := i == 0 // first transaction is mined, second is not
+		t.Run(fmt.Sprintf("one by one for provenTxs: %d", i), func(t *testing.T) {
+			// given::
+			args = argsFixture.
+				WithOffset(wdk.OutputBasketEntityName, 1).
+				WithOffset(wdk.ProvenTxEntityName, uint64(i)).
+				Args()
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+			// when:
+			chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(1).
-		ProvenTxReqsCount(0)
+			// then:
+			thenChunk := then.Chunk(chunk).WithoutError(err)
+			thenChunk.WithGeneralInfo(&args)
+			thenChunk.BasketsCount(0).
+				ProvenTxsCount(to.IfThen(mined, 1).ElseThen(0)).
+				ProvenTxReqsCount(to.IfThen(!mined, 1).ElseThen(0))
+		})
+	}
 
-	// given:
-	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 1).Args()
+	for i := range 2 {
+		t.Run(fmt.Sprintf("one by one for user transactions: %d", i), func(t *testing.T) {
+			// given:
+			args = argsFixture.
+				WithOffset(wdk.ProvenTxEntityName, 2).
+				WithOffset(wdk.TransactionEntityName, uint64(i)).
+				Args()
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+			// when:
+			chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(1)
+			// then:
+			thenChunk := then.Chunk(chunk).WithoutError(err)
+			thenChunk.WithGeneralInfo(&args)
+			thenChunk.BasketsCount(0).
+				ProvenTxsCount(0).
+				ProvenTxReqsCount(0).
+				TransactionsCount(1)
+		})
+	}
 
-	// given:
-	args = argsFixture.WithOffset(wdk.ProvenTxEntityName, 2).Args()
+	for i := range 2 {
+		t.Run(fmt.Sprintf("one by one for outputs: %d", i), func(t *testing.T) {
+			// given:
+			args = argsFixture.
+				WithOffset(wdk.TransactionEntityName, 2).
+				WithOffset(wdk.OutputEntityName, uint64(i)).
+				Args()
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+			// when:
+			chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(0).
-		TransactionsCount(1)
+			// then:
+			thenChunk := then.Chunk(chunk).WithoutError(err)
+			thenChunk.WithGeneralInfo(&args)
+			thenChunk.BasketsCount(0).
+				ProvenTxsCount(0).
+				ProvenTxReqsCount(0).
+				TransactionsCount(0).
+				OutputsCount(1)
+		})
+	}
 
-	// given:
-	args = argsFixture.WithOffset(wdk.TransactionEntityName, 1).Args()
+	t.Run("one by one for label: %d", func(t *testing.T) {
+		// given:
+		args = argsFixture.
+			WithOffset(wdk.OutputEntityName, 2).
+			WithOffset(wdk.TxLabelEntityName, 0).
+			Args()
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(0).
-		TransactionsCount(1)
+		// when:
+		chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// given:
-	args = argsFixture.WithOffset(wdk.TransactionEntityName, 2).Args()
+		// then:
+		thenChunk := then.Chunk(chunk).WithoutError(err)
+		thenChunk.WithGeneralInfo(&args)
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+		thenChunk.BasketsCount(0).
+			ProvenTxsCount(0).
+			ProvenTxReqsCount(0).
+			TransactionsCount(0).
+			OutputsCount(0).
+			LabelsCount(1)
+	})
 
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
+	for i := range 2 {
+		t.Run(fmt.Sprintf("one by one for label: %d", i), func(t *testing.T) {
+			// given:
+			args = argsFixture.
+				WithOffset(wdk.TxLabelEntityName, 1).
+				WithOffset(wdk.TxLabelMapEntityName, uint64(i)).
+				Args()
 
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(0).
-		TransactionsCount(0).
-		OutputsCount(1)
+			// when:
+			chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// given:
-	args = argsFixture.WithOffset(wdk.OutputEntityName, 1).Args()
+			// then:
+			thenChunk := then.Chunk(chunk).WithoutError(err)
+			thenChunk.WithGeneralInfo(&args)
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+			thenChunk.BasketsCount(0).
+				ProvenTxsCount(0).
+				ProvenTxReqsCount(0).
+				TransactionsCount(0).
+				OutputsCount(0).
+				LabelsCount(0).
+				LabelsMapCount(1)
+		})
+	}
 
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
+	for i := range 3 {
+		t.Run(fmt.Sprintf("one by one for tag: %d", i), func(t *testing.T) {
+			// given:
+			args = argsFixture.
+				WithOffset(wdk.TxLabelMapEntityName, 2).
+				WithOffset(wdk.OutputTagEntityName, uint64(i)).
+				Args()
 
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(0).
-		TransactionsCount(0).
-		OutputsCount(1)
+			// when:
+			chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// given:
-	args = argsFixture.WithOffset(wdk.OutputEntityName, 2).Args()
+			// then:
+			thenChunk := then.Chunk(chunk).WithoutError(err)
+			thenChunk.WithGeneralInfo(&args)
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
+			thenChunk.BasketsCount(0).
+				ProvenTxsCount(0).
+				ProvenTxReqsCount(0).
+				TransactionsCount(0).
+				OutputsCount(0).
+				LabelsCount(0).
+				LabelsMapCount(0).
+				TagsCount(1)
+		})
+	}
 
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
+	for i := range 4 {
+		t.Run(fmt.Sprintf("one by one for tag map: %d", i), func(t *testing.T) {
+			// given:
+			args = argsFixture.
+				WithOffset(wdk.OutputTagEntityName, 3).
+				WithOffset(wdk.OutputTagMapEntityName, uint64(i)).
+				Args()
 
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(0).
-		TransactionsCount(0).
-		OutputsCount(0).
-		LabelsCount(1)
+			// when:
+			chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
 
-	// given:
-	args = argsFixture.WithOffset(wdk.TxLabelEntityName, 1).Args()
+			// then:
+			thenChunk := then.Chunk(chunk).WithoutError(err)
+			thenChunk.WithGeneralInfo(&args)
 
-	// when:
-	chunk, err = activeStorage.GetSyncChunk(t.Context(), args)
-
-	// then:
-	thenChunk = then.Chunk(chunk).WithoutError(err)
-	thenChunk.WithGeneralInfo(&args)
-
-	thenChunk.BasketsCount(0).
-		ProvenTxsCount(0).
-		ProvenTxReqsCount(0).
-		TransactionsCount(0).
-		OutputsCount(0).
-		LabelsCount(0).
-		LabelsMapCount(1)
+			thenChunk.BasketsCount(0).
+				ProvenTxsCount(0).
+				ProvenTxReqsCount(0).
+				TransactionsCount(0).
+				OutputsCount(0).
+				LabelsCount(0).
+				LabelsMapCount(0).
+				TagsCount(0).
+				TagsMapCount(1)
+		})
+	}
 }
