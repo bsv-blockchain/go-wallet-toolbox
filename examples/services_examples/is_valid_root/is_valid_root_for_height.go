@@ -20,6 +20,7 @@ func main() {
 		rootHex = "559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd"
 	)
 
+	show.ProcessStart("IsValidRootForHeight")
 	cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
 	srv := services.New(slog.Default(), cfg)
 
@@ -28,17 +29,27 @@ func main() {
 		panic(fmt.Errorf("failed to parse root hex %s: %w", rootHex, err))
 	}
 
+	show.Step("Wallet-Services", fmt.Sprintf("checking if root %s is valid for height %d", rootHex, height))
 	ok, err := srv.IsValidRootForHeight(context.Background(), root, height)
 	if err != nil {
 		panic(fmt.Errorf("IsValidRootForHeight failed: %w", err))
 	}
 
+	show.Success("Checked if root is valid for height")
 	show.IsValidRootForHeightOutput(height, rootHex, ok)
+	show.ProcessComplete("IsValidRootForHeight")
 }
 
-// Output:
-// Is valid root for height:
-// Height  Merkle Root (hex)  Valid
-// 903321  559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd  true
-//
-// Height: 903321 | Merkle Root: 559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd | Valid: true
+/* Output:
+🚀 STARTING: IsValidRootForHeight
+============================================================
+
+=== STEP ===
+Wallet-Services is performing: checking if root 559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd is valid for height 903321
+--------------------------------------------------
+✅ SUCCESS: Checked if root is valid for height
+
+Height: 903321 | Merkle Root: 559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd | Valid: true
+============================================================
+🎉 COMPLETED: IsValidRootForHeight
+*/

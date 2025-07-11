@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -20,20 +21,33 @@ So the number printed under Current Tip Height is simply "how many blocks are
 currently in the main BSV chain (mainnet) right now."
 */
 func main() {
+	show.ProcessStart("Get Height")
+
 	cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
 
 	cfg.BHS.APIKey = "..." // use default api key DefaultAppToken from the BHS service https://github.com/bsv-blockchain/block-headers-service/blob/main/config/defaults.go#L8
 
 	srv := services.New(slog.Default(), cfg)
+	show.Step("Wallet-Services", "fetching main-chain height (BHS → WoC → Bitails fallback)")
 
-	height := srv.Height()
+	height := srv.Height(context.Background())
 
+	show.Success("Fetched chain tip height")
 	show.HeightOutput(height)
+	show.ProcessComplete("Get Height")
 }
 
-// Output:
-// Get Height:
-// Current Tip Height
-// 903321
-//
-// Current Tip Height: 903321
+/* Output:
+🚀 STARTING: Get Height
+============================================================
+
+=== STEP ===
+Wallet-Services is performing: fetching main-chain height (BHS → WoC → Bitails fallback)
+--------------------------------------------------
+2025/07/14 10:47:42 WARN error when calling service service=services.GetHeight service.name=BlockHeadersService error="bhs: unexpected HTTP 401 for http://localhost:8080/api/v1/chain/tip/longest"
+✅ SUCCESS: Fetched chain tip height
+
+Get Height: 905465
+============================================================
+🎉 COMPLETED: Get Height
+*/

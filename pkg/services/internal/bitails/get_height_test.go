@@ -15,27 +15,49 @@ func TestBitails_GetHeight(t *testing.T) {
 		name        string
 		status      int
 		blocks      uint32
-		expectErr   bool
 		expectValue uint32
 	}{
-		{"happy path", http.StatusOK, good, false, good},
-		{"non-200", http.StatusBadGateway, 0, true, 0},
-		{"zero height", http.StatusOK, 0, true, 0},
+		{"happy path", http.StatusOK, good, good},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			fix := bt.Given(t)
-			fix.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
+			// given:
+			given := bt.Given(t)
+			given.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
 
-			got, err := fix.NewBitailsService().GetHeight(t.Context())
+			// when:
+			got, err := given.NewBitailsService().GetHeight(t.Context())
 
-			if tc.expectErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectValue, got)
-			}
+			// then:
+			require.NoError(t, err)
+			require.Equal(t, tc.expectValue, got)
+		})
+	}
+}
+
+func TestBitails_GetHeight_ErrorCases(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      int
+		blocks      uint32
+		expectValue uint32
+	}{
+		{"non-200", http.StatusBadGateway, 0, 0},
+		{"zero height", http.StatusOK, 0, 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			given := bt.Given(t)
+			given.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
+
+			// when:
+			_, err := given.NewBitailsService().GetHeight(t.Context())
+
+			// then:
+			require.Error(t, err)
 		})
 	}
 }

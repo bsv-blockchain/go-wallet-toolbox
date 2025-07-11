@@ -15,7 +15,7 @@ type networkInfoResponse struct {
 func (b *Bitails) GetHeight(ctx context.Context) (uint32, error) {
 	url, err := buildURL(b.url, "network", "info")
 	if err != nil {
-		return 0, fmt.Errorf("bitails: failed to build height URL: %w", err)
+		return 0, fmt.Errorf("failed to build height URL: %w", err)
 	}
 
 	var payload networkInfoResponse
@@ -25,18 +25,18 @@ func (b *Bitails) GetHeight(ctx context.Context) (uint32, error) {
 		SetResult(&payload).
 		Get(url)
 	if err != nil {
-		return 0, fmt.Errorf("bitails: height query failed: %w", err)
+		return 0, fmt.Errorf("error from service %s: %w", ServiceName, err)
 	}
 	if res.StatusCode() != HTTPStatusOK {
-		return 0, fmt.Errorf("bitails: unexpected HTTP %d for %s", res.StatusCode(), url)
+		return 0, fmt.Errorf("unexpected HTTP %d for %s", res.StatusCode(), url)
 	}
 	if payload.Blocks == 0 {
-		return 0, fmt.Errorf("bitails: API returned height 0")
+		return 0, fmt.Errorf("API returned height 0")
 	}
 
 	height, err := to.UInt32(payload.Blocks)
 	if err != nil {
-		return 0, fmt.Errorf("bitails: invalid height %d in response: %w", payload.Blocks, err)
+		return 0, fmt.Errorf("invalid height %d in service %s response: %w", payload.Blocks, ServiceName, err)
 	}
 	return height, nil
 }

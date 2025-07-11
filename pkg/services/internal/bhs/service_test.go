@@ -12,14 +12,10 @@ import (
 
 func TestBlockHeadersService_GetHeight(t *testing.T) {
 	const good = uint(900_000)
-	const overflow = uint(math.MaxUint32) + 42
-
 	type setupFn func(fix testservices.BHSFixture)
-
 	cases := []struct {
 		name      string
 		setup     setupFn
-		wantErr   bool
 		wantValue uint32
 	}{
 		{
@@ -30,26 +26,51 @@ func TestBlockHeadersService_GetHeight(t *testing.T) {
 			},
 			wantValue: uint32(good),
 		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			given := bhsTst.Given(t)
+			tc.setup(given.BHS())
+
+			svc := given.NewBHSService()
+
+			// when:
+			got, err := svc.GetHeight(t.Context())
+
+			// then:
+			require.NoError(t, err)
+			require.Equal(t, tc.wantValue, got)
+		})
+	}
+}
+
+func TestBlockHeadersService_GetHeight_ErrorCases(t *testing.T) {
+	const overflow = uint(math.MaxUint32) + 42
+	type setupFn func(fix testservices.BHSFixture)
+
+	cases := []struct {
+		name  string
+		setup setupFn
+	}{
 		{
 			name: "HTTP 500",
 			setup: func(f testservices.BHSFixture) {
 				f.WillRespondWithInternalFailure()
 			},
-			wantErr: true,
 		},
 		{
 			name: "empty body / zero height",
 			setup: func(f testservices.BHSFixture) {
 				f.WillRespondWithEmptyLongestTipBlockHeader()
 			},
-			wantErr: true,
 		},
 		{
 			name: "service unreachable",
 			setup: func(f testservices.BHSFixture) {
 				_ = f.WillBeUnreachable()
 			},
-			wantErr: true,
 		},
 		{
 			name: "height overflows uint32",
@@ -57,29 +78,22 @@ func TestBlockHeadersService_GetHeight(t *testing.T) {
 				f.OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(overflow))
 				f.IsUpAndRunning()
 			},
-			wantErr: true,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fix := bhsTst.Given(t)
-			tc.setup(fix.BHS())
+			given := bhsTst.Given(t)
+			tc.setup(given.BHS())
 
-			svc := fix.NewBHSService()
+			svc := given.NewBHSService()
 
 			// when:
-			got, err := svc.GetHeight(t.Context())
+			_, err := svc.GetHeight(t.Context())
 
 			// then:
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tc.wantValue, got)
+			require.Error(t, err)
 		})
 	}
 }
@@ -113,49 +127,66 @@ func TestBlockHeadersService_FindChainTipHeader(t *testing.T) {
 				f.IsUpAndRunning()
 			},
 		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			given := bhsTst.Given(t)
+			tc.setup(given.BHS())
+
+			svc := given.NewBHSService()
+
+			// when:
+			got, err := svc.FindChainTipHeader(t.Context())
+
+			// then:
+			require.NoError(t, err)
+			require.Equal(t, makeExpected(), got)
+		})
+	}
+}
+
+func TestBlockHeadersService_ErrorCase(t *testing.T) {
+
+	tests := []struct {
+		name  string
+		setup func(testservices.BHSFixture)
+	}{
 		{
 			name: "HTTP 500",
 			setup: func(f testservices.BHSFixture) {
 				f.WillRespondWithInternalFailure()
 			},
-			wantErr: true,
 		},
 		{
 			name: "empty body",
 			setup: func(f testservices.BHSFixture) {
 				f.WillRespondWithEmptyLongestTipBlockHeader()
 			},
-			wantErr: true,
 		},
 		{
 			name: "unreachable",
 			setup: func(f testservices.BHSFixture) {
 				_ = f.WillBeUnreachable()
 			},
-			wantErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fix := bhsTst.Given(t)
-			tc.setup(fix.BHS())
+			given := bhsTst.Given(t)
+			tc.setup(given.BHS())
 
-			svc := fix.NewBHSService()
+			svc := given.NewBHSService()
 
 			// when:
 			got, err := svc.FindChainTipHeader(t.Context())
 
 			// then:
-			if tc.wantErr {
-				require.Error(t, err)
-				require.Nil(t, got)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, makeExpected(), got)
+			require.Error(t, err)
+			require.Nil(t, got)
 		})
 	}
 }

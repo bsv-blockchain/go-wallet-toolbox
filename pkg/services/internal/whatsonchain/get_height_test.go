@@ -12,31 +12,50 @@ func TestWhatsOnChain_GetHeight(t *testing.T) {
 	const good = uint32(765_432)
 
 	cases := []struct {
-		name        string
-		status      int
-		blocks      uint32
-		expectErr   bool
-		expectValue uint32
+		name   string
+		status int
 	}{
-		{"happy path", http.StatusOK, good, false, good},
-		{"non-200", http.StatusInternalServerError, 0, true, 0},
-		{"zero height", http.StatusOK, 0, true, 0},
+		{"happy path", http.StatusOK},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			fix := tst.Given(t)
-			fix.WhatsOnChain().WillRespondWithChainInfo(tc.status, tc.blocks)
+			// given:
+			given := tst.Given(t)
+			given.WhatsOnChain().WillRespondWithChainInfo(tc.status, good)
 
-			got, err := fix.NewWoCService().GetHeight(t.Context())
+			// when:
+			got, err := given.NewWoCService().GetHeight(t.Context())
 
-			if tc.expectErr {
-				require.Error(t, err)
-				return
-			}
-
+			// then:
 			require.NoError(t, err)
-			require.Equal(t, tc.expectValue, got)
+			require.Equal(t, good, got)
+		})
+	}
+}
+
+func TestWhatsOnChain_GetHeight_ErrorCases(t *testing.T) {
+
+	cases := []struct {
+		name   string
+		status int
+	}{
+
+		{"non-200", http.StatusInternalServerError},
+		{"zero height", http.StatusOK},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			given := tst.Given(t)
+			given.WhatsOnChain().WillRespondWithChainInfo(tc.status, 0)
+
+			// when:
+			_, err := given.NewWoCService().GetHeight(t.Context())
+
+			// then:
+			require.Error(t, err)
 		})
 	}
 }

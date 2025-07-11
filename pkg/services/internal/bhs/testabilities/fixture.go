@@ -7,7 +7,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type BHSServiceFixture interface {
@@ -34,10 +33,10 @@ func (f *bhsServiceFixture) NewBHSService() *bhs.BlockHeadersService {
 	httpClient := f.BHS().HttpClient()
 	network := f.Network()
 
-	cfg := to.OptionsWithDefault(defs.BHS{
+	cfg := defs.BHS{
 		URL:    defs.BHSTestURL,
 		APIKey: defs.BHSApiKey,
-	})
+	}
 
 	return bhs.NewBlockHeadersService(httpClient, logger, network, cfg)
 }

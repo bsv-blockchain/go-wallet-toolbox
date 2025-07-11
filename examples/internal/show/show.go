@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -133,26 +134,15 @@ func PrintTable(title string, headers []string, rows [][]string) {
 }
 
 func HeightOutput(height int64) {
-	headers := []string{"Current Tip Height"}
-	rows := [][]string{{fmt.Sprint(height)}}
-
-	PrintTable("Get Height:", headers, rows)
-	fmt.Printf("\n%sCurrent Tip Height: %d%s\n", ColorGreen, height, ColorReset)
+	fmt.Printf("\n%sGet Height: %d%s\n", ColorGreen, height, ColorReset)
 }
 
 func IsValidRootForHeightOutput(height uint32, rootHex string, valid bool) {
-	headers := []string{"Height", "Merkle Root (hex)", "Valid"}
-	rows := [][]string{
-		{fmt.Sprint(height), rootHex, fmt.Sprint(valid)},
-	}
-
-	PrintTable("Is valid root for height:", headers, rows)
 	fmt.Printf("\n%sHeight: %d | Merkle Root: %s | Valid: %t%s\n", ColorCyan, height, rootHex, valid, ColorReset)
 }
 
-func MerklePathOutput(result *wdk.MerklePathResult, txID string) {
-	displayMerklePathInfo(result, txID)
-	fmt.Println()
-	printMerklePath(result.MerklePath, "Merkle Path for txID: "+txID)
-	fmt.Println()
+func MerklePathOutput(result *wdk.MerklePathResult) {
+	utils.PrintMerklePathInfo(result)
+    fmt.Println()
+    utils.PrintMerklePath(result.MerklePath)
 }

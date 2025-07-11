@@ -66,7 +66,7 @@ func TestWalletServices_Height(t *testing.T) {
 			svc := fix.Services().WithDefaultConfig()
 
 			// when:
-			got := svc.Height()
+			got := svc.Height(t.Context())
 
 			// then:
 			require.Equal(t, tc.expectValue, got)
