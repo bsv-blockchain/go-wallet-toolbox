@@ -1,7 +1,16 @@
 package models
 
-type OutputTags struct {
-	OutputID  uint   `gorm:"column:output_id"`
-	TagName   string `gorm:"column:tag_name"`
-	TagUserID int    `gorm:"column:tag_user_id"`
+import (
+	"gorm.io/gorm"
+	"time"
+)
+
+type OutputTag struct {
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+
+	OutputID  uint   `gorm:"primary_key"`
+	TagName   string `gorm:"primary_key"`
+	TagUserID int    `gorm:"primary_key"`
 }

@@ -327,7 +327,7 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
 
 func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.OutputTags{}).
+		subQuery := tx.Model(&models.OutputTag{}).
 			Select("output_id").
 			Where("tag_name IN ?", filter.Tags).
 			Where("tag_user_id = ?", filter.UserID)

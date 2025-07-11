@@ -1,0 +1,71 @@
+package syncrepo
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gorm"
+)
+
+type SyncTag struct {
+	common *labelTagCommons[models.Tag, models.OutputTag, TagReadModel]
+	db     *gorm.DB
+}
+
+func NewSyncTag(db *gorm.DB) *SyncTag {
+	return &SyncTag{
+		common: &labelTagCommons[models.Tag, models.OutputTag, TagReadModel]{
+			db:        db,
+			tableName: genquery.Tag.TableName(),
+			relationUserIDColumn: genquery.OutputTag.TagUserID.ColumnName().String(),
+			relationNameColumn:   genquery.OutputTag.TagName.ColumnName().String(),
+		},
+		db: db,
+	}
+}
+
+type TagReadModel struct {
+	models.Tag
+	NumID uint
+}
+
+func (s *SyncTag) FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTag, error) {
+	result, err := s.common.FindChunk(ctx, userID, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find tags for sync: %w", err)
+	}
+
+	return slices.Map(result, s.mapModelToTableTag), nil
+}
+
+func (s *SyncTag) UpsertTagForSync(ctx context.Context, entity *entity.Tag) (isNew bool, tagNumID uint, err error) {
+	model := models.Tag{
+		CreatedAt: entity.CreatedAt,
+		UpdatedAt: entity.UpdatedAt,
+		UserID:    entity.UserID,
+		Name:      entity.Name,
+	}
+
+	return s.common.Upsert(ctx, entity.UserID, entity.Name, &model)
+}
+
+func (s *SyncTag) DeleteLabelForSync(ctx context.Context, entity *entity.Tag) (deleted bool, err error) {
+	return s.common.Delete(ctx, entity.UserID, entity.Name)
+}
+
+func (s *SyncTag) mapModelToTableTag(model *TagReadModel) *wdk.TableOutputTag {
+	return &wdk.TableOutputTag{
+		CreatedAt:   model.CreatedAt,
+		UpdatedAt:   model.UpdatedAt,
+		OutputTagID: model.NumID,
+		UserID:      model.UserID,
+		Tag:         model.Name,
+		IsDeleted:   model.DeletedAt.Valid,
+	}
+}

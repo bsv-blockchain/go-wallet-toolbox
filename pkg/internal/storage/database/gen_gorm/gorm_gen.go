@@ -35,6 +35,8 @@ func main() {
 		models.Output{},
 		models.Label{},
 		models.TransactionLabel{},
+		models.Tag{},
+		models.OutputTag{},
 	)
 
 	g.Execute()
