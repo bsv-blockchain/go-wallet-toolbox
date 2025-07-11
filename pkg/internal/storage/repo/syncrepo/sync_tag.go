@@ -34,7 +34,7 @@ type TagReadModel struct {
 	NumID uint
 }
 
-func (s *SyncTag) FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTag, error) {
+func (s *SyncTag) FindTagsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTag, error) {
 	result, err := s.common.FindChunk(ctx, userID, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find tags for sync: %w", err)
@@ -54,7 +54,7 @@ func (s *SyncTag) UpsertTagForSync(ctx context.Context, entity *entity.Tag) (isN
 	return s.common.Upsert(ctx, entity.UserID, entity.Name, &model)
 }
 
-func (s *SyncTag) DeleteLabelForSync(ctx context.Context, entity *entity.Tag) (deleted bool, err error) {
+func (s *SyncTag) DeleteTagForSync(ctx context.Context, entity *entity.Tag) (deleted bool, err error) {
 	return s.common.Delete(ctx, entity.UserID, entity.Name)
 }
 

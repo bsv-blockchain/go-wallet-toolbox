@@ -12,6 +12,8 @@ type Sync struct {
 	*syncrepo.SyncOutput
 	*syncrepo.SyncLabel
 	*syncrepo.SyncLabelMap
+	*syncrepo.SyncTag
+	*syncrepo.SyncTagMap
 	db *gorm.DB
 
 	naming *naming
@@ -28,5 +30,7 @@ func NewSync(db *gorm.DB) *Sync {
 		SyncOutput:      syncrepo.NewSyncOutput(db),
 		SyncLabel:       syncrepo.NewSyncLabel(db),
 		SyncLabelMap:    syncrepo.NewSyncLabelMap(db),
+		SyncTag:         syncrepo.NewSyncTag(db),
+		SyncTagMap:      syncrepo.NewSyncTagMap(db),
 	}
 }
