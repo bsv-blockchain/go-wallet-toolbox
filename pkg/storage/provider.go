@@ -438,10 +438,20 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 
-	result, err := p.syncActions.Process(ctx, args, chunk)
+	user, err := p.repo.FindUser(ctx, args.IdentityKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
+		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
+
+	if user == nil {
+		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
+	}
+
+	result, err := sync.NewChunkProcessor(ctx, p.repo, chunk, &args, user).Process()
+	if err != nil {
+		return nil, fmt.Errorf("failed to process chunk: %w", err)
+	}
+
 	return result, nil
 }
 
