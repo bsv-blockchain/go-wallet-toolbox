@@ -23,6 +23,8 @@ type BitailsFixture interface {
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
 	WillReturnTxStatus(txid string, blockHeight int)
 	WillReturnNetworkInfo(status int, blocks uint32)
+	WillReturnLatestBlock(blockHash string, height uint32)
+	WillRespondWithInternalFailure()
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
 }
@@ -70,15 +72,27 @@ func (f *bitailsFixture) OnBroadcast() BitailsBroadcastFixture {
 
 func (f *bitailsFixture) WillBeUnreachable() error {
 	err := fmt.Errorf("bitails unreachable (test induced)")
+	responder := httpmock.NewErrorResponder(err)
+
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/.*`),
+		responder,
+	)
 	f.transport.RegisterRegexpResponder(
 		http.MethodPost,
-		regexp.MustCompile(`https?://.*\.bitails\.io.*`),
-		httpmock.NewErrorResponder(err),
+		regexp.MustCompile(`https?://.*\.bitails\.io/.*`),
+		responder,
 	)
 	return err
 }
 
 func (f *bitailsFixture) WillReturnInternalError() {
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
 	f.transport.RegisterRegexpResponder(
 		http.MethodPost,
 		regexp.MustCompile(`https?://.*\.bitails\.io.*`),
@@ -226,4 +240,24 @@ func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
 	body := map[string]any{"blocks": blocks}
 	pat := `=~.*?/network/info$`
 	b.transport.RegisterResponder(http.MethodGet, pat, httpmock.NewJsonResponderOrPanic(status, body))
+}
+
+// WillReturnLatestBlock stubs GET /block/latest.
+func (f *bitailsFixture) WillReturnLatestBlock(blockHash string, height uint32) {
+	body := map[string]any{"hash": blockHash, "height": height}
+
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
+	)
+}
+
+// WillRespondWithInternalFailure forces GET /block/latest to reply 500.
+func (f *bitailsFixture) WillRespondWithInternalFailure() {
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
 }

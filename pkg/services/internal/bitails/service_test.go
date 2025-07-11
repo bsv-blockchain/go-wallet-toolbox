@@ -1,21 +1,201 @@
 package bitails_test
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	bt "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+func TestBitails_GetHeight(t *testing.T) {
+	// given:
+	const good = uint32(123_456)
+
+	given := bt.Given(t)
+	given.Bitails().WillReturnNetworkInfo(http.StatusOK, good)
+
+	// when:
+	got, err := given.NewBitailsService().CurrentHeight(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, good, got)
+}
+
+func TestBitails_GetHeight_ErrorCases(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      int
+		blocks      uint32
+		expectValue uint32
+	}{
+		{"non-200", http.StatusBadGateway, 0, 0},
+		{"zero height", http.StatusOK, 0, 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			given := bt.Given(t)
+			given.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
+
+			// when:
+			_, err := given.NewBitailsService().CurrentHeight(t.Context())
+
+			// then:
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestBitails_FindChainTipHeader(t *testing.T) {
+	// given:
+	fixture := testabilities.Given(t)
+	service := fixture.NewBitailsService()
+
+	headerHex := testabilities.TestFakeHeaderBinary
+	rawHeader, err := hex.DecodeString(headerHex)
+	require.NoError(t, err)
+
+	blockHash := chainhash.DoubleHashH(rawHeader).String()
+	height := testabilities.TestBlockHeight
+
+	client := fixture.Bitails().HttpClient()
+	httpmock.ActivateNonDefault(client.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	tests := []struct {
+		name  string
+		setup func()
+		want  *wdk.ChainBlockHeader
+	}{
+		{
+			name: "happy path",
+			setup: func() {
+				httpmock.Reset()
+				fixture.Bitails().WillReturnLatestBlock(blockHash, uint32(height))
+				fixture.Bitails().WillReturnBlockHeader(blockHash, headerHex)
+			},
+			want: func() *wdk.ChainBlockHeader {
+				want, err := bitails.ConvertHeader(rawHeader, uint32(height))
+				require.NoError(t, err)
+				return want
+			}(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			tc.setup()
+
+			// when:
+			got, err := service.FindChainTipHeader(t.Context())
+
+			// then:
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestBitails_FindChainTipHeader_ErrorCases(t *testing.T) {
+	// given:
+	fixture := testabilities.Given(t)
+	service := fixture.NewBitailsService()
+
+	client := fixture.Bitails().HttpClient()
+	httpmock.ActivateNonDefault(client.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	tests := []struct {
+		name  string
+		setup func()
+	}{
+		{
+			name: "HTTP 500 (internal error)",
+			setup: func() {
+				httpmock.Reset()
+				fixture.Bitails().WillRespondWithInternalFailure()
+			},
+		},
+
+		{
+			name: "empty body from /block/latest",
+			setup: func() {
+				httpmock.Reset()
+				fixture.Bitails().WillReturnLatestBlock("", 0)
+			},
+		},
+		{
+			name: "service unreachable",
+			setup: func() {
+				httpmock.Reset()
+				_ = fixture.Bitails().WillBeUnreachable()
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			tc.setup()
+
+			// when:
+			got, err := service.FindChainTipHeader(t.Context())
+
+			// then:
+			require.Error(t, err)
+			assert.Nil(t, got)
+		})
+	}
+}
+
+func TestBitails_MerklePath(t *testing.T) {
+	// given:
+	fixture := testabilities.Given(t)
+	service := fixture.NewBitailsService()
+
+	txID := testabilities.TestTxID
+	blockHash := testabilities.TestTargetHash
+	siblingHash := testabilities.TestSiblingHash
+	height := testabilities.TestBlockHeight
+
+	fixture.Bitails().WillReturnTscProof(txID, blockHash, 1, []string{siblingHash})
+	fixture.Bitails().WillReturnBlockHeader(blockHash, testabilities.TestFakeHeaderBinary)
+	fixture.Bitails().WillReturnTxInfo(txID, blockHash, int64(height))
+
+	// when:
+	ctx := t.Context()
+	result, err := service.MerklePath(ctx, txID)
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.Equal(t, bitails.ServiceName, result.Name)
+	assert.NotNil(t, result.MerklePath)
+	assert.NotNil(t, result.BlockHeader)
+
+	require.Len(t, result.Notes, 1)
+	assert.Contains(t, result.Notes[0].What, "getMerklePath")
+	assert.WithinDuration(t, time.Now(), *result.Notes[0].When, 2*time.Second)
+}
 
 func TestBitails_PostBEEF(t *testing.T) {
 	txSpec := testvectors.GivenTX().

@@ -50,9 +50,9 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 	}
 
 	wocService := whatsonchain.New(option.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
-	arcService := arc.NewARCService(logger, option.RestyClientFactory.New(), config.ArcConfig)
+	arcService := arc.New(logger, option.RestyClientFactory.New(), config.ArcConfig)
 	bitailsService := bitails.New(option.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
-	bhsService := bhs.NewBlockHeadersService(option.RestyClientFactory.New(), logger, config.Chain, config.BHS)
+	bhsService := bhs.New(option.RestyClientFactory.New(), logger, config.Chain, config.BHS)
 
 	return &WalletServices{
 		chain:        config.Chain,
@@ -85,6 +85,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 		chainHeaderServices: servicequeue.NewQueue(
 			logger,
 			"FindChainTipHeader",
+			//servicequeue.NewService(bitails.ServiceName, bitailsService.FindChainTipHeader),
 			servicequeue.NewService(whatsonchain.ServiceName, wocService.FindChainTipHeader),
 			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
 		),
