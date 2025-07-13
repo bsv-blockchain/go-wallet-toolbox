@@ -1,11 +1,63 @@
 package bitails
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/url"
 	"path"
+
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
+	const (
+		versionOffset = 0
+		versionSize   = 4
+
+		prevHashOffset = versionOffset + versionSize
+		prevHashLength = MerkleRootOffset - prevHashOffset
+
+		timeOffset  = MerkleRootOffset + MerkleRootLength
+		bitsOffset  = timeOffset + versionSize
+		nonceOffset = bitsOffset + versionSize
+	)
+
+	if len(raw) != BlockHeaderLength {
+		return nil, fmt.Errorf("ConvertHeader: want %d bytes, got %d",
+			BlockHeaderLength, len(raw))
+	}
+
+	readLE32 := func(off int) uint32 {
+		return binary.LittleEndian.Uint32(raw[off : off+4])
+	}
+
+	version := readLE32(versionOffset)
+
+	var prevHash, merkleRoot chainhash.Hash
+	copy(prevHash[:], raw[prevHashOffset:prevHashOffset+prevHashLength])
+	copy(merkleRoot[:], raw[MerkleRootOffset:MerkleRootOffset+MerkleRootLength])
+
+	timestamp := readLE32(timeOffset)
+	bits := readLE32(bitsOffset)
+	nonce := readLE32(nonceOffset)
+
+	blockHash := chainhash.DoubleHashH(raw).String()
+
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      version,
+			PreviousHash: prevHash.String(),
+			MerkleRoot:   merkleRoot.String(),
+			Time:         uint64(timestamp),
+			Bits:         uint64(bits),
+			Nonce:        nonce,
+		},
+		Height: uint(height),
+		Hash:   blockHash,
+	}, nil
+}
 
 func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note string) {
 	if err == nil {
@@ -50,4 +102,9 @@ func blockHeaderURL(baseURL, blockHash string) (string, error) {
 // /tx/broadcast/multi
 func broadcastURL(baseURL string) (string, error) {
 	return buildURL(baseURL, "tx", "broadcast", "multi")
+}
+
+// /block/header/height/{blockheight}/raw
+func blockHeaderByHeightURL(baseURL string, height uint32) (string, error) {
+	return buildURL(baseURL, "block", "header", "height", fmt.Sprintf("%d", height), "raw")
 }

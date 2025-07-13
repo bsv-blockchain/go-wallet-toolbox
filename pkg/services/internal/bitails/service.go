@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -21,6 +22,7 @@ type Bitails struct {
 	url        string
 	apiKey     string
 	logger     *slog.Logger
+	rootCache  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.Bitails) *Bitails {
@@ -46,6 +48,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		apiKey:     config.APIKey,
 		url:        baseURL,
 		logger:     logger,
+		rootCache:  make(map[uint32]*chainhash.Hash),
 	}
 }
 
@@ -82,4 +85,17 @@ func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 	}
 
 	return &wdk.PostedBEEF{TxIDResults: results}, nil
+}
+
+// IsValidRootForHeight checks if the supplied merkle-root belongs to the block at `height`.
+func (b *Bitails) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+	if cached, ok := b.rootCache[height]; ok {
+		return cached.IsEqual(root), nil
+	}
+
+	ok, err := b.fetchAndCompareRoot(ctx, root, height)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", ServiceName, err)
+	}
+	return ok, nil
 }

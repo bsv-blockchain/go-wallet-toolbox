@@ -92,6 +92,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"IsValidRootForHeight",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsValidRootForHeight),
+			servicequeue.NewService2(bitails.ServiceName, bitailsService.IsValidRootForHeight),
 		),
 
 		scriptHistoryServices: servicequeue.NewQueue1(

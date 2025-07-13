@@ -142,6 +142,42 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	return woc.bsvExchangeRate, nil
 }
 
+// MerklePath retrieves the merkle path for a transaction using WoC TSC proof.
+func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
+	proof, err := woc.getTscProof(ctx, txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TSC proof: %w", err)
+	}
+	if proof == nil {
+		// Proof not found
+		return &wdk.MerklePathResult{Name: ServiceName}, nil
+	}
+
+	header, err := woc.hashToHeader(ctx, proof.Target)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch block header: %w", err)
+	}
+
+	merklePath, err := txutils.ConvertTscProofToMerklePath(txID, proof.Index, proof.Nodes, header.Height)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert proof for tx %s to merkle path: %w", txID, err)
+	}
+
+	merkleRoot, err := merklePath.ComputeRootHex(&txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute merkle root: %w", err)
+	}
+	if merkleRoot != header.MerkleRoot {
+		return nil, fmt.Errorf("computed merkle root %q does not match block header %q", merkleRoot, header.MerkleRoot)
+	}
+
+	return &wdk.MerklePathResult{
+		Name:        ServiceName,
+		MerklePath:  merklePath,
+		BlockHeader: header,
+	}, nil
+}
+
 func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
 	var blocks []dto.BlockHeader
 	url := fmt.Sprintf("%s/block/headers?limit=1", woc.url)
@@ -203,4 +239,21 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 	}
 
 	return &wdk.PostedBEEF{TxIDResults: txResults}, nil
+}
+
+// IsValidRootForHeight checks if the provided Merkle root is valid for the given block height.
+func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, err)
+	}
+
+	if cached, ok := woc.rootCache[height]; ok {
+		return cached.IsEqual(root), nil
+	}
+
+	ok, err := woc.fetchAndCompare(ctx, root, height)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", ServiceName, err)
+	}
+	return ok, nil
 }

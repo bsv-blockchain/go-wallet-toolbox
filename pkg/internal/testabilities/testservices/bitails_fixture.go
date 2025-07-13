@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -22,8 +23,10 @@ type BitailsFixture interface {
 	WillReturnBlockHeader(blockHash, rawHeader string)
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
 	WillReturnTxStatus(txid string, blockHeight int)
+	WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string)
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
+	Transport() *httpmock.MockTransport
 }
 
 type BitailsBroadcastFixture interface {
@@ -57,6 +60,10 @@ func (f *bitailsFixture) HttpClient() *resty.Client {
 	client := resty.New()
 	client.SetTransport(f.transport)
 	return client
+}
+
+func (f *bitailsFixture) Transport() *httpmock.MockTransport {
+	return f.transport
 }
 
 func (f *bitailsFixture) OnBroadcast() BitailsBroadcastFixture {
@@ -217,4 +224,20 @@ func (f *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
+}
+
+func (f *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string) {
+	pattern := `=~.*?/block/header/height/` + strconv.Itoa(int(height)) + `/raw$`
+
+	var responder httpmock.Responder
+	switch status {
+	case http.StatusOK:
+		responder = httpmock.NewJsonResponderOrPanic(status, struct {
+			Header string `json:"header"`
+		}{Header: headerHex})
+	default:
+		responder = httpmock.NewStringResponder(status, http.StatusText(status))
+	}
+
+	f.transport.RegisterResponder(http.MethodGet, pattern, responder)
 }

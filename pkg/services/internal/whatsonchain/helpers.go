@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -22,42 +23,6 @@ type tscProof struct {
 type blockHeaderResponse struct {
 	Height     int    `json:"height"`
 	MerkleRoot string `json:"merkleRoot"`
-}
-
-// MerklePath retrieves the merkle path for a transaction using WoC TSC proof.
-func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
-	proof, err := woc.getTscProof(ctx, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get TSC proof: %w", err)
-	}
-	if proof == nil {
-		// Proof not found
-		return &wdk.MerklePathResult{Name: ServiceName}, nil
-	}
-
-	header, err := woc.hashToHeader(ctx, proof.Target)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch block header: %w", err)
-	}
-
-	merklePath, err := txutils.ConvertTscProofToMerklePath(txID, proof.Index, proof.Nodes, header.Height)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert proof for tx %s to merkle path: %w", txID, err)
-	}
-
-	merkleRoot, err := merklePath.ComputeRootHex(&txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute merkle root: %w", err)
-	}
-	if merkleRoot != header.MerkleRoot {
-		return nil, fmt.Errorf("computed merkle root %q does not match block header %q", merkleRoot, header.MerkleRoot)
-	}
-
-	return &wdk.MerklePathResult{
-		Name:        ServiceName,
-		MerklePath:  merklePath,
-		BlockHeader: header,
-	}, nil
 }
 
 func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
@@ -117,4 +82,42 @@ func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProo
 	}
 
 	return &proofs[0], nil
+}
+
+// fetchAndCompare fetches the block header for the given height and compares its Merkle root with the provided root.
+func (woc *WhatsOnChain) fetchAndCompare(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+	url, err := blockHeaderURL(woc.url, height)
+	if err != nil {
+		return false, fmt.Errorf("failed to build block header URL for height %d: %w", height, err)
+	}
+
+	var dto struct {
+		MerkleRoot string `json:"merkleroot"`
+	}
+
+	resp, err := woc.httpClient.R().
+		SetContext(ctx).
+		SetResult(&dto).
+		AddRetryCondition(httpx.RetryOnErrOr5xx).
+		Get(url)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch block header for height %d: %w", height, err)
+	}
+
+	switch resp.StatusCode() {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		woc.rootCache[height] = new(chainhash.Hash)
+		return false, nil
+	default:
+		return false, fmt.Errorf("HTTP %d: %s", resp.StatusCode(), resp.Status())
+	}
+
+	remote, err := chainhash.NewHashFromHex(dto.MerkleRoot)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse Merkle root %q for height %d: %w", dto.MerkleRoot, height, err)
+	}
+
+	woc.rootCache[height] = remote
+	return remote.IsEqual(root), nil
 }
