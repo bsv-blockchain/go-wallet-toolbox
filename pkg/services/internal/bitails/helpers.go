@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
