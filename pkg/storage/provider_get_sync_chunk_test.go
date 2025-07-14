@@ -340,7 +340,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 		})
 	}
 
-	t.Run("one by one for label: %d", func(t *testing.T) {
+	t.Run("one by one for single label", func(t *testing.T) {
 		// given:
 		args = argsFixture.
 			WithOffset(wdk.OutputEntityName, 2).
@@ -363,7 +363,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 	})
 
 	for i := range 2 {
-		t.Run(fmt.Sprintf("one by one for label: %d", i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("one by one for label map: %d", i), func(t *testing.T) {
 			// given:
 			args = argsFixture.
 				WithOffset(wdk.TxLabelEntityName, 1).

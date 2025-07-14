@@ -113,13 +113,13 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 
 	for _, tag := range p.chunk.OutputTags {
 		if err = p.upsertTag(tag); err != nil {
-			return nil, fmt.Errorf("failed to upsert label: %w", err)
+			return nil, fmt.Errorf("failed to upsert tag: %w", err)
 		}
 	}
 
 	for _, tagMap := range p.chunk.OutputTagMaps {
 		if err = p.upsertTagMap(tagMap); err != nil {
-			return nil, fmt.Errorf("failed to upsert label map: %w", err)
+			return nil, fmt.Errorf("failed to upsert tag map: %w", err)
 		}
 	}
 
