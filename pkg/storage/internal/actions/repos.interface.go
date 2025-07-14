@@ -28,6 +28,7 @@ type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
+	FindUniqueTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
 	UpdateTransactionStatusForTxID(
 		ctx context.Context,

@@ -225,6 +225,26 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
 }
+func (txs *Transactions) FindUniqueTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
+	transaction := []models.Transaction{}
+	err := txs.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID)).
+		Where("reference = ?", reference).
+		Preload("Labels").Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
+	}
+
+	if len(transaction) != 1 {
+		return nil, fmt.Errorf("expected exactly one transaction with reference %s, found %d", reference, len(transaction))
+	}
+
+	return txs.mapModelToTransactionEntity(&transaction[0]), nil
+}
 
 func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {

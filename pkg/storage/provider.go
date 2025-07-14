@@ -505,3 +505,19 @@ func (p *Provider) CommissionEntity() crud.Commission {
 func (p *Provider) KnownTxEntity() crud.KnownTx {
 	return crud.NewKnownTx(p.repo.KnownTx)
 }
+
+func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	if err := validate.ValidAbortActionArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid abortActionArgs args: %w", err)
+	}
+
+	result, err := p.actions.AbortAction(ctx, *auth.UserID, &args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to abort action: %w", err)
+	}
+	return result, nil
+}
