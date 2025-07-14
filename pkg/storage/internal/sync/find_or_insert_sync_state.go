@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )

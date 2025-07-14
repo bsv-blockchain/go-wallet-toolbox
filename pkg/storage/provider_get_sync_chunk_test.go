@@ -2,7 +2,6 @@ package storage_test
 
 import (
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/to"
 	"math"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (

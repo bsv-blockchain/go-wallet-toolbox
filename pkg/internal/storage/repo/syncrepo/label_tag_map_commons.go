@@ -3,12 +3,13 @@ package syncrepo
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"time"
 )
 
 type labelTagMapCommons[Model, ReadModel any] struct {
