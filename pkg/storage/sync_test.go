@@ -16,6 +16,7 @@ import (
 )
 
 func TestSyncProcess(t *testing.T) {
+	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()
@@ -302,7 +303,7 @@ func TestSyncProcessWithBasketsNumIDMissmatch(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 3, inserts)
+	assert.Equal(t, 7, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and outputs:
@@ -335,7 +336,7 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 3, inserts)
+	assert.Equal(t, 7, inserts)
 	assert.Equal(t, 1, updates)
 
 	// when:

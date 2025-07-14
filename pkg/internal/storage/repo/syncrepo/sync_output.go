@@ -81,6 +81,32 @@ func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ..
 }
 
 func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (isNew bool, outputID uint, err error) {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		isNew, outputID, err = s.upsertOutput(tx, entity)
+		if err != nil {
+			return fmt.Errorf("failed to upsert output: %w", err)
+		}
+
+		if entity.UserUTXO != nil {
+			entity.UserUTXO.OutputID = outputID
+
+			err = s.upsertUserUTXO(tx, entity.UserUTXO)
+			if err != nil {
+				return fmt.Errorf("failed to upsert user UTXO: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, outputID, nil
+}
+
+func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew bool, outputID uint, err error) {
 	model := models.Output{
 		Model: gorm.Model{
 			CreatedAt: entity.CreatedAt,
@@ -104,52 +130,66 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 		SenderIdentityKey:  entity.SenderIdentityKey,
 	}
 
-	if entity.UserUTXO != nil {
-		model.UserUTXO = &models.UserUTXO{
-			UserID:             entity.UserUTXO.UserID,
-			OutputID:           entity.UserUTXO.OutputID,
-			BasketName:         entity.UserUTXO.BasketName,
-			Satoshis:           entity.UserUTXO.Satoshis,
-			EstimatedInputSize: entity.UserUTXO.EstimatedInputSize,
-			CreatedAt:          entity.UserUTXO.CreatedAt,
-			ReservedByID:       entity.UserUTXO.ReservedByID,
-		}
+	updateTx := tx.Model(&model).
+		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+		Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
+		Select("*").
+		Updates(&model)
+
+	// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
+
+	if updateTx.Error != nil {
+		err = fmt.Errorf("failed to update output: %w", updateTx.Error)
+		return
 	}
 
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&model).
-			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
-			Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
-			Select("*").
-			Updates(&model)
-
-		// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
-
-		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update output: %w", updateTx.Error)
-		}
-
-		if updateTx.RowsAffected > 0 {
-			outputID = model.ID
-			return nil
-		}
-
-		err := tx.Create(&model).Error
-		if err != nil {
-			return fmt.Errorf("failed to create output: %w", err)
-		}
-
-		isNew = true
+	if updateTx.RowsAffected > 0 {
 		outputID = model.ID
-
-		return nil
-	})
-
-	if err != nil {
-		return false, 0, fmt.Errorf("transaction failed: %w", err)
+		return
 	}
 
-	return isNew, outputID, nil
+	err = tx.Create(&model).Error
+	if err != nil {
+		err = fmt.Errorf("failed to create output: %w", err)
+		return
+	}
+
+	isNew = true
+	outputID = model.ID
+
+	return
+}
+
+func (s *SyncOutput) upsertUserUTXO(tx *gorm.DB, userUTXO *entity.UserUTXO) error {
+	model := &models.UserUTXO{
+		UserID:             userUTXO.UserID,
+		OutputID:           userUTXO.OutputID,
+		BasketName:         userUTXO.BasketName,
+		Satoshis:           userUTXO.Satoshis,
+		EstimatedInputSize: userUTXO.EstimatedInputSize,
+		CreatedAt:          userUTXO.CreatedAt,
+		ReservedByID:       userUTXO.ReservedByID,
+	}
+
+	updateTx := tx.Model(&models.UserUTXO{}).
+		Where("user_id = ? AND output_id = ?", userUTXO.UserID, userUTXO.OutputID).
+		Select("*").
+		Updates(model)
+
+	if updateTx.Error != nil {
+		return fmt.Errorf("failed to update user UTXO: %w", updateTx.Error)
+	}
+
+	if updateTx.RowsAffected > 0 {
+		return nil
+	}
+
+	err := tx.Create(model).Error
+	if err != nil {
+		return fmt.Errorf("failed to create user UTXO: %w", err)
+	}
+
+	return nil
 }
 
 func (s *SyncOutput) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOutput {
