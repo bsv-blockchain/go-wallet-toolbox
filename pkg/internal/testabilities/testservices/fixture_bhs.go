@@ -7,9 +7,15 @@ import (
 	"regexp"
 	"testing"
 
+<<<<<<< Updated upstream
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+=======
+	"github.com/go-resty/resty/v2"
+>>>>>>> Stashed changes
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type longestChainTipResponse struct {
@@ -37,6 +43,12 @@ type BHSFixture interface {
 	WillRespondWithInternalFailure()
 	WillRespondWithEmptyLongestTipBlockHeader()
 	OnLongestTipBlockHeaderResponseWith(opts ...LongestChainTipOptions)
+<<<<<<< Updated upstream
+=======
+	OnMerkleRootVerifyResponse(height uint, root, state string)
+	DefaultLongestTip() *longestChainTipResponse
+	HttpClient() *resty.Client
+>>>>>>> Stashed changes
 }
 
 type bhsFixture struct {
@@ -114,5 +126,37 @@ func newDefaultLongestChainTipResponse() *longestChainTipResponse {
 	}
 }
 
+<<<<<<< Updated upstream
 var bhsTestURLWithoutHTTPprefix = defs.BHSTestURL[7:]
 var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s(?:\/.*)?$`, bhsTestURLWithoutHTTPprefix))
+=======
+const tipLongestPath = "/api/v1/chain/tip/longest"
+const verifyMerkleRootPath = "/api/v1/chain/merkleroot/verify"
+
+var bhsTestURLWithoutHTTPPrefix = defs.BHSTestURL[7:]
+var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s\/api\/v1\/.*$`, regexp.QuoteMeta(bhsTestURLWithoutHTTPPrefix)))
+
+func (b *bhsFixture) HttpClient() *resty.Client {
+	client := resty.New()
+	client.SetTransport(b.transport)
+	return client
+}
+
+func (b *bhsFixture) DefaultLongestTip() *longestChainTipResponse {
+	return b.longestChainTip
+}
+
+func (b *bhsFixture) OnMerkleRootVerifyResponse(height uint, root, state string) {
+	resp := []map[string]any{{
+		"blockHeight":       height,
+		"merkleRoot":        root,
+		"confirmationState": state,
+	}}
+
+	b.transport.RegisterResponder(
+		http.MethodPost,
+		defs.BHSTestURL+verifyMerkleRootPath,
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, resp),
+	)
+}
+>>>>>>> Stashed changes

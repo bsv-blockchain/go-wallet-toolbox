@@ -9,7 +9,7 @@ require (
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
 	github.com/go-co-op/gocron/v2 v2.16.2
 	github.com/go-resty/resty/v2 v2.16.5
-	github.com/go-softwarelab/common v1.3.0
+	github.com/go-softwarelab/common v1.3.1
 	github.com/go-viper/mapstructure/v2 v2.3.0
 	github.com/jarcoal/httpmock v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.28
