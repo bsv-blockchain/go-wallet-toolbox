@@ -33,6 +33,7 @@ type WalletServices struct {
 	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
 	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
 	validatorServices     servicequeue.Queue2[*chainhash.Hash, uint32, bool]
+	scriptHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -91,6 +92,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"IsValidRootForHeight",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsValidRootForHeight),
+		),
+
+		scriptHistoryServices: servicequeue.NewQueue1(
+			logger,
+			"GetScriptHashHistory",
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetScriptHashHistory),
 		),
 	}
 }
@@ -218,4 +225,16 @@ func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainha
 		return false, fmt.Errorf("failed to validate Merkle root %s for height %d: %w", root, height, err)
 	}
 	return ok, nil
+}
+
+// GetScriptHashHistory retrieves both confirmed and unconfirmed transaction history for a script hash
+func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
+	result, err := s.scriptHistoryServices.OneByOne(ctx, scriptHash)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("script hash %s not found in history", scriptHash)
+		}
+		return nil, fmt.Errorf("failed to get script history: %w", err)
+	}
+	return result, nil
 }

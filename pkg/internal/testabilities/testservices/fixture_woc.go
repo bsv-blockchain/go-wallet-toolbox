@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -33,6 +34,13 @@ type WhatsOnChainFixture interface {
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
+
+	WillRespondWithConfirmedScriptHistory(status int, scriptHash string, responseJSON string)
+	WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, responseJSON string)
+	WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string)
+	WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture
+	ScriptHistoryData() ScriptHistoryDataBuilder
+	WithScriptHistoryValidationError(scriptHash string, expectedError string)
 }
 
 type wocFixture struct {
@@ -225,7 +233,7 @@ func (f *wocFixture) WillRespondWithMerklePath(status int, txID, responseBody st
 		return resp, nil
 	}
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/proof/tsc", f.network, txID)
-	f.transport.RegisterResponder("GET", url, responder)
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
 func (f *wocFixture) WillRespondWithBlockHeader(status int, blockHash, responseBody string) {
@@ -235,7 +243,7 @@ func (f *wocFixture) WillRespondWithBlockHeader(status int, blockHash, responseB
 		return resp, nil
 	}
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/%s/header", f.network, blockHash)
-	f.transport.RegisterResponder("GET", url, responder)
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
 func (f *wocFixture) WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture {
@@ -264,11 +272,11 @@ func (f *wocFixture) WillRespondWithBroadcast(status int, responseBody string) {
 	}
 
 	url := mockBroadcastURL(f.network)
-	f.transport.RegisterResponder("POST", url, responder)
+	f.transport.RegisterResponder(http.MethodPost, url, responder)
 }
 
 func (f *wocFixture) WillAlwaysReturnPostBEEFSuccess(txids ...string) {
-	f.Transport().RegisterResponder("POST", mockBroadcastURL(f.network), func(req *http.Request) (*http.Response, error) {
+	f.Transport().RegisterResponder(http.MethodPost, mockBroadcastURL(f.network), func(req *http.Request) (*http.Response, error) {
 		var body struct {
 			TxHex string `json:"txhex"`
 		}
@@ -305,7 +313,7 @@ type TxStatusExpectation struct {
 func (f *wocFixture) WillRespondOnTxStatus(status int, tc TxStatusExpectation) {
 	f.TB.Helper()
 
-	f.transport.RegisterResponder("POST",
+	f.transport.RegisterResponder(http.MethodPost,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/txs/status", f.network),
 		func(req *http.Request) (*http.Response, error) {
 			var body struct {
@@ -373,4 +381,284 @@ func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint3
 
 	rx := fmt.Sprintf(`=~^/v1(?:/bsv)?/%s/block/%d/header$`, f.network, height)
 	f.transport.RegisterResponder(http.MethodGet, rx, responder)
+}
+
+type WhatsOnChainScriptHistoryQueryFixture interface {
+	WillReturnConfirmedHistory(status int, responseJSON string)
+	WillReturnUnconfirmedHistory(status int, responseJSON string)
+	WillReturnAPIError(errorMsg string)
+	WillReturnHTTPError(status int)
+}
+
+type ScriptHistoryDataBuilder interface {
+	WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder
+	WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder
+	WithEmptyHistory() ScriptHistoryDataBuilder
+	WithScriptHash(scriptHash string) ScriptHistoryDataBuilder
+	WithConfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder
+	WithUnconfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder
+	WithConfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder
+	WithUnconfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder
+	WithConfirmedTransactionsNotFound() ScriptHistoryDataBuilder
+	WithUnconfirmedTransactionsNotFound(errorMsg string) ScriptHistoryDataBuilder
+	WithConfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder
+	WithUnconfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder
+	WillBeReturned()
+}
+
+func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHash string, responseJSON string) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", f.network, scriptHash)
+
+	responder := func(*http.Request) (*http.Response, error) {
+		resp := httpmock.NewStringResponse(status, responseJSON)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	}
+
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
+}
+
+func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, responseJSON string) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unconfirmed/history", f.network, scriptHash)
+
+	responder := func(*http.Request) (*http.Response, error) {
+		resp := httpmock.NewStringResponse(status, responseJSON)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	}
+
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
+}
+
+func (f *wocFixture) WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string) {
+	f.TB.Helper()
+
+	errorResponseJSON := fmt.Sprintf(`{
+		"result": [],
+		"error": "%s"
+	}`, errorMsg)
+
+	f.WillRespondWithConfirmedScriptHistory(status, scriptHash, errorResponseJSON)
+}
+
+func (f *wocFixture) WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture {
+	return &wocScriptHistoryQueryFixture{
+		fixture:    f,
+		scriptHash: scriptHash,
+	}
+}
+
+func (f *wocFixture) WithScriptHistoryValidationError(scriptHash string, expectedError string) {
+	f.TB.Helper()
+}
+
+type wocScriptHistoryQueryFixture struct {
+	fixture    *wocFixture
+	scriptHash string
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnAPIError(errorMsg string) {
+	errorResponseJSON := fmt.Sprintf(`{
+		"result": [],
+		"error": "%s"
+	}`, errorMsg)
+	q.WillReturnConfirmedHistory(http.StatusOK, errorResponseJSON)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnConfirmedHistory(status int, responseJSON string) {
+	responder := func(*http.Request) (*http.Response, error) {
+		resp := httpmock.NewStringResponse(status, responseJSON)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	}
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", q.fixture.network, q.scriptHash)
+	q.fixture.transport.RegisterResponder(http.MethodGet, url, responder)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnUnconfirmedHistory(status int, responseJSON string) {
+	responder := func(*http.Request) (*http.Response, error) {
+		resp := httpmock.NewStringResponse(status, responseJSON)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	}
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unconfirmed/history", q.fixture.network, q.scriptHash)
+	q.fixture.transport.RegisterResponder(http.MethodGet, url, responder)
+}
+
+func (q *wocScriptHistoryQueryFixture) WillReturnHTTPError(status int) {
+	q.WillReturnConfirmedHistory(status, "")
+}
+
+type scriptHistoryDataBuilder struct {
+	fixture               *wocFixture
+	scriptHash            string
+	confirmedCount        int
+	unconfirmedCount      int
+	startHeight           int
+	emptyHistory          bool
+	confirmedError        string
+	unconfirmedError      string
+	confirmedStatusCode   int
+	unconfirmedStatusCode int
+}
+
+func (f *wocFixture) ScriptHistoryData() ScriptHistoryDataBuilder {
+	return &scriptHistoryDataBuilder{
+		fixture:               f,
+		scriptHash:            "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832",
+		confirmedCount:        3,
+		unconfirmedCount:      2,
+		startHeight:           800000,
+		emptyHistory:          false,
+		confirmedError:        "",
+		unconfirmedError:      "",
+		confirmedStatusCode:   http.StatusOK,
+		unconfirmedStatusCode: http.StatusOK,
+	}
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder {
+	b.confirmedStatusCode = statusCode
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder {
+	b.unconfirmedStatusCode = statusCode
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder {
+	b.confirmedError = errorMsg
+	b.confirmedCount = 0
+	b.emptyHistory = false
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder {
+	b.unconfirmedError = errorMsg
+	b.unconfirmedCount = 0
+	b.emptyHistory = false
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactionsNotFound() ScriptHistoryDataBuilder {
+	return b.WithConfirmedTransactionsError("").WithConfirmedStatusCode(http.StatusNotFound)
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsNotFound(errorMsg string) ScriptHistoryDataBuilder {
+	return b.WithUnconfirmedTransactionsError(errorMsg).WithUnconfirmedStatusCode(http.StatusNotFound)
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder {
+	return b.WithConfirmedTransactionsError(errorMsg).WithConfirmedStatusCode(http.StatusInternalServerError)
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder {
+	return b.WithUnconfirmedTransactionsError(errorMsg).WithUnconfirmedStatusCode(http.StatusInternalServerError)
+}
+
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
+	b.confirmedCount = count
+	b.startHeight = startHeight
+	b.emptyHistory = false
+	b.confirmedError = ""
+	b.confirmedStatusCode = http.StatusOK
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder {
+	b.unconfirmedCount = count
+	b.emptyHistory = false
+	b.unconfirmedError = ""
+	b.unconfirmedStatusCode = http.StatusOK
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithEmptyHistory() ScriptHistoryDataBuilder {
+	b.emptyHistory = true
+	b.confirmedCount = 0
+	b.unconfirmedCount = 0
+	b.confirmedError = ""
+	b.confirmedStatusCode = http.StatusOK
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) WithScriptHash(scriptHash string) ScriptHistoryDataBuilder {
+	b.scriptHash = scriptHash
+	return b
+}
+
+func (b *scriptHistoryDataBuilder) buildJSON() (confirmedJSON, unconfirmedJSON string) {
+	if b.emptyHistory {
+		return `{"result": [], "error": ""}`, `{"result": [], "error": ""}`
+	}
+
+	if b.confirmedError != "" {
+		confirmedJSON = b.buildConfirmedError()
+	} else {
+		confirmedJSON = b.buildConfirmedSuccess()
+	}
+
+	if b.unconfirmedError != "" {
+		unconfirmedJSON = b.buildUnconfirmedError()
+	} else {
+		unconfirmedJSON = b.buildUnconfirmedSuccess()
+	}
+
+	return confirmedJSON, unconfirmedJSON
+}
+
+func (b *scriptHistoryDataBuilder) buildConfirmedSuccess() string {
+	confirmedItems := make([]string, b.confirmedCount)
+	for i := 0; i < b.confirmedCount; i++ {
+		confirmedItems[i] = fmt.Sprintf(`{
+			"tx_hash": "c%010de1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9",
+			"height": %d
+		}`, i, b.startHeight+i)
+	}
+
+	return fmt.Sprintf(`{
+		"result": [%s],
+		"error": ""
+	}`, strings.Join(confirmedItems, ","))
+}
+
+func (b *scriptHistoryDataBuilder) buildConfirmedError() string {
+	return fmt.Sprintf(`{
+		"result": [],
+		"error": "%s"
+	}`, b.confirmedError)
+}
+
+func (b *scriptHistoryDataBuilder) buildUnconfirmedSuccess() string {
+	unconfirmedItems := make([]string, b.unconfirmedCount)
+	for i := 0; i < b.unconfirmedCount; i++ {
+		unconfirmedItems[i] = fmt.Sprintf(`{
+			"tx_hash": "u%010de1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9",
+			"height": null
+		}`, i)
+	}
+
+	return fmt.Sprintf(`{
+		"result": [%s],
+		"error": ""
+	}`, strings.Join(unconfirmedItems, ","))
+}
+
+func (b *scriptHistoryDataBuilder) buildUnconfirmedError() string {
+	return fmt.Sprintf(`{
+		"result": [],
+		"error": "%s"
+	}`, b.unconfirmedError)
+}
+
+func (b *scriptHistoryDataBuilder) WillBeReturned() {
+	b.fixture.TB.Helper()
+
+	confirmedResp, unconfirmedResp := b.buildJSON()
+
+	b.fixture.WillRespondWithConfirmedScriptHistory(b.confirmedStatusCode, b.scriptHash, confirmedResp)
+	b.fixture.WillRespondWithUnconfirmedScriptHistory(b.unconfirmedStatusCode, b.scriptHash, unconfirmedResp)
 }
