@@ -230,7 +230,9 @@ func (txs *Transactions) FindUniqueTransactionByReference(ctx context.Context, u
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
-		Preload("Labels").Error
+		Preload("Labels").
+		Find(&transaction).
+		Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -356,6 +358,36 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
 	return tx.Model(models.Transaction{}).
 		Where("tx_id = ?", txID).
+		Updates(map[string]any{
+			"status": txStatus,
+		}).Error
+}
+
+func (txs *Transactions) UpdateTransactionStatusForID(
+	ctx context.Context,
+	transactionID uint,
+	txStatus wdk.TxStatus,
+	provenTxReqStatus wdk.ProvenTxReqStatus,
+	historyNote string,
+	historyAttrs map[string]any,
+) error {
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
+		err = updateTransactionStatusByID(tx, transactionID, txStatus)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+	return nil
+}
+
+func updateTransactionStatusByID(tx *gorm.DB, transactionID uint, txStatus wdk.TxStatus) error {
+	return tx.Model(models.Transaction{}).
+		Where("id = ?", transactionID).
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
