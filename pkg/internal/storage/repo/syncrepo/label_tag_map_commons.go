@@ -24,11 +24,23 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	labelStringIDClause := fmt.Sprintf("CONCAT(%s, '.', %s)", f.relationUserIDColumn, f.relationNameColumn)
 	var resultModels []*ReadModel
 
+	scopesToApply := []func(*gorm.DB) *gorm.DB{
+		joinWithNumericIDLookupScope(labelStringIDClause, f.subjectTableName, clause.InnerJoin),
+	}
+
+	options := queryopts.MergeOptions(opts)
+	if options.Page != nil {
+		scopesToApply = append(scopesToApply, scopes.Paginate(options.Page))
+	}
+
+	if options.Since != nil {
+		scopesToApply = append(scopesToApply, f.sinceUpdateOrDeleteScope(options.Since.Time))
+	}
+
 	err := f.db.WithContext(ctx).
 		Model(f.zeroModelPtr()).
 		Select(fmt.Sprintf("%s.*, num_id", f.relationTableName)).
-		Scopes(scopes.FromQueryOpts(opts)...).
-		Scopes(joinWithNumericIDLookupScope(labelStringIDClause, f.subjectTableName, clause.InnerJoin)).
+		Scopes(scopesToApply...).
 		Where(fmt.Sprintf("%s = ?", f.relationUserIDColumn), userID).
 		Unscoped().
 		Find(&resultModels).Error
@@ -93,4 +105,10 @@ func (f *labelTagMapCommons[_, _]) Delete(ctx context.Context, parentID uint, us
 
 func (f *labelTagMapCommons[Model, _]) zeroModelPtr() *Model {
 	return to.Ptr(to.ZeroValue[Model]())
+}
+
+func (f *labelTagMapCommons[_, _]) sinceUpdateOrDeleteScope(since time.Time) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("updated_at >= ? OR deleted_at >= ?", since, since)
+	}
 }

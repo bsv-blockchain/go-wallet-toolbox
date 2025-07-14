@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 )
 
@@ -45,12 +46,14 @@ func (s *SyncLabelMap) FindLabelsMapForSync(ctx context.Context, userID int, opt
 }
 
 func (s *SyncLabelMap) mapModelToTableTxLabelMap(model *LabelsMapReadModel) *wdk.TableTxLabelMap {
+	deleted := model.DeletedAt.Valid
+
 	return &wdk.TableTxLabelMap{
 		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
+		UpdatedAt:     to.IfThen(!deleted, model.UpdatedAt).ElseThen(model.DeletedAt.Time),
 		TransactionID: model.TransactionID,
 		TxLabelID:     model.NumID,
-		IsDeleted:     model.DeletedAt.Valid,
+		IsDeleted:     deleted,
 	}
 }
 

@@ -433,13 +433,13 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 4, inserts)
-	assert.Equal(t, 2, updates)
+	assert.Equal(t, 3, updates)
 
 	// and:
 	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
 		WithLabels(commonLabel, label1, label2)
 
 	thenDBState.AllOutputs(testusers.Alice).
-		WithCountHavingTags(0, tag1). //TODO: The tag1 should be removed; TODO: Update how we get id with "Returning" Clause
+		WithCountHavingTags(0, tag1).
 		WithCountHavingTags(1, tag2)
 }
