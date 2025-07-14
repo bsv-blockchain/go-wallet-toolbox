@@ -42,6 +42,7 @@ type CreateActionParams struct {
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
 	TrustSelf                bool
+	IsNoSend                 bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -56,6 +57,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		RandomizeOutputs:         args.Options.RandomizeOutputs,
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
 		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
+		IsNoSend:                 args.IsNoSend,
 	}
 }
 
@@ -198,14 +200,24 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
+	var noSendChangeOutputVouts []int
+	if params.IsNoSend {
+		seq.ForEach(seq.FromSlice(newOutputs), func(output *entity.NewOutput) {
+			if output.IsChangeOutputVout() {
+				noSendChangeOutputVouts = append(noSendChangeOutputVouts, int(output.Vout))
+			}
+		})
+	}
+
 	return &wdk.StorageCreateActionResult{
-		Reference:        reference,
-		Version:          params.Version,
-		LockTime:         params.LockTime,
-		DerivationPrefix: derivationPrefix,
-		Outputs:          c.resultOutputs(newOutputs),
-		Inputs:           resultInputs,
-		InputBeef:        inputBeef,
+		Reference:               reference,
+		Version:                 params.Version,
+		LockTime:                params.LockTime,
+		DerivationPrefix:        derivationPrefix,
+		Outputs:                 c.resultOutputs(newOutputs),
+		Inputs:                  resultInputs,
+		InputBeef:               inputBeef,
+		NoSendChangeOutputVouts: &noSendChangeOutputVouts,
 	}, nil
 }
 
