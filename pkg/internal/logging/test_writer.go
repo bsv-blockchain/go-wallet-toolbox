@@ -17,3 +17,7 @@ func (w *TestWriter) Write(p []byte) (n int, err error) {
 func (w *TestWriter) String() string {
 	return w.builder.String()
 }
+
+func (w *TestWriter) Clear() {
+	w.builder.Reset()
+}
