@@ -18,14 +18,14 @@ func TestWalletServices_Height(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func(ts.ServicesFixture)
-		expectValue int64
+		expectValue uint32
 	}{
 		{
 			name: "WhatsOnChain succeeds (primary)",
 			setup: func(f ts.ServicesFixture) {
 				f.WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, wocTip)
 			},
-			expectValue: int64(wocTip),
+			expectValue: wocTip,
 		},
 		{
 			name: "WoC unreachable → Bitails succeeds (first fallback)",
@@ -33,7 +33,7 @@ func TestWalletServices_Height(t *testing.T) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 				f.Bitails().WillReturnNetworkInfo(http.StatusOK, bitTip)
 			},
-			expectValue: int64(bitTip),
+			expectValue: bitTip,
 		},
 		{
 			name: "WoC & Bitails fail → BHS succeeds (second fallback)",
@@ -44,8 +44,35 @@ func TestWalletServices_Height(t *testing.T) {
 				f.BHS().OnLongestTipBlockHeaderResponseWith(ts.WithLongestChainTipHeight(uint(bhsTip)))
 				f.BHS().IsUpAndRunning()
 			},
-			expectValue: int64(bhsTip),
+			expectValue: bhsTip,
 		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			fix := ts.GivenServices(t)
+			tc.setup(fix)
+
+			svc := fix.Services().WithDefaultConfig()
+
+			// when:
+			got, err := svc.CurrentHeight(t.Context())
+
+			// then:
+			require.NoError(t, err)
+			require.Equal(t, tc.expectValue, got)
+		})
+	}
+}
+
+func TestWalletServices_Height_ErrorCases(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		setup       func(ts.ServicesFixture)
+		expectValue uint32
+	}{
 		{
 			name: "all providers fail → height is 0",
 			setup: func(f ts.ServicesFixture) {
@@ -66,9 +93,10 @@ func TestWalletServices_Height(t *testing.T) {
 			svc := fix.Services().WithDefaultConfig()
 
 			// when:
-			got := svc.Height(t.Context())
+			got, err := svc.CurrentHeight(t.Context())
 
 			// then:
+			require.Error(t, err)
 			require.Equal(t, tc.expectValue, got)
 		})
 	}

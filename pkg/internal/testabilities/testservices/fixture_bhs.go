@@ -7,11 +7,10 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type longestChainTipResponse struct {
@@ -128,7 +127,7 @@ func newDefaultLongestChainTipResponse() *longestChainTipResponse {
 const tipLongestPath = "/api/v1/chain/tip/longest"
 
 var bhsTestURLWithoutHTTPPrefix = defs.BHSTestURL[7:]
-var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s%s$`, regexp.QuoteMeta(bhsTestURLWithoutHTTPprefix), tipLongestPath))
+var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s%s$`, regexp.QuoteMeta(bhsTestURLWithoutHTTPPrefix), tipLongestPath))
 
 func (b *bhsFixture) HttpClient() *resty.Client {
 	client := resty.New()

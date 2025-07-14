@@ -133,7 +133,7 @@ func PrintTable(title string, headers []string, rows [][]string) {
 	}
 }
 
-func HeightOutput(height int64) {
+func HeightOutput(height uint32) {
 	fmt.Printf("\n%sGet Height: %d%s\n", ColorGreen, height, ColorReset)
 }
 

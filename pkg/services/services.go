@@ -146,14 +146,13 @@ func (s *WalletServices) HeaderForHeight(height int64) ([]int64, error) {
 	panic("Not implemented yet")
 }
 
-// Height returns the height of the active chain
-func (s *WalletServices) Height(ctx context.Context) int64 {
-	h, err := s.heightServices.OneByOne(context.TODO())
+// CurrentHeight returns the height of the active chain
+func (s *WalletServices) CurrentHeight(ctx context.Context) (uint32, error) {
+	h, err := s.heightServices.OneByOne(ctx)
 	if err != nil {
-		s.logger.Warn("all GetHeight providers failed", "error", err)
-		return 0
+		return 0, fmt.Errorf("all CurrentHeight providers failed: %w", err)
 	}
-	return int64(h)
+	return h, nil
 }
 
 // BsvExchangeRate returns approximate exchange rate US Dollar / BSV, USD / BSV

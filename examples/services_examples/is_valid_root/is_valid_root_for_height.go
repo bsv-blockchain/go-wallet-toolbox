@@ -20,7 +20,7 @@ func main() {
 		rootHex = "559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd"
 	)
 
-	show.ProcessStart("IsValidRootForHeight")
+	show.ProcessStart("Is Valid Root For Height")
 	cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
 	srv := services.New(slog.Default(), cfg)
 
@@ -37,11 +37,11 @@ func main() {
 
 	show.Success("Checked if root is valid for height")
 	show.IsValidRootForHeightOutput(height, rootHex, ok)
-	show.ProcessComplete("IsValidRootForHeight")
+	show.ProcessComplete("Is Valid Root For Height")
 }
 
 /* Output:
-🚀 STARTING: IsValidRootForHeight
+🚀 STARTING: Is Valid Root For Height
 ============================================================
 
 === STEP ===
@@ -51,5 +51,5 @@ Wallet-Services is performing: checking if root 559ce1f8394df2f008a9c4d23e71256c
 
 Height: 903321 | Merkle Root: 559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd | Valid: true
 ============================================================
-🎉 COMPLETED: IsValidRootForHeight
+🎉 COMPLETED: Is Valid Root For Height
 */

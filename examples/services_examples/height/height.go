@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -30,7 +31,11 @@ func main() {
 	srv := services.New(slog.Default(), cfg)
 	show.Step("Wallet-Services", "fetching main-chain height (BHS → WoC → Bitails fallback)")
 
-	height := srv.Height(context.Background())
+	height, err := srv.CurrentHeight(context.Background())
+	if err != nil {
+		show.Error(fmt.Sprintf("failed to get current height: %v", err))
+		return
+	}
 
 	show.Success("Fetched chain tip height")
 	show.HeightOutput(height)
