@@ -16,7 +16,6 @@ import (
 )
 
 func TestSyncProcess(t *testing.T) {
-	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()
@@ -363,7 +362,6 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 }
 
 func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
-	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()

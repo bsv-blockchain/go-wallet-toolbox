@@ -48,11 +48,11 @@ func findNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, str
 		Where("table_name = ? AND string_id = ?", tableName, stringID).
 		Scan(&numericID)
 	if txScan.Error != nil {
-		return 0, fmt.Errorf("failed to find numeric ID for %s: %w", stringID, txScan.Error)
+		return 0, fmt.Errorf("failed to find numeric ID for %q: %w", stringID, txScan.Error)
 	}
 
 	if txScan.RowsAffected == 0 {
-		return 0, fmt.Errorf("numeric ID not found for %s", stringID)
+		return 0, fmt.Errorf("numeric ID not found for %q", stringID)
 	}
 
 	return numericID, nil
@@ -71,7 +71,7 @@ func saveNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, str
 		}).
 		Create(stringIDLookup).Error
 	if err != nil {
-		return fmt.Errorf("failed to save numeric ID lookup for %s: %w", stringID, err)
+		return fmt.Errorf("failed to save numeric ID lookup for %q: %w", stringID, err)
 	}
 
 	return nil

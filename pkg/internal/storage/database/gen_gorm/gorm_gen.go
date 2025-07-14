@@ -13,9 +13,14 @@ import (
 
 //go:generate go run gorm_gen.go
 
+const (
+	outPath     = "../genquery"
+	genFilePath = outPath + "/gen.go"
+)
+
 func main() {
 	g := gen.NewGenerator(gen.Config{
-		OutPath: "../genquery",
+		OutPath: outPath,
 		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface,
 	})
 
@@ -42,25 +47,22 @@ func main() {
 	g.Execute()
 
 	// Workaround to substitute generated method that is conflicting with the one in the model "Transaction"
+	// NOTE: When you want to create gorm-gen transaction, you should use the method `DBTransaction` instead of `Transaction`.
 
 	log.Println("Applying automated workaround for Transaction method conflict...")
-	applyTransactionMethodWorkaround("../genquery/gen.go")
+	applyTransactionMethodWorkaround()
 }
 
-func applyTransactionMethodWorkaround(filePath string) {
-	// Read the entire content of the generated file.
-	input, err := os.ReadFile(filePath) //nolint:gosec
+func applyTransactionMethodWorkaround() {
+	const originalMethodSignature = `func (q *Query) Transaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {`
+	const replacementMethodSignature = `func (q *Query) DBTransaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {`
+
+	input, err := os.ReadFile(genFilePath)
 	if err != nil {
-		log.Fatalf("WORKAROUND FAILED: Could not read generated file '%s': %v", filePath, err)
+		log.Fatalf("WORKAROUND FAILED: Could not read generated file '%s': %v", genFilePath, err)
 	}
 
 	fileContent := string(input)
-
-	// Define the exact method signature that gorm/gen creates, which causes the conflict.
-	originalMethodSignature := `func (q *Query) Transaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {`
-
-	// Define the new, non-conflicting method signature.
-	replacementMethodSignature := `func (q *Query) DBTransaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {`
 
 	// Check if the conflicting method exists. If not, the workaround isn't needed,
 	// which might happen if gorm/gen updates or your models change.
@@ -69,14 +71,13 @@ func applyTransactionMethodWorkaround(filePath string) {
 		return
 	}
 
-	// Replace the first occurrence of the conflicting method signature with the new one.
 	newContent := strings.Replace(fileContent, originalMethodSignature, replacementMethodSignature, 1)
 
-	// Write the modified content back to the file, overwriting the original.
-	err = os.WriteFile(filePath, []byte(newContent), 0600)
+	err = os.WriteFile(genFilePath, []byte(newContent), 0600)
 	if err != nil {
-		log.Fatalf("WORKAROUND FAILED: Could not write changes to generated file %q: %v", filePath, err)
+		log.Fatalf("WORKAROUND FAILED: Could not write changes to generated file %q: %v", genFilePath, err)
 	}
 
 	log.Println("WORKAROUND SUCCESS: Renamed conflicting Transaction method to DBTransaction.")
+	log.Println(`NOTE: When you want to create gorm-gen transaction, you need to use the method "DBTransaction" instead of "Transaction".`)
 }
