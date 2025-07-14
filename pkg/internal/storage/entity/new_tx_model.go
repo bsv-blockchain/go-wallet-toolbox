@@ -3,6 +3,7 @@ package entity
 import (
 	"fmt"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -27,7 +28,8 @@ type NewTx struct {
 	ReservedOutputIDs []uint
 	Outputs           []*NewOutput
 
-	Labels []primitives.StringUnder300
+	Labels     []primitives.StringUnder300
+	Commission *entity.Commission
 }
 
 // NewOutput represents an output of a new transaction.

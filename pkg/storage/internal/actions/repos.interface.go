@@ -5,6 +5,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -62,4 +63,9 @@ type KnownTxRepo interface {
 type KeyValueRepo interface {
 	Get(ctx context.Context, key string) ([]byte, bool, error)
 	Set(ctx context.Context, key string, value []byte) error
+}
+
+type CommissionRepo interface {
+	AddCommission(ctx context.Context, commission *pkgentity.Commission) error
+	FindCommission(ctx context.Context, userID int, transactionID uint) (*pkgentity.Commission, error)
 }

@@ -46,12 +46,12 @@ func TestSyncProcess(t *testing.T) {
 	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 
 	// and knownTxs:
-	thenDBState.HasKnownTX(ownedMinedTx.ID()).
+	thenDBState.HasKnownTX(ownedMinedTx.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		HasRawTx().
 		IsMined()
 
-	thenDBState.HasKnownTX(ownedTx.ID()).
+	thenDBState.HasKnownTX(ownedTx.ID().String()).
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		HasRawTx()
 
@@ -61,14 +61,14 @@ func TestSyncProcess(t *testing.T) {
 
 	// and user's transactions:
 	thenDBState.
-		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedMinedTx.ID())).
-		WithTxID(ownedMinedTx.ID()).
+		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedMinedTx.ID().String())).
+		WithTxID(ownedMinedTx.ID().String()).
 		WithStatus(wdk.TxStatusCompleted).
 		WithLabels(commonLabel, customLabelTx1)
 
 	thenDBState.
-		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTx.ID())).
-		WithTxID(ownedTx.ID()).
+		HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTx.ID().String())).
+		WithTxID(ownedTx.ID().String()).
 		WithStatus(wdk.TxStatusUnproven).
 		WithLabels(commonLabel, customLabelTx2)
 
@@ -330,7 +330,7 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 
 	// when:
 	err = sourceProvider.RelinquishOutput(t.Context(), testusers.Alice.AuthID(), wdk.RelinquishOutputArgs{
-		Output: string(primitives.NewOutpointString(ownedTx.ID(), 0)),
+		Output: string(primitives.NewOutpointString(ownedTx.ID().String(), 0)),
 	})
 	require.NoError(t, err)
 

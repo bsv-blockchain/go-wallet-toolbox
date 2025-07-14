@@ -18,7 +18,7 @@ func DefaultProcessActionArgs(t *testing.T) wdk.ProcessActionArgs {
 		IsNoSend:   false,
 		IsDelayed:  false,
 		Reference:  to.Ptr(Reference),
-		TxID:       to.Ptr(primitives.TXIDHexString(spec.ID())),
+		TxID:       to.Ptr(primitives.TXIDHexString(spec.ID().String())),
 		RawTx:      spec.TX().Bytes(),
 		SendWith:   []primitives.TXIDHexString{},
 	}
