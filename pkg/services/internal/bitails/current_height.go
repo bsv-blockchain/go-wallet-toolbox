@@ -11,8 +11,8 @@ type networkInfoResponse struct {
 	Blocks uint64 `json:"blocks"`
 }
 
-// GetHeight contacts the Bitails API and returns the current best-chain height.
-func (b *Bitails) GetHeight(ctx context.Context) (uint32, error) {
+// CurrentHeight contacts the Bitails API and returns the current best-chain height.
+func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	url, err := buildURL(b.url, "network", "info")
 	if err != nil {
 		return 0, fmt.Errorf("failed to build height URL: %w", err)

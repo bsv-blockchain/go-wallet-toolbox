@@ -97,10 +97,10 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 
 		heightServices: servicequeue.NewQueue(
 			logger,
-			"GetHeight",
-			servicequeue.NewService(bhs.ServiceName, bhsService.GetHeight),
-			servicequeue.NewService(whatsonchain.ServiceName, wocService.GetHeight),
-			servicequeue.NewService(bitails.ServiceName, bitailsService.GetHeight),
+			"CurrentHeight",
+			servicequeue.NewService(bhs.ServiceName, bhsService.CurrentHeight),
+			servicequeue.NewService(whatsonchain.ServiceName, wocService.CurrentHeight),
+			servicequeue.NewService(bitails.ServiceName, bitailsService.CurrentHeight),
 		),
 
 		scriptHistoryServices: servicequeue.NewQueue1(

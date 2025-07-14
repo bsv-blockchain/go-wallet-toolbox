@@ -13,8 +13,8 @@ type chainInfoDTO struct {
 	Blocks uint64 `json:"blocks"`
 }
 
-// GetHeight returns the current best-chain height.
-func (woc *WhatsOnChain) GetHeight(ctx context.Context) (uint32, error) {
+// CurrentHeight returns the current best-chain height.
+func (woc *WhatsOnChain) CurrentHeight(ctx context.Context) (uint32, error) {
 	var info chainInfoDTO
 
 	url, err := chainInfoURL(woc.url)

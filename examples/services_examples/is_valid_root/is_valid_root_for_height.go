@@ -1,4 +1,3 @@
-// examples/is_valid_root/main.go
 package main
 
 import (

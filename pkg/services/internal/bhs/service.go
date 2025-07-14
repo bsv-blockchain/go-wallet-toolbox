@@ -81,13 +81,13 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 	return block.ConvertToChainBlockHeader(), nil
 }
 
-// GetHeight returns the best-chain height reported by the Block-Headers
+// CurrentHeight returns the best-chain height reported by the Block-Headers
 // Service (`/chain/tip/longest`).
-func (b *BlockHeadersService) GetHeight(ctx context.Context) (uint32, error) {
+func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error) {
 	var tip dto.TipStateResponse
 	url, err := tipLongestURL(b.cfg.URL)
 	if err != nil {
-		return 0, fmt.Errorf("bhs: failed to build tip URL: %w", err)
+		return 0, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
 	}
 
 	res, err := b.
@@ -97,18 +97,18 @@ func (b *BlockHeadersService) GetHeight(ctx context.Context) (uint32, error) {
 		SetResult(&tip).
 		Get(url)
 	if err != nil {
-		return 0, fmt.Errorf("bhs: height query failed (%s): %w", url, err)
+		return 0, fmt.Errorf("failed for service %s: height query failed (%s): %w", ServiceName, url, err)
 	}
 	if res.StatusCode() != http.StatusOK {
-		return 0, fmt.Errorf("bhs: unexpected HTTP %d for %s", res.StatusCode(), url)
+		return 0, fmt.Errorf("failed for service %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
 	}
 	if tip.IsZero() || tip.Height == 0 {
-		return 0, fmt.Errorf("bhs: empty /chain/tip/longest response")
+		return 0, fmt.Errorf("failed for service %s: empty /chain/tip/longest response", ServiceName)
 	}
 
 	height, err := to.UInt32(tip.Height)
 	if err != nil {
-		return 0, fmt.Errorf("bhs: invalid height %d in /chain/tip/longest response: %w", tip.Height, err)
+		return 0, fmt.Errorf("failed for service %s: invalid height %d in /chain/tip/longest response: %w", ServiceName, tip.Height, err)
 	}
 
 	return height, nil

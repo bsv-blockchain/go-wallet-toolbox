@@ -1,4 +1,4 @@
-package utils
+package show
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// PrintMerklePath dumps every element exactly as it comes from the SDK.
-func PrintMerklePath(path *transaction.MerklePath) {
+// printMerklePath dumps every element exactly as it comes from the SDK.
+func printMerklePath(path *transaction.MerklePath) {
     for lvl, elems := range path.Path {
         for _, el := range elems {
             isTx := el.Txid != nil && *el.Txid
@@ -24,8 +24,8 @@ func PrintMerklePath(path *transaction.MerklePath) {
     }
 }
 
-// PrintMerklePathInfo prints the metadata that GetMerklePath returns.
-func PrintMerklePathInfo(r *wdk.MerklePathResult) {
+// printMerklePathInfo prints the metadata that GetMerklePath returns.
+func printMerklePathInfo(r *wdk.MerklePathResult) {
 	fmt.Printf("service,%s\n", r.Name)
 
 	if bh := r.BlockHeader; bh != nil {

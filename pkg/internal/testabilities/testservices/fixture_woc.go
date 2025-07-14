@@ -393,7 +393,7 @@ func (f *wocFixture) WillRespondWithChainInfo(status int, blocks uint32) {
 	f.transport.RegisterResponder(http.MethodGet, abs,
 		httpmock.NewJsonResponderOrPanic(status, body))
 
-	f.transport.RegisterResponder(http.MethodGet, `=~.*?/chain/info$`, httpmock.NewJsonResponderOrPanic(status, body))
+	f.transport.RegisterResponder(http.MethodGet, fmt.Sprintf(`=~^/v1/bsv/%s/chain/info$`, f.network), httpmock.NewJsonResponderOrPanic(status, body))
 }
 
 type WhatsOnChainScriptHistoryQueryFixture interface {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -133,7 +132,7 @@ func PrintTable(title string, headers []string, rows [][]string) {
 	}
 }
 
-func HeightOutput(height uint32) {
+func CurrentHeightOutput(height uint32) {
 	fmt.Printf("\n%sGet Height: %d%s\n", ColorGreen, height, ColorReset)
 }
 
@@ -142,7 +141,7 @@ func IsValidRootForHeightOutput(height uint32, rootHex string, valid bool) {
 }
 
 func MerklePathOutput(result *wdk.MerklePathResult) {
-	utils.PrintMerklePathInfo(result)
+	printMerklePathInfo(result)
     fmt.Println()
-    utils.PrintMerklePath(result.MerklePath)
+    printMerklePath(result.MerklePath)
 }

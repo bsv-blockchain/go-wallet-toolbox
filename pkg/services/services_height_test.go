@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWalletServices_Height(t *testing.T) {
+func TestWalletServices_CurrentHeight(t *testing.T) {
 	const (
 		wocTip = uint32(901475)
 		bitTip = uint32(54321)
@@ -66,7 +66,7 @@ func TestWalletServices_Height(t *testing.T) {
 	}
 }
 
-func TestWalletServices_Height_ErrorCases(t *testing.T) {
+func TestWalletServices_CurrentHeight_ErrorCases(t *testing.T) {
 
 	tests := []struct {
 		name        string

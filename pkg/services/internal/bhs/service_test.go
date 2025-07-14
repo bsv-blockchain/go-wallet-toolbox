@@ -11,39 +11,23 @@ import (
 )
 
 func TestBlockHeadersService_GetHeight(t *testing.T) {
-	const good = uint(900_000)
-	type setupFn func(fix testservices.BHSFixture)
-	cases := []struct {
-		name      string
-		setup     setupFn
-		wantValue uint32
-	}{
-		{
-			name: "happy path",
-			setup: func(f testservices.BHSFixture) {
-				f.OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(good))
-				f.IsUpAndRunning()
-			},
-			wantValue: uint32(good),
-		},
-	}
+	// given:
+	given := bhsTst.Given(t)
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// given:
-			given := bhsTst.Given(t)
-			tc.setup(given.BHS())
+	const blockHeight = uint(900_000)
 
-			svc := given.NewBHSService()
+	givenBHS := given.BHS()
+	givenBHS.OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(blockHeight))
+	givenBHS.IsUpAndRunning()
 
-			// when:
-			got, err := svc.GetHeight(t.Context())
+	svc := given.NewBHSService()
 
-			// then:
-			require.NoError(t, err)
-			require.Equal(t, tc.wantValue, got)
-		})
-	}
+	// when:
+	got, err := svc.CurrentHeight(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, uint32(blockHeight), got)
 }
 
 func TestBlockHeadersService_GetHeight_ErrorCases(t *testing.T) {
@@ -90,7 +74,7 @@ func TestBlockHeadersService_GetHeight_ErrorCases(t *testing.T) {
 			svc := given.NewBHSService()
 
 			// when:
-			_, err := svc.GetHeight(t.Context())
+			_, err := svc.CurrentHeight(t.Context())
 
 			// then:
 			require.Error(t, err)
@@ -98,7 +82,8 @@ func TestBlockHeadersService_GetHeight_ErrorCases(t *testing.T) {
 	}
 }
 
-func TestBlockHeadersService_FindChainTipHeader(t *testing.T) {
+func TestBlockHeadersService_FindChainTipHeader1(t *testing.T) {
+	// given:
 	base := testservices.NewBHSFixture(t)
 	def := base.DefaultLongestTip()
 
@@ -116,39 +101,19 @@ func TestBlockHeadersService_FindChainTipHeader(t *testing.T) {
 		}
 	}
 
-	tests := []struct {
-		name    string
-		setup   func(testservices.BHSFixture)
-		wantErr bool
-	}{
-		{
-			name: "happy path",
-			setup: func(f testservices.BHSFixture) {
-				f.IsUpAndRunning()
-			},
-		},
-	}
+	given := bhsTst.Given(t)
+	given.BHS().IsUpAndRunning()
+	svc := given.NewBHSService()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// given:
-			given := bhsTst.Given(t)
-			tc.setup(given.BHS())
+	// when:
+	got, err := svc.FindChainTipHeader(t.Context())
 
-			svc := given.NewBHSService()
-
-			// when:
-			got, err := svc.FindChainTipHeader(t.Context())
-
-			// then:
-			require.NoError(t, err)
-			require.Equal(t, makeExpected(), got)
-		})
-	}
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, makeExpected(), got)
 }
 
 func TestBlockHeadersService_ErrorCase(t *testing.T) {
-
 	tests := []struct {
 		name  string
 		setup func(testservices.BHSFixture)

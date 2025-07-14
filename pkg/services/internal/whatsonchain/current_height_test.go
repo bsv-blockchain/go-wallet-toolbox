@@ -9,29 +9,18 @@ import (
 )
 
 func TestWhatsOnChain_GetHeight(t *testing.T) {
+	// given:
 	const good = uint32(765_432)
 
-	cases := []struct {
-		name   string
-		status int
-	}{
-		{"happy path", http.StatusOK},
-	}
+	given := tst.Given(t)
+	given.WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, good)
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// given:
-			given := tst.Given(t)
-			given.WhatsOnChain().WillRespondWithChainInfo(tc.status, good)
+	// when:
+	got, err := given.NewWoCService().CurrentHeight(t.Context())
 
-			// when:
-			got, err := given.NewWoCService().GetHeight(t.Context())
-
-			// then:
-			require.NoError(t, err)
-			require.Equal(t, good, got)
-		})
-	}
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, good, got)
 }
 
 func TestWhatsOnChain_GetHeight_ErrorCases(t *testing.T) {
@@ -52,7 +41,7 @@ func TestWhatsOnChain_GetHeight_ErrorCases(t *testing.T) {
 			given.WhatsOnChain().WillRespondWithChainInfo(tc.status, 0)
 
 			// when:
-			_, err := given.NewWoCService().GetHeight(t.Context())
+			_, err := given.NewWoCService().CurrentHeight(t.Context())
 
 			// then:
 			require.Error(t, err)

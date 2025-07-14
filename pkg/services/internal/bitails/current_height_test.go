@@ -9,31 +9,18 @@ import (
 )
 
 func TestBitails_GetHeight(t *testing.T) {
+	// given:
 	const good = uint32(123_456)
 
-	cases := []struct {
-		name        string
-		status      int
-		blocks      uint32
-		expectValue uint32
-	}{
-		{"happy path", http.StatusOK, good, good},
-	}
+	given := bt.Given(t)
+	given.Bitails().WillReturnNetworkInfo(http.StatusOK, good)
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// given:
-			given := bt.Given(t)
-			given.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
+	// when:
+	got, err := given.NewBitailsService().CurrentHeight(t.Context())
 
-			// when:
-			got, err := given.NewBitailsService().GetHeight(t.Context())
-
-			// then:
-			require.NoError(t, err)
-			require.Equal(t, tc.expectValue, got)
-		})
-	}
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, good, got)
 }
 
 func TestBitails_GetHeight_ErrorCases(t *testing.T) {
@@ -54,7 +41,7 @@ func TestBitails_GetHeight_ErrorCases(t *testing.T) {
 			given.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
 
 			// when:
-			_, err := given.NewBitailsService().GetHeight(t.Context())
+			_, err := given.NewBitailsService().CurrentHeight(t.Context())
 
 			// then:
 			require.Error(t, err)
