@@ -43,6 +43,7 @@ type KnownTxAssertion interface {
 	IsMined() KnownTxAssertion
 	NotMined() KnownTxAssertion
 	HasRawTx() KnownTxAssertion
+	TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion
 }
 
 type UserTransactionAssertion interface {
@@ -56,6 +57,11 @@ type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
 	WithCountHavingOutpoint(expected int) OutputsListAssertion
 	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
+}
+
+type TxNotesAssertion interface {
+	Count(expected int) TxNotesAssertion
+	Note(what string, userID *int, attrs map[string]any) TxNotesAssertion
 }
 
 func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
@@ -111,7 +117,10 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 	d.Helper()
 
-	found, err := d.storage.KnownTxEntity().Read().TxID(txID).Find(d.Context())
+	found, err := d.storage.KnownTxEntity().Read().
+		TxID(txID).
+		IncludeHistoryNotes().
+		Find(d.Context())
 	require.NoError(d, err)
 
 	if len(found) == 0 {
@@ -161,6 +170,62 @@ func (d *knownTxAssertion) NotMined() KnownTxAssertion {
 func (d *knownTxAssertion) HasRawTx() KnownTxAssertion {
 	d.Helper()
 	assert.NotEmpty(d, d.knownTx.RawTx, "Expected known transaction to have a non-empty RawTx")
+	return d
+}
+
+func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion {
+	for _, note := range d.knownTx.TxNotes {
+		assert.Equal(d, d.knownTx.TxID, note.TxID, "Expected TxNote to have the same TxID as the known transaction")
+	}
+
+	assertion(&txNotesAssertion{
+		TB:      d.TB,
+		txNotes: d.knownTx.TxNotes,
+	})
+
+	return d
+}
+
+type txNotesAssertion struct {
+	testing.TB
+	txNotes      []*pkgentity.TxNote
+	currentIndex int
+}
+
+func (d *txNotesAssertion) Count(expected int) TxNotesAssertion {
+	d.Helper()
+	if !assert.NotNil(d, d.txNotes, "Expected known transaction to have TxNotes") {
+		return d
+	}
+
+	assert.Len(d, d.txNotes, expected, "Expected known transaction to have %d TxNotes, but got %d", expected, len(d.txNotes))
+	return d
+}
+
+func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) TxNotesAssertion {
+	d.Helper()
+
+	if !assert.NotNil(d, d.txNotes, "Expected known transaction to have TxNotes") {
+		return d
+	}
+
+	if d.currentIndex >= len(d.txNotes) {
+		assert.Failf(d, "No more TxNotes available", "Expected to find a TxNote with what=%s, userID=%v, attrs=%v", what, userID, attrs)
+		return d
+	}
+
+	note := d.txNotes[d.currentIndex]
+	d.currentIndex++
+
+	assert.Equal(d, what, note.What, "Expected TxNote to have the same 'What' as requested")
+	assert.Equal(d, userID, note.UserID, "Expected TxNote to have the same 'UserID' as requested")
+
+	for k, v := range attrs {
+		val, ok := note.Attributes[k]
+		assert.True(d, ok, "Expected TxNote to have attribute '%s'", k)
+		assert.Equal(d, v, val, "Expected TxNote to have the same value for attribute '%s'", k)
+	}
+
 	return d
 }
 

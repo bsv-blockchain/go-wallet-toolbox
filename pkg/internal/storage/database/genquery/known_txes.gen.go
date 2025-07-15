@@ -40,6 +40,11 @@ func newKnownTx(db *gorm.DB, opts ...gen.DOOption) knownTx {
 	_knownTx.MerklePath = field.NewBytes(tableName, "merkle_path")
 	_knownTx.MerkleRoot = field.NewString(tableName, "merkle_root")
 	_knownTx.BlockHash = field.NewString(tableName, "block_hash")
+	_knownTx.TxNotes = knownTxHasManyTxNotes{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("TxNotes", "models.TxNote"),
+	}
 
 	_knownTx.fillFieldMap()
 
@@ -62,6 +67,7 @@ type knownTx struct {
 	MerklePath  field.Bytes
 	MerkleRoot  field.String
 	BlockHash   field.String
+	TxNotes     knownTxHasManyTxNotes
 
 	fieldMap map[string]field.Expr
 }
@@ -106,7 +112,7 @@ func (k *knownTx) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (k *knownTx) fillFieldMap() {
-	k.fieldMap = make(map[string]field.Expr, 12)
+	k.fieldMap = make(map[string]field.Expr, 13)
 	k.fieldMap["created_at"] = k.CreatedAt
 	k.fieldMap["updated_at"] = k.UpdatedAt
 	k.fieldMap["tx_id"] = k.TxID
@@ -119,16 +125,101 @@ func (k *knownTx) fillFieldMap() {
 	k.fieldMap["merkle_path"] = k.MerklePath
 	k.fieldMap["merkle_root"] = k.MerkleRoot
 	k.fieldMap["block_hash"] = k.BlockHash
+
 }
 
 func (k knownTx) clone(db *gorm.DB) knownTx {
 	k.knownTxDo.ReplaceConnPool(db.Statement.ConnPool)
+	k.TxNotes.db = db.Session(&gorm.Session{Initialized: true})
+	k.TxNotes.db.Statement.ConnPool = db.Statement.ConnPool
 	return k
 }
 
 func (k knownTx) replaceDB(db *gorm.DB) knownTx {
 	k.knownTxDo.ReplaceDB(db)
+	k.TxNotes.db = db.Session(&gorm.Session{})
 	return k
+}
+
+type knownTxHasManyTxNotes struct {
+	db *gorm.DB
+
+	field.RelationField
+}
+
+func (a knownTxHasManyTxNotes) Where(conds ...field.Expr) *knownTxHasManyTxNotes {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a knownTxHasManyTxNotes) WithContext(ctx context.Context) *knownTxHasManyTxNotes {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a knownTxHasManyTxNotes) Session(session *gorm.Session) *knownTxHasManyTxNotes {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a knownTxHasManyTxNotes) Model(m *models.KnownTx) *knownTxHasManyTxNotesTx {
+	return &knownTxHasManyTxNotesTx{a.db.Model(m).Association(a.Name())}
+}
+
+func (a knownTxHasManyTxNotes) Unscoped() *knownTxHasManyTxNotes {
+	a.db = a.db.Unscoped()
+	return &a
+}
+
+type knownTxHasManyTxNotesTx struct{ tx *gorm.Association }
+
+func (a knownTxHasManyTxNotesTx) Find() (result []*models.TxNote, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a knownTxHasManyTxNotesTx) Append(values ...*models.TxNote) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a knownTxHasManyTxNotesTx) Replace(values ...*models.TxNote) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a knownTxHasManyTxNotesTx) Delete(values ...*models.TxNote) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a knownTxHasManyTxNotesTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a knownTxHasManyTxNotesTx) Count() int64 {
+	return a.tx.Count()
+}
+
+func (a knownTxHasManyTxNotesTx) Unscoped() *knownTxHasManyTxNotesTx {
+	a.tx = a.tx.Unscoped()
+	return &a
 }
 
 type knownTxDo struct{ gen.DO }

@@ -23,6 +23,8 @@ type KnownTx struct {
 	MerklePath  []byte
 	MerkleRoot  *string
 	BlockHash   *string
+
+	TxNotes []*TxNote `gorm:"foreignKey:TxID;references:TxID"`
 }
 
 // HasMerklePath returns true if the MerklePath field contains data, indicating the presence of a Merkle proof.

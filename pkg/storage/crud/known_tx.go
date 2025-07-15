@@ -16,6 +16,8 @@ type KnownTx interface {
 type KnownTxReadOperations interface {
 	Find(ctx context.Context) ([]*entity.KnownTx, error)
 	Count(ctx context.Context) (int64, error)
+
+	IncludeHistoryNotes() KnownTxReader
 }
 
 type KnownTxReader interface {
@@ -83,5 +85,10 @@ func (k *knownTx) Paged(limit, offset int, desc bool) KnownTxReader {
 		SortBy: "id",
 		Sort:   to.IfThen(desc, "DESC").ElseThen("ASC"),
 	}
+	return k
+}
+
+func (k *knownTx) IncludeHistoryNotes() KnownTxReader {
+	k.spec.IncludeHistoryNotes = true
 	return k
 }

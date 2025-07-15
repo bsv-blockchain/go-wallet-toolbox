@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"github.com/go-softwarelab/common/pkg/to"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -59,7 +60,12 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
-		WithStatus(wdk.ProvenTxStatusUnmined)
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.
+				Count(1).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+		})
 
 	thenDBState.AllOutputs(testusers.Alice).WithCountHavingOutpoint(1)
 }
@@ -93,7 +99,12 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
-		WithStatus(wdk.ProvenTxStatusUnmined)
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.
+				Count(1).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+		})
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
 	thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCountHavingOutpoint(1)

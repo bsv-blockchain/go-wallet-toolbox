@@ -30,3 +30,17 @@ func addTxNote(tx *gorm.DB, txNote *entity.TxNote) error {
 
 	return nil
 }
+
+func mapModelToEntityTxNote(model *models.TxNote) *entity.TxNote {
+	if model == nil {
+		return nil
+	}
+
+	return &entity.TxNote{
+		When:       model.CreatedAt,
+		TxID:       model.TxID,
+		UserID:     model.UserID,
+		What:       model.What,
+		Attributes: model.Attributes,
+	}
+}

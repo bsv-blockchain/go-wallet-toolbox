@@ -354,8 +354,18 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
 	table := genquery.KnownTx
 
+	txNoteScope := func(dao gen.Dao) gen.Dao {
+		if !spec.IncludeHistoryNotes {
+			return dao
+		}
+
+		return dao.Preload(table.TxNotes)
+	}
+
+	scopesToApply := append(scopes.FromQueryOptsForGen(table, opts), txNoteScope)
+
 	transactions, err := table.WithContext(ctx).
-		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Scopes(scopesToApply...).
 		Where(p.conditionsBySpec(spec)...).
 		Find()
 	if err != nil {
@@ -400,7 +410,7 @@ func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {
 		return nil
 	}
 
-	return &pkgentity.KnownTx{
+	knownTx := &pkgentity.KnownTx{
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,
 		TxID:        model.TxID,
@@ -414,4 +424,10 @@ func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {
 		MerkleRoot:  model.MerkleRoot,
 		BlockHash:   model.BlockHash,
 	}
+
+	if model.TxNotes != nil {
+		knownTx.TxNotes = slices.Map(model.TxNotes, mapModelToEntityTxNote)
+	}
+
+	return knownTx
 }

@@ -25,9 +25,13 @@ type KnownTx struct {
 	MerklePath  []byte
 	MerkleRoot  *string
 	BlockHash   *string
+
+	TxNotes []*TxNote 
 }
 
 type KnownTxReadSpecification struct {
 	TxID *string
+
+	IncludeHistoryNotes bool
 	// TODO: Add more fields as needed for filtering or querying known transactions
 }
