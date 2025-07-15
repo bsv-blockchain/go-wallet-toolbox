@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"iter"
-	"time"
-
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
+	"iter"
 )
 
 const (
@@ -27,9 +26,9 @@ func NewKnownTxRepo(db *gorm.DB) *KnownTx {
 	return &KnownTx{db: db}
 }
 
-func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, historyNote string, historyAttrs map[string]any) error {
+func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Spec) error {
 	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return upsertKnownTx(tx, req, historyNote, historyAttrs)
+		return upsertKnownTx(tx, req, txNote)
 	})
 
 	if err != nil {
@@ -38,9 +37,9 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 	return nil
 }
 
-func upsertKnownTx(db *gorm.DB, req *entity.UpsertKnownTx, historyNote string, historyAttrs map[string]any) error {
+func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Spec) error {
 	var model models.KnownTx
-	err := db.First(&model, "tx_id = ? ", req.TxID).Error
+	err := tx.First(&model, "tx_id = ? ", req.TxID).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("cannot upsert known tx: %w", err)
 	}
@@ -55,23 +54,35 @@ func upsertKnownTx(db *gorm.DB, req *entity.UpsertKnownTx, historyNote string, h
 	model.RawTx = req.RawTx
 	model.InputBeef = req.InputBeef
 
-	model.AddNote(time.Now(), historyNote, historyAttrs)
-
-	return db.Save(&model).Error
-}
-
-func updateKnownTxStatus(db *gorm.DB, txID string, status wdk.ProvenTxReqStatus, historyNote string, historyAttrs map[string]any) error {
-	var model models.KnownTx
-	err := db.Model(&model).Select("status", "history").First(&model, "tx_id = ? ", txID).Error
+	err = addTxNote(tx, txNote.Entity(req.TxID))
 	if err != nil {
-		return fmt.Errorf("cannot update known tx status: %w", err)
+		return err
 	}
 
-	historyAttrs["oldStatus"] = model.Status
-	model.Status = status
-	model.AddNote(time.Now(), historyNote, historyAttrs)
+	err = tx.Save(&model).Error
+	if err != nil {
+		return fmt.Errorf("cannot save known tx: %w", err)
+	}
 
-	return db.Where("tx_id = ?", txID).Updates(&model).Error
+	return nil
+}
+
+func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNote history.Spec) error {
+	var model models.KnownTx
+	err := tx.Model(&model).
+		Where("tx_id = ? ", txID).
+		UpdateColumn("status", status).
+		Error
+	if err != nil {
+		return fmt.Errorf("failed to update known tx status: %w", err)
+	}
+
+	err = addTxNote(tx, txNote.Entity(txID))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *KnownTx) FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error) {

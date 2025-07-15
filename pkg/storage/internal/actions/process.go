@@ -115,7 +115,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		RawTx:         args.RawTx,
 		InputBeef:     txEntity.InputBEEF,
 		Tx:            tx,
-	}, history.ProcessActionHistoryNote, history.UserIDHistoryAttr(userID))
+	}, history.NewNote().ProcessAction().WithUser(userID))
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
@@ -255,7 +255,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, err
 	}
 
-	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, history.AggregateResultsHistoryNote, p.noteForAggregation(aggBroadcastResult))
+	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, p.noteForAggregation(newReqStatus, aggBroadcastResult))
 	if err != nil {
 		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
 	}
@@ -263,14 +263,17 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 	return &result, nil
 }
 
-func (p *process) noteForAggregation(aggBroadcastResult *wdk.AggregatedPostedTxID) map[string]any {
-	return map[string]any{
-		"aggStatus":         aggBroadcastResult.Status,
-		"successCount":      aggBroadcastResult.SuccessCount,
-		"doubleSpendCount":  aggBroadcastResult.DoubleSpendCount,
-		"statusErrorCount":  aggBroadcastResult.StatusErrorCount,
-		"serviceErrorCount": aggBroadcastResult.ServiceErrorCount,
-	}
+func (p *process) noteForAggregation(provenTxReqStatus wdk.ProvenTxReqStatus, aggBroadcastResult *wdk.AggregatedPostedTxID) history.Spec {
+	return history.NewNote().
+		AggregateResults().
+		WithNewStatus(string(provenTxReqStatus)).
+		WithAttributes(map[string]any{
+			"aggStatus":         aggBroadcastResult.Status,
+			"successCount":      aggBroadcastResult.SuccessCount,
+			"doubleSpendCount":  aggBroadcastResult.DoubleSpendCount,
+			"statusErrorCount":  aggBroadcastResult.StatusErrorCount,
+			"serviceErrorCount": aggBroadcastResult.ServiceErrorCount,
+		})
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {

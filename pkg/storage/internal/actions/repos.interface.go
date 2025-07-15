@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -27,19 +28,13 @@ type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
-	SpendTransaction(
-		ctx context.Context,
-		updatedTx entity.UpdatedTx,
-		historyNote string,
-		historyAttrs map[string]any,
-	) error
+	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Spec) error
 	UpdateTransactionStatusForTxID(
 		ctx context.Context,
 		txID string,
 		txStatus wdk.TxStatus,
 		provenTxReqStatus wdk.ProvenTxReqStatus,
-		historyNote string,
-		historyAttrs map[string]any,
+		txNote history.Spec,
 	) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
@@ -47,7 +42,7 @@ type TransactionsRepo interface {
 }
 
 type KnownTxRepo interface {
-	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, historyNote string, historyAttrs map[string]any) error
+	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Spec) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)

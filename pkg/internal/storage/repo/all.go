@@ -18,6 +18,7 @@ type Repositories struct {
 	*SyncState
 	*KeyValue
 	*Commission
+	*TxNotes
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
@@ -34,6 +35,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		SyncState:     NewSyncState(db),
 		KeyValue:      NewKeyValue(db),
 		Commission:    NewCommission(db),
+		TxNotes:       NewTxEvents(db),
 	}
 	repositories.Users = NewUsers(db, repositories.Settings, repositories.OutputBaskets)
 
