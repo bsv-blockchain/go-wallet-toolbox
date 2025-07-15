@@ -54,6 +54,29 @@ func TestProcessActionHappyPath(t *testing.T) {
 	assert.Equal(t, txID, string(reviewActionResult.TxID))
 	assert.Equal(t, wdk.ReviewActionResultStatusSuccess, reviewActionResult.Status)
 	assert.Empty(t, reviewActionResult.CompetingTxs)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx().
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.
+				Count(2).
+				Note("processAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("aggregateResults", nil, map[string]any{
+					"aggStatus":         "success",
+					"doubleSpendCount":  0,
+					"serviceErrorCount": 2,
+					"statusErrorCount":  0,
+					"status_now":        "unmined",
+					"successCount":      1,
+				})
+		})
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, *args.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
 }
 
 func TestProcessActionTwice(t *testing.T) {
@@ -99,6 +122,16 @@ func TestProcessActionTwice(t *testing.T) {
 	assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
 
 	require.Len(t, result.NotDelayedResults, 0)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx()
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, *args.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
 }
 
 func TestProcessActionErrorCases(t *testing.T) {

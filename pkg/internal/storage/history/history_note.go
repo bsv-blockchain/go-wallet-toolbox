@@ -10,14 +10,7 @@ const (
 
 const (
 	statusNowAttr = "status_now"
-	statusWasAttr = "status_was"
 )
-
-func UserIDHistoryAttr(userID int) map[string]any {
-	return map[string]any{
-		"userId": userID,
-	}
-}
 
 type EventTypesSelector interface {
 	InternalizeAction() Spec

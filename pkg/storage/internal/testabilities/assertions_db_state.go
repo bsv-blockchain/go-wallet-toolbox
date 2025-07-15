@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"context"
+	"fmt"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"maps"
@@ -28,7 +29,7 @@ type StorageReader interface {
 type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
 	HasKnownTX(txID string) KnownTxAssertion
-	HasUserTransactionByReference(user testusers.User, txID string) UserTransactionAssertion
+	HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
 
@@ -223,7 +224,7 @@ func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) 
 	for k, v := range attrs {
 		val, ok := note.Attributes[k]
 		assert.True(d, ok, "Expected TxNote to have attribute '%s'", k)
-		assert.Equal(d, v, val, "Expected TxNote to have the same value for attribute '%s'", k)
+		assert.Equal(d, fmt.Sprintf("%v", v), fmt.Sprintf("%v", val), "Expected TxNote to have the same value for attribute '%s'", k)
 	}
 
 	return d
