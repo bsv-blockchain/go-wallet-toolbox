@@ -98,3 +98,8 @@ func blockHeaderByHashURL(baseURL, blockHash string) (string, error) {
 func tscProofURL(baseURL, txid string) (string, error) {
 	return buildURL(baseURL, "tx", txid, "proof", "tsc")
 }
+
+// /chain/info
+func chainInfoURL(baseURL string) (string, error) {
+	return buildURL(baseURL, "chain", "info")
+}
