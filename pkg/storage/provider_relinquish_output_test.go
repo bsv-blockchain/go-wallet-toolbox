@@ -27,7 +27,7 @@ func TestRelinquishOutput(t *testing.T) {
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Basket: wdk.BasketNameForChange,
-			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
+			Output: string(primitives.NewOutpointString(txSpec.ID().String(), 0)),
 		},
 	)
 
@@ -64,7 +64,7 @@ func TestRelinquishOutputWithoutBasketSpecified(t *testing.T) {
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
-			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
+			Output: string(primitives.NewOutpointString(txSpec.ID().String(), 0)),
 		},
 	)
 
@@ -123,7 +123,7 @@ func TestRelinquishOutputOneOfTwo(t *testing.T) {
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
-			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
+			Output: string(primitives.NewOutpointString(txSpec.ID().String(), 0)),
 		},
 	)
 
@@ -153,7 +153,7 @@ func TestRelinquishOutputWithNotMatchingBasket(t *testing.T) {
 		testusers.Alice.AuthID(),
 		wdk.RelinquishOutputArgs{
 			Basket: "other-basket",
-			Output: string(primitives.NewOutpointString(txSpec.ID(), 0)),
+			Output: string(primitives.NewOutpointString(txSpec.ID().String(), 0)),
 		},
 	)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -468,4 +469,9 @@ func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID in
 	}
 
 	return txEntity, nil
+}
+
+// CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.
+func (p *Provider) CommissionEntity() crud.Commission {
+	return crud.NewCommission(p.repo.Commission)
 }
