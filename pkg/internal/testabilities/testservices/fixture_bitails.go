@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type BitailsFixture interface {
@@ -24,6 +25,7 @@ type BitailsFixture interface {
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
 	WillReturnTxStatus(txid string, blockHeight int)
 	WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string)
+	WillReturnNetworkInfo(status int, blocks uint32)
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
 	Transport() *httpmock.MockTransport
@@ -240,4 +242,12 @@ func (f *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height u
 	}
 
 	f.transport.RegisterResponder(http.MethodGet, pattern, responder)
+}
+
+func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
+	b.TB.Helper()
+
+	body := map[string]any{"blocks": blocks}
+	pat := `=~.*?/network/info$`
+	b.transport.RegisterResponder(http.MethodGet, pat, httpmock.NewJsonResponderOrPanic(status, body))
 }

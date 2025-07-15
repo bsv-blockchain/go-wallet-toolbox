@@ -65,7 +65,7 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 	headers := httpx.NewHeaders().
 		AcceptJSON().
 		UserAgent().Value("go-wallet-toolbox").
-		Authorization().IfNotEmpty(config.APIKey)
+		Authorization().IfNotEmpty(bearerHeader(config.APIKey))
 
 	client := httpClient.SetBaseURL(config.URL).
 		SetHeaders(headers).
@@ -78,7 +78,7 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 	}
 }
 
-func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, height uint, root  string) (bool, error) {
+func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, height uint, root string) (bool, error) {
 	url, err := verifyMerkleRootURL(b.cfg.URL)
 	if err != nil {
 		return false, fmt.Errorf("failed for service %s: build verify URL: %w", ServiceName, err)

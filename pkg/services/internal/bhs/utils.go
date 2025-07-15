@@ -1,4 +1,3 @@
-// utils.go
 package bhs
 
 import (
@@ -14,7 +13,7 @@ const apiVersion = "v1"
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return "", fmt.Errorf("bhs: invalid base URL %q: %w", baseURL, err)
+		return "", fmt.Errorf("failed for service %s: invalid base URL %q: %w", ServiceName, baseURL, err)
 	}
 
 	basePath := strings.TrimSuffix(u.Path, "/")
