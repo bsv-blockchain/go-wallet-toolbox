@@ -32,6 +32,7 @@ type WhatsOnChainFixture interface {
 	WillRespondWithBroadcast(status int, responseBody string)
 	WillRespondOnTxStatus(status int, tc TxStatusExpectation)
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
+	WillRespondWithChainInfo(status int, blocks uint32)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
 
@@ -381,6 +382,18 @@ func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint3
 
 	rx := fmt.Sprintf(`=~^/v1(?:/bsv)?/%s/block/%d/header$`, f.network, height)
 	f.transport.RegisterResponder(http.MethodGet, rx, responder)
+}
+
+func (f *wocFixture) WillRespondWithChainInfo(status int, blocks uint32) {
+	f.TB.Helper()
+
+	body := map[string]any{"blocks": blocks}
+
+	abs := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/chain/info", f.network)
+	f.transport.RegisterResponder(http.MethodGet, abs,
+		httpmock.NewJsonResponderOrPanic(status, body))
+
+	f.transport.RegisterResponder(http.MethodGet, fmt.Sprintf(`=~^/v1/bsv/%s/chain/info$`, f.network), httpmock.NewJsonResponderOrPanic(status, body))
 }
 
 type WhatsOnChainScriptHistoryQueryFixture interface {
