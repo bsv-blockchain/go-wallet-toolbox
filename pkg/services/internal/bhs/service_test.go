@@ -4,11 +4,11 @@ import (
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	bhsTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBlockHeadersService_GetHeight(t *testing.T) {
@@ -114,7 +114,7 @@ func TestBlockHeadersService_FindChainTipHeader(t *testing.T) {
 	require.Equal(t, makeExpected(), got)
 }
 
-func TestBlockHeadersService_ErrorCase(t *testing.T) {
+func TestBlockHeadersService_FindChainTipHeader_ErrorCase(t *testing.T) {
 	tests := []struct {
 		name  string
 		setup func(testservices.BHSFixture)
@@ -159,9 +159,12 @@ func TestBlockHeadersService_ErrorCase(t *testing.T) {
 
 func TestBlockHeadersService_IsValidRootForHeight(t *testing.T) {
 	const (
-		height = uint(900_123)
+		height = uint32(900_123)
 		root   = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 	)
+
+	validRoot, err := chainhash.NewHashFromHex(root)
+	require.NoError(t, err)
 
 	type setupFn func(fix testservices.BHSFixture)
 
@@ -173,7 +176,7 @@ func TestBlockHeadersService_IsValidRootForHeight(t *testing.T) {
 		{
 			name: "confirmed",
 			setup: func(f testservices.BHSFixture) {
-				f.OnMerkleRootVerifyResponse(height, root, "CONFIRMED")
+				f.OnMerkleRootVerifyResponse(height, validRoot.String(), "CONFIRMED")
 				f.IsUpAndRunning()
 			},
 			wantValid: true,
@@ -181,7 +184,7 @@ func TestBlockHeadersService_IsValidRootForHeight(t *testing.T) {
 		{
 			name: "invalid root",
 			setup: func(f testservices.BHSFixture) {
-				f.OnMerkleRootVerifyResponse(height, root, "INVALID")
+				f.OnMerkleRootVerifyResponse(height, validRoot.String(), "INVALID")
 				f.IsUpAndRunning()
 			},
 		},
@@ -195,7 +198,7 @@ func TestBlockHeadersService_IsValidRootForHeight(t *testing.T) {
 			svc := given.NewBHSService()
 
 			// when:
-			got, err := svc.IsValidRootForHeight(t.Context(), height, root)
+			got, err := svc.IsValidRootForHeight(t.Context(), validRoot, height)
 
 			// then:
 			require.NoError(t, err)
@@ -204,41 +207,28 @@ func TestBlockHeadersService_IsValidRootForHeight(t *testing.T) {
 	}
 }
 
-func TestBlockHeadersService_IsValidRootForHeight_ErrorCases(t *testing.T) {
+func TestBlockHeadersService_IsValidRootForHeight_Unverified(t *testing.T) {
+	// given:
 	const (
-		height = uint(900_123)
-		root   = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+		height  = uint32(900_123)
+		rootHex = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 	)
 
-	type setupFn func(fix testservices.BHSFixture)
+	root, err := chainhash.NewHashFromHex(rootHex)
+	require.NoError(t, err)
 
-	tests := []struct {
-		name      string
-		setup     setupFn
-		wantValid bool
-	}{
-		{
-			name: "unable to verify",
-			setup: func(f testservices.BHSFixture) {
-				f.OnMerkleRootVerifyResponse(height, root, "UNABLE_TO_VERIFY")
-				f.IsUpAndRunning()
-			},
-		},
-	}
+	fix := bhsTst.Given(t)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// given:
-			given := bhsTst.Given(t)
-			tc.setup(given.BHS())
-			svc := given.NewBHSService()
+	bhsFx := fix.BHS()
+	bhsFx.OnMerkleRootVerifyResponse(height, rootHex, "UNABLE_TO_VERIFY")
+	bhsFx.IsUpAndRunning()
 
-			// when:
-			got, err := svc.IsValidRootForHeight(t.Context(), height, root)
+	svc := fix.NewBHSService()
 
-			// then:
-			require.Error(t, err)
-			require.Equal(t, tc.wantValid, got)
-		})
-	}
+	// when:
+	ok, err := svc.IsValidRootForHeight(t.Context(), root, height)
+
+	// then:
+	require.Error(t, err)
+	require.False(t, ok)
 }

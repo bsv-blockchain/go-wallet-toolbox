@@ -42,16 +42,16 @@ func (t *TipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
 }
 
 type MerkleRootVerifyItem struct {
-	BlockHeight uint   `json:"blockHeight"`
+	BlockHeight uint32 `json:"blockHeight"`
 	MerkleRoot  string `json:"merkleRoot"`
 }
 
 type merkleRootConfirmationState string
 
 const (
-	confirmed       merkleRootConfirmationState = "CONFIRMED"
-	unableToVerify  merkleRootConfirmationState = "UNABLE_TO_VERIFY"
-	invalid         merkleRootConfirmationState = "INVALID"
+	confirmed      merkleRootConfirmationState = "CONFIRMED"
+	unableToVerify merkleRootConfirmationState = "UNABLE_TO_VERIFY"
+	invalid        merkleRootConfirmationState = "INVALID"
 )
 
 type MerkleRootVerifyResp struct {
