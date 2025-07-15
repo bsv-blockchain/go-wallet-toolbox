@@ -85,7 +85,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 		chainHeaderServices: servicequeue.NewQueue(
 			logger,
 			"FindChainTipHeader",
-			//servicequeue.NewService(bitails.ServiceName, bitailsService.FindChainTipHeader),
+			servicequeue.NewService(bitails.ServiceName, bitailsService.FindChainTipHeader),
 			servicequeue.NewService(whatsonchain.ServiceName, wocService.FindChainTipHeader),
 			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
 		),

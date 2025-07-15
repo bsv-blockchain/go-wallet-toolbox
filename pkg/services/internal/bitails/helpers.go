@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -33,7 +32,6 @@ func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse,
 	}
 	return &proof, nil
 }
-
 
 // fetchInfoResponse is the structure for the response from Bitails when fetching transaction info.
 type fetchInfoResponse struct {
@@ -78,7 +76,6 @@ func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, 
 	return payload.Hash, payload.Height, nil
 }
 
-
 // rawHeader fetches and decodes the 80-byte block header.
 func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, error) {
 	url, err := blockHeaderURL(b.url, blockHash)
@@ -86,7 +83,9 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 		return nil, fmt.Errorf("failed for service %s: build block header URL: %w", ServiceName, err)
 	}
 
-	var payload struct{ Header string `json:"header"` }
+	var payload struct {
+		Header string `json:"header"`
+	}
 	_, err = b.handleJSON(ctx, url, &payload, http.StatusOK, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed for service %s: get block header: %w", ServiceName, err)
@@ -121,11 +120,14 @@ func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.Merk
 }
 
 // handleJSON performs a GET, unmarshals JSON into 'out' and validates status.
-//   okCode       - the HTTP status you expect (usually 200)
-//   allow404     - if true, 404 is not an error (caller handles the "not found" case)
+//
+//	okCode       - the HTTP status you expect (usually 200)
+//	allow404     - if true, 404 is not an error (caller handles the "not found" case)
+//
 // It returns:
-//   found = false   when allow404=true and the server returned 404
-//   found = true    otherwise
+//
+//	found = false   when allow404=true and the server returned 404
+//	found = true    otherwise
 func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode int, allow404 bool) (found bool, err error) {
 
 	res, err := b.httpClient.R().SetContext(ctx).SetResult(out).Get(url)
