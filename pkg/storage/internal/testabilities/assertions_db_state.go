@@ -2,6 +2,8 @@ package testabilities
 
 import (
 	"context"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"maps"
 	"testing"
 
@@ -16,7 +18,7 @@ import (
 )
 
 type StorageReader interface {
-	FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error)
+	KnownTxEntity() crud.KnownTx
 	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
@@ -90,10 +92,10 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 	missingTXs := map[string]struct{}{}
 
 	for _, txID := range txIDs {
-		knownTx, err := d.storage.FindKnownTx(d.Context(), txID)
-		require.NoError(d.TB, err, txID)
+		found, err := d.storage.KnownTxEntity().Read().TxID(txID).Find(d.Context())
+		require.NoError(d, err)
 
-		if knownTx == nil {
+		if len(found) == 0 {
 			missingTXs[txID] = struct{}{}
 		}
 	}
@@ -109,14 +111,15 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 	d.Helper()
 
-	knownTx, err := d.storage.FindKnownTx(d.Context(), txID)
-	require.NoError(d.TB, err, txID)
+	found, err := d.storage.KnownTxEntity().Read().TxID(txID).Find(d.Context())
+	require.NoError(d, err)
 
-	if knownTx == nil {
+	if len(found) == 0 {
 		require.Failf(d, "Expected to find the transaction", "transaction ID: %s", txID)
 		return nil
 	}
 
+	knownTx := found[0]
 	assert.Equal(d, txID, knownTx.TxID, "Expected known transaction to have the same TxID as the one requested")
 
 	return &knownTxAssertion{
@@ -127,7 +130,7 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 
 type knownTxAssertion struct {
 	testing.TB
-	knownTx *entity.KnownTx
+	knownTx *pkgentity.KnownTx
 }
 
 func (d *knownTxAssertion) WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion {

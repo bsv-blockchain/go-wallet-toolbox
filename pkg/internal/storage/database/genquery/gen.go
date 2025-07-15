@@ -18,17 +18,20 @@ import (
 var (
 	Q          = new(Query)
 	Commission *commission
+	KnownTx    *knownTx
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	Commission = &Q.Commission
+	KnownTx = &Q.KnownTx
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:         db,
 		Commission: newCommission(db, opts...),
+		KnownTx:    newKnownTx(db, opts...),
 	}
 }
 
@@ -36,6 +39,7 @@ type Query struct {
 	db *gorm.DB
 
 	Commission commission
+	KnownTx    knownTx
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -44,6 +48,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:         db,
 		Commission: q.Commission.clone(db),
+		KnownTx:    q.KnownTx.clone(db),
 	}
 }
 
@@ -59,16 +64,19 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:         db,
 		Commission: q.Commission.replaceDB(db),
+		KnownTx:    q.KnownTx.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
 	Commission ICommissionDo
+	KnownTx    IKnownTxDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
 		Commission: q.Commission.WithContext(ctx),
+		KnownTx:    q.KnownTx.WithContext(ctx),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -423,7 +424,7 @@ func (s *Sync) provenTxWhereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 }
 
 // UpsertKnownTxForSync updates only non-zero fields of the proven transaction request.
-func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
+func (s *Sync) UpsertKnownTxForSync(ctx context.Context, entity *pkgentity.KnownTx) (isNew bool, err error) {
 	model := models.KnownTx{
 		CreatedAt:   entity.CreatedAt,
 		UpdatedAt:   entity.UpdatedAt,

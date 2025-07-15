@@ -24,7 +24,7 @@ func main() {
 
 	g.UseDB(db)
 
-	g.ApplyBasic(models.Commission{})
+	g.ApplyBasic(models.Commission{}, models.KnownTx{})
 
 	// Uncomment and adjust the following lines to generate additional interfaces or methods as needed.
 	// For example, to generate a custom interface for CommissionQuerier:

@@ -4,6 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"gorm.io/gen"
+	"iter"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -11,7 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
-	"iter"
 )
 
 const (
@@ -345,20 +351,56 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 	return nil
 }
 
-func (p *KnownTx) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
-	var model models.KnownTx
-	err := p.db.WithContext(ctx).
-		Model(&model).
-		Where("tx_id = ? ", txID).
-		First(&model).Error
+func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
+	table := genquery.KnownTx
+
+	transactions, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(p.conditionsBySpec(spec)...).
+		Find()
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to find known tx: %w", err)
+		return nil, fmt.Errorf("failed to find known transactions: %w", err)
 	}
 
-	return &entity.KnownTx{
+	return slices.Map(transactions, mapModelToEntityKnownTx), nil
+}
+
+func (p *KnownTx) CountKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) (int64, error) {
+	table := genquery.KnownTx
+
+	count, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(p.conditionsBySpec(spec)...).
+		Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count known transactions: %w", err)
+	}
+
+	return count, nil
+}
+
+func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []gen.Condition {
+	if spec == nil {
+		return []gen.Condition{}
+	}
+
+	if spec.TxID != nil {
+		return []gen.Condition{genquery.KnownTx.TxID.Eq(*spec.TxID)}
+	}
+
+	var conditions []gen.Condition
+
+	// TODO: Add more conditions based on the spec
+
+	return conditions
+}
+
+func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {
+	if model == nil {
+		return nil
+	}
+
+	return &pkgentity.KnownTx{
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,
 		TxID:        model.TxID,
@@ -371,5 +413,5 @@ func (p *KnownTx) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx
 		MerklePath:  model.MerklePath,
 		MerkleRoot:  model.MerkleRoot,
 		BlockHash:   model.BlockHash,
-	}, nil
+	}
 }
