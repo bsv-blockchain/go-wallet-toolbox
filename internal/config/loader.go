@@ -132,7 +132,7 @@ func (l *Loader[T]) loadFromFile() error {
 
 	l.viper.SetConfigFile(l.configFilePath)
 	if err := l.viper.ReadInConfig(); err != nil {
-		return fmt.Errorf("error while reading config fiel: %w", err)
+		return fmt.Errorf("error while reading config file: %w", err)
 	}
 
 	if l.configFileExt == "dotenv" || l.configFileExt == "env" {
