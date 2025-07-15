@@ -2,7 +2,6 @@ package storage_test
 
 import (
 	"context"
-	"github.com/go-softwarelab/common/pkg/to"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -13,6 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

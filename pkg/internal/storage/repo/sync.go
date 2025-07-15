@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"

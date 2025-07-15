@@ -3,16 +3,19 @@ package crud
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
-	"time"
 )
 
+// KnownTx provides query-building capabilities for retrieving and filtering known transaction records from a data source.
 type KnownTx interface {
 	Read() KnownTxReader
 }
 
+// KnownTxReadOperations defines read operations for querying KnownTx entities from a data source.
 type KnownTxReadOperations interface {
 	Find(ctx context.Context) ([]*entity.KnownTx, error)
 	Count(ctx context.Context) (int64, error)
@@ -20,6 +23,7 @@ type KnownTxReadOperations interface {
 	IncludeHistoryNotes() KnownTxReader
 }
 
+// KnownTxReader provides a fluent interface for building known transaction queries with filtering and chaining conditions.
 type KnownTxReader interface {
 	KnownTxReadOperations
 
@@ -33,6 +37,8 @@ type knownTxRepo interface {
 	CountKnownTxs(ctx context.Context, spec *entity.KnownTxReadSpecification, opts ...queryopts.Options) (int64, error)
 }
 
+// NewKnownTx creates and returns a new KnownTx instance using the provided knownTxRepo implementation.
+// The returned KnownTx can be used to build queries for known tx records with various filters and options.
 func NewKnownTx(repo knownTxRepo) KnownTx {
 	return &knownTx{
 		repo: repo,
