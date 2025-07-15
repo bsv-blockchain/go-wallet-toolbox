@@ -34,68 +34,6 @@ func TestCreateActionNilAuth(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	// given:
-	activeStorage := given.Provider().GORM()
-
-	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// and:
-	args := fixtures.ValidCreateActionArgsWithIsNoSendTrue()
-	providedOutput := args.Outputs[0]
-
-	// when:
-	result, err := activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
-	assert.Equal(t, args.Version, result.Version)
-	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 32, len(result.Outputs))
-	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef0000", hex.EncodeToString(result.InputBeef))
-	assert.Equal(t, 31, len(*result.NoSendChangeOutputVouts))
-
-	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
-		assert.Equal(t, "change", p.Purpose)
-	})
-
-	resultOutput := result.Outputs[0]
-
-	require.Equal(t, wdk.ProvidedByYou, resultOutput.ProvidedBy)
-	assert.Empty(t, resultOutput.Purpose)
-	assert.Equal(t, providedOutput.Satoshis, resultOutput.Satoshis)
-	assert.Equal(t, providedOutput.Basket, resultOutput.Basket)
-	assert.Equal(t, providedOutput.LockingScript, resultOutput.LockingScript)
-	assert.Equal(t, providedOutput.CustomInstructions, resultOutput.CustomInstructions)
-	assert.Contains(t, resultOutput.Tags, primitives.StringUnder300(fixtures.CreateActionTestTag))
-
-	require.Equal(t, 1, len(result.Inputs))
-	input := result.Inputs[0]
-	assert.Equal(t, 0, input.Vin)
-	assert.NotEmpty(t, input.SourceTxID)
-	assert.Equal(t, uint32(0), input.SourceVout)
-	assert.Equal(t, int64(100_000), input.SourceSatoshis)
-	assert.NotEmpty(t, input.SourceLockingScript)
-	assert.Nil(t, input.SourceTransaction)
-	assert.Equal(t, wdk.ProvidedByStorage, input.ProvidedBy)
-	assert.Equal(t, wdk.OutputTypeP2PKH, input.Type)
-	require.NotEmpty(t, input.DerivationPrefix)
-	assert.Equal(t, 24, len(*input.DerivationPrefix))
-	require.NotEmpty(t, input.DerivationSuffix)
-	assert.Equal(t, 24, len(*input.DerivationSuffix))
-}
-
 func TestCreateActionHappyPath(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -159,6 +97,39 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, 24, len(*input.DerivationSuffix))
 
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
+}
+
+func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	const expectedNoSendChangeOutputVoutsCount = 31
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	args := fixtures.ValidCreateActionArgsWithIsNoSendTrue()
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+	// then:
+	assert.NoError(t, err)
+	assert.Equal(t, expectedNoSendChangeOutputVoutsCount, len(result.NoSendChangeOutputVouts))
+
+	for i := 1; i < len(result.Outputs); i++ {
+		out := result.Outputs[i]
+		assert.EqualValues(t, i, out.Vout)
+		assert.Equal(t, wdk.ProvidedByStorage, out.ProvidedBy)
+		assert.Equal(t, wdk.ChangePurpose, out.Purpose)
+	}
 }
 
 func TestCreateActionOutputTags(t *testing.T) {

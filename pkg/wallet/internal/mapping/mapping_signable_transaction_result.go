@@ -29,7 +29,7 @@ func SignableTransactionResult(tx *transaction.Transaction, wdkArgs wdk.ValidCre
 	}
 
 	if wdkArgs.IsNoSend && storageResult.NoSendChangeOutputVouts != nil {
-		result.NoSendChange, err = MapIndexesToOutpoints(txID, *storageResult.NoSendChangeOutputVouts)
+		result.NoSendChange, err = MapIndexesToOutpoints(txID, storageResult.NoSendChangeOutputVouts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build noSendChange result: %w", err)
 		}

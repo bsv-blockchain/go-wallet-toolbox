@@ -200,15 +200,6 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	var noSendChangeOutputVouts []int
-	if params.IsNoSend {
-		seq.ForEach(seq.FromSlice(newOutputs), func(output *entity.NewOutput) {
-			if output.IsChangeOutputVout() {
-				noSendChangeOutputVouts = append(noSendChangeOutputVouts, int(output.Vout))
-			}
-		})
-	}
-
 	return &wdk.StorageCreateActionResult{
 		Reference:               reference,
 		Version:                 params.Version,
@@ -217,8 +208,22 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Outputs:                 c.resultOutputs(newOutputs),
 		Inputs:                  resultInputs,
 		InputBeef:               inputBeef,
-		NoSendChangeOutputVouts: &noSendChangeOutputVouts,
+		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
+	if !isNoSend {
+		return nil
+	}
+
+	var vouts []int
+	for _, output := range newOutputs {
+		if output.IsChangeOutputVout() {
+			vouts = append(vouts, int(output.Vout))
+		}
+	}
+	return vouts
 }
 
 type serviceChargeOutput struct {
