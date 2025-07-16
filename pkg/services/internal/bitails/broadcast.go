@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"time"
-
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type broadcastRequest struct {
@@ -38,7 +36,7 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID,
 			TxID:   txid,
 			Result: wdk.PostedTxIDResultError,
 			Error:  fmt.Errorf("%s", msg),
-			Notes:  utils.ConvertNotes([]string{msg}),
+			Notes:  history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, msg).AsList(),
 		}, nil
 	}
 
@@ -46,12 +44,10 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID,
 	result := &wdk.PostedTxID{TxID: txid}
 
 	if resp.TxID != "" && resp.TxID != txid {
-		result.Notes = append(result.Notes, wdk.ReqHistoryNote{
-			When: to.Ptr(time.Now()),
-			What: "Returned TxID mismatch",
-		})
+		err = fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid)
+		result.Notes = history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, err.Error()).AsList()
 		result.Result = wdk.PostedTxIDResultError
-		return result, fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid)
+		return result, err
 	}
 
 	broadcastErr := b.classifyResponseError(resp, result)
@@ -69,7 +65,7 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID,
 	result.AlreadyKnown = result.AlreadyKnown || already
 	result.DoubleSpend = result.DoubleSpend || double
 	if note != "" {
-		result.Notes = append(result.Notes, wdk.ReqHistoryNote{When: to.Ptr(time.Now()), What: note})
+		result.Notes = history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, note).AsList()
 	}
 	if broadcastErr != nil && !(already || double) {
 		result.Error = broadcastErr

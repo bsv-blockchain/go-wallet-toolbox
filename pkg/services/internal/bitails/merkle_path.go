@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"net/http"
-	"time"
-
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
+	"net/http"
 )
 
 type proofResponse struct {
@@ -27,7 +26,10 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		return nil, err
 	}
 	if proof == nil {
-		return &wdk.MerklePathResult{Name: ServiceName}, nil
+		return &wdk.MerklePathResult{
+			Name:  ServiceName,
+			Notes: history.NewNote().GetMerklePathNotFound(ServiceName).AsList(),
+		}, nil
 	}
 
 	header, err := b.hashToHeader(ctx, proof.Target)
@@ -67,7 +69,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
-		Notes:       wdk.Notes{{When: to.Ptr(time.Now()), What: "getMerklePathTSC"}},
+		Notes:       history.NewNote().GetMerklePathSuccess(ServiceName).AsList(),
 	}, nil
 }
 

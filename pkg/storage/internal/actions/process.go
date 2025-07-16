@@ -115,7 +115,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		RawTx:         args.RawTx,
 		InputBeef:     txEntity.InputBEEF,
 		Tx:            tx,
-	}, history.NewNote().ProcessAction().WithUser(userID))
+	}, history.NewNote().ProcessAction(userID))
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
@@ -264,16 +264,13 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 }
 
 func (p *process) noteForAggregation(provenTxReqStatus wdk.ProvenTxReqStatus, aggBroadcastResult *wdk.AggregatedPostedTxID) history.Spec {
-	return history.NewNote().
-		AggregateResults().
-		WithNewStatus(string(provenTxReqStatus)).
-		WithAttributes(map[string]any{
-			"aggStatus":         aggBroadcastResult.Status,
-			"successCount":      aggBroadcastResult.SuccessCount,
-			"doubleSpendCount":  aggBroadcastResult.DoubleSpendCount,
-			"statusErrorCount":  aggBroadcastResult.StatusErrorCount,
-			"serviceErrorCount": aggBroadcastResult.ServiceErrorCount,
-		})
+	return history.NewNote().AggregateResults(history.AggregatedBroadcastResult{
+		StatusNow:        provenTxReqStatus,
+		AggStatus:        aggBroadcastResult.Status,
+		SuccessCount:     aggBroadcastResult.SuccessCount,
+		DoubleSpendCount: aggBroadcastResult.DoubleSpendCount,
+		StatusErrorCount: aggBroadcastResult.StatusErrorCount,
+	})
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {

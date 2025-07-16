@@ -36,7 +36,7 @@ func (it *PostBEEFServiceResult) Success() bool {
 
 // PostedBEEF is the success result of the single service PostedBEEF method.
 type PostedBEEF struct {
-	Notes
+	Notes       HistoryNotes
 	TxIDResults []PostedTxID
 }
 
@@ -71,7 +71,7 @@ type PostedTxID struct {
 	MerklePath   *transaction.MerklePath
 	CompetingTxs []string
 
-	Notes
+	Notes HistoryNotes
 
 	Data  string
 	Error error

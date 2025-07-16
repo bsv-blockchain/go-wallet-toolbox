@@ -1,13 +1,8 @@
 package wdk
 
-import "time"
+import "io"
 
-// ReqHistoryNote is the history representation of the request
-type ReqHistoryNote struct {
-	When *time.Time `json:"when"`
-	What string     `json:"what"`
-	Args map[string]any
+type HistoryNotes interface {
+	List() []map[string]any
+	PrettyPrint(writer io.Writer) error
 }
-
-// Notes represents a list of ReqHistoryNote
-type Notes []ReqHistoryNote

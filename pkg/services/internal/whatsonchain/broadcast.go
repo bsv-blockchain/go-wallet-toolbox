@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"net/http"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -121,22 +121,25 @@ func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoR
 }
 
 func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx []byte) wdk.PostedTxID {
-	status, returnedTxid, broadcastErr := woc.broadcast(ctx, rawTx)
-
-	if broadcastErr != nil {
+	status, returnedTxid, err := woc.broadcast(ctx, rawTx)
+	if err != nil {
 		return wdk.PostedTxID{
 			Result: wdk.PostedTxIDResultError,
 			TxID:   txid,
-			Error:  broadcastErr,
-			Notes:  utils.ConvertNotes([]string{fmt.Sprintf("broadcast error: %v", broadcastErr)}),
+			Error:  err,
+			Notes:  history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, err.Error()).AsList(),
 		}
 	}
 
-	resultStatus, notes := classifyBroadcastStatus(status)
+	resultStatus, failedBroadcastNotes := classifyBroadcastStatus(status)
+	var notes []history.Spec
+	if failedBroadcastNotes != nil {
+		notes = append(notes, history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, *failedBroadcastNotes))
+	}
 
 	txInfo, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
-		notes = append(notes, fmt.Sprintf("failed to fetch tx info: %v", fetchErr))
+		notes = append(notes, history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, fmt.Sprintf("failed to fetch tx info: %v", fetchErr)))
 	}
 
 	var blockHash string
@@ -144,6 +147,10 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 	if txInfo != nil {
 		blockHash = txInfo.BlockHash
 		blockHeight = txInfo.BlockHeight
+	}
+
+	if len(notes) == 0 {
+		notes = append(notes, history.NewNote().PostBeefSuccess(ServiceName, rawTx, []string{returnedTxid}))
 	}
 
 	return wdk.PostedTxID{
@@ -154,7 +161,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		BlockHash:    blockHash,
 		BlockHeight:  blockHeight,
 		Error:        firstNonNilError(fetchErr),
-		Notes:        utils.ConvertNotes(notes),
+		Notes:        history.NewList(notes...),
 		// NOTE: MerklePath is not fetched here because that would require additional API call
 	}
 }

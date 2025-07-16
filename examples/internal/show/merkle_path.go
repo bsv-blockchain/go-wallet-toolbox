@@ -2,26 +2,25 @@ package show
 
 import (
 	"fmt"
-	"time"
-
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"os"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // printMerklePath dumps every element exactly as it comes from the SDK.
 func printMerklePath(path *transaction.MerklePath) {
-    for lvl, elems := range path.Path {
-        for _, el := range elems {
-            isTx := el.Txid != nil && *el.Txid
-            fmt.Printf("%d,%d,%s,%t\n",
-                lvl,
-                el.Offset,
-                el.Hash.String(),
-                isTx,
-            )
-        }
-    }
+	for lvl, elems := range path.Path {
+		for _, el := range elems {
+			isTx := el.Txid != nil && *el.Txid
+			fmt.Printf("%d,%d,%s,%t\n",
+				lvl,
+				el.Offset,
+				el.Hash.String(),
+				isTx,
+			)
+		}
+	}
 }
 
 // printMerklePathInfo prints the metadata that GetMerklePath returns.
@@ -34,7 +33,9 @@ func printMerklePathInfo(r *wdk.MerklePathResult) {
 		fmt.Printf("merkle_root,%s\n", bh.MerkleRoot)
 	}
 
-	for _, n := range r.Notes {
-		fmt.Printf("note,%s,%s\n", n.What, n.When.Format(time.RFC3339))
+	if r.Notes != nil {
+		if err := r.Notes.PrettyPrint(os.Stdout); err != nil {
+			panic(fmt.Errorf("failed to pretty print notes: %w", err))
+		}
 	}
 }

@@ -234,6 +234,6 @@ func TestGetMerklePath(t *testing.T) {
 			MerkleRoot: merkleRoot,
 		}, response.BlockHeader)
 		require.NotEmpty(t, response.Notes)
-		require.Equal(t, "getMerklePathTSC", response.Notes[0].What)
+		require.Equal(t, "getMerklePathTSC", response.Notes.List()[0]["what"])
 	})
 }
