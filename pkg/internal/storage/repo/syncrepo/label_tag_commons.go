@@ -99,7 +99,7 @@ func (f *labelTagCommons[_, _, _]) Delete(ctx context.Context, userID int, name 
 			"user_id = ? AND name = ?", userID, name,
 		)
 		if txDelete.Error != nil {
-			return fmt.Errorf("failed to delete: %w", err)
+			return fmt.Errorf("failed to delete: %w", txDelete.Error)
 		}
 
 		deleted = txDelete.RowsAffected > 0

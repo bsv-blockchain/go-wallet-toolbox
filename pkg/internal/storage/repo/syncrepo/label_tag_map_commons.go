@@ -97,7 +97,7 @@ func (f *labelTagMapCommons[_, _]) Delete(ctx context.Context, parentID uint, us
 		parentID, userID, name,
 	)
 	if txDelete.Error != nil {
-		return false, fmt.Errorf("failed to delete many2many relation %q: %w", f.relationTableName, err)
+		return false, fmt.Errorf("failed to delete many2many relation %q: %w", f.relationTableName, txDelete.Error)
 	}
 
 	deleted = txDelete.RowsAffected > 0
