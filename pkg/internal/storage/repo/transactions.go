@@ -342,6 +342,13 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 	txNote history.Builder,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
+		if txStatus == wdk.TxStatusFailed {
+			err = txs.restoreInputsOnFailureByTxID(tx, txID)
+			if err != nil {
+				return fmt.Errorf("failed to restore inputs on transaction failure: %w", err)
+			}
+		}
+
 		err = updateTransactionStatus(tx, txID, txStatus)
 		if err != nil {
 			return err
@@ -353,6 +360,22 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
 	return nil
+}
+
+func (txs *Transactions) restoreInputsOnFailureByTxID(tx *gorm.DB, txID string) error {
+	var transaction models.Transaction
+	err := tx.Model(&models.Transaction{}).
+		Select("id").
+		Where("tx_id = ?", txID).
+		First(&transaction).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed to find transaction by txID %s: %w", txID, err)
+	}
+
+	return txs.restoreInputsOnFailure(tx, transaction.ID)
 }
 
 func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
@@ -372,6 +395,13 @@ func (txs *Transactions) UpdateTransactionStatusForID(
 	historyAttrs map[string]any,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
+		if txStatus == wdk.TxStatusFailed {
+			err = txs.restoreInputsOnFailure(tx, transactionID)
+			if err != nil {
+				return fmt.Errorf("failed to restore inputs on transaction failure: %w", err)
+			}
+		}
+
 		err = updateTransactionStatusByID(tx, transactionID, txStatus)
 		if err != nil {
 			return err
@@ -391,6 +421,26 @@ func updateTransactionStatusByID(tx *gorm.DB, transactionID uint, txStatus wdk.T
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
+}
+
+func (txs *Transactions) restoreInputsOnFailure(tx *gorm.DB, transactionID uint) error {
+	err := tx.Model(&models.Output{}).
+		Where("spent_by = ?", transactionID).
+		Updates(map[string]interface{}{
+			"spendable": true,
+			"spent_by":  nil,
+		}).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to restore spendability of inputs: %w", err)
+	}
+
+	err = tx.Delete(&models.UserUTXO{}, "reserved_by_id = ?", transactionID).Error
+	if err != nil {
+		return fmt.Errorf("failed to clean up reserved UTXOs: %w", err)
+	}
+
+	return nil
 }
 
 func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {

@@ -53,9 +53,6 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 	if txEntity.TxID != nil {
 		err = a.transactionsRepo.UpdateTransactionStatusForTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
 		if err != nil {
-			a.logger.Warn("Failed to update known transaction status",
-				slog.String("txID", *txEntity.TxID),
-				slog.String("error", err.Error()))
 			return nil, fmt.Errorf("failed to update known transaction status: %w", err)
 		}
 	}

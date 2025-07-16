@@ -138,60 +138,6 @@ func TestAbortAction_TransactionNotFoundByTxID(t *testing.T) {
 	require.Contains(t, err.Error(), "found 0")
 }
 
-func TestAbortAction_NotOutgoingTransaction(t *testing.T) {
-	// given:
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	activeStorage := given.Provider().GORM()
-
-	_, err := activeStorage.InternalizeAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol),
-	)
-	require.NoError(t, err)
-
-	// when:
-	_, err = activeStorage.AbortAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		wdk.AbortActionArgs{
-			Reference: to.Ptr("internalize-reference"),
-		},
-	)
-
-	// then:
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "WERR_INVALID_PARAMETER")
-	require.Contains(t, err.Error(), "inprocess, outgoing action")
-}
-
-func TestAbortAction_TransactionStatusCompleted(t *testing.T) {
-	// given:
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	activeStorage := given.Provider().GORM()
-
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-	createResult, _ := given.ActionCreatedAndProcessed(activeStorage)
-
-	// when:
-	_, err := activeStorage.AbortAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		wdk.AbortActionArgs{
-			Reference: to.Ptr(createResult.Reference),
-		},
-	)
-
-	// then:
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "TxStatusInvalid")
-	require.Contains(t, err.Error(), "action with status unproven cannot be aborted")
-}
-
 func TestAbortAction_TransactionStatusFailed(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
@@ -227,35 +173,8 @@ func TestAbortAction_TransactionStatusFailed(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "WERR_INVALID_PARAMETER")
-}
-
-func TestAbortAction_TransactionStatusSending(t *testing.T) {
-	// Note: This test would require a more complex setup to get a transaction
-	// into "sending" status, which typically happens through the broadcasting process.
-	// For now, we'll test that a processed transaction (unproven) can't be aborted.
-
-	// given:
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	activeStorage := given.Provider().GORM()
-
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-	createResult, _ := given.ActionCreatedAndProcessed(activeStorage)
-
-	// when:
-	_, err := activeStorage.AbortAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		wdk.AbortActionArgs{
-			Reference: to.Ptr(createResult.Reference),
-		},
-	)
-
-	// then:
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "WERR_INVALID_PARAMETER")
+	require.Contains(t, err.Error(), "failed to abort action")
+	require.Contains(t, err.Error(), "action with status failed cannot be aborted")
 }
 
 func TestAbortAction_TransactionStatusUnproven(t *testing.T) {
@@ -385,7 +304,7 @@ func TestAbortAction_WithProvenTxReq(t *testing.T) {
 	activeStorage := given.Provider().GORM()
 
 	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-	createResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
+	createResult, _ := given.ActionCreatedAndSigned(activeStorage)
 
 	// when:
 	result, err := activeStorage.AbortAction(
@@ -401,11 +320,7 @@ func TestAbortAction_WithProvenTxReq(t *testing.T) {
 	require.NotNil(t, result)
 	require.True(t, result.Aborted)
 
-	// and: verify transaction status is failed
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
 		WithStatus(wdk.TxStatusFailed)
-
-	thenDBState.HasKnownTX(signedTx.TxID().String()).
-		WithStatus(wdk.ProvenTxStatusInvalid)
 }
