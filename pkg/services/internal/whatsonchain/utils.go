@@ -57,15 +57,6 @@ func containsI(subject string, contains ...string) bool {
 	return false
 }
 
-func firstNonNilError(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // buildURL joins baseURL with any number of path segments.
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)

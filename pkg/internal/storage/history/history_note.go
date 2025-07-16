@@ -3,12 +3,13 @@ package history
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-viper/mapstructure/v2"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 const (

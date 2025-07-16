@@ -29,9 +29,10 @@ type KnownTx struct {
 	TxNotes []*TxHistoryNote
 }
 
+// TxHistoryNote represents a single transaction event note, combining general event metadata with a transaction ID.
 type TxHistoryNote struct {
 	wdk.HistoryNote
-	TxID    string
+	TxID string
 }
 
 // KnownTxReadSpecification defines criteria for querying known transactions, including optional filtering by TxID.

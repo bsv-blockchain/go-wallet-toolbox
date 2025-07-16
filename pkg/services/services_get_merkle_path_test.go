@@ -2,7 +2,6 @@ package services_test
 
 import (
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -11,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	btst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"

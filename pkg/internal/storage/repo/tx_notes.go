@@ -2,10 +2,10 @@ package repo
 
 import (
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
 )
 
