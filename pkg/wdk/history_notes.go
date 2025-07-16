@@ -26,6 +26,11 @@ type HistoryNote struct {
 // ToMap returns a map representation of the HistoryNote, including its core attributes and event information.
 func (n *HistoryNote) ToMap() map[string]any {
 	all := make(map[string]any, len(n.Attributes)+4)
+
+	for k, v := range n.Attributes {
+		all[k] = v
+	}
+
 	all[whatAttr] = n.What
 	all[userIDAttr] = n.UserID
 	all[whenAttr] = n.When
