@@ -28,7 +28,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 	if proof == nil {
 		return &wdk.MerklePathResult{
 			Name:  ServiceName,
-			Notes: history.NewNote().GetMerklePathNotFound(ServiceName).AsList(),
+			Notes: history.New().GetMerklePathNotFound(ServiceName).Note().AsList(),
 		}, nil
 	}
 
@@ -69,7 +69,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
-		Notes:       history.NewNote().GetMerklePathSuccess(ServiceName).AsList(),
+		Notes:       history.New().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }
 

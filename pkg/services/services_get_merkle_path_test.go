@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -10,7 +11,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	btst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -59,11 +59,10 @@ func TestGetMerklePath(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, response)
-		require.Equal(t, wdk.MerklePathResult{
-			Name:        arc.ServiceName,
-			MerklePath:  nil,
-			BlockHeader: nil,
-		}, *response)
+		assert.Equal(t, arc.ServiceName, response.Name)
+		assert.Nil(t, response.MerklePath)
+		assert.Nil(t, response.BlockHeader)
+		assert.Len(t, response.Notes, 1)
 	})
 
 	t.Run("get merkle path from arc", func(t *testing.T) {
@@ -104,15 +103,14 @@ func TestGetMerklePath(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, response)
-		require.Equal(t, wdk.MerklePathResult{
-			Name:       arc.ServiceName,
-			MerklePath: &merklePath,
-			BlockHeader: &wdk.MerklePathBlockHeader{
-				Height:     2000,
-				Hash:       testservices.TestBlockHash,
-				MerkleRoot: merkleRoot,
-			},
-		}, *response)
+		assert.Equal(t, arc.ServiceName, response.Name)
+		assert.Equal(t, merklePath, *response.MerklePath)
+		assert.Equal(t, wdk.MerklePathBlockHeader{
+			Height:     2000,
+			Hash:       testservices.TestBlockHash,
+			MerkleRoot: merkleRoot,
+		}, *response.BlockHeader)
+		assert.Len(t, response.Notes, 1)
 	})
 
 	t.Run("get merkle path from WoC", func(t *testing.T) {
@@ -164,15 +162,14 @@ func TestGetMerklePath(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, response)
-		require.Equal(t, wdk.MerklePathResult{
-			Name:       whatsonchain.ServiceName,
-			MerklePath: &merklePath,
-			BlockHeader: &wdk.MerklePathBlockHeader{
-				Height:     tst.TestBlockHeight,
-				Hash:       tst.TestTargetHash,
-				MerkleRoot: merkleRoot,
-			},
-		}, *response)
+		assert.Equal(t, whatsonchain.ServiceName, response.Name)
+		assert.Equal(t, merklePath, *response.MerklePath)
+		assert.Equal(t, wdk.MerklePathBlockHeader{
+			Height:     tst.TestBlockHeight,
+			Hash:       tst.TestTargetHash,
+			MerkleRoot: merkleRoot,
+		}, *response.BlockHeader)
+		assert.Len(t, response.Notes, 1)
 	})
 
 	t.Run("get merkle path from Bitails", func(t *testing.T) {
@@ -234,6 +231,6 @@ func TestGetMerklePath(t *testing.T) {
 			MerkleRoot: merkleRoot,
 		}, response.BlockHeader)
 		require.NotEmpty(t, response.Notes)
-		require.Equal(t, "getMerklePathTSC", response.Notes.List()[0]["what"])
+		require.Equal(t, "getMerklePathSuccess", response.Notes[0].What)
 	})
 }

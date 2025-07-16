@@ -26,7 +26,12 @@ type KnownTx struct {
 	MerkleRoot  *string
 	BlockHash   *string
 
-	TxNotes []*TxNote
+	TxNotes []*TxHistoryNote
+}
+
+type TxHistoryNote struct {
+	Content wdk.HistoryNote
+	TxID    string
 }
 
 // KnownTxReadSpecification defines criteria for querying known transactions, including optional filtering by TxID.

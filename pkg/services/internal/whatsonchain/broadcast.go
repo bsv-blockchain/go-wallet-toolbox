@@ -127,19 +127,19 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 			Result: wdk.PostedTxIDResultError,
 			TxID:   txid,
 			Error:  err,
-			Notes:  history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, err.Error()).AsList(),
+			Notes:  history.New().PostBeefError(ServiceName, rawTx, []string{txid}, err.Error()).Note().AsList(),
 		}
 	}
 
 	resultStatus, failedBroadcastNotes := classifyBroadcastStatus(status)
-	var notes []history.Spec
+	var notes wdk.HistoryNotes
 	if failedBroadcastNotes != nil {
-		notes = append(notes, history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, *failedBroadcastNotes))
+		notes = append(notes, history.New().PostBeefError(ServiceName, rawTx, []string{txid}, *failedBroadcastNotes).Note())
 	}
 
 	txInfo, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
-		notes = append(notes, history.NewNote().PostBeefError(ServiceName, rawTx, []string{txid}, fmt.Sprintf("failed to fetch tx info: %v", fetchErr)))
+		notes = append(notes, history.New().PostBeefError(ServiceName, rawTx, []string{txid}, fmt.Sprintf("failed to fetch tx info: %v", fetchErr)).Note())
 	}
 
 	var blockHash string
@@ -150,7 +150,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 	}
 
 	if len(notes) == 0 {
-		notes = append(notes, history.NewNote().PostBeefSuccess(ServiceName, rawTx, []string{returnedTxid}))
+		notes = append(notes, history.New().PostBeefSuccess(ServiceName, rawTx, []string{returnedTxid}).Note())
 	}
 
 	return wdk.PostedTxID{
@@ -161,7 +161,7 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		BlockHash:    blockHash,
 		BlockHeight:  blockHeight,
 		Error:        firstNonNilError(fetchErr),
-		Notes:        history.NewList(notes...),
+		Notes:        notes,
 		// NOTE: MerklePath is not fetched here because that would require additional API call
 	}
 }

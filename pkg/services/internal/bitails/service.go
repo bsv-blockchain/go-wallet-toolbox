@@ -3,6 +3,7 @@ package bitails
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"log/slog"
 	"strings"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 )
@@ -69,15 +69,26 @@ func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		raw := rawTxs[i]
 		broadcastResult, err := b.broadcast(ctx, raw)
 		if err != nil {
-			results = append(results, wdk.PostedTxID{
+			err = fmt.Errorf("problem broadcasting the transaction %s: %w", txID, err)
+
+			failedResult := wdk.PostedTxID{
 				TxID:   txID,
 				Result: wdk.PostedTxIDResultError,
-				Error:  fmt.Errorf("failed to broadcast tx %s: %w", txID, err),
-				Notes:  utils.ConvertNotes([]string{err.Error()}),
-			})
+				Error:  err,
+				Notes:  history.New().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
+			}
+
+			if broadcastResult != nil {
+				failedResult.Result = broadcastResult.Result
+				failedResult.AlreadyKnown = broadcastResult.AlreadyKnown
+				failedResult.DoubleSpend = broadcastResult.DoubleSpend
+			}
+
+			results = append(results, failedResult)
 			continue
 		}
 
+		broadcastResult.Notes = history.New().PostBeefSuccess(ServiceName, raw, []string{txID}).Note().AsList()
 		results = append(results, *broadcastResult)
 	}
 

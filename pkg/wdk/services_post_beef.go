@@ -36,7 +36,6 @@ func (it *PostBEEFServiceResult) Success() bool {
 
 // PostedBEEF is the success result of the single service PostedBEEF method.
 type PostedBEEF struct {
-	Notes       HistoryNotes
 	TxIDResults []PostedTxID
 }
 

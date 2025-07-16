@@ -6,9 +6,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-viper/mapstructure/v2"
-	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -20,15 +20,12 @@ const (
 	GetMerklePathNotFound = "getMerklePathNotFound"
 
 	PostBeefSuccess = "postBeefSuccess"
+	PostBeefWarning = "postBeefWarning"
 	PostBeefError   = "postBeefError"
 )
 
 const (
 	statusNowAttr = "status_now"
-	whatAttr      = "what"
-	txIDAttr      = "tx_id"
-	userIDAttr    = "user_id"
-	whenAttr      = "when"
 )
 
 type EventTypesSelector interface {
@@ -59,49 +56,20 @@ type Spec interface {
 	WithAttribute(key string, value any) Spec
 	WithNewStatus(status string) Spec
 
-	Entity(txID string) *entity.TxNote
-	ToMap() map[string]any
-	AsList() *PlainList
+	Note() *wdk.HistoryNote
+	Entity(txID string) *entity.TxHistoryNote
 }
 
-func NewNote() EventTypesSelector {
+func New() EventTypesSelector {
 	return &spec{
-		event: entity.TxNote{},
+		event: wdk.HistoryNote{
+			When: time.Now(),
+		},
 	}
-}
-
-func NewList(specs ...Spec) *PlainList {
-	notes := make([]map[string]any, 0, len(specs))
-	for _, s := range specs {
-		notes = append(notes, s.ToMap())
-	}
-	return &PlainList{notes: notes}
-}
-
-type PlainList struct {
-	notes []map[string]any
-}
-
-func (p *PlainList) List() []map[string]any {
-	return p.notes
-}
-
-func (p *PlainList) PrettyPrint(writer io.Writer) error {
-	for _, note := range p.notes {
-		for k, v := range note {
-			if _, err := writer.Write([]byte(fmt.Sprintf("%s: %v\n", k, v))); err != nil {
-				return err
-			}
-		}
-		if _, err := writer.Write([]byte("\n\n")); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 type spec struct {
-	event entity.TxNote
+	event wdk.HistoryNote
 }
 
 func (s *spec) InternalizeAction(userID int) Spec {
@@ -128,19 +96,19 @@ func (s *spec) GetMerklePathNotFound(serviceName string) Spec {
 		WithAttribute("name", serviceName)
 }
 
-func (s *spec) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Spec {
-	return s.WithName(PostBeefError).
-		WithAttribute("name", serviceName).
-		WithAttribute("beef", hex.EncodeToString(beef)).
-		WithAttribute("txids", strings.Join(txIDs, ",")).
-		WithAttribute("message", msg)
-}
-
-func (s *spec) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Spec {
+func (s *spec) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Spec {
 	return s.WithName(PostBeefSuccess).
 		WithAttribute("name", serviceName).
 		WithAttribute("beef", hex.EncodeToString(beef)).
 		WithAttribute("txids", strings.Join(txIDs, ","))
+}
+
+func (s *spec) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Spec {
+	return s.postBeefBase(PostBeefError, serviceName, beef, txIDs).WithAttribute("message", msg)
+}
+
+func (s *spec) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Spec {
+	return s.postBeefBase(PostBeefSuccess, serviceName, beef, txIDs)
 }
 
 func (s *spec) WithName(name string) Spec {
@@ -183,23 +151,15 @@ func (s *spec) WithNewStatus(status string) Spec {
 	return s.WithAttribute(statusNowAttr, status)
 }
 
-func (s *spec) Entity(txID string) *entity.TxNote {
-	s.event.TxID = txID
+func (s *spec) Note() *wdk.HistoryNote {
 	return &s.event
 }
 
-func (s *spec) ToMap() map[string]any {
-	all := make(map[string]any, len(s.event.Attributes)+4)
-	all[whatAttr] = s.event.What
-	all[txIDAttr] = s.event.TxID
-	all[userIDAttr] = s.event.UserID
-	all[whenAttr] = s.event.When
-
-	return all
-}
-
-func (s *spec) AsList() *PlainList {
-	return NewList(s)
+func (s *spec) Entity(txID string) *entity.TxHistoryNote {
+	return &entity.TxHistoryNote{
+		TxID:    txID,
+		Content: s.event,
+	}
 }
 
 func (s *spec) withHttpAttributes(status int) Spec {
