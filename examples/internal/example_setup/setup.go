@@ -6,10 +6,10 @@ import (
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
+	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
-	"github.com/spf13/viper"
 )
 
 type Setup struct {
@@ -35,39 +35,75 @@ type UserConfig struct {
 	PrivateKey  string `mapstructure:"private_key"`
 }
 
+func defaultSetupConfig() SetupConfig {
+	return SetupConfig{
+		Network:   defs.NetworkTestnet,
+		ServerURL: "",
+		Alice:     UserConfig{},
+		Bob:       UserConfig{},
+	}
+}
+
+func (u *UserConfig) Verify() error {
+	if len(u.IdentityKey) == 0 {
+		return fmt.Errorf("identity key value is required")
+	}
+
+	if len(u.PrivateKey) == 0 {
+		return fmt.Errorf("private key value is required")
+	}
+	
+	return nil
+}
+
 func (c *SetupConfig) Validate() error {
 	if _, err := defs.ParseBSVNetworkStr(string(c.Network)); err != nil {
 		return fmt.Errorf("invalid BSV network: %w", err)
 	}
+
+	if c.ServerURL == "" {
+		return fmt.Errorf("server_url is required")
+	}
+
+	if err := c.Alice.Verify(); err != nil {
+		return fmt.Errorf("alice user config is invalid: %w", err)
+	}
+
+	if err := c.Bob.Verify(); err != nil {
+		return fmt.Errorf("bob user config is invalid: %w", err)
+	}
+
 	return nil
 }
 
-func loadConfig(configFile string) (*SetupConfig, error) {
-	v := viper.New()
-	v.SetConfigFile(configFile)
-	v.SetConfigType("yaml")
+func loadConfig() (*SetupConfig, error) {
+	const configFile = "examples/internal/example_setup/examples-config.yaml"
+	loader := config.NewLoader(defaultSetupConfig, "EXAMPLE_SETUP")
 
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+	err := loader.SetConfigFilePath(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set config file path: %w", err)
 	}
 
-	var cfg SetupConfig
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	cfg, err := loader.Load()
+	if err != nil {
+		//TODO: add error message description to run the config generator if the config file is not found.
+		// Config generator will be part of another PR.
+		return nil, fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	err = cfg.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return &cfg, nil
 }
 
 func CreateAlice() *Setup {
-	cfg, err := loadConfig("examples/internal/example_setup/example-config.yaml")
+	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Errorf("failed to load config: %w", err))
-	}
-
-	err = cfg.Validate()
-	if err != nil {
-		panic(fmt.Errorf("config validation failed: %w", err))
 	}
 
 	privateKey, err := ec.PrivateKeyFromHex(cfg.Alice.PrivateKey)
