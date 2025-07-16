@@ -144,13 +144,29 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 	}
 
 	if updateTx.RowsAffected > 0 {
-		outputID = model.ID
+		resultTxModel := models.Output{}
+		if err = updateTx.Scan(&resultTxModel).Error; err != nil {
+			err = fmt.Errorf("failed to scan updated output: %w", err)
+			return
+		}
+
+		if resultTxModel.ID == 0 {
+			err = fmt.Errorf("output ID is zero after update, this should not happen")
+			return
+		}
+
+		outputID = resultTxModel.ID
 		return
 	}
 
 	err = tx.Create(&model).Error
 	if err != nil {
 		err = fmt.Errorf("failed to create output: %w", err)
+		return
+	}
+
+	if model.ID == 0 {
+		err = fmt.Errorf("output ID is zero after update, this should not happen")
 		return
 	}
 

@@ -114,6 +114,10 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 				return fmt.Errorf("failed to scan updated transaction: %w", err)
 			}
 
+			if resultTxModel.ID == 0 {
+				return fmt.Errorf("transaction ID is zero after update, this should not happen")
+			}
+
 			transactionID = resultTxModel.ID
 			return nil
 		}
@@ -121,6 +125,10 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 		err := tx.Create(&model).Error
 		if err != nil {
 			return fmt.Errorf("failed to create transaction: %w", err)
+		}
+
+		if model.ID == 0 {
+			return fmt.Errorf("transaction ID is zero after creation, this should not happen")
 		}
 
 		isNew = true
