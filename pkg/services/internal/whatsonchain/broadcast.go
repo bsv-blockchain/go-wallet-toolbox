@@ -123,49 +123,47 @@ func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoR
 func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx []byte) wdk.PostedTxID {
 	status, returnedTxid, err := woc.broadcast(ctx, rawTx)
 	if err != nil {
-		return wdk.PostedTxID{
-			Result: wdk.PostedTxIDResultError,
-			TxID:   txid,
-			Error:  err,
-			Notes:  history.New().PostBeefError(ServiceName, rawTx, []string{txid}, err.Error()).Note().AsList(),
+		return woc.errorPostedTxID(rawTx, txid, fmt.Errorf("broadcast failed for txid %s: %w", txid, err))
+	}
+
+	result := wdk.PostedTxID{
+		TxID: returnedTxid,
+	}
+
+	classifyBroadcastStatus(status, &result)
+	if result.Result == wdk.PostedTxIDResultError || result.DoubleSpend {
+		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
+		if result.Error != nil {
+			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
+		result.Notes = history.New().PostBeefError(ServiceName, rawTx, []string{txid}, msg).Note().AsList()
+		return result
 	}
 
-	resultStatus, failedBroadcastNotes := classifyBroadcastStatus(status)
-	var notes wdk.HistoryNotes
-	if failedBroadcastNotes != nil {
-		notes = append(notes, history.New().PostBeefError(ServiceName, rawTx, []string{txid}, *failedBroadcastNotes).Note())
-	}
+	result.Notes = history.New().PostBeefSuccess(ServiceName, rawTx, []string{txid}).Note().AsList()
 
-	txInfo, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
+	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
-		notes = append(notes, history.New().PostBeefError(ServiceName, rawTx, []string{txid}, fmt.Sprintf("failed to fetch tx info: %v", fetchErr)).Note())
+		return woc.errorPostedTxID(rawTx, returnedTxid, fmt.Errorf("failed to fetch tx info for %s: %w", returnedTxid, fetchErr))
 	}
 
-	var blockHash string
-	var blockHeight int64
-	if txInfo != nil {
-		blockHash = txInfo.BlockHash
-		blockHeight = txInfo.BlockHeight
+	if info != nil {
+		result.BlockHash = info.BlockHash
+		result.BlockHeight = info.BlockHeight
 	}
 
-	if len(notes) == 0 {
-		notes = append(notes, history.New().PostBeefSuccess(ServiceName, rawTx, []string{returnedTxid}).Note())
-	}
-
-	return wdk.PostedTxID{
-		Result:       resultStatus,
-		TxID:         returnedTxid,
-		DoubleSpend:  status == StatusDoubleSpend || status == StatusMissingInputs,
-		AlreadyKnown: status == StatusAlreadyBroadcasted,
-		BlockHash:    blockHash,
-		BlockHeight:  blockHeight,
-		Error:        firstNonNilError(fetchErr),
-		Notes:        notes,
-		// NOTE: MerklePath is not fetched here because that would require additional API call
-	}
+	return result
 }
 
 func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
 	return woc.fetchTxInfo(ctx, txid)
+}
+
+func (woc *WhatsOnChain) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {
+	return wdk.PostedTxID{
+		TxID:   txID,
+		Result: wdk.PostedTxIDResultError,
+		Error:  err,
+		Notes:  history.New().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
+	}
 }

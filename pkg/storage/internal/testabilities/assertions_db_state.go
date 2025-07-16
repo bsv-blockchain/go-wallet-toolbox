@@ -189,7 +189,7 @@ func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAsse
 
 type txNotesAssertion struct {
 	testing.TB
-	txNotes      []*pkgentity.TxNote
+	txNotes      []*pkgentity.TxHistoryNote
 	currentIndex int
 }
 

@@ -10,12 +10,11 @@ import (
 )
 
 func addTxNote(tx *gorm.DB, txNote *entity.TxHistoryNote) error {
-	note := txNote.Content
 	model := models.TxNote{
 		TxID:       txNote.TxID,
-		UserID:     note.UserID,
-		What:       note.What,
-		Attributes: note.Attributes,
+		UserID:     txNote.UserID,
+		What:       txNote.What,
+		Attributes: txNote.Attributes,
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -32,7 +31,7 @@ func mapModelToEntityTxNote(model *models.TxNote) *entity.TxHistoryNote {
 
 	return &entity.TxHistoryNote{
 		TxID: model.TxID,
-		Content: wdk.HistoryNote{
+		HistoryNote: wdk.HistoryNote{
 			When:       model.CreatedAt,
 			UserID:     model.UserID,
 			What:       model.What,

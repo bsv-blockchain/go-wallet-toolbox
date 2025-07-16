@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -20,41 +21,47 @@ type broadcastError struct {
 	Message string `json:"message"`
 }
 
-func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
+func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) wdk.PostedTxID {
 	rawHex := hex.EncodeToString(rawTx)
 	txid := txutils.TransactionIDFromRawTx(rawTx)
 
 	respArr, err := b.sendBroadcastRequest(ctx, rawHex)
 	if err != nil {
-		return nil, fmt.Errorf("broadcast failed for txid %s: %w", txid, err)
+		return b.errorPostedTxID(rawTx, txid, fmt.Errorf("broadcast failed for txid %s: %w", txid, err))
 	}
 	if len(respArr) != 1 {
-		return nil, fmt.Errorf("%s returned %d elements, expected 1", ServiceName, len(respArr))
+		return b.errorPostedTxID(rawTx, txid, fmt.Errorf("%s returned %d elements, expected 1", ServiceName, len(respArr)))
 	}
 
 	resp := respArr[0]
-	result := &wdk.PostedTxID{TxID: txid}
+	result := wdk.PostedTxID{TxID: txid}
 
 	if resp.TxID != "" && resp.TxID != txid {
-		return nil, fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid)
+		return b.errorPostedTxID(rawTx, txid, fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid))
 	}
 
-	broadcastErr := b.classifyResponseError(resp, result)
-	if broadcastErr != nil {
-		// NOTE: Result is returned along with the error to provide already calculated data
-		return result, fmt.Errorf("broadcast error for txid %s: %w", txid, err)
+	b.classifyResponseError(resp, &result)
+	if result.Result == wdk.PostedTxIDResultError || result.DoubleSpend {
+		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
+		if result.Error != nil {
+			msg += fmt.Sprintf(" and error: %v", result.Error)
+		}
+		result.Notes = history.New().PostBeefError(ServiceName, rawTx, []string{txid}, msg).Note().AsList()
+		return result
 	}
+
+	result.Notes = history.New().PostBeefSuccess(ServiceName, rawTx, []string{txid}).Note().AsList()
 
 	info, infoErr := b.fetchTxInfo(ctx, txid)
 	if infoErr != nil {
-		return nil, fmt.Errorf("failed to fetch tx info for %s: %w", txid, err)
+		return b.errorPostedTxID(rawTx, txid, fmt.Errorf("failed to fetch tx info for %s: %w", txid, infoErr))
 	}
 	if info != nil {
 		result.BlockHash = info.BlockHash
 		result.BlockHeight = info.BlockHeight
 	}
 
-	return result, nil
+	return result
 }
 
 func (b *Bitails) sendBroadcastRequest(ctx context.Context, rawHex string) ([]broadcastResponse, error) {
@@ -81,10 +88,10 @@ func (b *Bitails) sendBroadcastRequest(ctx context.Context, rawHex string) ([]br
 	return respArr, nil
 }
 
-func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.PostedTxID) error {
+func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.PostedTxID) {
 	if resp.Error == nil {
 		result.Result = wdk.PostedTxIDResultSuccess
-		return nil
+		return
 	}
 
 	msg := resp.Error.Message
@@ -94,13 +101,20 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 	case ErrorCodeAlreadyInMempool:
 		result.Result = wdk.PostedTxIDResultAlreadyKnown
 		result.AlreadyKnown = true
-		return nil
 	case ErrorCodeMissingInputs:
 		result.Result = wdk.PostedTxIDResultDoubleSpend
 		result.DoubleSpend = true
-		return ErrMissingInputs
 	default:
 		result.Result = wdk.PostedTxIDResultError
-		return fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
+		result.Error = fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
+	}
+}
+
+func (b *Bitails) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {
+	return wdk.PostedTxID{
+		TxID:   txID,
+		Result: wdk.PostedTxIDResultError,
+		Error:  err,
+		Notes:  history.New().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
 	}
 }

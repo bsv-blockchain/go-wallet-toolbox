@@ -30,7 +30,7 @@ type KnownTx struct {
 }
 
 type TxHistoryNote struct {
-	Content wdk.HistoryNote
+	wdk.HistoryNote
 	TxID    string
 }
 

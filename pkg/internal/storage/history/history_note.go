@@ -41,7 +41,7 @@ type EventTypesSelector interface {
 }
 
 type AggregatedBroadcastResult struct {
-	StatusNow         wdk.ProvenTxReqStatus          `mapstructure:"statusNow"`
+	StatusNow         wdk.ProvenTxReqStatus          `mapstructure:"status_now"`
 	AggStatus         wdk.AggregatedPostedTxIDStatus `mapstructure:"aggStatus"`
 	SuccessCount      int                            `mapstructure:"successCount"`
 	DoubleSpendCount  int                            `mapstructure:"doubleSpendCount"`
@@ -97,7 +97,7 @@ func (s *spec) GetMerklePathNotFound(serviceName string) Spec {
 }
 
 func (s *spec) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Spec {
-	return s.WithName(PostBeefSuccess).
+	return s.WithName(what).
 		WithAttribute("name", serviceName).
 		WithAttribute("beef", hex.EncodeToString(beef)).
 		WithAttribute("txids", strings.Join(txIDs, ","))
@@ -157,8 +157,8 @@ func (s *spec) Note() *wdk.HistoryNote {
 
 func (s *spec) Entity(txID string) *entity.TxHistoryNote {
 	return &entity.TxHistoryNote{
-		TxID:    txID,
-		Content: s.event,
+		TxID:        txID,
+		HistoryNote: s.event,
 	}
 }
 

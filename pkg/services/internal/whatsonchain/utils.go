@@ -3,7 +3,6 @@ package whatsonchain
 import (
 	"context"
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/to"
 	"net/url"
 	"path"
 	"strings"
@@ -26,20 +25,25 @@ func waitOrCancel(ctx context.Context, delay time.Duration, txid string) error {
 	}
 }
 
-func classifyBroadcastStatus(status BroadcastStatus) (wdk.PostedTxIDResultStatus, *string) {
+func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) {
 	switch status {
 	case StatusSuccess:
-		return wdk.PostedTxIDResultSuccess, nil
+		result.Result = wdk.PostedTxIDResultSuccess
 	case StatusAlreadyBroadcasted:
-		return wdk.PostedTxIDResultAlreadyKnown, nil
+		result.Result = wdk.PostedTxIDResultAlreadyKnown
+		result.AlreadyKnown = true
 	case StatusDoubleSpend:
-		return wdk.PostedTxIDResultDoubleSpend, to.Ptr("Double spend detected")
+		result.Result = wdk.PostedTxIDResultDoubleSpend
+		result.DoubleSpend = true
 	case StatusMissingInputs:
-		return wdk.PostedTxIDResultMissingInputs, to.Ptr("Missing inputs detected")
+		result.Result = wdk.PostedTxIDResultMissingInputs
+		result.DoubleSpend = true
 	case StatusError:
-		return wdk.PostedTxIDResultError, to.Ptr("Broadcast status error")
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = fmt.Errorf("broadcast status error")
 	default:
-		return wdk.PostedTxIDResultError, to.Ptr(fmt.Sprintf("Unknown error: unexpected BroadcastStatus value '%v'", status))
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = fmt.Errorf("unknown broadcast status: %d", status)
 	}
 }
 

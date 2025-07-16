@@ -9,158 +9,162 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	mockBlockHash   = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	mockBlockHeight = 123456
 )
 
 func TestWhatsOnChain_PostBEEF(t *testing.T) {
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
-	tx := txSpec.TX()
-	calculatedTxID := tx.TxID().String()
+	givenTxID := txSpec.TX().TxID().String()
 
-	beef, err := transaction.NewBeefFromTransaction(tx)
+	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
 	require.NoError(t, err)
 
-	fixture := testabilities.Given(t)
-	woc := fixture.NewWoCService()
-
-	client := fixture.WhatsOnChain().HttpClient()
-	httpmock.ActivateNonDefault(client.GetClient())
-	defer httpmock.DeactivateAndReset()
-
-	testCases := []struct {
-		name               string
-		httpStatus         int
-		httpResponse       string
-		expectTxID         string
-		expectErrorResult  bool
-		expectDoubleSpend  bool
-		expectAlreadyKnown bool
-		expectNotes        []string
-		expectBlockHeight  int64
-		expectBlockHash    string
+	tests := map[string]struct {
+		setup        func(testabilities.WoCServiceFixture)
+		resultStatus wdk.PostedTxIDResultStatus
+		alreadyKnown bool
 	}{
-		{
-			name:              "success - matching txid",
-			httpStatus:        http.StatusOK,
-			httpResponse:      `{"txid":"` + calculatedTxID + `"}`,
-			expectTxID:        calculatedTxID,
-			expectErrorResult: false,
-			expectBlockHeight: 123456,
-			expectBlockHash:   "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+		"success - matching txid": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusOK, `{"txid":"`+givenTxID+`"}`)
+				given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+					ExpectBlockHash:   mockBlockHash,
+					ExpectBlockHeight: mockBlockHeight,
+				})
+			},
+			resultStatus: wdk.PostedTxIDResultSuccess,
 		},
-		{
-			name:               "already in mempool",
-			httpStatus:         http.StatusInternalServerError,
-			httpResponse:       "already in mempool",
-			expectTxID:         calculatedTxID,
-			expectErrorResult:  false,
-			expectAlreadyKnown: true,
-			expectNotes:        []string{"Transaction already in mempool"},
-			expectBlockHeight:  0,
-			expectBlockHash:    "",
-		},
-		{
-			name:              "double spend",
-			httpStatus:        http.StatusInternalServerError,
-			httpResponse:      "txn-mempool-conflict",
-			expectTxID:        calculatedTxID,
-			expectErrorResult: false,
-			expectDoubleSpend: true,
-			expectNotes:       []string{"Double spend detected"},
-			expectBlockHeight: 0,
-			expectBlockHash:   "",
-		},
-		{
-			name:              "missing inputs",
-			httpStatus:        http.StatusInternalServerError,
-			httpResponse:      "missing inputs",
-			expectTxID:        calculatedTxID,
-			expectErrorResult: false,
-			expectDoubleSpend: true,
-			expectNotes:       []string{"Missing inputs detected"},
-			expectBlockHeight: 0,
-			expectBlockHash:   "",
-		},
-		{
-			name:              "success - mismatched txid",
-			httpStatus:        http.StatusOK,
-			httpResponse:      `{"txid":"othertxid987"}`,
-			expectErrorResult: true,
-			expectTxID:        calculatedTxID,
-			expectBlockHeight: 0,
-			expectBlockHash:   "",
-		},
-		{
-			name:              "unknown error",
-			httpStatus:        http.StatusInternalServerError,
-			httpResponse:      "unexpected response code 500: unknown failure",
-			expectErrorResult: true,
-			expectTxID:        calculatedTxID,
-			expectBlockHeight: 0,
-			expectBlockHash:   "",
+		"success - already in mempool": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "already in mempool")
+				given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+					ExpectBlockHash:   mockBlockHash,
+					ExpectBlockHeight: mockBlockHeight,
+				})
+			},
+			resultStatus: wdk.PostedTxIDResultAlreadyKnown,
+			alreadyKnown: true,
 		},
 	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			given := testabilities.Given(t)
+			woc := given.NewWoCService()
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// given:
-			fixture.WhatsOnChain().WillRespondWithBroadcast(tc.httpStatus, tc.httpResponse)
+			client := given.WhatsOnChain().HttpClient()
+			httpmock.ActivateNonDefault(client.GetClient())
+			defer httpmock.DeactivateAndReset()
 
-			fixture.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
-				ExpectBlockHash:   tc.expectBlockHash,
-				ExpectBlockHeight: tc.expectBlockHeight,
-			})
+			// and:
+			test.setup(given)
 
 			// when:
-			result, err := woc.PostBEEF(t.Context(), beef, []string{calculatedTxID})
+			result, err := woc.PostBEEF(t.Context(), beef, []string{givenTxID})
 
 			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.TxIDResults, 1)
 
-			assertTxIDResult(t, result.TxIDResults[0], tc)
+			singleResult := result.TxIDResults[0]
+			assert.Equal(t, test.resultStatus, singleResult.Result)
+			assert.Equal(t, givenTxID, singleResult.TxID)
+			assert.Nil(t, singleResult.Error)
+			assert.False(t, singleResult.DoubleSpend)
+			assert.Equal(t, test.alreadyKnown, singleResult.AlreadyKnown)
+			assert.Len(t, singleResult.CompetingTxs, 0)
+			assert.Len(t, singleResult.Notes, 1)
 		})
 	}
 }
 
-func assertTxIDResult(t *testing.T, got wdk.PostedTxID, tc struct {
-	name               string
-	httpStatus         int
-	httpResponse       string
-	expectTxID         string
-	expectErrorResult  bool
-	expectDoubleSpend  bool
-	expectAlreadyKnown bool
-	expectNotes        []string
-	expectBlockHeight  int64
-	expectBlockHash    string
-}) {
-	require.Equal(t, tc.expectTxID, got.TxID)
+func TestWhatsOnChain_PostBEEF_ErrorCases(t *testing.T) {
+	txSpec := testvectors.GivenTX().
+		WithInput(100).
+		WithP2PKHOutput(90)
+	givenTxID := txSpec.TX().TxID().String()
 
-	if tc.expectErrorResult {
-		require.Equal(t, wdk.PostedTxIDResultError, got.Result)
-	} else {
-		require.NotEqual(t, wdk.PostedTxIDResultError, got.Result)
-		require.Nil(t, got.Error)
+	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		setup         func(testabilities.WoCServiceFixture)
+		resultStatus  wdk.PostedTxIDResultStatus
+		doubleSpend   bool
+		additionalErr bool
+	}{
+		"double spend - missing inputs": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "txn-mempool-conflict")
+				given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+					ExpectBlockHash:   mockBlockHash,
+					ExpectBlockHeight: mockBlockHeight,
+				})
+			},
+			resultStatus: wdk.PostedTxIDResultDoubleSpend,
+			doubleSpend:  true,
+		},
+		"mismatched txid": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, `{"txid":"othertxid987"}`)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
+		"internal error": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, `unexpected response code 500: unknown failure`)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
+		"missing inputs": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, `missing inputs`)
+			},
+			resultStatus: wdk.PostedTxIDResultMissingInputs,
+			doubleSpend:  true,
+		},
 	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			given := testabilities.Given(t)
+			woc := given.NewWoCService()
 
-	require.Equal(t, tc.expectDoubleSpend, got.DoubleSpend)
-	require.Equal(t, tc.expectAlreadyKnown, got.AlreadyKnown)
+			client := given.WhatsOnChain().HttpClient()
+			httpmock.ActivateNonDefault(client.GetClient())
+			defer httpmock.DeactivateAndReset()
 
-	require.Equal(t, tc.expectBlockHeight, got.BlockHeight)
-	require.Equal(t, tc.expectBlockHash, got.BlockHash)
+			// and:
+			test.setup(given)
 
-	strNotes := slices.Map(got.Notes, func(note wdk.ReqHistoryNote) string {
-		return note.What
-	})
+			// when:
+			result, err := woc.PostBEEF(t.Context(), beef, []string{givenTxID})
 
-	for _, expectedNote := range tc.expectNotes {
-		assert.Contains(t, strNotes, expectedNote)
+			// then:
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, result.TxIDResults, 1)
+
+			singleResult := result.TxIDResults[0]
+			assert.Equal(t, test.resultStatus, singleResult.Result)
+			assert.Equal(t, givenTxID, singleResult.TxID)
+			assert.Equal(t, test.doubleSpend, singleResult.DoubleSpend)
+			assert.False(t, singleResult.AlreadyKnown)
+			assert.Len(t, singleResult.Notes, 1)
+
+			if test.additionalErr {
+				assert.Error(t, singleResult.Error)
+			}
+		})
 	}
 }

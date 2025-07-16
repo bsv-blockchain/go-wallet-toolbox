@@ -2,6 +2,8 @@ package whatsonchain_test
 
 import (
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
 
@@ -59,21 +61,18 @@ func TestMerklePath_Success(t *testing.T) {
 
 	given.WhatsOnChain().WillRespondWithBlockHeader(http.StatusOK, tst.TestTargetHash, mockBlockHeaderResponse)
 
-	expected := &wdk.MerklePathResult{
-		Name:       "WhatsOnChain",
-		MerklePath: &merklePath,
-		BlockHeader: &wdk.MerklePathBlockHeader{
-			Height:     tst.TestBlockHeight,
-			MerkleRoot: merkleRoot,
-			Hash:       tst.TestTargetHash,
-		},
-	}
-
 	// when:
 	res, err := svc.MerklePath(t.Context(), txID)
 
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, expected, res)
+	assert.Equal(t, whatsonchain.ServiceName, res.Name)
+	assert.Equal(t, merklePath, *res.MerklePath)
+	assert.Equal(t, wdk.MerklePathBlockHeader{
+		Height:     tst.TestBlockHeight,
+		MerkleRoot: merkleRoot,
+		Hash:       tst.TestTargetHash,
+	}, *res.BlockHeader)
+	assert.Len(t, res.Notes, 1)
 }

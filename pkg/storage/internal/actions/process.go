@@ -265,11 +265,12 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 
 func (p *process) noteForAggregation(provenTxReqStatus wdk.ProvenTxReqStatus, aggBroadcastResult *wdk.AggregatedPostedTxID) history.Spec {
 	return history.New().AggregateResults(history.AggregatedBroadcastResult{
-		StatusNow:        provenTxReqStatus,
-		AggStatus:        aggBroadcastResult.Status,
-		SuccessCount:     aggBroadcastResult.SuccessCount,
-		DoubleSpendCount: aggBroadcastResult.DoubleSpendCount,
-		StatusErrorCount: aggBroadcastResult.StatusErrorCount,
+		StatusNow:         provenTxReqStatus,
+		AggStatus:         aggBroadcastResult.Status,
+		SuccessCount:      aggBroadcastResult.SuccessCount,
+		DoubleSpendCount:  aggBroadcastResult.DoubleSpendCount,
+		StatusErrorCount:  aggBroadcastResult.StatusErrorCount,
+		ServiceErrorCount: aggBroadcastResult.ServiceErrorCount,
 	})
 }
 

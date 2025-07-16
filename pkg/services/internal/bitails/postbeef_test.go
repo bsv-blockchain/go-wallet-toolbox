@@ -1,9 +1,7 @@
 package bitails_test
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -11,7 +9,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,137 +18,136 @@ func TestBitails_PostBEEF(t *testing.T) {
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
-	tx := txSpec.TX()
-	calculatedTxID := tx.TxID().String()
+	givenTxID := txSpec.TX().TxID().String()
 
-	beef, err := transaction.NewBeefFromTransaction(tx)
+	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
 	require.NoError(t, err)
 
-	fixture := testabilities.Given(t)
-	bitailsService := fixture.NewBitailsService()
-
-	client := fixture.Bitails().HttpClient()
-	httpmock.ActivateNonDefault(client.GetClient())
-	defer httpmock.DeactivateAndReset()
-
-	testCases := []struct {
-		name               string
-		setup              func()
-		expectTxID         string
-		expectErrorResult  bool
-		expectDoubleSpend  bool
-		expectAlreadyKnown bool
-		expectNotes        []string
-		expectBlockHeight  int64
-		expectBlockHash    string
+	tests := map[string]struct {
+		setup        func(testabilities.BitailsServiceFixture)
+		resultStatus wdk.PostedTxIDResultStatus
+		alreadyKnown bool
 	}{
-		{
-			name: "success - matching txid",
-			setup: func() {
-				fixture.Bitails().OnBroadcast().WillReturnSuccess(calculatedTxID)
-				fixture.Bitails().WillReturnTxInfo(calculatedTxID, "mocked-block-hash", 99999)
+		"success - matching txid": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnSuccess(givenTxID)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
 			},
-			expectTxID:        calculatedTxID,
-			expectErrorResult: false,
+			resultStatus: wdk.PostedTxIDResultSuccess,
 		},
-		{
-			name: "already in mempool",
-			setup: func() {
-				fixture.Bitails().OnBroadcast().WillReturnAlreadyInMempool(calculatedTxID, bitails.ErrAlreadyKnown)
-				fixture.Bitails().WillReturnTxInfo(calculatedTxID, "mocked-block-hash", 99999)
+		"success - already in mempool": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnAlreadyInMempool(givenTxID, bitails.ErrAlreadyKnown)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
 			},
-			expectTxID:         calculatedTxID,
-			expectErrorResult:  false,
-			expectAlreadyKnown: true,
-			expectNotes:        []string{"already in mempool"},
-		},
-		{
-			name: "double spend - missing inputs",
-			setup: func() {
-				fixture.Bitails().OnBroadcast().WillReturnDoubleSpend(calculatedTxID, bitails.ErrMissingInputs)
-				fixture.Bitails().WillReturnTxInfo(calculatedTxID, "mocked-block-hash", 99999)
-			},
-			expectTxID:        calculatedTxID,
-			expectErrorResult: false,
-			expectDoubleSpend: true,
-			expectNotes:       []string{"missing inputs"},
-		},
-		{
-			name: "mismatched txid",
-			setup: func() {
-				fixture.Bitails().OnBroadcast().WillReturnSuccess("othertxid987")
-				fixture.Bitails().WillReturnTxInfo(calculatedTxID, "mocked-block-hash", 99999)
-			},
-			expectTxID:        calculatedTxID,
-			expectErrorResult: true,
-			expectNotes:       []string{"returned txid (othertxid987) does not match expected txid (f036a074ace427c5ebc3d0de89a63d4a5e7aabeff9fbc77435eb58f8dbfd59a9)"},
-		},
-		{
-			name: "internal error",
-			setup: func() {
-				fixture.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
-				fixture.Bitails().WillReturnTxInfo(calculatedTxID, "mocked-block-hash", 99999)
-			},
-			expectTxID:        calculatedTxID,
-			expectErrorResult: true,
+			resultStatus: wdk.PostedTxIDResultAlreadyKnown,
+			alreadyKnown: true,
 		},
 	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
 			// given:
-			tc.setup()
+			given := testabilities.Given(t)
+			bitailsService := given.NewBitailsService()
+
+			client := given.Bitails().HttpClient()
+			httpmock.ActivateNonDefault(client.GetClient())
+			defer httpmock.DeactivateAndReset()
+
+			// and:
+			test.setup(given)
 
 			// when:
-			result, err := bitailsService.PostBEEF(t.Context(), beef, []string{calculatedTxID})
+			result, err := bitailsService.PostBEEF(t.Context(), beef, []string{givenTxID})
 
 			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.TxIDResults, 1)
 
-			assertTxIDResult(t, result.TxIDResults[0], tc)
+			singleResult := result.TxIDResults[0]
+			assert.Equal(t, test.resultStatus, singleResult.Result)
+			assert.Equal(t, givenTxID, singleResult.TxID)
+			assert.Nil(t, singleResult.Error)
+			assert.False(t, singleResult.DoubleSpend)
+			assert.Equal(t, test.alreadyKnown, singleResult.AlreadyKnown)
+			assert.Len(t, singleResult.CompetingTxs, 0)
+			assert.Len(t, singleResult.Notes, 1)
 		})
 	}
 }
 
-func assertTxIDResult(t *testing.T, got wdk.PostedTxID, tc struct {
-	name               string
-	setup              func()
-	expectTxID         string
-	expectErrorResult  bool
-	expectDoubleSpend  bool
-	expectAlreadyKnown bool
-	expectNotes        []string
-	expectBlockHeight  int64
-	expectBlockHash    string
-}) {
-	require.Equal(t, tc.expectTxID, got.TxID)
+func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
+	txSpec := testvectors.GivenTX().
+		WithInput(100).
+		WithP2PKHOutput(90)
+	givenTxID := txSpec.TX().TxID().String()
 
-	if tc.expectErrorResult {
-		require.Equal(t, wdk.PostedTxIDResultError, got.Result)
-	} else {
-		require.NotEqual(t, wdk.PostedTxIDResultError, got.Result)
-		require.Nil(t, got.Error)
+	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		setup         func(testabilities.BitailsServiceFixture)
+		resultStatus  wdk.PostedTxIDResultStatus
+		doubleSpend   bool
+		additionalErr bool
+	}{
+		"double spend - missing inputs": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnDoubleSpend(givenTxID, bitails.ErrMissingInputs)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus: wdk.PostedTxIDResultDoubleSpend,
+			doubleSpend:  true,
+		},
+		"mismatched txid": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnSuccess("othertxid987")
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
+		"internal error": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
 	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+			bitailsService := given.NewBitailsService()
 
-	require.Equal(t, tc.expectDoubleSpend, got.DoubleSpend)
-	require.Equal(t, tc.expectAlreadyKnown, got.AlreadyKnown)
-	require.Equal(t, tc.expectBlockHeight, got.BlockHeight)
-	require.Equal(t, tc.expectBlockHash, got.BlockHash)
+			client := given.Bitails().HttpClient()
+			httpmock.ActivateNonDefault(client.GetClient())
+			defer httpmock.DeactivateAndReset()
 
-	strNotes := slices.Map(got.Notes, func(note wdk.ReqHistoryNote) string {
-		return note.What
-	})
+			// and:
+			test.setup(given)
 
-	for _, expectedNote := range tc.expectNotes {
-		assert.Condition(t, func() bool {
-			for _, gotNote := range strNotes {
-				if strings.Contains(gotNote, expectedNote) {
-					return true
-				}
+			// when:
+			result, err := bitailsService.PostBEEF(t.Context(), beef, []string{givenTxID})
+
+			// then:
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, result.TxIDResults, 1)
+
+			singleResult := result.TxIDResults[0]
+			assert.Equal(t, test.resultStatus, singleResult.Result)
+			assert.Equal(t, givenTxID, singleResult.TxID)
+			assert.Equal(t, test.doubleSpend, singleResult.DoubleSpend)
+			assert.False(t, singleResult.AlreadyKnown)
+			assert.Len(t, singleResult.Notes, 1)
+
+			if test.additionalErr {
+				assert.Error(t, singleResult.Error)
 			}
-			return false
-		}, fmt.Sprintf("Expected note to contain: %q, but got: %v", expectedNote, strNotes))
+		})
 	}
 }

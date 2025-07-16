@@ -18,7 +18,6 @@ type Repositories struct {
 	*SyncState
 	*KeyValue
 	*Commission
-	*TxNotes
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
