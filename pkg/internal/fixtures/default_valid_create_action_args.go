@@ -73,8 +73,8 @@ func DefaultWalletCreateActionArgs(t *testing.T, opts ...func(*sdk.CreateActionA
 				Tags:               []string{CreateActionTestTag},
 			},
 		},
-		LockTime: 0,
-		Version:  1,
+		LockTime: WalletLockTime,
+		Version:  WalletTxVersion,
 		Labels:   []string{CreateActionTestLabel},
 		Options: &sdk.CreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr(false),
