@@ -38,5 +38,5 @@ func (f *bhsServiceFixture) NewBHSService() *bhs.BlockHeadersService {
 		APIKey: defs.BHSApiKey,
 	}
 
-	return bhs.NewBlockHeadersService(httpClient, logger, network, cfg)
+	return bhs.New(httpClient, logger, network, cfg)
 }

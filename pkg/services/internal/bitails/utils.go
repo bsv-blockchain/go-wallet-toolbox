@@ -11,6 +11,21 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note string) {
+	if err == nil {
+		return false, false, ""
+	}
+	switch {
+	case errors.Is(err, ErrAlreadyKnown):
+		return true, false, "Transaction already in mempool"
+	case errors.Is(err, ErrMissingInputs):
+		return false, true, "Missing inputs (double spend)"
+	default:
+		return false, false, err.Error()
+	}
+}
+
+// ConvertHeader decodes an 80-byte raw header and fills all fields.
 func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
 	const (
 		versionOffset = 0
@@ -59,20 +74,6 @@ func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
 	}, nil
 }
 
-func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note string) {
-	if err == nil {
-		return false, false, ""
-	}
-	switch {
-	case errors.Is(err, ErrAlreadyKnown):
-		return true, false, "Transaction already in mempool"
-	case errors.Is(err, ErrMissingInputs):
-		return false, true, "Missing inputs (double spend)"
-	default:
-		return false, false, err.Error()
-	}
-}
-
 // buildURL joins baseURL with any number of path segments, preserving the
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
@@ -107,4 +108,9 @@ func broadcastURL(baseURL string) (string, error) {
 // /block/header/height/{blockheight}/raw
 func blockHeaderByHeightURL(baseURL string, height uint32) (string, error) {
 	return buildURL(baseURL, "block", "header", "height", fmt.Sprintf("%d", height), "raw")
+}
+
+// /block/latest
+func latestBlockURL(baseURL string) (string, error) {
+	return buildURL(baseURL, "block", "latest")
 }

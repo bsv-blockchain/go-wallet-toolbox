@@ -23,35 +23,7 @@ type BlockHeadersService struct {
 	cfg        *defs.BHS
 }
 
-func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-	var block dto.TipStateResponse
-	url, err := tipLongestURL(b.cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
-	}
-	res, err := b.
-		httpClient.
-		R().
-		SetContext(ctx).
-		SetResult(&block).
-		Get(url)
-
-	if err != nil {
-		return nil, fmt.Errorf("error while fetching block header from Block Headers Service API (URL: %s): %w", url, err)
-	}
-
-	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s): status code %d", url, res.StatusCode())
-	}
-
-	if block.IsZero() {
-		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s). Received an empty block header response", url)
-	}
-
-	return block.ConvertToChainBlockHeader(), nil
-}
-
-func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
+func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
 	err := network.Validate()
 	if err != nil {
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
@@ -153,4 +125,32 @@ func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error)
 	}
 
 	return height, nil
+}
+
+func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+	var block dto.TipStateResponse
+	url, err := tipLongestURL(b.cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
+	}
+	res, err := b.
+		httpClient.
+		R().
+		SetContext(ctx).
+		SetResult(&block).
+		Get(url)
+
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching block header from Block Headers Service API (URL: %s): %w", url, err)
+	}
+
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s): status code %d", url, res.StatusCode())
+	}
+
+	if block.IsZero() {
+		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s). Received an empty block header response", url)
+	}
+
+	return block.ConvertToChainBlockHeader(), nil
 }
