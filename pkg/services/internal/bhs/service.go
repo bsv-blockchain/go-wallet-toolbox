@@ -2,6 +2,7 @@ package bhs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -56,7 +57,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
 	url, err := verifyMerkleRootURL(b.cfg.URL)
 	if err != nil {
-		return false, fmt.Errorf("failed for service %s: build verify URL: %w", ServiceName, err)
+		return false, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	req := []dto.MerkleRootVerifyItem{{
@@ -71,7 +72,7 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 	}
 
 	if len(resp) != 1 {
-		return false, fmt.Errorf("failed for service %s: verify response has %d elements, want 1", ServiceName, len(resp))
+		return false, errors.Join(err, fmt.Errorf("error from service %s: verify response has %d elements, want 1", ServiceName, len(resp)))
 	}
 
 	switch {
@@ -79,8 +80,10 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 		return true, nil
 	case resp[0].ConfirmationState.IsInvalid():
 		return false, nil
+	case resp[0].ConfirmationState.IsUnableToVerify():
+		return false, errors.Join(err, fmt.Errorf("error from service %s: unable to verify merkle root (state=%q)", ServiceName, resp[0].ConfirmationState))
 	default:
-		return false, fmt.Errorf("failed for service %s: unable to verify merkle root (state=%q)", ServiceName, resp[0].ConfirmationState)
+		return false, errors.Join(err, fmt.Errorf("unexpected confirmation state %q for service %s", resp[0].ConfirmationState, ServiceName))
 	}
 }
 
@@ -90,7 +93,7 @@ func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error)
 	var tip dto.TipStateResponse
 	url, err := tipLongestURL(b.cfg.URL)
 	if err != nil {
-		return 0, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
+		return 0, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	_, err = b.doGET(ctx, url, &tip)
@@ -99,12 +102,12 @@ func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error)
 	}
 
 	if tip.IsZero() || tip.Height == 0 {
-		return 0, fmt.Errorf("failed for service %s: empty /chain/tip/longest response", ServiceName)
+		return 0, errors.Join(err, fmt.Errorf("unexpected response from %s API (URL: %s). Received an empty tip state response", ServiceName, url))
 	}
 
 	height, err := to.UInt32(tip.Height)
 	if err != nil {
-		return 0, fmt.Errorf("failed for service %s: invalid height %d in /chain/tip/longest response: %w", ServiceName, tip.Height, err)
+		return 0, errors.Join(err, fmt.Errorf("error from service %s: invalid height %d in (URL: %s) response", ServiceName, tip.Height, url))
 	}
 
 	return height, nil
@@ -114,7 +117,7 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 	var block dto.TipStateResponse
 	url, err := tipLongestURL(b.cfg.URL)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	_, err = b.doGET(ctx, url, &block)
@@ -123,7 +126,7 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 	}
 
 	if block.IsZero() {
-		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s). Received an empty block header response", url)
+		return nil, errors.Join(err, fmt.Errorf("unexpected response from %s API (URL: %s). Received an empty tip state response", ServiceName, url))
 	}
 
 	return block.ConvertToChainBlockHeader(), nil

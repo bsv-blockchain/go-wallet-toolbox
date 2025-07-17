@@ -166,11 +166,9 @@ func TestBlockHeadersService_IsValidRootForHeight(t *testing.T) {
 	validRoot, err := chainhash.NewHashFromHex(root)
 	require.NoError(t, err)
 
-	type setupFn func(fix testservices.BHSFixture)
-
 	tests := []struct {
 		name      string
-		setup     setupFn
+		setup     func(fix testservices.BHSFixture)
 		wantValid bool
 	}{
 		{
@@ -217,13 +215,13 @@ func TestBlockHeadersService_IsValidRootForHeight_Unverified(t *testing.T) {
 	root, err := chainhash.NewHashFromHex(rootHex)
 	require.NoError(t, err)
 
-	fix := bhsTst.Given(t)
+	given := bhsTst.Given(t)
 
-	bhsFx := fix.BHS()
+	bhsFx := given.BHS()
 	bhsFx.OnMerkleRootVerifyResponse(height, rootHex, "UNABLE_TO_VERIFY")
 	bhsFx.IsUpAndRunning()
 
-	svc := fix.NewBHSService()
+	svc := given.NewBHSService()
 
 	// when:
 	ok, err := svc.IsValidRootForHeight(t.Context(), root, height)

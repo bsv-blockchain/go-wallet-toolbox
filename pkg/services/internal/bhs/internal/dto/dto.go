@@ -64,3 +64,7 @@ func (s merkleRootConfirmationState) IsConfirmed() bool {
 func (s merkleRootConfirmationState) IsInvalid() bool {
 	return strings.EqualFold(string(s), string(invalid))
 }
+
+func (s merkleRootConfirmationState) IsUnableToVerify() bool {
+	return strings.EqualFold(string(s), string(unableToVerify))
+}

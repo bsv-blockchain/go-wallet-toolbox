@@ -3,6 +3,7 @@ package bitails
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -11,52 +12,55 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// fetchAndCompareRoot fetches the raw 80-byte header for `height` from Bitails,
-func (b *Bitails) fetchAndCompareRoot(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
-
+// fetchRemoteRoot retrieves the Merkle root for a given block height from Bitails.
+func (b *Bitails) fetchRemoteRoot(ctx context.Context, height uint32) (*chainhash.Hash, error) {
 	url, err := blockHeaderByHeightURL(b.url, height)
 	if err != nil {
-		return false, fmt.Errorf("failed to build block-header URL: %w", err)
+		return nil, fmt.Errorf("failed to build block-header URL: %w", err)
 	}
 
 	var dto struct {
 		Header string `json:"header"`
 	}
 
-	resp, err := b.httpClient.R().SetContext(ctx).SetResult(&dto).AddRetryCondition(httpx.RetryOnErrOr5xx).Get(url)
+	resp, err := b.httpClient.R().
+		SetContext(ctx).
+		SetResult(&dto).
+		AddRetryCondition(httpx.RetryOnErrOr5xx).
+		Get(url)
 	if err != nil {
-		return false, fmt.Errorf("failed to fetch header: %w", err)
+		return nil, fmt.Errorf("failed to fetch header: %w", err)
 	}
 
 	switch resp.StatusCode() {
 	case http.StatusOK:
+		// continue
 	case http.StatusNotFound:
-		b.rootCache[height] = new(chainhash.Hash)
-		return false, nil
+		// DO NOT cache empty hash here
+		return nil, nil
 	default:
-		return false, fmt.Errorf("HTTP %d: %s", resp.StatusCode(), resp.Status())
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode(), resp.Status())
 	}
 
 	raw, err := hex.DecodeString(dto.Header)
 	if err != nil {
-		return false, fmt.Errorf("decode header hex: %w", err)
+		return nil, fmt.Errorf("decode header hex: %w", err)
 	}
 	if len(raw) != BlockHeaderLength {
-		return false, fmt.Errorf("want %d-byte header, got %d", BlockHeaderLength, len(raw))
+		return nil, fmt.Errorf("want %d-byte header, got %d", BlockHeaderLength, len(raw))
 	}
 
 	hdr, err := ConvertHeader(raw, height)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	remoteRoot, err := chainhash.NewHashFromHex(hdr.MerkleRoot)
 	if err != nil {
-		return false, fmt.Errorf("parse remote root: %w", err)
+		return nil, fmt.Errorf("parse remote root: %w", err)
 	}
 
-	b.rootCache[height] = remoteRoot
-	return remoteRoot.IsEqual(root), nil
+	return remoteRoot, nil
 }
 
 // proofResponse defines the structure of the response from Bitails for TSC proofs.
@@ -71,13 +75,13 @@ type proofResponse struct {
 func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse, error) {
 	url, err := tscProofURL(b.url, txID)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: to build URL for TSC proof: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	var proof proofResponse
 	found, err := b.handleJSON(ctx, url, &proof, http.StatusOK, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: get TSC proof: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s: get TSC proof", ServiceName))
 	}
 
 	if !found {
@@ -98,13 +102,13 @@ type fetchInfoResponse struct {
 func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoResponse, error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: build tx-status URL: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	var info fetchInfoResponse
 	_, err = b.handleJSON(ctx, url, &info, http.StatusOK, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: fetch tx info: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s: fetch transaction info", ServiceName))
 	}
 	return &info, nil
 }
@@ -113,7 +117,7 @@ func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoRespo
 func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, err error) {
 	url, err := latestBlockURL(b.url)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed for service %s: build latest block URL: %w", ServiceName, err)
+		return "", 0, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	var payload struct {
@@ -125,7 +129,7 @@ func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, 
 		return "", 0, err
 	}
 	if payload.Hash == "" {
-		return "", 0, fmt.Errorf("failed for service %s: latest block hash empty", ServiceName)
+		return "", 0, fmt.Errorf("error from service %s: latest block hash empty", ServiceName)
 	}
 	return payload.Hash, payload.Height, nil
 }
@@ -134,7 +138,7 @@ func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, 
 func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, error) {
 	url, err := blockHeaderURL(b.url, blockHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: build block header URL: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	var payload struct {
@@ -142,15 +146,15 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 	}
 	_, err = b.handleJSON(ctx, url, &payload, http.StatusOK, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: get block header: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s: get raw header", ServiceName))
 	}
 
 	raw, err := hex.DecodeString(payload.Header)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: header hex: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s: decode header hex", ServiceName))
 	}
 	if len(raw) != BlockHeaderLength {
-		return nil, fmt.Errorf("failed for service %s: want %d-byte header, got %d", ServiceName, BlockHeaderLength, len(raw))
+		return nil, fmt.Errorf("error from service %s: want %d-byte header, got %d", ServiceName, BlockHeaderLength, len(raw))
 	}
 	return raw, nil
 }
@@ -159,12 +163,12 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
 	raw, err := b.rawHeader(ctx, blockHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: get raw header: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
 	}
 
 	merkleRootHash, err := chainhash.NewHash(raw[MerkleRootOffset : MerkleRootOffset+MerkleRootLength])
 	if err != nil {
-		return nil, fmt.Errorf("failed for service %s: decode Merkle root: %w", ServiceName, err)
+		return nil, errors.Join(err, fmt.Errorf("error from service %s: parse merkle root hash", ServiceName))
 	}
 
 	return &wdk.MerklePathBlockHeader{
@@ -186,7 +190,7 @@ func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode in
 
 	res, err := b.httpClient.R().SetContext(ctx).SetResult(out).Get(url)
 	if err != nil {
-		return false, fmt.Errorf("%s: GET %s: %w", ServiceName, url, err)
+		return false, errors.Join(err, fmt.Errorf("error from service %s: GET %s", ServiceName, url))
 	}
 
 	switch res.StatusCode() {
@@ -198,6 +202,19 @@ func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode in
 		}
 		fallthrough
 	default:
-		return false, fmt.Errorf("failed for service %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
+		return false, fmt.Errorf("error from %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
 	}
+}
+
+func (b *Bitails) getRootFromCache(height uint32) (*chainhash.Hash, bool) {
+	b.cacheMu.RLock()
+	defer b.cacheMu.RUnlock()
+	root, ok := b.rootCache[height]
+	return root, ok
+}
+
+func (b *Bitails) storeRootInCache(height uint32, root *chainhash.Hash) {
+	b.cacheMu.Lock()
+	defer b.cacheMu.Unlock()
+	b.rootCache[height] = root
 }

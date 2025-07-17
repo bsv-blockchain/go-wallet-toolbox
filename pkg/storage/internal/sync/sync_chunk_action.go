@@ -13,51 +13,53 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-type syncChunkAction struct {
+type GetSyncChunkAction struct {
 	logger   *slog.Logger
 	repo     Repository
 	chunkers []Chunker
+	args     *wdk.RequestSyncChunkArgs
 }
 
-func newSyncChunkAction(logger *slog.Logger, repo Repository) *syncChunkAction {
-	return &syncChunkAction{
+func NewGetSyncChunkAction(logger *slog.Logger, repo Repository, args *wdk.RequestSyncChunkArgs) *GetSyncChunkAction {
+	return &GetSyncChunkAction{
 		logger:   logging.Child(logger, "getSyncChunk"),
 		repo:     repo,
 		chunkers: all(repo),
+		args:     args,
 	}
 }
 
-func (s *syncChunkAction) GetSyncChunk(ctx context.Context, args *wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-	user, err := s.repo.FindUser(ctx, args.IdentityKey)
+func (s *GetSyncChunkAction) Get(ctx context.Context) (*wdk.SyncChunk, error) {
+	user, err := s.repo.FindUser(ctx, s.args.IdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find user: %w", err)
 	}
 
 	if user == nil {
-		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
+		return nil, fmt.Errorf("user with identity key %s not found", s.args.IdentityKey)
 	}
 
 	chunk := wdk.NewSyncChunk(
-		args.FromStorageIdentityKey,
-		args.ToStorageIdentityKey,
-		args.IdentityKey,
+		s.args.FromStorageIdentityKey,
+		s.args.ToStorageIdentityKey,
+		s.args.IdentityKey,
 	)
 
-	if args.Since == nil || user.UpdatedAt.After(*args.Since) {
+	if s.args.Since == nil || user.UpdatedAt.After(*s.args.Since) {
 		chunk.User = user.ToWDK()
 	}
 
-	if err = s.process(ctx, args, user.ID, chunk); err != nil {
+	if err = s.process(ctx, user.ID, chunk); err != nil {
 		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
 	}
 
 	return chunk, nil
 }
 
-func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChunkArgs, userID int, result *wdk.SyncChunk) error {
-	state := newChunkingState(args)
+func (s *GetSyncChunkAction) process(ctx context.Context, userID int, result *wdk.SyncChunk) error {
+	state := newChunkingState(s.args)
 
-	offsetsLookup := s.makeOffsetsLookup(args)
+	offsetsLookup := s.makeOffsetsLookup()
 
 	applicableChunkers := seq.Filter(seq.FromSlice(s.chunkers), func(chunker Chunker) bool {
 		return chunker.IsApplicable(offsetsLookup)
@@ -74,7 +76,7 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 			limit := to.NoMoreThan(state.freeSlots(), chunker.MaxPageSize())
 			page.Limit = must.ConvertToIntFromUnsigned(to.NoMoreThan(limit, maximumAvailablePageSize))
 
-			num, err := chunker.Process(ctx, userID, page, args.Since, result)
+			num, err := chunker.Process(ctx, userID, page, s.args.Since, result)
 			if err != nil {
 				return fmt.Errorf("chunker %s failed: %w", chunker.Name(), err)
 			}
@@ -86,15 +88,15 @@ func (s *syncChunkAction) process(ctx context.Context, args *wdk.RequestSyncChun
 	return nil
 }
 
-func (s *syncChunkAction) makeOffsetsLookup(args *wdk.RequestSyncChunkArgs) OffsetsLookup {
-	offsetsLookup := make(OffsetsLookup, len(args.Offsets))
-	for _, it := range args.Offsets {
+func (s *GetSyncChunkAction) makeOffsetsLookup() OffsetsLookup {
+	offsetsLookup := make(OffsetsLookup, len(s.args.Offsets))
+	for _, it := range s.args.Offsets {
 		offsetsLookup[it.Name] = it.Offset
 	}
 	return offsetsLookup
 }
 
-func (s *syncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) uint64 {
+func (s *GetSyncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) uint64 {
 	b, err := json.Marshal(chunk)
 	if err != nil {
 		s.logger.Warn("failed to marshal sync chunk for size estimation", slog.String("error", err.Error()))

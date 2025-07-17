@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -34,6 +35,7 @@ type WhatsOnChain struct {
 	rootForHeightRetryInterval time.Duration
 	rootForHeightRetries       int
 	rootCache                  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
+	cacheMu                    sync.RWMutex
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
@@ -247,13 +249,18 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 		return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, err)
 	}
 
-	if cached, ok := woc.rootCache[height]; ok {
+	if cached, ok := woc.getRootFromCache(height); ok {
 		return cached.IsEqual(root), nil
 	}
 
-	ok, err := woc.fetchAndCompare(ctx, root, height)
+	remoteRoot, err := woc.fetchRemoteRoot(ctx, height)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", ServiceName, err)
 	}
-	return ok, nil
+	if remoteRoot == nil {
+		return false, nil
+	}
+
+	woc.storeRootInCache(height, remoteRoot)
+	return remoteRoot.IsEqual(root), nil
 }

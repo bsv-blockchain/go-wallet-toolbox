@@ -84,11 +84,11 @@ func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProo
 	return &proofs[0], nil
 }
 
-// fetchAndCompare fetches the block header for the given height and compares its Merkle root with the provided root.
-func (woc *WhatsOnChain) fetchAndCompare(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+// fetchRemoteRoot retrieves the Merkle root for the given block height from the WoC API.
+func (woc *WhatsOnChain) fetchRemoteRoot(ctx context.Context, height uint32) (*chainhash.Hash, error) {
 	url, err := blockHeaderURL(woc.url, height)
 	if err != nil {
-		return false, fmt.Errorf("failed to build block header URL for height %d: %w", height, err)
+		return nil, fmt.Errorf("failed to build block header URL for height %d: %w", height, err)
 	}
 
 	var dto struct {
@@ -101,23 +101,36 @@ func (woc *WhatsOnChain) fetchAndCompare(ctx context.Context, root *chainhash.Ha
 		AddRetryCondition(httpx.RetryOnErrOr5xx).
 		Get(url)
 	if err != nil {
-		return false, fmt.Errorf("failed to fetch block header for height %d: %w", height, err)
+		return nil, fmt.Errorf("failed to fetch block header for height %d: %w", height, err)
 	}
 
 	switch resp.StatusCode() {
 	case http.StatusOK:
+		// continue
 	case http.StatusNotFound:
-		woc.rootCache[height] = new(chainhash.Hash)
-		return false, nil
+		// DO NOT cache empty hash here
+		return nil, nil
 	default:
-		return false, fmt.Errorf("HTTP %d: %s", resp.StatusCode(), resp.Status())
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode(), resp.Status())
 	}
 
 	remote, err := chainhash.NewHashFromHex(dto.MerkleRoot)
 	if err != nil {
-		return false, fmt.Errorf("failed to parse Merkle root %q for height %d: %w", dto.MerkleRoot, height, err)
+		return nil, fmt.Errorf("failed to parse Merkle root %q for height %d: %w", dto.MerkleRoot, height, err)
 	}
 
-	woc.rootCache[height] = remote
-	return remote.IsEqual(root), nil
+	return remote, nil
+}
+
+func (woc *WhatsOnChain) getRootFromCache(height uint32) (*chainhash.Hash, bool) {
+	woc.cacheMu.RLock()
+	defer woc.cacheMu.RUnlock()
+	val, ok := woc.rootCache[height]
+	return val, ok
+}
+
+func (woc *WhatsOnChain) storeRootInCache(height uint32, root *chainhash.Hash) {
+	woc.cacheMu.Lock()
+	defer woc.cacheMu.Unlock()
+	woc.rootCache[height] = root
 }
