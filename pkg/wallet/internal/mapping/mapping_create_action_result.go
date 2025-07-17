@@ -11,7 +11,7 @@ import (
 )
 
 func MapCreateActionResultFromStorageResults(txID *chainhash.Hash, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult, processActionResult *wdk.ProcessActionResult, wdkArgs wdk.ValidCreateActionArgs) (*wallet.CreateActionResult, error) {
-	noSendChange, err := MapIndexesToOutpoints(txID, to.Value(createActionResult.NoSendChangeOutputVouts))
+	noSendChange, err := MapIndexesToOutpoints(txID, createActionResult.NoSendChangeOutputVouts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare no send change outpoints, %w", err)
 	}
