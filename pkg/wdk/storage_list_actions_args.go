@@ -9,7 +9,7 @@ import (
 type ListActionsArgs struct {
 	Labels                           []primitives.StringUnder300                 `json:"labels,omitempty"`
 	Limit                            primitives.PositiveIntegerDefault10Max10000 `json:"limit,omitempty"`
-	Offset                           primitives.PositiveIntegerDefault10Max10000 `json:"offset,omitempty"`
+	Offset                           primitives.PositiveInteger                  `json:"offset,omitempty"`
 	LabelQueryMode                   *defs.QueryMode                             `json:"labelQueryMode"`
 	SeekPermissions                  *primitives.BooleanDefaultTrue              `json:"seekPermissions,omitempty"` // If false, operation is not allowed
 	IncludeInputs                    *primitives.BooleanDefaultFalse             `json:"includeInputs,omitempty"`

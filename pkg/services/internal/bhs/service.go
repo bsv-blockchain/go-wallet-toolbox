@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -66,20 +65,11 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 	}}
 
 	var resp []dto.MerkleRootVerifyResp
-	res, err := b.
-		httpClient.
-		R().
-		SetContext(ctx).
-		SetBody(req).
-		SetResult(&resp).
-		AddRetryCondition(httpx.RetryOnErrOr5xx).
-		Post(url)
+	_, err = b.doPOST(ctx, url, req, &resp)
 	if err != nil {
-		return false, fmt.Errorf("failed for service %s: verify request failed (%s): %w", ServiceName, url, err)
+		return false, err
 	}
-	if res.StatusCode() != http.StatusOK {
-		return false, fmt.Errorf("failed for service %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
-	}
+
 	if len(resp) != 1 {
 		return false, fmt.Errorf("failed for service %s: verify response has %d elements, want 1", ServiceName, len(resp))
 	}
@@ -103,18 +93,11 @@ func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error)
 		return 0, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
 	}
 
-	res, err := b.
-		httpClient.
-		R().
-		SetContext(ctx).
-		SetResult(&tip).
-		Get(url)
+	_, err = b.doGET(ctx, url, &tip)
 	if err != nil {
-		return 0, fmt.Errorf("failed for service %s: height query failed (%s): %w", ServiceName, url, err)
+		return 0, err
 	}
-	if res.StatusCode() != http.StatusOK {
-		return 0, fmt.Errorf("failed for service %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
-	}
+
 	if tip.IsZero() || tip.Height == 0 {
 		return 0, fmt.Errorf("failed for service %s: empty /chain/tip/longest response", ServiceName)
 	}
@@ -133,19 +116,10 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 	if err != nil {
 		return nil, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
 	}
-	res, err := b.
-		httpClient.
-		R().
-		SetContext(ctx).
-		SetResult(&block).
-		Get(url)
 
+	_, err = b.doGET(ctx, url, &block)
 	if err != nil {
-		return nil, fmt.Errorf("error while fetching block header from Block Headers Service API (URL: %s): %w", url, err)
-	}
-
-	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s): status code %d", url, res.StatusCode())
+		return nil, err
 	}
 
 	if block.IsZero() {
