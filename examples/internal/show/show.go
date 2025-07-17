@@ -145,3 +145,27 @@ func MerklePathOutput(result *wdk.MerklePathResult) {
     fmt.Println()
     printMerklePath(result.MerklePath)
 }
+// ChainTipHeaderOutput prints a chain-tip block header in a table.
+func ChainTipHeaderOutput(h *wdk.ChainBlockHeader) {
+	if h == nil {
+		Error("nil ChainBlockHeader passed to ChainTipHeaderOutput")
+		return
+	}
+
+	headers := []string{
+		"Height", "Hash", "Version",
+		"Prev-Hash", "Merkle-Root", "Time", "Bits", "Nonce",
+	}
+	rows := [][]string{{
+		fmt.Sprint(h.Height),
+		h.Hash,
+		fmt.Sprintf("%08x", h.Version),
+		h.PreviousHash,
+		h.MerkleRoot,
+		fmt.Sprint(h.Time),
+		fmt.Sprintf("%08x", h.Bits),
+		fmt.Sprint(h.Nonce),
+	}}
+
+	PrintTable("Chain Tip Header:", headers, rows)
+}
