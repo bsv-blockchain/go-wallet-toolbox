@@ -85,7 +85,7 @@ func (a *walletStateAssertion) ActionAtIndex(index int, labels ...string) Wallet
 func (a *walletStateAssertion) listActions(labels ...string) *sdk.ListActionsResult {
 	a.Helper()
 	args := fixtures.DefaultWalletListActionsArgsWithIncludes()
-	args.Limit = validate.MaxPaginationLimit
+	args.Limit = to.Ptr[uint32](validate.MaxPaginationLimit)
 	args.Labels = labels
 	result, err := a.wallet.ListActions(a.Context(), args, fixtures.DefaultOriginator)
 	require.NoError(a, err, "Failed to list actions")
@@ -207,7 +207,7 @@ func (a *walletActionOutputAssertion) WithBasket(expected string) WalletActionOu
 
 func (a *walletActionOutputAssertion) ListActionsAlignsListOutputs() WalletActionOutputAssertion {
 	listedOutputs, err := a.wallet.ListOutputs(a.Context(), sdk.ListOutputsArgs{
-		Limit:                     validate.MaxPaginationLimit,
+		Limit:                     to.Ptr[uint32](validate.MaxPaginationLimit),
 		IncludeCustomInstructions: to.Ptr(true),
 		IncludeTags:               to.Ptr(true),
 		IncludeLabels:             to.Ptr(true),

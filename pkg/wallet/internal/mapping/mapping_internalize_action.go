@@ -1,6 +1,8 @@
 package mapping
 
 import (
+	"encoding/base64"
+
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -10,7 +12,7 @@ import (
 // MapInternalizeActionArgs maps sdk.InternalizeActionArgs to wdk.InternalizeActionArgs
 func MapInternalizeActionArgs(args sdk.InternalizeActionArgs) wdk.InternalizeActionArgs {
 	return wdk.InternalizeActionArgs{
-		Tx:             primitives.ExplicitByteArray(args.Tx),
+		Tx:             args.Tx,
 		Outputs:        slices.Map(args.Outputs, mapInternalizeOutput),
 		Description:    primitives.String5to2000Bytes(args.Description),
 		Labels:         slices.Map(args.Labels, stringToStringUnder300),
@@ -42,11 +44,21 @@ func mapInternalizeOutput(output sdk.InternalizeOutput) *wdk.InternalizeOutput {
 
 // mapPaymentRemittance maps sdk.Payment to wdk.WalletPayment
 func mapPaymentRemittance(payment *sdk.Payment) *wdk.WalletPayment {
-	return &wdk.WalletPayment{
-		DerivationPrefix:  primitives.Base64String(payment.DerivationPrefix),
-		DerivationSuffix:  primitives.Base64String(payment.DerivationSuffix),
-		SenderIdentityKey: primitives.PubKeyHex(payment.SenderIdentityKey),
+	var senderIdentityKey primitives.PubKeyHex
+	if payment.SenderIdentityKey != nil {
+		senderIdentityKey = primitives.PubKeyHex(payment.SenderIdentityKey.ToDERHex())
 	}
+
+	return &wdk.WalletPayment{
+		DerivationPrefix:  mapToBase64(payment.DerivationPrefix),
+		DerivationSuffix:  mapToBase64(payment.DerivationSuffix),
+		SenderIdentityKey: senderIdentityKey,
+	}
+}
+
+func mapToBase64(bytes []byte) primitives.Base64String {
+	result := base64.StdEncoding.EncodeToString(bytes)
+	return primitives.Base64String(result)
 }
 
 // mapInsertionRemittance maps sdk.BasketInsertion to wdk.BasketInsertion
