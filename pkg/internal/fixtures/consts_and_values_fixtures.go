@@ -2,6 +2,9 @@ package fixtures
 
 import (
 	"fmt"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
@@ -12,7 +15,7 @@ const (
 	SecondStorageIdentityKey   = "03ee699bfe59c6aa13093360997fa8ad31d43cb798fa3f334aabcb53c1ac396601" // that matches SecondStorageServerPrivKey
 	SecondStorageName          = "test-storage-2"
 	StorageHandlerName         = "storage_server"
-	UserIdentityKey            = "03f17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86beb"
+	UserIdentityKeyHex         = "03f17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86beb"
 	DerivationPrefix           = "Pr=="
 	DerivationSuffix           = "Su=="
 	CustomBasket               = "custom-basket"
@@ -24,6 +27,18 @@ const (
 	CreateActionTestTag        = "test_tag=true"
 
 	CreateActionTestCustomInstructions = `{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`
+	Limit                              = 100
+	Offset                             = 0
+)
+
+var (
+	DerivationPrefixBytes = testhelper.BytesFromBase64(DerivationPrefix)
+	DerivationSuffixBytes = testhelper.BytesFromBase64(DerivationSuffix)
+	UserIdentityKey       = testhelper.IdentityKeyFromHex(UserIdentityKeyHex)
+	WalletPagingLimit     = to.Ptr[uint32](Limit)
+	WalletPagingOffset    = to.Ptr[uint32](Offset)
+	WalletLockTime        = to.Ptr[uint32](0)
+	WalletTxVersion       = to.Ptr[uint32](1)
 )
 
 func FaucetTag(index int) string {
