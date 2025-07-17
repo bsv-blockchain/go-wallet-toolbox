@@ -3,6 +3,8 @@ package show
 import (
 	"fmt"
 	"strings"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const (
@@ -95,4 +97,51 @@ func WalletError(methodName string, args interface{}, err error) {
 	fmt.Printf("\n%s WALLET CALL:%s %s%s%s\n", ColorBlue+ColorBold, ColorReset, ColorRed, methodName, ColorReset)
 	fmt.Printf("%sArgs:%s %+v\n", ColorCyan, ColorReset, args)
 	fmt.Printf("%s❌ Error:%s %v\n", ColorRed+ColorBold, ColorReset, err)
+}
+
+// PrintTable replicates the tiny helper used in the other examples
+func PrintTable(title string, headers []string, rows [][]string) {
+	if title != "" {
+		fmt.Printf("%s\n", title)
+	}
+	colW := make([]int, len(headers))
+	for i, h := range headers {
+		colW[i] = len(h)
+	}
+	for _, r := range rows {
+		for i, cell := range r {
+			if len(cell) > colW[i] {
+				colW[i] = len(cell)
+			}
+		}
+	}
+	printRow := func(cells []string) {
+		for i, c := range cells {
+			fmt.Printf("%-*s  ", colW[i], c)
+		}
+		fmt.Println()
+	}
+
+	printRow(headers)
+	for i := range headers {
+		fmt.Printf("%s  ", strings.Repeat("-", colW[i]))
+	}
+	fmt.Println()
+	for _, r := range rows {
+		printRow(r)
+	}
+}
+
+func CurrentHeightOutput(height uint32) {
+	fmt.Printf("\n%sGet Height: %d%s\n", ColorGreen, height, ColorReset)
+}
+
+func IsValidRootForHeightOutput(height uint32, rootHex string, valid bool) {
+	fmt.Printf("\n%sHeight: %d | Merkle Root: %s | Valid: %t%s\n", ColorCyan, height, rootHex, valid, ColorReset)
+}
+
+func MerklePathOutput(result *wdk.MerklePathResult) {
+	printMerklePathInfo(result)
+    fmt.Println()
+    printMerklePath(result.MerklePath)
 }

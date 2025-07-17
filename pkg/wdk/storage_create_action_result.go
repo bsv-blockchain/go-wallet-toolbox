@@ -34,7 +34,7 @@ type StorageCreateActionResult struct {
 	InputBeef               primitives.ExplicitByteArray         `json:"inputBeef"`
 	Inputs                  []*StorageCreateTransactionSdkInput  `json:"inputs"`
 	Outputs                 []*StorageCreateTransactionSdkOutput `json:"outputs"`
-	NoSendChangeOutputVouts *[]int                               `json:"noSendChangeOutputVouts"`
+	NoSendChangeOutputVouts []int                                `json:"noSendChangeOutputVouts"`
 	DerivationPrefix        string                               `json:"derivationPrefix"`
 	Version                 uint32                               `json:"version"`
 	LockTime                uint32                               `json:"lockTime"`
