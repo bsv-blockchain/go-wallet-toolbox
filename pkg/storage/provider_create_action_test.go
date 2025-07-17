@@ -65,6 +65,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef0000", hex.EncodeToString(result.InputBeef))
+	assert.Empty(t, result.NoSendChangeOutputVouts)
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
@@ -96,6 +97,39 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, 24, len(*input.DerivationSuffix))
 
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
+}
+
+func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	const expectedNoSendChangeOutputVoutsCount = 31
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	args := fixtures.ValidCreateActionArgsWithIsNoSendTrue()
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+	// then:
+	assert.NoError(t, err)
+	assert.Equal(t, expectedNoSendChangeOutputVoutsCount, len(result.NoSendChangeOutputVouts))
+
+	for i := 1; i < len(result.Outputs); i++ {
+		out := result.Outputs[i]
+		assert.EqualValues(t, i, out.Vout)
+		assert.Equal(t, wdk.ProvidedByStorage, out.ProvidedBy)
+		assert.Equal(t, wdk.ChangePurpose, out.Purpose)
+	}
 }
 
 func TestCreateActionOutputTags(t *testing.T) {
@@ -205,6 +239,17 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Empty(t, commissionOutput.OutputDescription)
 	assert.Nil(t, commissionOutput.CustomInstructions)
 	assert.Empty(t, commissionOutput.Tags)
+
+	// when:
+	commissions, err := activeStorage.CommissionEntity().Read().
+		IsRedeemed(false).
+		Satoshis().Equals(10).
+		UserID(testusers.Alice.ID).
+		Find(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, commissions, 1)
 }
 
 func TestCreateActionShuffleOutputs(t *testing.T) {
@@ -409,15 +454,13 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
 		InputDescription:      "provided unknown-by-storage input",
 	}}
-	inputBEEF, err := unknownParentTx.TX().BEEF()
-	require.NoError(t, err)
-	args.InputBEEF = inputBEEF
+	args.InputBEEF = unknownParentTx.BEEF().Bytes()
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -444,7 +487,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
-	assert.Equal(t, input.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, input.SourceTxID, unknownParentTx.ID().String())
 	assert.Equal(t, uint32(0), input.SourceVout)
 	assert.Equal(t, int64(100_000), input.SourceSatoshis)
 	assert.NotEmpty(t, input.SourceLockingScript)
@@ -472,15 +515,13 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
 		InputDescription:      "provided unknown-by-storage input",
 	}}
-	inputBEEF, err := unknownParentTx.TX().BEEF()
-	require.NoError(t, err)
-	args.InputBEEF = inputBEEF
+	args.InputBEEF = unknownParentTx.BEEF().Bytes()
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -507,7 +548,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	require.Equal(t, 1, len(result.Inputs))
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
-	assert.Equal(t, input.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, input.SourceTxID, unknownParentTx.ID().String())
 	assert.Equal(t, uint32(0), input.SourceVout)
 	assert.Equal(t, int64(100_000), input.SourceSatoshis)
 	assert.NotEmpty(t, input.SourceLockingScript)
@@ -538,15 +579,13 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	args.Options.TrustSelf = to.Ptr(sdk.TrustSelfKnown)
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
 		InputDescription:      "provided unknown-by-storage input",
 	}}
-	inputBEEF, err := unknownParentTx.TX().BEEF()
-	require.NoError(t, err)
-	args.InputBEEF = inputBEEF
+	args.InputBEEF = unknownParentTx.BEEF().Bytes()
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -573,7 +612,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	require.Equal(t, 2, len(result.Inputs))
 	providedInput := result.Inputs[0]
 	assert.Equal(t, 0, providedInput.Vin)
-	assert.Equal(t, providedInput.SourceTxID, unknownParentTx.ID())
+	assert.Equal(t, providedInput.SourceTxID, unknownParentTx.ID().String())
 	assert.Equal(t, uint32(0), providedInput.SourceVout)
 	assert.Equal(t, int64(25_000), providedInput.SourceSatoshis)
 	assert.NotEmpty(t, providedInput.SourceLockingScript)
@@ -585,7 +624,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 
 	allocatedInput := result.Inputs[1]
 	assert.Equal(t, 1, allocatedInput.Vin)
-	assert.Equal(t, allocatedInput.SourceTxID, ownedTxSpec.ID())
+	assert.Equal(t, allocatedInput.SourceTxID, ownedTxSpec.ID().String())
 	assert.Equal(t, uint32(0), allocatedInput.SourceVout)
 	assert.Equal(t, int64(25_000), allocatedInput.SourceSatoshis)
 	assert.Equal(t, wdk.ProvidedByStorage, allocatedInput.ProvidedBy)
@@ -612,7 +651,7 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 	args.Outputs = []wdk.ValidCreateActionOutput{}
 	args.Inputs = []wdk.ValidCreateActionInput{{
 		Outpoint: wdk.OutPoint{
-			TxID: unknownParentTx.ID(),
+			TxID: unknownParentTx.ID().String(),
 			Vout: 0,
 		},
 		UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),

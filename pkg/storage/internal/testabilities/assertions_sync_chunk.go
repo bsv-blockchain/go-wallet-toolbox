@@ -245,7 +245,7 @@ type proveTxReqAssertion struct {
 
 func (p *proveTxReqAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxReqAssertion {
 	p.parent.Helper()
-	assert.Equal(p.parent, txSpec.ID(), p.txReq.TxID, "Expected txReq to align with transaction spec TxID")
+	assert.Equal(p.parent, txSpec.ID().String(), p.txReq.TxID, "Expected txReq to align with transaction spec TxID")
 	assert.Equal(p.parent, txSpec.TX().Bytes(), []byte(p.txReq.RawTx), "Expected txReq to align with transaction spec RawTx")
 	return p
 }
@@ -281,7 +281,7 @@ type proveTxAssertion struct {
 
 func (p *proveTxAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxAssertion {
 	p.parent.Helper()
-	assert.Equal(p.parent, txSpec.ID(), p.tx.TxID, "Expected tx to align with transaction spec TxID")
+	assert.Equal(p.parent, txSpec.ID().String(), p.tx.TxID, "Expected tx to align with transaction spec TxID")
 	assert.Equal(p.parent, txSpec.TX().Bytes(), []byte(p.tx.RawTx), "Expected tx to align with transaction spec RawTx")
 	return p
 }

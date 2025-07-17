@@ -67,11 +67,11 @@ func TestGetSyncChunk(t *testing.T) {
 		WithoutProvenTxID()
 
 	thenChunk.TransactionAtIndex(2).
-		WithTxID(ownedTx2.ID()).
+		WithTxID(ownedTx2.ID().String()).
 		WithProvenTxID(chunk.ProvenTxs[0].ProvenTxID)
 
 	thenChunk.TransactionAtIndex(3).
-		WithTxID(ownedTx1.ID()).
+		WithTxID(ownedTx1.ID().String()).
 		WithoutProvenTxID()
 
 	// and outputs:

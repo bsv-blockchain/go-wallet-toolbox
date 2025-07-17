@@ -9,6 +9,7 @@ import (
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -41,6 +42,7 @@ type CreateActionParams struct {
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
 	TrustSelf                bool
+	IsNoSend                 bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -55,19 +57,21 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		RandomizeOutputs:         args.Options.RandomizeOutputs,
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
 		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
+		IsNoSend:                 args.IsNoSend,
 	}
 }
 
 type create struct {
-	logger        *slog.Logger
-	funder        funder.Funder
-	basketRepo    BasketRepo
-	txRepo        TransactionsRepo
-	outputRepo    OutputRepo
-	knownTxRepo   KnownTxRepo
-	commission    *commission.ScriptGenerator
-	commissionCfg defs.Commission
-	random        wdk.Randomizer
+	logger         *slog.Logger
+	funder         funder.Funder
+	basketRepo     BasketRepo
+	txRepo         TransactionsRepo
+	outputRepo     OutputRepo
+	knownTxRepo    KnownTxRepo
+	commissionRepo CommissionRepo
+	commission     *commission.ScriptGenerator
+	commissionCfg  defs.Commission
+	random         wdk.Randomizer
 }
 
 func newCreateAction(
@@ -78,18 +82,20 @@ func newCreateAction(
 	txRepo TransactionsRepo,
 	outputRepo OutputRepo,
 	knownTxRepo KnownTxRepo,
+	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:        logger,
-		funder:        funder,
-		basketRepo:    basketRepo,
-		txRepo:        txRepo,
-		commissionCfg: commissionCfg,
-		outputRepo:    outputRepo,
-		knownTxRepo:   knownTxRepo,
-		random:        random,
+		logger:         logger,
+		funder:         funder,
+		basketRepo:     basketRepo,
+		txRepo:         txRepo,
+		commissionCfg:  commissionCfg,
+		outputRepo:     outputRepo,
+		knownTxRepo:    knownTxRepo,
+		commissionRepo: commissionRepo,
+		random:         random,
 	}
 
 	if commissionCfg.Enabled() {
@@ -183,6 +189,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
 		Labels:            params.Labels,
 		InputBeef:         inputBeef,
+		Commission:        c.createCommissionEntity(userID, commOut),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -194,19 +201,35 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	return &wdk.StorageCreateActionResult{
-		Reference:        reference,
-		Version:          params.Version,
-		LockTime:         params.LockTime,
-		DerivationPrefix: derivationPrefix,
-		Outputs:          c.resultOutputs(newOutputs),
-		Inputs:           resultInputs,
-		InputBeef:        inputBeef,
+		Reference:               reference,
+		Version:                 params.Version,
+		LockTime:                params.LockTime,
+		DerivationPrefix:        derivationPrefix,
+		Outputs:                 c.resultOutputs(newOutputs),
+		Inputs:                  resultInputs,
+		InputBeef:               inputBeef,
+		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
+	if !isNoSend {
+		return nil
+	}
+
+	var vouts []int
+	for _, output := range newOutputs {
+		if output.IsChangeOutputVout() {
+			vouts = append(vouts, int(output.Vout))
+		}
+	}
+	return vouts
 }
 
 type serviceChargeOutput struct {
 	wdk.ValidCreateActionOutput
-	KeyOffset string
+	KeyOffset          string
+	LockingScriptBytes []byte
 }
 
 func (c *create) createCommissionOutput() (*serviceChargeOutput, error) {
@@ -215,14 +238,31 @@ func (c *create) createCommissionOutput() (*serviceChargeOutput, error) {
 		return nil, fmt.Errorf("failed to generate commission script: %w", err)
 	}
 
-	return &serviceChargeOutput{
+	commOut := &serviceChargeOutput{
 		ValidCreateActionOutput: wdk.ValidCreateActionOutput{
-			LockingScript:     primitives.HexString(lockingScript),
+			LockingScript:     primitives.HexString(lockingScript.String()),
 			Satoshis:          primitives.SatoshiValue(c.commissionCfg.Satoshis),
 			OutputDescription: "Storage Service Charge",
 		},
-		KeyOffset: keyOffset,
-	}, nil
+		KeyOffset:          keyOffset,
+		LockingScriptBytes: lockingScript.Bytes(),
+	}
+
+	return commOut, nil
+}
+
+func (c *create) createCommissionEntity(userID int, commOut *serviceChargeOutput) *pkgentity.Commission {
+	if commOut == nil {
+		return nil
+	}
+
+	return &pkgentity.Commission{
+		UserID:        userID,
+		Satoshis:      c.commissionCfg.Satoshis,
+		KeyOffset:     commOut.KeyOffset,
+		IsRedeemed:    false,
+		LockingScript: commOut.LockingScriptBytes,
+	}
 }
 
 func (c *create) targetSat(xinputs iter.Seq[*xinputDefinition], xoutputs iter.Seq[*wdk.ValidCreateActionOutput]) (satoshi.Value, error) {
