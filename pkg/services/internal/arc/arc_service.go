@@ -42,8 +42,8 @@ type Service struct {
 	broadcastHeaders httpx.Headers
 }
 
-// NewARCService creates a new arc service.
-func NewARCService(logger *slog.Logger, httpClient *resty.Client, config Config) *Service {
+// New creates a new arc service.
+func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service {
 	logger = logging.Child(logger, "arc")
 
 	headers := httpx.NewHeaders().
