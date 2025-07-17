@@ -14,7 +14,7 @@ const (
 	DefaultLimit = 100
 	// DefaultOffset is the default starting position for pagination
 	DefaultOffset = 0
-	// DefaultOriginatorContext is the context for listing actions
+	// DefaultOriginatorContext is the originator domain or FQDN that is allowed to use this permission.
 	DefaultOriginatorContext = "originator"
 )
 
