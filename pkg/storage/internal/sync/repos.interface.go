@@ -37,4 +37,12 @@ type Repository interface {
 	FindLabelByNumIDForSync(ctx context.Context, labelNumID uint) (*entity.Label, error)
 	DeleteLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (deleted bool, err error)
 	UpsertLabelMapForSync(ctx context.Context, entity *entity.LabelMap) (isNew bool, err error)
+
+	FindTagsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTag, error)
+	UpsertTagForSync(ctx context.Context, entity *entity.Tag) (isNew bool, tagNumID uint, err error)
+	DeleteTagForSync(ctx context.Context, entity *entity.Tag) (deleted bool, err error)
+	FindTagsMapForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTagMap, error)
+	FindTagByNumIDForSync(ctx context.Context, labelNumID uint) (*entity.Tag, error)
+	DeleteTagMapForSync(ctx context.Context, entity *entity.TagMap) (deleted bool, err error)
+	UpsertTagMapForSync(ctx context.Context, entity *entity.TagMap) (isNew bool, err error)
 }
