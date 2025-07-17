@@ -59,7 +59,7 @@ func main() {
 		panic(fmt.Errorf("Error writing configuration: %v", err))
 	}
 
-	show.Info("Configuration written to %s\n", outputFile)
+	show.Info("Configuration written to", outputFile)
 }
 
 func generateUserConfig() (example_setup.UserConfig, error) {
