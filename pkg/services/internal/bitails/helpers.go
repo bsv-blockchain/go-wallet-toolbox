@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -27,9 +28,14 @@ func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse,
 
 	var proof proofResponse
 	found, err := b.handleJSON(ctx, url, &proof, http.StatusOK, true)
-	if err != nil || !found {
+	if err != nil {
 		return nil, fmt.Errorf("failed for service %s: get TSC proof: %w", ServiceName, err)
 	}
+
+	if !found {
+		return nil, fmt.Errorf("TSC proof not found for service %s", ServiceName)
+	}
+
 	return &proof, nil
 }
 

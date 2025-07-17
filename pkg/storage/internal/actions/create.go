@@ -42,6 +42,7 @@ type CreateActionParams struct {
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
 	TrustSelf                bool
+	IsNoSend                 bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -56,6 +57,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		RandomizeOutputs:         args.Options.RandomizeOutputs,
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
 		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
+		IsNoSend:                 args.IsNoSend,
 	}
 }
 
@@ -199,14 +201,29 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	return &wdk.StorageCreateActionResult{
-		Reference:        reference,
-		Version:          params.Version,
-		LockTime:         params.LockTime,
-		DerivationPrefix: derivationPrefix,
-		Outputs:          c.resultOutputs(newOutputs),
-		Inputs:           resultInputs,
-		InputBeef:        inputBeef,
+		Reference:               reference,
+		Version:                 params.Version,
+		LockTime:                params.LockTime,
+		DerivationPrefix:        derivationPrefix,
+		Outputs:                 c.resultOutputs(newOutputs),
+		Inputs:                  resultInputs,
+		InputBeef:               inputBeef,
+		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
+	if !isNoSend {
+		return nil
+	}
+
+	var vouts []int
+	for _, output := range newOutputs {
+		if output.IsChangeOutputVout() {
+			vouts = append(vouts, int(output.Vout))
+		}
+	}
+	return vouts
 }
 
 type serviceChargeOutput struct {
