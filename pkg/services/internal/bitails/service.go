@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -162,24 +163,22 @@ func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	}
 
 	var payload networkInfoResponse
-	res, err := b.httpClient.
-		R().
-		SetContext(ctx).
-		SetResult(&payload).
-		Get(url)
+	found, err := b.handleJSON(ctx, url, &payload, http.StatusOK, false)
 	if err != nil {
 		return 0, fmt.Errorf("error from service %s: %w", ServiceName, err)
 	}
-	if res.StatusCode() != HTTPStatusOK {
-		return 0, fmt.Errorf("unexpected HTTP %d for %s", res.StatusCode(), url)
+	if !found {
+		return 0, fmt.Errorf("unexpected 404 for service %s at %s", ServiceName, url)
 	}
+
 	if payload.Blocks == 0 {
-		return 0, fmt.Errorf("API returned height 0")
+		return 0, fmt.Errorf("API returned height 0 for service %s", ServiceName)
 	}
 
 	height, err := to.UInt32(payload.Blocks)
 	if err != nil {
 		return 0, fmt.Errorf("invalid height %d in service %s response: %w", payload.Blocks, ServiceName, err)
 	}
+
 	return height, nil
 }

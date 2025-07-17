@@ -1,4 +1,3 @@
-// examples/find_chain_tip/main.go
 package main
 
 import (
@@ -15,8 +14,8 @@ func main() {
 	show.ProcessStart("Find Chain Tip Header")
 
 	cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
-	cfg.BHS.URL = "http://localhost:8080/api/v1"
-	cfg.BHS.APIKey = ".......your_api_key_here..."
+	cfg.BHS.URL = "http://localhost:8080"
+	cfg.BHS.APIKey = "..." // use default api key DefaultAppToken from the BHS service https://github.com/bsv-blockchain/block-headers-service/blob/main/config/defaults.go#L8
 	svc := services.New(slog.Default(), cfg)
 	ctx := context.Background()
 

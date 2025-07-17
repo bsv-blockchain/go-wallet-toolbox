@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -33,7 +32,7 @@ func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse,
 	}
 
 	if !found {
-		return nil, fmt.Errorf("TSC proof not found for service %s", ServiceName)
+		return nil, nil // 404 means no proof found
 	}
 
 	return &proof, nil
@@ -134,7 +133,7 @@ func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.Merk
 //
 //	found = false   when allow404=true and the server returned 404
 //	found = true    otherwise
-func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode int, allow404 bool) (found bool, err error) {
+func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode int, notFoundIsOK bool) (found bool, err error) {
 
 	res, err := b.httpClient.R().SetContext(ctx).SetResult(out).Get(url)
 	if err != nil {
@@ -145,7 +144,7 @@ func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode in
 	case okCode:
 		return true, nil
 	case http.StatusNotFound:
-		if allow404 {
+		if notFoundIsOK {
 			return false, nil
 		}
 		fallthrough
