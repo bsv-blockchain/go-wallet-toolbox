@@ -9,8 +9,8 @@ import (
 func DefaultWalletListActionsArgs() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
 		Labels:                           nil,
-		Limit:                            10,
-		Offset:                           0,
+		Limit:                            WalletPagingLimit,
+		Offset:                           WalletPagingOffset,
 		LabelQueryMode:                   sdk.QueryModeAny,
 		SeekPermission:                   to.Ptr(true),
 		IncludeInputs:                    to.Ptr(false),
@@ -26,8 +26,8 @@ func DefaultWalletListActionsArgs() sdk.ListActionsArgs {
 func DefaultWalletListActionsArgsWithIncludes() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
 		Labels:                           nil,
-		Limit:                            10,
-		Offset:                           0,
+		Limit:                            to.Ptr[uint32](10),
+		Offset:                           WalletPagingOffset,
 		LabelQueryMode:                   sdk.QueryModeAny,
 		SeekPermission:                   to.Ptr(true),
 		IncludeInputs:                    to.Ptr(true),

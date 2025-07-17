@@ -34,7 +34,7 @@ func TestWalletListActionsArgsValidation(t *testing.T) {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.ListActionsArgs {
 				args := fixtures.DefaultWalletListActionsArgs()
-				args.Limit = validate.MaxPaginationLimit + 1
+				args.Limit = to.Ptr[uint32](validate.MaxPaginationLimit + 1)
 				return args
 			},
 		},

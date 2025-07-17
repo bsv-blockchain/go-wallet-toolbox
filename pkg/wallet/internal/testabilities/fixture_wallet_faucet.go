@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,9 +33,9 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 	_, senderKey := sdk.AnyoneKey()
 
 	paymentRemittance := &sdk.Payment{
-		DerivationPrefix:  fixtures.DerivationPrefix,
-		DerivationSuffix:  fixtures.DerivationSuffix,
-		SenderIdentityKey: senderKey.ToDERHex(),
+		DerivationPrefix:  fixtures.DerivationPrefixBytes,
+		DerivationSuffix:  fixtures.DerivationSuffixBytes,
+		SenderIdentityKey: senderKey,
 	}
 
 	lockingScript := brc29LockingScript(f, f.userWallet, senderKey, paymentRemittance)
@@ -74,7 +75,7 @@ func (f *faucetFixture) internalizeTopUp(beef []byte, paymentRemittance *sdk.Pay
 
 func brc29LockingScript(t testing.TB, userWallet sdk.Interface, senderKey *primitives.PublicKey, paymentRemittance *sdk.Payment) *script.Script {
 	targetPubKey, err := userWallet.GetPublicKey(t.Context(), sdk.GetPublicKeyArgs{
-		ForSelf: true,
+		ForSelf: to.Ptr(true),
 		EncryptionArgs: sdk.EncryptionArgs{
 			Counterparty: sdk.Counterparty{
 				Type:         sdk.CounterpartyTypeOther,

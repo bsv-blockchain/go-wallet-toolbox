@@ -156,7 +156,7 @@ func (a *createActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCrea
 		SourceTXID:        &argsInput.Outpoint.Txid,
 		SourceTxOutIndex:  argsInput.Outpoint.Index,
 		UnlockingScript:   script.NewFromBytes(argsInput.UnlockingScript),
-		SequenceNumber:    argsInput.SequenceNumber,
+		SequenceNumber:    to.Value(argsInput.SequenceNumber),
 		SourceTransaction: sourceTx,
 	}, nil
 }
