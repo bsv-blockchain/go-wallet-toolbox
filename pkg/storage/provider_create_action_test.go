@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testmode"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -100,6 +101,8 @@ func TestCreateActionHappyPath(t *testing.T) {
 }
 
 func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
+	testmode.DevelopmentOnly_SetFileSQLiteMode(t) // TEMP!
+
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
@@ -113,6 +116,16 @@ func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
 
 	// and:
 	args := fixtures.ValidCreateActionArgsWithIsNoSendTrue()
+	args.Options.NoSendChange = []wdk.OutPoint{
+		{
+			TxID: "2",
+			Vout: 1,
+		},
+		{
+			TxID: "2",
+			Vout: 2,
+		},
+	}
 
 	// when:
 	result, err := activeStorage.CreateAction(

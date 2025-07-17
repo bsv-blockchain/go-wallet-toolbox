@@ -7,6 +7,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/builders"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -169,6 +170,34 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	}
 
 	return nil
+}
+
+func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints ...wdk.OutPoint) ([]*entity.Output, error) {
+	if len(outpoints) == 0 {
+		return nil, nil
+	}
+
+	builder := builders.OutpointsQuery{
+		Session: o.db.
+			WithContext(ctx).
+			Model(&models.Output{}).
+			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+				return db.Select("id, tx_id")
+			}).
+			Scopes(scopes.UserID(userID)),
+		Outpoints: outpoints,
+	}
+
+	var outputs []*models.Output
+	if err := builder.CreateQuery().Find(&outputs).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to fetch outputs: %w", err)
+	}
+
+	return slices.Map(outputs, o.mapModelToOutputEntity), nil
 }
 
 func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error) {

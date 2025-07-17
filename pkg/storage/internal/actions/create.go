@@ -15,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -38,6 +39,7 @@ type CreateActionParams struct {
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
+	NoSendChange             []wdk.OutPoint
 	InputBEEF                []byte
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
@@ -58,20 +60,22 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
 		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
 		IsNoSend:                 args.IsNoSend,
+		NoSendChange:             args.Options.NoSendChange,
 	}
 }
 
 type create struct {
-	logger         *slog.Logger
-	funder         funder.Funder
-	basketRepo     BasketRepo
-	txRepo         TransactionsRepo
-	outputRepo     OutputRepo
-	knownTxRepo    KnownTxRepo
-	commissionRepo CommissionRepo
-	commission     *commission.ScriptGenerator
-	commissionCfg  defs.Commission
-	random         wdk.Randomizer
+	logger                  *slog.Logger
+	funder                  funder.Funder
+	basketRepo              BasketRepo
+	txRepo                  TransactionsRepo
+	outputRepo              OutputRepo
+	knownTxRepo             KnownTxRepo
+	commissionRepo          CommissionRepo
+	commission              *commission.ScriptGenerator
+	commissionCfg           defs.Commission
+	random                  wdk.Randomizer
+	changeOutputVoutService *services.ChangeOutputVoutService
 }
 
 func newCreateAction(
@@ -87,15 +91,16 @@ func newCreateAction(
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:         logger,
-		funder:         funder,
-		basketRepo:     basketRepo,
-		txRepo:         txRepo,
-		commissionCfg:  commissionCfg,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		random:         random,
+		logger:                  logger,
+		funder:                  funder,
+		basketRepo:              basketRepo,
+		txRepo:                  txRepo,
+		commissionCfg:           commissionCfg,
+		outputRepo:              outputRepo,
+		knownTxRepo:             knownTxRepo,
+		commissionRepo:          commissionRepo,
+		random:                  random,
+		changeOutputVoutService: services.NewChangeOutputVoutService(outputRepo),
 	}
 
 	if commissionCfg.Enabled() {
@@ -140,6 +145,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
+
+	// add here validation
 
 	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs)
 	if err != nil {
@@ -200,30 +207,25 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	return &wdk.StorageCreateActionResult{
-		Reference:               reference,
-		Version:                 params.Version,
-		LockTime:                params.LockTime,
-		DerivationPrefix:        derivationPrefix,
-		Outputs:                 c.resultOutputs(newOutputs),
-		Inputs:                  resultInputs,
-		InputBeef:               inputBeef,
-		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
-	}, nil
-}
-
-func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
-	if !isNoSend {
-		return nil
+	out := &wdk.StorageCreateActionResult{
+		Reference:        reference,
+		Version:          params.Version,
+		LockTime:         params.LockTime,
+		DerivationPrefix: derivationPrefix,
+		Outputs:          c.resultOutputs(newOutputs),
+		Inputs:           resultInputs,
+		InputBeef:        inputBeef,
 	}
 
-	var vouts []int
-	for _, output := range newOutputs {
-		if output.IsChangeOutputVout() {
-			vouts = append(vouts, int(output.Vout))
+	if params.IsNoSend {
+		err := c.changeOutputVoutService.ValidateNoSendChange(ctx, userID, basket.Name, params.NoSendChange)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate no send change: %w", err)
 		}
+		out.NoSendChangeOutputVouts = c.changeOutputVoutService.CreateNoSendChangeOutputVouts(newOutputs...)
 	}
-	return vouts
+
+	return out, nil
 }
 
 type serviceChargeOutput struct {
