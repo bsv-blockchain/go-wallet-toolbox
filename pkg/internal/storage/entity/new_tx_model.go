@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/is"
 )
 
 // NewTx represents all the information necessary to store a transaction with additional information like labels, tags, inputs, and outputs.
@@ -49,6 +50,12 @@ type NewOutput struct {
 	Vout               uint32
 	SenderIdentityKey  *string
 	Tags               []string
+}
+
+func (no *NewOutput) IsChangeOutputVout() bool {
+	return is.Equal(no.Change, true) &&
+		is.Equal(no.Purpose, wdk.ChangePurpose) &&
+		is.Equal(no.ProvidedBy, wdk.ProvidedByStorage)
 }
 
 func (no *NewOutput) ToOutput(id uint, userID int, transactionID uint) (*Output, error) {
