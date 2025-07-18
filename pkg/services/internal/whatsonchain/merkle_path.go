@@ -35,7 +35,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 		// Proof not found
 		return &wdk.MerklePathResult{
 			Name:  ServiceName,
-			Notes: history.New().GetMerklePathNotFound(ServiceName).Note().AsList(),
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
 		}, nil
 	}
 
@@ -61,7 +61,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
-		Notes:       history.New().GetMerklePathSuccess(ServiceName).Note().AsList(),
+		Notes:       history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }
 

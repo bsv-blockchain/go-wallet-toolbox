@@ -32,7 +32,7 @@ func NewKnownTxRepo(db *gorm.DB) *KnownTx {
 	return &KnownTx{db: db}
 }
 
-func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Spec) error {
+func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error {
 	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return upsertKnownTx(tx, req, txNote)
 	})
@@ -43,7 +43,7 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 	return nil
 }
 
-func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Spec) error {
+func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
 	var model models.KnownTx
 	err := tx.First(&model, "tx_id = ? ", req.TxID).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -73,7 +73,7 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Spec) 
 	return nil
 }
 
-func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNote history.Spec) error {
+func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNote history.Builder) error {
 	var model models.KnownTx
 	err := tx.Model(&model).
 		Where("tx_id = ? ", txID).

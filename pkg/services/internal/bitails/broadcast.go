@@ -47,11 +47,11 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) wdk.PostedTxID {
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
-		result.Notes = history.New().PostBeefError(ServiceName, rawTx, []string{txid}, msg).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, rawTx, []string{txid}, msg).Note().AsList()
 		return result
 	}
 
-	result.Notes = history.New().PostBeefSuccess(ServiceName, rawTx, []string{txid}).Note().AsList()
+	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, rawTx, []string{txid}).Note().AsList()
 
 	info, infoErr := b.fetchTxInfo(ctx, txid)
 	if infoErr != nil {
@@ -116,6 +116,6 @@ func (b *Bitails) errorPostedTxID(raw []byte, txID string, err error) wdk.Posted
 		TxID:   txID,
 		Result: wdk.PostedTxIDResultError,
 		Error:  err,
-		Notes:  history.New().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
+		Notes:  history.NewBuilder().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
 	}
 }

@@ -115,7 +115,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		RawTx:         args.RawTx,
 		InputBeef:     txEntity.InputBEEF,
 		Tx:            tx,
-	}, history.New().ProcessAction(userID))
+	}, history.NewBuilder().ProcessAction(userID))
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
@@ -263,8 +263,8 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 	return &result, nil
 }
 
-func (p *process) noteForAggregation(provenTxReqStatus wdk.ProvenTxReqStatus, aggBroadcastResult *wdk.AggregatedPostedTxID) history.Spec {
-	return history.New().AggregateResults(history.AggregatedBroadcastResult{
+func (p *process) noteForAggregation(provenTxReqStatus wdk.ProvenTxReqStatus, aggBroadcastResult *wdk.AggregatedPostedTxID) history.Builder {
+	return history.NewBuilder().AggregateResults(history.AggregatedBroadcastResult{
 		StatusNow:         provenTxReqStatus,
 		AggStatus:         aggBroadcastResult.Status,
 		SuccessCount:      aggBroadcastResult.SuccessCount,

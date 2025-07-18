@@ -28,7 +28,7 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 	if is.BlankString(txInfo.MerklePath) {
 		return &wdk.MerklePathResult{
 			Name:  ServiceName,
-			Notes: history.New().GetMerklePathNotFound(ServiceName).Note().AsList(),
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
 		}, nil
 	}
 
@@ -58,6 +58,6 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 			Hash:       txInfo.BlockHash,
 			MerkleRoot: merkleRoot,
 		},
-		Notes: history.New().GetMerklePathSuccess(ServiceName).Note().AsList(),
+		Notes: history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }

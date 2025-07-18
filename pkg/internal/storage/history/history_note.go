@@ -21,24 +21,24 @@ const (
 	GetMerklePathNotFound = "getMerklePathNotFound"
 
 	PostBeefSuccess = "postBeefSuccess"
-	PostBeefWarning = "postBeefWarning"
 	PostBeefError   = "postBeefError"
 )
 
 const (
-	statusNowAttr = "status_now"
+	statusNowAttr   = "status_now"
+	serviceNameAttr = "name"
 )
 
 type EventTypesSelector interface {
-	InternalizeAction(userID int) Spec
-	ProcessAction(userID int) Spec
-	AggregateResults(result AggregatedBroadcastResult) Spec
+	InternalizeAction(userID int) Builder
+	ProcessAction(userID int) Builder
+	AggregateResults(result AggregatedBroadcastResult) Builder
 
-	GetMerklePathSuccess(serviceName string) Spec
-	GetMerklePathNotFound(serviceName string) Spec
+	GetMerklePathSuccess(serviceName string) Builder
+	GetMerklePathNotFound(serviceName string) Builder
 
-	PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Spec
-	PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Spec
+	PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Builder
+	PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder
 }
 
 type AggregatedBroadcastResult struct {
@@ -50,18 +50,18 @@ type AggregatedBroadcastResult struct {
 	ServiceErrorCount int                            `mapstructure:"serviceErrorCount"`
 }
 
-type Spec interface {
-	WithUser(userID int) Spec
-	WithName(name string) Spec
-	WithAttributesFromObj(obj any) Spec
-	WithAttribute(key string, value any) Spec
-	WithNewStatus(status string) Spec
+type Builder interface {
+	WithUser(userID int) Builder
+	WithWhat(what string) Builder
+	WithAttributesFromObj(obj any) Builder
+	WithAttribute(key string, value any) Builder
+	WithNewStatus(status string) Builder
 
 	Note() *wdk.HistoryNote
 	Entity(txID string) *entity.TxHistoryNote
 }
 
-func New() EventTypesSelector {
+func NewBuilder() EventTypesSelector {
 	return &spec{
 		event: wdk.HistoryNote{
 			When: time.Now(),
@@ -73,56 +73,56 @@ type spec struct {
 	event wdk.HistoryNote
 }
 
-func (s *spec) InternalizeAction(userID int) Spec {
-	return s.WithName(InternalizeActionHistoryNote).WithUser(userID)
+func (s *spec) InternalizeAction(userID int) Builder {
+	return s.WithWhat(InternalizeActionHistoryNote).WithUser(userID)
 }
 
-func (s *spec) ProcessAction(userID int) Spec {
-	return s.WithName(ProcessActionHistoryNote).WithUser(userID)
+func (s *spec) ProcessAction(userID int) Builder {
+	return s.WithWhat(ProcessActionHistoryNote).WithUser(userID)
 }
 
-func (s *spec) AggregateResults(result AggregatedBroadcastResult) Spec {
-	return s.WithName(AggregateResultsHistoryNote).WithAttributesFromObj(result)
+func (s *spec) AggregateResults(result AggregatedBroadcastResult) Builder {
+	return s.WithWhat(AggregateResultsHistoryNote).WithAttributesFromObj(result)
 }
 
-func (s *spec) GetMerklePathSuccess(serviceName string) Spec {
+func (s *spec) GetMerklePathSuccess(serviceName string) Builder {
 	return s.withHttpAttributes(http.StatusOK).
-		WithName(GetMerklePathSuccess).
-		WithAttribute("name", serviceName)
+		WithWhat(GetMerklePathSuccess).
+		WithAttribute(serviceNameAttr, serviceName)
 }
 
-func (s *spec) GetMerklePathNotFound(serviceName string) Spec {
+func (s *spec) GetMerklePathNotFound(serviceName string) Builder {
 	return s.withHttpAttributes(http.StatusNotFound).
-		WithName(GetMerklePathNotFound).
-		WithAttribute("name", serviceName)
+		WithWhat(GetMerklePathNotFound).
+		WithAttribute(serviceNameAttr, serviceName)
 }
 
-func (s *spec) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Spec {
-	return s.WithName(what).
-		WithAttribute("name", serviceName).
+func (s *spec) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Builder {
+	return s.WithWhat(what).
+		WithAttribute(serviceNameAttr, serviceName).
 		WithAttribute("beef", hex.EncodeToString(beef)).
 		WithAttribute("txids", strings.Join(txIDs, ","))
 }
 
-func (s *spec) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Spec {
+func (s *spec) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Builder {
 	return s.postBeefBase(PostBeefError, serviceName, beef, txIDs).WithAttribute("message", msg)
 }
 
-func (s *spec) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Spec {
+func (s *spec) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder {
 	return s.postBeefBase(PostBeefSuccess, serviceName, beef, txIDs)
 }
 
-func (s *spec) WithName(name string) Spec {
-	s.event.What = name
+func (s *spec) WithWhat(what string) Builder {
+	s.event.What = what
 	return s
 }
 
-func (s *spec) WithUser(userID int) Spec {
+func (s *spec) WithUser(userID int) Builder {
 	s.event.UserID = &userID
 	return s
 }
 
-func (s *spec) WithAttributesFromObj(obj any) Spec {
+func (s *spec) WithAttributesFromObj(obj any) Builder {
 	if s.event.Attributes == nil {
 		s.event.Attributes = make(map[string]any)
 	}
@@ -140,7 +140,7 @@ func (s *spec) WithAttributesFromObj(obj any) Spec {
 	return s
 }
 
-func (s *spec) WithAttribute(key string, value any) Spec {
+func (s *spec) WithAttribute(key string, value any) Builder {
 	if s.event.Attributes == nil {
 		s.event.Attributes = make(map[string]any)
 	}
@@ -148,7 +148,7 @@ func (s *spec) WithAttribute(key string, value any) Spec {
 	return s
 }
 
-func (s *spec) WithNewStatus(status string) Spec {
+func (s *spec) WithNewStatus(status string) Builder {
 	return s.WithAttribute(statusNowAttr, status)
 }
 
@@ -163,6 +163,6 @@ func (s *spec) Entity(txID string) *entity.TxHistoryNote {
 	}
 }
 
-func (s *spec) withHttpAttributes(status int) Spec {
+func (s *spec) withHttpAttributes(status int) Builder {
 	return s.WithAttribute("status", status).WithAttribute("statusText", http.StatusText(status))
 }

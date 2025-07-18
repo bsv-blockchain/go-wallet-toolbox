@@ -226,7 +226,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
-func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Spec) error {
+func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = tx.Model(models.Transaction{}).
 			Scopes(scopes.UserID(updatedTx.UserID)).
@@ -317,7 +317,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 	txID string,
 	txStatus wdk.TxStatus,
 	provenTxReqStatus wdk.ProvenTxReqStatus,
-	txNote history.Spec,
+	txNote history.Builder,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = updateTransactionStatus(tx, txID, txStatus)

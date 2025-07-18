@@ -28,13 +28,13 @@ type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
-	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Spec) error
+	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
 	UpdateTransactionStatusForTxID(
 		ctx context.Context,
 		txID string,
 		txStatus wdk.TxStatus,
 		provenTxReqStatus wdk.ProvenTxReqStatus,
-		txNote history.Spec,
+		txNote history.Builder,
 	) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
@@ -42,7 +42,7 @@ type TransactionsRepo interface {
 }
 
 type KnownTxRepo interface {
-	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Spec) error
+	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)

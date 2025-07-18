@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -25,26 +27,25 @@ type HistoryNote struct {
 
 // ToMap returns a map representation of the HistoryNote, including its core attributes and event information.
 func (n *HistoryNote) ToMap() map[string]any {
-	all := make(map[string]any, len(n.Attributes)+4)
+	result := make(map[string]any, len(n.Attributes)+4)
 
 	for k, v := range n.Attributes {
-		all[k] = v
+		result[k] = v
 	}
 
-	all[whatAttr] = n.What
-	all[userIDAttr] = n.UserID
-	all[whenAttr] = n.When
+	result[whatAttr] = n.What
+	result[userIDAttr] = n.UserID
+	result[whenAttr] = n.When
 
-	return all
+	return result
 }
 
 // PrettyPrint writes the HistoryNote fields and attributes to the specified writer in a human-readable format.
 // Returns an error if writing to the writer fails for any attribute or field.
 func (n *HistoryNote) PrettyPrint(writer io.Writer) error {
-	for k, v := range n.ToMap() {
-		if _, err := writer.Write([]byte(fmt.Sprintf("%s: %v\n", k, v))); err != nil {
-			return fmt.Errorf("error writing history note attribute %s: %w", k, err)
-		}
+	err := yaml.NewEncoder(writer).Encode(n.ToMap())
+	if err != nil {
+		return fmt.Errorf("error writing history note: %w", err)
 	}
 	return nil
 }
@@ -60,13 +61,14 @@ type HistoryNotes []*HistoryNote
 // PrettyPrint writes all history notes in a human-readable format to the provided writer, separated by double newlines.
 // Returns an error if writing any note or separator fails.
 func (h HistoryNotes) PrettyPrint(writer io.Writer) error {
-	for _, note := range h {
-		if err := note.PrettyPrint(writer); err != nil {
-			return err
-		}
-		if _, err := writer.Write([]byte("\n\n")); err != nil {
-			return fmt.Errorf("error writing separator after history note: %w", err)
-		}
+	allNotes := make([]map[string]any, len(h))
+	for i, note := range h {
+		allNotes[i] = note.ToMap()
+	}
+
+	err := yaml.NewEncoder(writer).Encode(allNotes)
+	if err != nil {
+		return fmt.Errorf("error writing history notes: %w", err)
 	}
 	return nil
 }

@@ -136,11 +136,11 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
-		result.Notes = history.New().PostBeefError(ServiceName, rawTx, []string{txid}, msg).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, rawTx, []string{txid}, msg).Note().AsList()
 		return result
 	}
 
-	result.Notes = history.New().PostBeefSuccess(ServiceName, rawTx, []string{txid}).Note().AsList()
+	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, rawTx, []string{txid}).Note().AsList()
 
 	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
@@ -164,6 +164,6 @@ func (woc *WhatsOnChain) errorPostedTxID(raw []byte, txID string, err error) wdk
 		TxID:   txID,
 		Result: wdk.PostedTxIDResultError,
 		Error:  err,
-		Notes:  history.New().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
+		Notes:  history.NewBuilder().PostBeefError(ServiceName, raw, []string{txID}, err.Error()).Note().AsList(),
 	}
 }

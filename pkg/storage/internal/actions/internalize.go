@@ -136,7 +136,7 @@ func (in *internalize) storeNewTx(
 		InputBeef:     args.Tx,
 		Status:        wdk.ProvenTxStatusUnmined,
 		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
-	}, history.New().InternalizeAction(userID))
+	}, history.NewBuilder().InternalizeAction(userID))
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}

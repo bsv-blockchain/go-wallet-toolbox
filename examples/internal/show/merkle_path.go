@@ -2,9 +2,9 @@ package show
 
 import (
 	"fmt"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"os"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -25,12 +25,12 @@ func printMerklePath(path *transaction.MerklePath) {
 
 // printMerklePathInfo prints the metadata that GetMerklePath returns.
 func printMerklePathInfo(r *wdk.MerklePathResult) {
-	fmt.Printf("service,%s\n", r.Name)
+	fmt.Printf("service: %s\n", r.Name)
 
 	if bh := r.BlockHeader; bh != nil {
-		fmt.Printf("block_hash,%s\n", bh.Hash)
-		fmt.Printf("block_height,%d\n", bh.Height)
-		fmt.Printf("merkle_root,%s\n", bh.MerkleRoot)
+		fmt.Printf("block_hash: %s\n", bh.Hash)
+		fmt.Printf("block_height: %d\n", bh.Height)
+		fmt.Printf("merkle_root: %s\n", bh.MerkleRoot)
 	}
 
 	if r.Notes != nil {
