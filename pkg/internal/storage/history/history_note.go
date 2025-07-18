@@ -62,69 +62,69 @@ type Builder interface {
 }
 
 func NewBuilder() EventTypesSelector {
-	return &spec{
+	return &builder{
 		event: wdk.HistoryNote{
 			When: time.Now(),
 		},
 	}
 }
 
-type spec struct {
+type builder struct {
 	event wdk.HistoryNote
 }
 
-func (s *spec) InternalizeAction(userID int) Builder {
-	return s.WithWhat(InternalizeActionHistoryNote).WithUser(userID)
+func (b *builder) InternalizeAction(userID int) Builder {
+	return b.WithWhat(InternalizeActionHistoryNote).WithUser(userID)
 }
 
-func (s *spec) ProcessAction(userID int) Builder {
-	return s.WithWhat(ProcessActionHistoryNote).WithUser(userID)
+func (b *builder) ProcessAction(userID int) Builder {
+	return b.WithWhat(ProcessActionHistoryNote).WithUser(userID)
 }
 
-func (s *spec) AggregateResults(result AggregatedBroadcastResult) Builder {
-	return s.WithWhat(AggregateResultsHistoryNote).WithAttributesFromObj(result)
+func (b *builder) AggregateResults(result AggregatedBroadcastResult) Builder {
+	return b.WithWhat(AggregateResultsHistoryNote).WithAttributesFromObj(result)
 }
 
-func (s *spec) GetMerklePathSuccess(serviceName string) Builder {
-	return s.withHttpAttributes(http.StatusOK).
+func (b *builder) GetMerklePathSuccess(serviceName string) Builder {
+	return b.withHttpAttributes(http.StatusOK).
 		WithWhat(GetMerklePathSuccess).
 		WithAttribute(serviceNameAttr, serviceName)
 }
 
-func (s *spec) GetMerklePathNotFound(serviceName string) Builder {
-	return s.withHttpAttributes(http.StatusNotFound).
+func (b *builder) GetMerklePathNotFound(serviceName string) Builder {
+	return b.withHttpAttributes(http.StatusNotFound).
 		WithWhat(GetMerklePathNotFound).
 		WithAttribute(serviceNameAttr, serviceName)
 }
 
-func (s *spec) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Builder {
-	return s.WithWhat(what).
+func (b *builder) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Builder {
+	return b.WithWhat(what).
 		WithAttribute(serviceNameAttr, serviceName).
 		WithAttribute("beef", hex.EncodeToString(beef)).
 		WithAttribute("txids", strings.Join(txIDs, ","))
 }
 
-func (s *spec) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Builder {
-	return s.postBeefBase(PostBeefError, serviceName, beef, txIDs).WithAttribute("message", msg)
+func (b *builder) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Builder {
+	return b.postBeefBase(PostBeefError, serviceName, beef, txIDs).WithAttribute("message", msg)
 }
 
-func (s *spec) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder {
-	return s.postBeefBase(PostBeefSuccess, serviceName, beef, txIDs)
+func (b *builder) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder {
+	return b.postBeefBase(PostBeefSuccess, serviceName, beef, txIDs)
 }
 
-func (s *spec) WithWhat(what string) Builder {
-	s.event.What = what
-	return s
+func (b *builder) WithWhat(what string) Builder {
+	b.event.What = what
+	return b
 }
 
-func (s *spec) WithUser(userID int) Builder {
-	s.event.UserID = &userID
-	return s
+func (b *builder) WithUser(userID int) Builder {
+	b.event.UserID = &userID
+	return b
 }
 
-func (s *spec) WithAttributesFromObj(obj any) Builder {
-	if s.event.Attributes == nil {
-		s.event.Attributes = make(map[string]any)
+func (b *builder) WithAttributesFromObj(obj any) Builder {
+	if b.event.Attributes == nil {
+		b.event.Attributes = make(map[string]any)
 	}
 
 	var objMap map[string]any
@@ -134,35 +134,35 @@ func (s *spec) WithAttributesFromObj(obj any) Builder {
 	}
 
 	for key, value := range objMap {
-		s.event.Attributes[key] = value
+		b.event.Attributes[key] = value
 	}
 
-	return s
+	return b
 }
 
-func (s *spec) WithAttribute(key string, value any) Builder {
-	if s.event.Attributes == nil {
-		s.event.Attributes = make(map[string]any)
+func (b *builder) WithAttribute(key string, value any) Builder {
+	if b.event.Attributes == nil {
+		b.event.Attributes = make(map[string]any)
 	}
-	s.event.Attributes[key] = value
-	return s
+	b.event.Attributes[key] = value
+	return b
 }
 
-func (s *spec) WithNewStatus(status string) Builder {
-	return s.WithAttribute(statusNowAttr, status)
+func (b *builder) WithNewStatus(status string) Builder {
+	return b.WithAttribute(statusNowAttr, status)
 }
 
-func (s *spec) Note() *wdk.HistoryNote {
-	return &s.event
+func (b *builder) Note() *wdk.HistoryNote {
+	return &b.event
 }
 
-func (s *spec) Entity(txID string) *entity.TxHistoryNote {
+func (b *builder) Entity(txID string) *entity.TxHistoryNote {
 	return &entity.TxHistoryNote{
 		TxID:        txID,
-		HistoryNote: s.event,
+		HistoryNote: b.event,
 	}
 }
 
-func (s *spec) withHttpAttributes(status int) Builder {
-	return s.WithAttribute("status", status).WithAttribute("statusText", http.StatusText(status))
+func (b *builder) withHttpAttributes(status int) Builder {
+	return b.WithAttribute("status", status).WithAttribute("statusText", http.StatusText(status))
 }
