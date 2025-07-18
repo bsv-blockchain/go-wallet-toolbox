@@ -130,8 +130,8 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 		TxID: returnedTxid,
 	}
 
-	classifyBroadcastStatus(status, &result)
-	if result.Result == wdk.PostedTxIDResultError || result.DoubleSpend {
+	shouldReturnError := classifyBroadcastStatus(status, &result)
+	if shouldReturnError {
 		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)

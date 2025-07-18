@@ -41,8 +41,8 @@ func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) wdk.PostedTxID {
 		return b.errorPostedTxID(rawTx, txid, fmt.Errorf("returned txid (%s) does not match expected txid (%s)", resp.TxID, txid))
 	}
 
-	b.classifyResponseError(resp, &result)
-	if result.Result == wdk.PostedTxIDResultError || result.DoubleSpend {
+	shouldReturnError := b.classifyResponseError(resp, &result)
+	if shouldReturnError {
 		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
@@ -89,7 +89,7 @@ func (b *Bitails) sendBroadcastRequest(ctx context.Context, rawHex string) ([]br
 	return respArr, nil
 }
 
-func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.PostedTxID) {
+func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.PostedTxID) (shouldReturnError bool) {
 	if resp.Error == nil {
 		result.Result = wdk.PostedTxIDResultSuccess
 		return
@@ -105,10 +105,14 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 	case ErrorCodeMissingInputs:
 		result.Result = wdk.PostedTxIDResultDoubleSpend
 		result.DoubleSpend = true
+		shouldReturnError = true
 	default:
 		result.Result = wdk.PostedTxIDResultError
 		result.Error = fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
+		shouldReturnError = true
 	}
+
+	return
 }
 
 func (b *Bitails) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {

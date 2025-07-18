@@ -25,7 +25,7 @@ func waitOrCancel(ctx context.Context, delay time.Duration, txid string) error {
 	}
 }
 
-func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) {
+func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) (shouldReturnError bool) {
 	switch status {
 	case StatusSuccess:
 		result.Result = wdk.PostedTxIDResultSuccess
@@ -35,16 +35,22 @@ func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) {
 	case StatusDoubleSpend:
 		result.Result = wdk.PostedTxIDResultDoubleSpend
 		result.DoubleSpend = true
+		shouldReturnError = true
 	case StatusMissingInputs:
 		result.Result = wdk.PostedTxIDResultMissingInputs
 		result.DoubleSpend = true
+		shouldReturnError = true
 	case StatusError:
 		result.Result = wdk.PostedTxIDResultError
 		result.Error = fmt.Errorf("broadcast status error")
+		shouldReturnError = true
 	default:
 		result.Result = wdk.PostedTxIDResultError
 		result.Error = fmt.Errorf("unknown broadcast status: %d", status)
+		shouldReturnError = true
 	}
+
+	return
 }
 
 func containsI(subject string, contains ...string) bool {
