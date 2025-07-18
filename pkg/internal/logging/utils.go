@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 const (
-	ServiceKey = "service"
-	ErrorKey   = "error"
+	ServiceKey   = "service"
+	ErrorKey     = "error"
+	UserIDKey    = "userId"
+	ReferenceKey = "reference"
 )
 
 var strLevelToSlog = map[defs.LogLevel]slog.Level{
@@ -32,10 +33,22 @@ func Error(err error) slog.Attr {
 	return slog.String(ErrorKey, err.Error())
 }
 
-// Fatalf logs the error and exits the program.
-func Fatalf(logger *slog.Logger, err error, format string, args ...any) {
-	logger.Error("Fatal error: "+fmt.Sprintf(format, args...), Error(err))
-	os.Exit(1)
+func UserID[ID int | *int](userID ID) slog.Attr {
+	switch id := any(userID).(type) {
+	case int:
+		return slog.Int(UserIDKey, id)
+	case *int:
+		if id == nil {
+			return slog.String(UserIDKey, "<unknown>")
+		}
+		return slog.Int(UserIDKey, *id)
+	default:
+		panic(fmt.Sprintf("unsupported type %T", id))
+	}
+}
+
+func Reference(ref string) slog.Attr {
+	return slog.String(ReferenceKey, ref)
 }
 
 // DefaultIfNil returns the default logger if the given logger is nil.
