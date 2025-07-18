@@ -91,7 +91,7 @@ func loadConfig() (*SetupConfig, error) {
 
 	cfg, err := loader.Load()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config from %s, to setup the config file run examples_config_gen: %w ", configFile, err)
+		return nil, fmt.Errorf("failed to load config from %s; to set up the config file, run examples_config_gen: %w", configFile, err)
 	}
 
 	err = cfg.Validate()
