@@ -106,7 +106,7 @@ func newCreateAction(
 }
 
 func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (*wdk.StorageCreateActionResult, error) {
-	c.logger.Debug("Finding change basket", 
+	c.logger.Debug("Finding change basket",
 		slog.Int("userID", userID),
 		slog.String("basketName", wdk.BasketNameForChange),
 	)
@@ -119,7 +119,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	c.logger.Debug("Processing inputs", 
+	c.logger.Debug("Processing inputs",
 		slog.Int("providedInputCount", len(params.Inputs)),
 		slog.Bool("trustSelf", params.TrustSelf),
 		slog.Int("inputBEEFSize", len(params.InputBEEF)),
