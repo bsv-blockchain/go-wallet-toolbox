@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/driver/sqlite"
@@ -11,9 +13,14 @@ import (
 
 //go:generate go run gorm_gen.go
 
+const (
+	outPath     = "../genquery"
+	genFilePath = outPath + "/gen.go"
+)
+
 func main() {
 	g := gen.NewGenerator(gen.Config{
-		OutPath: "../genquery",
+		OutPath: outPath,
 		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface,
 	})
 
@@ -24,18 +31,53 @@ func main() {
 
 	g.UseDB(db)
 
-	g.ApplyBasic(models.Commission{})
-
-	// Uncomment and adjust the following lines to generate additional interfaces or methods as needed.
-	// For example, to generate a custom interface for CommissionQuerier:
-	//g.ApplyInterface(func(CommissionQuerier) {}, models.Commission{})
+	g.ApplyBasic(
+		models.Commission{},
+		models.NumericIDLookup{},
+		models.OutputBasket{},
+		models.KnownTx{},
+		models.Transaction{},
+		models.Output{},
+		models.Label{},
+		models.TransactionLabel{},
+		models.Tag{},
+		models.OutputTag{},
+	)
 
 	g.Execute()
+
+	// Workaround to substitute generated method that is conflicting with the one in the model "Transaction"
+	// NOTE: When you want to create gorm-gen transaction, you should use the method `DBTransaction` instead of `Transaction`.
+
+	log.Println("Applying automated workaround for Transaction method conflict...")
+	applyTransactionMethodWorkaround()
 }
 
-// Uncomment the following lines to define a custom interface for querying commissions.
-// For example, to get a commission by user ID and transaction ID:
-//type CommissionQuerier interface {
-//	// SELECT * FROM @@table WHERE user_id = @userID AND transaction_id = @transactionID{{end}}
-//	GetByUserIDAndTransactionID(userID int, transactionID uint) (gen.T, error)
-//}
+func applyTransactionMethodWorkaround() {
+	const originalMethodSignature = `func (q *Query) Transaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {`
+	const replacementMethodSignature = `func (q *Query) DBTransaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {`
+
+	input, err := os.ReadFile(genFilePath)
+	if err != nil {
+		log.Fatalf("WORKAROUND FAILED: Could not read generated file '%s': %v", genFilePath, err)
+	}
+
+	fileContent := string(input)
+
+	// Check if the conflicting method exists. If not, the workaround isn't needed,
+	// which might happen if gorm/gen updates or your models change.
+	if !strings.Contains(fileContent, originalMethodSignature) {
+		log.Println("WORKAROUND SKIPPED: Conflicting method signature not found. It may have been fixed or changed.")
+		return
+	}
+
+	newContent := strings.Replace(fileContent, originalMethodSignature, replacementMethodSignature, 1)
+
+	err = os.WriteFile(genFilePath, []byte(newContent), 0600)
+	if err != nil {
+		log.Fatalf("WORKAROUND FAILED: Could not write changes to generated file %q: %v", genFilePath, err)
+	}
+
+	log.Println("WORKAROUND SUCCESS: Renamed conflicting Transaction method to DBTransaction.")
+	log.Println(`NOTE: When you want to create gorm-gen transaction, you need to use the method "DBTransaction" instead of "Transaction".`)
+}
