@@ -16,7 +16,7 @@ type MerklePathResult struct {
 	BlockHeader *MerklePathBlockHeader
 
 	// Notes are the service debug notes for processing the request
-	Notes Notes
+	Notes HistoryNotes
 }
 
 // MerklePathBlockHeader is the header of a block

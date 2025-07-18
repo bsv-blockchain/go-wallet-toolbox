@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	arctestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -506,11 +507,10 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		assert.NotNil(t, res)
-		require.Equal(t, wdk.MerklePathResult{
-			Name:        "ARC",
-			MerklePath:  nil,
-			BlockHeader: nil,
-		}, *res)
+		assert.Equal(t, arc.ServiceName, res.Name)
+		assert.Nil(t, res.MerklePath)
+		assert.Nil(t, res.BlockHeader)
+		require.Len(t, res.Notes, 1)
 	})
 
 	t.Run("return merkle path when arc return valid merkle path", func(t *testing.T) {
@@ -553,15 +553,13 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
-
-		require.Equal(t, wdk.MerklePathResult{
-			Name:       "ARC",
-			MerklePath: &merklePath,
-			BlockHeader: &wdk.MerklePathBlockHeader{
-				Height:     2000,
-				MerkleRoot: merkleRoot,
-				Hash:       testservices.TestBlockHash,
-			},
-		}, *res)
+		assert.Equal(t, arc.ServiceName, res.Name)
+		assert.Equal(t, merklePath, *res.MerklePath)
+		assert.Equal(t, wdk.MerklePathBlockHeader{
+			Height:     2000,
+			MerkleRoot: merkleRoot,
+			Hash:       testservices.TestBlockHash,
+		}, *res.BlockHeader)
+		assert.Len(t, res.Notes, 1)
 	})
 }

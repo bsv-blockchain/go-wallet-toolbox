@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -185,7 +186,7 @@ func (p *ChunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 }
 
 func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxReq) error {
-	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &entity.KnownTx{
+	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
 		CreatedAt: chunkProvenTxReq.CreatedAt,
 		UpdatedAt: chunkProvenTxReq.UpdatedAt,
 		TxID:      chunkProvenTxReq.TxID,
@@ -209,7 +210,7 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 }
 
 func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {
-	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &entity.KnownTx{
+	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
 		CreatedAt:   chunkProvenTx.CreatedAt,
 		UpdatedAt:   chunkProvenTx.UpdatedAt,
 		TxID:        chunkProvenTx.TxID,
