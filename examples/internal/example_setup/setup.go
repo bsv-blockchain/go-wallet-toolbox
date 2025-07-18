@@ -35,15 +35,6 @@ type UserConfig struct {
 	PrivateKey  string `mapstructure:"private_key"`
 }
 
-func defaultSetupConfig() SetupConfig {
-	return SetupConfig{
-		Network:   defs.NetworkTestnet,
-		ServerURL: "",
-		Alice:     UserConfig{},
-		Bob:       UserConfig{},
-	}
-}
-
 func (u *UserConfig) Verify() error {
 	if len(u.IdentityKey) == 0 {
 		return fmt.Errorf("identity key value is required")
@@ -52,7 +43,7 @@ func (u *UserConfig) Verify() error {
 	if len(u.PrivateKey) == 0 {
 		return fmt.Errorf("private key value is required")
 	}
-	
+
 	return nil
 }
 
@@ -80,32 +71,18 @@ func (c *SetupConfig) ToYAMLFile(filename string) error {
 	return config.ToYAMLFile(c, filename)
 }
 
-func loadConfig() (*SetupConfig, error) {
-	const configFile = "examples/internal/example_setup/examples-config.yaml"
-	loader := config.NewLoader(defaultSetupConfig, "EXAMPLE_SETUP")
-
-	err := loader.SetConfigFilePath(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set config file path: %w", err)
-	}
-
-	cfg, err := loader.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config from %s; to set up the config file, run examples_config_gen: %w", configFile, err)
-	}
-
-	err = cfg.Validate()
-	if err != nil {
-		return nil, fmt.Errorf("config validation failed: %w", err)
-	}
-
-	return &cfg, nil
-}
-
+// CreateAlice creates a new Setup struct with the Alice's identity key and private key
+// It loads the configuration from the examples-config.yaml file and validates the config
+// It then creates a new wallet for Alice and returns the Setup struct
 func CreateAlice() *Setup {
 	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Errorf("failed to load config: %w", err))
+	}
+
+	err = cfg.Validate()
+	if err != nil {
+		panic(fmt.Errorf("config validation failed: %w", err))
 	}
 
 	privateKey, err := ec.PrivateKeyFromHex(cfg.Alice.PrivateKey)
@@ -129,6 +106,9 @@ func CreateAlice() *Setup {
 	}
 }
 
+// CreateWallet creates a new wallet for the user
+// It connects to the server and creates a new wallet
+// It returns the wallet, a cleanup function, and an error if the wallet creation fails
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func(), error) {
 	storageClient, cleanup, err := storage.NewClient(s.Environment.ServerURL)
 	if err != nil {
