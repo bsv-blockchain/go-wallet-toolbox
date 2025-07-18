@@ -269,10 +269,26 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
+	p.parentLogger.Info("Starting CreateAction process",
+		slog.Int("userID", *auth.UserID),
+		slog.String("description", string(args.Description)),
+		slog.Int("outputCount", len(args.Outputs)),
+		slog.Int("inputCount", len(args.Inputs)),
+		slog.Bool("isSignAction", args.IsSignAction),
+	)
+
 	res, err := p.actions.Create(ctx, *auth.UserID, actions.FromValidCreateActionArgs(&args))
 	if err != nil {
 		return nil, fmt.Errorf("failed to process createAction: %w", err)
 	}
+
+	p.parentLogger.Info("CreateAction completed successfully",
+		slog.Int("userID", *auth.UserID),
+		slog.String("reference", res.Reference),
+		slog.Int("resultOutputCount", len(res.Outputs)),
+		slog.Int("resultInputCount", len(res.Inputs)),
+	)
+
 	return res, nil
 }
 
