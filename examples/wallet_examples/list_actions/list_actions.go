@@ -9,20 +9,20 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 )
 
-const (
+var (
 	// DefaultLimit is the default number of actions to retrieve
-	DefaultLimit = 100
+	DefaultLimit = uint32(100)
 	// DefaultOffset is the default starting position for pagination
-	DefaultOffset = 0
-	// DefaultOriginatorContext is the originator domain or FQDN that is allowed to use this permission.
-	DefaultOriginatorContext = "originator"
+	DefaultOffset = uint32(0)
+	// DefaultOriginator is the originator domain or FQDN that is allowed to use this permission.
+	DefaultOriginator = "originator"
 )
 
 func defaultListActionsArgs() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
-		Limit:         DefaultLimit,  // Maximum number of actions to return
-		Offset:        DefaultOffset, // Starting position for pagination
-		IncludeLabels: nil,           // Include labels in the response
+		Limit:         &DefaultLimit,  // Maximum number of actions to return
+		Offset:        &DefaultOffset, // Starting position for pagination
+		IncludeLabels: nil,            // Include labels in the response
 	}
 }
 
@@ -42,7 +42,7 @@ func main() {
 	show.Step("Alice", "Listing actions")
 	args := defaultListActionsArgs()
 
-	actions, err := aliceWallet.ListActions(ctx, args, DefaultOriginatorContext)
+	actions, err := aliceWallet.ListActions(ctx, args, DefaultOriginator)
 	if err != nil {
 		panic(fmt.Errorf("failed to list actions: %w", err))
 	}
