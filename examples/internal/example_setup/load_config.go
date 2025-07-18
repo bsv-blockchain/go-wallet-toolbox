@@ -1,7 +1,6 @@
 package example_setup
 
 import (
-	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -10,6 +9,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
+
+const configFile = "examples/examples-config.yaml"
 
 func defaultSetupConfig() SetupConfig {
 	return SetupConfig{
@@ -29,7 +30,7 @@ func generateUserConfig() (UserConfig, error) {
 
 	return UserConfig{
 		IdentityKey: privKey.PubKey().ToDERHex(),
-		PrivateKey:  hex.EncodeToString(privKey.Serialize()),
+		PrivateKey:  privKey.Wif(),
 	}, nil
 }
 
@@ -52,8 +53,9 @@ func generateDefaultConfig() (*SetupConfig, error) {
 		Bob:       bob,
 	}
 
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("generated config validation failed: %w", err)
+	err = config.ToYAMLFile(cfg, configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save generated config to %s: %w", configFile, err)
 	}
 
 	return cfg, nil
@@ -62,18 +64,12 @@ func generateDefaultConfig() (*SetupConfig, error) {
 // loadConfig loads the configuration from the examples-config.yaml file
 // if the file does not exist, it generates a new configuration and saves it to the file
 func loadConfig() (*SetupConfig, error) {
-	const configFile = "examples/examples-config.yaml"
-
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		show.Info("Config file not found, generating new configuration", configFile)
 
 		cfg, err := generateDefaultConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate default config: %w", err)
-		}
-
-		if err := cfg.ToYAMLFile(configFile); err != nil {
-			return nil, fmt.Errorf("failed to save generated config to %s: %w", configFile, err)
 		}
 
 		show.Info("Generated new configuration file", configFile)
@@ -90,6 +86,11 @@ func loadConfig() (*SetupConfig, error) {
 	cfg, err := loader.Load()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config from %s: %w", configFile, err)
+	}
+
+	err = cfg.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return &cfg, nil

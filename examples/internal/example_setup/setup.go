@@ -6,7 +6,6 @@ import (
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
-	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
@@ -65,10 +64,6 @@ func (c *SetupConfig) Validate() error {
 	}
 
 	return nil
-}
-
-func (c *SetupConfig) ToYAMLFile(filename string) error {
-	return config.ToYAMLFile(c, filename)
 }
 
 // CreateAlice creates a new Setup struct with the Alice's identity key and private key
