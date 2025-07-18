@@ -41,5 +41,5 @@ func (f *arcServiceFixture) NewArcService(opts ...func(*arc.Config)) *arc.Servic
 		CallbackToken: "",
 	}, opts...)
 
-	return arc.NewARCService(logger, httpClient, config)
+	return arc.New(logger, httpClient, config)
 }

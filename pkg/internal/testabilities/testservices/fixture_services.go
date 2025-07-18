@@ -2,6 +2,7 @@ package testservices
 
 import (
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -11,6 +12,10 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
 )
+
+const headerLength = 160
+
+var TestFakeHeaderBinary = mockHeaderBinary('0')
 
 type ServicesFixture interface {
 	Bitails() BitailsFixture
@@ -139,4 +144,8 @@ func (f *servicesFixture) Transport() *httpmock.MockTransport {
 	f.t.Helper()
 	require.NotNil(f.t, f.transport, "Transport() called without setting up services fixture")
 	return f.transport
+}
+
+func mockHeaderBinary(char rune) string {
+	return strings.Repeat(string(char), headerLength)
 }

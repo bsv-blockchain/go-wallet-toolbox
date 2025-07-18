@@ -16,39 +16,79 @@ import (
 )
 
 var (
-	Q          = new(Query)
-	Commission *commission
-	KnownTx    *knownTx
+	Q                = new(Query)
+	Commission       *commission
+	KnownTx          *knownTx
+	Label            *label
+	NumericIDLookup  *numericIDLookup
+	Output           *output
+	OutputBasket     *outputBasket
+	OutputTag        *outputTag
+	Tag              *tag
+	Transaction      *transaction
+	TransactionLabel *transactionLabel
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	Commission = &Q.Commission
 	KnownTx = &Q.KnownTx
+	Label = &Q.Label
+	NumericIDLookup = &Q.NumericIDLookup
+	Output = &Q.Output
+	OutputBasket = &Q.OutputBasket
+	OutputTag = &Q.OutputTag
+	Tag = &Q.Tag
+	Transaction = &Q.Transaction
+	TransactionLabel = &Q.TransactionLabel
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:         db,
-		Commission: newCommission(db, opts...),
-		KnownTx:    newKnownTx(db, opts...),
+		db:               db,
+		Commission:       newCommission(db, opts...),
+		KnownTx:          newKnownTx(db, opts...),
+		Label:            newLabel(db, opts...),
+		NumericIDLookup:  newNumericIDLookup(db, opts...),
+		Output:           newOutput(db, opts...),
+		OutputBasket:     newOutputBasket(db, opts...),
+		OutputTag:        newOutputTag(db, opts...),
+		Tag:              newTag(db, opts...),
+		Transaction:      newTransaction(db, opts...),
+		TransactionLabel: newTransactionLabel(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	Commission commission
-	KnownTx    knownTx
+	Commission       commission
+	KnownTx          knownTx
+	Label            label
+	NumericIDLookup  numericIDLookup
+	Output           output
+	OutputBasket     outputBasket
+	OutputTag        outputTag
+	Tag              tag
+	Transaction      transaction
+	TransactionLabel transactionLabel
 }
 
 func (q *Query) Available() bool { return q.db != nil }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:         db,
-		Commission: q.Commission.clone(db),
-		KnownTx:    q.KnownTx.clone(db),
+		db:               db,
+		Commission:       q.Commission.clone(db),
+		KnownTx:          q.KnownTx.clone(db),
+		Label:            q.Label.clone(db),
+		NumericIDLookup:  q.NumericIDLookup.clone(db),
+		Output:           q.Output.clone(db),
+		OutputBasket:     q.OutputBasket.clone(db),
+		OutputTag:        q.OutputTag.clone(db),
+		Tag:              q.Tag.clone(db),
+		Transaction:      q.Transaction.clone(db),
+		TransactionLabel: q.TransactionLabel.clone(db),
 	}
 }
 
@@ -62,25 +102,49 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:         db,
-		Commission: q.Commission.replaceDB(db),
-		KnownTx:    q.KnownTx.replaceDB(db),
+		db:               db,
+		Commission:       q.Commission.replaceDB(db),
+		KnownTx:          q.KnownTx.replaceDB(db),
+		Label:            q.Label.replaceDB(db),
+		NumericIDLookup:  q.NumericIDLookup.replaceDB(db),
+		Output:           q.Output.replaceDB(db),
+		OutputBasket:     q.OutputBasket.replaceDB(db),
+		OutputTag:        q.OutputTag.replaceDB(db),
+		Tag:              q.Tag.replaceDB(db),
+		Transaction:      q.Transaction.replaceDB(db),
+		TransactionLabel: q.TransactionLabel.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	Commission ICommissionDo
-	KnownTx    IKnownTxDo
+	Commission       ICommissionDo
+	KnownTx          IKnownTxDo
+	Label            ILabelDo
+	NumericIDLookup  INumericIDLookupDo
+	Output           IOutputDo
+	OutputBasket     IOutputBasketDo
+	OutputTag        IOutputTagDo
+	Tag              ITagDo
+	Transaction      ITransactionDo
+	TransactionLabel ITransactionLabelDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		Commission: q.Commission.WithContext(ctx),
-		KnownTx:    q.KnownTx.WithContext(ctx),
+		Commission:       q.Commission.WithContext(ctx),
+		KnownTx:          q.KnownTx.WithContext(ctx),
+		Label:            q.Label.WithContext(ctx),
+		NumericIDLookup:  q.NumericIDLookup.WithContext(ctx),
+		Output:           q.Output.WithContext(ctx),
+		OutputBasket:     q.OutputBasket.WithContext(ctx),
+		OutputTag:        q.OutputTag.WithContext(ctx),
+		Tag:              q.Tag.WithContext(ctx),
+		Transaction:      q.Transaction.WithContext(ctx),
+		TransactionLabel: q.TransactionLabel.WithContext(ctx),
 	}
 }
 
-func (q *Query) Transaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {
+func (q *Query) DBTransaction(fc func(tx *Query) error, opts ...*sql.TxOptions) error {
 	return q.db.Transaction(func(tx *gorm.DB) error { return fc(q.clone(tx)) }, opts...)
 }
 

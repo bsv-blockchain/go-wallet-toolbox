@@ -7,6 +7,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.ListOutputsArgs {
 				args := fixtures.DefaultWalletListOutputsArgs()
-				args.Limit = 10001
+				args.Limit = to.Ptr[uint32](10001)
 				return args
 			},
 		},
@@ -36,7 +37,7 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.ListOutputsArgs {
 				args := fixtures.DefaultWalletListOutputsArgs()
-				args.Limit = 0
+				args.Limit = to.Ptr[uint32](0)
 				return args
 			},
 		},
@@ -133,7 +134,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 
 		// and:
 		args := fixtures.DefaultWalletListOutputsArgs()
-		args.Limit = 50
+		args.Limit = to.Ptr[uint32](50)
 
 		// when:
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)

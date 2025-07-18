@@ -33,7 +33,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.SyncState{},
 		models.KeyValue{},
 		models.Tag{},
-		models.OutputTags{},
+		models.OutputTag{},
 		models.Commission{},
 		models.TxNote{},
 	)
@@ -44,6 +44,11 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 	err = m.db.SetupJoinTable(&models.Transaction{}, "Labels", &models.TransactionLabel{})
 	if err != nil {
 		return fmt.Errorf("failed to setup join table for Transaction and Labels: %w", err)
+	}
+
+	err = m.db.SetupJoinTable(&models.Output{}, "Tags", &models.OutputTag{})
+	if err != nil {
+		return fmt.Errorf("failed to setup join table for Output and Tags: %w", err)
 	}
 
 	return nil

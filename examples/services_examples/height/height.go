@@ -32,8 +32,7 @@ func main() {
 
 	height, err := srv.CurrentHeight(context.Background())
 	if err != nil {
-		show.Error(fmt.Sprintf("failed to get current height: %v", err))
-		return
+		panic(fmt.Errorf("failed to get height: %w", err))
 	}
 
 	show.Success("Fetched chain tip height")

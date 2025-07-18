@@ -22,7 +22,7 @@ type BlockHeadersService struct {
 	cfg        *defs.BHS
 }
 
-func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
+func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
 	err := network.Validate()
 	if err != nil {
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
