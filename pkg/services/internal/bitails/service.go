@@ -6,14 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -68,20 +67,10 @@ func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 
 	results := make([]wdk.PostedTxID, 0, len(txIDs))
 
-	for i, txID := range txIDs {
+	for i := range txIDs {
 		raw := rawTxs[i]
-		broadcastResult, err := b.broadcast(ctx, raw)
-		if err != nil {
-			results = append(results, wdk.PostedTxID{
-				TxID:   txID,
-				Result: wdk.PostedTxIDResultError,
-				Error:  fmt.Errorf("failed to broadcast tx %s: %w", txID, err),
-				Notes:  utils.ConvertNotes([]string{err.Error()}),
-			})
-			continue
-		}
-
-		results = append(results, *broadcastResult)
+		broadcastResult := b.broadcast(ctx, raw)
+		results = append(results, broadcastResult)
 	}
 
 	return &wdk.PostedBEEF{TxIDResults: results}, nil
@@ -94,7 +83,10 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		return nil, err
 	}
 	if proof == nil {
-		return &wdk.MerklePathResult{Name: ServiceName}, nil
+		return &wdk.MerklePathResult{
+			Name:  ServiceName,
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
+		}, nil
 	}
 
 	header, err := b.hashToHeader(ctx, proof.Target)
@@ -133,7 +125,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
-		Notes:       wdk.Notes{{When: to.Ptr(time.Now()), What: "getMerklePathTSC"}},
+		Notes:       history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }
 
