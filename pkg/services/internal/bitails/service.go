@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -83,7 +83,10 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		return nil, err
 	}
 	if proof == nil {
-		return &wdk.MerklePathResult{Name: ServiceName}, nil
+		return &wdk.MerklePathResult{
+			Name:  ServiceName,
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
+		}, nil
 	}
 
 	header, err := b.hashToHeader(ctx, proof.Target)
@@ -122,7 +125,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
-		Notes:       wdk.Notes{{When: to.Ptr(time.Now()), What: "getMerklePathTSC"}},
+		Notes:       history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }
 

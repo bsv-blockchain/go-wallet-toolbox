@@ -2,7 +2,6 @@ package bitails_test
 
 import (
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -191,7 +190,7 @@ func TestBitails_MerklePath(t *testing.T) {
 
 	require.Len(t, result.Notes, 1)
 	assert.Contains(t, result.Notes[0].What, "getMerklePath")
-	assert.WithinDuration(t, time.Now(), *result.Notes[0].When, 2*time.Second)
+	assert.WithinDuration(t, time.Now(), result.Notes[0].When, 2*time.Second)
 }
 
 func TestBitails_PostBEEF(t *testing.T) {

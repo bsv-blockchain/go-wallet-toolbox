@@ -2,7 +2,6 @@ package bitails
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/url"
 	"path"
