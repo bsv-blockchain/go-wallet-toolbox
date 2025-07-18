@@ -2,6 +2,7 @@ package bitails
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -196,4 +197,48 @@ func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	}
 
 	return height, nil
+}
+
+// RawTx fetches and validates the raw transaction for a given txID.
+func (b *Bitails) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
+	url, err := rawTxURL(b.url, txID)
+	if err != nil {
+		return nil, fmt.Errorf("error building raw tx URL: %w", err)
+	}
+
+	res, err := b.httpClient.R().
+		SetContext(ctx).
+		SetHeader("Content-Type", "application/gzip").
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("%s: HTTP request failed for raw tx: %w", ServiceName, err)
+	}
+
+	switch res.StatusCode() {
+	case http.StatusOK:
+		// proceed
+	case http.StatusNotFound:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("%s: unexpected HTTP %d: %s", ServiceName, res.StatusCode(), res.String())
+	}
+
+	rawHex := string(res.Body())
+	rawHex = strings.TrimSpace(rawHex)
+
+	raw, err := hex.DecodeString(rawHex)
+	if err != nil {
+		return nil, fmt.Errorf("%s: decode hex failed: %w", ServiceName, err)
+	}
+
+	computedTxID := txutils.TransactionIDFromRawTx(raw)
+	if txID != computedTxID {
+		return nil, fmt.Errorf("%s: txID mismatch: expected %s, got %s", ServiceName, txID, computedTxID)
+	}
+
+	return &wdk.RawTxResult{
+		Name:  ServiceName,
+		TxID:  txID,
+		RawTx: raw,
+	}, nil
 }
