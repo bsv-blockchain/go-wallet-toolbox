@@ -9,7 +9,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,10 +58,6 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			given := testabilities.Given(t)
 			woc := given.NewWoCService()
-
-			client := given.WhatsOnChain().HttpClient()
-			httpmock.ActivateNonDefault(client.GetClient())
-			defer httpmock.DeactivateAndReset()
 
 			// and:
 			test.setup(given)
@@ -139,10 +134,6 @@ func TestWhatsOnChain_PostBEEF_ErrorCases(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			given := testabilities.Given(t)
 			woc := given.NewWoCService()
-
-			client := given.WhatsOnChain().HttpClient()
-			httpmock.ActivateNonDefault(client.GetClient())
-			defer httpmock.DeactivateAndReset()
 
 			// and:
 			test.setup(given)

@@ -13,7 +13,6 @@ import (
 	bt "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,10 +59,6 @@ func TestBitails_GetHeight_ErrorCases(t *testing.T) {
 }
 
 func TestBitails_FindChainTipHeader(t *testing.T) {
-	// given:
-	fixture := testabilities.Given(t)
-	service := fixture.NewBitailsService()
-
 	headerHex := testabilities.TestFakeHeaderBinary
 	rawHeader, err := hex.DecodeString(headerHex)
 	require.NoError(t, err)
@@ -71,21 +66,16 @@ func TestBitails_FindChainTipHeader(t *testing.T) {
 	blockHash := chainhash.DoubleHashH(rawHeader).String()
 	height := testabilities.TestBlockHeight
 
-	client := fixture.Bitails().HttpClient()
-	httpmock.ActivateNonDefault(client.GetClient())
-	defer httpmock.DeactivateAndReset()
-
 	tests := []struct {
 		name  string
-		setup func()
+		setup func(testabilities.BitailsServiceFixture)
 		want  *wdk.ChainBlockHeader
 	}{
 		{
 			name: "happy path",
-			setup: func() {
-				httpmock.Reset()
-				fixture.Bitails().WillReturnLatestBlock(blockHash, uint32(height))
-				fixture.Bitails().WillReturnBlockHeader(blockHash, headerHex)
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().WillReturnLatestBlock(blockHash, uint32(height))
+				given.Bitails().WillReturnBlockHeader(blockHash, headerHex)
 			},
 			want: func() *wdk.ChainBlockHeader {
 				want, err := bitails.ConvertHeader(rawHeader, uint32(height))
@@ -98,7 +88,10 @@ func TestBitails_FindChainTipHeader(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			tc.setup()
+			given := testabilities.Given(t)
+			service := given.NewBitailsService()
+
+			tc.setup(given)
 
 			// when:
 			got, err := service.FindChainTipHeader(t.Context())
@@ -111,38 +104,27 @@ func TestBitails_FindChainTipHeader(t *testing.T) {
 }
 
 func TestBitails_FindChainTipHeader_ErrorCases(t *testing.T) {
-	// given:
-	fixture := testabilities.Given(t)
-	service := fixture.NewBitailsService()
-
-	client := fixture.Bitails().HttpClient()
-	httpmock.ActivateNonDefault(client.GetClient())
-	defer httpmock.DeactivateAndReset()
-
 	tests := []struct {
 		name  string
-		setup func()
+		setup func(testabilities.BitailsServiceFixture)
 	}{
 		{
 			name: "HTTP 500 (internal error)",
-			setup: func() {
-				httpmock.Reset()
-				fixture.Bitails().WillRespondWithInternalFailure()
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().WillRespondWithInternalFailure()
 			},
 		},
 
 		{
 			name: "empty body from /block/latest",
-			setup: func() {
-				httpmock.Reset()
-				fixture.Bitails().WillReturnLatestBlock("", 0)
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().WillReturnLatestBlock("", 0)
 			},
 		},
 		{
 			name: "service unreachable",
-			setup: func() {
-				httpmock.Reset()
-				_ = fixture.Bitails().WillBeUnreachable()
+			setup: func(given testabilities.BitailsServiceFixture) {
+				_ = given.Bitails().WillBeUnreachable()
 			},
 		},
 	}
@@ -150,7 +132,11 @@ func TestBitails_FindChainTipHeader_ErrorCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			tc.setup()
+			given := testabilities.Given(t)
+			service := given.NewBitailsService()
+
+			// and:
+			tc.setup(given)
 
 			// when:
 			got, err := service.FindChainTipHeader(t.Context())
@@ -229,10 +215,6 @@ func TestBitails_PostBEEF(t *testing.T) {
 			given := testabilities.Given(t)
 			bitailsService := given.NewBitailsService()
 
-			client := given.Bitails().HttpClient()
-			httpmock.ActivateNonDefault(client.GetClient())
-			defer httpmock.DeactivateAndReset()
-
 			// and:
 			test.setup(given)
 
@@ -301,10 +283,6 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 			// given:
 			given := testabilities.Given(t)
 			bitailsService := given.NewBitailsService()
-
-			client := given.Bitails().HttpClient()
-			httpmock.ActivateNonDefault(client.GetClient())
-			defer httpmock.DeactivateAndReset()
 
 			// and:
 			test.setup(given)
