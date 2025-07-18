@@ -238,7 +238,7 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 }
 
 func (o *Outputs) SaveOutput(ctx context.Context, output *entity.Output) error {
-	tags := slices.Map(output.Tags, func(tag string) *models.Tag {
+	tags := slices.Map(output.Tags, func(tag string) any {
 		return &models.Tag{
 			Name:   tag,
 			UserID: output.UserID,
@@ -266,7 +266,6 @@ func (o *Outputs) SaveOutput(ctx context.Context, output *entity.Output) error {
 		Purpose:            output.Purpose,
 		Type:               output.Type,
 		SenderIdentityKey:  output.SenderIdentityKey,
-		Tags:               tags,
 	}
 
 	if out.Spendable && out.Change {
@@ -288,9 +287,26 @@ func (o *Outputs) SaveOutput(ctx context.Context, output *entity.Output) error {
 		}
 	}
 
-	err := o.db.WithContext(ctx).Save(&out).Error
+	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Save(&out).Error
+		if err != nil {
+			return fmt.Errorf("failed to save output: %w", err)
+		}
+
+		association := tx.
+			Model(&out).
+			Association("Tags")
+
+		err = association.Replace(tags...)
+		if err != nil {
+			return fmt.Errorf("failed to save current tags for output: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return fmt.Errorf("failed to save output: %w", err)
+		return fmt.Errorf("db transaction failed: %w", err)
 	}
 
 	return nil
@@ -327,7 +343,7 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
 
 func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.OutputTags{}).
+		subQuery := tx.Model(&models.OutputTag{}).
 			Select("output_id").
 			Where("tag_name IN ?", filter.Tags).
 			Where("tag_user_id = ?", filter.UserID)

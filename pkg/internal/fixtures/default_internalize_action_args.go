@@ -27,7 +27,7 @@ func DefaultInternalizeActionArgs(t *testing.T, protocol wdk.InternalizeProtocol
 		outputSpec.PaymentRemittance = &wdk.WalletPayment{
 			DerivationPrefix:  DerivationPrefix,
 			DerivationSuffix:  DerivationSuffix,
-			SenderIdentityKey: UserIdentityKey,
+			SenderIdentityKey: UserIdentityKeyHex,
 		}
 	} else {
 		outputSpec.InsertionRemittance = &wdk.BasketInsertion{
@@ -64,8 +64,8 @@ func DefaultWalletInternalizeActionArgs(t *testing.T, protocol sdk.InternalizePr
 	}
 	if protocol == sdk.InternalizeProtocolWalletPayment {
 		outputSpec.PaymentRemittance = &sdk.Payment{
-			DerivationPrefix:  DerivationPrefix,
-			DerivationSuffix:  DerivationSuffix,
+			DerivationPrefix:  DerivationPrefixBytes,
+			DerivationSuffix:  DerivationSuffixBytes,
 			SenderIdentityKey: UserIdentityKey,
 		}
 	} else {

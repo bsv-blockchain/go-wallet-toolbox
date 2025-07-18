@@ -1,6 +1,8 @@
 package mapping
 
 import (
+	"math"
+
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -24,8 +26,8 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.
 		InputBEEF:   args.InputBEEF,
 		Inputs:      slices.Map(args.Inputs, mapCreateActionInput),
 		Outputs:     slices.Map(args.Outputs, mapCreateActionOutput),
-		LockTime:    args.LockTime,
-		Version:     to.IfThen(args.Version != 0, args.Version).ElseThen(1),
+		LockTime:    to.Value(args.LockTime),
+		Version:     to.ValueOr(args.Version, 1),
 		Labels:      slices.Map(args.Labels, stringToStringUnder300),
 		Options:     options,
 
@@ -63,7 +65,7 @@ func mapCreateActionInput(input sdk.CreateActionInput) wdk.ValidCreateActionInpu
 	return wdk.ValidCreateActionInput{
 		Outpoint:         mapOutpoint(input.Outpoint),
 		InputDescription: primitives.String5to2000Bytes(input.InputDescription),
-		SequenceNumber:   primitives.PositiveInteger(input.SequenceNumber),
+		SequenceNumber:   primitives.PositiveInteger(to.ValueOr(input.SequenceNumber, math.MaxUint32)),
 		// NOTICE: We don't want to send the unlocking script to the storage.
 		UnlockingScript:       nil,
 		UnlockingScriptLength: unlockingScriptLength,
