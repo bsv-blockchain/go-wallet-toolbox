@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBitails_IsValidRootForHeight(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -216,4 +217,31 @@ func (b *Bitails) storeRootInCache(height uint32, root *chainhash.Hash) {
 	b.cacheMu.Lock()
 	defer b.cacheMu.Unlock()
 	b.rootCache[height] = root
+}
+
+func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash, pgKey string, limit int) ([]dto.ScriptHistoryItem, string, error) {
+	url, err := scriptHashHistoryURL(b.url, scriptHash)
+	if err != nil {
+		return nil, "", fmt.Errorf("build URL for script history: %w", err)
+	}
+
+	var dst dto.ScriptHistoryResponse
+	req := b.httpClient.R().SetContext(ctx).
+		SetQueryParam("pgkey", pgKey).
+		SetQueryParam("limit", fmt.Sprintf("%d", limit)).
+		SetResult(&dst)
+
+	res, err := req.Get(url)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get script history: %w", err)
+	}
+
+	if res.StatusCode() != http.StatusOK {
+		return nil, "", fmt.Errorf("unexpected status code %d fetching script history", res.StatusCode())
+	}
+	if dst.Error != "" {
+		return nil, "", fmt.Errorf("error in script history response: %s", dst.Error)
+	}
+
+	return dst.History, dst.PgKey, nil
 }

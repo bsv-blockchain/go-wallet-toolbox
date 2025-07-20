@@ -9,18 +9,16 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/to"
-
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Bitails struct {
@@ -241,5 +239,33 @@ func (b *Bitails) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, err
 		Name:  ServiceName,
 		TxID:  txID,
 		RawTx: raw,
+	}, nil
+}
+
+// GetScriptHashHistory fetches the script hash history for a given script hash.
+func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
+	if err := validateScriptHash(scriptHash); err != nil {
+		return nil, fmt.Errorf("invalid script hash %s: %w", scriptHash, err)
+	}
+
+	const pageLimit = 100 // to match the default in WoC service
+
+	history, _, err := b.fetchScriptHistory(ctx, scriptHash, "", pageLimit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch script hash history: %w", err)
+	}
+
+	items := make([]wdk.ScriptHistoryItem, 0, len(history))
+	for _, item := range history {
+		items = append(items, wdk.ScriptHistoryItem{
+			TxHash: item.TxID,
+			Height: item.Height,
+		})
+	}
+
+	return &wdk.ScriptHistoryResult{
+		Name:       ServiceName,
+		ScriptHash: scriptHash,
+		History:    items,
 	}, nil
 }

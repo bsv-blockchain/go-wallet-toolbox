@@ -2,6 +2,7 @@ package bitails
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"path"
@@ -59,6 +60,20 @@ func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
 	}, nil
 }
 
+func validateScriptHash(scriptHash string) error {
+	if scriptHash == "" {
+		return fmt.Errorf("scripthash cannot be empty")
+	}
+	if len(scriptHash)%2 != 0 {
+		return fmt.Errorf("invalid scripthash length: must be even")
+	}
+	_, err := hex.DecodeString(scriptHash)
+	if err != nil {
+		return fmt.Errorf("invalid scripthash format: %w", err)
+	}
+	return nil
+}
+
 // buildURL joins baseURL with any number of path segments, preserving the
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
@@ -103,4 +118,9 @@ func latestBlockURL(baseURL string) (string, error) {
 // /download/tx/{txid}/hex
 func rawTxURL(baseURL, txID string) (string, error) {
 	return buildURL(baseURL, "download", "tx", txID, "hex")
+}
+
+// /scripthash/{scripthash}/history
+func scriptHashHistoryURL(baseURL, scriptHash string) (string, error) {
+	return buildURL(baseURL, "scripthash", scriptHash, "history")
 }
