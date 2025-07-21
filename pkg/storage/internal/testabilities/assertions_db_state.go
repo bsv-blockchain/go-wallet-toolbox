@@ -321,7 +321,7 @@ func (d *outputsListAssertion) WithTxIDCount(expected int, txID uint) OutputsLis
 		equal := txIDStr == id
 		return equal
 	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID %d, but got %d", expected, count)
 	return d
 }
 
@@ -331,7 +331,7 @@ func (d *outputsListAssertion) WithCountHavingOutpoint(expected int) OutputsList
 		err := output.Outpoint.Validate()
 		return err == nil
 	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID %d, but got %d", expected, count)
 	return d
 }
 

@@ -81,7 +81,7 @@ func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
 	}
 
 	if unAbortableStatuses[txStatus] {
-		return fmt.Errorf("txStatusInvalid: action with status %s cannot be aborted", txStatus)
+		return fmt.Errorf("txNotAbortable: action with status %s cannot be aborted", txStatus)
 	}
 
 	return nil
