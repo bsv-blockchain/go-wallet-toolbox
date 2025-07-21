@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"iter"
 	"log/slog"
 	"time"
@@ -99,8 +100,13 @@ func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		resultsForTxID = s.getTxIDResults(ctx, txIDs)
 	}
 
+	results := seq.Collect(resultsForTxID)
+	for i := range results {
+		withBroadcastNote(&results[i], beefHex, txIDs)
+	}
+
 	return &wdk.PostedBEEF{
-		TxIDResults: seq.Collect(resultsForTxID),
+		TxIDResults: results,
 	}, nil
 }
 
@@ -123,6 +129,21 @@ func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[w
 	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
 
 	return seq.Map(txsData, toResultForPostTxID)
+}
+
+func withBroadcastNote(result *wdk.PostedTxID, beefHex string, txIDs []string) {
+	switch result.Result {
+	case wdk.PostedTxIDResultSuccess, wdk.PostedTxIDResultAlreadyKnown:
+		result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, txIDs).Note().AsList()
+	case wdk.PostedTxIDResultError, wdk.PostedTxIDResultDoubleSpend, wdk.PostedTxIDResultMissingInputs:
+		fallthrough
+	default:
+		msg := fmt.Sprintf("broadcasted beef with problematic result %s", result.Result)
+		if result.Error != nil {
+			msg += fmt.Sprintf(" and error: %v", result.Error)
+		}
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Hex(beefHex), txIDs, msg).Note().AsList()
+	}
 }
 
 func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {

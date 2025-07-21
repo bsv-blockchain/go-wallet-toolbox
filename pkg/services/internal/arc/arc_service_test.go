@@ -41,16 +41,12 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
+		require.Len(t, res.TxIDResults, 1)
 
-		require.ElementsMatch(t,
-			res.TxIDResults,
-			[]wdk.PostedTxID{
-				{
-					Result: wdk.PostedTxIDResultSuccess,
-					TxID:   tx.TxID().String(),
-					Data:   given.ARC().TxInfoJSON(txID),
-				},
-			})
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
+		assert.Equal(t, txID, res.TxIDResults[0].TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.TxIDResults[0].Data)
+		assert.Len(t, res.TxIDResults[0].Notes, 1)
 	})
 
 	t.Run("broadcast single transaction", func(t *testing.T) {
@@ -77,16 +73,12 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
+		require.Len(t, res.TxIDResults, 1)
 
-		require.ElementsMatch(t,
-			res.TxIDResults,
-			[]wdk.PostedTxID{
-				{
-					Result: wdk.PostedTxIDResultSuccess,
-					TxID:   tx.TxID().String(),
-					Data:   given.ARC().TxInfoJSON(txID),
-				},
-			})
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
+		assert.Equal(t, txID, res.TxIDResults[0].TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.TxIDResults[0].Data)
+		assert.Len(t, res.TxIDResults[0].Notes, 1)
 	})
 
 	t.Run("broadcast multiple txids", func(t *testing.T) {
@@ -117,21 +109,19 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
+		require.Len(t, res.TxIDResults, 2)
 
-		require.ElementsMatch(t,
-			res.TxIDResults,
-			[]wdk.PostedTxID{
-				{
-					Result: wdk.PostedTxIDResultSuccess,
-					TxID:   parentTx.TxID().String(),
-					Data:   given.ARC().TxInfoJSON(parentTxID),
-				},
-				{
-					Result: wdk.PostedTxIDResultSuccess,
-					TxID:   childTxID,
-					Data:   given.ARC().TxInfoJSON(childTxID),
-				},
-			})
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
+		assert.Equal(t, childTxID, res.TxIDResults[0].TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(childTxID), res.TxIDResults[0].Data)
+		assert.Len(t, res.TxIDResults[0].Notes, 1)
+
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[1].Result)
+		assert.Equal(t, parentTxID, res.TxIDResults[1].TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(parentTxID), res.TxIDResults[1].Data)
+		assert.Len(t, res.TxIDResults[1].Notes, 1)
+
+
 	})
 
 	t.Run("return success if broadcast finished with OK without body, but we can query the tx", func(t *testing.T) {
@@ -159,16 +149,12 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
+		require.Len(t, res.TxIDResults, 1)
 
-		require.ElementsMatch(t,
-			res.TxIDResults,
-			[]wdk.PostedTxID{
-				{
-					Result: wdk.PostedTxIDResultSuccess,
-					TxID:   tx.TxID().String(),
-					Data:   given.ARC().TxInfoJSON(txID),
-				},
-			})
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
+		assert.Equal(t, txID, res.TxIDResults[0].TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.TxIDResults[0].Data)
+		assert.Len(t, res.TxIDResults[0].Notes, 1)
 	})
 
 	invalidBEEFTestCases := map[string]struct {
