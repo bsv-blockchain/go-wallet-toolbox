@@ -63,8 +63,17 @@ func TestProcessActionHappyPath(t *testing.T) {
 		HasRawTx().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(2).
+				Count(5).
 				Note("processAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, map[string]any{
+					"name": "ARC",
+				}).
+				Note("postBeefError", nil, map[string]any{
+					"name": "WhatsOnChain",
+				}).
+				Note("postBeefError", nil, map[string]any{
+					"name": "Bitails",
+				}).
 				Note("aggregateResults", nil, map[string]any{
 					"aggStatus":         "success",
 					"doubleSpendCount":  0,

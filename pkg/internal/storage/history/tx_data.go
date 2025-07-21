@@ -4,50 +4,42 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
-// TxData encapsulates transaction data.
-// It works as a union type to handle different representations of transaction data
 type TxData struct {
-	beefObj   *transaction.Beef
-	hex   *string
-	bytes []byte
+	hex *string
 }
 
 func BeefObj(beef *transaction.Beef) TxData {
+	bytes, err := beef.Bytes()
+	var content string
+	if err != nil {
+		content = fmt.Sprintf("<couldn't convert beef object to beef bytes: %v>", err)
+	} else {
+		content = hex.EncodeToString(bytes)
+	}
+
 	return TxData{
-		beefObj: beef,
+		hex: &content,
 	}
 }
 
-func Hex(beefHex string) TxData {
+func Hex(content string) TxData {
 	return TxData{
-		hex: &beefHex,
+		hex: &content,
 	}
 }
 
-func Bytes(beefBytes []byte) TxData {
+func Bytes(bytes []byte) TxData {
 	return TxData{
-		bytes: beefBytes,
+		hex: to.Ptr(hex.EncodeToString(bytes)),
 	}
 }
 
 func (b *TxData) toHex() string {
-	if b.hex != nil {
-		return *b.hex
+	if b.hex == nil {
+		return "<empty hex>"
 	}
-
-	if b.beefObj != nil {
-		bytes, err := b.beefObj.Bytes()
-		if err != nil {
-			return fmt.Sprintf("<couldn't convert beef object to beef bytes: %v>", err)
-		}
-		return hex.EncodeToString(bytes)
-	}
-
-	if len(b.bytes) > 0 {
-		return hex.EncodeToString(b.bytes)
-	}
-
-	return "<empty tx data container>"
+	return *b.hex
 }

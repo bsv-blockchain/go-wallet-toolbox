@@ -1,12 +1,13 @@
 package servicequeue
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
-	"runtime/debug"
+	"slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
+	"runtime/debug"
 )
 
 var ErrEmptyResult = fmt.Errorf("service returns an empty result")
@@ -199,7 +201,20 @@ func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, se
 		}
 	})
 
-	return seq.Collect(results), nil
+	return sortedResults[S, R](services, results), nil
+}
+
+// sortedResults sorts the results based on the initial order of services.
+func sortedResults[S serv, R any](services []S, results iter.Seq[*NamedResult[R]]) []*NamedResult[R] {
+	initialOrderLookup := make(map[string]int, len(services))
+	for i, service := range services {
+		initialOrderLookup[service.Name()] = i
+	}
+	sorted := seq.Collect(results)
+	slices.SortFunc(sorted, func(a, b *NamedResult[R]) int {
+		return cmp.Compare(initialOrderLookup[a.Name()], initialOrderLookup[b.Name()])
+	})
+	return sorted
 }
 
 func processOneByOne[S serv, R any](logger *slog.Logger, services []S, callService func(S) (R, error)) (R, error) {

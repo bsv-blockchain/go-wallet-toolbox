@@ -68,6 +68,12 @@ func NewBuilder() EventTypesSelector {
 	}
 }
 
+func NewBuilderFromNote(note *wdk.HistoryNote) Builder {
+	return &builder{
+		event: *note,
+	}
+}
+
 type builder struct {
 	event wdk.HistoryNote
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -242,8 +243,6 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	// TODO: Store notes from PostBEEF result
-
 	aggregated := results.Aggregated([]string{txID})
 	aggBroadcastResult, ok := aggregated[txID]
 	if !ok {
@@ -255,7 +254,9 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, err
 	}
 
-	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, p.noteForAggregation(newReqStatus, aggBroadcastResult))
+	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, results.ServiceErrors(), beef, []string{txID})
+
+	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, notes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
 	}
@@ -263,15 +264,45 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 	return &result, nil
 }
 
-func (p *process) noteForAggregation(provenTxReqStatus wdk.ProvenTxReqStatus, aggBroadcastResult *wdk.AggregatedPostedTxID) history.Builder {
-	return history.NewBuilder().AggregateResults(history.AggregatedBroadcastResult{
+func (p *process) notesForPostBEEF(
+	provenTxReqStatus wdk.ProvenTxReqStatus,
+	aggBroadcastResult *wdk.AggregatedPostedTxID,
+	serviceErrors map[string]error,
+	beef *transaction.Beef,
+	txIDs []string,
+) []history.Builder {
+	notesCount := 0
+	for _, result := range aggBroadcastResult.TxIDResults {
+		notesCount += len(result.Notes)
+	}
+
+	records := make([]history.Builder, 0, notesCount+len(serviceErrors)+1)
+
+	if len(serviceErrors) > 0 {
+		txData := history.BeefObj(beef)
+
+		for _, serviceName := range slices.Sorted(maps.Keys(serviceErrors)) {
+			err := serviceErrors[serviceName]
+			records = append(records, history.NewBuilder().PostBeefError(serviceName, txData, txIDs, err.Error()))
+		}
+	}
+
+	for _, result := range aggBroadcastResult.TxIDResults {
+		for _, note := range result.Notes {
+			records = append(records, history.NewBuilderFromNote(note))
+		}
+	}
+
+	records = append(records, history.NewBuilder().AggregateResults(history.AggregatedBroadcastResult{
 		StatusNow:         provenTxReqStatus,
 		AggStatus:         aggBroadcastResult.Status,
 		SuccessCount:      aggBroadcastResult.SuccessCount,
 		DoubleSpendCount:  aggBroadcastResult.DoubleSpendCount,
 		StatusErrorCount:  aggBroadcastResult.StatusErrorCount,
 		ServiceErrorCount: aggBroadcastResult.ServiceErrorCount,
-	})
+	}))
+
+	return records
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
