@@ -206,7 +206,6 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 	}
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
-
 }
 
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
@@ -239,6 +238,10 @@ func (txs *Transactions) FindUniqueTransactionByReference(ctx context.Context, u
 		}
 
 		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
+	}
+
+	if len(transaction) == 0 {
+		return nil, nil
 	}
 
 	if len(transaction) != 1 {
@@ -334,113 +337,135 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusForTxID(
+func (txs *Transactions) UpdateTransactionStatusByTxID(
 	ctx context.Context,
 	txID string,
-	txStatus wdk.TxStatus,
+	newStatus wdk.TxStatus,
 	provenTxReqStatus wdk.ProvenTxReqStatus,
 	txNote history.Builder,
 ) error {
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		if txStatus == wdk.TxStatusFailed {
-			err = txs.restoreInputsOnFailureByTxID(tx, txID)
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+
+		if newStatus == wdk.TxStatusFailed {
+
+			id, err := txs.getTransactionIDByTxID(tx, txID)
 			if err != nil {
-				return fmt.Errorf("failed to restore inputs on transaction failure: %w", err)
+				return fmt.Errorf("failed to get transaction ID by txID %s: %w", txID, err)
 			}
+
+			if err := txs.releaseReservedUTXOs(tx, *id); err != nil {
+				return fmt.Errorf("failed to release reserved UTXOs on transaction failure: %w", err)
+			}
+
 		}
 
-		err = updateTransactionStatus(tx, txID, txStatus)
-		if err != nil {
-			return err
+		if err := txs.updateTransactionStatusByTxID(tx, txID, newStatus); err != nil {
+			return fmt.Errorf("failed to update transaction status: %w", err)
 		}
 
 		return updateKnownTxStatus(tx, txID, provenTxReqStatus, txNote)
 	})
+
 	if err != nil {
-		return fmt.Errorf("failed to update transaction: %w", err)
+		return fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
 	}
 	return nil
 }
 
-func (txs *Transactions) restoreInputsOnFailureByTxID(tx *gorm.DB, txID string) error {
+func (txs *Transactions) UpdateTransactionStatusByID(
+	ctx context.Context,
+	transactionID uint,
+	newStatus wdk.TxStatus,
+	provenTxReqStatus wdk.ProvenTxReqStatus,
+	historyNote string,
+	historyAttrs map[string]any,
+) error {
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if newStatus == wdk.TxStatusFailed {
+			if err := txs.releaseReservedUTXOs(tx, transactionID); err != nil {
+				return fmt.Errorf("failed to release reserved UTXOs on transaction failure: %w", err)
+			}
+		}
+
+		if err := txs.updateTransactionStatusByInternalID(tx, transactionID, newStatus); err != nil {
+			return fmt.Errorf("failed to update transaction status: %w", err)
+		}
+
+		if err := txs.cleanupTransactionOutputs(tx, transactionID); err != nil {
+			return fmt.Errorf("failed to cleanup transaction outputs: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to update transaction status for ID %d: %w", transactionID, err)
+	}
+	return nil
+}
+
+func (txs *Transactions) getTransactionIDByTxID(tx *gorm.DB, txID string) (*uint, error) {
 	var transaction models.Transaction
 	err := tx.Model(&models.Transaction{}).
 		Select("id").
 		Where("tx_id = ?", txID).
 		First(&transaction).Error
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+			return nil, fmt.Errorf("transaction with txID %s not found", txID)
 		}
-		return fmt.Errorf("failed to find transaction by txID %s: %w", txID, err)
+		return nil, fmt.Errorf("failed to find transaction by txID %s: %w", txID, err)
 	}
 
-	return txs.restoreInputsOnFailure(tx, transaction.ID)
+	return &transaction.ID, nil
 }
 
-func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
-	return tx.Model(models.Transaction{}).
+func (txs *Transactions) updateTransactionStatusByTxID(tx *gorm.DB, txID string, newStatus wdk.TxStatus) error {
+	return tx.Model(&models.Transaction{}).
 		Where("tx_id = ?", txID).
 		Updates(map[string]any{
-			"status": txStatus,
+			"status": newStatus,
 		}).Error
 }
 
-func (txs *Transactions) UpdateTransactionStatusForID(
-	ctx context.Context,
-	transactionID uint,
-	txStatus wdk.TxStatus,
-	provenTxReqStatus wdk.ProvenTxReqStatus,
-	historyNote string,
-	historyAttrs map[string]any,
-) error {
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		if txStatus == wdk.TxStatusFailed {
-			err = txs.restoreInputsOnFailure(tx, transactionID)
-			if err != nil {
-				return fmt.Errorf("failed to restore inputs on transaction failure: %w", err)
-			}
-		}
-
-		err = updateTransactionStatusByID(tx, transactionID, txStatus)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update transaction: %w", err)
-	}
-	return nil
-}
-
-func updateTransactionStatusByID(tx *gorm.DB, transactionID uint, txStatus wdk.TxStatus) error {
-	return tx.Model(models.Transaction{}).
+func (txs *Transactions) updateTransactionStatusByInternalID(tx *gorm.DB, transactionID uint, newStatus wdk.TxStatus) error {
+	return tx.Model(&models.Transaction{}).
 		Where("id = ?", transactionID).
 		Updates(map[string]any{
-			"status": txStatus,
+			"status": newStatus,
 		}).Error
 }
 
-func (txs *Transactions) restoreInputsOnFailure(tx *gorm.DB, transactionID uint) error {
-	err := tx.Model(&models.Output{}).
-		Where("spent_by = ?", transactionID).
-		Updates(map[string]interface{}{
-			"spendable": true,
-			"spent_by":  nil,
-		}).Error
-
-	if err != nil {
-		return fmt.Errorf("failed to restore spendability of inputs: %w", err)
+func (txs *Transactions) cleanupTransactionOutputs(tx *gorm.DB, transactionID uint) error {
+	if err := txs.deleteOutputsByTransactionID(tx, transactionID); err != nil {
+		return fmt.Errorf("failed to delete outputs: %w", err)
 	}
 
-	err = tx.Delete(&models.UserUTXO{}, "reserved_by_id = ?", transactionID).Error
-	if err != nil {
-		return fmt.Errorf("failed to clean up reserved UTXOs: %w", err)
+	if err := txs.releaseOutputsReservedByTransaction(tx, transactionID); err != nil {
+		return fmt.Errorf("failed to release reserved outputs: %w", err)
 	}
 
 	return nil
+}
+
+func (txs *Transactions) deleteOutputsByTransactionID(tx *gorm.DB, transactionID uint) error {
+	return tx.Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
+}
+
+func (txs *Transactions) releaseOutputsReservedByTransaction(tx *gorm.DB, transactionID uint) error {
+	return tx.Model(&models.Output{}).
+		Where("spent_by = ?", transactionID).
+		Updates(map[string]any{
+			"spent_by":  nil,
+			"spendable": true,
+		}).Error
+}
+
+func (txs *Transactions) releaseReservedUTXOs(tx *gorm.DB, transactionID uint) error {
+	return tx.Model(&models.UserUTXO{}).
+		Where("reserved_by_id = ?", transactionID).
+		Update("reserved_by_id", nil).Error
 }
 
 func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {

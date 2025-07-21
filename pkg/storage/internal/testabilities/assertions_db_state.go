@@ -56,6 +56,7 @@ type UserTransactionAssertion interface {
 
 type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
+	WithTxIDCount(expected int, txID uint) OutputsListAssertion
 	WithCountHavingOutpoint(expected int) OutputsListAssertion
 	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
 }
@@ -308,6 +309,19 @@ type outputsListAssertion struct {
 func (d *outputsListAssertion) WithCount(expected int) OutputsListAssertion {
 	d.Helper()
 	assert.Len(d, d.outputs, expected, "Expected outputs list to have %d items, but got %d", expected, len(d.outputs))
+	return d
+}
+
+func (d *outputsListAssertion) WithTxIDCount(expected int, txID uint) OutputsListAssertion {
+	d.Helper()
+	txIDStr := to.StringFromInteger(txID)
+	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
+		id := output.Outpoint.MustGetTxID()
+
+		equal := txIDStr == id
+		return equal
+	}))
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
 	return d
 }
 

@@ -51,13 +51,13 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 	}
 
 	if txEntity.TxID != nil {
-		err = a.transactionsRepo.UpdateTransactionStatusForTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
+		err = a.transactionsRepo.UpdateTransactionStatusByTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update known transaction status: %w", err)
 		}
 	}
 
-	err = a.transactionsRepo.UpdateTransactionStatusForID(ctx, txEntity.ID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
+	err = a.transactionsRepo.UpdateTransactionStatusByID(ctx, txEntity.ID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update transaction status: %w", err)
 	}
@@ -69,7 +69,7 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 
 func validateTxForAbort(txEntity *entity.Transaction) error {
 	if !txEntity.IsOutgoing {
-		return fmt.Errorf("txStatusInvalid: reference must be an outgoing action.")
+		return fmt.Errorf("txStatusInvalid: must be an outgoing transaction.")
 	}
 
 	return validateTxStatusForAbort(txEntity.Status)

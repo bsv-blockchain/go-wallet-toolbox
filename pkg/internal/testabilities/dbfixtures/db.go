@@ -31,7 +31,8 @@ func DBConfigForTests() defs.Database {
 		}
 	default:
 		{
-			dbConfig.SQLite.ConnectionString = "file:storage.test.sqlite?mode=memory"
+			//dbConfig.SQLite.ConnectionString = "file:storage.test.sqlite?mode=memory"
+			dbConfig.SQLite.ConnectionString = "file:storage.test.sqlite" //?mode=memory"
 		}
 	}
 	return dbConfig
