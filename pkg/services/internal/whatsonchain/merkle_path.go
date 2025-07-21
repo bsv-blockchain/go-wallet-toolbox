@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -32,7 +33,10 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 	}
 	if proof == nil {
 		// Proof not found
-		return &wdk.MerklePathResult{Name: ServiceName}, nil
+		return &wdk.MerklePathResult{
+			Name:  ServiceName,
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
+		}, nil
 	}
 
 	header, err := woc.hashToHeader(ctx, proof.Target)
@@ -57,6 +61,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 		Name:        ServiceName,
 		MerklePath:  merklePath,
 		BlockHeader: header,
+		Notes:       history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }
 
