@@ -74,5 +74,5 @@ func TestMerklePath_Success(t *testing.T) {
 		MerkleRoot: merkleRoot,
 		Hash:       tst.TestTargetHash,
 	}, *res.BlockHeader)
-	assert.Len(t, res.Notes, 0)
+	assert.Len(t, res.Notes, 1)
 }
