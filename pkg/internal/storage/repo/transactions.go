@@ -337,7 +337,7 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusByTxID(
+func (txs *Transactions) UpdateTransactionStatusForTxID(
 	ctx context.Context,
 	txID string,
 	newStatus wdk.TxStatus,
@@ -377,8 +377,6 @@ func (txs *Transactions) UpdateTransactionStatusByID(
 	transactionID uint,
 	newStatus wdk.TxStatus,
 	provenTxReqStatus wdk.ProvenTxReqStatus,
-	historyNote string,
-	historyAttrs map[string]any,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if newStatus == wdk.TxStatusFailed {

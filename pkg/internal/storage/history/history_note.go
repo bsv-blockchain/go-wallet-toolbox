@@ -16,6 +16,8 @@ const (
 	InternalizeActionHistoryNote = "internalizeAction"
 	ProcessActionHistoryNote     = "processAction"
 	AggregateResultsHistoryNote  = "aggregateResults"
+	AbortActionHistoryNote       = "abortAction"
+	ActionHistoryNote            = "action"
 
 	GetMerklePathSuccess  = "getMerklePathSuccess"
 	GetMerklePathNotFound = "getMerklePathNotFound"
@@ -27,12 +29,16 @@ const (
 const (
 	statusNowAttr   = "status_now"
 	serviceNameAttr = "name"
+	abortActionAttr = "abort_action"
+	actionAttr      = "action"
+	referenceAttr   = "reference"
 )
 
 type EventTypesSelector interface {
 	InternalizeAction(userID int) Builder
 	ProcessAction(userID int) Builder
 	AggregateResults(result AggregatedBroadcastResult) Builder
+	AbortAction(reference string) Builder
 
 	GetMerklePathSuccess(serviceName string) Builder
 	GetMerklePathNotFound(serviceName string) Builder
@@ -110,6 +116,12 @@ func (b *builder) PostBeefError(serviceName string, beef []byte, txIDs []string,
 
 func (b *builder) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder {
 	return b.postBeefBase(PostBeefSuccess, serviceName, beef, txIDs)
+}
+
+func (b *builder) AbortAction(reference string) Builder {
+	return b.WithWhat(AbortActionHistoryNote).
+		WithAttribute(actionAttr, abortActionAttr).
+		WithAttribute(referenceAttr, reference)
 }
 
 func (b *builder) WithWhat(what string) Builder {

@@ -506,6 +506,7 @@ func (p *Provider) KnownTxEntity() crud.KnownTx {
 	return crud.NewKnownTx(p.repo.KnownTx)
 }
 
+// AbortAction aborts an action by its reference for the authenticated user.
 func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
 	if auth.UserID == nil {
 		return nil, ErrAuthorization

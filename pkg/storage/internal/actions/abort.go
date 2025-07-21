@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -44,20 +45,16 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, err
 	}
 
-	historyNote := "abortAction"
-	historyAttrs := map[string]any{
-		"action":    "abort_action",
-		"reference": *args.Reference,
-	}
+	history := history.NewBuilder().AbortAction(*args.Reference)
 
 	if txEntity.TxID != nil {
-		err = a.transactionsRepo.UpdateTransactionStatusByTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
+		err = a.transactionsRepo.UpdateTransactionStatusForTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, history)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update known transaction status: %w", err)
 		}
 	}
 
-	err = a.transactionsRepo.UpdateTransactionStatusByID(ctx, txEntity.ID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote, historyAttrs)
+	err = a.transactionsRepo.UpdateTransactionStatusByID(ctx, txEntity.ID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update transaction status: %w", err)
 	}
