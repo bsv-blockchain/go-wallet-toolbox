@@ -1,8 +1,8 @@
 alice:
-    identity_key: 020c0ca23c75f7312bad0c5d81bff858bdcf468d3ad69a60b46ae90cafef557b03
-    private_key: 5a39d6a914e96be64873f7b954efa926a7d79f648810fad2e2b3aa11d31f9f69
+    identity_key: 034b3186f60628ff932204984fdaa56f0be01b9920915e0ab4501258ed02141eb7
+    private_key: Kyhq2MNYZJ5tQTU9dmYMf4ZjpypB4pXEj8crgay629f8ojqfb5mQ
 bob:
-    identity_key: 03e14a6f57e27ed5399307641be23ec497f19df99ff1ce7ef04ec82200a6f90b2b
-    private_key: ca9e9dcb29fd7c7cf5ecebadd1a0dab029e571a570021e7ec699eb90acee333d
+    identity_key: 02cf20f2b3446651e7e7698c9f702c803908532dc9e221f8d5aa88e6ae2c81b304
+    private_key: L1mZUr5f9cSLdBG1TXxciLB3UCB9pkPEU8Xy6YkDd2EDZsv77gnY
 network: test
 server_url: http://localhost:8100
