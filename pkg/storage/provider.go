@@ -459,21 +459,6 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 	return result, nil
 }
 
-// FindKnownTx retrieves a known transaction by txID
-// NOTE: It returns nil if the transaction is not found
-func (p *Provider) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
-	if err := primitives.TXIDHexString(txID).Validate(); err != nil {
-		return nil, fmt.Errorf("invalid transaction ID: %w", err)
-	}
-
-	knownTx, err := p.repo.FindKnownTx(ctx, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find known tx: %w", err)
-	}
-
-	return knownTx, nil
-}
-
 // FindUserTransactionByReference retrieves a user transaction by userID and its reference.
 // NOTE: It returns nil if the transaction is not found.
 func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
@@ -488,4 +473,9 @@ func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID in
 // CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.
 func (p *Provider) CommissionEntity() crud.Commission {
 	return crud.NewCommission(p.repo.Commission)
+}
+
+// KnownTxEntity returns an accessor to perform read operations on known transactions in the underlying repository.
+func (p *Provider) KnownTxEntity() crud.KnownTx {
+	return crud.NewKnownTx(p.repo.KnownTx)
 }

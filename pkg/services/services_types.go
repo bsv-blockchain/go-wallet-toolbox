@@ -23,7 +23,7 @@ type MerklePathResult struct {
 	// one or more orphaned blocks
 	MerklePath *transaction.MerklePath
 	Header     *wdk.ChainBlockHeader
-	Notes      []wdk.ReqHistoryNote
+	Notes      wdk.HistoryNotes
 }
 
 // UtxoStatusDetails represents details about occurrences of an output script as a UTXO

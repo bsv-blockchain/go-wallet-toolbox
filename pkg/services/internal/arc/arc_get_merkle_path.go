@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -26,7 +27,8 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 
 	if is.BlankString(txInfo.MerklePath) {
 		return &wdk.MerklePathResult{
-			Name: ServiceName,
+			Name:  ServiceName,
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
 		}, nil
 	}
 
@@ -56,5 +58,6 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 			Hash:       txInfo.BlockHash,
 			MerkleRoot: merkleRoot,
 		},
+		Notes: history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
 	}, nil
 }
