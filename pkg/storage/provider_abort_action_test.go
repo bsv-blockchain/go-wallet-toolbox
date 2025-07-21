@@ -13,7 +13,7 @@ import (
 
 const NumberOfDesiredUTXOs = 32
 
-func TestAbortAction_Success(t *testing.T) {
+func TestAbortActionSuccess(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.GivenCustomStorage(t, fixtures.StorageServerPrivKey, "dbstorage_test")
 	defer cleanup()
@@ -49,7 +49,7 @@ func TestAbortAction_Success(t *testing.T) {
 	thenDBState.AllOutputs(testusers.Alice).WithCount(1)
 }
 
-func TestAbortAction_TransactionNotOutgoing(t *testing.T) {
+func TestAbortActionTransactionNotOutgoing(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.GivenCustomStorage(t, fixtures.StorageServerPrivKey, "dbstorage_test")
 
@@ -77,7 +77,7 @@ func TestAbortAction_TransactionNotOutgoing(t *testing.T) {
 	testabilities.ThenDBState(t, activeStorage).AllOutputs(testusers.Alice).WithCount(1 + NumberOfDesiredUTXOs)
 }
 
-func TestAbortAction_InvalidUserID(t *testing.T) {
+func TestAbortActionInvalidUserID(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -96,7 +96,7 @@ func TestAbortAction_InvalidUserID(t *testing.T) {
 	require.Contains(t, err.Error(), "access is denied due to an authorization error")
 }
 
-func TestAbortAction_TransactionNotFound(t *testing.T) {
+func TestAbortActionTransactionNotFound(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -119,7 +119,7 @@ func TestAbortAction_TransactionNotFound(t *testing.T) {
 	require.Contains(t, err.Error(), "non-existent-reference")
 }
 
-func TestAbortAction_TransactionNotFoundByTxID(t *testing.T) {
+func TestAbortActionTransactionNotFoundByTxID(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -140,7 +140,7 @@ func TestAbortAction_TransactionNotFoundByTxID(t *testing.T) {
 	require.Contains(t, err.Error(), "found 0")
 }
 
-func TestAbortAction_TransactionStatusFailed(t *testing.T) {
+func TestAbortActionTransactionStatusFailed(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -179,7 +179,7 @@ func TestAbortAction_TransactionStatusFailed(t *testing.T) {
 	require.Contains(t, err.Error(), "action with status failed cannot be aborted")
 }
 
-func TestAbortAction_TransactionStatusUnproven(t *testing.T) {
+func TestAbortActionTransactionStatusUnproven(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -203,7 +203,7 @@ func TestAbortAction_TransactionStatusUnproven(t *testing.T) {
 	require.Contains(t, err.Error(), "action with status unproven cannot be aborted")
 }
 
-func TestAbortAction_DifferentUserTransaction(t *testing.T) {
+func TestAbortActionDifferentUserTransaction(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -233,7 +233,7 @@ func TestAbortAction_DifferentUserTransaction(t *testing.T) {
 	require.Contains(t, err.Error(), "found 0")
 }
 
-func TestAbortAction_AbortableStatuses(t *testing.T) {
+func TestAbortActionAbortableStatuses(t *testing.T) {
 	t.Run("unsigned_transaction", func(t *testing.T) {
 		// given:
 		given, cleanup := testabilities.Given(t)
