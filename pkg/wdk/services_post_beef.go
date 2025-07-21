@@ -20,6 +20,7 @@ func (it PostBeefResult) Aggregated(txids []string) AggregatedPostBEEF {
 	return newAggregatedPostBEEF(it, txids)
 }
 
+// ServiceErrors returns a map containing service names and their corresponding errors for failed PostBEEF results.
 func (it PostBeefResult) ServiceErrors() map[string]error {
 	errs := make(map[string]error)
 	for _, result := range it {

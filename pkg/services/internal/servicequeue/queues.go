@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -15,7 +16,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
-	"runtime/debug"
 )
 
 var ErrEmptyResult = fmt.Errorf("service returns an empty result")

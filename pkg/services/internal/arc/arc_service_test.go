@@ -121,7 +121,6 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		assert.Equal(t, given.ARC().TxInfoJSON(parentTxID), res.TxIDResults[1].Data)
 		assert.Len(t, res.TxIDResults[1].Notes, 1)
 
-
 	})
 
 	t.Run("return success if broadcast finished with OK without body, but we can query the tx", func(t *testing.T) {

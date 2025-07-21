@@ -2,11 +2,11 @@ package repo
 
 import (
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
 )
 
