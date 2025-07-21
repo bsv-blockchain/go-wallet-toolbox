@@ -3,6 +3,7 @@ package example_setup
 import (
 	"fmt"
 	"os"
+	"encoding/hex"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -30,7 +31,7 @@ func generateUserConfig() (UserConfig, error) {
 
 	return UserConfig{
 		IdentityKey: privKey.PubKey().ToDERHex(),
-		PrivateKey:  privKey.Wif(),
+		PrivateKey:  hex.EncodeToString(privKey.Serialize()),
 	}, nil
 }
 
