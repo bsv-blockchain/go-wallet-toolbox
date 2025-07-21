@@ -25,9 +25,7 @@ type TipStateResponse struct {
 	Height    uint        `json:"height"`
 }
 
-func (t *TipStateResponse) IsZero() bool {
-	return *t == TipStateResponse{} || t.Height == 0
-}
+func (t *TipStateResponse) IsZero() bool { return *t == TipStateResponse{} }
 
 func (t *TipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
 	return &wdk.ChainBlockHeader{

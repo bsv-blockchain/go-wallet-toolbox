@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -64,25 +65,29 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 		MerkleRoot:  root.String(),
 	}}
 
-	var resp []dto.MerkleRootVerifyResp
-	_, err = b.doPOST(ctx, url, req, &resp)
+	var resp dto.MerkleRootVerifyResp
+	res, err := b.httpClient.R().
+		SetContext(ctx).
+		SetBody(req).
+		SetResult(&resp).
+		AddRetryCondition(httpx.RetryOnErrOr5xx).
+		Post(url)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%s: POST %s failed: %w", ServiceName, url, err)
 	}
-
-	if len(resp) != 1 {
-		return false, fmt.Errorf("verify response has %d elements, want 1", len(resp))
+	if res.StatusCode() != http.StatusOK {
+		return false, fmt.Errorf("%s: unexpected HTTP %d for POST %s", ServiceName, res.StatusCode(), url)
 	}
 
 	switch {
-	case resp[0].ConfirmationState.IsConfirmed():
+	case resp.ConfirmationState.IsConfirmed():
 		return true, nil
-	case resp[0].ConfirmationState.IsInvalid():
+	case resp.ConfirmationState.IsInvalid():
 		return false, nil
-	case resp[0].ConfirmationState.IsUnableToVerify():
-		return false, fmt.Errorf("unable to verify merkle root (state=%q)", resp[0].ConfirmationState)
+	case resp.ConfirmationState.IsUnableToVerify():
+		return false, fmt.Errorf("unable to verify merkle root (state=%q)", resp.ConfirmationState)
 	default:
-		return false, fmt.Errorf("unexpected confirmation state %q", resp[0].ConfirmationState)
+		return false, fmt.Errorf("unexpected confirmation state %q", resp.ConfirmationState)
 	}
 }
 
@@ -91,7 +96,7 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error) {
 	tip, err := b.FindChainTipHeader(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to find chain tip header: %w", err)
 	}
 
 	height, err := to.UInt32(tip.Height)
@@ -108,9 +113,15 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 		return nil, fmt.Errorf("error building URL: %w", err)
 	}
 
-	_, err = b.doGET(ctx, url, &block)
+	res, err := b.httpClient.R().
+		SetContext(ctx).
+		SetResult(&block).
+		Get(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: GET %s: %w", ServiceName, url, err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("%s: unexpected HTTP %d for GET %s", ServiceName, res.StatusCode(), url)
 	}
 
 	if block.IsZero() {
