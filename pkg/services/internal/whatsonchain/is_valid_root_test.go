@@ -71,9 +71,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
 			given := tst.Given(t)
-			if tc.setup != nil {
-				tc.setup(given)
-			}
+			tc.setup(given)
 			svc := given.NewWoCService()
 			tr := given.WhatsOnChain().Transport()
 

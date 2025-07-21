@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	btTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	wocTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/require"
@@ -322,9 +323,9 @@ func TestWalletServices_IsValidRootForHeight_BHS_Unreachable(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled(t *testing.T) {
-	root, err := chainhash.NewHashFromHex(rootHex)
-	require.NoError(t, err)
+func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled_DuringCall(t *testing.T) {
+	root := testabilities.HashFromHex(t, testabilities.TestMerkleRootHex)
+	var bhsHeight uint32 = testabilities.TestBlockHeight
 
 	// given:
 	given := ts.GivenServices(t)
@@ -332,7 +333,8 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled(t *testing.T) 
 	_ = given.Bitails().WillBeUnreachable()
 
 	ctx, cancel := context.WithCancelCause(t.Context())
-	pat := `=~.*?/chain/merkleroot/verify$`
+	pat := `=~.*/api/v1/chain/merkleroot/verify$`
+
 	given.BHS().Transport().RegisterResponder(http.MethodPost, pat,
 		func(_ *http.Request) (*http.Response, error) {
 			cancel(context.Canceled)
@@ -347,10 +349,21 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled(t *testing.T) 
 	// then:
 	require.True(t, errors.Is(err, context.Canceled))
 	require.False(t, ok)
+}
+
+func TestWalletServices_IsValidRootForHeight_BHS_ContextAlreadyCancelled(t *testing.T) {
+	root := testabilities.HashFromHex(t, testabilities.TestMerkleRootHex)
+	var bhsHeight uint32 = testabilities.TestBlockHeight
+
+	// given:
+	given := ts.GivenServices(t)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(context.Canceled)
+
+	svc := given.Services().WithDefaultConfig()
 
 	// when:
-	given.BHS().Transport().Reset()
-	ok, err = svc.IsValidRootForHeight(ctx, root, bhsHeight)
+	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)
 
 	// then:
 	require.True(t, errors.Is(err, context.Canceled))

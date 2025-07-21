@@ -89,26 +89,15 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 // CurrentHeight returns the best-chain height reported by the Block-Headers
 // Service (`/chain/tip/longest`).
 func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error) {
-	var tip dto.TipStateResponse
-	url, err := tipLongestURL(b.cfg.URL)
+	tip, err := b.FindChainTipHeader(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("error building URL: %w", err)
-	}
-
-	_, err = b.doGET(ctx, url, &tip)
-	if err != nil {
-		return 0, fmt.Errorf("unexpected HTTP for %s", url)
-	}
-
-	if tip.IsZero() || tip.Height == 0 {
-		return 0, fmt.Errorf("unexpected response from API (URL: %s). Received an empty tip state response", url)
+		return 0, err
 	}
 
 	height, err := to.UInt32(tip.Height)
 	if err != nil {
-		return 0, fmt.Errorf("invalid height %d in (URL: %s) response", tip.Height, url)
+		return 0, fmt.Errorf("failed to convert height %d to uint32: %w", tip.Height, err)
 	}
-
 	return height, nil
 }
 
