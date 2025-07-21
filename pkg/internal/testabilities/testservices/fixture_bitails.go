@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type BitailsFixture interface {
@@ -241,7 +242,7 @@ func (b *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
 	)
 }
 
-func (f *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string) {
+func (b *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string) {
 	pattern := `=~.*?/block/header/height/` + strconv.Itoa(int(height)) + `/raw$`
 
 	var responder httpmock.Responder
@@ -254,7 +255,7 @@ func (f *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height u
 		responder = httpmock.NewStringResponder(status, http.StatusText(status))
 	}
 
-	f.transport.RegisterResponder(http.MethodGet, pattern, responder)
+	b.transport.RegisterResponder(http.MethodGet, pattern, responder)
 }
 
 func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
