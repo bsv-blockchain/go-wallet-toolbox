@@ -1,0 +1,8 @@
+alice:
+    identity_key: 03cba8d7e3a2cdc9e1e52fba4db1dcdad1c95398f58cf73b65c7e4e92feedb71c7
+    private_key: faa2f00d133179da0988aee953a3ab6fb99dab56c24a5ad582e5ce1344b33a40
+bob:
+    identity_key: 02bcd966790a3d90983cc957b230db24908379c589de6b0115fd45ef4373609d5a
+    private_key: 5cd3955668045902ae9f6acb1477b9bc4200138ec7841bfc4b97dad1f108110c
+network: test
+server_url: http://localhost:8100
