@@ -61,6 +61,7 @@ func Number[T types.Number](key string, value T) slog.Attr {
 // the simple switch case won't handle it, so we need to reach for reflection :(
 func valueForTypeOverNumber[T types.Number](value T) slog.Value {
 	v := reflect.ValueOf(value)
+	//nolint:exhaustive //compiler handles other cases, thanks to generics.
 	switch v.Kind() {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return slog.Uint64Value(uint64(value))
