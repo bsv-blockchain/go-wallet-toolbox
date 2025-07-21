@@ -2,7 +2,6 @@ package bitails
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -115,16 +114,16 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 
 	header, err := b.hashToHeader(ctx, proof.Target)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: resolve block header for txID %s", ServiceName, txID))
+		return nil, fmt.Errorf("error converting hash to header: %w", err)
 	}
 
 	txInfo, err := b.fetchTxInfo(ctx, txID)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: fetch tx info for txID %s", ServiceName, txID))
+		return nil, fmt.Errorf("error fetching transaction info for txID %s: %w", txID, err)
 	}
 	header.Height, err = to.UInt32(txInfo.BlockHeight)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: convert block height for txID %s", ServiceName, txID))
+		return nil, fmt.Errorf("invalid block height %d for txID %s: %w", txInfo.BlockHeight, txID, err)
 	}
 
 	merklePath, err := txutils.ConvertTscProofToMerklePath(
@@ -134,15 +133,15 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		header.Height,
 	)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: convert TSC proof for txID %s", ServiceName, txID))
+		return nil, fmt.Errorf("error converting TSC proof to Merkle path: %w", err)
 	}
 
 	merkleRoot, err := merklePath.ComputeRootHex(&txID)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: compute merkle root for txID %s", ServiceName, txID))
+		return nil, fmt.Errorf("error computing Merkle root from path: %w", err)
 	}
 	if merkleRoot != header.MerkleRoot {
-		return nil, fmt.Errorf("error from %s: merkle root mismatch (got %s, want %s) for txID %s in block %s", ServiceName, merkleRoot, header.MerkleRoot, txID, header.Hash)
+		return nil, fmt.Errorf("merkle root mismatch (got %s, want %s) for txID %s in block %s", merkleRoot, header.MerkleRoot, txID, header.Hash)
 	}
 
 	return &wdk.MerklePathResult{
@@ -157,11 +156,11 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 func (b *Bitails) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
 	hash, height, err := b.latestBlock(ctx)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: find chain tip header", ServiceName))
+		return nil, fmt.Errorf("error fetching latest block: %w", err)
 	}
 	raw, err := b.rawHeader(ctx, hash)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: get raw header for chain tip", ServiceName))
+		return nil, fmt.Errorf("error fetching raw block header: %w", err)
 	}
 
 	return ConvertHeader(raw, height)
@@ -175,25 +174,25 @@ type networkInfoResponse struct {
 func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	url, err := buildURL(b.url, "network", "info")
 	if err != nil {
-		return 0, errors.Join(err, fmt.Errorf("error from service %s: build URL for network info", ServiceName))
+		return 0, fmt.Errorf("error building URL: %w", err)
 	}
 
 	var payload networkInfoResponse
 	found, err := b.handleJSON(ctx, url, &payload, http.StatusOK, false)
 	if err != nil {
-		return 0, errors.Join(err, fmt.Errorf("error from service %s: get current height", ServiceName))
+		return 0, fmt.Errorf("error fetching current height: %w", err)
 	}
 	if !found {
-		return 0, fmt.Errorf("unexpected 404 for service %s at %s", ServiceName, url)
+		return 0, fmt.Errorf("unexpected 404 for %s", url)
 	}
 
 	if payload.Blocks == 0 {
-		return 0, fmt.Errorf("API returned height 0 for service %s", ServiceName)
+		return 0, fmt.Errorf("API returned height %v", payload.Blocks)
 	}
 
 	height, err := to.UInt32(payload.Blocks)
 	if err != nil {
-		return 0, fmt.Errorf("invalid height %d in service %s response: %w", payload.Blocks, ServiceName, err)
+		return 0, fmt.Errorf("invalid height %d in response: %w", payload.Blocks, err)
 	}
 
 	return height, nil

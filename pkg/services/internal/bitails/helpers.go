@@ -3,7 +3,6 @@ package bitails
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -75,13 +74,13 @@ type proofResponse struct {
 func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse, error) {
 	url, err := tscProofURL(b.url, txID)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
+		return nil, fmt.Errorf("error building TSC proof URL: %w", err)
 	}
 
 	var proof proofResponse
 	found, err := b.handleJSON(ctx, url, &proof, http.StatusOK, true)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: get TSC proof", ServiceName))
+		return nil, fmt.Errorf("error handling TSC proof JSON: %w", err)
 	}
 
 	if !found {
@@ -102,13 +101,13 @@ type fetchInfoResponse struct {
 func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoResponse, error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
+		return nil, fmt.Errorf("error building transaction status URL: %w", err)
 	}
 
 	var info fetchInfoResponse
 	_, err = b.handleJSON(ctx, url, &info, http.StatusOK, false)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: fetch transaction info", ServiceName))
+		return nil, fmt.Errorf("error fetching transaction info: %w", err)
 	}
 	return &info, nil
 }
@@ -117,7 +116,7 @@ func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoRespo
 func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, err error) {
 	url, err := latestBlockURL(b.url)
 	if err != nil {
-		return "", 0, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
+		return "", 0, fmt.Errorf("error building latest block URL: %w", err)
 	}
 
 	var payload struct {
@@ -129,7 +128,7 @@ func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, 
 		return "", 0, err
 	}
 	if payload.Hash == "" {
-		return "", 0, fmt.Errorf("error from service %s: latest block hash empty", ServiceName)
+		return "", 0, fmt.Errorf("latest block hash empty")
 	}
 	return payload.Hash, payload.Height, nil
 }
@@ -138,7 +137,7 @@ func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, 
 func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, error) {
 	url, err := blockHeaderURL(b.url, blockHash)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
+		return nil, fmt.Errorf("error building block header URL: %w", err)
 	}
 
 	var payload struct {
@@ -146,15 +145,15 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 	}
 	_, err = b.handleJSON(ctx, url, &payload, http.StatusOK, false)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: get raw header", ServiceName))
+		return nil, fmt.Errorf("error fetching block header: %w", err)
 	}
 
 	raw, err := hex.DecodeString(payload.Header)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: decode header hex", ServiceName))
+		return nil, fmt.Errorf("error decoding block header hex: %w", err)
 	}
 	if len(raw) != BlockHeaderLength {
-		return nil, fmt.Errorf("error from service %s: want %d-byte header, got %d", ServiceName, BlockHeaderLength, len(raw))
+		return nil, fmt.Errorf("expected %d-byte block header, got %d bytes", BlockHeaderLength, len(raw))
 	}
 	return raw, nil
 }
@@ -163,12 +162,12 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
 	raw, err := b.rawHeader(ctx, blockHash)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s", ServiceName))
+		return nil, fmt.Errorf("error fetching raw block header: %w", err)
 	}
 
 	merkleRootHash, err := chainhash.NewHash(raw[MerkleRootOffset : MerkleRootOffset+MerkleRootLength])
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("error from service %s: parse merkle root hash", ServiceName))
+		return nil, fmt.Errorf("error parsing Merkle root from raw header: %w", err)
 	}
 
 	return &wdk.MerklePathBlockHeader{
@@ -190,7 +189,7 @@ func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode in
 
 	res, err := b.httpClient.R().SetContext(ctx).SetResult(out).Get(url)
 	if err != nil {
-		return false, errors.Join(err, fmt.Errorf("error from service %s: GET %s", ServiceName, url))
+		return false, fmt.Errorf("error performing GET %s: %w", url, err)
 	}
 
 	switch res.StatusCode() {
@@ -202,7 +201,7 @@ func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode in
 		}
 		fallthrough
 	default:
-		return false, fmt.Errorf("error from %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
+		return false, fmt.Errorf("unexpected HTTP status %d for %s: %s", res.StatusCode(), url, res.Status())
 	}
 }
 

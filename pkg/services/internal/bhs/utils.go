@@ -1,7 +1,6 @@
 package bhs
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -14,7 +13,7 @@ const apiVersion = "v1"
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return "", errors.Join(err, fmt.Errorf("invalid base URL %q", baseURL))
+		return "", fmt.Errorf("error parsing base URL %s: %w", baseURL, err)
 	}
 
 	basePath := strings.TrimSuffix(u.Path, "/")

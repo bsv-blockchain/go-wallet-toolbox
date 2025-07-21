@@ -8,11 +8,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type BitailsFixture interface {
