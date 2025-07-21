@@ -154,6 +154,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		if err != nil {
 			return nil, fmt.Errorf("failed to collect outputs: %w", err)
 		}
+
 		c.logger.DebugContext(ctx, "Commission output created",
 			logging.UserID(userID),
 			logging.Reference(reference),
@@ -191,13 +192,13 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Uint64("initialTxSize", initialTxSize),
-		slog.Int64("targetSatoshis", targetSat.Int64()),
+		logging.Number("targetSatoshis", targetSat),
 	)
 
 	c.logger.InfoContext(ctx, "Funding transaction",
 		logging.UserID(userID),
 		logging.Reference(reference),
-		slog.Int64("targetSatoshis", targetSat.Int64()),
+		logging.Number("targetSatoshis", targetSat),
 		slog.Uint64("initialTxSize", initialTxSize),
 		slog.Uint64("basketMinimumUTXOValue", basket.MinimumDesiredUTXOValue),
 	)
@@ -210,10 +211,10 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	c.logger.InfoContext(ctx, "Transaction funding completed",
 		logging.UserID(userID),
 		logging.Reference(reference),
-		slog.Int64("changeAmount", int64(funding.ChangeAmount)),
+		logging.Number("changeAmount", funding.ChangeAmount),
 		slog.Uint64("changeOutputsCount", funding.ChangeOutputsCount),
 		slog.Int("allocatedUTXOsCount", len(funding.AllocatedUTXOs)),
-		slog.Int64("fee", funding.Fee.Int64()),
+		logging.Number("fee", funding.Fee),
 	)
 
 	c.logger.DebugContext(ctx, "Creating change distribution",
@@ -221,7 +222,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		logging.Reference(reference),
 		slog.Uint64("minimumDesiredUTXOValue", basket.MinimumDesiredUTXOValue),
 		slog.Uint64("changeOutputsCount", funding.ChangeOutputsCount),
-		slog.Int64("changeAmount", int64(funding.ChangeAmount)),
+		logging.Number("changeAmount", funding.ChangeAmount),
 	)
 
 	changeDistribution := txutils.NewChangeDistribution(satoshi.MustFrom(basket.MinimumDesiredUTXOValue), c.random.Uint64).
@@ -277,11 +278,11 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	c.logger.DebugContext(ctx, "Saving transaction in database",
 		logging.UserID(userID),
 		logging.Reference(reference),
-		slog.Uint64("txVersion", must.ConvertToUInt64(params.Version)),
-		slog.Uint64("txLockTime", must.ConvertToUInt64(params.LockTime)),
-		slog.Int64("totalAllocated", totalAllocated.Int64()),
-		slog.Int64("changeAmount", int64(funding.ChangeAmount)),
-		slog.Int64("satoshis", satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64()),
+		logging.Number("txVersion", params.Version),
+		logging.Number("txLockTime", params.LockTime),
+		logging.Number("totalAllocated", totalAllocated),
+		logging.Number("changeAmount", funding.ChangeAmount),
+		slog.String("satoshis", fmt.Sprintf("%v - %v", funding.ChangeAmount, totalAllocated)),
 		slog.String("description", params.Description),
 		slog.Int("inputBeefSize", len(inputBeef)),
 	)
@@ -325,8 +326,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	c.logger.DebugContext(ctx, "CreateAction process completed",
 		logging.UserID(userID),
 		logging.Reference(reference),
-		slog.Uint64("txVersion", must.ConvertToUInt64(params.Version)),
-		slog.Uint64("txLockTime", must.ConvertToUInt64(params.LockTime)),
+		logging.Number("txVersion", params.Version),
+		logging.Number("txLockTime", params.LockTime),
 		slog.Int("outputsCount", len(newOutputs)),
 		slog.Int("inputBeefSize", len(inputBeef)),
 		slog.Int("inputsCount", len(resultInputs)),
