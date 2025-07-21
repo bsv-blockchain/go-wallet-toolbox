@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"maps"
 	"strings"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -67,23 +69,21 @@ type inputsProcessor struct {
 	trustSelf      bool
 	txIDsLookup    map[string]struct{}
 	beef           *transaction.Beef
+	logger         *slog.Logger
 }
 
-func newInputsProcessor(
-	ctx context.Context,
-	parent *create,
-	userID int,
-	providedInputs []wdk.ValidCreateActionInput,
-	inputBEEF []byte,
-	trustSelf bool,
-) *inputsProcessor {
+func newInputsProcessor(ctx context.Context, parent *create, userID int, reference string, providedInputs []wdk.ValidCreateActionInput, inputBEEF []byte, trustSelf bool) *inputsProcessor {
 	txIDsLookup := make(map[string]struct{})
 	for _, input := range providedInputs {
 		txIDsLookup[input.Outpoint.TxID] = struct{}{}
 	}
 
+	logger := logging.Child(parent.logger, "inputsProcessor")
+	logger = logger.With(logging.UserID(userID), logging.Reference(reference))
+
 	return &inputsProcessor{
 		ctx:            ctx,
+		logger:         logger,
 		parent:         parent,
 		userID:         userID,
 		inputBEEF:      inputBEEF,
@@ -98,17 +98,20 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 	var err error
 
 	if len(proc.providedInputs) == 0 {
+		proc.logger.DebugContext(proc.ctx, "No inputs provided, skipping processing inputs")
 		return &processedInputsResult{
 			Beef: transaction.NewBeefV2(),
 		}, nil
 	}
 
 	if len(proc.inputBEEF) > 0 {
+		proc.logger.DebugContext(proc.ctx, "Processing inputBEEF")
 		if err = proc.processInputBEEF(); err != nil {
 			return nil, fmt.Errorf("failed to process inputBEEF: %w", err)
 		}
 	}
 
+	proc.logger.DebugContext(proc.ctx, "Processing inputs")
 	if err = proc.checkInputsAndMergeTxIDsToBEEF(); err != nil {
 		return nil, fmt.Errorf("failed to get beef for inputs: %w", err)
 	}

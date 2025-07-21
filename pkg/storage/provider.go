@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -30,10 +31,10 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo         *repo.Repositories
-	actions      *actions.Actions
-	random       wdk.Randomizer
-	parentLogger *slog.Logger
+	repo    *repo.Repositories
+	actions *actions.Actions
+	random  wdk.Randomizer
+	logger  *slog.Logger
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -63,6 +64,8 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 
 	repos := db.CreateRepositories()
 
+	logger = logging.Child(logger, "GormStorageProvider")
+
 	var transactionFunder funder.Funder
 	if options.funder != nil {
 		transactionFunder = options.funder
@@ -85,10 +88,10 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Chain:    config.Chain,
 		Database: db,
 
-		repo:         repos,
-		actions:      actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
-		random:       random,
-		parentLogger: logger,
+		repo:    repos,
+		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		random:  random,
+		logger:  logger,
 	}, nil
 }
 
@@ -262,6 +265,8 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 
 // CreateAction Storage level processing for wallet `createAction`.
 func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+	p.logger.DebugContext(ctx, "Validating createAction args")
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -269,10 +274,31 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
+	p.logger.InfoContext(ctx, "Starting CreateAction process",
+		logging.UserID(auth.UserID),
+		slog.String("description", string(args.Description)),
+		slog.Int("outputCount", len(args.Outputs)),
+		slog.Int("inputCount", len(args.Inputs)),
+		slog.Bool("isSignAction", args.IsSignAction),
+	)
+
 	res, err := p.actions.Create(ctx, *auth.UserID, actions.FromValidCreateActionArgs(&args))
 	if err != nil {
+		p.logger.DebugContext(ctx, "CreateAction completed with error",
+			logging.UserID(auth.UserID),
+			slog.String("description", string(args.Description)),
+		)
 		return nil, fmt.Errorf("failed to process createAction: %w", err)
 	}
+
+	p.logger.InfoContext(ctx, "CreateAction completed successfully",
+		logging.UserID(auth.UserID),
+		logging.Reference(res.Reference),
+		slog.String("description", string(args.Description)),
+		slog.Int("resultOutputCount", len(res.Outputs)),
+		slog.Int("resultInputCount", len(res.Inputs)),
+	)
+
 	return res, nil
 }
 
@@ -412,7 +438,7 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 
-	chunk, err := sync.NewGetSyncChunkAction(p.parentLogger, p.repo, &args).Get(ctx)
+	chunk, err := sync.NewGetSyncChunkAction(p.logger, p.repo, &args).Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sync chunk: %w", err)
 	}
