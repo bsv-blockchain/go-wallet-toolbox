@@ -12,7 +12,7 @@ func ValidAbortActionArgs(args *wdk.AbortActionArgs) error {
 	}
 
 	if args.Reference == nil {
-		return fmt.Errorf("missing reference argument for new transaction")
+		return fmt.Errorf("missing reference argument for abort action")
 	}
 
 	return nil

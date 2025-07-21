@@ -72,7 +72,7 @@ func TestAbortActionTransactionNotOutgoing(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to abort action: txStatusInvalid: must be an outgoing transaction.")
+	require.Contains(t, err.Error(), "failed to abort action: txDirectionInvalid: must be an outgoing transaction.")
 	require.Nil(t, result)
 	testabilities.ThenDBState(t, activeStorage).AllOutputs(testusers.Alice).WithCount(1 + NumberOfDesiredUTXOs)
 }

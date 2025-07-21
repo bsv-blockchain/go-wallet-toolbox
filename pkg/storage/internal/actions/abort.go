@@ -66,7 +66,7 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 
 func validateTxForAbort(txEntity *entity.Transaction) error {
 	if !txEntity.IsOutgoing {
-		return fmt.Errorf("txStatusInvalid: must be an outgoing transaction.")
+		return fmt.Errorf("txDirectionInvalid: must be an outgoing transaction.")
 	}
 
 	return validateTxStatusForAbort(txEntity.Status)
