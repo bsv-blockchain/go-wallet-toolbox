@@ -1,23 +1,24 @@
 # Faucet – Internalize
 
 In this section, we’ll finish the example by **internalizing** a Testnet transaction on your local Wallet Toolbox server.
+<br>**Notice**:💡 This example is created as a helper to get funds into the wallet to be able to use other examples.
 
-## 1&nbsp;– Copy the TxID
+## 0. Prerequisite: Transaction ID from faucet.
+In the [previous step](../faucet_address/README) you received a **txid** from a public Testnet faucet. If you have not completed the Faucet Address step yet please refer [here](../faucet_address/README.md) before continuing.
 
-In the [previous step](../faucet_address/README) you received a **txid** from a public Testnet faucet.  
+## 1. Copy the TxID
 Open `faucet_internalize.go` and replace the placeholder with your own value:
 
 ```go
-// The txid of the transaction to internalize.
-// Pass it via a flag or edit the default value below.
+// The txid is the transaction id of the transaction to internalize
+// Pass the chosen txid or simply change the default value when running the example
 var txID = "15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8" // <-- replace me
 ```
 
-A helper function—[`woc_get_beef_from_txid`](../../internal/utils/woc_get_beef_from_txid.go)—retrieves the full transaction **BEEF** hex ([BRC-62 spec](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md)).  
-That hex is then passed to `InternalizeAction`, crediting Alice’s wallet.
+A helper function—[`woc_get_beef_from_txid`](../../internal/utils/woc_get_beef_from_txid.go)—retrieves the full transaction **BEEF** hexadecimal ([BRC-62 spec](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md)).  
+That transaction is then passed to `InternalizeAction`, crediting Alice’s wallet.
 
-## 2&nbsp;– Internalize the Transaction
-
+## 2. Internalize the Transaction
 Run the example:
 
 ```bash
@@ -59,7 +60,7 @@ If successful, you’ll find a new row in `storage.sqlite` under Alice’s ident
 
 ### What you just did
 
-1. **Fetched** raw transaction data from its txid.  
+1. **Fetched** raw transaction data from its transaction ID.  
 2. **Internalized** that transaction via `InternalizeAction`.  
 3. **Verified** the result in your local database.
 

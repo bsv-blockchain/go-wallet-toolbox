@@ -1,10 +1,7 @@
-# Faucet Address
+# Faucet - Address
 
 In this section, we’ll generate a new address for the user and then fund it from a public **Testnet** faucet.
-
-## Address Derivation
-
-Creating a user address requires a **keyID** that includes both a derivation prefix and suffix, as specified by the [BRC-29 payment protocol](https://bsv.brc.dev/payments/0029). We use a helper [derivation method](../../internal/utils/key_derivation.go) to provide these parameters. The derivation values are later stored with each transaction so the wallet knows how to spend the outputs.
+<br>**Notice**:💡 This example is created as a helper to get funds into the wallet to be able to use other examples.
 
 ## Generate a Testnet Address
 
@@ -40,3 +37,9 @@ Available Testnet faucets:
 3. The faucet will return a **txid** if the request succeeds. Copy this value—you’ll need it to import the funds into Alice’s wallet on the Wallet Toolbox local server.
 
 Continue with **[faucet_internalize](../../wallet_examples/faucet_internalize/README)** to internalise the transaction.
+<br>
+
+## Details
+### Address Derivation
+
+Creating a user address requires a **keyID** that includes both a derivation prefix and suffix, as specified by the [BRC-29 payment protocol](https://bsv.brc.dev/payments/0029). We use a helper [derivation method](../../internal/utils/key_derivation.go) to provide these parameters. The derivation values are later stored with each transaction so the wallet knows how to spend the outputs.
