@@ -1,9 +1,9 @@
 package example_setup
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
-	"encoding/hex"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -35,8 +35,8 @@ func generateUserConfig() (UserConfig, error) {
 	}, nil
 }
 
-// generateDefaultConfig creates a new setup configuration with default values and random keys
-func generateDefaultConfig() (*SetupConfig, error) {
+// generateConfig creates a new setup configuration with default values and random keys
+func generateConfig() (*SetupConfig, error) {
 	alice, err := generateUserConfig()
 	if err != nil {
 		return nil, fmt.Errorf("error generating Alice config: %w", err)
@@ -68,7 +68,7 @@ func loadConfig() (*SetupConfig, error) {
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		show.Info("Config file not found, generating new configuration", configFile)
 
-		cfg, err := generateDefaultConfig()
+		cfg, err := generateConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate default config: %w", err)
 		}
