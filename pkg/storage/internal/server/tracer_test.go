@@ -15,6 +15,12 @@ import (
 )
 
 func TestTracer(t *testing.T) {
+	const expectedTimeMessage = "time="
+	const expectedLevelInfoMessage = "level=INFO"
+	const expectedRequestMessage = `msg="RPC request"`
+	const expectedResultMessage = `msg="RPC result"`
+	const expectedHandlerArgMessage = `handler=`
+
 	// given:
 	testWriter := logging.TestWriter{}
 	logger := logging.New().WithLevel(defs.LogLevelDebug).WithHandler(defs.TextHandler, &testWriter).Logger()
@@ -49,13 +55,22 @@ func TestTracer(t *testing.T) {
 		client.Get()
 
 		// then:
-		msg := testWriter.String()
-		assert.Contains(t, msg, "time=")
-		assert.Contains(t, msg, "level=INFO")
-		assert.Contains(t, msg, `msg="Handling RPC call"`)
+		lines := testWriter.Lines()
+
+		msg := lines[0]
+		assert.Contains(t, msg, expectedTimeMessage)
+		assert.Contains(t, msg, expectedLevelInfoMessage)
+		assert.Contains(t, msg, expectedRequestMessage)
 		assert.Contains(t, msg, `method=get`)
-		assert.Contains(t, msg, `handler=`)
-		assert.Contains(t, msg, `result_0=10`)
+		assert.Contains(t, msg, expectedHandlerArgMessage)
+
+		msg2 := lines[1]
+		assert.Contains(t, msg2, expectedTimeMessage)
+		assert.Contains(t, msg2, expectedLevelInfoMessage)
+		assert.Contains(t, msg2, expectedResultMessage)
+		assert.Contains(t, msg2, `method=get`)
+		assert.Contains(t, msg2, expectedHandlerArgMessage)
+		assert.Contains(t, msg2, `result_0=10`)
 	})
 
 	t.Run("method with arguments and no result", func(t *testing.T) {
@@ -65,14 +80,24 @@ func TestTracer(t *testing.T) {
 		client.Set(t.Context(), 10)
 
 		// then:
-		msg := testWriter.String()
-		assert.Contains(t, msg, "time=")
-		assert.Contains(t, msg, "level=INFO")
-		assert.Contains(t, msg, `msg="Handling RPC call"`)
+		lines := testWriter.Lines()
+
+		msg := lines[0]
+		assert.Contains(t, msg, expectedTimeMessage)
+		assert.Contains(t, msg, expectedLevelInfoMessage)
+		assert.Contains(t, msg, expectedRequestMessage)
 		assert.Contains(t, msg, `method=set`)
-		assert.Contains(t, msg, `handler=`)
+		assert.Contains(t, msg, expectedHandlerArgMessage)
 		assert.Contains(t, msg, `param_0="<context: `)
 		assert.Contains(t, msg, `param_1=10`)
+
+		msg2 := lines[1]
+		assert.Contains(t, msg2, expectedTimeMessage)
+		assert.Contains(t, msg2, expectedLevelInfoMessage)
+		assert.Contains(t, msg2, expectedResultMessage)
+		assert.Contains(t, msg2, `method=set`)
+		assert.Contains(t, msg2, expectedHandlerArgMessage)
+
 	})
 }
 
@@ -83,6 +108,7 @@ func (h *mockHandler) Get() int {
 }
 
 func (h *mockHandler) Set(context.Context, int) {
+	// nothing to do, it's just for test case purposes
 }
 
 // mockClient matches the mockHandler (but on the client side)
