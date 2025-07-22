@@ -1,6 +1,7 @@
 package wdk
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -17,12 +18,66 @@ const (
 // HistoryNote represents a transaction event with metadata including time, user information, and event attributes.
 // It's an equivalent to the HistoryNote in wdk.ProvenTxReq
 type HistoryNote struct {
-	When time.Time
+	When time.Time `json:"when"`
 
-	UserID *int
+	UserID *int `json:"user_id,omitempty"`
 
-	What       string
+	What       string `json:"what"`
 	Attributes map[string]any
+}
+
+// MarshalJSON serializes the HistoryNote into JSON, including "when", "what", "user_id" (if not nil), and all attributes.
+// NOTE: The receiver must be "by value" because this is required by the json.Marshaler interface.
+func (n HistoryNote) MarshalJSON() ([]byte, error) {
+	count := len(n.Attributes) + 2 // +2 for "when" and "what"
+	if n.UserID != nil {
+		count++
+	}
+
+	data := make(map[string]any, count)
+	for key, value := range n.Attributes {
+		data[key] = value
+	}
+	data["when"] = n.When
+	data["what"] = n.What
+	if n.UserID != nil {
+		data["user_id"] = n.UserID
+	}
+
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal history note: %w", err)
+	}
+	return encoded, nil
+}
+
+// UnmarshalJSON populates the HistoryNote from JSON, separating core fields from additional attributes.
+// It extracts "when", "user_id", and "what" fields, and assigns any extra fields to the Attributes map.
+// Returns an error if the JSON is invalid or required fields are missing.
+func (n *HistoryNote) UnmarshalJSON(data []byte) error {
+	type alias HistoryNote // use a type alias to avoid an infinite recursion loop.
+	var aux alias          // This allows us to use the default json.Unmarshal logic for the known fields.
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return fmt.Errorf("failed to unmarshal history note known fields: %w", err)
+	}
+
+	n.When = aux.When
+	n.UserID = aux.UserID
+	n.What = aux.What
+
+	var rawData map[string]any
+	if err := json.Unmarshal(data, &rawData); err != nil {
+		return fmt.Errorf("failed to unmarshal history note attributes: %w", err)
+	}
+
+	delete(rawData, "when")
+	delete(rawData, "user_id")
+	delete(rawData, "what")
+
+	n.Attributes = rawData
+
+	return nil
 }
 
 // ToMap returns a map representation of the HistoryNote, including its core attributes and event information.

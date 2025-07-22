@@ -2,7 +2,9 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"time"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -186,6 +188,11 @@ func (p *ChunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 }
 
 func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxReq) error {
+	historyNotes, err := p.getHistoryNotes(chunkProvenTxReq.TxID, chunkProvenTxReq.History)
+	if err != nil {
+		return fmt.Errorf("failed to get history notes for TxID %q: %w", chunkProvenTxReq.TxID, err)
+	}
+
 	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
 		CreatedAt: chunkProvenTxReq.CreatedAt,
 		UpdatedAt: chunkProvenTxReq.UpdatedAt,
@@ -195,6 +202,7 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		Notified:  chunkProvenTxReq.Notified,
 		RawTx:     chunkProvenTxReq.RawTx,
 		InputBEEF: chunkProvenTxReq.InputBEEF,
+		TxNotes:   historyNotes,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert proven tx req for TxID %q: %w", chunkProvenTxReq.TxID, err)
@@ -207,6 +215,30 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 	}
 
 	return nil
+}
+
+func (p *ChunkProcessor) getHistoryNotes(txID string, encoded string) ([]*pkgentity.TxHistoryNote, error) {
+	const minLength = 12 // len of `{"notes":[]}`
+	if len(encoded) < minLength {
+		return nil, nil
+	}
+
+	var notesObj struct {
+		Notes []wdk.HistoryNote `json:"notes"`
+	}
+	err := json.Unmarshal([]byte(encoded), &notesObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal history notes: %w", err)
+	}
+
+	return slices.Map(notesObj.Notes, func(note wdk.HistoryNote) *pkgentity.TxHistoryNote {
+		// TODO: UserIDs can missmatch because the translation is not implemented (in TS also)
+
+		return &pkgentity.TxHistoryNote{
+			HistoryNote: note,
+			TxID:        txID,
+		}
+	}), nil
 }
 
 func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {

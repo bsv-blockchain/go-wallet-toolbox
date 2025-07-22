@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/to"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -57,7 +58,11 @@ func TestSyncProcess(t *testing.T) {
 
 	thenDBState.HasKnownTX(internalizedTxID).
 		WithStatus(wdk.ProvenTxStatusUnmined).
-		HasRawTx()
+		HasRawTx().
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.Count(1).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+		})
 
 	// and user's transactions:
 	thenDBState.

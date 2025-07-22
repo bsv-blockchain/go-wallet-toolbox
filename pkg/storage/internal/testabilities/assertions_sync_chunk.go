@@ -277,7 +277,6 @@ func (p *proveTxReqAssertion) HasHistoryNotes(whatFields ...string) ProvenTxReqA
 
 func (p *proveTxReqAssertion) getHistoryNotes() []map[string]any {
 	p.parent.Helper()
-	// use json to unmarshal the history notes
 	var notesObj struct {
 		Notes []map[string]any `json:"notes"`
 	}

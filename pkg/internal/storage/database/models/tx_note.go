@@ -18,21 +18,3 @@ type TxNote struct {
 	What       string `gorm:"not null"`
 	Attributes datatypes.JSONMap
 }
-
-func (it *TxNote) ToWDKMap() map[string]any {
-	count := len(it.Attributes) + 2 // +2 for "when" and "what"
-	if it.UserID != nil {
-		count++
-	}
-
-	note := make(map[string]any, count)
-	note["when"] = it.CreatedAt
-	note["what"] = it.What
-	if it.UserID != nil {
-		note["user_id"] = *it.UserID
-	}
-	for k, v := range it.Attributes {
-		note[k] = v
-	}
-	return note
-}

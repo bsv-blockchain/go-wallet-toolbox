@@ -99,12 +99,24 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		}
 
 		if updateTx.RowsAffected > 0 {
+			if err := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; err != nil {
+				return fmt.Errorf("failed to delete existing transaction notes: %w", err)
+			}
+
+			if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", err)
+			}
+
 			return nil
 		}
 
 		err := tx.Create(&model).Error
 		if err != nil {
 			return fmt.Errorf("failed to create proven tx req: %w", err)
+		}
+
+		if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+			return fmt.Errorf("failed to add transaction history notes while creating knownTx: %w", err)
 		}
 
 		isNew = true
@@ -215,12 +227,17 @@ func (s *SyncKnownTx) mapModelToHistoryNotes(model *KnownTxWithNum) (string, err
 		return "{}", nil
 	}
 
-	notes := slices.Map(model.TxNotes, func(it *models.TxNote) map[string]any {
-		return it.ToWDKMap()
+	notes := slices.Map(model.TxNotes, func(it *models.TxNote) *wdk.HistoryNote {
+		return &wdk.HistoryNote{
+			When:       it.CreatedAt,
+			UserID:     it.UserID,
+			What:       it.What,
+			Attributes: it.Attributes,
+		}
 	})
 
 	notesObj := struct {
-		Notes []map[string]any `json:"notes"`
+		Notes []*wdk.HistoryNote `json:"notes"`
 	}{
 		Notes: notes,
 	}
@@ -231,4 +248,26 @@ func (s *SyncKnownTx) mapModelToHistoryNotes(model *KnownTxWithNum) (string, err
 	}
 
 	return string(historyNotes), nil
+}
+
+func (s *SyncKnownTx) addHistoryNotes(ctx context.Context, tx *gorm.DB, txID string, notes []*entity.TxHistoryNote) error {
+	if len(notes) == 0 {
+		return nil
+	}
+
+	modelsToAdd := slices.Map(notes, func(note *entity.TxHistoryNote) *models.TxNote {
+		return &models.TxNote{
+			CreatedAt:  note.When,
+			TxID:       txID,
+			UserID:     note.UserID,
+			What:       note.What,
+			Attributes: note.Attributes,
+		}
+	})
+
+	if err := tx.WithContext(ctx).Create(&modelsToAdd).Error; err != nil {
+		return fmt.Errorf("failed to create transaction history notes: %w", err)
+	}
+
+	return nil
 }
