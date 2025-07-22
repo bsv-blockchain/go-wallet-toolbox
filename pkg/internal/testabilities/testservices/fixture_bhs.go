@@ -150,11 +150,11 @@ func (b *bhsFixture) DefaultLongestTip() *longestChainTipResponse {
 }
 
 func (b *bhsFixture) OnMerkleRootVerifyResponse(height uint32, root, state string) {
-	resp := []map[string]any{{
+	resp := map[string]any{
 		"blockHeight":       height,
 		"merkleRoot":        root,
 		"confirmationState": state,
-	}}
+	}
 
 	b.transport.RegisterResponder(
 		http.MethodPost,

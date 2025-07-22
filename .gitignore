@@ -44,4 +44,4 @@ storage.sqlite
 storage.*.sqlite
 
 # Example config
-examples/internal/example_setup/examples-config.yaml
+examples/examples-config.yaml

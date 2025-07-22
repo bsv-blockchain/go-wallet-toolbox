@@ -65,7 +65,7 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 		MerkleRoot:  root.String(),
 	}}
 
-	var resp []dto.MerkleRootVerifyResp
+	var resp dto.MerkleRootVerifyResp
 	res, err := b.httpClient.R().
 		SetContext(ctx).
 		SetBody(req).
@@ -79,19 +79,15 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 		return false, fmt.Errorf("%s: unexpected HTTP %d for POST %s", ServiceName, res.StatusCode(), url)
 	}
 
-	if len(resp) != 1 {
-		return false, fmt.Errorf("verify response has %d elements, want 1", len(resp))
-	}
-
 	switch {
-	case resp[0].ConfirmationState.IsConfirmed():
+	case resp.ConfirmationState.IsConfirmed():
 		return true, nil
-	case resp[0].ConfirmationState.IsInvalid():
+	case resp.ConfirmationState.IsInvalid():
 		return false, nil
-	case resp[0].ConfirmationState.IsUnableToVerify():
-		return false, fmt.Errorf("unable to verify merkle root (state=%q)", resp[0].ConfirmationState)
+	case resp.ConfirmationState.IsUnableToVerify():
+		return false, fmt.Errorf("unable to verify merkle root (state=%q)", resp.ConfirmationState)
 	default:
-		return false, fmt.Errorf("unexpected confirmation state %q", resp[0].ConfirmationState)
+		return false, fmt.Errorf("unexpected confirmation state %q", resp.ConfirmationState)
 	}
 }
 
