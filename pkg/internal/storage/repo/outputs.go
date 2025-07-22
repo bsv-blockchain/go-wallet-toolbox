@@ -7,7 +7,6 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/builders"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -172,24 +171,20 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	return nil
 }
 
-func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints ...wdk.OutPoint) ([]*entity.Output, error) {
+func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints wdk.OutPointSlice) ([]*entity.Output, error) {
 	if len(outpoints) == 0 {
 		return nil, nil
 	}
 
-	builder := builders.OutpointsQuery{
-		Session: o.db.
-			WithContext(ctx).
-			Model(&models.Output{}).
-			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-				return db.Select("id, tx_id")
-			}).
-			Scopes(scopes.UserID(userID)),
-		Outpoints: outpoints,
-	}
+	session := o.db.WithContext(ctx).
+		Preload("Transaction").
+		Model(&models.Output{}).
+		Joins("INNER JOIN bsv_transactions ON transaction_id = bsv_transactions.id").
+		Where("vout IN (?) AND tx_id IN (?)", outpoints.Vouts(), outpoints.TxIDs()).
+		Where("bsv_transactions.user_id = (?) AND bsv_outputs.user_id = (?)", userID, userID)
 
 	var outputs []*models.Output
-	if err := builder.CreateQuery().Find(&outputs).Error; err != nil {
+	if err := session.Find(&outputs).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

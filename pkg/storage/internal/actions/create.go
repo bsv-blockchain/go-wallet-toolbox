@@ -146,8 +146,6 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
 
-	// add here validation
-
 	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
@@ -218,11 +216,15 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	if params.IsNoSend {
-		err := c.changeOutputVoutService.ValidateNoSendChange(ctx, userID, basket.Name, params.NoSendChange)
+		out.NoSendChangeOutputVouts, err = c.changeOutputVoutService.CreateNoSendChangeOutputVouts(ctx, services.CreateChangeOutputVoutsParams{
+			UserID:    userID,
+			Basket:    basket.Name,
+			Outpoints: params.NoSendChange,
+			TxOutputs: newOutputs,
+		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to validate no send change: %w", err)
+			return nil, fmt.Errorf("failed to create change output vouts: %w", err)
 		}
-		out.NoSendChangeOutputVouts = c.changeOutputVoutService.CreateNoSendChangeOutputVouts(newOutputs...)
 	}
 
 	return out, nil

@@ -13,3 +13,33 @@ type OutPoint struct {
 func (o OutPoint) String() string {
 	return fmt.Sprintf("%s.%d", o.TxID, o.Vout)
 }
+
+type OutPointSlice []OutPoint
+
+func (oo OutPointSlice) AreUnique() bool {
+	m := make(map[string]bool)
+	for _, o := range oo {
+		k := fmt.Sprintf("%s_%d", o.TxID, o.Vout)
+		if ok := m[k]; ok {
+			return false
+		}
+		m[k] = true
+	}
+	return true
+}
+
+func (oo OutPointSlice) Vouts() []uint32 {
+	out := make([]uint32, 0, len(oo))
+	for _, o := range oo {
+		out = append(out, o.Vout)
+	}
+	return out
+}
+
+func (oo OutPointSlice) TxIDs() []string {
+	out := make([]string, 0, len(oo))
+	for _, o := range oo {
+		out = append(out, o.TxID)
+	}
+	return out
+}

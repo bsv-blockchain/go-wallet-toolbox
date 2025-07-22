@@ -11,13 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ValidCreateActionArgsWithIsNoSendTrue() wdk.ValidCreateActionArgs {
-	args := DefaultValidCreateActionArgs()
-	args.IsNoSend = true
-	args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
-	return args
-}
-
 func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 	return wdk.ValidCreateActionArgs{
 		Description: "test transaction",

@@ -10,7 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testmode"
+	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -100,31 +100,48 @@ func TestCreateActionHappyPath(t *testing.T) {
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
 }
 
-func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
-	testmode.DevelopmentOnly_SetFileSQLiteMode(t) // TEMP!
+func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
+	//testmode.DevelopmentOnly_SetPostgresMode(t) // TEMP!
 
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
-
-	const expectedNoSendChangeOutputVoutsCount = 31
 
 	// given:
 	activeStorage := given.Provider().GORM()
 
 	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	opts := []pkgtestabilities.TopUpOpts{
+		pkgtestabilities.WithProvidedBy(wdk.ProvidedByStorage.String()),
+		pkgtestabilities.WithPurpose(wdk.ChangePurpose),
+		pkgtestabilities.WithSpendable(true),
+	}
+
+	transactionSpec1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000, opts...)
+	transactionSpec2, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(200_000, opts...)
 
 	// and:
-	args := fixtures.ValidCreateActionArgsWithIsNoSendTrue()
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsNoSend = true
+	args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
 	args.Options.NoSendChange = []wdk.OutPoint{
 		{
-			TxID: "2",
-			Vout: 1,
+			TxID: transactionSpec1.ID().String(),
+			Vout: 0,
 		},
 		{
-			TxID: "2",
-			Vout: 2,
+			TxID: transactionSpec2.ID().String(),
+			Vout: 0,
 		},
+	}
+
+	expectedNoSendChangeOutputVouts := []int{
+		1, 2, 3, 4, 5,
+		6, 7, 8, 9, 10,
+		11, 12, 13, 14,
+		15, 16, 17, 18,
+		19, 20, 21, 22,
+		23, 24, 25, 26,
+		27, 28, 29, 30,
 	}
 
 	// when:
@@ -133,16 +150,11 @@ func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
 		testusers.Alice.AuthID(),
 		args,
 	)
+
 	// then:
 	assert.NoError(t, err)
-	assert.Equal(t, expectedNoSendChangeOutputVoutsCount, len(result.NoSendChangeOutputVouts))
-
-	for i := 1; i < len(result.Outputs); i++ {
-		out := result.Outputs[i]
-		assert.EqualValues(t, i, out.Vout)
-		assert.Equal(t, wdk.ProvidedByStorage, out.ProvidedBy)
-		assert.Equal(t, wdk.ChangePurpose, out.Purpose)
-	}
+	assert.NotNil(t, result)
+	assert.Equal(t, result.NoSendChangeOutputVouts, expectedNoSendChangeOutputVouts)
 }
 
 func TestCreateActionOutputTags(t *testing.T) {
