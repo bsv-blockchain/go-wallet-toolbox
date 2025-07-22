@@ -1,6 +1,6 @@
 # Post BEEF Transaction from Hex
 
-This example demonstrates how to broadcast a BSV transaction from an existing BEEF hex string through multiple wallet services with automatic fallback.
+This example demonstrates how to broadcast a BSV transaction from an existing [BEEF](../../README.md#beef-background-evaluation-extended-format) hex string through multiple wallet services with automatic fallback.
 
 ## Difference from Post BEEF Example
 
@@ -11,11 +11,6 @@ Unlike the `post_beef.go` example which creates a new transaction from scratch, 
 - **Direct broadcasting**: Focuses purely on the broadcasting mechanism
 - **Pre-built transactions**: Ideal when you already have a BEEF-encoded transaction
 
-## What is BEEF?
-
-BEEF (Background Evaluation Extended Format) is a binary format for sending transactions between peers to allow Simple Payment Verification (SPV). The format is optimized for minimal bandwidth while maintaining all data required to independently validate transactions in full.
-
-BEEF includes transactions along with their Merkle paths using the BSV Universal Merkle Path (BUMP) format. This allows the transaction to be validated without requiring access to the blockchain, making it ideal for efficient transaction broadcasting.
 
 ## Process Overview
 

@@ -1,6 +1,6 @@
 # Post BEEF with Multiple Chained Transactions
 
-This example demonstrates how to construct and broadcast a chain of three dependent transactions (grandparent, parent, and child) using BEEF format through multiple wallet services with automatic fallback.
+This example demonstrates how to construct and broadcast a chain of three dependent transactions (grandparent, parent, and child) using [BEEF](../../README.md#beef-background-evaluation-extended-format) format through multiple wallet services with automatic fallback.
 
 ## What is Transaction Chaining?
 
@@ -11,12 +11,6 @@ Transaction chaining occurs when one transaction spends outputs from another tra
 3. **Child Transaction**: Spends from the parent transaction (output index 0)
 
 All three transactions are bundled together in a single BEEF and broadcast simultaneously.
-
-## What is BEEF?
-
-BEEF (Background Evaluation Extended Format) is a binary format for sending transactions between peers to allow Simple Payment Verification (SPV). The format is optimized for minimal bandwidth while maintaining all data required to independently validate transactions in full.
-
-BEEF includes transactions along with their Merkle paths using the BSV Universal Merkle Path (BUMP) format. For chained transactions, BEEF steps back through the transaction DAG until every input has a corresponding parent transaction with a Merkle path, making it particularly valuable for broadcasting entire dependency chains in one package.
 
 ## Process Overview
 

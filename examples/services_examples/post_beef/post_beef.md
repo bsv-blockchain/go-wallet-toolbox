@@ -1,12 +1,6 @@
 # Post BEEF Transaction
 
-This example demonstrates how to broadcast a BSV transaction using the BEEF (Bitcoin Extended Format) through multiple wallet services with automatic fallback.
-
-## What is BEEF?
-
-BEEF (Background Evaluation Extended Format) is a binary format for sending transactions between peers to allow Simple Payment Verification (SPV). The format is optimized for minimal bandwidth while maintaining all data required to independently validate transactions in full.
-
-BEEF includes transactions along with their Merkle paths using the BSV Universal Merkle Path (BUMP) format. This allows the transaction to be validated without requiring access to the blockchain, making it ideal for efficient transaction broadcasting.
+This example demonstrates how to broadcast a BSV transaction using the [BEEF (Background Evaluation Extended Format)](../../README.md#beef-background-evaluation-extended-format) through multiple wallet services with automatic fallback.
 
 ## Process Overview
 
