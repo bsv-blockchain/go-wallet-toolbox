@@ -169,7 +169,7 @@ func TestGetMerklePath(t *testing.T) {
 			Hash:       tst.TestTargetHash,
 			MerkleRoot: merkleRoot,
 		}, *response.BlockHeader)
-		assert.Len(t, response.Notes, 0)
+		assert.Len(t, response.Notes, 1)
 	})
 
 	t.Run("get merkle path from Bitails", func(t *testing.T) {

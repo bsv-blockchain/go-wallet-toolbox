@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
@@ -218,21 +217,23 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		setup                func(ts.ServicesFixture)
+		setup                func(testservices.ServicesFixture)
 		expectedErrorMessage string
 	}{
 		{
 			name: "WOC unreachable - Bitails returns malformed hex",
-			setup: func(f ts.ServicesFixture) {
-				_ = f.WhatsOnChain().WillBeUnreachable()
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.NoError(t, err)
 				f.Bitails().WillReturnRawTxHex(txID, malformedHex)
 			},
 			expectedErrorMessage: "Bitails: decode hex failed",
 		},
 		{
 			name: "WOC unreachable - Bitails returns mismatched txid",
-			setup: func(f ts.ServicesFixture) {
-				_ = f.WhatsOnChain().WillBeUnreachable()
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.NoError(t, err)
 				otherTx := testvectors.GivenTX().WithInput(1).WithP2PKHOutput(1).TX()
 				otherRawHex := hex.EncodeToString(otherTx.Bytes())
 				f.Bitails().WillReturnRawTxHex(txID, otherRawHex)
@@ -241,25 +242,29 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "WOC unreachable - Bitails returns 404",
-			setup: func(f ts.ServicesFixture) {
-				_ = f.WhatsOnChain().WillBeUnreachable()
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.NoError(t, err)
 				f.Bitails().WillReturnRawTx404(txID)
 			},
 			expectedErrorMessage: fmt.Sprintf("transaction with txID: %s not found", txID),
 		},
 		{
 			name: "WOC unreachable - Bitails returns HTTP error",
-			setup: func(f ts.ServicesFixture) {
-				_ = f.WhatsOnChain().WillBeUnreachable()
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.NoError(t, err)
 				f.Bitails().WillReturnRawTxHttpError(txID, http.StatusInternalServerError)
 			},
 			expectedErrorMessage: "Bitails: unexpected HTTP 500",
 		},
 		{
 			name: "all providers unreachable",
-			setup: func(f ts.ServicesFixture) {
-				_ = f.WhatsOnChain().WillBeUnreachable()
-				_ = f.Bitails().WillBeUnreachable()
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.NoError(t, err)
+				err = f.Bitails().WillBeUnreachable()
+				require.NoError(t, err)
 			},
 			expectedErrorMessage: "all services failed",
 		},
@@ -268,7 +273,7 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			given := ts.GivenServices(t)
+			given := testservices.GivenServices(t)
 			tc.setup(given)
 
 			svc := given.Services().WithDefaultConfig()

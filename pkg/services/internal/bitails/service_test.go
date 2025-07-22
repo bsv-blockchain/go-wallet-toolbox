@@ -6,15 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	bt "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBitails_GetHeight(t *testing.T) {
@@ -340,10 +342,9 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 	txID := tx.TxID().String()
 
 	tests := []struct {
-		name      string
-		setup     func()
-		expectNil bool
-		wantErr   string
+		name    string
+		setup   func()
+		wantErr string
 	}{
 		{
 			name: "malformed hex",
@@ -360,13 +361,6 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 				given.Bitails().WillReturnRawTxHex(txID, otherRawHex)
 			},
 			wantErr: "txID mismatch",
-		},
-		{
-			name: "404 not found",
-			setup: func() {
-				given.Bitails().WillReturnRawTx404(txID)
-			},
-			expectNil: true,
 		},
 		{
 			name: "unexpected HTTP error",
@@ -386,19 +380,35 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// given:
 			tt.setup()
 
-			res, err := service.RawTx(t.Context(), txID)
+			// when:
+			_, err := service.RawTx(t.Context(), txID)
 
-			if tt.expectNil {
-				assert.NoError(t, err)
-				assert.Nil(t, res)
-				return
-			}
-
+			// then:
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 
 		})
 	}
+}
+
+func TestBitails_RawTx_NotFound(t *testing.T) {
+	// given:
+	given := testabilities.Given(t)
+	service := given.NewBitailsService()
+
+	txSpec := testvectors.GivenTX().WithInput(1).WithP2PKHOutput(1)
+	tx := txSpec.TX()
+	txID := tx.TxID().String()
+
+	given.Bitails().WillReturnRawTx404(txID)
+
+	// when:
+	res, err := service.RawTx(t.Context(), txID)
+
+	// then:
+	assert.NoError(t, err)
+	assert.Nil(t, res)
 }

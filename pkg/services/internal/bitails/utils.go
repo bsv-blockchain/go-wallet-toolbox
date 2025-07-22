@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 

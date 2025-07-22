@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	show.ProcessStart("Raw Transaction from ARC")
+	show.ProcessStart("Raw Transaction from WhatsOnChain and Bitails")
 
 	txID := "9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6"
 	network := defs.NetworkMainnet
@@ -18,15 +18,15 @@ func main() {
 	cfg := defs.DefaultServicesConfig(network)
 	srv := services.New(slog.Default(), cfg)
 
-	show.Step("Wallet-Services", fmt.Sprintf("fetching RawTx for txID %s using ARC", txID))
+	show.Step("Wallet-Services", fmt.Sprintf("fetching RawTx for txID %s using WhatsOnChain and Bitails", txID))
 	rawTx, err := srv.RawTx(txID)
 	if err != nil {
 		panic(fmt.Errorf("failed to fetch raw transaction: %w", err))
 	}
 
-	show.Success("Fetched Raw Transaction")
+	show.Success("Success, Fetched Raw Transaction")
 	show.RawTxOutput(&rawTx)
-	show.ProcessComplete("Raw Transaction from ARC")
+	show.ProcessComplete(fmt.Sprintf("Raw Transaction fetching completed for txID %s", txID))
 }
 
 /* Output:
@@ -35,9 +35,9 @@ func main() {
 ============================================================
 
 === STEP ===
-Wallet-Services is performing: fetching RawTx for txID 9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6 using ARC
+Wallet-Services is performing: fetching RawTx for txID 9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6 using WhatsOnChain and Bitails
 --------------------------------------------------
-✅ SUCCESS: Fetched Raw Transaction
+✅ SUCCESS: Success, Fetched Raw Transaction
 
 ============================================================
 RAW TRANSACTION RESULT
@@ -46,6 +46,6 @@ Service: WhatsOnChain
 TxID:   9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6
 RawTx:  01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff170399c80d2f43555656452f0150cbfa27d51703e1a32500ffffffff01f3d4a112000000001976a914d648686cf603c11850f39600e37312738accca8f88ac00000000
 ============================================================
-🎉 COMPLETED: Raw Transaction from ARC
+🎉 COMPLETED: Raw Transaction fetching completed for txID 9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6
 
 */
