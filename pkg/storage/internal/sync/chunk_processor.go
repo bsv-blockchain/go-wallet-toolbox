@@ -232,7 +232,7 @@ func (p *ChunkProcessor) getHistoryNotes(txID string, encoded string) ([]*pkgent
 	}
 
 	return slices.Map(notesObj.Notes, func(note wdk.HistoryNote) *pkgentity.TxHistoryNote {
-		// TODO: UserIDs can missmatch because the translation is not implemented (in TS also)
+		// TODO: UserIDs can mismatch because the translation is not implemented (in TS also)
 
 		return &pkgentity.TxHistoryNote{
 			HistoryNote: note,

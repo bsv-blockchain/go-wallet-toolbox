@@ -38,10 +38,10 @@ func (n HistoryNote) MarshalJSON() ([]byte, error) {
 	for key, value := range n.Attributes {
 		data[key] = value
 	}
-	data["when"] = n.When
-	data["what"] = n.What
+	data[whenAttr] = n.When
+	data[whatAttr] = n.What
 	if n.UserID != nil {
-		data["user_id"] = n.UserID
+		data[userIDAttr] = n.UserID
 	}
 
 	encoded, err := json.Marshal(data)
@@ -71,9 +71,9 @@ func (n *HistoryNote) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("failed to unmarshal history note attributes: %w", err)
 	}
 
-	delete(rawData, "when")
-	delete(rawData, "user_id")
-	delete(rawData, "what")
+	delete(rawData, whenAttr)
+	delete(rawData, userIDAttr)
+	delete(rawData, whatAttr)
 
 	n.Attributes = rawData
 

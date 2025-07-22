@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarshallAndUnmarshallHistoryNote(t *testing.T) {
+func TestMarshalAndUnmarshalHistoryNote(t *testing.T) {
 	tests := map[string]struct {
 		note         HistoryNote
 		expectedJSON string
