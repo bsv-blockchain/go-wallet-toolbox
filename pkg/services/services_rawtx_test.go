@@ -224,7 +224,7 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 			name: "WOC unreachable - Bitails returns malformed hex",
 			setup: func(f testservices.ServicesFixture) {
 				err := f.WhatsOnChain().WillBeUnreachable()
-				require.NoError(t, err)
+				require.Error(t, err)
 				f.Bitails().WillReturnRawTxHex(txID, malformedHex)
 			},
 			expectedErrorMessage: "Bitails: decode hex failed",
@@ -233,18 +233,18 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 			name: "WOC unreachable - Bitails returns mismatched txid",
 			setup: func(f testservices.ServicesFixture) {
 				err := f.WhatsOnChain().WillBeUnreachable()
-				require.NoError(t, err)
+				require.Error(t, err)
 				otherTx := testvectors.GivenTX().WithInput(1).WithP2PKHOutput(1).TX()
 				otherRawHex := hex.EncodeToString(otherTx.Bytes())
 				f.Bitails().WillReturnRawTxHex(txID, otherRawHex)
 			},
-			expectedErrorMessage: "Bitails: txID mismatch",
+			expectedErrorMessage: "txID mismatch",
 		},
 		{
 			name: "WOC unreachable - Bitails returns 404",
 			setup: func(f testservices.ServicesFixture) {
 				err := f.WhatsOnChain().WillBeUnreachable()
-				require.NoError(t, err)
+				require.Error(t, err)
 				f.Bitails().WillReturnRawTx404(txID)
 			},
 			expectedErrorMessage: fmt.Sprintf("transaction with txID: %s not found", txID),
@@ -253,7 +253,7 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 			name: "WOC unreachable - Bitails returns HTTP error",
 			setup: func(f testservices.ServicesFixture) {
 				err := f.WhatsOnChain().WillBeUnreachable()
-				require.NoError(t, err)
+				require.Error(t, err)
 				f.Bitails().WillReturnRawTxHttpError(txID, http.StatusInternalServerError)
 			},
 			expectedErrorMessage: "Bitails: unexpected HTTP 500",
@@ -262,9 +262,9 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 			name: "all providers unreachable",
 			setup: func(f testservices.ServicesFixture) {
 				err := f.WhatsOnChain().WillBeUnreachable()
-				require.NoError(t, err)
+				require.Error(t, err)
 				err = f.Bitails().WillBeUnreachable()
-				require.NoError(t, err)
+				require.Error(t, err)
 			},
 			expectedErrorMessage: "all services failed",
 		},
