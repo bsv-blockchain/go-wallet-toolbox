@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
@@ -34,6 +36,7 @@ type WhatsOnChain struct {
 	rootForHeightRetryInterval time.Duration
 	rootForHeightRetries       int
 	rootCache                  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
+	cacheMu                    sync.RWMutex
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain) *WhatsOnChain {
@@ -142,6 +145,46 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
 	return woc.bsvExchangeRate, nil
 }
 
+// MerklePath retrieves the merkle path for a transaction using WoC TSC proof.
+func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
+	proof, err := woc.getTscProof(ctx, txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TSC proof: %w", err)
+	}
+	if proof == nil {
+		// Proof not found
+		return &wdk.MerklePathResult{
+			Name:  ServiceName,
+			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
+		}, nil
+	}
+
+	header, err := woc.hashToHeader(ctx, proof.Target)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch block header: %w", err)
+	}
+
+	merklePath, err := txutils.ConvertTscProofToMerklePath(txID, proof.Index, proof.Nodes, header.Height)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert proof for tx %s to merkle path: %w", txID, err)
+	}
+
+	merkleRoot, err := merklePath.ComputeRootHex(&txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute merkle root: %w", err)
+	}
+	if merkleRoot != header.MerkleRoot {
+		return nil, fmt.Errorf("computed merkle root %q does not match block header %q", merkleRoot, header.MerkleRoot)
+	}
+
+	return &wdk.MerklePathResult{
+		Name:        ServiceName,
+		MerklePath:  merklePath,
+		BlockHeader: header,
+		Notes:       history.NewBuilder().GetMerklePathSuccess(ServiceName).Note().AsList(),
+	}, nil
+}
+
 func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
 	var blocks []dto.BlockHeader
 	url := fmt.Sprintf("%s/block/headers?limit=1", woc.url)
@@ -203,4 +246,26 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 	}
 
 	return &wdk.PostedBEEF{TxIDResults: txResults}, nil
+}
+
+// IsValidRootForHeight checks if the provided Merkle root is valid for the given block height.
+func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, err)
+	}
+
+	if cached, ok := woc.getRootFromCache(height); ok {
+		return cached.IsEqual(root), nil
+	}
+
+	remoteRoot, err := woc.fetchRemoteRoot(ctx, height)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", ServiceName, err)
+	}
+	if remoteRoot == nil {
+		return false, nil
+	}
+
+	woc.storeRootInCache(height, remoteRoot)
+	return remoteRoot.IsEqual(root), nil
 }
