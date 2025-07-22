@@ -16,13 +16,19 @@ var (
 	DefaultOffset = uint32(0)
 	// DefaultOriginator is the originator domain or FQDN that is allowed to use this permission.
 	DefaultOriginator = "originator"
+	// DefaultIncludeLabels is the default value for including labels in the response
+	DefaultIncludeLabels = true
 )
 
+// defaultListActionsArgs creates default arguments for listing wallet actions.
+// This function demonstrates how to configure the ListActionsArgs struct which controls:
+// - Pagination: how many results to return and where to start
+// - Data inclusion: whether to include additional metadata like labels
 func defaultListActionsArgs() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
-		Limit:         &DefaultLimit,  // Maximum number of actions to return
-		Offset:        &DefaultOffset, // Starting position for pagination
-		IncludeLabels: nil,            // Include labels in the response
+		Limit:         &DefaultLimit,  // Maximum number of actions to return (100)
+		Offset:        &DefaultOffset, // Starting position for pagination (0 = start from beginning)
+		IncludeLabels: &DefaultIncludeLabels, // Include labels associated with actions in the response
 	}
 }
 
@@ -34,11 +40,11 @@ func main() {
 	alice := example_setup.CreateAlice()
 
 	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
+	defer cleanup()
 	if err != nil {
 		panic(fmt.Errorf("failed to create Alice's wallet: %w", err))
 	}
 
-	defer cleanup()
 	show.Step("Alice", "Listing actions")
 	args := defaultListActionsArgs()
 

@@ -9,6 +9,7 @@ The example uses the following configurable constants:
 - **`DefaultLimit`**: Maximum number of actions to return per request (default: `100`)
 - **`DefaultOffset`**: Starting position for pagination (default: `0`)
 - **`DefaultOriginator`**: The originator domain or FQDN allowed to use this permission (default: `"originator"`)
+- **`DefaultIncludeLabels`**: The default value for including labels in the response (default: `true`)
 
 ## Request Parameters
 
@@ -24,24 +25,6 @@ The response contains:
 
 - **`TotalActions`**: The total number of actions available for the wallet
 - **`Actions`**: An array of action objects containing detailed information about each wallet activity
-
-## Pagination
-
-For wallets with many actions, use pagination to retrieve results efficiently:
-
-```go
-// Get first 50 actions
-args := sdk.ListActionsArgs{
-    Limit:  &[]uint32{50}[0],
-    Offset: &[]uint32{0}[0],
-}
-
-// Get next 50 actions
-args = sdk.ListActionsArgs{
-    Limit:  &[]uint32{50}[0],
-    Offset: &[]uint32{50}[0],
-}
-```
 
 ## Example Output
 
