@@ -208,7 +208,6 @@ func (b *Bitails) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, err
 
 	res, err := b.httpClient.R().
 		SetContext(ctx).
-		SetHeader("Content-Type", "application/gzip").
 		Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("%s: HTTP request failed for raw tx: %w", ServiceName, err)

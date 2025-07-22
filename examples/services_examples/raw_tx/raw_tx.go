@@ -31,7 +31,7 @@ func main() {
 
 /* Output:
 
-🚀 STARTING: Raw Transaction from ARC
+🚀 STARTING: Raw Transaction from WhatsOnChain and Bitails
 ============================================================
 
 === STEP ===

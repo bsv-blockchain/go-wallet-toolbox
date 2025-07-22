@@ -73,7 +73,7 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	return nil
 }
 
-func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNote history.Builder) error {
+func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
 	var model models.KnownTx
 	err := tx.Model(&model).
 		Where("tx_id = ? ", txID).
@@ -83,7 +83,9 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 		return fmt.Errorf("failed to update known tx status: %w", err)
 	}
 
-	err = addTxNote(tx, txNote.Entity(txID))
+	err = addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+		return note.Entity(txID)
+	}))
 	if err != nil {
 		return err
 	}
