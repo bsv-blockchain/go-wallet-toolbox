@@ -2,10 +2,11 @@ package wdk
 
 import (
 	"encoding/json"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshallAndUnmarshallHistoryNote(t *testing.T) {
