@@ -90,6 +90,11 @@ func broadcastURL(baseURL string) (string, error) {
 	return buildURL(baseURL, "tx", "broadcast", "multi")
 }
 
+// /block/header/height/{blockheight}/raw
+func blockHeaderByHeightURL(baseURL string, height uint32) (string, error) {
+	return buildURL(baseURL, "block", "header", "height", fmt.Sprintf("%d", height), "raw")
+}
+
 // /block/latest
 func latestBlockURL(baseURL string) (string, error) {
 	return buildURL(baseURL, "block", "latest")

@@ -13,7 +13,7 @@ const apiVersion = "v1"
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return "", fmt.Errorf("failed for service %s: invalid base URL %q: %w", ServiceName, baseURL, err)
+		return "", fmt.Errorf("error parsing base URL %s: %w", baseURL, err)
 	}
 
 	basePath := strings.TrimSuffix(u.Path, "/")
@@ -36,4 +36,9 @@ func bearerHeader(key string) string {
 		return "" // makes IfNotEmpty a no-op
 	}
 	return "Bearer " + key
+}
+
+// verifyMerkleRootURL returns "<base>/chain/merkleroot/verify"
+func verifyMerkleRootURL(baseURL string) (string, error) {
+	return buildURL(baseURL, apiPrefix, apiVersion, "chain", "merkleroot", "verify")
 }

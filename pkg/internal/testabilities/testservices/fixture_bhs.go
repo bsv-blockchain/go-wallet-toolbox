@@ -38,8 +38,10 @@ type BHSFixture interface {
 	WillRespondWithInternalFailure()
 	WillRespondWithEmptyLongestTipBlockHeader()
 	OnLongestTipBlockHeaderResponseWith(opts ...LongestChainTipOptions)
+	OnMerkleRootVerifyResponse(height uint32, root, state string)
 	DefaultLongestTip() *longestChainTipResponse
 	HttpClient() *resty.Client
+	Transport() *httpmock.MockTransport
 }
 
 type bhsFixture struct {
@@ -78,6 +80,12 @@ func (b *bhsFixture) WillBeUnreachable() error {
 	b.TB.Helper()
 	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
+		bhsAnyEndpointRegexFixture,
+		httpmock.NewErrorResponder(err),
+	)
+
+	b.transport.RegisterRegexpResponder(
+		http.MethodPost,
 		bhsAnyEndpointRegexFixture,
 		httpmock.NewErrorResponder(err),
 	)
@@ -125,9 +133,11 @@ func newDefaultLongestChainTipResponse() *longestChainTipResponse {
 }
 
 const tipLongestPath = "/api/v1/chain/tip/longest"
+const verifyMerkleRootPath = "/api/v1/chain/merkleroot/verify"
 
 var bhsTestURLWithoutHTTPPrefix = defs.BHSTestURL[7:]
-var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s%s$`, regexp.QuoteMeta(bhsTestURLWithoutHTTPPrefix), tipLongestPath))
+
+var bhsAnyEndpointRegexFixture = regexp.MustCompile(fmt.Sprintf(`^http:\/\/%s\/api\/v1\/.*$`, regexp.QuoteMeta(bhsTestURLWithoutHTTPPrefix)))
 
 func (b *bhsFixture) HttpClient() *resty.Client {
 	client := resty.New()
@@ -137,4 +147,22 @@ func (b *bhsFixture) HttpClient() *resty.Client {
 
 func (b *bhsFixture) DefaultLongestTip() *longestChainTipResponse {
 	return b.longestChainTip
+}
+
+func (b *bhsFixture) OnMerkleRootVerifyResponse(height uint32, root, state string) {
+	resp := map[string]any{
+		"blockHeight":       height,
+		"merkleRoot":        root,
+		"confirmationState": state,
+	}
+
+	b.transport.RegisterResponder(
+		http.MethodPost,
+		defs.BHSTestURL+verifyMerkleRootPath,
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, resp),
+	)
+}
+
+func (b *bhsFixture) Transport() *httpmock.MockTransport {
+	return b.transport
 }
