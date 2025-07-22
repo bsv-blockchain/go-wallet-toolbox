@@ -199,7 +199,19 @@ func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, se
 		}
 	})
 
-	return seq.Collect(results), nil
+	return sortedResults[S, R](services, results), nil
+}
+
+// sortedResults sorts the results based on the initial order of services.
+func sortedResults[S serv, R any](services []S, results iter.Seq[*NamedResult[R]]) []*NamedResult[R] {
+	initialOrderLookup := make(map[string]int, len(services))
+	for i, service := range services {
+		initialOrderLookup[service.Name()] = i
+	}
+	sorted := seq.SortBy(results, func(r *NamedResult[R]) int {
+		return initialOrderLookup[r.Name()]
+	})
+	return seq.Collect(sorted)
 }
 
 func processOneByOne[S serv, R any](logger *slog.Logger, services []S, callService func(S) (R, error)) (R, error) {
