@@ -33,11 +33,10 @@ func TestBlockHeadersService_GetHeight(t *testing.T) {
 
 func TestBlockHeadersService_GetHeight_ErrorCases(t *testing.T) {
 	const overflow = uint(math.MaxUint32) + 42
-	type setupFn func(fix testservices.BHSFixture)
 
 	cases := []struct {
 		name  string
-		setup setupFn
+		setup func(fix testservices.BHSFixture)
 	}{
 		{
 			name: "HTTP 500",
@@ -54,7 +53,8 @@ func TestBlockHeadersService_GetHeight_ErrorCases(t *testing.T) {
 		{
 			name: "service unreachable",
 			setup: func(f testservices.BHSFixture) {
-				_ = f.WillBeUnreachable()
+				err := f.WillBeUnreachable()
+				require.Error(t, err)
 			},
 		},
 		{
