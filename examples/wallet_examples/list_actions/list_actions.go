@@ -50,3 +50,16 @@ func main() {
 	show.Info("Actions", actions)
 	show.ProcessComplete("List Actions")
 }
+
+/* Output:
+🚀 STARTING: List Actions
+============================================================
+CreateWallet: 025dd4fd3fd0594315937f4775f11c1622581ea8372642b57864e45c7bc8b36e4f
+
+=== STEP ===
+Alice is performing: Listing actions
+--------------------------------------------------
+Actions: &{TotalActions:0 Actions:[]}
+============================================================
+🎉 COMPLETED: List Actions
+*/
