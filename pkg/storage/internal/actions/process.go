@@ -18,6 +18,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seq2"
 )
 
 type process struct {
@@ -281,10 +282,11 @@ func (p *process) notesForPostBEEF(
 	if len(serviceErrors) > 0 {
 		txData := history.BeefObj(beef)
 
-		for _, serviceName := range slices.Sorted(maps.Keys(serviceErrors)) {
-			err := serviceErrors[serviceName]
-			records = append(records, history.NewBuilder().PostBeefError(serviceName, txData, txIDs, err.Error()))
-		}
+		sortedErrors := seq2.SortByKeys(seq2.FromMap(serviceErrors))
+		errorNotes := seq2.MapTo(sortedErrors, func(serviceName string, err error) history.Builder {
+			return history.NewBuilder().PostBeefError(serviceName, txData, txIDs, err.Error())
+		})
+		slices.AppendSeq(records, errorNotes)
 	}
 
 	for _, result := range aggBroadcastResult.TxIDResults {

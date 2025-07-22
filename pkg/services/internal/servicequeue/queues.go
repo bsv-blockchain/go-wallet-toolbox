@@ -1,14 +1,12 @@
 package servicequeue
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
 	"runtime/debug"
-	"slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
@@ -210,11 +208,10 @@ func sortedResults[S serv, R any](services []S, results iter.Seq[*NamedResult[R]
 	for i, service := range services {
 		initialOrderLookup[service.Name()] = i
 	}
-	sorted := seq.Collect(results)
-	slices.SortFunc(sorted, func(a, b *NamedResult[R]) int {
-		return cmp.Compare(initialOrderLookup[a.Name()], initialOrderLookup[b.Name()])
+	sorted := seq.SortBy(results, func(r *NamedResult[R]) int {
+		return initialOrderLookup[r.Name()]
 	})
-	return sorted
+	return seq.Collect(sorted)
 }
 
 func processOneByOne[S serv, R any](logger *slog.Logger, services []S, callService func(S) (R, error)) (R, error) {
