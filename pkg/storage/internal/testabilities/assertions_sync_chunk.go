@@ -1,6 +1,8 @@
 package testabilities
 
 import (
+	"encoding/json"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -62,6 +64,7 @@ type BasketAssertion interface {
 type ProvenTxReqAssertion interface {
 	AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxReqAssertion
 	WithTxID(txID string) ProvenTxReqAssertion
+	HasHistoryNotes(whatFields ...string) ProvenTxReqAssertion
 }
 
 type ProvenTxAssertion interface {
@@ -254,6 +257,34 @@ func (p *proveTxReqAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpe
 	assert.Equal(p.parent, txSpec.ID().String(), p.txReq.TxID, "Expected txReq to align with transaction spec TxID")
 	assert.Equal(p.parent, txSpec.TX().Bytes(), []byte(p.txReq.RawTx), "Expected txReq to align with transaction spec RawTx")
 	return p
+}
+
+func (p *proveTxReqAssertion) HasHistoryNotes(whatFields ...string) ProvenTxReqAssertion {
+	p.parent.Helper()
+
+	historyNotes := p.getHistoryNotes()
+
+	assert.Len(p.parent, historyNotes, len(whatFields), "Expected txReq to have %d history notes", len(whatFields))
+
+	actualWhatFields := slices.Map(historyNotes, func(note map[string]any) string {
+		what, ok := note["what"].(string)
+		require.True(p.parent, ok, "Expected 'what' field to be a string in history notes")
+		return what
+	})
+	assert.ElementsMatch(p.parent, whatFields, actualWhatFields, "Expected history notes to contain specific 'what' fields")
+	return p
+}
+
+func (p *proveTxReqAssertion) getHistoryNotes() []map[string]any {
+	p.parent.Helper()
+	// use json to unmarshal the history notes
+	var notesObj struct {
+		Notes []map[string]any `json:"notes"`
+	}
+	err := json.Unmarshal([]byte(p.txReq.History), &notesObj)
+	require.NoError(p.parent, err, "Expected to unmarshal history notes without error")
+
+	return notesObj.Notes
 }
 
 func (p *proveTxReqAssertion) WithTxID(txID string) ProvenTxReqAssertion {
