@@ -381,7 +381,7 @@ func (c *create) validateNoSendChange(ctx context.Context, userID int, params Cr
 
 	for _, output := range outputs {
 		if output == nil {
-			return fmt.Errorf("failed to validate outputs: db query result contain a nil output value")
+			return fmt.Errorf("failed to validate outputs: db query result contains a nil output value")
 		}
 
 		if output.ProvidedBy != wdk.ProvidedByStorage.String() {
@@ -393,11 +393,11 @@ func (c *create) validateNoSendChange(ctx context.Context, userID int, params Cr
 		}
 
 		if output.BasketName == nil {
-			return fmt.Errorf("failed to validate outputs: 'basket name' field value is set to nil - output ID %d ", output.ID)
+			return fmt.Errorf("failed to validate outputs: 'basket name' field value is set to nil - output ID %d", output.ID)
 		}
 
 		if *output.BasketName != wdk.BasketNameForChange {
-			return fmt.Errorf("failed to validate outputs: 'basket name' field value doesn't match %s value - output ID %d ", wdk.BasketNameForChange, output.ID)
+			return fmt.Errorf("failed to validate outputs: 'basket name' field value doesn't match %s value - output ID %d", wdk.BasketNameForChange, output.ID)
 		}
 
 		if !output.Spendable {
