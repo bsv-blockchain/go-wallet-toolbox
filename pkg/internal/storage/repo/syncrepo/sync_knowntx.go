@@ -2,6 +2,7 @@ package syncrepo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -10,7 +11,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type SyncKnownTx struct {
@@ -33,12 +36,41 @@ func (s *SyncKnownTx) tableName() string {
 func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
 	filters := append(scopes.FromQueryOpts(opts), s.whereExistsScope(userID))
 
-	resultModels, err := findChunk[models.KnownTx, KnownTxWithNum](ctx, s.db, s.tableName(), "tx_id", filters)
+	var resultModels []*KnownTxWithNum
+
+	var model models.KnownTx
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := upsertNumericIDLookup(ctx, s.db, tx, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select(fmt.Sprintf("?, %s", "tx_id"), s.tableName()).
+				Scopes(filters...).
+				Find(&model)
+		}); err != nil {
+			return fmt.Errorf("failed to upsert numeric ID lookup: %w", err)
+		}
+
+		if err := tx.WithContext(ctx).
+			Model(&model).
+			Select("*").
+			Scopes(joinWithNumericIDLookupScope("tx_id", s.tableName(), clause.InnerJoin)).
+			Scopes(filters...).
+			Preload(genquery.KnownTx.TxNotes.Name()).
+			Find(&resultModels).Error; err != nil {
+			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
+		}
+		return nil
+	})
+
 	if err != nil {
-		return nil, nil, fmt.Errorf("find known transactions for sync: %w", err)
+		return nil, nil, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	provenTxReqs, provenTxs := s.toReqOrProvenTx(resultModels)
+	provenTxReqs, provenTxs, err := s.toReqOrProvenTx(resultModels)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to convert models to proven tx requests and proven transactions: %w", err)
+	}
+
 	return provenTxReqs, provenTxs, nil
 }
 
@@ -68,12 +100,24 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		}
 
 		if updateTx.RowsAffected > 0 {
+			if err := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; err != nil {
+				return fmt.Errorf("failed to delete existing transaction notes: %w", err)
+			}
+
+			if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", err)
+			}
+
 			return nil
 		}
 
 		err := tx.Create(&model).Error
 		if err != nil {
 			return fmt.Errorf("failed to create proven tx req: %w", err)
+		}
+
+		if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+			return fmt.Errorf("failed to add transaction history notes while creating knownTx: %w", err)
 		}
 
 		isNew = true
@@ -105,7 +149,7 @@ func (s *SyncKnownTx) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 // - one for proven transactions (ProvenTx) that have a Merkle path (mined transactions).
 // NOTE: In this implementation, there is ONLY ONE table to hold both: requests (ProvenTxReq) and proven transactions (ProvenTx).
 // The function is used to prepare data for syncing, where we need to distinguish between requests and proven transactions.
-func (s *SyncKnownTx) toReqOrProvenTx(models []*KnownTxWithNum) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx) {
+func (s *SyncKnownTx) toReqOrProvenTx(models []*KnownTxWithNum) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
 	minedTxs := 0
 	for _, model := range models {
 		if model.HasMerklePath() {
@@ -120,17 +164,26 @@ func (s *SyncKnownTx) toReqOrProvenTx(models []*KnownTxWithNum) ([]*wdk.TablePro
 		if model.HasMerklePath() {
 			provenTxs = append(provenTxs, s.mapModelToTableProvenTxForSync(model))
 		} else {
-			provenTxReqs = append(provenTxReqs, s.mapModelToTableProvenTxReqForSync(model))
+			provenTxReq, err := s.mapModelToTableProvenTxReqForSync(model)
+			if err != nil {
+				return nil, nil, err
+			}
+			provenTxReqs = append(provenTxReqs, provenTxReq)
 		}
 	}
 
-	return provenTxReqs, provenTxs
+	return provenTxReqs, provenTxs, nil
 }
 
-func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) *wdk.TableProvenTxReq {
+func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (*wdk.TableProvenTxReq, error) {
 	if model.MerklePath != nil {
 		// this mapping function is designed to convert a model that is guaranteed to be NOT MINED (does not have a Merkle path),
 		panic("KnownTx model must not have MerklePath set when creating TableProvenTxReq for sync")
+	}
+
+	historyNotes, err := s.mapModelToHistoryNotes(model)
+	if err != nil {
+		return nil, err
 	}
 
 	return &wdk.TableProvenTxReq{
@@ -141,12 +194,12 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) *
 		Attempts:      model.Attempts,
 		Notified:      model.Notified,
 		TxID:          model.TxID,
-		Batch:         nil,  // TODO: For now batch broadcasting is not supported, will be added later
-		History:       "{}", // TODO: History feature will be reworked later, then we can address this and think if we even want to sync "history" field
+		Batch:         nil, // TODO: For now batch broadcasting is not supported, will be added later
+		History:       historyNotes,
 		Notify:        "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
 		RawTx:         model.RawTx,
 		InputBEEF:     model.InputBeef,
-	}
+	}, nil
 }
 
 func (s *SyncKnownTx) mapModelToTableProvenTxForSync(model *KnownTxWithNum) *wdk.TableProvenTx {
@@ -168,4 +221,54 @@ func (s *SyncKnownTx) mapModelToTableProvenTxForSync(model *KnownTxWithNum) *wdk
 		BlockHash:  *model.BlockHash,
 		MerkleRoot: *model.MerkleRoot,
 	}
+}
+
+func (s *SyncKnownTx) mapModelToHistoryNotes(model *KnownTxWithNum) (string, error) {
+	if len(model.TxNotes) == 0 {
+		return "{}", nil
+	}
+
+	notes := slices.Map(model.TxNotes, func(it *models.TxNote) *wdk.HistoryNote {
+		return &wdk.HistoryNote{
+			When:       it.CreatedAt,
+			UserID:     it.UserID,
+			What:       it.What,
+			Attributes: it.Attributes,
+		}
+	})
+
+	notesObj := struct {
+		Notes []*wdk.HistoryNote `json:"notes"`
+	}{
+		Notes: notes,
+	}
+
+	historyNotes, err := json.Marshal(notesObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal transaction notes: %w", err)
+	}
+
+	return string(historyNotes), nil
+}
+
+func (s *SyncKnownTx) addHistoryNotes(ctx context.Context, tx *gorm.DB, txID string, notes []*entity.TxHistoryNote) error {
+	if len(notes) == 0 {
+		return nil
+	}
+
+	modelsToAdd := slices.Map(notes, func(note *entity.TxHistoryNote) *models.TxNote {
+		return &models.TxNote{
+			CreatedAt:  note.When,
+			TxID:       txID,
+			UserID:     note.UserID,
+			What:       note.What,
+			Attributes: note.Attributes,
+		}
+	})
+
+	if err := tx.WithContext(ctx).Create(&modelsToAdd).Error; err != nil {
+		return fmt.Errorf("failed to create transaction history notes: %w", err)
+	}
+
+	return nil
 }

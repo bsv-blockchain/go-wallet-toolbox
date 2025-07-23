@@ -50,7 +50,10 @@ func TestGetSyncChunk(t *testing.T) {
 
 	// and proven tx requests:
 	thenChunk.ProvenTxReqsCount(2)
-	thenChunk.ProvenTxReqAtIndex(0).WithTxID(internalizedTxID)
+	thenChunk.ProvenTxReqAtIndex(0).
+		WithTxID(internalizedTxID).
+		HasHistoryNotes("internalizeAction")
+
 	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx1)
 
 	// and proven txs:

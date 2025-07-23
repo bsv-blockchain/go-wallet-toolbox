@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -22,11 +23,16 @@ type BitailsFixture interface {
 	WillReturnBlockHeader(blockHash, rawHeader string)
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
 	WillReturnTxStatus(txid string, blockHeight int)
+	WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string)
 	WillReturnNetworkInfo(status int, blocks uint32)
 	WillReturnLatestBlock(blockHash string, height uint32)
+	WillReturnRawTxHex(txid, rawHex string)
+	WillReturnRawTx404(txid string)
+	WillReturnRawTxHttpError(txid string, status int)
 	WillRespondWithInternalFailure()
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
+	Transport() *httpmock.MockTransport
 }
 
 type BitailsBroadcastFixture interface {
@@ -60,6 +66,10 @@ func (b *bitailsFixture) HttpClient() *resty.Client {
 	client := resty.New()
 	client.SetTransport(b.transport)
 	return client
+}
+
+func (b *bitailsFixture) Transport() *httpmock.MockTransport {
+	return b.transport
 }
 
 func (b *bitailsFixture) OnBroadcast() BitailsBroadcastFixture {
@@ -234,6 +244,22 @@ func (b *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
 	)
 }
 
+func (b *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string) {
+	pattern := `=~.*?/block/header/height/` + strconv.Itoa(int(height)) + `/raw$`
+
+	var responder httpmock.Responder
+	switch status {
+	case http.StatusOK:
+		responder = httpmock.NewJsonResponderOrPanic(status, struct {
+			Header string `json:"header"`
+		}{Header: headerHex})
+	default:
+		responder = httpmock.NewStringResponder(status, http.StatusText(status))
+	}
+
+	b.transport.RegisterResponder(http.MethodGet, pattern, responder)
+}
+
 func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
 	b.TB.Helper()
 
@@ -259,5 +285,32 @@ func (b *bitailsFixture) WillRespondWithInternalFailure() {
 		http.MethodGet,
 		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
 		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
+}
+
+func (b *bitailsFixture) WillReturnRawTxHex(txid, rawHex string) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/download/tx/%s/hex`, regexp.QuoteMeta(txid))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(http.StatusOK, rawHex),
+	)
+}
+
+func (b *bitailsFixture) WillReturnRawTx404(txid string) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/download/tx/%s/hex`, regexp.QuoteMeta(txid))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(http.StatusNotFound, "not found"),
+	)
+}
+
+func (b *bitailsFixture) WillReturnRawTxHttpError(txid string, status int) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/download/tx/%s/hex`, regexp.QuoteMeta(txid))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(status, http.StatusText(status)),
 	)
 }

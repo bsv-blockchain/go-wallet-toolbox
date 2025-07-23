@@ -360,7 +360,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 	txID string,
 	txStatus wdk.TxStatus,
 	provenTxReqStatus wdk.ProvenTxReqStatus,
-	txNote history.Builder,
+	txNotes []history.Builder,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = updateTransactionStatus(tx, txID, txStatus)
@@ -368,7 +368,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 			return err
 		}
 
-		return updateKnownTxStatus(tx, txID, provenTxReqStatus, txNote)
+		return updateKnownTxStatus(tx, txID, provenTxReqStatus, txNotes)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)

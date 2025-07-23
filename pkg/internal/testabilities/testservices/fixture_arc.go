@@ -172,8 +172,9 @@ func (f *arcFixture) store(txHex string) {
 	require.NoError(f, err, "failed to create BEEF from bytes")
 
 	transactions := seq2.FromMap(beef.Transactions)
-	includedTransactions := seq2.MapTo(transactions, func(txID string, tx *sdk.BeefTx) *knownTransaction {
+	includedTransactions := seq2.MapTo(transactions, func(txIDHash chainhash.Hash, tx *sdk.BeefTx) *knownTransaction {
 		merklePath := optional.OfPtr(tx.Transaction.MerklePath)
+		txID := txIDHash.String()
 
 		return &knownTransaction{
 			txid:        txID,

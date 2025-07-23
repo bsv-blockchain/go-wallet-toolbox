@@ -35,7 +35,7 @@ type TransactionsRepo interface {
 		txID string,
 		txStatus wdk.TxStatus,
 		provenTxReqStatus wdk.ProvenTxReqStatus,
-		txNote history.Builder,
+		txNotes []history.Builder,
 	) error
 	// UpdateTransactionStatusByID(
 	// 	ctx context.Context,
