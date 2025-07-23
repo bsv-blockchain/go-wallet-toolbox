@@ -209,40 +209,6 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 }
 
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
-	transaction := models.Transaction{}
-	err := txs.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID)).
-		Where("reference = ?", reference).
-		Preload("Labels").
-		First(&transaction).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
-	}
-
-	return txs.mapModelToTransactionEntity(&transaction), nil
-}
-
-func (txs *Transactions) FindTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
-	transaction := models.Transaction{}
-	err := txs.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID)).
-		Where("tx_id = ?", txID).
-		Preload("Labels").
-		First(&transaction).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to find transaction by txID: %w", err)
-	}
-
-	return txs.mapModelToTransactionEntity(&transaction), nil
-}
-
-func (txs *Transactions) FindUniqueTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
 	var transactions []models.Transaction
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
@@ -267,6 +233,23 @@ func (txs *Transactions) FindUniqueTransactionByReference(ctx context.Context, u
 	}
 
 	return txs.mapModelToTransactionEntity(&transactions[0]), nil
+}
+
+func (txs *Transactions) FindTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
+	transaction := models.Transaction{}
+	err := txs.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID)).
+		Where("tx_id = ?", txID).
+		Preload("Labels").
+		First(&transaction).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find transaction by txID: %w", err)
+	}
+
+	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
 func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error {
