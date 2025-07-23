@@ -15,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -379,30 +380,9 @@ func (c *create) validateNoSendChange(ctx context.Context, userID int, params Cr
 		return fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(outpoints))
 	}
 
-	for _, output := range outputs {
-		if output == nil {
-			return fmt.Errorf("failed to validate outputs: db query result contains a nil output value")
-		}
-
-		if output.ProvidedBy != wdk.ProvidedByStorage.String() {
-			return fmt.Errorf("failed to validate outputs: 'provided by' field value doesn't match %s value - output ID %d", wdk.ProvidedByStorage.String(), output.ID)
-		}
-
-		if output.Purpose != wdk.ChangePurpose {
-			return fmt.Errorf("failed to validate outputs: 'purpose' field value doesn't match %s value - output ID %d", wdk.ChangePurpose, output.ID)
-		}
-
-		if output.BasketName == nil {
-			return fmt.Errorf("failed to validate outputs: 'basket name' field value is set to nil - output ID %d", output.ID)
-		}
-
-		if *output.BasketName != wdk.BasketNameForChange {
-			return fmt.Errorf("failed to validate outputs: 'basket name' field value doesn't match %s value - output ID %d", wdk.BasketNameForChange, output.ID)
-		}
-
-		if !output.Spendable {
-			return fmt.Errorf("failed to validate outputs: 'spendable' field value is false - output ID %d", output.ID)
-		}
+	err = validate.NoSendChangeOutputs(outputs)
+	if err != nil {
+		return fmt.Errorf("failed to validate no send change outputs: %w", err)
 	}
 
 	return nil
