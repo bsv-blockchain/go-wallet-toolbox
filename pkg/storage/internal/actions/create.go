@@ -389,7 +389,7 @@ func (c *create) validateNoSendChange(ctx context.Context, userID int, params Cr
 		}
 
 		if output.Purpose != wdk.ChangePurpose {
-			return fmt.Errorf("failed to validate outputs: 'purpose' field value doesn't match %s value - output ID %d", wdk.ProvidedByStorage.String(), output.ID)
+			return fmt.Errorf("failed to validate outputs: 'purpose' field value doesn't match %s value - output ID %d", wdk.ChangePurpose, output.ID)
 		}
 
 		if output.BasketName == nil {

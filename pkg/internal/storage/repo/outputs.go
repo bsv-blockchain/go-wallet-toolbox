@@ -176,17 +176,17 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 		return nil, nil
 	}
 
-	outpointsConditions := o.db
-	for _, outpoint := range outpoints {
-		outpointsConditions = outpointsConditions.Or("bsv_outputs.vout = ? AND tx.tx_id = ?", outpoint.Vout, outpoint.TxID)
-	}
+	outpointStrings := slices.Map(outpoints, func(op wdk.OutPoint) string {
+		return op.String()
+	})
 
-	query := o.db.WithContext(ctx).
-		Model(&models.Output{}).
-		Select("bsv_outputs.*, tx.tx_id as tx_id").
-		Joins("INNER JOIN bsv_transactions tx ON tx.id = bsv_outputs.transaction_id").
-		Where("bsv_outputs.user_id = ?", userID).
-		Where(outpointsConditions)
+	query := o.db.WithContext(ctx).Table(
+		"(?) as out",
+		o.db.Model(&models.Output{}).
+			Select("bsv_outputs.*, tx.tx_id as tx_id, CONCAT(tx.tx_id, '.', bsv_outputs.vout) as outpoint").
+			Joins("INNER JOIN bsv_transactions tx ON tx.id = bsv_outputs.transaction_id").
+			Where("bsv_outputs.user_id = ?", userID),
+	).Where("outpoint IN (?)", outpointStrings)
 
 	type outputWithTxID struct {
 		*models.Output

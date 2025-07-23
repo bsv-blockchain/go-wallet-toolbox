@@ -141,8 +141,12 @@ func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	seq.Range(1, 30+1)
-	assert.Equal(t, result.NoSendChangeOutputVouts, seq.Collect(seq.Range(1, 30+1)))
+	const (
+		firstNoSendChangeVout = 1
+		lastNoSendChangeVout  = 30
+	)
+	expectedNoSendChangeOutputs := seq.Collect(seq.Range(firstNoSendChangeVout, lastNoSendChangeVout+1)) // [firstNoSendChangeVout ... lastNoSendChangeVout]
+	assert.Equal(t, expectedNoSendChangeOutputs, result.NoSendChangeOutputVouts)
 }
 
 func TestCreateActionWithNoSendChangeDuplicate(t *testing.T) {
