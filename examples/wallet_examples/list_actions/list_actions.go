@@ -12,10 +12,14 @@ import (
 var (
 	// DefaultLimit is the default number of actions to retrieve
 	DefaultLimit = uint32(100)
+
 	// DefaultOffset is the default starting position for pagination
 	DefaultOffset = uint32(0)
-	// DefaultOriginator is the originator domain or FQDN that is allowed to use this permission.
-	DefaultOriginator = "originator"
+
+	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the action listing request.
+	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
+	DefaultOriginator = "example.com"
+
 	// DefaultIncludeLabels is the default value for including labels in the response
 	DefaultIncludeLabels = true
 )

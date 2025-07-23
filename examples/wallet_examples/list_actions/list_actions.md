@@ -8,7 +8,7 @@ The example uses the following configurable constants:
 
 - **`DefaultLimit`**: Maximum number of actions to return per request (default: `100`)
 - **`DefaultOffset`**: Starting position for pagination (default: `0`)
-- **`DefaultOriginator`**: The originator domain or FQDN allowed to use this permission (default: `"originator"`)
+- **`DefaultOriginator`**: Specifies the originator domain or FQDN used to identify the source of the action listing request (default: `"originator"`)
 - **`DefaultIncludeLabels`**: The default value for including labels in the response (default: `true`)
 
 ## Request Parameters
