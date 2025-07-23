@@ -11,7 +11,7 @@ func ValidAbortActionArgs(args *wdk.AbortActionArgs) error {
 		return fmt.Errorf("args cannot be nil")
 	}
 
-	if args.Reference == nil {
+	if args.Reference == "" {
 		return fmt.Errorf("missing reference argument for abort action")
 	}
 

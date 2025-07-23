@@ -17,7 +17,6 @@ const (
 	ProcessActionHistoryNote     = "processAction"
 	AggregateResultsHistoryNote  = "aggregateResults"
 	AbortActionHistoryNote       = "abortAction"
-	ActionHistoryNote            = "action"
 
 	GetMerklePathSuccess  = "getMerklePathSuccess"
 	GetMerklePathNotFound = "getMerklePathNotFound"
@@ -120,7 +119,6 @@ func (b *builder) PostBeefSuccess(serviceName string, beef []byte, txIDs []strin
 
 func (b *builder) AbortAction(reference string) Builder {
 	return b.WithWhat(AbortActionHistoryNote).
-		WithAttribute(actionAttr, abortActionAttr).
 		WithAttribute(referenceAttr, reference)
 }
 

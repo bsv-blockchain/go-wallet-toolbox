@@ -37,15 +37,15 @@ type TransactionsRepo interface {
 		provenTxReqStatus wdk.ProvenTxReqStatus,
 		txNote history.Builder,
 	) error
-	UpdateTransactionStatusByID(
-		ctx context.Context,
-		transactionID uint,
-		txStatus wdk.TxStatus,
-		provenTxReqStatus wdk.ProvenTxReqStatus,
-	) error
+	// UpdateTransactionStatusByID(
+	// 	ctx context.Context,
+	// 	transactionID uint,
+	// 	txStatus wdk.TxStatus,
+	// ) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
+	AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error
 }
 
 type KnownTxRepo interface {

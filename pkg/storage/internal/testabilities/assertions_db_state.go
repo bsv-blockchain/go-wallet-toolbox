@@ -21,6 +21,7 @@ import (
 type StorageReader interface {
 	KnownTxEntity() crud.KnownTx
 	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
+	FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
@@ -30,6 +31,7 @@ type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
 	HasKnownTX(txID string) KnownTxAssertion
 	HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion
+	HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
 
@@ -56,7 +58,6 @@ type UserTransactionAssertion interface {
 
 type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
-	WithTxIDCount(expected int, txID uint) OutputsListAssertion
 	WithCountHavingOutpoint(expected int) OutputsListAssertion
 	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
 }
@@ -247,6 +248,22 @@ func (d *dbStateAssertion) HasUserTransactionByReference(user testusers.User, re
 	}
 }
 
+func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion {
+	d.Helper()
+
+	userID := d.userIDByIdentityKey(user.IdentityKey(d))
+	tx, err := d.storage.FindUserTransactionByTxID(d.Context(), userID, txID) // UserID is not used here, so we pass 0
+	require.NoError(d.TB, err)
+	require.NotNil(d.TB, tx)
+
+	assert.Equal(d, txID, *tx.TxID, "Expected user transaction to have the same TxID as the one requested")
+
+	return &userTransactionAssertion{
+		TB:          d.TB,
+		transaction: tx,
+	}
+}
+
 type userTransactionAssertion struct {
 	testing.TB
 	transaction *entity.Transaction
@@ -309,19 +326,6 @@ type outputsListAssertion struct {
 func (d *outputsListAssertion) WithCount(expected int) OutputsListAssertion {
 	d.Helper()
 	assert.Len(d, d.outputs, expected, "Expected outputs list to have %d items, but got %d", expected, len(d.outputs))
-	return d
-}
-
-func (d *outputsListAssertion) WithTxIDCount(expected int, txID uint) OutputsListAssertion {
-	d.Helper()
-	txIDStr := to.StringFromInteger(txID)
-	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
-		id := output.Outpoint.MustGetTxID()
-
-		equal := txIDStr == id
-		return equal
-	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID %d, but got %d", expected, count)
 	return d
 }
 

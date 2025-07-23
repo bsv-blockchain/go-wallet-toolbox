@@ -7,7 +7,6 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -18,71 +17,81 @@ type abortAction struct {
 
 func newAbortAction(logger *slog.Logger, transactions TransactionsRepo) *abortAction {
 	return &abortAction{
-		logger:           logging.Child(logger, "abort_action"),
+		logger:           logging.Child(logger, "abortAction"),
 		transactionsRepo: transactions,
 	}
 }
 
 func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
-	txEntity, err := a.transactionsRepo.FindUniqueTransactionByReference(ctx, userID, *args.Reference)
+	txEntity, err := a.transactionsRepo.FindUniqueTransactionByReference(ctx, userID, args.Reference)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find unique transaction by reference: %w", err)
 	}
 
-	if txEntity == nil && len(*args.Reference) == 64 {
-		txEntity, err = a.transactionsRepo.FindTransactionByUserIDAndTxID(ctx, userID, *args.Reference)
+	if txEntity == nil && a.isPotentiallyTxID(args.Reference) {
+		txEntity, err = a.transactionsRepo.FindTransactionByUserIDAndTxID(ctx, userID, args.Reference)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find transaction by txid: %w", err)
 		}
 	}
 
 	if txEntity == nil {
-		return nil, fmt.Errorf("failed to find unique transaction by reference: expected exactly one transaction with reference %s, found 0", *args.Reference)
+		return nil, fmt.Errorf("failed to find unique transaction by reference: expected exactly one transaction with reference %s, found 0", args.Reference)
 	}
 
-	err = validateTxForAbort(txEntity)
+	err = a.validateTx(txEntity)
 	if err != nil {
 		return nil, err
 	}
 
-	history := history.NewBuilder().AbortAction(*args.Reference)
-
-	if txEntity.TxID != nil {
-		err = a.transactionsRepo.UpdateTransactionStatusForTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, history)
-		if err != nil {
-			return nil, fmt.Errorf("failed to update known transaction status: %w", err)
-		}
-	}
-
-	err = a.transactionsRepo.UpdateTransactionStatusByID(ctx, txEntity.ID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid)
+	err = a.transactionsRepo.AbortTransactionAtomic(
+		ctx,
+		txEntity.ID,
+		txEntity.TxID,
+		args.Reference,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update transaction status: %w", err)
+		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
+
+	// historyNote := history.NewBuilder().AbortAction(args.Reference)
+
+	// if txEntity.TxID != nil {
+	// 	err = a.transactionsRepo.UpdateTransactionStatusForTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to update known transaction status: %w", err)
+	// 	}
+	// }
+
+	// err = a.transactionsRepo.UpdateTransactionStatusByID(ctx, txEntity.ID, wdk.TxStatusFailed)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to update transaction status: %w", err)
+	// }
 
 	return &wdk.AbortActionResult{
 		Aborted: true,
 	}, nil
 }
 
-func validateTxForAbort(txEntity *entity.Transaction) error {
+func (a *abortAction) validateTx(txEntity *entity.Transaction) error {
 	if !txEntity.IsOutgoing {
-		return fmt.Errorf("txDirectionInvalid: must be an outgoing transaction.")
+		return fmt.Errorf("%w: must be an outgoing transaction", wdk.ErrNotAbortableAction)
 	}
 
 	return validateTxStatusForAbort(txEntity.Status)
 }
 
 func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
-	var unAbortableStatuses = map[wdk.TxStatus]bool{
-		wdk.TxStatusCompleted: true,
-		wdk.TxStatusFailed:    true,
-		wdk.TxStatusSending:   true,
-		wdk.TxStatusUnproven:  true,
+	switch txStatus {
+	case wdk.TxStatusCompleted, wdk.TxStatusFailed, wdk.TxStatusSending, wdk.TxStatusUnproven:
+		return fmt.Errorf("%w: action with status %s cannot be aborted", wdk.ErrNotAbortableAction, txStatus)
+	case wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+		return nil
+	default:
+		return fmt.Errorf("%w: unexpected transaction status %s", wdk.ErrNotAbortableAction, txStatus)
 	}
+}
 
-	if unAbortableStatuses[txStatus] {
-		return fmt.Errorf("txNotAbortable: action with status %s cannot be aborted", txStatus)
-	}
-
-	return nil
+func (a *abortAction) isPotentiallyTxID(reference string) bool {
+	return len(reference) == 64
 }
