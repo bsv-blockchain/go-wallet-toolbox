@@ -26,6 +26,9 @@ type BitailsFixture interface {
 	WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string)
 	WillReturnNetworkInfo(status int, blocks uint32)
 	WillReturnLatestBlock(blockHash string, height uint32)
+	WillReturnRawTxHex(txid, rawHex string)
+	WillReturnRawTx404(txid string)
+	WillReturnRawTxHttpError(txid string, status int)
 	WillRespondWithInternalFailure()
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
@@ -282,5 +285,32 @@ func (b *bitailsFixture) WillRespondWithInternalFailure() {
 		http.MethodGet,
 		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
 		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
+}
+
+func (b *bitailsFixture) WillReturnRawTxHex(txid, rawHex string) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/download/tx/%s/hex`, regexp.QuoteMeta(txid))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(http.StatusOK, rawHex),
+	)
+}
+
+func (b *bitailsFixture) WillReturnRawTx404(txid string) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/download/tx/%s/hex`, regexp.QuoteMeta(txid))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(http.StatusNotFound, "not found"),
+	)
+}
+
+func (b *bitailsFixture) WillReturnRawTxHttpError(txid string, status int) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/download/tx/%s/hex`, regexp.QuoteMeta(txid))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(status, http.StatusText(status)),
 	)
 }

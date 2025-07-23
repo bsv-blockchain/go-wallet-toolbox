@@ -12,7 +12,6 @@ import (
 
 // InternalizeFromFaucet is a helper function to internalize a transaction from the faucet
 func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Interface) error {
-
 	beef, err := hex.DecodeString(beefHex)
 	if err != nil {
 		show.Error(err.Error())
@@ -49,6 +48,6 @@ func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Inter
 	}
 
 	show.WalletSuccess("InternalizeAction", internalizeArgs, *iar)
-
 	return nil
+	
 }

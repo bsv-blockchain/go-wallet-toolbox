@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"testing"
+	"time"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -220,6 +221,8 @@ func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) 
 
 	assert.Equal(d, what, note.What, "Expected TxNote to have the same 'What' as requested")
 	assert.Equal(d, userID, note.UserID, "Expected TxNote to have the same 'UserID' as requested")
+	var zeroTime time.Time
+	assert.NotEqual(d, zeroTime, note.When, "Expected TxNote to have a non-zero 'When' timestamp")
 
 	for k, v := range attrs {
 		val, ok := note.Attributes[k]
