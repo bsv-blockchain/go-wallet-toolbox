@@ -72,12 +72,12 @@ Provided below are two methods to get started with using the wallet toolbox.
 - [Find Chain Tip Header](./services_examples//find_chain_tip_header/README) - Finds the latest block header in the longest chain.
 - [Height](./services_examples/height/README) - Fetch current block height.
 - [Is Valid Root](./services_examples/is_valid_root/README) - Validates a root hex is valid for a specified height.
-- [Merkle Path](./services_examples/services_merkle_path/README) - Fetching Merkle Path for specified txID.
-- [Post BEEF](./services_examples/services_post_beef/README) - Broadcasting a single BSV transaction.
-- [Post BEEF Hex](./services_examples/services_post_beef_hex/README) - Broadcasting a single BSV transaction hex format.
-- [Post BEEF Multiple txs](./services_examples/services_post_multiple_txs/README) - Broadcasting multiple transactions (grandparent, parent, and child).
+- [Merkle Path](./services_examples/merkle_path/README) - Fetching Merkle Path for specified txID.
+- [Post BEEF](./services_examples/post_beef/README) - Broadcasting a single BSV transaction.
+- [Post BEEF Hex](./services_examples/post_beef_hex/README) - Broadcasting a single BSV transaction hex format.
+- [Post BEEF Multiple txs](./services_examples/post_multiple_txs/README) - Broadcasting multiple transactions (grandparent, parent, and child).
 
-## Explainations
+## Explanations
 ### BEEF (Background Evaluation Extended Format)
 [BEEF](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md) is a binary format for sending transactions between peers to allow [Simple Payment Verification (SPV)](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0067.md). The format is optimized for minimal bandwidth while maintaining all data required to independently validate transactions in full.
 BEEF includes transactions along with their Merkle paths using the [BSV Universal Merkle Path (BUMP)](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0074.md) format. This allows the transaction to be validated without requiring access to the blockchain, making it ideal for efficient transaction broadcasting.
