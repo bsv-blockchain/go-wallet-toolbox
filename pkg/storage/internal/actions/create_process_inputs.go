@@ -3,13 +3,12 @@ package actions
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"iter"
 	"log/slog"
 	"maps"
 	"strings"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -18,6 +17,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
+	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 var readyToBeInputProvenTxStatuses = []wdk.ProvenTxReqStatus{
