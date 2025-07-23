@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +58,11 @@ func TestSyncProcess(t *testing.T) {
 
 	thenDBState.HasKnownTX(internalizedTxID).
 		WithStatus(wdk.ProvenTxStatusUnmined).
-		HasRawTx()
+		HasRawTx().
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.Count(1).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+		})
 
 	// and user's transactions:
 	thenDBState.
