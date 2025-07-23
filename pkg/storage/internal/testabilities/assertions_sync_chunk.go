@@ -47,6 +47,10 @@ type ValidSyncChunkAssertion interface {
 	LabelsCount(length int) ValidSyncChunkAssertion
 	LabelsMapCount(length int) ValidSyncChunkAssertion
 	WithTxLabels(transactionID uint, labels ...string) ValidSyncChunkAssertion
+
+	TagsCount(length int) ValidSyncChunkAssertion
+	TagsMapCount(length int) ValidSyncChunkAssertion
+	WithOutputTag(outputID uint, tags ...string) ValidSyncChunkAssertion
 }
 
 type BasketAssertion interface {
@@ -162,6 +166,8 @@ func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.TransactionsCount(0)
 	s.LabelsCount(0)
 	s.LabelsMapCount(0)
+	s.TagsCount(0)
+	s.TagsMapCount(0)
 	return s
 }
 
@@ -435,5 +441,48 @@ func (s *syncChunkAssertion) withLabel(transactionID uint, label string) ValidSy
 		}
 		return false
 	}, "Expected chunk to contain label '%s' for transaction ID %d", label, transactionID)
+	return s
+}
+
+func (s *syncChunkAssertion) TagsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.OutputTags, length, "Expected chunk to have %d tags", length)
+	return s
+}
+
+func (s *syncChunkAssertion) TagsMapCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	assert.Len(s, s.chunk.OutputTagMaps, length, "Expected chunk to have %d tag maps", length)
+	return s
+}
+
+func (s *syncChunkAssertion) WithOutputTag(outputID uint, tags ...string) ValidSyncChunkAssertion {
+	s.Helper()
+
+	for _, label := range tags {
+		s.withTag(outputID, label)
+	}
+
+	return s
+}
+
+func (s *syncChunkAssertion) withTag(outputID uint, tag string) ValidSyncChunkAssertion {
+	s.Helper()
+	require.NotEmpty(s, s.chunk.OutputTags)
+	require.NotEmpty(s, s.chunk.OutputTagMaps)
+
+	tagLookup := make(map[uint]*wdk.TableOutputTag)
+	for _, outputTag := range s.chunk.OutputTags {
+		tagLookup[outputTag.OutputTagID] = outputTag
+	}
+
+	assert.Condition(s, func() bool {
+		for _, connection := range s.chunk.OutputTagMaps {
+			if connection.OutputID == outputID && tagLookup[connection.OutputTagID].Tag == tag {
+				return true
+			}
+		}
+		return false
+	}, "Expected chunk to contain tag %q for transaction ID %d", tag, outputID)
 	return s
 }

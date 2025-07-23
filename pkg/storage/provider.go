@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -30,9 +31,10 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo        *repo.Repositories
-	actions     *actions.Actions
-	syncActions *sync.Actions
+	repo    *repo.Repositories
+	actions *actions.Actions
+	random  wdk.Randomizer
+	logger  *slog.Logger
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -62,6 +64,8 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 
 	repos := db.CreateRepositories()
 
+	logger = logging.Child(logger, "GormStorageProvider")
+
 	var transactionFunder funder.Funder
 	if options.funder != nil {
 		transactionFunder = options.funder
@@ -84,9 +88,10 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Chain:    config.Chain,
 		Database: db,
 
-		repo:        repos,
-		actions:     actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
-		syncActions: sync.New(logger, repos, random),
+		repo:    repos,
+		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		random:  random,
+		logger:  logger,
 	}, nil
 }
 
@@ -260,6 +265,8 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 
 // CreateAction Storage level processing for wallet `createAction`.
 func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+	p.logger.DebugContext(ctx, "Validating createAction args")
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -267,10 +274,31 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
+	p.logger.InfoContext(ctx, "Starting CreateAction process",
+		logging.UserID(auth.UserID),
+		slog.String("description", string(args.Description)),
+		slog.Int("outputCount", len(args.Outputs)),
+		slog.Int("inputCount", len(args.Inputs)),
+		slog.Bool("isSignAction", args.IsSignAction),
+	)
+
 	res, err := p.actions.Create(ctx, *auth.UserID, actions.FromValidCreateActionArgs(&args))
 	if err != nil {
+		p.logger.DebugContext(ctx, "CreateAction completed with error",
+			logging.UserID(auth.UserID),
+			slog.String("description", string(args.Description)),
+		)
 		return nil, fmt.Errorf("failed to process createAction: %w", err)
 	}
+
+	p.logger.InfoContext(ctx, "CreateAction completed successfully",
+		logging.UserID(auth.UserID),
+		logging.Reference(res.Reference),
+		slog.String("description", string(args.Description)),
+		slog.Int("resultOutputCount", len(res.Outputs)),
+		slog.Int("resultInputCount", len(res.Inputs)),
+	)
+
 	return res, nil
 }
 
@@ -410,7 +438,7 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 
-	chunk, err := p.syncActions.GetSyncChunk(ctx, &args)
+	chunk, err := sync.NewGetSyncChunkAction(p.logger, p.repo, &args).Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sync chunk: %w", err)
 	}
@@ -423,7 +451,9 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 		return nil, ErrAuthorization
 	}
 
-	syncStateResponse, err := p.syncActions.FindOrInsertSyncState(ctx, *auth.UserID, storageIdentityKey, storageName)
+	action := sync.NewFindOrInsertSyncState(p.repo, p.random, *auth.UserID, storageIdentityKey, storageName)
+	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)
 	}
@@ -438,26 +468,21 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 
-	result, err := p.syncActions.Process(ctx, args, chunk)
+	user, err := p.repo.FindUser(ctx, args.IdentityKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process sync chunk: %w", err)
+		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
+
+	if user == nil {
+		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
+	}
+
+	result, err := sync.NewChunkProcessor(ctx, p.repo, chunk, &args, user).Process()
+	if err != nil {
+		return nil, fmt.Errorf("failed to process chunk: %w", err)
+	}
+
 	return result, nil
-}
-
-// FindKnownTx retrieves a known transaction by txID
-// NOTE: It returns nil if the transaction is not found
-func (p *Provider) FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error) {
-	if err := primitives.TXIDHexString(txID).Validate(); err != nil {
-		return nil, fmt.Errorf("invalid transaction ID: %w", err)
-	}
-
-	knownTx, err := p.repo.FindKnownTx(ctx, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find known tx: %w", err)
-	}
-
-	return knownTx, nil
 }
 
 // FindUserTransactionByReference retrieves a user transaction by userID and its reference.
@@ -474,4 +499,9 @@ func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID in
 // CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.
 func (p *Provider) CommissionEntity() crud.Commission {
 	return crud.NewCommission(p.repo.Commission)
+}
+
+// KnownTxEntity returns an accessor to perform read operations on known transactions in the underlying repository.
+func (p *Provider) KnownTxEntity() crud.KnownTx {
+	return crud.NewKnownTx(p.repo.KnownTx)
 }

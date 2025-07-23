@@ -64,6 +64,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"RawTx",
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.RawTx),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.RawTx),
 		),
 
 		postBEEFServices: servicequeue.NewQueue2(
@@ -93,7 +94,9 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 		validatorServices: servicequeue.NewQueue2(
 			logger,
 			"IsValidRootForHeight",
+			servicequeue.NewService2(bhs.ServiceName, bhsService.IsValidRootForHeight),
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsValidRootForHeight),
+			servicequeue.NewService2(bitails.ServiceName, bitailsService.IsValidRootForHeight),
 		),
 
 		heightServices: servicequeue.NewQueue(

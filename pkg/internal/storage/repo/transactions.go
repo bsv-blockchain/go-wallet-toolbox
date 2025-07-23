@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -225,12 +226,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
-func (txs *Transactions) SpendTransaction(
-	ctx context.Context,
-	updatedTx entity.UpdatedTx,
-	historyNote string,
-	historyAttrs map[string]any,
-) error {
+func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = tx.Model(models.Transaction{}).
 			Scopes(scopes.UserID(updatedTx.UserID)).
@@ -260,7 +256,7 @@ func (txs *Transactions) SpendTransaction(
 			RawTx:         updatedTx.RawTx,
 			InputBeef:     updatedTx.InputBeef,
 			SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
-		}, historyNote, historyAttrs)
+		}, txNote)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
@@ -321,8 +317,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 	txID string,
 	txStatus wdk.TxStatus,
 	provenTxReqStatus wdk.ProvenTxReqStatus,
-	historyNote string,
-	historyAttrs map[string]any,
+	txNotes []history.Builder,
 ) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = updateTransactionStatus(tx, txID, txStatus)
@@ -330,7 +325,7 @@ func (txs *Transactions) UpdateTransactionStatusForTxID(
 			return err
 		}
 
-		return updateKnownTxStatus(tx, txID, provenTxReqStatus, historyNote, historyAttrs)
+		return updateKnownTxStatus(tx, txID, provenTxReqStatus, txNotes)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)

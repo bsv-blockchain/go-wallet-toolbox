@@ -2,7 +2,6 @@ package bitails
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -10,20 +9,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
-
-func classifyBroadcastStatus(err error) (alreadyKnown, doubleSpend bool, note string) {
-	if err == nil {
-		return false, false, ""
-	}
-	switch {
-	case errors.Is(err, ErrAlreadyKnown):
-		return true, false, "Transaction already in mempool"
-	case errors.Is(err, ErrMissingInputs):
-		return false, true, "Missing inputs (double spend)"
-	default:
-		return false, false, err.Error()
-	}
-}
 
 // ConvertHeader decodes an 80-byte raw header and fills all fields.
 func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
@@ -105,7 +90,17 @@ func broadcastURL(baseURL string) (string, error) {
 	return buildURL(baseURL, "tx", "broadcast", "multi")
 }
 
+// /block/header/height/{blockheight}/raw
+func blockHeaderByHeightURL(baseURL string, height uint32) (string, error) {
+	return buildURL(baseURL, "block", "header", "height", fmt.Sprintf("%d", height), "raw")
+}
+
 // /block/latest
 func latestBlockURL(baseURL string) (string, error) {
 	return buildURL(baseURL, "block", "latest")
+}
+
+// /download/tx/{txid}/hex
+func rawTxURL(baseURL, txID string) (string, error) {
+	return buildURL(baseURL, "download", "tx", txID, "hex")
 }

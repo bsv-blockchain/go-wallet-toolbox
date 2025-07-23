@@ -81,7 +81,6 @@ func main() {
 					fmt.Println("		Data:	", resultForTxID.Data)
 				}
 			}
-			fmt.Println("		Notes:", result.PostedBEEFResult.Notes)
 		}
 	}
 
