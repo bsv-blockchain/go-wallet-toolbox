@@ -171,20 +171,30 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	return nil
 }
 
-func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints wdk.OutPointSlice) ([]*entity.Output, error) {
+func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error) {
 	if len(outpoints) == 0 {
 		return nil, nil
 	}
 
-	session := o.db.WithContext(ctx).
-		Preload("Transaction").
-		Model(&models.Output{}).
-		Joins("INNER JOIN bsv_transactions ON transaction_id = bsv_transactions.id").
-		Where("vout IN (?) AND tx_id IN (?)", outpoints.Vouts(), outpoints.TxIDs()).
-		Where("bsv_transactions.user_id = (?) AND bsv_outputs.user_id = (?)", userID, userID)
+	outpointsConditions := o.db
+	for _, outpoint := range outpoints {
+		outpointsConditions = outpointsConditions.Or("bsv_outputs.vout = ? AND tx.tx_id = ?", outpoint.Vout, outpoint.TxID)
+	}
 
-	var outputs []*models.Output
-	if err := session.Find(&outputs).Error; err != nil {
+	query := o.db.WithContext(ctx).
+		Model(&models.Output{}).
+		Select("bsv_outputs.*, tx.tx_id as tx_id").
+		Joins("INNER JOIN bsv_transactions tx ON tx.id = bsv_outputs.transaction_id").
+		Where("bsv_outputs.user_id = ?", userID).
+		Where(outpointsConditions)
+
+	type outputWithTxID struct {
+		*models.Output
+		TxID *string
+	}
+
+	var readModels []*outputWithTxID
+	if err := query.Find(&readModels).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -192,7 +202,12 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 		return nil, fmt.Errorf("failed to fetch outputs: %w", err)
 	}
 
-	return slices.Map(outputs, o.mapModelToOutputEntity), nil
+	return slices.Map(readModels, func(readModel *outputWithTxID) *entity.Output {
+		readModel.Output.Transaction = &models.Transaction{
+			TxID: readModel.TxID,
+		}
+		return o.mapModelToOutputEntity(readModel.Output)
+	}), nil
 }
 
 func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error) {

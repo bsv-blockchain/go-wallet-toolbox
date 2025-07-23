@@ -16,6 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,8 +102,6 @@ func TestCreateActionHappyPath(t *testing.T) {
 }
 
 func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
-	//testmode.DevelopmentOnly_SetPostgresMode(t) // TEMP!
-
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
@@ -111,9 +110,7 @@ func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
 
 	// and:
 	opts := []pkgtestabilities.TopUpOpts{
-		pkgtestabilities.WithProvidedBy(wdk.ProvidedByStorage.String()),
 		pkgtestabilities.WithPurpose(wdk.ChangePurpose),
-		pkgtestabilities.WithSpendable(true),
 	}
 
 	transactionSpec1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000, opts...)
@@ -134,16 +131,6 @@ func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
 		},
 	}
 
-	expectedNoSendChangeOutputVouts := []int{
-		1, 2, 3, 4, 5,
-		6, 7, 8, 9, 10,
-		11, 12, 13, 14,
-		15, 16, 17, 18,
-		19, 20, 21, 22,
-		23, 24, 25, 26,
-		27, 28, 29, 30,
-	}
-
 	// when:
 	result, err := activeStorage.CreateAction(
 		t.Context(),
@@ -152,9 +139,39 @@ func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
 	)
 
 	// then:
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, result.NoSendChangeOutputVouts, expectedNoSendChangeOutputVouts)
+	seq.Range(1, 30+1)
+	assert.Equal(t, result.NoSendChangeOutputVouts, seq.Collect(seq.Range(1, 30+1)))
+}
+
+func TestCreateActionWithNoSendChangeDuplicate(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	transactionSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000, pkgtestabilities.WithPurpose(wdk.ChangePurpose))
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsNoSend = true
+	args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
+	outpoint := wdk.OutPoint{
+		TxID: transactionSpec.ID().String(),
+		Vout: 0,
+	}
+
+	args.Options.NoSendChange = []wdk.OutPoint{
+		outpoint, outpoint, // NOTE: duplicate outpoints
+	}
+
+	// when:
+	_, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.Error(t, err)
 }
 
 func TestCreateActionOutputTags(t *testing.T) {

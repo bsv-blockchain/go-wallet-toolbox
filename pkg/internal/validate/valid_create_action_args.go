@@ -49,6 +49,23 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("inconsistent IsNoSend with Options.NoSend")
 	}
 
+	if args.IsNoSend && len(args.Options.NoSendChange) > 0 {
+		if err := allOutpointsUnique(args.Options.NoSendChange); err != nil {
+			return fmt.Errorf("invalid NoSendChange: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func allOutpointsUnique(outpoints []wdk.OutPoint) error {
+	seen := make(map[wdk.OutPoint]struct{})
+	for i, outpoint := range outpoints {
+		if _, exists := seen[outpoint]; exists {
+			return fmt.Errorf("duplicate outpoint at index %d: %s.%d", i, outpoint.TxID, outpoint.Vout)
+		}
+		seen[outpoint] = struct{}{}
+	}
 	return nil
 }
 

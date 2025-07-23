@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -65,17 +64,16 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 }
 
 type create struct {
-	logger                  *slog.Logger
-	funder                  funder.Funder
-	basketRepo              BasketRepo
-	txRepo                  TransactionsRepo
-	outputRepo              OutputRepo
-	knownTxRepo             KnownTxRepo
-	commissionRepo          CommissionRepo
-	commission              *commission.ScriptGenerator
-	commissionCfg           defs.Commission
-	random                  wdk.Randomizer
-	changeOutputVoutService *services.ChangeOutputVoutService
+	logger         *slog.Logger
+	funder         funder.Funder
+	basketRepo     BasketRepo
+	txRepo         TransactionsRepo
+	outputRepo     OutputRepo
+	knownTxRepo    KnownTxRepo
+	commissionRepo CommissionRepo
+	commission     *commission.ScriptGenerator
+	commissionCfg  defs.Commission
+	random         wdk.Randomizer
 }
 
 func newCreateAction(
@@ -91,16 +89,15 @@ func newCreateAction(
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:                  logger,
-		funder:                  funder,
-		basketRepo:              basketRepo,
-		txRepo:                  txRepo,
-		commissionCfg:           commissionCfg,
-		outputRepo:              outputRepo,
-		knownTxRepo:             knownTxRepo,
-		commissionRepo:          commissionRepo,
-		random:                  random,
-		changeOutputVoutService: services.NewChangeOutputVoutService(outputRepo),
+		logger:         logger,
+		funder:         funder,
+		basketRepo:     basketRepo,
+		txRepo:         txRepo,
+		commissionCfg:  commissionCfg,
+		outputRepo:     outputRepo,
+		knownTxRepo:    knownTxRepo,
+		commissionRepo: commissionRepo,
+		random:         random,
 	}
 
 	if commissionCfg.Enabled() {
@@ -117,6 +114,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 	if basket == nil {
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+	}
+
+	if params.IsNoSend && len(params.NoSendChange) > 0 {
+		if err := c.validateNoSendChange(ctx, userID, params); err != nil {
+			return nil, fmt.Errorf("failed to validate no send change: %w", err)
+		}
 	}
 
 	processedInputs, err := newInputsProcessor(ctx, c, userID, params.Inputs, params.InputBEEF, params.TrustSelf).
@@ -205,29 +208,71 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	out := &wdk.StorageCreateActionResult{
-		Reference:        reference,
-		Version:          params.Version,
-		LockTime:         params.LockTime,
-		DerivationPrefix: derivationPrefix,
-		Outputs:          c.resultOutputs(newOutputs),
-		Inputs:           resultInputs,
-		InputBeef:        inputBeef,
+	return &wdk.StorageCreateActionResult{
+		Reference:               reference,
+		Version:                 params.Version,
+		LockTime:                params.LockTime,
+		DerivationPrefix:        derivationPrefix,
+		Outputs:                 c.resultOutputs(newOutputs),
+		Inputs:                  resultInputs,
+		InputBeef:               inputBeef,
+		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
+	}, nil
+}
+
+func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
+	if !isNoSend {
+		return nil
 	}
 
-	if params.IsNoSend {
-		out.NoSendChangeOutputVouts, err = c.changeOutputVoutService.CreateNoSendChangeOutputVouts(ctx, services.CreateChangeOutputVoutsParams{
-			UserID:    userID,
-			Basket:    basket.Name,
-			Outpoints: params.NoSendChange,
-			TxOutputs: newOutputs,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create change output vouts: %w", err)
+	var vouts []int
+	for _, output := range newOutputs {
+		if output.IsChangeOutputVout() {
+			vouts = append(vouts, int(output.Vout))
+		}
+	}
+	return vouts
+}
+
+func (c *create) validateNoSendChange(ctx context.Context, userID int, params CreateActionParams) error {
+	outpoints := params.NoSendChange
+
+	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, outpoints)
+	if err != nil {
+		return fmt.Errorf("failed to find outputs by outpoints: %w", err)
+	}
+
+	if len(outpoints) != len(outputs) {
+		return fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(outpoints))
+	}
+
+	for _, output := range outputs {
+		if output == nil {
+			return fmt.Errorf("failed to validate outputs: db query result contain a nil output value")
+		}
+
+		if output.ProvidedBy != wdk.ProvidedByStorage.String() {
+			return fmt.Errorf("failed to validate outputs: 'provided by' field value doesn't match %s value - output ID %d", wdk.ProvidedByStorage.String(), output.ID)
+		}
+
+		if output.Purpose != wdk.ChangePurpose {
+			return fmt.Errorf("failed to validate outputs: 'purpose' field value doesn't match %s value - output ID %d", wdk.ProvidedByStorage.String(), output.ID)
+		}
+
+		if output.BasketName == nil {
+			return fmt.Errorf("failed to validate outputs: 'basket name' field value is set to nil - output ID %d ", output.ID)
+		}
+
+		if *output.BasketName != wdk.BasketNameForChange {
+			return fmt.Errorf("failed to validate outputs: 'basket name' field value doesn't match %s value - output ID %d ", wdk.BasketNameForChange, output.ID)
+		}
+
+		if !output.Spendable {
+			return fmt.Errorf("failed to validate outputs: 'spendable' field value is false - output ID %d", output.ID)
 		}
 	}
 
-	return out, nil
+	return nil
 }
 
 type serviceChargeOutput struct {
