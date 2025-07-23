@@ -574,7 +574,11 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 
 func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		txNote := history.NewBuilder().AbortAction(reference)
+		txNotes := history.NewBuilder().AbortAction(reference).Note().AsList()
+		historyBuilders := make([]history.Builder, len(txNotes))
+		for i, note := range txNotes {
+			historyBuilders[i] = history.NewBuilderFromNote(note)
+		}
 
 		if err := txs.releaseReservedUTXOs(tx, transactionID); err != nil {
 			return fmt.Errorf("failed to release reserved UTXOs: %w", err)
@@ -597,7 +601,7 @@ func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transaction
 		}
 
 		if txID != nil && *txID != "" {
-			if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, txNote); err != nil {
+			if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, historyBuilders); err != nil {
 				return fmt.Errorf("failed to update known tx status: %w", err)
 			}
 		}

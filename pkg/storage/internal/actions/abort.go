@@ -54,20 +54,6 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
 
-	// historyNote := history.NewBuilder().AbortAction(args.Reference)
-
-	// if txEntity.TxID != nil {
-	// 	err = a.transactionsRepo.UpdateTransactionStatusForTxID(ctx, *txEntity.TxID, wdk.TxStatusFailed, wdk.ProvenTxStatusInvalid, historyNote)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("failed to update known transaction status: %w", err)
-	// 	}
-	// }
-
-	// err = a.transactionsRepo.UpdateTransactionStatusByID(ctx, txEntity.ID, wdk.TxStatusFailed)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to update transaction status: %w", err)
-	// }
-
 	return &wdk.AbortActionResult{
 		Aborted: true,
 	}, nil
