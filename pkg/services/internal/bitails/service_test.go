@@ -308,3 +308,105 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 		})
 	}
 }
+
+func TestBitails_RawTx(t *testing.T) {
+	// given:
+	txSpec := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(90)
+	tx := txSpec.TX()
+	rawHex := hex.EncodeToString(tx.Bytes())
+	txID := tx.TxID().String()
+
+	given := testabilities.Given(t)
+	service := given.NewBitailsService()
+	given.Bitails().WillReturnRawTxHex(txID, rawHex)
+
+	// when:
+	result, err := service.RawTx(t.Context(), txID)
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, txID, result.TxID)
+	assert.Equal(t, tx.Bytes(), result.RawTx)
+	assert.Equal(t, bitails.ServiceName, result.Name)
+}
+
+func TestBitails_RawTx_ErrorCases(t *testing.T) {
+	given := testabilities.Given(t)
+	service := given.NewBitailsService()
+
+	txSpec := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(90)
+	tx := txSpec.TX()
+	txID := tx.TxID().String()
+
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr string
+	}{
+		{
+			name: "malformed hex",
+			setup: func() {
+				given.Bitails().WillReturnRawTxHex(txID, "zzzzz1234badhex")
+			},
+			wantErr: "decode hex failed",
+		},
+		{
+			name: "txid mismatch",
+			setup: func() {
+				otherTxSpec := testvectors.GivenTX().WithInput(50).WithP2PKHOutput(40)
+				otherRawHex := hex.EncodeToString(otherTxSpec.TX().Bytes())
+				given.Bitails().WillReturnRawTxHex(txID, otherRawHex)
+			},
+			wantErr: "txID mismatch",
+		},
+		{
+			name: "unexpected HTTP error",
+			setup: func() {
+				given.Bitails().WillReturnRawTxHttpError(txID, http.StatusInternalServerError)
+			},
+			wantErr: "unexpected HTTP 500",
+		},
+		{
+			name: "network/client failure",
+			setup: func() {
+				given.Bitails().WillBeUnreachable()
+			},
+			wantErr: "unexpected HTTP",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// given:
+			tt.setup()
+
+			// when:
+			_, err := service.RawTx(t.Context(), txID)
+
+			// then:
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+
+		})
+	}
+}
+
+func TestBitails_RawTx_NotFound(t *testing.T) {
+	// given:
+	given := testabilities.Given(t)
+	service := given.NewBitailsService()
+
+	txSpec := testvectors.GivenTX().WithInput(1).WithP2PKHOutput(1)
+	tx := txSpec.TX()
+	txID := tx.TxID().String()
+
+	given.Bitails().WillReturnRawTx404(txID)
+
+	// when:
+	res, err := service.RawTx(t.Context(), txID)
+
+	// then:
+	assert.NoError(t, err)
+	assert.Nil(t, res)
+}

@@ -3,10 +3,12 @@ package services_test
 import (
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +30,31 @@ func TestRawTxSuccess(t *testing.T) {
 		expectedResult := wdk.RawTxResult{
 			TxID:  txID,
 			Name:  "WhatsOnChain",
+			RawTx: decodedTx,
+		}
+
+		// when:
+		result, err := services.RawTx(txID)
+
+		// then:
+		assert.NoError(t, err)
+		assert.EqualValues(t, expectedResult, result)
+	})
+	t.Run("returns raw transaction from Bitails when found", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		txID := "3c64c621c0070ea56ca2ef13ef699483c3938f48e030b184f1d094678eda7ab8"
+		rawTxHex := "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1703117b1900000000005f7c477c327c437c5f0006000000ffffffff016e2e5702000000001976a9147a112f6a373b80b4ebb2b02acef97f35aef7494488ac00000000"
+		given.Bitails().WillReturnRawTxHex(txID, rawTxHex)
+
+		services := given.Services().WithDefaultConfig()
+
+		decodedTx, err := hex.DecodeString(rawTxHex)
+		require.NoError(t, err)
+
+		expectedResult := wdk.RawTxResult{
+			TxID:  txID,
+			Name:  "Bitails",
 			RawTx: decodedTx,
 		}
 
@@ -165,4 +192,98 @@ func TestRawTxFailure(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "all services failed")
 	})
+	t.Run("Bitails returns error when raw tx hex is malformed", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		txID := "abc123"
+		given.Bitails().WillReturnRawTxHex(txID, "bad-$$$-hex")
+
+		services := given.Services().WithDefaultConfig()
+
+		// when:
+		_, err := services.RawTx(txID)
+
+		// then:
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "decode hex failed")
+		assert.Contains(t, err.Error(), "Bitails")
+	})
+
+}
+
+func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
+	txID := "3c64c621c0070ea56ca2ef13ef699483c3938f48e030b184f1d094678eda7ab8"
+	malformedHex := "illegal-%-hex-char-$"
+
+	tests := []struct {
+		name                 string
+		setup                func(testservices.ServicesFixture)
+		expectedErrorMessage string
+	}{
+		{
+			name: "WOC unreachable - Bitails returns malformed hex",
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.Error(t, err)
+				f.Bitails().WillReturnRawTxHex(txID, malformedHex)
+			},
+			expectedErrorMessage: "Bitails: decode hex failed",
+		},
+		{
+			name: "WOC unreachable - Bitails returns mismatched txid",
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.Error(t, err)
+				otherTx := testvectors.GivenTX().WithInput(1).WithP2PKHOutput(1).TX()
+				otherRawHex := hex.EncodeToString(otherTx.Bytes())
+				f.Bitails().WillReturnRawTxHex(txID, otherRawHex)
+			},
+			expectedErrorMessage: "txID mismatch",
+		},
+		{
+			name: "WOC unreachable - Bitails returns 404",
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.Error(t, err)
+				f.Bitails().WillReturnRawTx404(txID)
+			},
+			expectedErrorMessage: fmt.Sprintf("transaction with txID: %s not found", txID),
+		},
+		{
+			name: "WOC unreachable - Bitails returns HTTP error",
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.Error(t, err)
+				f.Bitails().WillReturnRawTxHttpError(txID, http.StatusInternalServerError)
+			},
+			expectedErrorMessage: "Bitails: unexpected HTTP 500",
+		},
+		{
+			name: "all providers unreachable",
+			setup: func(f testservices.ServicesFixture) {
+				err := f.WhatsOnChain().WillBeUnreachable()
+				require.Error(t, err)
+				err = f.Bitails().WillBeUnreachable()
+				require.Error(t, err)
+			},
+			expectedErrorMessage: "all services failed",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// given:
+			given := testservices.GivenServices(t)
+			tc.setup(given)
+
+			svc := given.Services().WithDefaultConfig()
+
+			// when:
+			_, err := svc.RawTx(txID)
+
+			// then:
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.expectedErrorMessage)
+		})
+	}
 }
