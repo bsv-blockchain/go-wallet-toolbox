@@ -3,6 +3,8 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"iter"
 	"log/slog"
 	"maps"
@@ -67,15 +69,19 @@ type inputsProcessor struct {
 	providedInputs []wdk.ValidCreateActionInput
 	inputBEEF      []byte
 	trustSelf      bool
-	txIDsLookup    map[string]struct{}
+	txIDsLookup    map[chainhash.Hash]struct{}
 	beef           *transaction.Beef
 	logger         *slog.Logger
 }
 
-func newInputsProcessor(ctx context.Context, parent *create, userID int, reference string, providedInputs []wdk.ValidCreateActionInput, inputBEEF []byte, trustSelf bool) *inputsProcessor {
-	txIDsLookup := make(map[string]struct{})
+func newInputsProcessor(ctx context.Context, parent *create, userID int, reference string, providedInputs []wdk.ValidCreateActionInput, inputBEEF []byte, trustSelf bool) (*inputsProcessor, error) {
+	txIDsLookup := make(map[chainhash.Hash]struct{}, len(providedInputs))
 	for _, input := range providedInputs {
-		txIDsLookup[input.Outpoint.TxID] = struct{}{}
+		txIDHash, err := chainhash.NewHashFromHex(input.Outpoint.TxID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse txID %s: %w", input.Outpoint.TxID, err)
+		}
+		txIDsLookup[*txIDHash] = struct{}{}
 	}
 
 	logger := logging.Child(parent.logger, "inputsProcessor")
@@ -91,7 +97,7 @@ func newInputsProcessor(ctx context.Context, parent *create, userID int, referen
 		txIDsLookup:    txIDsLookup,
 		providedInputs: providedInputs,
 		beef:           transaction.NewBeefV2(),
-	}
+	}, nil
 }
 
 func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
@@ -161,61 +167,69 @@ func (proc *inputsProcessor) processInputBEEF() error {
 		return fmt.Errorf("failed to merge input beef: %w", err)
 	}
 
-	txIDOnlyIDs := seq2.Keys(seq2.Filter(maps.All(proc.beef.Transactions), func(_ string, beefTx *transaction.BeefTx) bool {
+	txIDOnlyIDs := seq2.Keys(seq2.Filter(maps.All(proc.beef.Transactions), func(_ chainhash.Hash, beefTx *transaction.BeefTx) bool {
 		return beefTx.DataFormat == transaction.TxIDOnly
 	}))
 
 	if !proc.trustSelf && seq.IsNotEmpty(txIDOnlyIDs) {
-		return proc.missingProofError(seq.Collect(txIDOnlyIDs), "inputBEEF contains transactions with TxIDOnly that causes error if trustSelf not set")
+		return missingProofError(seq.Collect(txIDOnlyIDs), "inputBEEF contains transactions with TxIDOnly that causes error if trustSelf not set")
 	}
 
 	// not provided in inputs but exists in the inputBEEF
-	notProvidedInInputsTxs := seq.Collect(seq.Filter(txIDOnlyIDs, func(txID string) bool {
-		_, ok := proc.txIDsLookup[txID]
+	notProvidedInInputs := seq.Filter(txIDOnlyIDs, func(txIDHash chainhash.Hash) bool {
+		_, ok := proc.txIDsLookup[txIDHash]
 		return !ok
+	})
+
+	notProvidedInInputsTxIDs := seq.Collect(seq.Map(notProvidedInInputs, func(txIDHash chainhash.Hash) string {
+		return txIDHash.String()
 	}))
 
-	if len(notProvidedInInputsTxs) == 0 {
+	if len(notProvidedInInputsTxIDs) == 0 {
 		return nil
 	}
 
-	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, notProvidedInInputsTxs, readyToBeInputProvenTxStatuses)
+	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, notProvidedInInputsTxIDs, readyToBeInputProvenTxStatuses)
 	if err != nil {
 		return fmt.Errorf("failed to check if transactions are known: %w", err)
 	}
 
 	if !allKnown {
-		return proc.missingProofError(notProvidedInInputsTxs, "some tx in the inputBEEF is not known to storage")
+		return missingProofError(notProvidedInInputsTxIDs, "some tx in the inputBEEF is not known to storage")
 	}
 
 	return nil
 }
 
 func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
-	missingFullProofs := seq.Collect(seq.Filter(maps.Keys(proc.txIDsLookup), func(txID string) bool {
+	missingFullProofs := seq.Collect(seq.Filter(maps.Keys(proc.txIDsLookup), func(txID chainhash.Hash) bool {
 		btx, ok := proc.beef.Transactions[txID]
 		return !ok || btx.DataFormat == transaction.TxIDOnly
 	}))
 
-	if len(missingFullProofs) == 0 {
+	missingFullProofsTxIDs := slices.Map(missingFullProofs, func(txID chainhash.Hash) string {
+		return txID.String()
+	})
+
+	if len(missingFullProofsTxIDs) == 0 {
 		return nil
 	}
 
 	if !proc.trustSelf {
-		return proc.missingProofError(missingFullProofs, "provided inputs contain transactions that are missing full proof in the inputBEEF")
+		return missingProofError(missingFullProofsTxIDs, "provided inputs contain transactions that are missing full proof in the inputBEEF")
 	}
 
-	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, missingFullProofs, readyToBeInputProvenTxStatuses)
+	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, missingFullProofsTxIDs, readyToBeInputProvenTxStatuses)
 	if err != nil {
 		return fmt.Errorf("failed to check if transactions are known: %w", err)
 	}
 
 	if !allKnown {
-		return proc.missingProofError(missingFullProofs, "some tx used in provided input is not known to storage")
+		return missingProofError(missingFullProofsTxIDs, "some tx used in provided input is not known to storage")
 	}
 
-	for _, txID := range missingFullProofs {
-		proc.beef.MergeTxidOnly(txID)
+	for _, txIDHash := range missingFullProofs {
+		proc.beef.MergeTxidOnly(&txIDHash)
 	}
 
 	return nil
@@ -239,7 +253,12 @@ func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionI
 }
 
 func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActionInput) (*xinputDefinition, error) {
-	btx, ok := proc.beef.Transactions[xinput.Outpoint.TxID]
+	txIDHash, err := chainhash.NewHashFromHex(xinput.Outpoint.TxID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse txID %s: %w", xinput.Outpoint.TxID, err)
+	}
+
+	btx, ok := proc.beef.Transactions[*txIDHash]
 	if !ok || btx == nil {
 		return nil, fmt.Errorf("input %s not found in beef or outputs", xinput.Outpoint)
 	}
@@ -250,7 +269,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 			return nil, fmt.Errorf("failed to build beef for tx %s: %w", xinput.Outpoint.TxID, err)
 		}
 
-		btx, ok = beefForTx.Transactions[xinput.Outpoint.TxID]
+		btx, ok = beefForTx.Transactions[*txIDHash]
 		if !ok || btx == nil {
 			return nil, fmt.Errorf("tx %s not found in beef", xinput.Outpoint.TxID)
 		}
@@ -275,7 +294,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	}, nil
 }
 
-func (proc *inputsProcessor) missingProofError(txIDs []string, msgParts ...string) error {
+func missingProofError[T []string | []chainhash.Hash](txIDs T, msgParts ...string) error {
 	if len(txIDs) == 0 {
 		return fmt.Errorf("%s", strings.Join(msgParts, "; "))
 	}
@@ -287,7 +306,19 @@ func (proc *inputsProcessor) missingProofError(txIDs []string, msgParts ...strin
 		subject = "transaction"
 	}
 
-	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, strings.Join(txIDs, ", "))
+	var txIDsStr string
+	switch container := any(txIDs).(type) {
+	case []string:
+		txIDsStr = strings.Join(container, ", ")
+	case []chainhash.Hash:
+		txIDsStr = strings.Join(slices.Map(container, func(txID chainhash.Hash) string {
+			return txID.String()
+		}), ", ")
+	default:
+		// Generics already ensure that txIDs is either []string or []chainhash.Hash
+	}
+
+	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, txIDsStr)
 	if len(msgParts) > 0 {
 		return fmt.Errorf("%s; %s", strings.Join(msgParts, "; "), txMsgPart)
 	}
