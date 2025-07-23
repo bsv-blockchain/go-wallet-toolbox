@@ -1,7 +1,6 @@
 package history
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -37,8 +36,8 @@ type EventTypesSelector interface {
 	GetMerklePathSuccess(serviceName string) Builder
 	GetMerklePathNotFound(serviceName string) Builder
 
-	PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Builder
-	PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder
+	PostBeefError(serviceName string, beef TxData, txIDs []string, msg string) Builder
+	PostBeefSuccess(serviceName string, txIDs []string) Builder
 }
 
 type AggregatedBroadcastResult struct {
@@ -66,6 +65,12 @@ func NewBuilder() EventTypesSelector {
 		event: wdk.HistoryNote{
 			When: time.Now(),
 		},
+	}
+}
+
+func NewBuilderFromNote(note *wdk.HistoryNote) Builder {
+	return &builder{
+		event: *note,
 	}
 }
 
@@ -97,19 +102,18 @@ func (b *builder) GetMerklePathNotFound(serviceName string) Builder {
 		WithAttribute(serviceNameAttr, serviceName)
 }
 
-func (b *builder) postBeefBase(what, serviceName string, beef []byte, txIDs []string) Builder {
-	return b.WithWhat(what).
+func (b *builder) PostBeefError(serviceName string, beef TxData, txIDs []string, msg string) Builder {
+	return b.WithWhat(PostBeefError).
 		WithAttribute(serviceNameAttr, serviceName).
-		WithAttribute("beef", hex.EncodeToString(beef)).
+		WithAttribute("hex", beef.toHex()).
+		WithAttribute("txids", strings.Join(txIDs, ",")).
+		WithAttribute("message", msg)
+}
+
+func (b *builder) PostBeefSuccess(serviceName string, txIDs []string) Builder {
+	return b.WithWhat(PostBeefSuccess).
+		WithAttribute(serviceNameAttr, serviceName).
 		WithAttribute("txids", strings.Join(txIDs, ","))
-}
-
-func (b *builder) PostBeefError(serviceName string, beef []byte, txIDs []string, msg string) Builder {
-	return b.postBeefBase(PostBeefError, serviceName, beef, txIDs).WithAttribute("message", msg)
-}
-
-func (b *builder) PostBeefSuccess(serviceName string, beef []byte, txIDs []string) Builder {
-	return b.postBeefBase(PostBeefSuccess, serviceName, beef, txIDs)
 }
 
 func (b *builder) WithWhat(what string) Builder {
