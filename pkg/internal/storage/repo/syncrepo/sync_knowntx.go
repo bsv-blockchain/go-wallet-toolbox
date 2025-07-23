@@ -55,7 +55,7 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 			Select("*").
 			Scopes(joinWithNumericIDLookupScope("tx_id", s.tableName(), clause.InnerJoin)).
 			Scopes(filters...).
-			Preload("TxNotes").
+			Preload(genquery.KnownTx.TxNotes.Name()).
 			Find(&resultModels).Error; err != nil {
 			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
 		}
