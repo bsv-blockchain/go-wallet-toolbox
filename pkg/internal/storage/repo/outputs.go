@@ -7,6 +7,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -180,12 +181,15 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 		return op.String()
 	})
 
+	outputTableName := genquery.Output.TableName()
+	transactionTableName := genquery.Transaction.TableName()
+
 	query := o.db.WithContext(ctx).Table(
 		"(?) as out",
 		o.db.Model(&models.Output{}).
-			Select("bsv_outputs.*, tx.tx_id as tx_id, CONCAT(tx.tx_id, '.', bsv_outputs.vout) as outpoint").
-			Joins("INNER JOIN bsv_transactions tx ON tx.id = bsv_outputs.transaction_id").
-			Where("bsv_outputs.user_id = ?", userID),
+			Select(fmt.Sprintf("%s.*, tx.tx_id as tx_id, CONCAT(tx.tx_id, '.', %s.vout) as outpoint", outputTableName, outputTableName)).
+			Joins(fmt.Sprintf("INNER JOIN %s tx ON tx.id = %s.transaction_id", transactionTableName, outputTableName)).
+			Where(fmt.Sprintf("%s.user_id = ?", outputTableName), userID),
 	).Where("outpoint IN (?)", outpointStrings)
 
 	type outputWithTxID struct {
