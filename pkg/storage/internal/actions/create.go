@@ -142,8 +142,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputBEEFSize", len(params.InputBEEF)),
 	)
 
-	processedInputs, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf).
-		processInputs()
+	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create inputs processor: %w", err)
+	}
+
+	processedInputs, err := inputProcessor.processInputs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to process inputs: %w", err)
 	}
