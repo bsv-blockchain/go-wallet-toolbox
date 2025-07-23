@@ -289,7 +289,11 @@ func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
 			continue
 		}
 		for _, element := range bump.Path[0] {
-			if element.Txid != nil && *element.Txid && element.Hash != nil {
+			if element.Txid != nil && *element.Txid {
+				if element.Hash == nil {
+					s.logger.Error("got leaf marked as txid in BUMP but hash is nil")
+					continue
+				}
 				tx, ok := beef.Transactions[*element.Hash]
 				if !ok {
 					s.logger.Warn("got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))

@@ -172,7 +172,7 @@ func (proc *inputsProcessor) processInputBEEF() error {
 	}))
 
 	if !proc.trustSelf && seq.IsNotEmpty(txIDOnlyIDs) {
-		return missingProofError(seq.Collect(txIDOnlyIDs), "inputBEEF contains transactions with TxIDOnly that causes error if trustSelf not set")
+		return missingProofError(toStringIDs(seq.Collect(txIDOnlyIDs)), "inputBEEF contains transactions with TxIDOnly that causes error if trustSelf not set")
 	}
 
 	// not provided in inputs but exists in the inputBEEF
@@ -294,7 +294,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	}, nil
 }
 
-func missingProofError[T []string | []chainhash.Hash](txIDs T, msgParts ...string) error {
+func missingProofError(txIDs []string, msgParts ...string) error {
 	if len(txIDs) == 0 {
 		return fmt.Errorf("%s", strings.Join(msgParts, "; "))
 	}
@@ -306,21 +306,15 @@ func missingProofError[T []string | []chainhash.Hash](txIDs T, msgParts ...strin
 		subject = "transaction"
 	}
 
-	var txIDsStr string
-	switch container := any(txIDs).(type) {
-	case []string:
-		txIDsStr = strings.Join(container, ", ")
-	case []chainhash.Hash:
-		txIDsStr = strings.Join(slices.Map(container, func(txID chainhash.Hash) string {
-			return txID.String()
-		}), ", ")
-	default:
-		// Generics already ensure that txIDs is either []string or []chainhash.Hash
-	}
-
-	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, txIDsStr)
+	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, strings.Join(msgParts, ", "))
 	if len(msgParts) > 0 {
 		return fmt.Errorf("%s; %s", strings.Join(msgParts, "; "), txMsgPart)
 	}
 	return fmt.Errorf("%s", txMsgPart)
+}
+
+func toStringIDs(hashes []chainhash.Hash) []string {
+	return slices.Map(hashes, func(hash chainhash.Hash) string {
+		return hash.String()
+	})
 }
