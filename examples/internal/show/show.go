@@ -142,9 +142,10 @@ func IsValidRootForHeightOutput(height uint32, rootHex string, valid bool) {
 
 func MerklePathOutput(result *wdk.MerklePathResult) {
 	printMerklePathInfo(result)
-    fmt.Println()
-    printMerklePath(result.MerklePath)
+	fmt.Println()
+	printMerklePath(result.MerklePath)
 }
+
 // ChainTipHeaderOutput prints a chain-tip block header in a table.
 func ChainTipHeaderOutput(h *wdk.ChainBlockHeader) {
 	if h == nil {
@@ -168,4 +169,16 @@ func ChainTipHeaderOutput(h *wdk.ChainBlockHeader) {
 	}}
 
 	PrintTable("Chain Tip Header:", headers, rows)
+}
+
+func RawTxOutput(result *wdk.RawTxResult) {
+	if result == nil {
+		Error("nil RawTxResult passed to RawTxOutput")
+		return
+	}
+
+	Header("RAW TRANSACTION RESULT")
+	fmt.Printf("%sService:%s %s\n", ColorCyan, ColorReset, result.Name)
+	fmt.Printf("%sTxID:   %s%s\n", ColorCyan, result.TxID, ColorReset)
+	fmt.Printf("%sRawTx:  %x%s\n", ColorCyan, result.RawTx, ColorReset)
 }
