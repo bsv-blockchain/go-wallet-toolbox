@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -22,9 +23,13 @@ type BitailsFixture interface {
 	WillReturnBlockHeader(blockHash, rawHeader string)
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
 	WillReturnTxStatus(txid string, blockHeight int)
+	WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string)
 	WillReturnNetworkInfo(status int, blocks uint32)
+	WillReturnLatestBlock(blockHash string, height uint32)
+	WillRespondWithInternalFailure()
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
+	Transport() *httpmock.MockTransport
 }
 
 type BitailsBroadcastFixture interface {
@@ -54,32 +59,48 @@ func NewBitailsFixture(t testing.TB, opts ...Option) BitailsFixture {
 	}
 }
 
-func (f *bitailsFixture) HttpClient() *resty.Client {
+func (b *bitailsFixture) HttpClient() *resty.Client {
 	client := resty.New()
-	client.SetTransport(f.transport)
+	client.SetTransport(b.transport)
 	return client
 }
 
-func (f *bitailsFixture) OnBroadcast() BitailsBroadcastFixture {
+func (b *bitailsFixture) Transport() *httpmock.MockTransport {
+	return b.transport
+}
+
+func (b *bitailsFixture) OnBroadcast() BitailsBroadcastFixture {
 	return &bitailsBroadcastFixture{
-		TB:        f.TB,
-		transport: f.transport,
-		network:   f.network,
+		TB:        b.TB,
+		transport: b.transport,
+		network:   b.network,
 	}
 }
 
-func (f *bitailsFixture) WillBeUnreachable() error {
+func (b *bitailsFixture) WillBeUnreachable() error {
 	err := fmt.Errorf("bitails unreachable (test induced)")
-	f.transport.RegisterRegexpResponder(
+	responder := httpmock.NewErrorResponder(err)
+
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/.*`),
+		responder,
+	)
+	b.transport.RegisterRegexpResponder(
 		http.MethodPost,
-		regexp.MustCompile(`https?://.*\.bitails\.io.*`),
-		httpmock.NewErrorResponder(err),
+		regexp.MustCompile(`https?://.*\.bitails\.io/.*`),
+		responder,
 	)
 	return err
 }
 
-func (f *bitailsFixture) WillReturnInternalError() {
-	f.transport.RegisterRegexpResponder(
+func (b *bitailsFixture) WillReturnInternalError() {
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
+	b.transport.RegisterRegexpResponder(
 		http.MethodPost,
 		regexp.MustCompile(`https?://.*\.bitails\.io.*`),
 		httpmock.NewJsonResponderOrPanic(http.StatusInternalServerError, map[string]string{
@@ -88,21 +109,21 @@ func (f *bitailsFixture) WillReturnInternalError() {
 	)
 }
 
-func (f *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHeight int64) {
+func (b *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHeight int64) {
 	body := map[string]any{
 		"block_hash":   blockHash,
 		"block_height": blockHeight,
 	}
-	f.transport.RegisterRegexpResponder(
+	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
 }
 
-func (f *bitailsFixture) WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64) {
-	f.WillReturnTxInfo(txid, blockHash, blockHeight)
-	f.OnBroadcast().WillReturnSuccess(txid)
+func (b *bitailsFixture) WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64) {
+	b.WillReturnTxInfo(txid, blockHash, blockHeight)
+	b.OnBroadcast().WillReturnSuccess(txid)
 }
 
 type bitailsBroadcastFixture struct {
@@ -173,22 +194,22 @@ func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body an
 	)
 }
 
-func (f *bitailsFixture) WillReturnTscProof(txid, target string, index int, nodes []string) {
+func (b *bitailsFixture) WillReturnTscProof(txid, target string, index int, nodes []string) {
 	body := map[string]any{
 		"index":  index,
 		"txOrId": txid,
 		"target": target,
 		"nodes":  nodes,
 	}
-	f.transport.RegisterRegexpResponder(
+	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/proof/tsc`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
 }
 
-func (f *bitailsFixture) WillReturnBlockHeader(blockHash, rawHeader string) {
-	f.transport.RegisterRegexpResponder(
+func (b *bitailsFixture) WillReturnBlockHeader(blockHash, rawHeader string) {
+	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/block/%s/header`, regexp.QuoteMeta(blockHash))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
@@ -197,8 +218,8 @@ func (f *bitailsFixture) WillReturnBlockHeader(blockHash, rawHeader string) {
 	)
 }
 
-func (f *bitailsFixture) WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string) {
-	f.transport.RegisterRegexpResponder(
+func (b *bitailsFixture) WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string) {
+	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/proof(?:\?.*)?(?:/.*)?$`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
@@ -209,15 +230,31 @@ func (f *bitailsFixture) WillReturnBranchProof(txid, blockHash, merkleRoot strin
 	)
 }
 
-func (f *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
+func (b *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
 	body := map[string]any{
 		"blockHeight": blockHeight,
 	}
-	f.transport.RegisterRegexpResponder(
+	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
+}
+
+func (b *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string) {
+	pattern := `=~.*?/block/header/height/` + strconv.Itoa(int(height)) + `/raw$`
+
+	var responder httpmock.Responder
+	switch status {
+	case http.StatusOK:
+		responder = httpmock.NewJsonResponderOrPanic(status, struct {
+			Header string `json:"header"`
+		}{Header: headerHex})
+	default:
+		responder = httpmock.NewStringResponder(status, http.StatusText(status))
+	}
+
+	b.transport.RegisterResponder(http.MethodGet, pattern, responder)
 }
 
 func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
@@ -226,4 +263,24 @@ func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
 	body := map[string]any{"blocks": blocks}
 	pat := `=~.*?/network/info$`
 	b.transport.RegisterResponder(http.MethodGet, pat, httpmock.NewJsonResponderOrPanic(status, body))
+}
+
+// WillReturnLatestBlock stubs GET /block/latest.
+func (b *bitailsFixture) WillReturnLatestBlock(blockHash string, height uint32) {
+	body := map[string]any{"hash": blockHash, "height": height}
+
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
+	)
+}
+
+// WillRespondWithInternalFailure forces GET /block/latest to reply 500.
+func (b *bitailsFixture) WillRespondWithInternalFailure() {
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
 }

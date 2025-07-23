@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs/internal/dto"
@@ -22,7 +23,7 @@ type BlockHeadersService struct {
 	cfg        *defs.BHS
 }
 
-func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
+func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
 	err := network.Validate()
 	if err != nil {
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
@@ -53,63 +54,79 @@ func NewBlockHeadersService(httpClient *resty.Client, logger *slog.Logger, netwo
 	}
 }
 
-func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-	var block dto.TipStateResponse
-	url, err := tipLongestURL(b.cfg.URL)
+func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+	url, err := verifyMerkleRootURL(b.cfg.URL)
 	if err != nil {
-		return nil, fmt.Errorf("error while building tip URL for Block Headers Service API: %w", err)
+		return false, fmt.Errorf("error building URL: %w", err)
 	}
-	res, err := b.
-		httpClient.
-		R().
+
+	req := []dto.MerkleRootVerifyItem{{
+		BlockHeight: height,
+		MerkleRoot:  root.String(),
+	}}
+
+	var resp dto.MerkleRootVerifyResp
+	res, err := b.httpClient.R().
 		SetContext(ctx).
-		SetResult(&block).
-		Get(url)
-
+		SetBody(req).
+		SetResult(&resp).
+		AddRetryCondition(httpx.RetryOnErrOr5xx).
+		Post(url)
 	if err != nil {
-		return nil, fmt.Errorf("error while fetching block header from Block Headers Service API (URL: %s): %w", url, err)
+		return false, fmt.Errorf("%s: POST %s failed: %w", ServiceName, url, err)
 	}
-
 	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected response from  Block Headers Service API (URL: %s): status code %d", url, res.StatusCode())
+		return false, fmt.Errorf("%s: unexpected HTTP %d for POST %s", ServiceName, res.StatusCode(), url)
 	}
 
-	if block.IsZero() {
-		return nil, fmt.Errorf("unexpected response from Block Headers Service API (URL: %s). Received an empty block header response", url)
+	switch {
+	case resp.ConfirmationState.IsConfirmed():
+		return true, nil
+	case resp.ConfirmationState.IsInvalid():
+		return false, nil
+	case resp.ConfirmationState.IsUnableToVerify():
+		return false, fmt.Errorf("unable to verify merkle root (state=%q)", resp.ConfirmationState)
+	default:
+		return false, fmt.Errorf("unexpected confirmation state %q", resp.ConfirmationState)
 	}
-
-	return block.ConvertToChainBlockHeader(), nil
 }
 
 // CurrentHeight returns the best-chain height reported by the Block-Headers
 // Service (`/chain/tip/longest`).
 func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error) {
-	var tip dto.TipStateResponse
-	url, err := tipLongestURL(b.cfg.URL)
+	tip, err := b.FindChainTipHeader(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed for service %s to build tip URL: %w", ServiceName, err)
-	}
-
-	res, err := b.
-		httpClient.
-		R().
-		SetContext(ctx).
-		SetResult(&tip).
-		Get(url)
-	if err != nil {
-		return 0, fmt.Errorf("failed for service %s: height query failed (%s): %w", ServiceName, url, err)
-	}
-	if res.StatusCode() != http.StatusOK {
-		return 0, fmt.Errorf("failed for service %s: unexpected HTTP %d for %s", ServiceName, res.StatusCode(), url)
-	}
-	if tip.IsZero() || tip.Height == 0 {
-		return 0, fmt.Errorf("failed for service %s: empty /chain/tip/longest response", ServiceName)
+		return 0, fmt.Errorf("failed to find chain tip header: %w", err)
 	}
 
 	height, err := to.UInt32(tip.Height)
 	if err != nil {
-		return 0, fmt.Errorf("failed for service %s: invalid height %d in /chain/tip/longest response: %w", ServiceName, tip.Height, err)
+		return 0, fmt.Errorf("failed to convert height %d to uint32: %w", tip.Height, err)
+	}
+	return height, nil
+}
+
+func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+	var block dto.TipStateResponse
+	url, err := tipLongestURL(b.cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("error building URL: %w", err)
 	}
 
-	return height, nil
+	res, err := b.httpClient.R().
+		SetContext(ctx).
+		SetResult(&block).
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("%s: GET %s: %w", ServiceName, url, err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("%s: unexpected HTTP %d for GET %s", ServiceName, res.StatusCode(), url)
+	}
+
+	if block.IsZero() {
+		return nil, fmt.Errorf("unexpected response from API (URL: %s). Received an empty tip state response", url)
+	}
+
+	return block.ConvertToChainBlockHeader(), nil
 }

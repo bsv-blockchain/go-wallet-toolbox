@@ -11,13 +11,24 @@ type PostBeefResult []*PostBEEFServiceResult
 // Success checks if one of the results is a success.
 func (it PostBeefResult) Success() bool {
 	return seq.Exists(seq.FromSlice(it), func(it *PostBEEFServiceResult) bool {
-		return it.PostedBEEFResult != nil && it.Error == nil
+		return it.Success()
 	})
 }
 
 // Aggregated gets results from all services and aggregates them by txid, calculating status and counts.
 func (it PostBeefResult) Aggregated(txids []string) AggregatedPostBEEF {
 	return newAggregatedPostBEEF(it, txids)
+}
+
+// ServiceErrors returns a map containing service names and their corresponding errors for failed PostBEEF results.
+func (it PostBeefResult) ServiceErrors() map[string]error {
+	errs := make(map[string]error)
+	for _, result := range it {
+		if result.Error != nil {
+			errs[result.Name] = result.Error
+		}
+	}
+	return errs
 }
 
 // PostBEEFServiceResult is the result of the PostBEEF method of a single service.
@@ -36,7 +47,6 @@ func (it *PostBEEFServiceResult) Success() bool {
 
 // PostedBEEF is the success result of the single service PostedBEEF method.
 type PostedBEEF struct {
-	Notes
 	TxIDResults []PostedTxID
 }
 
@@ -64,14 +74,15 @@ type PostedTxID struct {
 	// Potentially stop posting to additional transaction processors.
 	AlreadyKnown bool
 	// DoubleSpend is when service indicated this broadcast double spends at least one input
-	// `competingTxs` may be an array of txids that were first seen spends of at least one input.
-	DoubleSpend  bool
-	BlockHash    string
-	BlockHeight  int64
-	MerklePath   *transaction.MerklePath
+	DoubleSpend bool
+	BlockHash   string
+	BlockHeight int64
+	MerklePath  *transaction.MerklePath
+
+	// CompetingTxs may be an array of txids that were first seen spends of at least one input.
 	CompetingTxs []string
 
-	Notes
+	Notes HistoryNotes
 
 	Data  string
 	Error error

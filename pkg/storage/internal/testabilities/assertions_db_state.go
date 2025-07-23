@@ -2,11 +2,14 @@ package testabilities
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"testing"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -16,7 +19,7 @@ import (
 )
 
 type StorageReader interface {
-	FindKnownTx(ctx context.Context, txID string) (*entity.KnownTx, error)
+	KnownTxEntity() crud.KnownTx
 	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
@@ -26,7 +29,7 @@ type StorageReader interface {
 type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
 	HasKnownTX(txID string) KnownTxAssertion
-	HasUserTransactionByReference(user testusers.User, txID string) UserTransactionAssertion
+	HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
 
@@ -41,6 +44,7 @@ type KnownTxAssertion interface {
 	IsMined() KnownTxAssertion
 	NotMined() KnownTxAssertion
 	HasRawTx() KnownTxAssertion
+	TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion
 }
 
 type UserTransactionAssertion interface {
@@ -54,6 +58,11 @@ type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
 	WithCountHavingOutpoint(expected int) OutputsListAssertion
 	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
+}
+
+type TxNotesAssertion interface {
+	Count(expected int) TxNotesAssertion
+	Note(what string, userID *int, attrs map[string]any) TxNotesAssertion
 }
 
 func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
@@ -90,10 +99,10 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 	missingTXs := map[string]struct{}{}
 
 	for _, txID := range txIDs {
-		knownTx, err := d.storage.FindKnownTx(d.Context(), txID)
-		require.NoError(d.TB, err, txID)
+		found, err := d.storage.KnownTxEntity().Read().TxID(txID).Find(d.Context())
+		require.NoError(d, err)
 
-		if knownTx == nil {
+		if len(found) == 0 {
 			missingTXs[txID] = struct{}{}
 		}
 	}
@@ -109,14 +118,18 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 	d.Helper()
 
-	knownTx, err := d.storage.FindKnownTx(d.Context(), txID)
-	require.NoError(d.TB, err, txID)
+	found, err := d.storage.KnownTxEntity().Read().
+		TxID(txID).
+		IncludeHistoryNotes().
+		Find(d.Context())
+	require.NoError(d, err)
 
-	if knownTx == nil {
+	if len(found) == 0 {
 		require.Failf(d, "Expected to find the transaction", "transaction ID: %s", txID)
 		return nil
 	}
 
+	knownTx := found[0]
 	assert.Equal(d, txID, knownTx.TxID, "Expected known transaction to have the same TxID as the one requested")
 
 	return &knownTxAssertion{
@@ -127,7 +140,7 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 
 type knownTxAssertion struct {
 	testing.TB
-	knownTx *entity.KnownTx
+	knownTx *pkgentity.KnownTx
 }
 
 func (d *knownTxAssertion) WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion {
@@ -158,6 +171,62 @@ func (d *knownTxAssertion) NotMined() KnownTxAssertion {
 func (d *knownTxAssertion) HasRawTx() KnownTxAssertion {
 	d.Helper()
 	assert.NotEmpty(d, d.knownTx.RawTx, "Expected known transaction to have a non-empty RawTx")
+	return d
+}
+
+func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion {
+	for _, note := range d.knownTx.TxNotes {
+		assert.Equal(d, d.knownTx.TxID, note.TxID, "Expected TxNote to have the same TxID as the known transaction")
+	}
+
+	assertion(&txNotesAssertion{
+		TB:      d.TB,
+		txNotes: d.knownTx.TxNotes,
+	})
+
+	return d
+}
+
+type txNotesAssertion struct {
+	testing.TB
+	txNotes      []*pkgentity.TxHistoryNote
+	currentIndex int
+}
+
+func (d *txNotesAssertion) Count(expected int) TxNotesAssertion {
+	d.Helper()
+	if !assert.NotNil(d, d.txNotes, "Expected known transaction to have TxNotes") {
+		return d
+	}
+
+	assert.Len(d, d.txNotes, expected, "Expected known transaction to have %d TxNotes, but got %d", expected, len(d.txNotes))
+	return d
+}
+
+func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) TxNotesAssertion {
+	d.Helper()
+
+	if !assert.NotNil(d, d.txNotes, "Expected known transaction to have TxNotes") {
+		return d
+	}
+
+	if d.currentIndex >= len(d.txNotes) {
+		assert.Failf(d, "No more TxNotes available", "Expected to find a TxNote with what=%s, userID=%v, attrs=%v", what, userID, attrs)
+		return d
+	}
+
+	note := d.txNotes[d.currentIndex]
+	d.currentIndex++
+
+	assert.Equal(d, what, note.What, "Expected TxNote to have the same 'What' as requested")
+	assert.Equal(d, userID, note.UserID, "Expected TxNote to have the same 'UserID' as requested")
+
+	for k, v := range attrs {
+		val, ok := note.Attributes[k]
+		assert.True(d, ok, "Expected TxNote to have attribute '%s'", k)
+		assert.Equal(d, fmt.Sprintf("%v", v), fmt.Sprintf("%v", val), "Expected TxNote to have the same value for attribute '%s'", k)
+	}
+
 	return d
 }
 

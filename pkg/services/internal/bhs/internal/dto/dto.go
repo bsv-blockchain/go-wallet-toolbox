@@ -2,6 +2,7 @@ package dto
 
 import (
 	"math/big"
+	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -38,4 +39,32 @@ func (t *TipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
 		Height: t.Height,
 		Hash:   t.Header.Hash,
 	}
+}
+
+type MerkleRootVerifyItem struct {
+	BlockHeight uint32 `json:"blockHeight"`
+	MerkleRoot  string `json:"merkleRoot"`
+}
+
+type merkleRootConfirmationState string
+
+const (
+	confirmed      merkleRootConfirmationState = "CONFIRMED"
+	unableToVerify merkleRootConfirmationState = "UNABLE_TO_VERIFY"
+	invalid        merkleRootConfirmationState = "INVALID"
+)
+
+type MerkleRootVerifyResp struct {
+	ConfirmationState merkleRootConfirmationState `json:"confirmationState"`
+}
+
+func (s merkleRootConfirmationState) IsConfirmed() bool {
+	return strings.EqualFold(string(s), string(confirmed))
+}
+func (s merkleRootConfirmationState) IsInvalid() bool {
+	return strings.EqualFold(string(s), string(invalid))
+}
+
+func (s merkleRootConfirmationState) IsUnableToVerify() bool {
+	return strings.EqualFold(string(s), string(unableToVerify))
 }

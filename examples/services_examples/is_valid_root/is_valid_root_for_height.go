@@ -21,6 +21,8 @@ func main() {
 
 	show.ProcessStart("Is Valid Root For Height")
 	cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
+	cfg.BHS.APIKey = "..." // use default api key DefaultAppToken from the BHS service https://github.com/bsv-blockchain/block-headers-service/blob/main/config/defaults.go#L8
+
 	srv := services.New(slog.Default(), cfg)
 
 	root, err := chainhash.NewHashFromHex(rootHex)

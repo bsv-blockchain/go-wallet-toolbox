@@ -25,21 +25,32 @@ func waitOrCancel(ctx context.Context, delay time.Duration, txid string) error {
 	}
 }
 
-func classifyBroadcastStatus(status BroadcastStatus) (wdk.PostedTxIDResultStatus, []string) {
+func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) (shouldReturnError bool) {
 	switch status {
 	case StatusSuccess:
-		return wdk.PostedTxIDResultSuccess, nil
+		result.Result = wdk.PostedTxIDResultSuccess
 	case StatusAlreadyBroadcasted:
-		return wdk.PostedTxIDResultAlreadyKnown, []string{"Transaction already in mempool"}
+		result.Result = wdk.PostedTxIDResultAlreadyKnown
+		result.AlreadyKnown = true
 	case StatusDoubleSpend:
-		return wdk.PostedTxIDResultDoubleSpend, []string{"Double spend detected"}
+		result.Result = wdk.PostedTxIDResultDoubleSpend
+		result.DoubleSpend = true
+		shouldReturnError = true
 	case StatusMissingInputs:
-		return wdk.PostedTxIDResultMissingInputs, []string{"Missing inputs detected"}
+		result.Result = wdk.PostedTxIDResultMissingInputs
+		result.DoubleSpend = true
+		shouldReturnError = true
 	case StatusError:
-		return wdk.PostedTxIDResultError, []string{"Broadcast status error"}
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = fmt.Errorf("broadcast status error")
+		shouldReturnError = true
 	default:
-		return wdk.PostedTxIDResultError, []string{fmt.Sprintf("Unknown error: unexpected BroadcastStatus value '%v'", status)}
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = fmt.Errorf("unknown broadcast status: %d", status)
+		shouldReturnError = true
 	}
+
+	return
 }
 
 func containsI(subject string, contains ...string) bool {
@@ -50,15 +61,6 @@ func containsI(subject string, contains ...string) bool {
 		}
 	}
 	return false
-}
-
-func firstNonNilError(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // buildURL joins baseURL with any number of path segments.

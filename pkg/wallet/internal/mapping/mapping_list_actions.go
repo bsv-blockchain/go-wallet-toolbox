@@ -18,8 +18,8 @@ import (
 func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	result := wdk.ListActionsArgs{
 		Labels: slices.Map(args.Labels, func(label string) primitives.StringUnder300 { return primitives.StringUnder300(label) }),
-		Limit:  primitives.PositiveIntegerDefault10Max10000(args.Limit),
-		Offset: primitives.PositiveIntegerDefault10Max10000(args.Offset),
+		Limit:  primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
+		Offset: primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
 	}
 
 	switch args.LabelQueryMode {

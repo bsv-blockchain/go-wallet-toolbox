@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -121,44 +121,49 @@ func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoR
 }
 
 func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx []byte) wdk.PostedTxID {
-	status, returnedTxid, broadcastErr := woc.broadcast(ctx, rawTx)
+	status, returnedTxid, err := woc.broadcast(ctx, rawTx)
+	if err != nil {
+		return woc.errorPostedTxID(rawTx, txid, fmt.Errorf("broadcast failed for txid %s: %w", txid, err))
+	}
 
-	if broadcastErr != nil {
-		return wdk.PostedTxID{
-			Result: wdk.PostedTxIDResultError,
-			TxID:   txid,
-			Error:  broadcastErr,
-			Notes:  utils.ConvertNotes([]string{fmt.Sprintf("broadcast error: %v", broadcastErr)}),
+	result := wdk.PostedTxID{
+		TxID: returnedTxid,
+	}
+
+	shouldReturnError := classifyBroadcastStatus(status, &result)
+	if shouldReturnError {
+		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
+		if result.Error != nil {
+			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Bytes(rawTx), []string{txid}, msg).Note().AsList()
+		return result
 	}
 
-	resultStatus, notes := classifyBroadcastStatus(status)
+	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, []string{txid}).Note().AsList()
 
-	txInfo, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
+	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
-		notes = append(notes, fmt.Sprintf("failed to fetch tx info: %v", fetchErr))
+		return woc.errorPostedTxID(rawTx, returnedTxid, fmt.Errorf("failed to fetch tx info for %s: %w", returnedTxid, fetchErr))
 	}
 
-	var blockHash string
-	var blockHeight int64
-	if txInfo != nil {
-		blockHash = txInfo.BlockHash
-		blockHeight = txInfo.BlockHeight
+	if info != nil {
+		result.BlockHash = info.BlockHash
+		result.BlockHeight = info.BlockHeight
 	}
 
-	return wdk.PostedTxID{
-		Result:       resultStatus,
-		TxID:         returnedTxid,
-		DoubleSpend:  status == StatusDoubleSpend || status == StatusMissingInputs,
-		AlreadyKnown: status == StatusAlreadyBroadcasted,
-		BlockHash:    blockHash,
-		BlockHeight:  blockHeight,
-		Error:        firstNonNilError(fetchErr),
-		Notes:        utils.ConvertNotes(notes),
-		// NOTE: MerklePath is not fetched here because that would require additional API call
-	}
+	return result
 }
 
 func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
 	return woc.fetchTxInfo(ctx, txid)
+}
+
+func (woc *WhatsOnChain) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {
+	return wdk.PostedTxID{
+		TxID:   txID,
+		Result: wdk.PostedTxIDResultError,
+		Error:  err,
+		Notes:  history.NewBuilder().PostBeefError(ServiceName, history.Bytes(raw), []string{txID}, err.Error()).Note().AsList(),
+	}
 }
