@@ -255,7 +255,7 @@ func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID st
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
-	tx, err := d.storage.FindUserTransactionByTxID(d.Context(), userID, txID) // UserID is not used here, so we pass 0
+	tx, err := d.storage.FindUserTransactionByTxID(d.Context(), userID, txID)
 	require.NoError(d.TB, err)
 	require.NotNil(d.TB, tx)
 
