@@ -36,7 +36,7 @@ Available Testnet faucets:
 2. Paste the generated address and request coins.  
 3. The faucet will return a **txid** if the request succeeds. Copy this value—you’ll need it to import the funds into Alice’s wallet on the Wallet Toolbox local server.
 
-Continue with **[faucet_internalize](../../wallet_examples/faucet_internalize/README)** to internalise the transaction.
+Continue with **[faucet_internalize](../../wallet_examples/faucet_internalize/README)** to internalize the transaction.
 <br>
 
 ## Details

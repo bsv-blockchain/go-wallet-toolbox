@@ -6,14 +6,6 @@ This example demonstrates how to retrieve the merkle path for a specific transac
 
 A merkle path is a sequence of hash nodes that allows you to cryptographically prove a transaction's inclusion in a block without downloading the entire block. It consists of the sibling hashes needed to reconstruct the merkle root from a specific transaction.
 
-## Service Fallback Strategy
-
-The wallet-services stack uses the following fallback approach:
-
-1. **Primary**: ARC service - First attempts to fetch the merkle path from ARC
-2. **Secondary**: WhatsOnChain - Falls back to WoC if ARC doesn't have the transaction
-3. **Result**: Returns the first successful merkle path obtained
-
 ## Parameters
 
 - **Transaction ID**: The hexadecimal transaction ID to get the merkle path for (e.g., `9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6`)
