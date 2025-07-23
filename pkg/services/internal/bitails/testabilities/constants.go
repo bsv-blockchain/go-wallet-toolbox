@@ -5,6 +5,7 @@ const (
 	TestTargetHash        = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 	TestSiblingHash       = "29eab26928d7721042114c47f15735877d290cd00773e8be44bcc3dc7b541c02"
 	TestBlockHeight       = 54321
+	TestMerkleRootHex     = "c7a78f2edd611b0fe7aad6829a243e4a9e351e5ab203b7beb875ba1e6a80249e"
 	TestFakeHeaderBinary  = "00000000000000000000000000000000000000000000000000000000000000000000000000cad4fedf209d816deb56268ac4a127c34bbff1eb8b022716c1c60a06655d67000000000000000000000000"
 	TestBlockHeaderLength = 80
 	TestMerkleRootOffset  = 36

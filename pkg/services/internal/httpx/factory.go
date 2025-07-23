@@ -12,6 +12,11 @@ const (
 	defaultRetryInterval = 2 * time.Second
 )
 
+// RetryOnErrOr5xx is a retry condition that retries on any error or if the response status code is 5xx.
+func RetryOnErrOr5xx(r *resty.Response, err error) bool {
+	return err != nil || (r != nil && r.StatusCode() >= http.StatusInternalServerError)
+}
+
 func retryOnTooManyRequestsStatus(res *resty.Response, err error) bool {
 	return res.StatusCode() == http.StatusTooManyRequests
 }

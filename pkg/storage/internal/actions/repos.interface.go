@@ -34,7 +34,7 @@ type TransactionsRepo interface {
 		txID string,
 		txStatus wdk.TxStatus,
 		provenTxReqStatus wdk.ProvenTxReqStatus,
-		txNote history.Builder,
+		txNotes []history.Builder,
 	) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)

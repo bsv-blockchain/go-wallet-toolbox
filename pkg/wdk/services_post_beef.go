@@ -11,13 +11,24 @@ type PostBeefResult []*PostBEEFServiceResult
 // Success checks if one of the results is a success.
 func (it PostBeefResult) Success() bool {
 	return seq.Exists(seq.FromSlice(it), func(it *PostBEEFServiceResult) bool {
-		return it.PostedBEEFResult != nil && it.Error == nil
+		return it.Success()
 	})
 }
 
 // Aggregated gets results from all services and aggregates them by txid, calculating status and counts.
 func (it PostBeefResult) Aggregated(txids []string) AggregatedPostBEEF {
 	return newAggregatedPostBEEF(it, txids)
+}
+
+// ServiceErrors returns a map containing service names and their corresponding errors for failed PostBEEF results.
+func (it PostBeefResult) ServiceErrors() map[string]error {
+	errs := make(map[string]error)
+	for _, result := range it {
+		if result.Error != nil {
+			errs[result.Name] = result.Error
+		}
+	}
+	return errs
 }
 
 // PostBEEFServiceResult is the result of the PostBEEF method of a single service.
