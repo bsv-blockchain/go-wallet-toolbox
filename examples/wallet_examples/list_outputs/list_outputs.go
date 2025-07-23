@@ -9,26 +9,33 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 )
 
-const (
-	// DefaultLimit is the default number of outputs to retrieve
-	DefaultLimit = 100
-	// DefaultOffset is the default starting position for pagination
-	DefaultOffset = 0
-	// DefaultTagQueryMode specifies how to match tags 
-	DefaultTagQueryMode = "any"
-	// DefaultOriginatorContext is the context for listing outputs
-	DefaultOriginatorContext = "originator"
+var (
+	// DefaultLimit is the default number of outputs to retrieve.
+	DefaultLimit = uint32(100)
+	// DefaultOffset is the default starting position for pagination.
+	DefaultOffset = uint32(0)
+	// DefaultOriginator is the originator domain or FQDN that is allowed to use this permission.
+	DefaultOriginator = "originator"
+	// DefaultIncludeLabels is the default value for including labels in the response.
+	DefaultIncludeLabels = true
+	// DefaultBasket is the default basket to list outputs from, if empty it will list from all baskets.
+	DefaultBasket = ""
+	// DefaultTags is the default tags to list outputs from.
+	DefaultTags = []string{}
 )
 
-// newDefaultListOutputsArgs creates a ListOutputsArgs struct with sensible defaults
-// for listing wallet outputs. Returns empty basket and tags to list all outputs.
-func newDefaultListOutputsArgs() sdk.ListOutputsArgs {
+// defaultListOutputsArgs creates default arguments for listing wallet outputs.
+// This function demonstrates how to configure the ListOutputsArgs struct which controls:
+// - Filtering: which basket and tags to filter by
+// - Pagination: how many results to return and where to start
+// - Data inclusion: whether to include additional metadata like labels
+func defaultListOutputsArgs() sdk.ListOutputsArgs {
 	return sdk.ListOutputsArgs{
-		Basket:       "",                  // Empty basket means list from all baskets
-		Tags:         []string{},          // Empty tags means list all outputs regardless of tags
-		Limit:        DefaultLimit,        // Maximum number of outputs to return
-		Offset:       DefaultOffset,       // Starting position for pagination
-		TagQueryMode: DefaultTagQueryMode, // How to match tags when provided
+		Basket:        DefaultBasket,         // Empty basket means list from all baskets
+		Tags:          DefaultTags,           // Empty tags means list all outputs regardless of tags
+		Limit:         &DefaultLimit,         // Maximum number of outputs to return (100)
+		Offset:        &DefaultOffset,        // Starting position for pagination (0 = start from beginning)
+		IncludeLabels: &DefaultIncludeLabels, // Include labels associated with outputs in the response
 	}
 }
 
@@ -36,26 +43,37 @@ func newDefaultListOutputsArgs() sdk.ListOutputsArgs {
 // It shows the complete flow from wallet creation to output listing with proper error handling
 func main() {
 	show.ProcessStart("List Outputs")
-
 	ctx := context.Background()
-
 	alice := example_setup.CreateAlice()
 
 	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
+	defer cleanup()
+
 	if err != nil {
 		panic(fmt.Errorf("failed to create Alice's wallet: %w", err))
 	}
-	defer cleanup()
 
 	show.Step("Alice", "Listing outputs")
-	args := newDefaultListOutputsArgs()
+	args := defaultListOutputsArgs()
 
-	outputs, err := aliceWallet.ListOutputs(ctx, args, DefaultOriginatorContext)
+	outputs, err := aliceWallet.ListOutputs(ctx, args, DefaultOriginator)
 	if err != nil {
 		panic(fmt.Errorf("failed to list outputs: %w", err))
 	}
 
 	show.Info("Outputs", outputs)
-
 	show.ProcessComplete("List Outputs")
 }
+
+/* Output:
+🚀 STARTING: List Outputs
+============================================================
+CreateWallet: 02ce33253bb3ebccf7a1a3afe38efa9a320342c89250ed4eeff08a39e1a65017d3
+
+=== STEP ===
+Alice is performing: Listing outputs
+--------------------------------------------------
+Outputs: &{TotalOutputs:0 BEEF:[] Outputs:[]}
+============================================================
+🎉 COMPLETED: List Outputs
+*/
