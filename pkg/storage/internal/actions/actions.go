@@ -25,7 +25,8 @@ func New(
 	repos *repo.Repositories,
 	randomizer wdk.Randomizer,
 	services wdk.Services,
-	syncTxStatusesConfig defs.SynchronizeTxStatuses) *Actions {
+	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+) *Actions {
 	return &Actions{
 		create: newCreateAction(
 			logger,
