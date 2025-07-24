@@ -17,11 +17,12 @@ import (
 )
 
 type Commission struct {
-	db *gorm.DB
+	db  *gorm.DB
+	gen *genquery.Query
 }
 
-func NewCommission(db *gorm.DB) *Commission {
-	return &Commission{db: db}
+func NewCommission(db *gorm.DB, gen *genquery.Query) *Commission {
+	return &Commission{db: db, gen: gen}
 }
 
 func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commission) error {
@@ -49,7 +50,7 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 }
 
 func (c *Commission) FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error) {
-	table := genquery.Commission
+	table := &c.gen.Commission
 	commission, err := table.WithContext(ctx).
 		Where(table.UserID.Eq(userID), table.TransactionID.Eq(transactionID)).
 		Take()
@@ -64,7 +65,7 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 }
 
 func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
-	table := genquery.Commission
+	table := &c.gen.Commission
 
 	toUpdate := map[string]any{}
 	if spec.IsRedeemed != nil {
@@ -84,7 +85,7 @@ func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.Commissi
 }
 
 func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {
-	table := genquery.Commission
+	table := &c.gen.Commission
 
 	commissions, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
@@ -98,7 +99,7 @@ func (c *Commission) FindCommissions(ctx context.Context, spec *entity.Commissio
 }
 
 func (c *Commission) CountCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) (int64, error) {
-	table := genquery.Commission
+	table := &c.gen.Commission
 
 	count, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
@@ -117,29 +118,29 @@ func (c *Commission) conditionsBySpec(spec *entity.CommissionReadSpecification) 
 	}
 
 	if spec.ID != nil {
-		return []gen.Condition{genquery.Commission.ID.Eq(*spec.ID)}
+		return []gen.Condition{c.gen.Commission.ID.Eq(*spec.ID)}
 	}
 
 	var conditions []gen.Condition
 
 	if spec.IsRedeemed != nil {
-		conditions = append(conditions, genquery.Commission.IsRedeemed.Is(*spec.IsRedeemed))
+		conditions = append(conditions, c.gen.Commission.IsRedeemed.Is(*spec.IsRedeemed))
 	}
 
 	if spec.Satoshis != nil {
-		conditions = append(conditions, cmpCondition(genquery.Commission.Satoshis, spec.Satoshis))
+		conditions = append(conditions, cmpCondition(c.gen.Commission.Satoshis, spec.Satoshis))
 	}
 
 	if spec.TransactionID != nil {
-		conditions = append(conditions, cmpCondition(genquery.Commission.TransactionID, spec.TransactionID))
+		conditions = append(conditions, cmpCondition(c.gen.Commission.TransactionID, spec.TransactionID))
 	}
 
 	if spec.KeyOffset != nil {
-		conditions = append(conditions, cmpCondition(genquery.Commission.KeyOffset, spec.KeyOffset))
+		conditions = append(conditions, cmpCondition(c.gen.Commission.KeyOffset, spec.KeyOffset))
 	}
 
 	if spec.UserID != nil {
-		conditions = append(conditions, genquery.Commission.UserID.Eq(*spec.UserID))
+		conditions = append(conditions, c.gen.Commission.UserID.Eq(*spec.UserID))
 	}
 
 	return conditions

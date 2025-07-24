@@ -17,11 +17,12 @@ import (
 )
 
 type SyncBasket struct {
-	db *gorm.DB
+	db  *gorm.DB
+	gen *genquery.Query
 }
 
-func NewSyncBasket(db *gorm.DB) *SyncBasket {
-	return &SyncBasket{db: db}
+func NewSyncBasket(db *gorm.DB, gen *genquery.Query) *SyncBasket {
+	return &SyncBasket{db: db, gen: gen}
 }
 
 type OutputBasketWithNum struct {
@@ -30,7 +31,7 @@ type OutputBasketWithNum struct {
 }
 
 func (s *SyncBasket) tableName() string {
-	return genquery.OutputBasket.TableName()
+	return s.gen.OutputBasket.TableName()
 }
 
 func (s *SyncBasket) stringIDClause() string {
@@ -40,9 +41,33 @@ func (s *SyncBasket) stringIDClause() string {
 func (s *SyncBasket) FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error) {
 	filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
-	resultModels, err := findChunk[models.OutputBasket, OutputBasketWithNum](ctx, s.db, s.tableName(), s.stringIDClause(), filters)
+	var resultModels []*OutputBasketWithNum
+
+	var model models.OutputBasket
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := upsertNumericIDLookup(ctx, s.db, tx, s.gen, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Select(fmt.Sprintf("?, %s", s.stringIDClause()), s.tableName()).
+				Scopes(filters...).
+				Find(&model)
+		}); err != nil {
+			return fmt.Errorf("failed to upsert numeric ID lookup: %w", err)
+		}
+
+		if err := tx.WithContext(ctx).
+			Model(&model).
+			Select("*").
+			Scopes(joinWithNumericIDLookupScope(s.gen, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
+			Scopes(filters...).
+			Find(&resultModels).Error; err != nil {
+			return fmt.Errorf("failed to find: %w", err)
+		}
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to find output baskets for sync: %w", err)
+		return nil, fmt.Errorf("db transaction failed while finding baskets for sync: %w", err)
 	}
 
 	return slices.Map(resultModels, s.mapModelToTableOutputBasket), nil
@@ -99,7 +124,7 @@ func (s *SyncBasket) FindBasketNameByNumIDForSync(ctx context.Context, basketNum
 	var basketName string
 
 	err := s.db.WithContext(ctx).Model(&models.OutputBasket{}).
-		Scopes(joinWithNumericIDLookupScope(s.stringIDClause(), s.tableName(), clause.InnerJoin)).
+		Scopes(joinWithNumericIDLookupScope(s.gen, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
 		Where("num.num_id = ?", basketNumID).
 		Select("name").
 		Scan(&basketName).Error

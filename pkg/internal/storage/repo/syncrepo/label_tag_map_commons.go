@@ -3,6 +3,7 @@ package syncrepo
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -14,6 +15,7 @@ import (
 
 type labelTagMapCommons[Model, ReadModel any] struct {
 	db                     *gorm.DB
+	gen                    *genquery.Query
 	subjectTableName       string
 	relationTableName      string
 	relationUserIDColumn   string
@@ -26,7 +28,7 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	var resultModels []*ReadModel
 
 	scopesToApply := []func(*gorm.DB) *gorm.DB{
-		joinWithNumericIDLookupScope(labelStringIDClause, f.subjectTableName, clause.InnerJoin),
+		joinWithNumericIDLookupScope(f.gen, labelStringIDClause, f.subjectTableName, clause.InnerJoin),
 	}
 
 	options := queryopts.MergeOptions(opts)

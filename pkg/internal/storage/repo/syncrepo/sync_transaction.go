@@ -18,11 +18,12 @@ import (
 )
 
 type SyncTransaction struct {
-	db *gorm.DB
+	db  *gorm.DB
+	gen *genquery.Query
 }
 
-func NewSyncTransaction(db *gorm.DB) *SyncTransaction {
-	return &SyncTransaction{db: db}
+func NewSyncTransaction(db *gorm.DB, gen *genquery.Query) *SyncTransaction {
+	return &SyncTransaction{db: db, gen: gen}
 }
 
 type TransactionWithKnownTx struct {
@@ -32,7 +33,7 @@ type TransactionWithKnownTx struct {
 }
 
 func (s *SyncTransaction) tableName() string {
-	return genquery.Transaction.TableName()
+	return s.gen.Transaction.TableName()
 }
 
 func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error) {
@@ -48,9 +49,9 @@ func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID in
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Make sure all numeric IDs of KnownTxs needed by user's transactions are present in the numeric ID lookup table.
-		err := upsertNumericIDLookup(ctx, s.db, tx, func(db *gorm.DB) *gorm.DB {
+		err := upsertNumericIDLookup(ctx, s.db, tx, s.gen, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select("?, tx_id", genquery.KnownTx.TableName()).
+				Select("?, tx_id", s.gen.KnownTx.TableName()).
 				Scopes(filters...).
 				Where("tx_id IS NOT NULL").
 				Find(&models.Transaction{})
@@ -62,8 +63,8 @@ func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID in
 		err = tx.WithContext(ctx).
 			Model(&models.Transaction{}).
 			Select(fmt.Sprintf("%s.*, num.num_id, known_tx.block_height", s.tableName())).
-			Scopes(joinWithNumericIDLookupScope(fmt.Sprintf("%s.tx_id", s.tableName()), genquery.KnownTx.TableName(), clause.LeftJoin)).
-			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", genquery.KnownTx.TableName(), s.tableName())).
+			Scopes(joinWithNumericIDLookupScope(s.gen, fmt.Sprintf("%s.tx_id", s.tableName()), s.gen.KnownTx.TableName(), clause.LeftJoin)).
+			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.gen.KnownTx.TableName(), s.tableName())).
 			Scopes(filters...).
 			Find(&resultModels).Error
 		if err != nil {

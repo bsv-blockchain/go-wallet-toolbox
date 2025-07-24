@@ -17,11 +17,12 @@ import (
 )
 
 type SyncOutput struct {
-	db *gorm.DB
+	db  *gorm.DB
+	gen *genquery.Query
 }
 
-func NewSyncOutput(db *gorm.DB) *SyncOutput {
-	return &SyncOutput{db: db}
+func NewSyncOutput(db *gorm.DB, gen *genquery.Query) *SyncOutput {
+	return &SyncOutput{db: db, gen: gen}
 }
 
 type OutputReadModel struct {
@@ -30,7 +31,7 @@ type OutputReadModel struct {
 }
 
 func (s *SyncOutput) tableName() string {
-	return genquery.Output.TableName()
+	return s.gen.Output.TableName()
 }
 
 func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutput, error) {
@@ -47,9 +48,9 @@ func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ..
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Make sure all numeric IDs of OutputBaskets needed by user's outputs are present in the numeric ID lookup table.
-		err := upsertNumericIDLookup(ctx, s.db, tx, func(db *gorm.DB) *gorm.DB {
+		err := upsertNumericIDLookup(ctx, s.db, tx, s.gen, func(db *gorm.DB) *gorm.DB {
 			return db.
-				Select(fmt.Sprintf("?, %s", basketStringIDClause), genquery.OutputBasket.TableName()).
+				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.gen.OutputBasket.TableName()).
 				Scopes(filters...).
 				Where("basket_name IS NOT NULL").
 				Find(&models.Output{})
@@ -62,7 +63,7 @@ func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ..
 			Model(&models.Output{}).
 			Select(fmt.Sprintf("%s.*, num.num_id as basket_num_id", s.tableName())).
 			Scopes(filters...).
-			Scopes(joinWithNumericIDLookupScope(basketStringIDClause, genquery.OutputBasket.TableName(), clause.LeftJoin)).
+			Scopes(joinWithNumericIDLookupScope(s.gen, basketStringIDClause, s.gen.OutputBasket.TableName(), clause.LeftJoin)).
 			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
 				return db.Select("id, tx_id")
 			}).
