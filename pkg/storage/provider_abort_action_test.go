@@ -87,8 +87,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 			expectedErrors: []string{
 				"failed to abort action",
-				"failed to find unique transaction by reference",
-				"non-existent-reference",
+				"no transaction found with reference or txid",
 			},
 		},
 		"transaction not found by TxID": {
@@ -98,7 +97,10 @@ func TestAbortActionErrorCases(t *testing.T) {
 			args: func(reference string) wdk.AbortActionArgs {
 				return wdk.AbortActionArgs{Reference: reference}
 			},
-			expectedErrors: []string{"found 0"},
+			expectedErrors: []string{
+				"failed to abort action",
+				"no transaction found with reference or txid",
+			},
 		},
 		"transaction not outgoing - TxID as Reference": {
 			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
@@ -139,8 +141,8 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
-				"expected exactly one transaction with reference",
-				"found 0",
+				"failed to abort action:",
+				"no transaction found with reference or txid",
 			},
 		},
 		"different user transaction - txID as Reference": {
@@ -154,8 +156,8 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
-				"expected exactly one transaction with reference",
-				"found 0",
+				"failed to abort action:",
+				"no transaction found with reference or txid",
 			},
 		},
 		"invalid user ID": {
