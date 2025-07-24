@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.24.3
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.5
+	github.com/bsv-blockchain/go-sdk v1.2.6
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.8.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
