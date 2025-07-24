@@ -556,7 +556,7 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 }
 
 func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
-	return txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txNotes := history.NewBuilder().AbortAction(reference).Note().AsList()
 		historyBuilders := make([]history.Builder, len(txNotes))
 		for i, note := range txNotes {
@@ -599,5 +599,10 @@ func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transaction
 		}
 
 		return nil
-	})
+
+	}); err != nil {
+		return fmt.Errorf("failed to abort transaction: %w", err)
+	}
+
+	return nil
 }
