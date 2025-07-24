@@ -19,6 +19,10 @@ const (
 )
 
 func main() {
+	// Warning: Don't use globally defined variables (like Q) in the generated code.
+	// We don't support this approach because there can be multiple instances of storages.
+	// Instead, each repository should create its own instance of Query and use it. (genquery.Use(db))
+
 	g := gen.NewGenerator(gen.Config{
 		OutPath: outPath,
 		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface,
