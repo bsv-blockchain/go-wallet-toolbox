@@ -50,6 +50,13 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 			SeekPermission: nil,
 		}
 
+		// and:
+		given.Provider().BHS().OnMerkleRootVerifyResponse(
+			tsgenerated.BeefToInternalizeHeight,
+			tsgenerated.BeefToInternalizeMerkleRoot,
+			"CONFIRMED",
+		)
+
 		// when:
 		result, err := activeStorage.InternalizeAction(
 			t.Context(),
@@ -174,8 +181,8 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 
 	// and:
 	given.Provider().BHS().OnMerkleRootVerifyResponse(
-		1653933,
-		"6ee2e72ad8ca8db54d8272875d4b6a53f3afe194d82c1f71369a2983f6a343c8",
+		tsgenerated.BeefToInternalizeHeight,
+		tsgenerated.BeefToInternalizeMerkleRoot,
 		"CONFIRMED",
 	)
 
@@ -279,8 +286,8 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 	var processedTxID string
 
 	given.Provider().BHS().OnMerkleRootVerifyResponse(
-		1653933,
-		"6ee2e72ad8ca8db54d8272875d4b6a53f3afe194d82c1f71369a2983f6a343c8",
+		tsgenerated.BeefToInternalizeHeight,
+		tsgenerated.BeefToInternalizeMerkleRoot,
 		"CONFIRMED",
 	)
 

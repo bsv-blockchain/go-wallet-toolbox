@@ -46,6 +46,7 @@ func New(
 			repos.KnownTx,
 			repos.Outputs,
 			randomizer,
+			services,
 		),
 		process: newProcessAction(
 			logger,

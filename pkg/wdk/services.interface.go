@@ -2,9 +2,9 @@ package wdk
 
 import (
 	"context"
-	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 )
 
 // Services defines an interface for handling 3rd party services

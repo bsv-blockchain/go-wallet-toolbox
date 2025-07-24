@@ -52,6 +52,12 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 	// NOTE: Alice's identityKey has been used for tsgenerated.SignedTransaction - that's why you cannot use another user here
 	user := testusers.Alice
 
+	s.Provider().BHS().OnMerkleRootVerifyResponse(
+		tsgenerated.BeefToInternalizeHeight,
+		tsgenerated.BeefToInternalizeMerkleRoot,
+		"CONFIRMED",
+	)
+
 	_, err := activeStorage.InternalizeAction(ctx, user.AuthID(), internalizeArgs)
 	require.NoError(s.t, err)
 

@@ -384,6 +384,11 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 
 	// and:
 	beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
+	givenSourceDB.Provider().BHS().OnMerkleRootVerifyResponse(
+		tsgenerated.BeefToInternalizeHeight,
+		tsgenerated.BeefToInternalizeMerkleRoot,
+		"CONFIRMED",
+	)
 	internalizeArgs := wdk.InternalizeActionArgs{
 		Tx: beefToInternalize,
 		Outputs: []*wdk.InternalizeOutput{
