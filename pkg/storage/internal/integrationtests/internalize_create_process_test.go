@@ -172,6 +172,13 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 	err := activeStorage.ConfigureBasket(t.Context(), testusers.Alice.AuthID(), basketConf)
 	require.NoError(t, err)
 
+	// and:
+	given.Provider().BHS().OnMerkleRootVerifyResponse(
+		1653933,
+		"6ee2e72ad8ca8db54d8272875d4b6a53f3afe194d82c1f71369a2983f6a343c8",
+		"CONFIRMED",
+	)
+
 	t.Run("Create", func(t *testing.T) {
 		// given:
 		args := createActionArgsWithProvidedOutput()
@@ -270,6 +277,12 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 
 	var createdTxReference string
 	var processedTxID string
+
+	given.Provider().BHS().OnMerkleRootVerifyResponse(
+		1653933,
+		"6ee2e72ad8ca8db54d8272875d4b6a53f3afe194d82c1f71369a2983f6a343c8",
+		"CONFIRMED",
+	)
 
 	t.Run("Internalize - this way the storage will 'know' specified UTXO", func(t *testing.T) {
 		// given:
