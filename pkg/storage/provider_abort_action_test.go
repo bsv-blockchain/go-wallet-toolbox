@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestAbortActionSuccess(t *testing.T) {
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.AbortActionArgs{
-			Reference: createResult.Reference,
+			Reference: primitives.Base64String(createResult.Reference),
 		},
 	)
 
@@ -51,7 +52,7 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.AbortActionArgs{
-			Reference: createResult.Reference,
+			Reference: primitives.Base64String(createResult.Reference),
 		},
 	)
 	require.NoError(t, err)
@@ -83,7 +84,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return "non-existent-reference", testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"failed to abort action",
@@ -95,7 +96,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return "1234567890123456789012345678901234567890123456789012345678901234", testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"failed to abort action",
@@ -110,7 +111,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return txSpec.ID().String(), testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
@@ -124,7 +125,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return fixtures.FaucetReference(txSpec.ID().String()), testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
@@ -138,7 +139,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return createResult.Reference, testusers.Bob.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"failed to abort action:",
@@ -153,7 +154,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return tx.TxID().String(), testusers.Bob.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"failed to abort action:",
@@ -165,7 +166,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return "some-reference", wdk.AuthID{UserID: nil}
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"access is denied due to an authorization error",
@@ -180,7 +181,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 					t.Context(),
 					testusers.Alice.AuthID(),
 					wdk.AbortActionArgs{
-						Reference: createResult.Reference,
+						Reference: primitives.Base64String(createResult.Reference),
 					},
 				)
 				require.NoError(t, err)
@@ -190,7 +191,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
@@ -204,7 +205,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"action with status unproven cannot be aborted",
@@ -218,7 +219,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				return tx.TxID().String(), testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 			expectedErrors: []string{
 				"action with status unproven cannot be aborted",
@@ -263,7 +264,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
+				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}
 			},
 		},
 	}

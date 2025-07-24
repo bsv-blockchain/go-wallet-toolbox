@@ -2,12 +2,14 @@ package wdk
 
 import (
 	"fmt"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // AbortActionArgs defines the arguments for aborting a wallet action.
 type AbortActionArgs struct {
 	// Reference is the unique identifier for the action to be aborted.
-	Reference string `json:"reference"`
+	Reference primitives.Base64String `json:"reference"`
 }
 
 // AbortActionResult defines the result of an abort action operation.
