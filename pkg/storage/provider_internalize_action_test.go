@@ -336,7 +336,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		given.Provider().BHS().OnMerkleRootVerifyResponse(
 			tsgenerated.BeefToInternalizeHeight,
 			tsgenerated.BeefToInternalizeMerkleRoot,
-			"CONFIRMED",
+			testabilities.BHSMerkleRootConfirmed,
 		)
 
 		// when:

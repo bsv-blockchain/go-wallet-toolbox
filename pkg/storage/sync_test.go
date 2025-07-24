@@ -387,7 +387,7 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 	givenSourceDB.Provider().BHS().OnMerkleRootVerifyResponse(
 		tsgenerated.BeefToInternalizeHeight,
 		tsgenerated.BeefToInternalizeMerkleRoot,
-		"CONFIRMED",
+		testabilities.BHSMerkleRootConfirmed,
 	)
 	internalizeArgs := wdk.InternalizeActionArgs{
 		Tx: beefToInternalize,

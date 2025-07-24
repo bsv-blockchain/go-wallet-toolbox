@@ -63,12 +63,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	if ok, err := beef.Verify(ctx, in.chaintracker, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
-		return nil, fmt.Errorf("beef verification returned false")
+		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
 	tx := beef.FindAtomicTransactionByHash(txIDHash)
 	if tx == nil {
-		return nil, fmt.Errorf("problem with atomic beef: transaction with hash %s not found", txIDHash)
+		return nil, fmt.Errorf("atomic beef error: transaction with hash %s not found", txIDHash)
 	}
 
 	txID := txIDHash.String()

@@ -55,7 +55,7 @@ func (s *storageFixture) ActionCreatedAndSigned(activeStorage *storage.Provider)
 	s.Provider().BHS().OnMerkleRootVerifyResponse(
 		tsgenerated.BeefToInternalizeHeight,
 		tsgenerated.BeefToInternalizeMerkleRoot,
-		"CONFIRMED",
+		BHSMerkleRootConfirmed,
 	)
 
 	_, err := activeStorage.InternalizeAction(ctx, user.AuthID(), internalizeArgs)

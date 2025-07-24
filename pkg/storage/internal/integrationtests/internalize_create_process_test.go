@@ -54,7 +54,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		given.Provider().BHS().OnMerkleRootVerifyResponse(
 			tsgenerated.BeefToInternalizeHeight,
 			tsgenerated.BeefToInternalizeMerkleRoot,
-			"CONFIRMED",
+			testabilities.BHSMerkleRootConfirmed,
 		)
 
 		// when:
@@ -183,7 +183,7 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 	given.Provider().BHS().OnMerkleRootVerifyResponse(
 		tsgenerated.BeefToInternalizeHeight,
 		tsgenerated.BeefToInternalizeMerkleRoot,
-		"CONFIRMED",
+		testabilities.BHSMerkleRootConfirmed,
 	)
 
 	t.Run("Create", func(t *testing.T) {
@@ -288,7 +288,7 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 	given.Provider().BHS().OnMerkleRootVerifyResponse(
 		tsgenerated.BeefToInternalizeHeight,
 		tsgenerated.BeefToInternalizeMerkleRoot,
-		"CONFIRMED",
+		testabilities.BHSMerkleRootConfirmed,
 	)
 
 	t.Run("Internalize - this way the storage will 'know' specified UTXO", func(t *testing.T) {

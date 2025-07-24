@@ -240,7 +240,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 	if ok, err := beef.Verify(ctx, p.services, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
-		return nil, fmt.Errorf("beef verification returned false")
+		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
 	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
