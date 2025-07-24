@@ -74,16 +74,12 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 
 func TestAbortActionErrorCases(t *testing.T) {
 	tests := map[string]struct {
-		setupTransaction func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID)
-		args             func(reference string) wdk.AbortActionArgs
+		setupTransaction func(given testabilities.StorageFixture) (string, wdk.AuthID)
 		expectedErrors   []string
 	}{
 		"transaction not found by reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				return "non-existent-reference", testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"failed to abort action",
@@ -91,11 +87,8 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 		},
 		"transaction not found by TxID": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				return "1234567890123456789012345678901234567890123456789012345678901234", testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"failed to abort action",
@@ -103,42 +96,33 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 		},
 		"transaction not outgoing - TxID as Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 				return txSpec.ID().String(), testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
 				"must be an outgoing transaction"},
 		},
 		"transaction not outgoing - Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 				return fixtures.FaucetReference(txSpec.ID().String()), testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
 				"must be an outgoing transaction"},
 		},
 		"different user transaction - Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				createResult, _ := given.ActionCreatedAndSigned(activeStorage)
 
 				return createResult.Reference, testusers.Bob.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"failed to abort action:",
@@ -146,14 +130,11 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 		},
 		"different user transaction - txID as Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				_, tx := given.ActionCreatedAndSigned(activeStorage)
 
 				return tx.TxID().String(), testusers.Bob.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"failed to abort action:",
@@ -161,18 +142,15 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 		},
 		"invalid user ID": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				return "some-reference", wdk.AuthID{UserID: nil}
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"access is denied due to an authorization error",
 			},
 		},
 		"transaction with status failed - Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				createResult, _ := given.ActionCreatedAndSigned(activeStorage)
 
@@ -189,36 +167,27 @@ func TestAbortActionErrorCases(t *testing.T) {
 
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
-			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
 				"action with status failed cannot be aborted"},
 		},
 		"transaction with status unproven - Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				createResult, _ := given.ActionCreatedAndProcessed(activeStorage)
 
 				return createResult.Reference, testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"action with status unproven cannot be aborted",
 			},
 		},
 		"transaction with status unproven - TxID as Reference": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				_, tx := given.ActionCreatedAndProcessed(activeStorage)
 
 				return tx.TxID().String(), testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 			expectedErrors: []string{
 				"action with status unproven cannot be aborted",
@@ -233,13 +202,13 @@ func TestAbortActionErrorCases(t *testing.T) {
 			defer cleanup()
 
 			activeStorage := given.Provider().GORM()
-			reference, user := test.setupTransaction(t, given)
+			reference, user := test.setupTransaction(given)
 
 			// when:
 			_, err := activeStorage.AbortAction(
 				t.Context(),
 				user,
-				test.args(reference),
+				wdk.AbortActionArgs{Reference: reference},
 			)
 
 			// then:
@@ -253,17 +222,13 @@ func TestAbortActionErrorCases(t *testing.T) {
 
 func TestAbortActionAbortableStatuses(t *testing.T) {
 	tests := map[string]struct {
-		setupTransaction func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID)
-		args             func(reference string) wdk.AbortActionArgs
+		setupTransaction func(given testabilities.StorageFixture) (string, wdk.AuthID)
 	}{
 		"unsigned_transaction": {
-			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
+			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				createResult, _ := given.ActionCreatedAndSigned(activeStorage)
 				return createResult.Reference, testusers.Alice.AuthID()
-			},
-			args: func(reference string) wdk.AbortActionArgs {
-				return wdk.AbortActionArgs{Reference: reference}
 			},
 		},
 	}
@@ -274,13 +239,13 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 			defer cleanup()
 
 			activeStorage := given.Provider().GORM()
-			reference, user := test.setupTransaction(t, given)
+			reference, user := test.setupTransaction(given)
 
 			// when:
 			result, err := activeStorage.AbortAction(
 				t.Context(),
 				user,
-				test.args(reference),
+				wdk.AbortActionArgs{Reference: reference},
 			)
 
 			// then:

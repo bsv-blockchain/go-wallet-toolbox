@@ -15,6 +15,10 @@ type abortAction struct {
 	transactionsRepo TransactionsRepo
 }
 
+const (
+	txIDLength = 64
+)
+
 func newAbortAction(logger *slog.Logger, transactions TransactionsRepo) *abortAction {
 	return &abortAction{
 		logger:           logging.Child(logger, "abortAction"),
@@ -66,5 +70,5 @@ func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
 }
 
 func (a *abortAction) isPotentiallyTxID(reference string) bool {
-	return len(reference) == 64
+	return len(reference) == txIDLength
 }
