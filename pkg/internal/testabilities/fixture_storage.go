@@ -46,7 +46,7 @@ type TopUpOptions struct {
 	Purpose string
 }
 
-type TopUpOpts func(*TopUpOptions)
+type TopUpOpts = func(*TopUpOptions)
 
 func WithMinedTopUp() TopUpOpts {
 	return func(o *TopUpOptions) {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/is"
 )
 
 func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
@@ -49,23 +50,10 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("inconsistent IsNoSend with Options.NoSend")
 	}
 
-	if args.IsNoSend && len(args.Options.NoSendChange) > 0 {
-		if err := allOutpointsUnique(args.Options.NoSendChange); err != nil {
-			return fmt.Errorf("invalid NoSendChange: %w", err)
-		}
+	if args.IsNoSend && len(args.Options.NoSendChange) > 0 && !is.UniqueSlice(args.Options.NoSendChange) {
+		return fmt.Errorf("duplicated outpoints in Options.NoSendChange")
 	}
 
-	return nil
-}
-
-func allOutpointsUnique(outpoints []wdk.OutPoint) error {
-	seen := make(map[wdk.OutPoint]struct{})
-	for i, outpoint := range outpoints {
-		if _, exists := seen[outpoint]; exists {
-			return fmt.Errorf("duplicate outpoint at index %d: %s.%d", i, outpoint.TxID, outpoint.Vout)
-		}
-		seen[outpoint] = struct{}{}
-	}
 	return nil
 }
 

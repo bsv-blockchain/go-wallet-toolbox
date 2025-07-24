@@ -177,20 +177,18 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 		return nil, nil
 	}
 
-	outpointStrings := slices.Map(outpoints, func(op wdk.OutPoint) string {
-		return op.String()
+	outpointStrings := slices.Map(outpoints, func(op wdk.OutPoint) []any {
+		return []any{op.TxID, op.Vout}
 	})
-
 	outputTableName := genquery.Output.TableName()
 	transactionTableName := genquery.Transaction.TableName()
-
 	query := o.db.WithContext(ctx).Table(
 		"(?) as out",
 		o.db.Model(&models.Output{}).
-			Select(fmt.Sprintf("%s.*, tx.tx_id as tx_id, CONCAT(tx.tx_id, '.', %s.vout) as outpoint", outputTableName, outputTableName)).
+			Select(fmt.Sprintf("%s.*, tx.tx_id as tx_id", outputTableName)).
 			Joins(fmt.Sprintf("INNER JOIN %s tx ON tx.id = %s.transaction_id", transactionTableName, outputTableName)).
 			Where(fmt.Sprintf("%s.user_id = ?", outputTableName), userID),
-	).Where("outpoint IN (?)", outpointStrings)
+	).Where("(tx_id,vout) IN (?)", outpointStrings)
 
 	type outputWithTxID struct {
 		*models.Output

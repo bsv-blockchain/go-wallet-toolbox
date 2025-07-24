@@ -63,6 +63,8 @@ github.com/go-resty/resty/v2 v2.16.5 h1:hBKqmWrr7uRc3euHVqmh1HTHcKn99Smr7o5spptd
 github.com/go-resty/resty/v2 v2.16.5/go.mod h1:hkJtXbA2iKHzJheXYvQ8snQES5ZLGKMwQ07xAwp/fiA=
 github.com/go-softwarelab/common v1.3.1 h1:0vyolcfsh/kXqI3GIhdmHEpSlFf7Lxlnp5mnjy8i0mA=
 github.com/go-softwarelab/common v1.3.1/go.mod h1:OBlpZUPWzz+YhTt+fQgHGTxgJBq3IDESJSIyOKC0/6Y=
+github.com/go-softwarelab/common v1.4.0 h1:byt/oTxlz52m20q5kB3VyQqqgzUxQDMIqXP7h3N9wts=
+github.com/go-softwarelab/common v1.4.0/go.mod h1:OBlpZUPWzz+YhTt+fQgHGTxgJBq3IDESJSIyOKC0/6Y=
 github.com/go-sql-driver/mysql v1.9.3 h1:U/N249h2WzJ3Ukj8SowVFjdtZKfu9vlLZxjPXV1aweo=
 github.com/go-sql-driver/mysql v1.9.3/go.mod h1:qn46aNg1333BRMNU69Lq93t8du/dwxI64Gl8i5p1WMU=
 github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9LvH92wZUgs=
