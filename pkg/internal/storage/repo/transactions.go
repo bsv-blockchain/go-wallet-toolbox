@@ -556,45 +556,48 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 }
 
 func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txNotes := history.NewBuilder().AbortAction(reference).Note().AsList()
 		historyBuilders := make([]history.Builder, len(txNotes))
 		for i, note := range txNotes {
 			historyBuilders[i] = history.NewBuilderFromNote(note)
 		}
 
-		if err := txs.releaseReservedUTXOs(tx, transactionID); err != nil {
-			return fmt.Errorf("failed to release reserved UTXOs: %w", err)
+		type step struct {
+			name string
+			fn   func() error
 		}
 
-		if err := txs.checkIfAnyOutputIsSpent(tx, transactionID); err != nil {
-			return fmt.Errorf("failed to check if any output is spent: %w", err)
+		steps := []step{
+			{"release_reserved_utxos", func() error {
+				return txs.releaseReservedUTXOs(tx, transactionID)
+			}},
+			{"check_if_any_output_is_spent", func() error {
+				return txs.checkIfAnyOutputIsSpent(tx, transactionID)
+			}},
+			{"release_outputs_reserved", func() error {
+				return txs.releaseOutputsReservedByTransaction(tx, transactionID)
+			}},
+			{"delete_outputs", func() error {
+				return txs.deleteOutputsByTransactionID(tx, transactionID)
+			}},
+			{"update_transaction_status", func() error {
+				return txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed)
+			}},
 		}
 
-		if err := txs.releaseOutputsReservedByTransaction(tx, transactionID); err != nil {
-			return fmt.Errorf("failed to release reserved outputs: %w", err)
-		}
-
-		if err := txs.deleteOutputsByTransactionID(tx, transactionID); err != nil {
-			return fmt.Errorf("failed to delete transaction outputs: %w", err)
-		}
-
-		if err := txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed); err != nil {
-			return fmt.Errorf("failed to update local transaction status: %w", err)
+		for _, s := range steps {
+			if err := s.fn(); err != nil {
+				return fmt.Errorf("AbortTransactionAtomic: step '%s' failed: %w", s.name, err)
+			}
 		}
 
 		if txID != nil && *txID != "" {
 			if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, historyBuilders); err != nil {
-				return fmt.Errorf("failed to update known tx status: %w", err)
+				return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
 			}
 		}
 
 		return nil
 	})
-
-	if err != nil {
-		return fmt.Errorf("failed to abort transaction: %w", err)
-	}
-
-	return nil
 }
