@@ -7,7 +7,7 @@ import (
 
 const (
 	// DefaultAbortActionReference is a test reference for abort action
-	DefaultAbortActionReference = "dGVzdC1yZWZlcmVuY2UtYWJvcnQ="
+	DefaultAbortActionReference = "s7Tcy8M+5fLQ/XAk"
 )
 
 // DefaultValidAbortActionArgs returns default valid AbortActionArgs for testing

@@ -81,7 +81,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 	}{
 		"transaction not found by reference": {
 			setupTransaction: func(t *testing.T, given testabilities.StorageFixture) (string, wdk.AuthID) {
-				return "non-existent-reference", testusers.Alice.AuthID()
+				return "bm9uLWV4aXN0ZW50LXJlZg==", testusers.Alice.AuthID()
 			},
 			args: func(reference string) wdk.AbortActionArgs {
 				return wdk.AbortActionArgs{Reference: primitives.Base64String(reference)}

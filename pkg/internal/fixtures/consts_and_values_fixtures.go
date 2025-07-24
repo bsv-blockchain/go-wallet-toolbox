@@ -1,6 +1,7 @@
 package fixtures
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
@@ -46,5 +47,5 @@ func FaucetTag(index int) string {
 }
 
 func FaucetReference(txID string) string {
-	return fmt.Sprintf("faucet-reference-for-txid-%s", txID)
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("faucet-reference-for-txid-%s", txID)))
 }
