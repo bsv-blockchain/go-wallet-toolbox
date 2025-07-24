@@ -246,12 +246,10 @@ func (p *KnownTx) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeT
 		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
 	}
 
-	var sourceTXID string
 	for _, input := range tx.Inputs {
-		sourceTXID = input.SourceTXID.String()
-		beefTx := mergeToBeef.Transactions[sourceTXID]
+		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat != transaction.RawTxAndBumpIndex {
-			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, sourceTXID, statusesToFilterOut)
+			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), statusesToFilterOut)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
 			}

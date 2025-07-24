@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -245,11 +246,11 @@ func (s *Service) toHex(beef *transaction.Beef) (string, error) {
 		return tx.Transaction.Inputs
 	}))
 
-	inputsIds := seq.Map(inputs, func(input *transaction.TransactionInput) string {
-		return input.SourceTXID.String()
+	inputsIds := seq.Map(inputs, func(input *transaction.TransactionInput) chainhash.Hash {
+		return *input.SourceTXID
 	})
 
-	seq.ForEach(inputsIds, func(inputTxID string) {
+	seq.ForEach(inputsIds, func(inputTxID chainhash.Hash) {
 		if _, ok := inDegree[inputTxID]; !ok {
 			panic(fmt.Sprintf("unexpected input txid %s, this shouldn't ever happen", inputTxID))
 		}
@@ -289,7 +290,11 @@ func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
 		}
 		for _, element := range bump.Path[0] {
 			if element.Txid != nil && *element.Txid {
-				tx, ok := beef.Transactions[element.Hash.String()]
+				if element.Hash == nil {
+					s.logger.Error("got leaf marked as txid in BUMP but hash is nil")
+					continue
+				}
+				tx, ok := beef.Transactions[*element.Hash]
 				if !ok {
 					s.logger.Warn("got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
 					continue
@@ -321,7 +326,7 @@ func hydrateInput(input *transaction.TransactionInput, beef *transaction.Beef, d
 		return nil
 	}
 
-	tx, ok := beef.Transactions[txID]
+	tx, ok := beef.Transactions[*input.SourceTXID]
 	if !ok {
 		return fmt.Errorf("could not find transaction %s in beef", txID)
 	}
