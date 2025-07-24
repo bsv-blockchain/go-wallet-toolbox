@@ -27,8 +27,6 @@ const (
 const (
 	statusNowAttr   = "status_now"
 	serviceNameAttr = "name"
-	abortActionAttr = "abort_action"
-	actionAttr      = "action"
 	referenceAttr   = "reference"
 )
 
