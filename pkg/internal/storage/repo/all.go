@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"gorm.io/gorm"
 )
 
@@ -21,6 +22,7 @@ type Repositories struct {
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
+	query := genquery.Use(db)
 	repositories := &Repositories{
 		Migrator:      NewMigrator(db),
 		Settings:      NewSettings(db),
@@ -28,12 +30,12 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		Certificates:  NewCertificates(db),
 		UTXOs:         NewUTXOs(db),
 		Transactions:  NewTransactions(db),
-		Outputs:       NewOutputs(db),
-		KnownTx:       NewKnownTxRepo(db),
-		Sync:          NewSync(db),
+		Outputs:       NewOutputs(db, query),
+		KnownTx:       NewKnownTxRepo(db, query),
+		Sync:          NewSync(db, query),
 		SyncState:     NewSyncState(db),
 		KeyValue:      NewKeyValue(db),
-		Commission:    NewCommission(db),
+		Commission:    NewCommission(db, query),
 	}
 	repositories.Users = NewUsers(db, repositories.Settings, repositories.OutputBaskets)
 
