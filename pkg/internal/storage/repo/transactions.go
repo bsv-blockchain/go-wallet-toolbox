@@ -95,6 +95,7 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 				UserID: newTx.UserID,
 			}
 		}),
+		// TODO: verify if this won't blow up for not created UTXOs (when we're using noSendChange - which are not in UTXO table)
 		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models.UserUTXO {
 			return &models.UserUTXO{
 				UserID:   newTx.UserID,
