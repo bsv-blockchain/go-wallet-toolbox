@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -23,12 +24,13 @@ type OutputToInternalize struct {
 }
 
 type internalize struct {
-	logger      *slog.Logger
-	txRepo      TransactionsRepo
-	basketRepo  BasketRepo
-	knownTxRepo KnownTxRepo
-	outputRepo  OutputRepo
-	random      wdk.Randomizer
+	logger       *slog.Logger
+	txRepo       TransactionsRepo
+	basketRepo   BasketRepo
+	knownTxRepo  KnownTxRepo
+	outputRepo   OutputRepo
+	random       wdk.Randomizer
+	chaintracker chaintracker.ChainTracker
 }
 
 func newInternalizeAction(
@@ -38,26 +40,38 @@ func newInternalizeAction(
 	knownTxRepo KnownTxRepo,
 	outputRepo OutputRepo,
 	random wdk.Randomizer,
+	chaintracker chaintracker.ChainTracker,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:      logger,
-		txRepo:      txRepo,
-		basketRepo:  basketRepo,
-		knownTxRepo: knownTxRepo,
-		outputRepo:  outputRepo,
-		random:      random,
+		logger:       logger,
+		txRepo:       txRepo,
+		basketRepo:   basketRepo,
+		knownTxRepo:  knownTxRepo,
+		outputRepo:   outputRepo,
+		random:       random,
+		chaintracker: chaintracker,
 	}
 }
 
 func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
-	tx, err := transaction.NewTransactionFromBEEF(args.Tx)
+	beef, txIDHash, err := transaction.NewBeefFromAtomicBytes(args.Tx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction from BEEF: %w", err)
+		return nil, fmt.Errorf("failed to create atomic beef from bytes: %w", err)
 	}
-	txID := tx.TxID().String()
 
-	// TODO: Do SPV verification of the transaction - it requires Services::ChainTracker
+	if ok, err := beef.Verify(ctx, in.chaintracker, false); err != nil {
+		return nil, fmt.Errorf("failed to verify beef: %w", err)
+	} else if !ok {
+		return nil, fmt.Errorf("provided beef is not valid")
+	}
+
+	tx := beef.FindAtomicTransactionByHash(txIDHash)
+	if tx == nil {
+		return nil, fmt.Errorf("atomic beef error: transaction with hash %s not found", txIDHash)
+	}
+
+	txID := txIDHash.String()
 
 	storedTx, err := in.txRepo.FindTransactionByUserIDAndTxID(ctx, userID, txID)
 	if err != nil {
