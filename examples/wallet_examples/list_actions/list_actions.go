@@ -10,29 +10,38 @@ import (
 )
 
 var (
-	// DefaultLimit is the default number of actions to retrieve
+	// DefaultLimit is the default number of actions to retrieve.
 	DefaultLimit = uint32(100)
 
-	// DefaultOffset is the default starting position for pagination
+	// DefaultOffset is the default starting position for pagination.
 	DefaultOffset = uint32(0)
 
 	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the action listing request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
 	DefaultOriginator = "example.com"
 
-	// DefaultIncludeLabels is the default value for including labels in the response
+	// DefaultIncludeLabels is the default value for including labels in the response.
 	DefaultIncludeLabels = true
+
+	// DefaultLabels is the default labels to filter actions by.
+	DefaultLabels = []string{}
+
+	// DefaultLabelQueryMode is the default mode for querying labels (All or Any).
+	DefaultLabelQueryMode = sdk.QueryModeAny
 )
 
 // defaultListActionsArgs creates default arguments for listing wallet actions.
 // This function demonstrates how to configure the ListActionsArgs struct which controls:
+// - Filtering: which labels to filter by and how to query them
 // - Pagination: how many results to return and where to start
 // - Data inclusion: whether to include additional metadata like labels
 func defaultListActionsArgs() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
-		Limit:         &DefaultLimit,  // Maximum number of actions to return (100)
-		Offset:        &DefaultOffset, // Starting position for pagination (0 = start from beginning)
-		IncludeLabels: &DefaultIncludeLabels, // Include labels associated with actions in the response
+		Labels:         DefaultLabels,         // Empty labels means list all actions regardless of labels
+		LabelQueryMode: DefaultLabelQueryMode, // How to query multiple labels (Any/All)
+		Limit:          &DefaultLimit,         // Maximum number of actions to return (100)
+		Offset:         &DefaultOffset,        // Starting position for pagination (0 = start from beginning)
+		IncludeLabels:  &DefaultIncludeLabels, // Include labels associated with actions in the response
 	}
 }
 
@@ -60,16 +69,3 @@ func main() {
 	show.Info("Actions", actions)
 	show.ProcessComplete("List Actions")
 }
-
-/* Output:
-🚀 STARTING: List Actions
-============================================================
-CreateWallet: 025dd4fd3fd0594315937f4775f11c1622581ea8372642b57864e45c7bc8b36e4f
-
-=== STEP ===
-Alice is performing: Listing actions
---------------------------------------------------
-Actions: &{TotalActions:0 Actions:[]}
-============================================================
-🎉 COMPLETED: List Actions
-*/

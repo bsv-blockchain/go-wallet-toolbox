@@ -12,6 +12,7 @@ The example uses the following configurable constants:
 - **`DefaultIncludeLabels`**: The default value for including labels in the response (default: `true`)
 - **`DefaultBasket`**: The default basket to list outputs from, empty means list from all baskets (default: `""`)
 - **`DefaultTags`**: The default tags to filter outputs by, empty means list all outputs regardless of tags (default: `[]`)
+- **`DefaultTagQueryMode`**: The default mode for querying tags when multiple tags are specified (default: `QueryModeAny`)
 
 ## Request Parameters
 
@@ -19,6 +20,7 @@ The `ListOutputsArgs` structure supports the following options:
 
 - **`Basket`**: Filters outputs by basket name (empty string lists from all baskets)
 - **`Tags`**: Filters outputs by specific tags (empty array lists all outputs regardless of tags)
+- **`TagQueryMode`**: Specifies how to query multiple tags - `QueryModeAny` matches outputs with any of the specified tags, `QueryModeAll` matches only outputs with all specified tags
 - **`Limit`**: Controls how many outputs to retrieve in a single request
 - **`Offset`**: Specifies the starting position for pagination (useful for retrieving large output histories)
 - **`IncludeLabels`**: Optional parameter to include output labels in the response
@@ -35,12 +37,12 @@ The response contains:
 ```text
 🚀 STARTING: List Outputs
 ============================================================
-CreateWallet: 025dd4fd3fd0594315937f4775f11c1622581ea8372642b57864e45c7bc8b36e4f
+CreateWallet: 03aeac4f9aa44ff0a8e54832415cc810d1db8367ccb33febf60cb2fa4f82b5b5c4
 
 === STEP ===
 Alice is performing: Listing outputs
 --------------------------------------------------
-Outputs: &{TotalOutputs:0 BEEF:[] Outputs:[]}
+Outputs: &{TotalOutputs:1 BEEF:[] Outputs:[{Satoshis:99904 LockingScript:[] Spendable:true CustomInstructions: Tags:[] Outpoint:b45178c7de8c54651f1669c3f516a0df57e2fd8ac5602f16cb17cc0c49360b40.0 Labels:[]}]}
 ============================================================
 🎉 COMPLETED: List Outputs
 ```
