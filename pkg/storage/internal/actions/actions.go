@@ -19,7 +19,15 @@ type Actions struct {
 	*abortAction
 }
 
-func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services, syncTxStatusesConfig defs.SynchronizeTxStatuses) *Actions {
+func New(
+	logger *slog.Logger,
+	funder funder.Funder,
+	commission defs.Commission,
+	repos *repo.Repositories,
+	randomizer wdk.Randomizer,
+	services wdk.Services,
+	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+) *Actions {
 	return &Actions{
 		create: newCreateAction(
 			logger,
@@ -31,6 +39,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			repos.KnownTx,
 			repos.Commission,
 			randomizer,
+			services,
 		),
 		internalize: newInternalizeAction(
 			logger,
@@ -39,6 +48,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			repos.KnownTx,
 			repos.Outputs,
 			randomizer,
+			services,
 		),
 		process: newProcessAction(
 			logger,
