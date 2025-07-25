@@ -7,6 +7,8 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -47,8 +49,26 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
 
-	if err := a.transactionsRepo.AbortTransactionAtomic(ctx, txEntity.ID, txEntity.TxID, args.Reference); err != nil {
-		return nil, fmt.Errorf("failed to abort transaction: %w", err)
+	err = repo.AsDBTransaction(ctx, a.transactionsRepo, func(dbtx TransactionsRepo) error {
+		if err := dbtx.ReleaseReservedUTXOs(txEntity.ID); err != nil {
+			return fmt.Errorf("failed to release reserved UTXOs: %w", err)
+		}
+		if err := dbtx.CheckIfAnyOutputIsSpent(txEntity.ID); err != nil {
+			return fmt.Errorf("failed to check if any output is spent: %w", err)
+		}
+		if err := dbtx.ReleaseOutputsReservedByTransaction(txEntity.ID); err != nil {
+			return fmt.Errorf("failed to release outputs reserved by transaction: %w", err)
+		}
+		if err := dbtx.DeleteOutputsByTransactionID(txEntity.ID); err != nil {
+			return fmt.Errorf("failed to delete outputs by transaction ID: %w", err)
+		}
+		if err := dbtx.FailTransactionByID(ctx, txEntity.ID, txEntity.TxID, history.NewBuilder().AbortAction(args.Reference)); err != nil {
+			return fmt.Errorf("failed to update transaction status: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to submit DB transaction: %w", err)
 	}
 
 	return &wdk.AbortActionResult{Aborted: true}, nil

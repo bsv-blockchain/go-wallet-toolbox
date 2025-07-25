@@ -20,21 +20,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type abortStep struct {
-	name string
-	fn   func(*Transactions, *gorm.DB, uint) error
-}
-
-var abortTransactionSteps = []abortStep{
-	{"release_reserved_utxos", (*Transactions).releaseReservedUTXOs},
-	{"check_if_any_output_is_spent", (*Transactions).checkIfAnyOutputIsSpent},
-	{"release_outputs_reserved", (*Transactions).releaseOutputsReservedByTransaction},
-	{"delete_outputs", (*Transactions).deleteOutputsByTransactionID},
-	{"update_transaction_status", func(txs *Transactions, tx *gorm.DB, transactionID uint) error {
-		return txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed)
-	}},
-}
-
 type Transactions struct {
 	db *gorm.DB
 }
@@ -374,9 +359,9 @@ func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) er
 		}).Error
 }
 
-func (txs *Transactions) checkIfAnyOutputIsSpent(tx *gorm.DB, transactionID uint) error {
+func (txs *Transactions) CheckIfAnyOutputIsSpent(transactionID uint) error {
 	var spentCount int64
-	err := tx.Model(&models.Output{}).
+	err := txs.db.Model(&models.Output{}).
 		Where("transaction_id = ?", transactionID).
 		Where("spent_by IS NOT NULL").
 		Count(&spentCount).Error
@@ -391,20 +376,12 @@ func (txs *Transactions) checkIfAnyOutputIsSpent(tx *gorm.DB, transactionID uint
 	return nil
 }
 
-func (txs *Transactions) updateTransactionStatusByID(tx *gorm.DB, transactionID uint, newStatus wdk.TxStatus) error {
-	return tx.Model(&models.Transaction{}).
-		Where("id = ?", transactionID).
-		Updates(map[string]any{
-			"status": newStatus,
-		}).Error
+func (txs *Transactions) DeleteOutputsByTransactionID(transactionID uint) error {
+	return txs.db.Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
 }
 
-func (txs *Transactions) deleteOutputsByTransactionID(tx *gorm.DB, transactionID uint) error {
-	return tx.Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
-}
-
-func (txs *Transactions) releaseOutputsReservedByTransaction(tx *gorm.DB, transactionID uint) error {
-	return tx.Model(&models.Output{}).
+func (txs *Transactions) ReleaseOutputsReservedByTransaction(transactionID uint) error {
+	return txs.db.Model(&models.Output{}).
 		Where("spent_by = ?", transactionID).
 		Updates(map[string]any{
 			"spent_by":  nil,
@@ -412,8 +389,8 @@ func (txs *Transactions) releaseOutputsReservedByTransaction(tx *gorm.DB, transa
 		}).Error
 }
 
-func (txs *Transactions) releaseReservedUTXOs(tx *gorm.DB, transactionID uint) error {
-	return tx.Model(&models.UserUTXO{}).
+func (txs *Transactions) ReleaseReservedUTXOs(transactionID uint) error {
+	return txs.db.Model(&models.UserUTXO{}).
 		Where("reserved_by_id = ?", transactionID).
 		Update("reserved_by_id", nil).Error
 }
@@ -563,28 +540,39 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 	}
 }
 
-func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
-	if err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		historyBuilders := []history.Builder{history.NewBuilder().AbortAction(reference)}
+func (txs *Transactions) FailTransactionByID(ctx context.Context, transactionID uint, txID *string, note history.Builder) error {
+	err := txs.db.WithContext(ctx).Model(&models.Transaction{}).
+		Where("id = ?", transactionID).
+		Updates(map[string]any{
+			"status": wdk.TxStatusFailed,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to update transaction status: %w", err)
+	}
 
-		for _, step := range abortTransactionSteps {
-			if err := step.fn(txs, tx, transactionID); err != nil {
-				return fmt.Errorf("AbortTransactionAtomic: step '%s' failed: %w", step.name, err)
-			}
-		}
+	if txID == nil || *txID == "" {
+		return nil
+	}
 
-		if txID == nil || *txID == "" {
-			return nil
-		}
+	if err := updateKnownTxStatus(txs.db, *txID, wdk.ProvenTxStatusInvalid, []history.Builder{note}); err != nil {
+		return fmt.Errorf("updateKnownTxStatus failed: %w", err)
+	}
 
-		if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, historyBuilders); err != nil {
-			return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
+	return nil
+}
 
+func (txs *Transactions) DBTransaction(ctx context.Context, txFunc func(dbtxRepo any) error) error {
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbtxRepo := &Transactions{db: tx}
+
+		if err := txFunc(dbtxRepo); err != nil {
+			return fmt.Errorf("DB transaction failed: %w", err)
 		}
 
 		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to abort transaction: %w", err)
+	})
+	if err != nil {
+		return fmt.Errorf("DB transaction failed: %w", err)
 	}
 
 	return nil

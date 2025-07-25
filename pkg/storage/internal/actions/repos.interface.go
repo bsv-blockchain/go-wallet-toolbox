@@ -26,6 +26,8 @@ type OutputRepo interface {
 }
 
 type TransactionsRepo interface {
+	DBTransaction(ctx context.Context, txFunc func(childRepo any) error) error
+
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
@@ -40,7 +42,11 @@ type TransactionsRepo interface {
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
-	AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error
+	FailTransactionByID(ctx context.Context, transactionID uint, txID *string, note history.Builder) error
+	CheckIfAnyOutputIsSpent(transactionID uint) error
+	DeleteOutputsByTransactionID(transactionID uint) error
+	ReleaseOutputsReservedByTransaction(transactionID uint) error
+	ReleaseReservedUTXOs(transactionID uint) error
 }
 
 type KnownTxRepo interface {
