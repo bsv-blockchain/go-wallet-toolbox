@@ -312,12 +312,17 @@ func (p *process) notesForPostBEEF(
 }
 
 func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
-	reqTxStatus, err := p.knownTxRepo.FindKnownTxStatus(ctx, txID)
+	statuses, err := p.knownTxRepo.FindKnownTxStatuses(ctx, txID)
 	if err != nil {
 		return "", fmt.Errorf("failed to find known tx status: %w", err)
 	}
 
-	switch reqTxStatus.BroadcastStatus() {
+	knownTxStatus, foundStatus := statuses[txID]
+	if !foundStatus {
+		return "", fmt.Errorf("known tx status for txID %s not found", txID)
+	}
+
+	switch knownTxStatus.BroadcastStatus() {
 	case wdk.TxReqBroadcastReadyToSend:
 		return wdk.SendWithResultStatusSending, nil
 	case wdk.TxReqBroadcastError:

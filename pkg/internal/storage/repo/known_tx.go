@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -135,17 +136,25 @@ func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[st
 	return rawTxMap, nil
 }
 
-func (p *KnownTx) FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error) {
-	var model models.KnownTx
+func (p *KnownTx) FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error) {
+	var rows []*models.KnownTx
 	err := p.db.WithContext(ctx).
-		Model(&model).
-		Select("status").
-		Where("tx_id = ? ", txID).
-		First(&model).Error
+		Model(&models.KnownTx{}).
+		Select("status, tx_id").
+		Where("tx_id IN (?)", txIDs).
+		Find(&rows).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to find proven tx status: %w", err)
+		return nil, fmt.Errorf("failed to find proven tx statuses for list of txIDs: %w", err)
 	}
-	return model.Status, nil
+
+	return seq.Reduce(
+		seq.FromSlice(rows),
+		func(acc map[string]wdk.ProvenTxReqStatus, row *models.KnownTx) map[string]wdk.ProvenTxReqStatus {
+			acc[row.TxID] = row.Status
+			return acc
+		},
+		make(map[string]wdk.ProvenTxReqStatus, len(rows)),
+	), nil
 }
 
 func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {

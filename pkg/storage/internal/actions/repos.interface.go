@@ -46,7 +46,7 @@ type TransactionsRepo interface {
 type KnownTxRepo interface {
 	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
-	FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error)
+	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)
 	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
 	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error
