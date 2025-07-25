@@ -35,10 +35,10 @@ type faucetFixture struct {
 
 func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO) {
 	f.t.Helper()
-	options := TopUpOptions{}
-	for _, opt := range opts {
-		opt(&options)
-	}
+
+	options := to.OptionsWithDefault(TopUpOptions{
+		Purpose: "test-faucet-purpose",
+	}, opts...)
 
 	spec := txtestabilities.GivenTX().
 		WithInput(satoshi.MustAdd(satoshis, 1).MustUInt64()).
@@ -90,7 +90,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		Change:           true,
 		ProvidedBy:       string(wdk.ProvidedByStorage),
 		Description:      "test-faucet-output",
-		Purpose:          "test-faucet-purpose",
+		Purpose:          options.Purpose,
 		Type:             string(wdk.OutputTypeP2PKH),
 		DerivationPrefix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationPrefix, f.index)),
 		DerivationSuffix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationSuffix, f.index)),
