@@ -63,7 +63,7 @@ func TestWalletAbortActionArgsValidation(t *testing.T) {
 	}
 }
 
-func (s *WalletTestSuite) TestWalletAbortActionSucess() {
+func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 	s.Run("successful abort of created transaction", func() {
 		t := s.T()
 
