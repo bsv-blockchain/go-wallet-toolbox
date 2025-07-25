@@ -42,7 +42,7 @@ When you run any example, the custom setup function will automatically create `e
 
 The file defines two test users—**Alice** and **Bob**—each with an `identity_key` (public key) and a `private_key` (hex-encoded private key string). It also sets the BSV `network` (e.g., `test`) and the `server_url` for the local Wallet Toolbox instance.
 
-Example of config file below : 
+Example of config file below: 
 
 ```go
 alice:
@@ -50,13 +50,13 @@ alice:
     private_key: 5a39d6a914e96be64873f7b954efa926a7d79f648810fad2e2b3aa11d31f9f69 // Alice private key (hexadecimal format)
 bob:
     identity_key: 03e14a6f57e27ed5399307641be23ec497f19df99ff1ce7ef04ec82200a6f90b2b // Bob identity key (hexadecimal format)
-    private_key: ca9e9dcb29fd7c7cf5ecebadd1a0dab029e571a570021e7ec699eb90acee333d // Bob private key (hexdecimal format)
+    private_key: ca9e9dcb29fd7c7cf5ecebadd1a0dab029e571a570021e7ec699eb90acee333d // Bob private key (hexadecimal format)
 network: test // network type ('test', 'main')
 server_url: http://localhost:8100 // wallet toolbox URL location
 ```
 
 Provided below are two methods to get started with using the wallet toolbox.
-<br>**Notice**:💡 These Faucet Examples are created as a helpers to get funds into the wallet to be able to use other examples.
+<br>**Note**:💡 These Faucet Examples are created as a helpers to get funds into the wallet to be able to use other examples.
 
 ## Faucet Examples
 - [Faucet - Address](./wallet_examples/faucet_address/README.md) - Generate the user address and use a testnet faucet to receive funds.
@@ -71,7 +71,7 @@ Provided below are two methods to get started with using the wallet toolbox.
 ## Services Examples
 - [Find Chain Tip Header](./services_examples//find_chain_tip_header/README) - Finds the latest block header in the longest chain.
 - [Height](./services_examples/height/README) - Fetch current block height.
-- [Is Valid Root](./services_examples/is_valid_root/README) - Validates a root hex is valid for a specified height.
+- [Is Valid Root](./services_examples/is_valid_root/README) - Validates that a root hex is valid for a specified height.
 - [Merkle Path](./services_examples/merkle_path/README) - Fetching Merkle Path for specified txID.
 - [Post BEEF](./services_examples/post_beef/README) - Broadcasting a single BSV transaction.
 - [Post BEEF Hex](./services_examples/post_beef_hex/README) - Broadcasting a single BSV transaction hex format.

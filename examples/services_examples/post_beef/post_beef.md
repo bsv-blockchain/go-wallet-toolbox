@@ -6,11 +6,11 @@ This example demonstrates how to broadcast a BSV transaction using the [BEEF (Ba
 
 The example follows these steps:
 
-1. **Load Source Transaction**: Decodes a BEEF-encoded source transaction
-2. **Create New Transaction**: Builds a new transaction that spends from the source transaction
-3. **Generate BEEF**: Converts the new transaction to BEEF format
-4. **Broadcast**: Submits the BEEF to multiple services for network propagation
-5. **Display Results**: Shows detailed responses from each service
+1. **Load Source Transaction**: Decode a BEEF-encoded source transaction
+2. **Create New Transaction**: Build a new transaction that spends from the source transaction
+3. **Generate BEEF**: Convert the new transaction to BEEF format
+4. **Broadcast**: Submit the BEEF to multiple services for network propagation
+5. **Display Results**: Show detailed responses from each service
 
 ## Configuration Parameters
 
@@ -20,14 +20,6 @@ The example uses the following configurable constants:
 - **`wif`**: The private key in Wallet Import Format for unlocking the source transaction output
 - **`sourceOutputIndex`**: The output index from the source transaction to spend (typically `0`)
 - **`network`**: The BSV network to use (`defs.NetworkTestnet` or `defs.NetworkMainnet`)
-
-## Service Broadcasting
-
-The wallet services automatically handle broadcasting with built-in fallback strategies across multiple services:
-
-- **ARC**: Primary broadcasting service
-- **WhatsOnChain**: Secondary fallback service  
-- **Bitails**: Additional fallback option
 
 ## Response Fields
 

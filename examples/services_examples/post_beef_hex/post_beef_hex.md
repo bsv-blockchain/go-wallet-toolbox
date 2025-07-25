@@ -7,10 +7,7 @@ This example demonstrates how to broadcast a BSV transaction from an existing [B
 Unlike the `post_beef.go` example which creates a new transaction from scratch, this example:
 
 - **Takes existing BEEF**: Uses a pre-encoded BEEF hex string containing the transaction
-- **Simpler process**: No transaction creation, just decode and broadcast
 - **Direct broadcasting**: Focuses purely on the broadcasting mechanism
-- **Pre-built transactions**: Ideal when you already have a BEEF-encoded transaction
-
 
 ## Process Overview
 
@@ -28,14 +25,6 @@ The example uses the following configurable constants:
 - **`transactionID`**: The transaction ID of the transaction to be broadcast (must match the transaction in the BEEF)
 - **`beefHex`**: The complete BEEF hex string containing the transaction and its dependencies
 - **`network`**: The BSV network to use (`defs.NetworkTestnet` or `defs.NetworkMainnet`)
-
-## Service Broadcasting
-
-The wallet services automatically handle broadcasting with built-in fallback strategies across multiple services:
-
-- **ARC**: Primary broadcasting service
-- **WhatsOnChain**: Secondary fallback service  
-- **Bitails**: Additional fallback option
 
 ## Response Fields
 

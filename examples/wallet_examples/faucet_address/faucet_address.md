@@ -1,7 +1,7 @@
 # Faucet - Address
 
 In this section, we’ll generate a new address for the user and then fund it from a public **Testnet** faucet.
-<br>**Notice**:💡 This example is created as a helper to get funds into the wallet to be able to use other examples.
+<br>**Note**:💡 This example is created as a helper to get funds into the wallet so you can use other examples.
 
 ## Generate a Testnet Address
 

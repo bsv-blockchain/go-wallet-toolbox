@@ -1,10 +1,10 @@
 # Faucet – Internalize
 
 In this section, we’ll finish the example by **internalizing** a Testnet transaction on your local Wallet Toolbox server.
-<br>**Notice**:💡 This example is created as a helper to get funds into the wallet to be able to use other examples.
+<br>**Note**:💡 This example is created as a helper to get funds into the wallet so you can use other examples.
 
-## 0. Prerequisite: Transaction ID from faucet.
-In the [previous step](../faucet_address/README) you received a **txid** from a public Testnet faucet. If you have not completed the Faucet Address step yet please refer [here](../faucet_address/README.md) before continuing.
+## 0. Prerequisite: Transaction ID from the faucet.
+In the [previous step](../faucet_address/README) you received a **txid** from a public Testnet faucet. If you have not completed the Faucet Address step yet, please refer [here](../faucet_address/README.md) before continuing.
 
 ## 1. Copy the TxID
 Open `faucet_internalize.go` and replace the placeholder with your own value:

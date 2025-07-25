@@ -1,24 +1,24 @@
 # Validate Merkle Root for Block Height
 
-This example demonstrates how to verify if a given merkle root is valid for a specific block height on the BSV network. This validation is used by the [SPV](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0067.md) (Simplified Payment Verification) implementation within the [go-sdk](https://github.com/bsv-blockchain/go-sdk/blob/50b99dabe7284eef23132028d5e74739231efc4c/transaction/chaintracker/headers_client/headers_client.go#L37) for validating transactions.
+This example demonstrates how to verify if a given Merkle root is valid for a specific block height on the BSV network. This validation is used by the [SPV](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0067.md) (Simplified Payment Verification) implementation within the [go-sdk](https://github.com/bsv-blockchain/go-sdk/blob/50b99dabe7284eef23132028d5e74739231efc4c/transaction/chaintracker/headers_client/headers_client.go#L37) for validating transactions.
 
 ## What is Merkle Root Validation?
 
-A merkle root is the top hash of a merkle tree constructed from all transactions in a block. This validation confirms that a provided merkle root actually corresponds to the transactions that were included in the block at the specified height.
+A Merkle root is the top hash of a Merkle tree constructed from all transactions in a block. This validation confirms that a provided Merkle root actually corresponds to the transactions that were included in the block at the specified height.
 
 ## Parameters
 
 The validation requires two inputs:
 
 - **Height**: The specific block height to validate against (e.g., `903321`)
-- **Merkle Root**: The hexadecimal hash of the merkle root to validate (e.g., `559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd`)
+- **Merkle Root**: The hexadecimal hash of the Merkle root to validate (e.g., `559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd`)
 
 ## Response
 
 The response is a boolean value indicating the validation result:
 
-- **Valid**: `true` if the merkle root matches the actual merkle root for the specified block height
-- **Invalid**: `false` if the merkle root does not match or the block height is invalid
+- **Valid**: `true` if the Merkle root matches the actual Merkle root for the specified block height
+- **Invalid**: `false` if the Merkle root does not match or the block height is invalid
 
 ## Example Output
 

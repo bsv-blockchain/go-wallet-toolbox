@@ -16,13 +16,13 @@ All three transactions are bundled together in a single BEEF and broadcast simul
 
 The example follows these steps:
 
-1. **Load Source Transaction**: Decodes the BEEF-encoded source transaction
-2. **Create Grandparent**: Builds a transaction that spends from the source transaction
-3. **Create Parent**: Builds a transaction that spends from the grandparent transaction  
-4. **Create Child**: Builds a transaction that spends from the parent transaction
-5. **Generate BEEF**: Converts the entire transaction chain to BEEF format
-6. **Broadcast**: Submits the BEEF containing all three transactions for network propagation
-7. **Display Results**: Shows detailed responses for each transaction from each service
+1. **Load Source Transaction**: Decode the BEEF-encoded source transaction
+2. **Create Grandparent**: Build a transaction that spends from the source transaction
+3. **Create Parent**: Build a transaction that spends from the grandparent transaction  
+4. **Create Child**: Build a transaction that spends from the parent transaction
+5. **Generate BEEF**: Convert the entire transaction chain to BEEF format
+6. **Broadcast**: Submit the BEEF containing all three transactions for network propagation
+7. **Display Results**: Show detailed responses for each transaction from each service
 
 ## Configuration Parameters
 
@@ -32,14 +32,6 @@ The example uses the following configurable constants:
 - **`wif`**: The private key in Wallet Import Format for unlocking transaction outputs
 - **`sourceOutputIndex`**: The output index from the source transaction to spend (typically `0`)
 - **`network`**: The BSV network to use (`defs.NetworkTestnet` or `defs.NetworkMainnet`)
-
-## Service Broadcasting
-
-The wallet services automatically handle broadcasting with built-in fallback strategies across multiple services:
-
-- **ARC**: Primary broadcasting service
-- **WhatsOnChain**: Secondary fallback service  
-- **Bitails**: Additional fallback option
 
 ## Response Fields
 

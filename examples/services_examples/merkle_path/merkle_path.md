@@ -1,25 +1,25 @@
 # Get Merkle Path for Transaction
 
-This example demonstrates how to retrieve the merkle path for a specific transaction ID on the BSV network. A merkle path provides cryptographic proof that a transaction was included in a specific block.
+This example demonstrates how to retrieve the Merkle path for a specific transaction ID on the BSV network. A Merkle path provides cryptographic proof that a transaction was included in a specific block.
 
 ## What is a Merkle Path?
 
-A merkle path is a sequence of hash nodes that allows you to cryptographically prove a transaction's inclusion in a block without downloading the entire block. It consists of the sibling hashes needed to reconstruct the merkle root from a specific transaction.
+A Merkle path is a sequence of hash nodes that allows you to cryptographically prove a transaction's inclusion in a block without downloading the entire block. It consists of the sibling hashes needed to reconstruct the Merkle root from a specific transaction.
 
 ## Parameters
 
-- **Transaction ID**: The hexadecimal transaction ID to get the merkle path for (e.g., `9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6`)
+- **Transaction ID**: The hexadecimal transaction ID to get the Merkle path for (e.g., `9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6`)
 
 ## Response Fields
 
-The response includes block information and the merkle path:
+The response includes block information and the Merkle path:
 
-- **Service**: Which service provided the merkle path (e.g., "WhatsOnChain")
+- **Service**: Which service provided the Merkle path (e.g., "WhatsOnChain")
 - **Block Hash**: The hash of the block containing the transaction
 - **Block Height**: The height of the block containing the transaction
-- **Merkle Root**: The merkle root of the block
-- **Path Nodes**: Array of merkle path nodes with the following format:
-  - **Depth**: The level in the merkle tree (0 is leaf level)
+- **Merkle Root**: The Merkle root of the block
+- **Path Nodes**: Array of Merkle path nodes with the following format:
+  - **Depth**: The level in the Merkle tree (0 is leaf level)
   - **Offset**: The position at that depth level
   - **Hash**: The hash value of the node
   - **Duplicate**: Whether this node is a duplicate (for odd number of transactions)
