@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestAbortActionSuccess(t *testing.T) {
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.AbortActionArgs{
-			Reference: createResult.Reference,
+			Reference: primitives.Base64String(createResult.Reference),
 		},
 	)
 
@@ -51,7 +52,7 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.AbortActionArgs{
-			Reference: createResult.Reference,
+			Reference: primitives.Base64String(createResult.Reference),
 		},
 	)
 	require.NoError(t, err)
@@ -79,7 +80,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 	}{
 		"transaction not found by reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
-				return "non-existent-reference", testusers.Alice.AuthID()
+				return "bm9uLWV4aXN0ZW50LXJlZg==", testusers.Alice.AuthID()
 			},
 			expectedErrors: []string{
 				"failed to abort action",
@@ -158,7 +159,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 					t.Context(),
 					testusers.Alice.AuthID(),
 					wdk.AbortActionArgs{
-						Reference: createResult.Reference,
+						Reference: primitives.Base64String(createResult.Reference),
 					},
 				)
 				require.NoError(t, err)
@@ -208,7 +209,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 			_, err := activeStorage.AbortAction(
 				t.Context(),
 				user,
-				wdk.AbortActionArgs{Reference: reference},
+				wdk.AbortActionArgs{Reference: primitives.Base64String(reference)},
 			)
 
 			// then:
@@ -245,7 +246,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 			result, err := activeStorage.AbortAction(
 				t.Context(),
 				user,
-				wdk.AbortActionArgs{Reference: reference},
+				wdk.AbortActionArgs{Reference: primitives.Base64String(reference)},
 			)
 
 			// then:

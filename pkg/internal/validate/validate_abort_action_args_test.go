@@ -26,9 +26,16 @@ func TestValidAbortActionArgs(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Base64StringNotDivisibleBy4",
+			args: &wdk.AbortActionArgs{
+				Reference: "ybQus1rq4M4gi/7LT",
+			},
+			wantErr: true,
+		},
+		{
 			name: "ValidArgs",
 			args: &wdk.AbortActionArgs{
-				Reference: "valid-reference",
+				Reference: "ybQus1rq4M4gi/7L",
 			},
 			wantErr: false,
 		},

@@ -27,27 +27,29 @@ func newAbortAction(logger *slog.Logger, transactions TransactionsRepo) *abortAc
 }
 
 func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
-	txEntity, err := a.transactionsRepo.FindTransactionByReference(ctx, userID, args.Reference)
+	referenceStr := string(args.Reference)
+
+	txEntity, err := a.transactionsRepo.FindTransactionByReference(ctx, userID, referenceStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by reference %s: %w", args.Reference, err)
+		return nil, fmt.Errorf("failed to find transaction by reference %s: %w", referenceStr, err)
 	}
 
-	if txEntity == nil && a.isPotentiallyTxID(args.Reference) {
-		txEntity, err = a.transactionsRepo.FindTransactionByUserIDAndTxID(ctx, userID, args.Reference)
+	if txEntity == nil && a.isPotentiallyTxID(referenceStr) {
+		txEntity, err = a.transactionsRepo.FindTransactionByUserIDAndTxID(ctx, userID, referenceStr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to find transaction by txid %s: %w", args.Reference, err)
+			return nil, fmt.Errorf("failed to find transaction by txid %s: %w", referenceStr, err)
 		}
 	}
 
 	if txEntity == nil {
-		return nil, fmt.Errorf("no transaction found with reference or txid %q", args.Reference)
+		return nil, fmt.Errorf("no transaction found with reference or txid %q", referenceStr)
 	}
 
 	if err := a.validateTx(txEntity); err != nil {
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
 
-	if err := a.transactionsRepo.AbortTransactionAtomic(ctx, txEntity.ID, txEntity.TxID, args.Reference); err != nil {
+	if err := a.transactionsRepo.AbortTransactionAtomic(ctx, txEntity.ID, txEntity.TxID, referenceStr); err != nil {
 		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
 

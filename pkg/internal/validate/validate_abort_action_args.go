@@ -15,5 +15,9 @@ func ValidAbortActionArgs(args *wdk.AbortActionArgs) error {
 		return fmt.Errorf("missing reference argument for abort action")
 	}
 
+	if err := args.Reference.Validate(); err != nil {
+		return fmt.Errorf("invalid reference format: %w", err)
+	}
+
 	return nil
 }
