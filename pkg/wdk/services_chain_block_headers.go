@@ -54,6 +54,9 @@ type ChainBlockHeader struct {
 	Hash string
 }
 
+// Hex returns the hexadecimal string representation of the block header.
+// It marshals the block header fields into a byte slice and encodes it as a hex string.
+// Returns an error if marshaling fails.
 func (c *ChainBaseBlockHeader) Hex() (string, error) {
 	bb, err := c.Bytes()
 	if err != nil {
@@ -62,6 +65,10 @@ func (c *ChainBaseBlockHeader) Hex() (string, error) {
 	return hex.EncodeToString(bb), nil
 }
 
+// Bytes returns the serialized byte representation of the block header.
+// It includes the reversed previous block hash and Merkle root,
+// followed by time, bits, and nonce fields written in big-endian order.
+// Returns an error if any of the fields cannot be parsed or written.
 func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 	hash, err := hex.DecodeString(c.PreviousHash)
 	if err != nil {
@@ -74,19 +81,16 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 	}
 
 	w := util.NewWriter()
-	writeUint32BE := func(v uint32) {
-		w.Buf = append(w.Buf, byte(v>>24),
-			byte(v>>16),
-			byte(v>>8),
-			byte(v))
+	writeUint32BE := func(v uint64) {
+		w.Buf = append(w.Buf, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 	}
 
-	writeUint32BE(c.Version)
+	writeUint32BE(uint64(c.Version))
 	w.WriteBytesReverse(hash)
 	w.WriteBytesReverse(root)
-	writeUint32BE(uint32(c.Time))
-	writeUint32BE(uint32(c.Bits))
-	writeUint32BE(c.Nonce)
+	writeUint32BE(c.Time)
+	writeUint32BE(c.Bits)
+	writeUint32BE(uint64(c.Nonce))
 
 	return w.Buf, nil
 }
