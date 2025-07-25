@@ -15,34 +15,6 @@ import (
 	"gorm.io/plugin/dbresolver"
 )
 
-var (
-	Q                = new(Query)
-	Commission       *commission
-	KnownTx          *knownTx
-	Label            *label
-	NumericIDLookup  *numericIDLookup
-	Output           *output
-	OutputBasket     *outputBasket
-	OutputTag        *outputTag
-	Tag              *tag
-	Transaction      *transaction
-	TransactionLabel *transactionLabel
-)
-
-func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
-	*Q = *Use(db, opts...)
-	Commission = &Q.Commission
-	KnownTx = &Q.KnownTx
-	Label = &Q.Label
-	NumericIDLookup = &Q.NumericIDLookup
-	Output = &Q.Output
-	OutputBasket = &Q.OutputBasket
-	OutputTag = &Q.OutputTag
-	Tag = &Q.Tag
-	Transaction = &Q.Transaction
-	TransactionLabel = &Q.TransactionLabel
-}
-
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:               db,

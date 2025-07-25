@@ -7,6 +7,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -20,11 +21,12 @@ import (
 )
 
 type Outputs struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewOutputs(db *gorm.DB) *Outputs {
-	return &Outputs{db: db}
+func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
+	return &Outputs{db: db, query: query}
 }
 
 func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
@@ -169,6 +171,46 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	}
 
 	return nil
+}
+
+func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error) {
+	if len(outpoints) == 0 {
+		return nil, nil
+	}
+
+	outpointStrings := slices.Map(outpoints, func(op wdk.OutPoint) []any {
+		return []any{op.TxID, op.Vout}
+	})
+	outputTableName := o.query.Output.TableName()
+	transactionTableName := o.query.Transaction.TableName()
+	query := o.db.WithContext(ctx).Table(
+		"(?) as out",
+		o.db.Model(&models.Output{}).
+			Select(fmt.Sprintf("%s.*, tx.tx_id as tx_id", outputTableName)).
+			Joins(fmt.Sprintf("INNER JOIN %s tx ON tx.id = %s.transaction_id", transactionTableName, outputTableName)).
+			Where(fmt.Sprintf("%s.user_id = ?", outputTableName), userID),
+	).Where("(tx_id,vout) IN (?)", outpointStrings)
+
+	type outputWithTxID struct {
+		*models.Output
+		TxID *string
+	}
+
+	var readModels []*outputWithTxID
+	if err := query.Find(&readModels).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to fetch outputs: %w", err)
+	}
+
+	return slices.Map(readModels, func(readModel *outputWithTxID) *entity.Output {
+		readModel.Output.Transaction = &models.Transaction{
+			TxID: readModel.TxID,
+		}
+		return o.mapModelToOutputEntity(readModel.Output)
+	}), nil
 }
 
 func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error) {

@@ -12,14 +12,14 @@ import (
 
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
 // It executes custom INSERT ... SELECT ... ON CONFLICT DO NOTHING based on the result of the provided stringIDsQuery function.
-func upsertNumericIDLookup(ctx context.Context, db, tx *gorm.DB, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
+func upsertNumericIDLookup(ctx context.Context, db, tx *gorm.DB, query *genquery.Query, stringIDsQuery func(db *gorm.DB) *gorm.DB) error {
 	dry := db.Session(&gorm.Session{DryRun: true, Initialized: true}) // NOTICE: Initialized to separate the dry run from the actual transaction (this makes the Session to clone the Statement)
-	query := stringIDsQuery(dry)
+	queryForStringID := stringIDsQuery(dry)
 
 	insertSelect := &gorm.Statement{DB: db}
 	clause.Expr{
-		SQL:  fmt.Sprintf("INSERT INTO %s (table_name, string_id) %s ON CONFLICT DO NOTHING", genquery.NumericIDLookup.TableName(), query.Statement.SQL.String()),
-		Vars: query.Statement.Vars,
+		SQL:  fmt.Sprintf("INSERT INTO %s (table_name, string_id) %s ON CONFLICT DO NOTHING", query.NumericIDLookup.TableName(), queryForStringID.Statement.SQL.String()),
+		Vars: queryForStringID.Statement.Vars,
 	}.Build(insertSelect)
 
 	err := tx.WithContext(ctx).Exec(insertSelect.SQL.String(), insertSelect.Vars...).Error
@@ -32,9 +32,9 @@ func upsertNumericIDLookup(ctx context.Context, db, tx *gorm.DB, stringIDsQuery 
 
 // joinWithNumericIDLookupScope returns a GORM scope to join a numeric ID lookup table based on the provided string ID clause.
 // The entityName is used to specify the table_name of the entity, and the stringIDClause is used to match the string_id in the numeric ID lookup table.
-func joinWithNumericIDLookupScope(stringIDClause string, entityName string, join clause.JoinType) func(*gorm.DB) *gorm.DB {
+func joinWithNumericIDLookupScope(query *genquery.Query, stringIDClause string, entityName string, join clause.JoinType) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		joinQuery := fmt.Sprintf("%s JOIN %s as num on num.table_name = ? and num.string_id = %s", join, genquery.NumericIDLookup.TableName(), stringIDClause)
+		joinQuery := fmt.Sprintf("%s JOIN %s as num on num.table_name = ? and num.string_id = %s", join, query.NumericIDLookup.TableName(), stringIDClause)
 
 		return db.Joins(joinQuery, entityName)
 	}
