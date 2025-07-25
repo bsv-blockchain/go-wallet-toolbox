@@ -35,9 +35,8 @@ type WalletServices struct {
 	validatorServices            servicequeue.Queue2[*chainhash.Hash, uint32, bool]
 	heightServices               servicequeue.Queue[uint32]
 	scriptHistoryServices        servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
-	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	blockHeaderForHeightServices servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
-
+	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>

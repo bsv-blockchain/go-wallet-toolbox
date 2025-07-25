@@ -208,3 +208,7 @@ func ScriptHashHistoryOutput(result *wdk.ScriptHistoryResult) {
 
 	PrintTable("Transaction History:", headers, rows)
 }
+
+func HashToHeaderOutput(header *wdk.ChainBlockHeader) {
+	ChainTipHeaderOutput(header)
+}
