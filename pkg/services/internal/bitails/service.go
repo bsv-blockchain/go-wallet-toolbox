@@ -9,8 +9,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -18,9 +23,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Bitails struct {

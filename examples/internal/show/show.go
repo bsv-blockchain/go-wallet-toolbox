@@ -230,25 +230,3 @@ func GetUtxoStatusOutput(result *wdk.UtxoStatusResult) {
 			detail.TxID, detail.Index, detail.Height, detail.Satoshis)
 	}
 }
-
-func GetUtxoStatusOutput(result *wdk.UtxoStatusResult) {
-	if result == nil {
-		Error("nil UtxoStatusResult passed to GetUtxoStatusOutput")
-		return
-	}
-
-	Header("UTXO STATUS RESULT")
-	fmt.Printf("%sService:%s %s\n", ColorCyan, ColorReset, result.Name)
-	fmt.Printf("%sIs UTXO:%s %t\n", ColorCyan, ColorReset, result.IsUtxo)
-	fmt.Printf("%sDetails:%s\n", ColorCyan, ColorReset)
-
-	if len(result.Details) == 0 {
-		fmt.Println("  No UTXOs found.")
-		return
-	}
-
-	for _, detail := range result.Details {
-		fmt.Printf("  TxID: %s | Index: %d | Height: %d | Satoshis: %d\n",
-			detail.TxID, detail.Index, detail.Height, detail.Satoshis)
-	}
-}

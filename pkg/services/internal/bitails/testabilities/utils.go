@@ -4,8 +4,9 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 )
 
 // HashFromHex creates a *chainhash.Hash from a hex string.

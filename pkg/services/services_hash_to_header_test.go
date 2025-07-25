@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	btb "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
