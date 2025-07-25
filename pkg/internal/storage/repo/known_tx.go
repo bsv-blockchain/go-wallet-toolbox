@@ -25,11 +25,12 @@ const (
 )
 
 type KnownTx struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewKnownTxRepo(db *gorm.DB) *KnownTx {
-	return &KnownTx{db: db}
+func NewKnownTxRepo(db *gorm.DB, query *genquery.Query) *KnownTx {
+	return &KnownTx{db: db, query: query}
 }
 
 func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error {
@@ -352,7 +353,7 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 }
 
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
-	table := genquery.KnownTx
+	table := &p.query.KnownTx
 
 	txNoteScope := func(dao gen.Dao) gen.Dao {
 		if !spec.IncludeHistoryNotes {
@@ -376,7 +377,7 @@ func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadS
 }
 
 func (p *KnownTx) CountKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) (int64, error) {
-	table := genquery.KnownTx
+	table := &p.query.KnownTx
 
 	count, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
@@ -395,7 +396,7 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	}
 
 	if spec.TxID != nil {
-		return []gen.Condition{genquery.KnownTx.TxID.Eq(*spec.TxID)}
+		return []gen.Condition{p.query.KnownTx.TxID.Eq(*spec.TxID)}
 	}
 
 	var conditions []gen.Condition

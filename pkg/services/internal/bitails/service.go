@@ -248,9 +248,7 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 		return nil, fmt.Errorf("invalid script hash %s: %w", scriptHash, err)
 	}
 
-	const pageLimit = 100 // to match the default in WoC service
-
-	history, _, err := b.fetchScriptHistory(ctx, scriptHash, "", pageLimit)
+	history, _, err := b.fetchScriptHistory(ctx, scriptHash, "", defs.DefaultPageLimit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch script hash history: %w", err)
 	}

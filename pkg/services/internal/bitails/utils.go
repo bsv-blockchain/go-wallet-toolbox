@@ -61,17 +61,23 @@ func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
 }
 
 func validateScriptHash(scriptHash string) error {
-	if scriptHash == "" {
+	switch {
+	case scriptHash == "":
 		return fmt.Errorf("scripthash cannot be empty")
-	}
-	if len(scriptHash)%2 != 0 {
+	case len(scriptHash)%2 != 0:
 		return fmt.Errorf("invalid scripthash length: must be even")
+	case len(scriptHash) != 64:
+		return fmt.Errorf("invalid scripthash length: must be 64 characters for a SHA256 hash")
+	case !isHex(scriptHash):
+		return fmt.Errorf("invalid scripthash format: must be hex encoded")
+	default:
+		return nil
 	}
-	_, err := hex.DecodeString(scriptHash)
-	if err != nil {
-		return fmt.Errorf("invalid scripthash format: %w", err)
-	}
-	return nil
+}
+
+func isHex(s string) bool {
+	_, err := hex.DecodeString(s)
+	return err == nil
 }
 
 // buildURL joins baseURL with any number of path segments, preserving the

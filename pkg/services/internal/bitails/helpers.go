@@ -226,10 +226,11 @@ func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash, pgKey stri
 	}
 
 	var dst dto.ScriptHistoryResponse
-	req := b.httpClient.R().SetContext(ctx).
-		SetQueryParam("pgkey", pgKey).
-		SetQueryParam("limit", fmt.Sprintf("%d", limit)).
-		SetResult(&dst)
+	req := b.httpClient.R().SetContext(ctx)
+	if pgKey != "" {
+		req = req.SetQueryParam("pgkey", pgKey)
+	}
+	req = req.SetQueryParam("limit", fmt.Sprintf("%d", limit)).SetResult(&dst)
 
 	res, err := req.Get(url)
 	if err != nil {

@@ -16,19 +16,22 @@ import (
 type SyncTagMap struct {
 	common *labelTagMapCommons[models.OutputTag, TagsMapReadModel]
 	db     *gorm.DB
+	query  *genquery.Query
 }
 
-func NewSyncTagMap(db *gorm.DB) *SyncTagMap {
+func NewSyncTagMap(db *gorm.DB, query *genquery.Query) *SyncTagMap {
 	return &SyncTagMap{
 		common: &labelTagMapCommons[models.OutputTag, TagsMapReadModel]{
 			db:                     db,
-			subjectTableName:       genquery.Tag.TableName(),
-			relationTableName:      genquery.OutputTag.TableName(),
-			relationUserIDColumn:   genquery.OutputTag.TagUserID.ColumnName().String(),
-			relationNameColumn:     genquery.OutputTag.TagName.ColumnName().String(),
-			relationParentIDColumn: genquery.OutputTag.OutputID.ColumnName().String(),
+			query:                  query,
+			subjectTableName:       query.Tag.TableName(),
+			relationTableName:      query.OutputTag.TableName(),
+			relationUserIDColumn:   query.OutputTag.TagUserID.ColumnName().String(),
+			relationNameColumn:     query.OutputTag.TagName.ColumnName().String(),
+			relationParentIDColumn: query.OutputTag.OutputID.ColumnName().String(),
 		},
-		db: db,
+		db:    db,
+		query: query,
 	}
 }
 
