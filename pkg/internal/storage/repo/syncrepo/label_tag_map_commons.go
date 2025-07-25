@@ -15,7 +15,7 @@ import (
 
 type labelTagMapCommons[Model, ReadModel any] struct {
 	db                     *gorm.DB
-	gen                    *genquery.Query
+	query                  *genquery.Query
 	subjectTableName       string
 	relationTableName      string
 	relationUserIDColumn   string
@@ -28,7 +28,7 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	var resultModels []*ReadModel
 
 	scopesToApply := []func(*gorm.DB) *gorm.DB{
-		joinWithNumericIDLookupScope(f.gen, labelStringIDClause, f.subjectTableName, clause.InnerJoin),
+		joinWithNumericIDLookupScope(f.query, labelStringIDClause, f.subjectTableName, clause.InnerJoin),
 	}
 
 	options := queryopts.MergeOptions(opts)

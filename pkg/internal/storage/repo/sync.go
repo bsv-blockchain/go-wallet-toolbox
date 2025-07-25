@@ -18,17 +18,17 @@ type Sync struct {
 	db *gorm.DB
 }
 
-func NewSync(db *gorm.DB, gen *genquery.Query) *Sync {
+func NewSync(db *gorm.DB, query *genquery.Query) *Sync {
 	return &Sync{
 		db: db,
 
-		SyncBasket:      syncrepo.NewSyncBasket(db, gen),
-		SyncKnownTx:     syncrepo.NewSyncKnownTx(db, gen),
-		SyncTransaction: syncrepo.NewSyncTransaction(db, gen),
-		SyncOutput:      syncrepo.NewSyncOutput(db, gen),
-		SyncLabel:       syncrepo.NewSyncLabel(db, gen),
-		SyncLabelMap:    syncrepo.NewSyncLabelMap(db, gen),
-		SyncTag:         syncrepo.NewSyncTag(db, gen),
-		SyncTagMap:      syncrepo.NewSyncTagMap(db, gen),
+		SyncBasket:      syncrepo.NewSyncBasket(db, query),
+		SyncKnownTx:     syncrepo.NewSyncKnownTx(db, query),
+		SyncTransaction: syncrepo.NewSyncTransaction(db, query),
+		SyncOutput:      syncrepo.NewSyncOutput(db, query),
+		SyncLabel:       syncrepo.NewSyncLabel(db, query),
+		SyncLabelMap:    syncrepo.NewSyncLabelMap(db, query),
+		SyncTag:         syncrepo.NewSyncTag(db, query),
+		SyncTagMap:      syncrepo.NewSyncTagMap(db, query),
 	}
 }

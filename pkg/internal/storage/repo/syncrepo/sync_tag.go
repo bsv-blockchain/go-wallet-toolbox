@@ -16,20 +16,20 @@ import (
 type SyncTag struct {
 	common *labelTagCommons[models.Tag, models.OutputTag, TagReadModel]
 	db     *gorm.DB
-	gen    *genquery.Query
+	query  *genquery.Query
 }
 
-func NewSyncTag(db *gorm.DB, gen *genquery.Query) *SyncTag {
+func NewSyncTag(db *gorm.DB, query *genquery.Query) *SyncTag {
 	return &SyncTag{
 		common: &labelTagCommons[models.Tag, models.OutputTag, TagReadModel]{
 			db:                   db,
-			gen:                  gen,
-			tableName:            gen.Tag.TableName(),
-			relationUserIDColumn: gen.OutputTag.TagUserID.ColumnName().String(),
-			relationNameColumn:   gen.OutputTag.TagName.ColumnName().String(),
+			query:                query,
+			tableName:            query.Tag.TableName(),
+			relationUserIDColumn: query.OutputTag.TagUserID.ColumnName().String(),
+			relationNameColumn:   query.OutputTag.TagName.ColumnName().String(),
 		},
-		db:  db,
-		gen: gen,
+		db:    db,
+		query: query,
 	}
 }
 

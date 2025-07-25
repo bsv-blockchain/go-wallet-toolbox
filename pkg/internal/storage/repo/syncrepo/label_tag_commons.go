@@ -15,7 +15,7 @@ import (
 
 type labelTagCommons[Model, RelationModel, ReadModel any] struct {
 	db                   *gorm.DB
-	gen                  *genquery.Query
+	query                *genquery.Query
 	tableName            string
 	relationUserIDColumn string
 	relationNameColumn   string
@@ -27,7 +27,7 @@ func (f *labelTagCommons[_, _, ReadModel]) FindChunk(ctx context.Context, userID
 	err := f.db.Transaction(func(tx *gorm.DB) error {
 		filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
-		err := upsertNumericIDLookup(ctx, f.db, tx, f.gen, func(db *gorm.DB) *gorm.DB {
+		err := upsertNumericIDLookup(ctx, f.db, tx, f.query, func(db *gorm.DB) *gorm.DB {
 			return db.
 				Select(fmt.Sprintf("?, %s", f.stringIDClause()), f.tableName).
 				Scopes(filters...).
@@ -42,7 +42,7 @@ func (f *labelTagCommons[_, _, ReadModel]) FindChunk(ctx context.Context, userID
 			Model(f.zeroModelPtr()).
 			Select("*").
 			Scopes(filters...).
-			Scopes(joinWithNumericIDLookupScope(f.gen, f.stringIDClause(), f.tableName, clause.InnerJoin)).
+			Scopes(joinWithNumericIDLookupScope(f.query, f.stringIDClause(), f.tableName, clause.InnerJoin)).
 			Unscoped().
 			Find(&resultModels).Error
 		if err != nil {
@@ -128,7 +128,7 @@ func (f *labelTagCommons[Model, _, _]) FindByNumID(ctx context.Context, numID ui
 	label := f.zeroModelPtr()
 
 	err := f.db.WithContext(ctx).
-		Scopes(joinWithNumericIDLookupScope(f.gen, f.stringIDClause(), f.tableName, clause.InnerJoin)).
+		Scopes(joinWithNumericIDLookupScope(f.query, f.stringIDClause(), f.tableName, clause.InnerJoin)).
 		Where("num.num_id = ?", numID).
 		First(&label).Error
 	if err != nil {

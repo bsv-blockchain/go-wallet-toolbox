@@ -16,22 +16,22 @@ import (
 type SyncLabelMap struct {
 	common *labelTagMapCommons[models.TransactionLabel, LabelsMapReadModel]
 	db     *gorm.DB
-	gen    *genquery.Query
+	query  *genquery.Query
 }
 
-func NewSyncLabelMap(db *gorm.DB, gen *genquery.Query) *SyncLabelMap {
+func NewSyncLabelMap(db *gorm.DB, query *genquery.Query) *SyncLabelMap {
 	return &SyncLabelMap{
 		common: &labelTagMapCommons[models.TransactionLabel, LabelsMapReadModel]{
 			db:                     db,
-			gen:                    gen,
-			subjectTableName:       gen.Label.TableName(),
-			relationTableName:      gen.TransactionLabel.TableName(),
-			relationUserIDColumn:   gen.TransactionLabel.LabelUserID.ColumnName().String(),
-			relationNameColumn:     gen.TransactionLabel.LabelName.ColumnName().String(),
-			relationParentIDColumn: gen.TransactionLabel.TransactionID.ColumnName().String(),
+			query:                  query,
+			subjectTableName:       query.Label.TableName(),
+			relationTableName:      query.TransactionLabel.TableName(),
+			relationUserIDColumn:   query.TransactionLabel.LabelUserID.ColumnName().String(),
+			relationNameColumn:     query.TransactionLabel.LabelName.ColumnName().String(),
+			relationParentIDColumn: query.TransactionLabel.TransactionID.ColumnName().String(),
 		},
-		db:  db,
-		gen: gen,
+		db:    db,
+		query: query,
 	}
 }
 

@@ -17,12 +17,12 @@ import (
 )
 
 type SyncBasket struct {
-	db  *gorm.DB
-	gen *genquery.Query
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewSyncBasket(db *gorm.DB, gen *genquery.Query) *SyncBasket {
-	return &SyncBasket{db: db, gen: gen}
+func NewSyncBasket(db *gorm.DB, query *genquery.Query) *SyncBasket {
+	return &SyncBasket{db: db, query: query}
 }
 
 type OutputBasketWithNum struct {
@@ -31,7 +31,7 @@ type OutputBasketWithNum struct {
 }
 
 func (s *SyncBasket) tableName() string {
-	return s.gen.OutputBasket.TableName()
+	return s.query.OutputBasket.TableName()
 }
 
 func (s *SyncBasket) stringIDClause() string {
@@ -46,7 +46,7 @@ func (s *SyncBasket) FindBasketsForSync(ctx context.Context, userID int, opts ..
 	var model models.OutputBasket
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := upsertNumericIDLookup(ctx, s.db, tx, s.gen, func(db *gorm.DB) *gorm.DB {
+		if err := upsertNumericIDLookup(ctx, s.db, tx, s.query, func(db *gorm.DB) *gorm.DB {
 			return db.
 				Select(fmt.Sprintf("?, %s", s.stringIDClause()), s.tableName()).
 				Scopes(filters...).
@@ -58,7 +58,7 @@ func (s *SyncBasket) FindBasketsForSync(ctx context.Context, userID int, opts ..
 		if err := tx.WithContext(ctx).
 			Model(&model).
 			Select("*").
-			Scopes(joinWithNumericIDLookupScope(s.gen, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
+			Scopes(joinWithNumericIDLookupScope(s.query, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
 			Scopes(filters...).
 			Find(&resultModels).Error; err != nil {
 			return fmt.Errorf("failed to find: %w", err)
@@ -124,7 +124,7 @@ func (s *SyncBasket) FindBasketNameByNumIDForSync(ctx context.Context, basketNum
 	var basketName string
 
 	err := s.db.WithContext(ctx).Model(&models.OutputBasket{}).
-		Scopes(joinWithNumericIDLookupScope(s.gen, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
+		Scopes(joinWithNumericIDLookupScope(s.query, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
 		Where("num.num_id = ?", basketNumID).
 		Select("name").
 		Scan(&basketName).Error

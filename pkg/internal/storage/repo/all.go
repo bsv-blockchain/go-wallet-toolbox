@@ -22,7 +22,7 @@ type Repositories struct {
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
-	gen := genquery.Use(db)
+	query := genquery.Use(db)
 	repositories := &Repositories{
 		Migrator:      NewMigrator(db),
 		Settings:      NewSettings(db),
@@ -31,11 +31,11 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		UTXOs:         NewUTXOs(db),
 		Transactions:  NewTransactions(db),
 		Outputs:       NewOutputs(db),
-		KnownTx:       NewKnownTxRepo(db, gen),
-		Sync:          NewSync(db, gen),
+		KnownTx:       NewKnownTxRepo(db, query),
+		Sync:          NewSync(db, query),
 		SyncState:     NewSyncState(db),
 		KeyValue:      NewKeyValue(db),
-		Commission:    NewCommission(db, gen),
+		Commission:    NewCommission(db, query),
 	}
 	repositories.Users = NewUsers(db, repositories.Settings, repositories.OutputBaskets)
 

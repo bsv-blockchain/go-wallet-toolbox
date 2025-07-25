@@ -17,12 +17,12 @@ import (
 )
 
 type SyncKnownTx struct {
-	db  *gorm.DB
-	gen *genquery.Query
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewSyncKnownTx(db *gorm.DB, gen *genquery.Query) *SyncKnownTx {
-	return &SyncKnownTx{db: db, gen: gen}
+func NewSyncKnownTx(db *gorm.DB, query *genquery.Query) *SyncKnownTx {
+	return &SyncKnownTx{db: db, query: query}
 }
 
 type KnownTxWithNum struct {
@@ -31,7 +31,7 @@ type KnownTxWithNum struct {
 }
 
 func (s *SyncKnownTx) tableName() string {
-	return s.gen.KnownTx.TableName()
+	return s.query.KnownTx.TableName()
 }
 
 func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error) {
@@ -42,7 +42,7 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 	var model models.KnownTx
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := upsertNumericIDLookup(ctx, s.db, tx, s.gen, func(db *gorm.DB) *gorm.DB {
+		if err := upsertNumericIDLookup(ctx, s.db, tx, s.query, func(db *gorm.DB) *gorm.DB {
 			return db.
 				Select(fmt.Sprintf("?, %s", "tx_id"), s.tableName()).
 				Scopes(filters...).
@@ -54,9 +54,9 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 		if err := tx.WithContext(ctx).
 			Model(&model).
 			Select("*").
-			Scopes(joinWithNumericIDLookupScope(s.gen, "tx_id", s.tableName(), clause.InnerJoin)).
+			Scopes(joinWithNumericIDLookupScope(s.query, "tx_id", s.tableName(), clause.InnerJoin)).
 			Scopes(filters...).
-			Preload(s.gen.KnownTx.TxNotes.Name()).
+			Preload(s.query.KnownTx.TxNotes.Name()).
 			Find(&resultModels).Error; err != nil {
 			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
 		}
@@ -137,7 +137,7 @@ func (s *SyncKnownTx) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		whereExistClause := fmt.Sprintf(
 			"EXISTS (SELECT 1 FROM %s as user_tx WHERE user_tx.tx_id = %s.tx_id AND user_tx.user_id = ?)",
-			s.gen.Transaction.TableName(),
+			s.query.Transaction.TableName(),
 			s.tableName(),
 		)
 
