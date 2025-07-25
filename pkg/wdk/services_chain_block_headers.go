@@ -1,5 +1,12 @@
 package wdk
 
+import (
+	"encoding/hex"
+	"fmt"
+
+	"github.com/bsv-blockchain/go-sdk/util"
+)
+
 // ChainBaseBlockHeader represents the raw fields of a Bitcoin block header,
 // corresponding to the 80-byte serialized format used in the Bitcoin protocol.
 // The double SHA-256 hash of this serialized data is the block's identifier (hash)
@@ -45,4 +52,41 @@ type ChainBlockHeader struct {
 	// Hash is the double SHA-256 hash of the serialized block header.
 	// Represented as a 32-byte hex string with reversed byte order.
 	Hash string
+}
+
+func (c *ChainBaseBlockHeader) Hex() (string, error) {
+	bb, err := c.Bytes()
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal chain block header height: %w", err)
+	}
+	return hex.EncodeToString(bb), nil
+}
+
+func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
+	hash, err := hex.DecodeString(c.PreviousHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
+	}
+
+	root, err := hex.DecodeString(c.MerkleRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert 'merkle root' field into bytes slice: %w", err)
+	}
+
+	w := util.NewWriter()
+	writeUint32BE := func(v uint32) {
+		w.Buf = append(w.Buf, byte(v>>24),
+			byte(v>>16),
+			byte(v>>8),
+			byte(v))
+	}
+
+	writeUint32BE(c.Version)
+	w.WriteBytesReverse(hash)
+	w.WriteBytesReverse(root)
+	writeUint32BE(uint32(c.Time))
+	writeUint32BE(uint32(c.Bits))
+	writeUint32BE(c.Nonce)
+
+	return w.Buf, nil
 }

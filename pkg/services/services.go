@@ -28,13 +28,15 @@ type WalletServices struct {
 	config       *defs.WalletServices
 	whatsonchain *whatsonchain.WhatsOnChain
 
-	rawTxServices         servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
-	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
-	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
-	validatorServices     servicequeue.Queue2[*chainhash.Hash, uint32, bool]
-	heightServices        servicequeue.Queue[uint32]
-	scriptHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
+	rawTxServices           servicequeue.Queue1[string, *wdk.RawTxResult]
+	postBEEFServices        servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
+	getMerklePathServices   servicequeue.Queue1[string, *wdk.MerklePathResult]
+	chainHeaderServices     servicequeue.Queue[*wdk.ChainBlockHeader]
+	validatorServices       servicequeue.Queue2[*chainhash.Hash, uint32, bool]
+	heightServices          servicequeue.Queue[uint32]
+	scriptHistoryServices   servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
+	headerForHeightServices servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
+
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -112,6 +114,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"GetScriptHashHistory",
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetScriptHashHistory),
 		),
+
+		headerForHeightServices: servicequeue.NewQueue1(
+			logger,
+			"HeaderForHeight",
+			servicequeue.NewService1(bhs.ServiceName, bhsService.GetChainHeaderByHeight),
+		),
 	}
 }
 
@@ -145,9 +153,13 @@ func (s *WalletServices) ChainTracker() chaintracker.ChainTracker {
 	panic("Not implemented yet")
 }
 
-// HeaderForHeight returns serialized block header for height on active chain
-func (s *WalletServices) HeaderForHeight(height int64) ([]int64, error) {
-	panic("Not implemented yet")
+// HeaderForHeight returns serialized block header for height on active chain.
+func (s *WalletServices) HeaderForHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+	h, err := s.headerForHeightServices.OneByOne(ctx, height)
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine block header: all block header services failed to return a result: %w", err)
+	}
+	return h, nil
 }
 
 // CurrentHeight returns the height of the active chain

@@ -7,6 +7,30 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+type BlockHeaderHeight struct {
+	Hash             string `json:"hash"`
+	Version          uint32 `json:"version"`
+	PreviousBlock    string `json:"prevBlockHash"`
+	MerkleRoot       string `json:"merkleRoot"`
+	Timestamp        uint32 `json:"creationTimestamp"`
+	DifficultyTarget uint32 `json:"difficultyTarget"`
+	Nonce            uint32 `json:"nonce"`
+	Work             string `json:"work"`
+}
+
+func (b *BlockHeaderHeight) IsZero() bool { return *b == BlockHeaderHeight{} }
+
+func (b *BlockHeaderHeight) ConvertChainBaseBlockHeader() *wdk.ChainBaseBlockHeader {
+	return &wdk.ChainBaseBlockHeader{
+		Version:      b.Version,
+		PreviousHash: b.PreviousBlock,
+		MerkleRoot:   b.MerkleRoot,
+		Time:         uint64(b.Timestamp),
+		Bits:         uint64(b.DifficultyTarget),
+		Nonce:        b.Nonce,
+	}
+}
+
 type TipResponse struct {
 	Hash             string   `json:"hash"`
 	Version          uint32   `json:"version"`

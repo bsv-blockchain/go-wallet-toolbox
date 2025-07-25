@@ -54,6 +54,35 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
+func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+	const url = "/chain/header/byHeight"
+
+	var blocks []dto.BlockHeaderHeight
+	res, err := b.httpClient.R().
+		SetContext(ctx).
+		SetResult(&blocks).
+		SetQueryParam("height", fmt.Sprintf("%d", height)).
+		SetQueryParam("count", "1").
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d): %w", b.httpClient.BaseURL+url, res.StatusCode(), err)
+	}
+	if !res.IsSuccess() {
+		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", b.httpClient.BaseURL+url, res.StatusCode())
+	}
+
+	if len(blocks) > 1 || len(blocks) == 0 {
+		return nil, fmt.Errorf("expected a single block header at height %d, but received %d headers instead. Verify the BSH API and query parameters used", height, len(blocks))
+	}
+
+	first := blocks[0]
+	if first.IsZero() {
+		return nil, fmt.Errorf("expected a non single block header at height %d. Verify the BSH API and query parameters used", height)
+	}
+
+	return first.ConvertChainBaseBlockHeader(), nil
+}
+
 func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
 	url, err := verifyMerkleRootURL(b.cfg.URL)
 	if err != nil {
