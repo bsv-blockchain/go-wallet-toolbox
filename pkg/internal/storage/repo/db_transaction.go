@@ -5,11 +5,11 @@ import (
 	"fmt"
 )
 
-type dbTransactionCreator[T any] interface {
+type dbTransactionCreator interface {
 	DBTransaction(ctx context.Context, txFunc func(child any) error) error
 }
 
-func DbTransaction[T dbTransactionCreator[T]](ctx context.Context, parent T, txFunc func(child T) error) error {
+func DbTransaction[T dbTransactionCreator](ctx context.Context, parent T, txFunc func(child T) error) error {
 	err := parent.DBTransaction(ctx, func(child any) error {
 		return txFunc(child.(T))
 	})
