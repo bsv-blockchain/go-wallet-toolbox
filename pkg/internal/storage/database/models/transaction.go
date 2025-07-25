@@ -16,7 +16,7 @@ type Transaction struct {
 	Description string `gorm:"type:string"`
 	Version     uint32
 	LockTime    uint32
-	TxID        *string
+	TxID        *string `gorm:"index"`
 	InputBeef   []byte
 
 	Outputs       []*Output   `gorm:"foreignKey:TransactionID"`
