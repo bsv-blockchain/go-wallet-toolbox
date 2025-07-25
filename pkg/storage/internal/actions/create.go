@@ -7,6 +7,7 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -72,6 +73,7 @@ type create struct {
 	commission     *commission.ScriptGenerator
 	commissionCfg  defs.Commission
 	random         wdk.Randomizer
+	chaintracker   chaintracker.ChainTracker
 }
 
 func newCreateAction(
@@ -84,6 +86,7 @@ func newCreateAction(
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
+	chaintracker chaintracker.ChainTracker,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -96,6 +99,7 @@ func newCreateAction(
 		knownTxRepo:    knownTxRepo,
 		commissionRepo: commissionRepo,
 		random:         random,
+		chaintracker:   chaintracker,
 	}
 
 	if commissionCfg.Enabled() {
@@ -133,7 +137,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputBEEFSize", len(params.InputBEEF)),
 	)
 
-	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf)
+	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.chaintracker)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inputs processor: %w", err)
 	}
