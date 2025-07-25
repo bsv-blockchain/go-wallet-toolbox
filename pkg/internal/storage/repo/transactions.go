@@ -359,9 +359,9 @@ func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) er
 		}).Error
 }
 
-func (txs *Transactions) CheckIfAnyOutputIsSpent(transactionID uint) error {
+func (txs *Transactions) CheckIfAnyOutputIsSpent(ctx context.Context, transactionID uint) error {
 	var spentCount int64
-	err := txs.db.Model(&models.Output{}).
+	err := txs.db.WithContext(ctx).Model(&models.Output{}).
 		Where("transaction_id = ?", transactionID).
 		Where("spent_by IS NOT NULL").
 		Count(&spentCount).Error
@@ -376,12 +376,12 @@ func (txs *Transactions) CheckIfAnyOutputIsSpent(transactionID uint) error {
 	return nil
 }
 
-func (txs *Transactions) DeleteOutputsByTransactionID(transactionID uint) error {
-	return txs.db.Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
+func (txs *Transactions) DeleteOutputsByTransactionID(ctx context.Context, transactionID uint) error {
+	return txs.db.WithContext(ctx).Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
 }
 
-func (txs *Transactions) ReleaseOutputsReservedByTransaction(transactionID uint) error {
-	return txs.db.Model(&models.Output{}).
+func (txs *Transactions) ReleaseOutputsReservedByTransaction(ctx context.Context, transactionID uint) error {
+	return txs.db.WithContext(ctx).Model(&models.Output{}).
 		Where("spent_by = ?", transactionID).
 		Updates(map[string]any{
 			"spent_by":  nil,
@@ -389,8 +389,8 @@ func (txs *Transactions) ReleaseOutputsReservedByTransaction(transactionID uint)
 		}).Error
 }
 
-func (txs *Transactions) ReleaseReservedUTXOs(transactionID uint) error {
-	return txs.db.Model(&models.UserUTXO{}).
+func (txs *Transactions) ReleaseReservedUTXOs(ctx context.Context, transactionID uint) error {
+	return txs.db.WithContext(ctx).Model(&models.UserUTXO{}).
 		Where("reserved_by_id = ?", transactionID).
 		Update("reserved_by_id", nil).Error
 }

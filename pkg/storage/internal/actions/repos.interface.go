@@ -43,10 +43,10 @@ type TransactionsRepo interface {
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	FailTransactionByID(ctx context.Context, transactionID uint, txID *string, note history.Builder) error
-	CheckIfAnyOutputIsSpent(transactionID uint) error
-	DeleteOutputsByTransactionID(transactionID uint) error
-	ReleaseOutputsReservedByTransaction(transactionID uint) error
-	ReleaseReservedUTXOs(transactionID uint) error
+	CheckIfAnyOutputIsSpent(ctx context.Context, transactionID uint) error
+	DeleteOutputsByTransactionID(ctx context.Context, transactionID uint) error
+	ReleaseOutputsReservedByTransaction(ctx context.Context, transactionID uint) error
+	ReleaseReservedUTXOs(ctx context.Context, transactionID uint) error
 }
 
 type KnownTxRepo interface {

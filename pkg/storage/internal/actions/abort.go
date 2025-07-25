@@ -49,17 +49,17 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
 
-	err = repo.AsDBTransaction(ctx, a.transactionsRepo, func(dbtx TransactionsRepo) error {
-		if err := dbtx.ReleaseReservedUTXOs(txEntity.ID); err != nil {
+	err = repo.DbTransaction(ctx, a.transactionsRepo, func(dbtx TransactionsRepo) error {
+		if err := dbtx.ReleaseReservedUTXOs(ctx, txEntity.ID); err != nil {
 			return fmt.Errorf("failed to release reserved UTXOs: %w", err)
 		}
-		if err := dbtx.CheckIfAnyOutputIsSpent(txEntity.ID); err != nil {
+		if err := dbtx.CheckIfAnyOutputIsSpent(ctx, txEntity.ID); err != nil {
 			return fmt.Errorf("failed to check if any output is spent: %w", err)
 		}
-		if err := dbtx.ReleaseOutputsReservedByTransaction(txEntity.ID); err != nil {
+		if err := dbtx.ReleaseOutputsReservedByTransaction(ctx, txEntity.ID); err != nil {
 			return fmt.Errorf("failed to release outputs reserved by transaction: %w", err)
 		}
-		if err := dbtx.DeleteOutputsByTransactionID(txEntity.ID); err != nil {
+		if err := dbtx.DeleteOutputsByTransactionID(ctx, txEntity.ID); err != nil {
 			return fmt.Errorf("failed to delete outputs by transaction ID: %w", err)
 		}
 		if err := dbtx.FailTransactionByID(ctx, txEntity.ID, txEntity.TxID, history.NewBuilder().AbortAction(args.Reference)); err != nil {
