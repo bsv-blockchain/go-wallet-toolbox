@@ -224,12 +224,12 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 }
 
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
-	var transactions []models.Transaction
+	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
 		Preload("Labels").
-		Find(&transactions).
+		First(&transaction).
 		Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -239,15 +239,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
 	}
 
-	if len(transactions) == 0 {
-		return nil, nil
-	}
-
-	if len(transactions) != 1 {
-		return nil, fmt.Errorf("expected exactly one transaction with reference %s, found %d", reference, len(transactions))
-	}
-
-	return txs.mapModelToTransactionEntity(&transactions[0]), nil
+	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
 func (txs *Transactions) FindTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {

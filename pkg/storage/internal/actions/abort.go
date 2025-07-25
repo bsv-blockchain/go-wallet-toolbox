@@ -29,13 +29,13 @@ func newAbortAction(logger *slog.Logger, transactions TransactionsRepo) *abortAc
 func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
 	txEntity, err := a.transactionsRepo.FindTransactionByReference(ctx, userID, args.Reference)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find unique transaction by reference: %w", err)
+		return nil, fmt.Errorf("failed to find transaction by reference %s: %w", args.Reference, err)
 	}
 
 	if txEntity == nil && a.isPotentiallyTxID(args.Reference) {
 		txEntity, err = a.transactionsRepo.FindTransactionByUserIDAndTxID(ctx, userID, args.Reference)
 		if err != nil {
-			return nil, fmt.Errorf("failed to find transaction by txid: %w", err)
+			return nil, fmt.Errorf("failed to find transaction by txid %s: %w", args.Reference, err)
 		}
 	}
 

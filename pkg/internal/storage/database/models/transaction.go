@@ -10,7 +10,7 @@ type Transaction struct {
 
 	UserID      int
 	Status      wdk.TxStatus
-	Reference   string `gorm:"index"`
+	Reference   string `gorm:"uniqueIndex"`
 	IsOutgoing  bool
 	Satoshis    int64
 	Description string `gorm:"type:string"`
