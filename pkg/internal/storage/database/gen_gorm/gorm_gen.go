@@ -25,7 +25,7 @@ func main() {
 
 	g := gen.NewGenerator(gen.Config{
 		OutPath: outPath,
-		Mode:    gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface,
+		Mode:    gen.WithoutContext | gen.WithQueryInterface,
 	})
 
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
