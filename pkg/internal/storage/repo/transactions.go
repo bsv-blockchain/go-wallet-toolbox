@@ -20,6 +20,21 @@ import (
 	"gorm.io/gorm"
 )
 
+type abortStep struct {
+	name string
+	fn   func(*Transactions, *gorm.DB, uint) error
+}
+
+var abortTransactionSteps = []abortStep{
+	{"release_reserved_utxos", (*Transactions).releaseReservedUTXOs},
+	{"check_if_any_output_is_spent", (*Transactions).checkIfAnyOutputIsSpent},
+	{"release_outputs_reserved", (*Transactions).releaseOutputsReservedByTransaction},
+	{"delete_outputs", (*Transactions).deleteOutputsByTransactionID},
+	{"update_transaction_status", func(txs *Transactions, tx *gorm.DB, transactionID uint) error {
+		return txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed)
+	}},
+}
+
 type Transactions struct {
 	db *gorm.DB
 }
@@ -557,49 +572,24 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 
 func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
 	if err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		txNotes := history.NewBuilder().AbortAction(reference).Note().AsList()
-		historyBuilders := make([]history.Builder, len(txNotes))
-		for i, note := range txNotes {
-			historyBuilders[i] = history.NewBuilderFromNote(note)
-		}
+		historyBuilders := []history.Builder{history.NewBuilder().AbortAction(reference)}
 
-		type step struct {
-			name string
-			fn   func() error
-		}
-
-		steps := []step{
-			{"release_reserved_utxos", func() error {
-				return txs.releaseReservedUTXOs(tx, transactionID)
-			}},
-			{"check_if_any_output_is_spent", func() error {
-				return txs.checkIfAnyOutputIsSpent(tx, transactionID)
-			}},
-			{"release_outputs_reserved", func() error {
-				return txs.releaseOutputsReservedByTransaction(tx, transactionID)
-			}},
-			{"delete_outputs", func() error {
-				return txs.deleteOutputsByTransactionID(tx, transactionID)
-			}},
-			{"update_transaction_status", func() error {
-				return txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed)
-			}},
-		}
-
-		for _, s := range steps {
-			if err := s.fn(); err != nil {
-				return fmt.Errorf("AbortTransactionAtomic: step '%s' failed: %w", s.name, err)
+		for _, step := range abortTransactionSteps {
+			if err := step.fn(txs, tx, transactionID); err != nil {
+				return fmt.Errorf("AbortTransactionAtomic: step '%s' failed: %w", step.name, err)
 			}
 		}
 
-		if txID != nil && *txID != "" {
-			if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, historyBuilders); err != nil {
-				return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
-			}
+		if txID == nil || *txID == "" {
+			return nil
+		}
+
+		if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, historyBuilders); err != nil {
+			return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
+
 		}
 
 		return nil
-
 	}); err != nil {
 		return fmt.Errorf("failed to abort transaction: %w", err)
 	}
