@@ -10,11 +10,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,20 +101,35 @@ func TestCreateActionHappyPath(t *testing.T) {
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
 }
 
-func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
+func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
-
-	const expectedNoSendChangeOutputVoutsCount = 31
 
 	// given:
 	activeStorage := given.Provider().GORM()
 
 	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	opts := []pkgtestabilities.TopUpOpts{
+		pkgtestabilities.WithPurpose(wdk.ChangePurpose),
+	}
+
+	transactionSpec1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000, opts...)
+	transactionSpec2, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(200_000, opts...)
 
 	// and:
-	args := fixtures.ValidCreateActionArgsWithIsNoSendTrue()
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsNoSend = true
+	args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
+	args.Options.NoSendChange = []wdk.OutPoint{
+		{
+			TxID: transactionSpec1.ID().String(),
+			Vout: 0,
+		},
+		{
+			TxID: transactionSpec2.ID().String(),
+			Vout: 0,
+		},
+	}
 
 	// when:
 	result, err := activeStorage.CreateAction(
@@ -120,16 +137,45 @@ func TestCreateActionWithIsNoSendArgSetToTrue(t *testing.T) {
 		testusers.Alice.AuthID(),
 		args,
 	)
-	// then:
-	assert.NoError(t, err)
-	assert.Equal(t, expectedNoSendChangeOutputVoutsCount, len(result.NoSendChangeOutputVouts))
 
-	for i := 1; i < len(result.Outputs); i++ {
-		out := result.Outputs[i]
-		assert.EqualValues(t, i, out.Vout)
-		assert.Equal(t, wdk.ProvidedByStorage, out.ProvidedBy)
-		assert.Equal(t, wdk.ChangePurpose, out.Purpose)
+	// then:
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	const (
+		firstNoSendChangeVout = 1
+		lastNoSendChangeVout  = 30
+	)
+	expectedNoSendChangeOutputs := seq.Collect(seq.Range(firstNoSendChangeVout, lastNoSendChangeVout+1)) // [firstNoSendChangeVout ... lastNoSendChangeVout]
+	assert.Equal(t, expectedNoSendChangeOutputs, result.NoSendChangeOutputVouts)
+}
+
+func TestCreateActionWithNoSendChangeDuplicate(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	transactionSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000, pkgtestabilities.WithPurpose(wdk.ChangePurpose))
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs()
+	args.IsNoSend = true
+	args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
+	outpoint := wdk.OutPoint{
+		TxID: transactionSpec.ID().String(),
+		Vout: 0,
 	}
+
+	args.Options.NoSendChange = []wdk.OutPoint{
+		outpoint, outpoint, // NOTE: duplicate outpoints
+	}
+
+	// when:
+	_, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.Error(t, err)
 }
 
 func TestCreateActionOutputTags(t *testing.T) {

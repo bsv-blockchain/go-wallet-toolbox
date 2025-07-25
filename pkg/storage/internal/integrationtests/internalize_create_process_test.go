@@ -50,6 +50,13 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 			SeekPermission: nil,
 		}
 
+		// and:
+		given.Provider().BHS().OnMerkleRootVerifyResponse(
+			tsgenerated.BeefToInternalizeHeight,
+			tsgenerated.BeefToInternalizeMerkleRoot,
+			testabilities.BHSMerkleRootConfirmed,
+		)
+
 		// when:
 		result, err := activeStorage.InternalizeAction(
 			t.Context(),
@@ -172,6 +179,13 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 	err := activeStorage.ConfigureBasket(t.Context(), testusers.Alice.AuthID(), basketConf)
 	require.NoError(t, err)
 
+	// and:
+	given.Provider().BHS().OnMerkleRootVerifyResponse(
+		tsgenerated.BeefToInternalizeHeight,
+		tsgenerated.BeefToInternalizeMerkleRoot,
+		testabilities.BHSMerkleRootConfirmed,
+	)
+
 	t.Run("Create", func(t *testing.T) {
 		// given:
 		args := createActionArgsWithProvidedOutput()
@@ -270,6 +284,12 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 
 	var createdTxReference string
 	var processedTxID string
+
+	given.Provider().BHS().OnMerkleRootVerifyResponse(
+		tsgenerated.BeefToInternalizeHeight,
+		tsgenerated.BeefToInternalizeMerkleRoot,
+		testabilities.BHSMerkleRootConfirmed,
+	)
 
 	t.Run("Internalize - this way the storage will 'know' specified UTXO", func(t *testing.T) {
 		// given:
