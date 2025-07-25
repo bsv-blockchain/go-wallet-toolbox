@@ -38,15 +38,19 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 			return nil, fmt.Errorf("failed to find transaction by txid: %w", err)
 		}
 	}
+
 	if txEntity == nil {
 		return nil, fmt.Errorf("no transaction found with reference or txid %q", args.Reference)
 	}
+
 	if err := a.validateTx(txEntity); err != nil {
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
+
 	if err := a.transactionsRepo.AbortTransactionAtomic(ctx, txEntity.ID, txEntity.TxID, args.Reference); err != nil {
 		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
+
 	return &wdk.AbortActionResult{Aborted: true}, nil
 }
 
