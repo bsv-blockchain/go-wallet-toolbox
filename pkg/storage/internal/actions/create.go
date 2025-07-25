@@ -16,6 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -39,6 +40,7 @@ type CreateActionParams struct {
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
+	NoSendChange             []wdk.OutPoint
 	InputBEEF                []byte
 	RandomizeOutputs         bool
 	IncludeInputSourceRawTxs bool
@@ -59,6 +61,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		IncludeInputSourceRawTxs: args.IsSignAction && args.IncludeAllSourceTransactions,
 		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
 		IsNoSend:                 args.IsNoSend,
+		NoSendChange:             args.Options.NoSendChange,
 	}
 }
 
@@ -127,6 +130,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 	if basket == nil {
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+	}
+
+	if params.IsNoSend && len(params.NoSendChange) > 0 {
+		if err := c.validateNoSendChange(ctx, userID, params); err != nil {
+			return nil, fmt.Errorf("failed to validate no send change: %w", err)
+		}
 	}
 
 	c.logger.DebugContext(ctx, "Processing inputs",
@@ -365,6 +374,26 @@ func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.Ne
 		}
 	}
 	return vouts
+}
+
+func (c *create) validateNoSendChange(ctx context.Context, userID int, params CreateActionParams) error {
+	outpoints := params.NoSendChange
+
+	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, outpoints)
+	if err != nil {
+		return fmt.Errorf("failed to find outputs by outpoints: %w", err)
+	}
+
+	if len(outpoints) != len(outputs) {
+		return fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(outpoints))
+	}
+
+	err = validate.NoSendChangeOutputs(outputs)
+	if err != nil {
+		return fmt.Errorf("failed to validate no send change outputs: %w", err)
+	}
+
+	return nil
 }
 
 type serviceChargeOutput struct {
