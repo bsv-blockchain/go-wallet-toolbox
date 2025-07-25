@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -14,6 +15,7 @@ import (
 
 type labelTagMapCommons[Model, ReadModel any] struct {
 	db                     *gorm.DB
+	query                  *genquery.Query
 	subjectTableName       string
 	relationTableName      string
 	relationUserIDColumn   string
@@ -26,7 +28,7 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	var resultModels []*ReadModel
 
 	scopesToApply := []func(*gorm.DB) *gorm.DB{
-		joinWithNumericIDLookupScope(labelStringIDClause, f.subjectTableName, clause.InnerJoin),
+		joinWithNumericIDLookupScope(f.query, labelStringIDClause, f.subjectTableName, clause.InnerJoin),
 	}
 
 	options := queryopts.MergeOptions(opts)

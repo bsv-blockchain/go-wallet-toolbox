@@ -332,6 +332,13 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		// and:
 		beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
 
+		// and:
+		given.Provider().BHS().OnMerkleRootVerifyResponse(
+			tsgenerated.BeefToInternalizeHeight,
+			tsgenerated.BeefToInternalizeMerkleRoot,
+			testabilities.BHSMerkleRootConfirmed,
+		)
+
 		// when:
 		result, err := activeStorage.InternalizeAction(
 			t.Context(),
