@@ -21,11 +21,12 @@ import (
 )
 
 type Outputs struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewOutputs(db *gorm.DB) *Outputs {
-	return &Outputs{db: db}
+func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
+	return &Outputs{db: db, query: query}
 }
 
 func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
@@ -180,8 +181,8 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	outpointStrings := slices.Map(outpoints, func(op wdk.OutPoint) []any {
 		return []any{op.TxID, op.Vout}
 	})
-	outputTableName := genquery.Output.TableName()
-	transactionTableName := genquery.Transaction.TableName()
+	outputTableName := o.query.Output.TableName()
+	transactionTableName := o.query.Transaction.TableName()
 	query := o.db.WithContext(ctx).Table(
 		"(?) as out",
 		o.db.Model(&models.Output{}).
