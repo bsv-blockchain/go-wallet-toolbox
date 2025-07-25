@@ -182,3 +182,7 @@ func RawTxOutput(result *wdk.RawTxResult) {
 	fmt.Printf("%sTxID:   %s%s\n", ColorCyan, result.TxID, ColorReset)
 	fmt.Printf("%sRawTx:  %x%s\n", ColorCyan, result.RawTx, ColorReset)
 }
+
+func HashToHeaderOutput(header *wdk.ChainBlockHeader) {
+	ChainTipHeaderOutput(header)
+}

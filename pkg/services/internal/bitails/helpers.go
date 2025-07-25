@@ -158,8 +158,8 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 	return raw, nil
 }
 
-// hashToHeader converts a block hash to a MerklePathBlockHeader.
-func (b *Bitails) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
+// fetchMerkleHeader converts a block hash to a MerklePathBlockHeader.
+func (b *Bitails) fetchMerkleHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
 	raw, err := b.rawHeader(ctx, blockHash)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching raw block header: %w", err)

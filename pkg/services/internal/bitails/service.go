@@ -113,7 +113,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 		}, nil
 	}
 
-	header, err := b.hashToHeader(ctx, proof.Target)
+	header, err := b.fetchMerkleHeader(ctx, proof.Target)
 	if err != nil {
 		return nil, fmt.Errorf("error converting hash to header: %w", err)
 	}
@@ -240,4 +240,14 @@ func (b *Bitails) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, err
 		TxID:  txID,
 		RawTx: raw,
 	}, nil
+}
+
+// HashToHeader fetches and decodes a block header by its hash.
+func (b *Bitails) HashToHeader(ctx context.Context, blockHash string) (*wdk.ChainBlockHeader, error) {
+	raw, err := b.rawHeader(ctx, blockHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch raw header for hash %s: %w", blockHash, err)
+	}
+
+	return ConvertHeader(raw, 0)
 }
