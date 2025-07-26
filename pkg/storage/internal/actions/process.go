@@ -234,9 +234,7 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 
 func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.ProcessActionResult, error) {
 	if len(txIDs) == 0 {
-		return &wdk.ProcessActionResult{
-			SendWithResults: nil,
-		}, nil
+		return &wdk.ProcessActionResult{}, nil
 	}
 
 	sendStatusesLookup, err := p.getSendStatuses(ctx, txIDs...)
@@ -294,12 +292,12 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.Proces
 			continue
 		}
 
-		newReqStatus, newTxStatus, reviewActionResult, sendWithResult, err := p.processBroadcastSingleTxResult(aggBroadcastResult, txID)
+		newReqStatus, newTxStatus, reviewActionResult, sendWithResult, err := p.singleTxBroadcastResult(aggBroadcastResult, txID)
 		if err != nil {
 			return nil, err
 		}
 
-		notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, results.ServiceErrors(), beef, []string{txID})
+		notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, results.ServiceErrors(), beef, txIDs)
 
 		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
 		if err != nil {
@@ -371,8 +369,8 @@ func (p *process) getSendStatuses(ctx context.Context, txIDs ...string) (map[str
 
 	lookup := make(map[string]wdk.SendWithResultStatus, len(txIDs))
 	for _, txID := range txIDs {
-		knownTxStatus, foundStatus := statuses[txID]
-		if !foundStatus {
+		knownTxStatus, statusFound := statuses[txID]
+		if !statusFound {
 			return nil, fmt.Errorf("known tx status for txID %s not found", txID)
 		}
 
@@ -393,7 +391,7 @@ func (p *process) getSendStatuses(ctx context.Context, txIDs ...string) (map[str
 	return lookup, nil
 }
 
-func (p *process) processBroadcastSingleTxResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
+func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
 	reviewActionResult wdk.ReviewActionResult,

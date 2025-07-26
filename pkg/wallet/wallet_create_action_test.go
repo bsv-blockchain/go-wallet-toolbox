@@ -550,7 +550,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 }
 
 func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorForOne() {
-	s.Run("createAction with 'noSend' then createAction with 'sendWith' to broadcast both txs", func() {
+	s.Run("createAction with 'noSend' then attempt to createAction with 'sendWith', but ARC responds double spend for one of the transaction", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
 
