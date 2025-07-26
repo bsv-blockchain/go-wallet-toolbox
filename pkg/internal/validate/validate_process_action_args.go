@@ -11,6 +11,10 @@ func ProcessActionArgs(args *wdk.ProcessActionArgs) error {
 		return fmt.Errorf("inconsistent IsNoSend with IsSendWith - logic error")
 	}
 
+	if args.IsSendWith && len(args.SendWith) == 0 {
+		return fmt.Errorf("IsSendWith is true but no sendWith arguments provided")
+	}
+
 	if args.IsNewTx {
 		if args.Reference == nil {
 			return fmt.Errorf("missing reference argument for new transaction")

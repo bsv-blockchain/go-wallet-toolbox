@@ -10,7 +10,7 @@ import (
 	"maps"
 )
 
-func (p *process) broadcastMultipleTxs(ctx context.Context, txIDs []string) (*wdk.ProcessActionResult, error) {
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.ProcessActionResult, error) {
 	if len(txIDs) == 0 {
 		return &wdk.ProcessActionResult{
 			SendWithResults: nil,
@@ -54,8 +54,8 @@ func (p *process) broadcastMultipleTxs(ctx context.Context, txIDs []string) (*wd
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	var sendWithResults []wdk.SendWithResult
-	var notDelayedResults []wdk.ReviewActionResult
+	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
+	notDelayedResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 
 	aggregated := results.Aggregated(txIDs)
 	for _, txID := range txIDs {

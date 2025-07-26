@@ -68,6 +68,13 @@ func TestWrongProcessActionArgs(t *testing.T) {
 				return args
 			},
 		},
+		"IsSendWith true but no sendWith arguments": {
+			modifier: func(args wdk.ProcessActionArgs) wdk.ProcessActionArgs {
+				args.IsSendWith = true
+				args.SendWith = nil
+				return args
+			},
+		},
 	}
 
 	for name, test := range tests {

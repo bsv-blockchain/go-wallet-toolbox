@@ -45,6 +45,10 @@ func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, commissionCf
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	if args.IsDelayed {
+		panic("not implemented yet")
+	}
+
 	if args.IsNewTx {
 		err := p.processNewTx(ctx, userID, args)
 		if err != nil {
@@ -52,15 +56,24 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		}
 	}
 
-	if args.IsSendWith {
-		panic("not implemented yet")
+	return p.broadcastTxs(ctx, p.txIDsToBroadcast(args))
+}
+
+func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
+	count := len(args.SendWith)
+	if args.TxID != nil {
+		count++
 	}
 
-	if args.IsDelayed {
-		panic("not implemented yet")
+	result := make([]string, 0, count)
+	for _, txID := range args.SendWith {
+		result = append(result, string(txID))
+	}
+	if args.TxID != nil {
+		result = append(result, string(*args.TxID))
 	}
 
-	return p.broadcastSingleTx(ctx, string(*args.TxID))
+	return result
 }
 
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
@@ -273,7 +286,7 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 	}
 
 	return &wdk.ProcessActionResult{
-		SendWithResults: []wdk.SendWithResult{sendWithResult},
+		SendWithResults:   []wdk.SendWithResult{sendWithResult},
 		NotDelayedResults: []wdk.ReviewActionResult{reviewActionResult},
 	}, nil
 }
