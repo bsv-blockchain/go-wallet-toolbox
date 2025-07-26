@@ -102,7 +102,7 @@ func TestWalletCreateActionArgsValidation(t *testing.T) {
 	}
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSend() {
+func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 	s.Run("return signable transaction when signAndProcess is false", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
@@ -176,7 +176,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSend() {
 	})
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSendAndProvidedInput() {
+func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 	s.Run("return signable transaction with provided input when signAndProcess is false", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
@@ -257,7 +257,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithNoSendAndProvidedInput() 
 	})
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionNewWithSend() {
+func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 	s.Run("create new action", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
@@ -321,7 +321,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithSend() {
 	})
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionNewWithSendAndTXIDOnly() {
+func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndTXIDOnly() {
 	s.Run("create new action with return TXID only", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
@@ -351,7 +351,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithSendAndTXIDOnly() {
 	})
 }
 
-func (s *WalletTestSuite) TestWalletCreateActionNewWithSendAndProvidedInput() {
+func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput() {
 	s.Run("create new action with all funds from provided input", func() {
 		t := s.T()
 		const inputValue = testValueForFunding
@@ -497,5 +497,54 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		assert.NoError(t, err, "Wallet should not fail for signable transaction when all services are down")
 		require.NotNil(t, result, "Wallet should return signable transaction when all services are down")
 
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
+	s.Run("createAction with 'noSend' then createAction with 'sendWith' to broadcast both txs", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithNoSend(true))
+
+		firstResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+
+		// and:
+		assert.NotEmpty(t, firstResult.Txid, "Wallet result should have transaction id")
+		assert.NotEmpty(t, firstResult.Tx, "Wallet result should have transaction bytes")
+		assert.Len(t, firstResult.SendWithResults, 0, "Wallet result should have no send with results")
+
+		// when:
+		args = fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSendWith(firstResult.Txid))
+
+		secondResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+
+		// and:
+		assert.NotEmpty(t, secondResult.Txid, "Wallet result should have transaction id")
+		assert.NotEqual(t, firstResult.Txid, secondResult.Txid, "Wallet result should have different transaction id for second action")
+		assert.NotEmpty(t, secondResult.Tx, "Wallet result should have transaction bytes")
+		assert.Len(t, secondResult.SendWithResults, 2, "Wallet result should have single send with results")
+
+		assert.Equal(t, secondResult.SendWithResults[0].Txid, firstResult.Txid, "Wallet result should have same txid as the one from first send with result")
+		assert.Equal(t, secondResult.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+		assert.Equal(t, secondResult.SendWithResults[1].Txid, secondResult.Txid, "Wallet result should have same txid as the one from second send with result")
+		assert.Equal(t, secondResult.SendWithResults[1].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
 	})
 }

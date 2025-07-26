@@ -50,10 +50,14 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 	}
 
 	if args.IsNewTx {
-		err := p.processNewTx(ctx, userID, args)
-		if err != nil {
+		if err := p.processNewTx(ctx, userID, args); err != nil {
 			return nil, err
 		}
+	}
+
+	if args.IsNoSend && len(args.SendWith) == 0 {
+		// NOTE: SendWith overrides IsNoSend, so if SendWith is NOT empty, we will broadcast txs anyway
+		return &wdk.ProcessActionResult{}, nil
 	}
 
 	return p.broadcastTxs(ctx, p.txIDsToBroadcast(args))

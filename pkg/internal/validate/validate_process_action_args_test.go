@@ -61,13 +61,6 @@ func TestWrongProcessActionArgs(t *testing.T) {
 				return args
 			},
 		},
-		"Inconsistent IsNoSend with IsSendWith": {
-			modifier: func(args wdk.ProcessActionArgs) wdk.ProcessActionArgs {
-				args.IsNoSend = true
-				args.IsSendWith = false
-				return args
-			},
-		},
 		"IsSendWith true but no sendWith arguments": {
 			modifier: func(args wdk.ProcessActionArgs) wdk.ProcessActionArgs {
 				args.IsSendWith = true
