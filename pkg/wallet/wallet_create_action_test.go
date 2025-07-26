@@ -521,7 +521,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		firstResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// and:
 		assert.NotEmpty(t, firstResult.Txid, "Wallet result should have transaction id")
@@ -534,7 +534,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		secondResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// and:
 		assert.NotEmpty(t, secondResult.Txid, "Wallet result should have transaction id")
@@ -546,5 +546,46 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		assert.Equal(t, secondResult.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
 		assert.Equal(t, secondResult.SendWithResults[1].Txid, secondResult.Txid, "Wallet result should have same txid as the one from second send with result")
 		assert.Equal(t, secondResult.SendWithResults[1].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorForOne() {
+	s.Run("createAction with 'noSend' then createAction with 'sendWith' to broadcast both txs", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithNoSend(true))
+
+		firstResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+
+		// and:
+		assert.NotEmpty(t, firstResult.Txid, "Wallet result should have transaction id")
+		assert.NotEmpty(t, firstResult.Tx, "Wallet result should have transaction bytes")
+		assert.Len(t, firstResult.SendWithResults, 0, "Wallet result should have no send with results")
+
+		// given:
+		given.Services().ARC().WhenQueryingTx(firstResult.Txid.String()).WillReturnDoubleSpending()
+
+		// when:
+		args = fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSendWith(firstResult.Txid))
+
+		_, err = aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
 	})
 }
