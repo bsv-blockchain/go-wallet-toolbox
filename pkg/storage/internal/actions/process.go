@@ -228,25 +228,35 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return
 }
 
-func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.ProcessActionResult, error) {
-	sendStatuses, err := p.getSendStatuses(ctx, txID)
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.ProcessActionResult, error) {
+	if len(txIDs) == 0 {
+		return &wdk.ProcessActionResult{
+			SendWithResults: nil,
+		}, nil
+	}
+
+	sendStatusesLookup, err := p.getSendStatuses(ctx, txIDs...)
 	if err != nil {
 		return nil, err
 	}
 
-	sendStatus := sendStatuses[txID]
-	if sendStatus != wdk.SendWithResultStatusSending {
+	sendStatuses := maps.Values(sendStatusesLookup)
+	if seq.ContainsAll(sendStatuses, wdk.SendWithResultStatusUnproven) {
 		return &wdk.ProcessActionResult{
-			SendWithResults: []wdk.SendWithResult{
-				{
+			SendWithResults: seq.Collect(seq2.MapTo(maps.All(sendStatusesLookup), func(txID string, status wdk.SendWithResultStatus) wdk.SendWithResult {
+				return wdk.SendWithResult{
 					TxID:   primitives.TXIDHexString(txID),
-					Status: sendStatus,
-				},
-			},
+					Status: status,
+				}
+			})),
 		}, nil
 	}
 
-	beef, err := p.knownTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
+	readyToSendTxIDs := seq.Collect(seq2.Keys(seq2.Filter(maps.All(sendStatusesLookup), func(txID string, status wdk.SendWithResultStatus) bool {
+		return status == wdk.SendWithResultStatusSending || status == wdk.SendWithResultStatusFailed
+	})))
+
+	beef, err := p.knownTxRepo.BuildValidBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), nil, wdk.ProvenTxReqProblematicStatuses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -257,37 +267,53 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
-	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
+	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	aggregated := results.Aggregated([]string{txID})
-	aggBroadcastResult, ok := aggregated[txID]
-	if !ok {
-		return nil, fmt.Errorf("failed to find aggregated result for txID %s", txID)
-	}
+	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
+	notDelayedResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 
-	newReqStatus, newTxStatus, reviewActionResult, sendWithResult, err := p.processBroadcastSingleTxResult(aggBroadcastResult, txID)
-	if err != nil {
-		return nil, err
-	}
+	aggregated := results.Aggregated(txIDs)
+	for _, txID := range txIDs {
+		aggBroadcastResult, ok := aggregated[txID]
+		if !ok {
+			sendWithResults = append(sendWithResults, wdk.SendWithResult{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: wdk.SendWithResultStatusFailed,
+			})
+			notDelayedResults = append(notDelayedResults, wdk.ReviewActionResult{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: wdk.ReviewActionResultStatusServiceError,
+			})
+			continue
+		}
 
-	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, results.ServiceErrors(), beef, []string{txID})
+		newReqStatus, newTxStatus, reviewActionResult, sendWithResult, err := p.processBroadcastSingleTxResult(aggBroadcastResult, txID)
+		if err != nil {
+			return nil, err
+		}
 
-	err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-	}
+		notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, results.ServiceErrors(), beef, []string{txID})
 
-	err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+		}
+
+		err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+		}
+
+		sendWithResults = append(sendWithResults, sendWithResult)
+		notDelayedResults = append(notDelayedResults, reviewActionResult)
 	}
 
 	return &wdk.ProcessActionResult{
-		SendWithResults:   []wdk.SendWithResult{sendWithResult},
-		NotDelayedResults: []wdk.ReviewActionResult{reviewActionResult},
+		SendWithResults:   sendWithResults,
+		NotDelayedResults: notDelayedResults,
 	}, nil
 }
 
