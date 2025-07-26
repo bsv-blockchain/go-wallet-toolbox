@@ -56,12 +56,17 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	if args.IncludeTransactions {
 		uniqueTxIDs := l.uniqueTxTDsForAllOutputs(outputModels)
 
-		rawBeef, err := l.knownTxRepo.GetBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids, wdk.ProvenTxReqProblematicStatuses)
+		beef, err := l.knownTxRepo.BuildValidBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids, wdk.ProvenTxReqProblematicStatuses)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
 		}
-		beef := primitives.BEEF(rawBeef)
-		result.BEEF = &beef
+
+		rawBeef, err := beef.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("error converting BEEF to bytes: %w", err)
+		}
+
+		result.BEEF = to.Ptr[primitives.BEEF](rawBeef)
 	}
 
 	return result, nil

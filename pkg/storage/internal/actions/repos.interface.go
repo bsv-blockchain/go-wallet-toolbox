@@ -30,13 +30,7 @@ type TransactionsRepo interface {
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
-	UpdateTransactionStatusForTxID(
-		ctx context.Context,
-		txID string,
-		txStatus wdk.TxStatus,
-		provenTxReqStatus wdk.ProvenTxReqStatus,
-		txNotes []history.Builder,
-	) error
+	UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
@@ -50,11 +44,12 @@ type KnownTxRepo interface {
 	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)
 	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
 	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error
-	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) ([]byte, error)
+	BuildValidBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
 	AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
 	IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
 	SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
+	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
 }
 
 type KeyValueRepo interface {

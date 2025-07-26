@@ -45,6 +45,10 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 	return nil
 }
 
+func (p *KnownTx) UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
+	return updateKnownTxStatus(p.db.WithContext(ctx), txID, status, skipForStatuses, txNotes)
+}
+
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
 	var model models.KnownTx
 	err := tx.First(&model, "tx_id = ? ", req.TxID).Error
@@ -75,12 +79,15 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	return nil
 }
 
-func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
+func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
 	var model models.KnownTx
-	err := tx.Model(&model).
-		Where("tx_id = ? ", txID).
-		UpdateColumn("status", status).
-		Error
+
+	query := tx.Model(&model).Where("tx_id = ? ", txID)
+	if len(skipForStatuses) > 0 {
+		query = query.Where("status NOT IN ? ", skipForStatuses)
+	}
+
+	err := query.UpdateColumn("status", status).Error
 	if err != nil {
 		return fmt.Errorf("failed to update known tx status: %w", err)
 	}
@@ -270,7 +277,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeT
 	return nil
 }
 
-func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) ([]byte, error) {
+func (p *KnownTx) BuildValidBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 
 	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
@@ -286,12 +293,7 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], k
 		}
 	}
 
-	data, err := beef.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("beef serialization error: %w", err)
-	}
-
-	return data, nil
+	return beef, nil
 }
 
 func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {
