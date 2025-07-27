@@ -136,6 +136,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"GetUtxoStatus",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.GetUtxoStatus),
 		),
+
+		getUtxoStatusServices: servicequeue.NewQueue2(
+			logger,
+			"GetUtxoStatus",
+			servicequeue.NewService2(whatsonchain.ServiceName, wocService.GetUtxoStatus),
+		),
 	}
 }
 
