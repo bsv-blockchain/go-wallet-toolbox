@@ -6,13 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
@@ -21,6 +17,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // WalletServices is a struct that contains services used by a wallet
@@ -40,6 +38,7 @@ type WalletServices struct {
 	blockHeaderForHeightServices servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
 	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
+	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -138,7 +137,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"GetUtxoStatus",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.GetUtxoStatus),
 		),
-	}
+
+		isUtxoServices: servicequeue.NewQueue2(
+			logger,
+			"IsUtxo",
+			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsUtxo),
+		)}
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
@@ -302,5 +306,25 @@ func (s *WalletServices) GetUtxoStatus(ctx context.Context, scriptHash string, o
 		}
 		return nil, fmt.Errorf("failed to get UTXO status: %w", err)
 	}
+	return result, nil
+}
+
+// IsUtxo checks if the given outpoint is a UTXO for the specified script hash.
+func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
+	if scriptHash == "" {
+		return false, fmt.Errorf("scriptHash is required")
+	}
+	if outpoint == nil {
+		return false, fmt.Errorf("outpoint is required")
+	}
+
+	result, err := s.isUtxoServices.OneByOne(ctx, scriptHash, outpoint)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return false, fmt.Errorf("no UTXO status found for script hash %s and outpoint %s", scriptHash, outpoint)
+		}
+		return false, fmt.Errorf("failed to check UTXO status: %w", err)
+	}
+
 	return result, nil
 }
