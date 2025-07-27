@@ -295,3 +295,53 @@ func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (*w
 	}
 	return chbh, nil
 }
+
+// GetUtxoStatus retrieves the UTXO status for a given script hash and outpoint.
+func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
+	if err := validateScriptHash(scriptHash); err != nil {
+		return nil, fmt.Errorf("invalid scripthash: %w", err)
+	}
+
+	url, err := scriptUnspentAllURL(woc.url, scriptHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build WoC URL: %w", err)
+	}
+
+	var response dto.ScriptHashUnspentResponse
+	res, err := woc.httpClient.
+		R().
+		SetContext(ctx).
+		SetResult(&response).
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query WoC for UTXO status: %w", err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d from WoC", res.StatusCode())
+	}
+	if response.Error != "" {
+		return nil, fmt.Errorf("WoC API error: %s", response.Error)
+	}
+
+	result := &wdk.UtxoStatusResult{
+		Name:    ServiceName,
+		Details: make([]wdk.UtxoDetail, 0, len(response.Result)),
+	}
+
+	for _, item := range response.Result {
+		result.Details = append(result.Details, wdk.UtxoDetail{
+			TxID:     item.TxHash,
+			Index:    item.TxPos,
+			Height:   item.Height,
+			Satoshis: item.Value,
+		})
+	}
+
+	if outpoint != nil {
+		result.IsUtxo = txutils.ContainsUtxo(result.Details, outpoint)
+	} else {
+		result.IsUtxo = len(result.Details) > 0
+	}
+
+	return result, nil
+}
