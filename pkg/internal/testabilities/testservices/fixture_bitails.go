@@ -427,13 +427,14 @@ func (b *bitailsScriptHistoryBuilder) WillBeReturned() {
 		for i := 0; i < b.confirmedCount; i++ {
 			height := b.startHeight + i
 			response.History = append(response.History, ScriptHistoryItem{
-				TxID:   fmt.Sprintf("c%010de1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", i),
+				TxID:   fmt.Sprintf("%02x%062s", i, "e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9"),
 				Height: &height,
 			})
 		}
 		for i := 0; i < b.unconfirmedCount; i++ {
+			txid := fmt.Sprintf("%02x%062s", i, "e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9")
 			response.History = append(response.History, ScriptHistoryItem{
-				TxID:   fmt.Sprintf("u%010de1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", i),
+				TxID:   txid,
 				Height: nil,
 			})
 		}

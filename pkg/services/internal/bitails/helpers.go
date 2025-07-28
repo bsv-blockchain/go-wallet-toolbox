@@ -226,7 +226,7 @@ func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash string) ([]
 	}
 
 	var dst dto.ScriptHistoryResponse
-	// NOTE: This fetches only the last history records - based on the limit argument. Pagination is not supported
+	// NOTE: Although pagination is not supported, we still send a "limit" to match WoC behavior (max 100 items returned).
 	req := b.httpClient.R().SetContext(ctx).SetResult(&dst).SetQueryParam("limit", fmt.Sprint(b.hashScriptHistoryPageLimit)).SetResult(&dst)
 
 	res, err := req.Get(url)

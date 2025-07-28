@@ -251,12 +251,12 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 		return nil, fmt.Errorf("invalid script hash %s: %w", scriptHash, err)
 	}
 
-	history, err := b.fetchScriptHistory(ctx, scriptHash)
+	scriptHistory, err := b.fetchScriptHistory(ctx, scriptHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch script hash history: %w", err)
 	}
 
-	items := slices.Map(history, func(item dto.ScriptHistoryItem) wdk.ScriptHistoryItem {
+	items := slices.Map(scriptHistory, func(item dto.ScriptHistoryItem) wdk.ScriptHistoryItem {
 		return wdk.ScriptHistoryItem{
 			TxHash: item.TxID,
 			Height: item.Height,

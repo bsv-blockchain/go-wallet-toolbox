@@ -27,10 +27,10 @@ func TestBitails_GetScriptHistory_WithTransactionsOneConfirmedOneUnconfirmed(t *
 	require.NoError(t, err)
 	require.Len(t, result.History, 2)
 
-	assert.Equal(t, "c0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
+	assert.Equal(t, "00000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
 	assert.NotNil(t, result.History[0].Height)
 
-	assert.Equal(t, "u0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[1].TxHash)
+	assert.Equal(t, "00000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[1].TxHash)
 	assert.Nil(t, result.History[1].Height)
 }
 
@@ -100,7 +100,7 @@ func TestBitails_GetScriptHistory_OnlyConfirmed(t *testing.T) {
 	// then
 	require.NoError(t, err)
 	assert.Len(t, result.History, 1)
-	assert.Equal(t, "c0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
+	assert.Equal(t, "00000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
 	assert.NotNil(t, result.History[0].Height)
 	assert.Equal(t, 800000, *result.History[0].Height)
 }
@@ -125,11 +125,11 @@ func TestBitails_GetScriptHistory_OnlyUnconfirmed(t *testing.T) {
 	// then
 	require.NoError(t, err)
 	assert.Len(t, result.History, 1)
-	assert.Equal(t, "u0000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
+	assert.Equal(t, "00000000000e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", result.History[0].TxHash)
 	assert.Nil(t, result.History[0].Height)
 }
 
-func TestBitails_GetScriptHistory_LargeHistory(t *testing.T) {
+func TestBitails_GetScriptHistory_ManyItems_NoPagination(t *testing.T) {
 	testCases := []struct {
 		name               string
 		confirmedCount     int
@@ -167,6 +167,8 @@ func TestBitails_GetScriptHistory_LargeHistory(t *testing.T) {
 		},
 	}
 
+	suffix := "e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9"
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given
@@ -190,14 +192,16 @@ func TestBitails_GetScriptHistory_LargeHistory(t *testing.T) {
 			assert.Len(t, result.History, tc.expectedTotalCount)
 
 			for i := 0; i < tc.confirmedCount; i++ {
+				expectedTxID := fmt.Sprintf("%02x%062s", i, suffix)
 				assert.NotNil(t, result.History[i].Height, "Confirmed transaction %d should have height", i)
 				assert.Equal(t, tc.startHeight+i, *result.History[i].Height)
-				assert.Equal(t, fmt.Sprintf("c%010de1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", i), result.History[i].TxHash)
+				assert.Equal(t, expectedTxID, result.History[i].TxHash)
 			}
 
 			for i := tc.confirmedCount; i < tc.confirmedCount+tc.unconfirmedCount; i++ {
+				expectedTxID := fmt.Sprintf("%02x%062s", i-tc.confirmedCount, suffix)
 				assert.Nil(t, result.History[i].Height, "Unconfirmed transaction %d should have nil height", i)
-				assert.Equal(t, fmt.Sprintf("u%010de1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9", i-tc.confirmedCount), result.History[i].TxHash)
+				assert.Equal(t, expectedTxID, result.History[i].TxHash)
 			}
 		})
 	}

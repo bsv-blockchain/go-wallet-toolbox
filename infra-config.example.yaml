@@ -58,6 +58,7 @@ wallet_services:
         url: http://localhost:8080
     bitails:
         api_key: ""
+        script_hash_history_page_limit: 100
     chaintracks: null
     chaintracks_fiat_exchange_rates_url: ""
     disable_mapi_callback: true
