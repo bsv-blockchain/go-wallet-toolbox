@@ -80,7 +80,7 @@ func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height
 
 	first := blocks[0]
 	if first.IsZero() {
-		return nil, fmt.Errorf("expected a non single block header at height %d. Verify the BSH API and query parameters used", height)
+		return nil, fmt.Errorf("expected a non-empty block header at height %d. Verify the BSH API and query parameters used", height)
 	}
 
 	return first.ConvertChainBaseBlockHeader(), nil
