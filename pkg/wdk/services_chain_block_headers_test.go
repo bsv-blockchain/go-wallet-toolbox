@@ -37,7 +37,7 @@ func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
 	}
 }
 
-func TestChainBaseBlockHeader_Bytes_PostiviePaths(t *testing.T) {
+func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 	tests := map[string]struct {
 		block         *wdk.ChainBaseBlockHeader
 		expectedBytes []byte
