@@ -14,7 +14,7 @@ func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
 		"invalid block header - the 'previous hash' field is defined as a non-hex value": {
 			block: &wdk.ChainBaseBlockHeader{PreviousHash: "#@A"},
 		},
-		"invalid block header - the 'merkle root' field us defined as a non-hex value": {
+		"invalid block header - the 'merkle root' field is defined as a non-hex value": {
 			block: &wdk.ChainBaseBlockHeader{MerkleRoot: "#@A"},
 		},
 		"invalid block header - both 'merkle root' and 'previous hash' fields are defined as non-hex value": {
