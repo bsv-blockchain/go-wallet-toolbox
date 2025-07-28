@@ -88,7 +88,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		service := given.Services().WithDefaultConfig()
 
 		// when:
-		actualBlock, err := service.FindChainTipHeader(t.Context())
+		actualBlock, err := service.GetChainHeaderByHeight(t.Context(), 0) // Assuming height 0 for empty response scenario
 
 		// then:
 		isNotMockTransportResponderError(t, err)
