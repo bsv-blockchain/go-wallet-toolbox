@@ -19,3 +19,9 @@ func WithSignAndProcess(signAndProcess bool) func(args *wallet.CreateActionArgs)
 		args.Options.SignAndProcess = to.Ptr(signAndProcess)
 	}
 }
+
+func WithNoSend(noSend bool) func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Options.NoSend = to.Ptr(noSend)
+	}
+}

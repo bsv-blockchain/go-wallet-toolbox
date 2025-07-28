@@ -190,8 +190,22 @@ func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, origin
 
 // AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
 func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, originator string) (*sdk.AbortActionResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	wdkArgs := mapping.MapAbortActionArgs(args)
+
+	if err := validate.ValidAbortActionArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid abort action args: %w", err)
+	}
+
+	result, err := w.storage.AbortAction(ctx, wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to abort action: %w", err)
+	}
+
+	return mapping.MapAbortActionResult(result), nil
 }
 
 // ListActions lists all transactions matching the specified labels.
