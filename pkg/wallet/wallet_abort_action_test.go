@@ -37,14 +37,21 @@ func TestWalletAbortActionArgsValidation(t *testing.T) {
 				}
 			},
 		},
-		"nil args": {
+		"empty args": {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.AbortActionArgs {
 				return sdk.AbortActionArgs{}
 			},
 		},
+		"invalid reference": {
+			originator: fixtures.DefaultOriginator,
+			args: func() sdk.AbortActionArgs {
+				return sdk.AbortActionArgs{
+					Reference: []byte("this is invalid reference"),
+				}
+			},
+		},
 	}
-
 	for name, test := range errorTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
@@ -72,13 +79,17 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		defer cleanup()
 
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
 		given.Faucet(aliceWallet).TopUp(100_000)
 
+		// and:
 		createArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false))
-		createResult, _ := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		createResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "cannot create action, invalid test setup?")
 
 		// when:
-		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(string(createResult.SignableTransaction.Reference))
+		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(createResult.SignableTransaction.Reference)
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
@@ -86,11 +97,14 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		require.NotNil(t, result)
 		assert.True(t, result.Aborted, "Action should be successfully aborted")
 
+		// and:
 		thenState := testabilities.ThenWalletState(t, aliceWallet)
 		thenState.HasActionsCount(1)
 	})
 
-	s.Run("successful abort with transaction ID as reference", func() {
+	s.Run("successful abort no send action with transaction ID as reference", func() {
+		// FIXME: #197
+		s.T().Skip("This should work after NoSend flag is implemented")
 		t := s.T()
 
 		// given:
@@ -98,16 +112,17 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		defer cleanup()
 
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
 		given.Faucet(aliceWallet).TopUp(100_000)
 
-		createArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false))
-		createResult, _ := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
-
-		reference := createResult.SignableTransaction.Reference
-		require.NotEmpty(t, reference, "Should have reference")
+		// and:
+		createArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithNoSend(true))
+		createResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "cannot create action, invalid test setup?")
 
 		// when:
-		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(string(reference))
+		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(createResult.Txid.String())
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
@@ -115,6 +130,7 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		require.NotNil(t, result)
 		assert.True(t, result.Aborted, "Action should be successfully aborted")
 
+		// and:
 		thenState := testabilities.ThenWalletState(t, aliceWallet)
 		thenState.HasActionsCount(1)
 	})
@@ -127,25 +143,36 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		defer cleanup()
 
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
-		given.Faucet(aliceWallet).TopUp(100_000)
 
+		// and:
+		given.Faucet(aliceWallet).TopUp(fixtures.DefaultCreateActionOutputSatoshis + 1)
+
+		// when: we're sending all the funds from top-up
 		createArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false))
-		createResult, _ := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		createResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "cannot create action, invalid test setup?")
 
-		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(string(createResult.SignableTransaction.Reference))
-		abortResult, _ := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
+		// and: we want to spend some more - we shouldn't have enough funds.
+		_, err = aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		require.Error(t, err, "should be unable to create action, because of not enough funds")
 
-		require.True(t, abortResult.Aborted, "Action should be aborted")
+		// and: now we're aborting the created transaction
+		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(createResult.SignableTransaction.Reference)
+		abortResult, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
-		// when:
-		newCreateArgs := fixtures.DefaultWalletCreateActionArgs(t)
-		newCreateResult, err := aliceWallet.CreateAction(t.Context(), newCreateArgs, fixtures.DefaultOriginator)
+		// then:
+		assert.NoError(t, err, "should be able to abort created transaction")
+		assert.True(t, abortResult.Aborted, "Action should be aborted")
+
+		// when: we want to spend some more funds again
+		newCreateResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
 
 		// then:
 		assert.NoError(t, err, "Should be able to create new action after abort")
 		require.NotNil(t, newCreateResult, "New create result should not be nil")
 		assert.NotEmpty(t, newCreateResult.Txid, "New action should have a TxID")
 
+		// and:
 		thenState := testabilities.ThenWalletState(t, aliceWallet)
 		thenState.HasActionsCount(2)
 	})
@@ -178,7 +205,6 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
-		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// when:
@@ -199,6 +225,8 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		defer cleanup()
 
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
 		faucetTx, _ := given.Faucet(aliceWallet).TopUp(100_000)
 
 		// when:
@@ -211,24 +239,32 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		assert.Contains(t, err.Error(), "must be an outgoing transaction")
 	})
 
-	s.Run("transaction not abortable - already failed", func() {
+	s.Run("transaction not abortable - already aborted", func() {
 		t := s.T()
 
 		// given:
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
+		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
 		given.Faucet(aliceWallet).TopUp(100_000)
 
+		// and:
 		createArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false))
-		createResult, _ := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
-		reference := createResult.SignableTransaction.Reference
+		createResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "cannot create action, invalid test setup?")
 
-		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(string(reference))
-		aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
+		// and:
+		abortArgs := fixtures.DefaultWalletAbortActionArgsWithReference(createResult.SignableTransaction.Reference)
 
-		// when:
+		// when
+		_, err = aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "cannot abort action, invalid test setup?")
+
+		// and:
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:

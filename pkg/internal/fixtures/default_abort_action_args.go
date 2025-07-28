@@ -1,6 +1,8 @@
 package fixtures
 
 import (
+	"fmt"
+
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
@@ -17,8 +19,17 @@ func DefaultWalletAbortActionArgs() sdk.AbortActionArgs {
 }
 
 // DefaultWalletAbortActionArgsWithReference returns SDK AbortActionArgs with custom reference
-func DefaultWalletAbortActionArgsWithReference(reference string) sdk.AbortActionArgs {
-	return sdk.AbortActionArgs{
-		Reference: []byte(reference),
+func DefaultWalletAbortActionArgsWithReference[Ref string | []byte](reference Ref) sdk.AbortActionArgs {
+	switch ref := any(reference).(type) {
+	case string:
+		return sdk.AbortActionArgs{
+			Reference: []byte(ref),
+		}
+	case []byte:
+		return sdk.AbortActionArgs{
+			Reference: ref,
+		}
+	default:
+		panic(fmt.Errorf("not supported reference type %T, check if all generics are handled", reference))
 	}
 }
