@@ -41,6 +41,21 @@ func (m *MockWalletStorageProvider) EXPECT() *MockWalletStorageProviderMockRecor
 	return m.recorder
 }
 
+// AbortAction mocks base method.
+func (m *MockWalletStorageProvider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AbortAction", ctx, auth, args)
+	ret0, _ := ret[0].(*wdk.AbortActionResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AbortAction indicates an expected call of AbortAction.
+func (mr *MockWalletStorageProviderMockRecorder) AbortAction(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AbortAction", reflect.TypeOf((*MockWalletStorageProvider)(nil).AbortAction), ctx, auth, args)
+}
+
 // CreateAction mocks base method.
 func (m *MockWalletStorageProvider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	m.ctrl.T.Helper()

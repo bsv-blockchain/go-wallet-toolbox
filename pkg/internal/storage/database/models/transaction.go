@@ -10,13 +10,13 @@ type Transaction struct {
 
 	UserID      int
 	Status      wdk.TxStatus
-	Reference   string `gorm:"index"`
+	Reference   string `gorm:"uniqueIndex"`
 	IsOutgoing  bool
 	Satoshis    int64
 	Description string `gorm:"type:string"`
 	Version     uint32
 	LockTime    uint32
-	TxID        *string
+	TxID        *string `gorm:"index"`
 	InputBeef   []byte
 
 	Outputs       []*Output   `gorm:"foreignKey:TransactionID"`
