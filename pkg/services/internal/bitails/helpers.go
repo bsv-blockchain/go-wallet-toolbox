@@ -219,30 +219,27 @@ func (b *Bitails) storeRootInCache(height uint32, root *chainhash.Hash) {
 	b.rootCache[height] = root
 }
 
-func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash, pgKey string, limit int) ([]dto.ScriptHistoryItem, string, error) {
+func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash string) ([]dto.ScriptHistoryItem, error) {
 	url, err := scriptHashHistoryURL(b.url, scriptHash)
 	if err != nil {
-		return nil, "", fmt.Errorf("build URL for script history: %w", err)
+		return nil, fmt.Errorf("build URL for script history: %w", err)
 	}
 
 	var dst dto.ScriptHistoryResponse
-	req := b.httpClient.R().SetContext(ctx)
-	if pgKey != "" {
-		req = req.SetQueryParam("pgkey", pgKey)
-	}
-	req = req.SetQueryParam("limit", fmt.Sprintf("%d", limit)).SetResult(&dst)
+	// NOTE: This fetches only the last history records - based on the limit argument. Pagination is not supported
+	req := b.httpClient.R().SetContext(ctx).SetResult(&dst).SetQueryParam("limit", fmt.Sprint(b.hashScriptHistoryPageLimit)).SetResult(&dst)
 
 	res, err := req.Get(url)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get script history: %w", err)
+		return nil, fmt.Errorf("failed to get script history: %w", err)
 	}
 
 	if res.StatusCode() != http.StatusOK {
-		return nil, "", fmt.Errorf("unexpected status code %d fetching script history", res.StatusCode())
+		return nil, fmt.Errorf("unexpected status code %d fetching script history", res.StatusCode())
 	}
 	if dst.Error != "" {
-		return nil, "", fmt.Errorf("error in script history response: %s", dst.Error)
+		return nil, fmt.Errorf("error in script history %s response: %s", dst.ScriptHash, dst.Error)
 	}
 
-	return dst.History, dst.PgKey, nil
+	return dst.History, nil
 }

@@ -23,9 +23,6 @@ const (
 	// DefaultRootForHeightRetries is the number of retries for fetching the root for height validation
 	DefaultRootForHeightRetries = 3
 
-	// DefaultPageLimit is the default limit for paginated requests for service get scripts history (100 is the maximum value for WoC)
-	DefaultPageLimit = 100
-
 	// ArcURL is the URL for the ARC service
 	ArcURL = "https://arc.taal.com"
 
@@ -108,6 +105,9 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			BroadcastDelay:             DefaultWoCBroadcastDelay,
 			RootForHeightRetryInterval: DefaultRootForHeightRetryInterval,
 			RootForHeightRetries:       DefaultRootForHeightRetries,
+		},
+		Bitails: Bitails{
+			ScriptHashHistoryPageLimit: defaultScriptHashHistoryPageLimit,
 		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,

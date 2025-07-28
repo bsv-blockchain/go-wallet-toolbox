@@ -15,19 +15,22 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Bitails struct {
-	httpClient *resty.Client
-	url        string
-	apiKey     string
-	logger     *slog.Logger
-	rootCache  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
-	cacheMu    sync.RWMutex
+	httpClient                 *resty.Client
+	url                        string
+	apiKey                     string
+	hashScriptHistoryPageLimit int
+	logger                     *slog.Logger
+	rootCache                  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
+	cacheMu                    sync.RWMutex
 }
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.Bitails) *Bitails {
@@ -248,18 +251,17 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 		return nil, fmt.Errorf("invalid script hash %s: %w", scriptHash, err)
 	}
 
-	history, _, err := b.fetchScriptHistory(ctx, scriptHash, "", defs.DefaultPageLimit)
+	history, err := b.fetchScriptHistory(ctx, scriptHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch script hash history: %w", err)
 	}
 
-	items := make([]wdk.ScriptHistoryItem, 0, len(history))
-	for _, item := range history {
-		items = append(items, wdk.ScriptHistoryItem{
+	items := slices.Map(history, func(item dto.ScriptHistoryItem) wdk.ScriptHistoryItem {
+		return wdk.ScriptHistoryItem{
 			TxHash: item.TxID,
 			Height: item.Height,
-		})
-	}
+		}
+	})
 
 	return &wdk.ScriptHistoryResult{
 		Name:       ServiceName,
