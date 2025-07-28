@@ -184,7 +184,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	// TODO: Remove too long locking scripts (len > storage.maxOutputScript)
 
 	newTxStatus, newReqStatus := p.newStatuses(ctx, userID, args)
-	
+
 	p.logger.InfoContext(ctx, "Updating transaction with new status",
 		logging.UserID(userID),
 		logging.Reference(reference),
