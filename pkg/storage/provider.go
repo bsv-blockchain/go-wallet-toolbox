@@ -323,14 +323,48 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
+
+	p.logger.DebugContext(ctx, "Validating processAction args")
 	if err := validate.ProcessActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid processAction args: %w", err)
 	}
 
+	var reference string
+	if args.Reference != nil {
+		reference = *args.Reference
+	}
+
+	p.logger.InfoContext(ctx, "Starting ProcessAction process",
+		logging.UserID(auth.UserID),
+		logging.Reference(reference),
+		slog.Bool("isNewTx", args.IsNewTx),
+		slog.Bool("isSendWith", args.IsSendWith),
+		slog.Bool("isNoSend", args.IsNoSend),
+		slog.Bool("isDelayed", args.IsDelayed),
+		slog.String("txID", func() string {
+			if args.TxID != nil {
+				return string(*args.TxID)
+			}
+			return ""
+		}()),
+	)
+
 	res, err := p.actions.Process(ctx, *auth.UserID, &args)
 	if err != nil {
+		p.logger.DebugContext(ctx, "ProcessAction completed with error",
+			logging.UserID(auth.UserID),
+			logging.Reference(reference),
+		)
 		return nil, fmt.Errorf("failed to process processAction: %w", err)
 	}
+
+	p.logger.InfoContext(ctx, "ProcessAction completed successfully",
+		logging.UserID(auth.UserID),
+		logging.Reference(reference),
+		slog.Int("sendWithResultsCount", len(res.SendWithResults)),
+		slog.Int("notDelayedResultsCount", len(res.NotDelayedResults)),
+	)
+
 	return res, nil
 }
 
