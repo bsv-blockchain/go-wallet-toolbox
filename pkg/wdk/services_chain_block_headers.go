@@ -1,6 +1,8 @@
 package wdk
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 
@@ -93,4 +95,54 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 	writeUint32BE(uint64(c.Nonce))
 
 	return w.Buf, nil
+}
+
+func (c *ChainBaseBlockHeader) Bytes2() ([]byte, error) {
+	hash, err := hex.DecodeString(c.PreviousHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
+	}
+
+	root, err := hex.DecodeString(c.MerkleRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert 'merkle root' field into bytes slice: %w", err)
+	}
+
+	var w buffWriter
+
+	errs := []error{
+		w.WriteReversedBytes(hash),
+		w.WriteReversedBytes(root),
+		w.WriteBigEndianOrder(c.Time),
+		w.WriteBigEndianOrder(c.Bits),
+		w.WriteBigEndianOrder(c.Nonce),
+	}
+
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return w.buff.Bytes(), nil
+}
+
+type buffWriter struct {
+	buff bytes.Buffer
+}
+
+func (b *buffWriter) WriteReversedBytes(data []byte) error {
+	for i := len(data) - 1; i >= 0; i-- {
+		if err := b.buff.WriteByte(data[i]); err != nil {
+			return fmt.Errorf("failed to write byte %d of data '%s' : %w", i, data, err)
+		}
+	}
+	return nil
+}
+
+func (b *buffWriter) WriteBigEndianOrder(v any) error {
+	if err := binary.Write(&b.buff, binary.BigEndian, v); err != nil {
+		return fmt.Errorf("failed to the binary representation of data '%v' to buffer: %w", v, err)
+	}
+	return nil
 }
