@@ -11,6 +11,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestXYZ(t *testing.T) {
+	// resty := httpx.NewRestyClientFactory().New()
+	// service := bhs.New(resty, slog.Default(), defs.NetworkMainnet, defs.BHS{
+	// 	URL:    "http://localhost:8080/api/v1",
+	// 	APIKey: "mQZQ6WmxURxWz5ch",
+	// })
+
+	// res, err := service.GetChainHeaderByHeight(t.Context(), 1024)
+	// require.NoError(t, err)
+	// require.NotNil(t, res)
+
+	data := wdk.ChainBaseBlockHeader{
+		Version:      1,
+		PreviousHash: "00000000e8817bc0ab40272591666f084b92130eee0e5172c04512dd6409fcb7",
+		MerkleRoot:   "e4fec85d2803c115a10ed8276514ba76e769c1ca85a8c577b655fcdecc323ef1",
+		Time:         1232367378,
+		Bits:         0,
+		Nonce:        366454553,
+	}
+
+	bb, err := data.Bytes()
+	require.NoError(t, err)
+	require.NotNil(t, bb)
+}
+
 func TestBlockHeadersService_GetHeight(t *testing.T) {
 	// given:
 	given := bhsTst.Given(t)

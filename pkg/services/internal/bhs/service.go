@@ -55,7 +55,10 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 }
 
 func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
-	const url = "/chain/header/byHeight"
+	url, err := headerByHeight(b.cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("error building URL: %w", err)
+	}
 
 	var blocks []dto.BlockHeaderHeight
 	res, err := b.httpClient.R().
@@ -65,10 +68,10 @@ func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height
 		SetQueryParam("count", "1").
 		Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d): %w", b.httpClient.BaseURL+url, res.StatusCode(), err)
+		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d): %w", res.Request.URL, res.StatusCode(), err)
 	}
 	if !res.IsSuccess() {
-		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", b.httpClient.BaseURL+url, res.StatusCode())
+		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", res.Request.URL, res.StatusCode())
 	}
 
 	if len(blocks) > 1 || len(blocks) == 0 {

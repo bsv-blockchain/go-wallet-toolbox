@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-
-	"github.com/bsv-blockchain/go-sdk/util"
 )
 
 // ChainBaseBlockHeader represents the raw fields of a Bitcoin block header,
@@ -32,11 +30,11 @@ type ChainBaseBlockHeader struct {
 
 	// Time is the Unix timestamp indicating when the block was created.
 	// Serialized as 4 bytes.
-	Time uint64
+	Time uint32
 
 	// Bits represents the compact encoding of the block's target difficulty.
 	// Serialized as 4 bytes.
-	Bits uint64
+	Bits uint32
 
 	// Nonce is the 32-bit nonce used in the mining process to vary the block hash.
 	// Serialized as 4 bytes.
@@ -69,7 +67,7 @@ func (c *ChainBaseBlockHeader) Hex() (string, error) {
 
 // Bytes returns the serialized byte representation of the block header.
 // It includes the reversed previous block hash and Merkle root,
-// followed by time, bits, and nonce fields written in big-endian order.
+// followed by time, bits, and nonce fields written in little-endian order.
 // Returns an error if any of the fields cannot be parsed or written.
 func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 	hash, err := hex.DecodeString(c.PreviousHash)
@@ -82,40 +80,14 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("failed to convert 'merkle root' field into bytes slice: %w", err)
 	}
 
-	w := util.NewWriter()
-	writeUint32BE := func(v uint64) {
-		w.Buf = append(w.Buf, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
-	}
-
-	writeUint32BE(uint64(c.Version))
-	w.WriteBytesReverse(hash)
-	w.WriteBytesReverse(root)
-	writeUint32BE(c.Time)
-	writeUint32BE(c.Bits)
-	writeUint32BE(uint64(c.Nonce))
-
-	return w.Buf, nil
-}
-
-func (c *ChainBaseBlockHeader) Bytes2() ([]byte, error) {
-	hash, err := hex.DecodeString(c.PreviousHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
-	}
-
-	root, err := hex.DecodeString(c.MerkleRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert 'merkle root' field into bytes slice: %w", err)
-	}
-
-	var w buffWriter
-
+	var buff bytes.Buffer
 	errs := []error{
-		w.WriteReversedBytes(hash),
-		w.WriteReversedBytes(root),
-		w.WriteBigEndianOrder(c.Time),
-		w.WriteBigEndianOrder(c.Bits),
-		w.WriteBigEndianOrder(c.Nonce),
+		writeLittleEndianOrder(&buff, c.Version),
+		writeReversedBytes(&buff, hash),
+		writeReversedBytes(&buff, root),
+		writeLittleEndianOrder(&buff, c.Time),
+		writeLittleEndianOrder(&buff, c.Bits),
+		writeLittleEndianOrder(&buff, c.Nonce),
 	}
 
 	for _, err := range errs {
@@ -124,24 +96,20 @@ func (c *ChainBaseBlockHeader) Bytes2() ([]byte, error) {
 		}
 	}
 
-	return w.buff.Bytes(), nil
+	return buff.Bytes(), nil
 }
 
-type buffWriter struct {
-	buff bytes.Buffer
-}
-
-func (b *buffWriter) WriteReversedBytes(data []byte) error {
+func writeReversedBytes(buff *bytes.Buffer, data []byte) error {
 	for i := len(data) - 1; i >= 0; i-- {
-		if err := b.buff.WriteByte(data[i]); err != nil {
+		if err := buff.WriteByte(data[i]); err != nil {
 			return fmt.Errorf("failed to write byte %d of data '%s' : %w", i, data, err)
 		}
 	}
 	return nil
 }
 
-func (b *buffWriter) WriteBigEndianOrder(v any) error {
-	if err := binary.Write(&b.buff, binary.BigEndian, v); err != nil {
+func writeLittleEndianOrder(buff *bytes.Buffer, v any) error {
+	if err := binary.Write(buff, binary.LittleEndian, v); err != nil {
 		return fmt.Errorf("failed to the binary representation of data '%v' to buffer: %w", v, err)
 	}
 	return nil

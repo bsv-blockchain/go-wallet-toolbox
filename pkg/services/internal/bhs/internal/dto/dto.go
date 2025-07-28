@@ -25,8 +25,8 @@ func (b *BlockHeaderHeight) ConvertChainBaseBlockHeader() *wdk.ChainBaseBlockHea
 		Version:      b.Version,
 		PreviousHash: b.PreviousBlock,
 		MerkleRoot:   b.MerkleRoot,
-		Time:         uint64(b.Timestamp),
-		Bits:         uint64(b.DifficultyTarget),
+		Time:         b.Timestamp,
+		Bits:         b.DifficultyTarget,
 		Nonce:        b.Nonce,
 	}
 }
@@ -36,7 +36,7 @@ type TipResponse struct {
 	Version          uint32   `json:"version"`
 	PreviousBlock    string   `json:"prevBlockHash"`
 	MerkleRoot       string   `json:"merkleRoot"`
-	Timestamp        uint64   `json:"creationTimestamp"`
+	Timestamp        uint32   `json:"creationTimestamp"`
 	DifficultyTarget uint32   `json:"difficultyTarget"`
 	Nonce            uint32   `json:"nonce"`
 	Work             *big.Int `json:"work"`
