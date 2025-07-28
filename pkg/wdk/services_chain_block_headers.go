@@ -110,7 +110,7 @@ func writeReversedBytes(buff *bytes.Buffer, data []byte) error {
 
 func writeLittleEndianOrder(buff *bytes.Buffer, v any) error {
 	if err := binary.Write(buff, binary.LittleEndian, v); err != nil {
-		return fmt.Errorf("failed to the binary representation of data '%v' to buffer: %w", v, err)
+		return fmt.Errorf("failed to write the binary representation of data '%v' to buffer: %w", v, err)
 	}
 	return nil
 }
