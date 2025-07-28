@@ -110,3 +110,13 @@ func (m *WalletStorageManager) ListActions(ctx context.Context, args wdk.ListAct
 
 	return m.getActiveReader().ListActions(ctx, auth, args)
 }
+
+// AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
+func (m *WalletStorageManager) AbortAction(ctx context.Context, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveWriter().AbortAction(ctx, auth, args)
+}
