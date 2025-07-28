@@ -22,6 +22,7 @@ import (
 type StorageReader interface {
 	KnownTxEntity() crud.KnownTx
 	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
+	FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
@@ -31,6 +32,7 @@ type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
 	HasKnownTX(txID string) KnownTxAssertion
 	HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion
+	HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
 
@@ -249,6 +251,22 @@ func (d *dbStateAssertion) HasUserTransactionByReference(user testusers.User, re
 	}
 }
 
+func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion {
+	d.Helper()
+
+	userID := d.userIDByIdentityKey(user.IdentityKey(d))
+	tx, err := d.storage.FindUserTransactionByTxID(d.Context(), userID, txID)
+	require.NoError(d.TB, err)
+	require.NotNil(d.TB, tx)
+
+	assert.Equal(d, txID, *tx.TxID, "Expected user transaction to have the same TxID as the one requested")
+
+	return &userTransactionAssertion{
+		TB:          d.TB,
+		transaction: tx,
+	}
+}
+
 type userTransactionAssertion struct {
 	testing.TB
 	transaction *entity.Transaction
@@ -320,7 +338,7 @@ func (d *outputsListAssertion) WithCountHavingOutpoint(expected int) OutputsList
 		err := output.Outpoint.Validate()
 		return err == nil
 	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with valid outpoints, but got %d", expected, count)
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID %d, but got %d", expected, count)
 	return d
 }
 

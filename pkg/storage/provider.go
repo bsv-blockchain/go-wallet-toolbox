@@ -334,6 +334,23 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 	return res, nil
 }
 
+// AbortAction aborts an action by its reference for the authenticated user.
+func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	if err := validate.ValidAbortActionArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid abortActionArgs args: %w", err)
+	}
+
+	result, err := p.actions.AbortAction(ctx, *auth.UserID, &args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to abort action: %w", err)
+	}
+	return result, nil
+}
+
 // SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
 func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 	err := p.actions.SynchronizeTxStatuses(ctx)
@@ -491,6 +508,17 @@ func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID in
 	txEntity, err := p.repo.Transactions.FindTransactionByReference(ctx, userID, reference)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find transaction by ID: %w", err)
+	}
+
+	return txEntity, nil
+}
+
+// FindUserTransactionByTxID retrieves a user transaction by userID and its transaction ID.
+// NOTE: It returns nil if the transaction is not found.
+func (p *Provider) FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
+	txEntity, err := p.repo.Transactions.FindTransactionByUserIDAndTxID(ctx, userID, txID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transaction by txid: %w", err)
 	}
 
 	return txEntity, nil
