@@ -59,23 +59,23 @@ Provided below are two methods to get started with using the wallet toolbox.
 <br>**Note**:💡 These Faucet Examples are created as a helpers to get funds into the wallet to be able to use other examples.
 
 ## Faucet Examples
-- [Faucet - Address](./wallet_examples/faucet_address/README.md) - Generate the user address and use a testnet faucet to receive funds.
-- [Faucet - Internalize](./wallet_examples/faucet_internalize/README) - Internalize a testnet transaction to the wallet toolbox.
+- [Faucet - Address](./wallet_examples/faucet_address/faucet_address.md) - Generate the user address and use a testnet faucet to receive funds.
+- [Faucet - Internalize](./wallet_examples/faucet_internalize/faucet_internalize.md) - Internalize a testnet transaction to the wallet toolbox.
 
 ## Wallet Examples
-- [List Actions](./wallet_examples/list_actions/README) - Get list of wallet actions of a specified user. //TODO: Add README
-- [List Outputs](./wallet_examples/list_outputs/README) - Get list of transaction outputs of a specified user. //TODO: Add README
-- [Internalize Action](./wallet_examples/internalize_action/README) - Record an external wallet action of a specified user. //TODO: Add README
-- [Create Action](./wallet_examples/create_action/README) - Create a new wallet action of a specified user. //TODO: Add README
+- [List Actions](./wallet_examples/list_actions/list_actions.md) - Get list of wallet actions of a specified user.
+- [List Outputs](./wallet_examples/list_outputs/README.md) - Get list of transaction outputs of a specified user. //TODO: Add README
+- [Internalize Action](./wallet_examples/internalize_action/README.md) - Record an external wallet action of a specified user. //TODO: Add README
+- [Create Action](./wallet_examples/create_action/README.md) - Create a new wallet action of a specified user. //TODO: Add README
 
 ## Services Examples
-- [Find Chain Tip Header](./services_examples//find_chain_tip_header/README) - Finds the latest block header in the longest chain.
-- [Height](./services_examples/height/README) - Fetch current block height.
-- [Is Valid Root](./services_examples/is_valid_root/README) - Validates that a root hex is valid for a specified height.
-- [Merkle Path](./services_examples/merkle_path/README) - Fetching Merkle Path for specified txID.
-- [Post BEEF](./services_examples/post_beef/README) - Broadcasting a single BSV transaction.
-- [Post BEEF Hex](./services_examples/post_beef_hex/README) - Broadcasting a single BSV transaction hex format.
-- [Post BEEF Multiple txs](./services_examples/post_multiple_txs/README) - Broadcasting multiple transactions (grandparent, parent, and child).
+- [Find Chain Tip Header](./services_examples/find_chain_tip_header/find_chain_tip_header.md) - Finds the latest block header in the longest chain.
+- [Height](./services_examples/current_height/current_height.md) - Fetch current block height.
+- [Is Valid Root](./services_examples/is_valid_root/is_valid_root_for_height.md) - Validates that a root hex is valid for a specified height.
+- [Merkle Path](./services_examples/merkle_path/merkle_path.md) - Fetching Merkle Path for specified txID.
+- [Post BEEF](./services_examples/post_beef/post_beef.md) - Broadcasting a single BSV transaction.
+- [Post BEEF Hex](./services_examples/post_beef_hex/post_beef_hex.md) - Broadcasting a single BSV transaction hex format.
+- [Post BEEF Multiple txs](./services_examples/post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions (grandparent, parent, and child).
 
 ## Explanations
 ### BEEF (Background Evaluation Extended Format)
