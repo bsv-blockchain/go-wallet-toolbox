@@ -83,32 +83,73 @@ go run ./examples/services_examples/post_beef/post_beef.go
 Expected output:
 
 ```text
-===========================================================
-Service ARC PostBEEF result:
-	Success:
-		TX ID: 1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-		Result:	 success
-		AlreadyKnown:	 false
-		DoubleSpend:	 false
-		BlockHash:	 
-		BlockHeight:	 0
-		MerklePath:	 
-		CompetingTxs:	 []
-		Notes:	 
-		Data:	 
-===========================================================
-Service WhatsOnChain PostBEEF result:
-	Success:
-		TX ID: 1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-		Result:	 success
-		AlreadyKnown:	 true
-		DoubleSpend:	 false
-		BlockHash:   
-        BlockHeight:     0
-        MerklePath:  
-        CompetingTxs:    []
-        Notes:   
-        Data:   
+🚀 STARTING: Post BEEF
+============================================================
+
+=== STEP ===
+Transaction is performing: preparing transaction from BEEF source
+--------------------------------------------------
+
+=== STEP ===
+Wallet-Services is performing: broadcasting transaction 14f6d37f952d38398597df924342994124939f35f692676257a86bd8c52ab035
+--------------------------------------------------
+✅ SUCCESS: Posted BEEF to services
+
+============================================================
+POST BEEF RESULTS
+============================================================
+
+========================================
+Service: ARC
+✅ Success
+
+  📋 Transaction Result:
+    TX ID: 14f6d37f952d38398597df924342994124939f35f692676257a86bd8c52ab035
+    Result: success
+    Already Known: false
+    Double Spend: false
+    Block Hash:
+    Block Height: 0
+    Merkle Path: <nil>
+    Competing TXs: []
+    Notes: [0xc00007c340]
+    Data:
+
+========================================
+Service: WhatsOnChain
+✅ Success
+
+  📋 Transaction Result:
+    TX ID: 14f6d37f952d38398597df924342994124939f35f692676257a86bd8c52ab035
+    Result: success
+    Already Known: false
+    Double Spend: false
+    Block Hash:
+    Block Height: 0
+    Merkle Path: <nil>
+    Competing TXs: []
+    Notes: [0xc00007c340]
+    Data:
+
+========================================
+Service: Bitails
+✅ Success
+
+  📋 Transaction Result:
+    TX ID: 14f6d37f952d38398597df924342994124939f35f692676257a86bd8c52ab035
+    Result: success
+    Already Known: false
+    Double Spend: false
+    Block Hash:
+    Block Height: 0
+    Merkle Path: <nil>
+    Competing TXs: []
+    Notes: [0xc00007c340]
+    Data:
+	
+============================================================
+🎉 COMPLETED: Post BEEF
+
 ```
 
 ## Integration Steps
@@ -159,6 +200,6 @@ for _, result := range results {
 ## Additional Resources
 
 - [BEEF Specification](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md) - BRC-62 BEEF format documentation
-- [Post BEEF](./post_beef.go) - Broadcast a BSV transaction using BEEF format
-- [Post BEEF Hex Example](../post_beef_hex/post_beef_hex.md) - Alternative hex-based broadcasting
-- [Post Multiple Transactions Example](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions
+- [Post BEEF Example](./post_beef.go) - Broadcast a BSV transaction using BEEF format
+- [Post BEEF Hex Documentation](../post_beef_hex/post_beef_hex.md) - Broadcast from existing BEEF hex
+- [Post Multiple Transactions Documentation](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions

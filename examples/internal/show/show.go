@@ -211,25 +211,12 @@ func PostBEEFOutput(results []*wdk.PostBEEFServiceResult) {
 				} else {
 					fmt.Printf("    %sAlready Known:%s %t\n", ColorCyan, ColorReset, txResult.AlreadyKnown)
 					fmt.Printf("    %sDouble Spend:%s %t\n", ColorCyan, ColorReset, txResult.DoubleSpend)
-
-					if txResult.BlockHash != "" {
-						fmt.Printf("    %sBlock Hash:%s %s\n", ColorCyan, ColorReset, txResult.BlockHash)
-					}
-					if txResult.BlockHeight > 0 {
-						fmt.Printf("    %sBlock Height:%s %d\n", ColorCyan, ColorReset, txResult.BlockHeight)
-					}
-					if txResult.MerklePath != nil {
-						fmt.Printf("    %sMerkle Path:%s Present\n", ColorCyan, ColorReset)
-					}
-					if len(txResult.CompetingTxs) > 0 {
-						fmt.Printf("    %sCompeting TXs:%s %v\n", ColorCyan, ColorReset, txResult.CompetingTxs)
-					}
-					if len(txResult.Notes) > 0 {
-						fmt.Printf("    %sNotes:%s %d note(s)\n", ColorCyan, ColorReset, len(txResult.Notes))
-					}
-					if txResult.Data != "" {
-						fmt.Printf("    %sData:%s %s\n", ColorCyan, ColorReset, txResult.Data)
-					}
+					fmt.Printf("    %sBlock Hash:%s %s\n", ColorCyan, ColorReset, txResult.BlockHash)
+					fmt.Printf("    %sBlock Height:%s %d\n", ColorCyan, ColorReset, txResult.BlockHeight)
+					fmt.Printf("    %sMerkle Path:%s %v\n", ColorCyan, ColorReset, txResult.MerklePath)
+					fmt.Printf("    %sCompeting TXs:%s %v\n", ColorCyan, ColorReset, txResult.CompetingTxs)
+					fmt.Printf("    %sNotes:%s %v\n", ColorCyan, ColorReset, txResult.Notes)
+					fmt.Printf("    %sData:%s %s\n", ColorCyan, ColorReset, txResult.Data)
 				}
 			}
 		}
