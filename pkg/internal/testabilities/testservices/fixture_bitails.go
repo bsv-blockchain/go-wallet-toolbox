@@ -30,6 +30,7 @@ type BitailsFixture interface {
 	WillReturnRawTx404(txid string)
 	WillReturnRawTxHttpError(txid string, status int)
 	WillRespondWithInternalFailure()
+	ScriptHistoryData() ScriptHistoryDataBuilder
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
 	Transport() *httpmock.MockTransport
@@ -312,5 +313,141 @@ func (b *bitailsFixture) WillReturnRawTxHttpError(txid string, status int) {
 		http.MethodGet,
 		regexp.MustCompile(pattern),
 		httpmock.NewStringResponder(status, http.StatusText(status)),
+	)
+}
+
+func (b *bitailsFixture) ScriptHistoryData() ScriptHistoryDataBuilder {
+	return &bitailsScriptHistoryBuilder{
+		fixture:          b,
+		scriptHash:       "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832",
+		confirmedCount:   2,
+		unconfirmedCount: 1,
+		startHeight:      800000,
+	}
+}
+
+type bitailsScriptHistoryBuilder struct {
+	fixture               *bitailsFixture
+	scriptHash            string
+	confirmedCount        int
+	unconfirmedCount      int
+	startHeight           int
+	apiError              string
+	confirmedStatusCode   int
+	unconfirmedStatusCode int
+}
+
+func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
+	b.confirmedCount = count
+	b.startHeight = startHeight
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder {
+	b.unconfirmedCount = count
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithEmptyHistory() ScriptHistoryDataBuilder {
+	b.confirmedCount = 0
+	b.unconfirmedCount = 0
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithScriptHash(scriptHash string) ScriptHistoryDataBuilder {
+	b.scriptHash = scriptHash
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithConfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder {
+	b.confirmedStatusCode = statusCode
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithUnconfirmedStatusCode(statusCode int) ScriptHistoryDataBuilder {
+	b.unconfirmedStatusCode = statusCode
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder {
+	b.apiError = errorMsg
+	b.confirmedCount = 0
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithUnconfirmedTransactionsError(errorMsg string) ScriptHistoryDataBuilder {
+	b.apiError = errorMsg
+	b.unconfirmedCount = 0
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactionsNotFound() ScriptHistoryDataBuilder {
+	b.confirmedStatusCode = http.StatusNotFound
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithUnconfirmedTransactionsNotFound(errorMsg string) ScriptHistoryDataBuilder {
+	b.unconfirmedStatusCode = http.StatusNotFound
+	b.apiError = errorMsg
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder {
+	b.confirmedStatusCode = http.StatusInternalServerError
+	b.apiError = errorMsg
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WithUnconfirmedTransactionsInternalError(errorMsg string) ScriptHistoryDataBuilder {
+	b.unconfirmedStatusCode = http.StatusInternalServerError
+	b.apiError = errorMsg
+	return b
+}
+
+func (b *bitailsScriptHistoryBuilder) WillBeReturned() {
+	b.fixture.TB.Helper()
+
+	type ScriptHistoryItem struct {
+		TxID   string `json:"txid"`
+		Height *int   `json:"blockheight,omitempty"`
+	}
+	type ScriptHistoryResponse struct {
+		ScriptHash string              `json:"scripthash,omitempty"`
+		History    []ScriptHistoryItem `json:"history"`
+		PgKey      string              `json:"pgkey,omitempty"`
+		Error      string              `json:"error,omitempty"`
+	}
+
+	var response ScriptHistoryResponse
+	response.ScriptHash = b.scriptHash
+
+	if b.apiError != "" {
+		response.Error = b.apiError
+	} else {
+		for i := 0; i < b.confirmedCount; i++ {
+			height := b.startHeight + i
+			response.History = append(response.History, ScriptHistoryItem{
+				TxID:   fmt.Sprintf("%02x%062s", i, "e1b71dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9"),
+				Height: &height,
+			})
+		}
+		for i := 0; i < b.unconfirmedCount; i++ {
+			txid := fmt.Sprintf("%02x%062s", i, "e1b81dd2c9c0c6cd67f9bdf832e9c2bb12a1d57f30cb6ebbe78d9")
+			response.History = append(response.History, ScriptHistoryItem{
+				TxID:   txid,
+				Height: nil,
+			})
+		}
+	}
+
+	statusCode := http.StatusOK
+	if b.confirmedStatusCode != 0 {
+		statusCode = b.confirmedStatusCode
+	}
+
+	b.fixture.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`/scripthash/`+regexp.QuoteMeta(b.scriptHash)+`/history(?:\?.*)?$`),
+		httpmock.NewJsonResponderOrPanic(statusCode, response),
 	)
 }
