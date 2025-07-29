@@ -16,6 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gen"
 	"gorm.io/gorm"
@@ -154,14 +155,11 @@ func (p *KnownTx) FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map
 		return nil, fmt.Errorf("failed to find proven tx statuses for list of txIDs: %w", err)
 	}
 
-	return seq.Reduce(
-		seq.FromSlice(rows),
-		func(acc map[string]wdk.ProvenTxReqStatus, row *models.KnownTx) map[string]wdk.ProvenTxReqStatus {
-			acc[row.TxID] = row.Status
-			return acc
-		},
-		make(map[string]wdk.ProvenTxReqStatus, len(rows)),
-	), nil
+	txIDStatuses := seq.MapTo(seq.FromSlice(rows), func(row *models.KnownTx) (string, wdk.ProvenTxReqStatus) {
+		return row.TxID, row.Status
+	})
+
+	return seq2.CollectToMap(txIDStatuses), nil
 }
 
 func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
@@ -188,7 +186,7 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 	return count == int64(len(txIDs)), nil
 }
 
-func (p *KnownTx) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
+func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, statusesToFilterOut)
 	if err != nil {
@@ -277,7 +275,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeT
 	return nil
 }
 
-func (p *KnownTx) BuildValidBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
+func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 
 	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions

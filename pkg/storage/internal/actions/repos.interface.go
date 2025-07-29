@@ -42,9 +42,9 @@ type KnownTxRepo interface {
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)
-	BuildValidBEEF(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
+	GetBEEFForTxID(ctx context.Context, txID string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
 	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error
-	BuildValidBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
+	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (*transaction.Beef, error)
 	AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
 	IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
 	SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
