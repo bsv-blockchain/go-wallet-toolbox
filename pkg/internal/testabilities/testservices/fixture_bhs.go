@@ -13,14 +13,10 @@ import (
 	"github.com/jarcoal/httpmock"
 )
 
-type endpoint string
-
-func (e endpoint) build() string { return defs.BHSTestURL + string(e) }
-
 const (
-	tipLongestPath       endpoint = "/api/v1/chain/tip/longest"
-	verifyMerkleRootPath endpoint = "/api/v1/chain/merkleroot/verify"
-	headerByHeightPath   endpoint = "/api/v1/chain/header/byHeight"
+	tipLongestPath       = defs.BHSTestURL + "/api/v1/chain/tip/longest"
+	verifyMerkleRootPath = defs.BHSTestURL + "/api/v1/chain/merkleroot/verify"
+	headerByHeightPath   = defs.BHSTestURL + "/api/v1/chain/header/byHeight"
 )
 
 type LongestChainTipOptions func(*longestChainTipResponse)
@@ -67,7 +63,7 @@ func (b *bhsFixture) WillRespondWithEmptyLongestTipBlockHeader() {
 	b.Helper()
 	b.transport.RegisterResponder(
 		http.MethodGet,
-		tipLongestPath.build(),
+		tipLongestPath,
 		httpmock.NewStringResponder(http.StatusOK, "{}"),
 	)
 }
@@ -76,7 +72,7 @@ func (b *bhsFixture) WillRespondWithEmptyHeaderByHeightResponse() {
 	b.Helper()
 	b.transport.RegisterResponder(
 		http.MethodGet,
-		headerByHeightPath.build(),
+		headerByHeightPath,
 		httpmock.NewStringResponder(http.StatusOK, "{}"),
 	)
 }
@@ -92,7 +88,7 @@ func (b *bhsFixture) OnMerkleRootVerifyResponse(height uint32, root, state strin
 	b.Helper()
 	b.transport.RegisterResponder(
 		http.MethodPost,
-		verifyMerkleRootPath.build(),
+		verifyMerkleRootPath,
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
 			"blockHeight":       height,
 			"merkleRoot":        root,
@@ -134,7 +130,7 @@ func (b *bhsFixture) IsUpAndRunning() BHSFixture {
 	b.Helper()
 	b.transport.RegisterResponder(
 		http.MethodGet,
-		tipLongestPath.build(),
+		tipLongestPath,
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
 			"header":    b.longestChainTip,
 			"height":    b.longestChainTip.Height,
@@ -145,7 +141,7 @@ func (b *bhsFixture) IsUpAndRunning() BHSFixture {
 
 	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		regexp.MustCompile(fmt.Sprintf(`^%s%s.*`, defs.BHSTestURL, headerByHeightPath)),
+		regexp.MustCompile(fmt.Sprintf(`^%s.*`, headerByHeightPath)),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, b.headerByHeightResponse),
 	)
 

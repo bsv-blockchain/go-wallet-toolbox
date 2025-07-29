@@ -75,25 +75,37 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
 	}
 
+	if len(hash) != 32 {
+		return nil, fmt.Errorf("'previous hash' field should be a 32 byte-hex length")
+	}
+
 	root, err := hex.DecodeString(c.MerkleRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert 'merkle root' field into bytes slice: %w", err)
 	}
 
-	var buff bytes.Buffer
-	errs := []error{
-		writeLittleEndianOrder(&buff, c.Version),
-		writeReversedBytes(&buff, hash),
-		writeReversedBytes(&buff, root),
-		writeLittleEndianOrder(&buff, c.Time),
-		writeLittleEndianOrder(&buff, c.Bits),
-		writeLittleEndianOrder(&buff, c.Nonce),
+	if len(root) != 32 {
+		return nil, fmt.Errorf("'merkle root' field should be a 32 byte-hex length")
 	}
 
-	for _, err := range errs {
-		if err != nil {
-			return nil, err
-		}
+	buff := bytes.NewBuffer(make([]byte, 0, 80))
+	if err := writeLittleEndianOrder(buff, c.Version); err != nil {
+		return nil, fmt.Errorf("failed to write the 'version' field bytes in little-endian order: %w", err)
+	}
+	if err := writeReversedBytes(buff, hash); err != nil {
+		return nil, fmt.Errorf("failed to write the 'merkle root' field bytes in little-endian order: %w", err)
+	}
+	if err := writeReversedBytes(buff, root); err != nil {
+		return nil, fmt.Errorf("failed to write the 'merkle root' field bytes in little-endian order: %w", err)
+	}
+	if err := writeLittleEndianOrder(buff, c.Time); err != nil {
+		return nil, fmt.Errorf("failed to write the 'merkle root' field bytes in little-endian order: %w", err)
+	}
+	if err := writeLittleEndianOrder(buff, c.Bits); err != nil {
+		return nil, fmt.Errorf("failed to write the 'bits' field bytes in little-endian order: %w", err)
+	}
+	if err := writeLittleEndianOrder(buff, c.Nonce); err != nil {
+		return nil, fmt.Errorf("failed to write the 'nonce' field bytes in little-endian order: %w", err)
 	}
 
 	return buff.Bytes(), nil

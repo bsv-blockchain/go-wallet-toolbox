@@ -60,18 +60,19 @@ func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height
 		return nil, fmt.Errorf("error building URL: %w", err)
 	}
 
-	var blocks []dto.BlockHeaderHeight
-	res, err := b.httpClient.R().
+	var blocks []dto.BlockHeaderByHeightResponse
+	req := b.httpClient.R().
 		SetContext(ctx).
 		SetResult(&blocks).
-		SetQueryParam("height", fmt.Sprintf("%d", height)).
-		SetQueryParam("count", "1").
-		Get(url)
+		SetQueryParam("height", fmt.Sprint(height)).
+		SetQueryParam("count", "1")
+
+	res, err := req.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d): %w", res.Request.URL, res.StatusCode(), err)
+		return nil, fmt.Errorf("unexpected response from API (URL: %s): %w", req.URL, err)
 	}
 	if !res.IsSuccess() {
-		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", res.Request.URL, res.StatusCode())
+		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", req.URL, res.StatusCode())
 	}
 
 	if len(blocks) > 1 || len(blocks) == 0 {

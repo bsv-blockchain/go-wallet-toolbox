@@ -3,6 +3,7 @@ package wdk_test
 import (
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 )
@@ -11,11 +12,53 @@ func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
 	tests := map[string]struct {
 		block *wdk.ChainBaseBlockHeader
 	}{
+		"invalid block header - the 'previous hash' value has length greater than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226a",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'previous hash' value has length less than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'merkle root' value has length greater than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226a",
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'merkle root' value has length less than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+			},
+		},
+		"invalid block header - the 'merkle root', 'previous hash' values lengths are less than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+			},
+		},
+		"invalid block header - the 'merkle root', 'previous hash' values lengths are greater than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226aa",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226aa",
+			},
+		},
 		"invalid block header - the 'previous hash' field is defined as a non-hex value": {
-			block: &wdk.ChainBaseBlockHeader{PreviousHash: "#@A"},
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "#@A",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
 		},
 		"invalid block header - the 'merkle root' field is defined as a non-hex value": {
-			block: &wdk.ChainBaseBlockHeader{MerkleRoot: "#@A"},
+			block: &wdk.ChainBaseBlockHeader{
+				MerkleRoot:   "#@A",
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
 		},
 		"invalid block header - both 'merkle root' and 'previous hash' fields are defined as non-hex value": {
 			block: &wdk.ChainBaseBlockHeader{
@@ -41,6 +84,7 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 	tests := map[string]struct {
 		block         *wdk.ChainBaseBlockHeader
 		expectedBytes []byte
+		expectedHash  string
 	}{
 		"valid block header - height 2000, with version 1, time 1233046715, bits 486604799, nonce 2999858432 and known hashes": {
 			block: &wdk.ChainBaseBlockHeader{
@@ -51,6 +95,7 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 				Bits:         486604799,
 				Nonce:        2999858432,
 			},
+			expectedHash: "00000000dfd5d65c9d8561b4b8f60a63018fe3933ecb131fb37f905f87da951a",
 			expectedBytes: []byte{
 				1, 0, 0, 0, 38, 162, 46, 60, 45, 25, 212, 154, 28, 28, 184, 166,
 				142, 106, 183, 116, 64, 195, 14, 89, 116, 64, 74, 42, 128, 109, 73, 161,
@@ -68,6 +113,7 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 				Bits:         486604799,
 				Nonce:        481589526,
 			},
+			expectedHash: "00000000922e2aa9e84a474350a3555f49f06061fd49df50a9352f156692a842",
 			expectedBytes: []byte{
 				1, 0, 0, 0, 7, 110, 147, 15, 254, 174, 145, 151, 215, 110, 142, 100,
 				228, 235, 106, 227, 24, 176, 60, 163, 236, 181, 203, 118, 171, 34, 13, 105,
@@ -85,6 +131,7 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 				Bits:         486604799,
 				Nonce:        3598075177,
 			},
+			expectedHash: "00000000dbbb79792303bdd1c6c4d7ab9c21bba0667213c2eca955e11230c5a5",
 			expectedBytes: []byte{
 				1, 0, 0, 0, 191, 114, 114, 161, 48, 139, 153, 230, 210, 220, 14, 220,
 				226, 142, 56, 123, 41, 124, 101, 208, 241, 237, 155, 55, 151, 180, 140, 130,
@@ -103,6 +150,12 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 			// then:
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedBytes, actualBytes)
+			assertBlockHash(t, tc.expectedHash, actualBytes)
 		})
 	}
+}
+
+func assertBlockHash(t *testing.T, expectedHash string, fingerprint []byte) {
+	actualHash := chainhash.DoubleHashH(fingerprint)
+	assert.Equal(t, expectedHash, actualHash.String(), "Double hash does not match expected value")
 }
