@@ -1,43 +1,86 @@
-# Post BEEF Transaction
+# Post BEEF Example
 
-This example demonstrates how to broadcast a BSV transaction using the [BEEF (Background Evaluation Extended Format)](../../README.md#beef-background-evaluation-extended-format) through multiple wallet services with automatic fallback.
+This example demonstrates how to broadcast a BSV transaction using BEEF (Background Evaluation Extended Format) through multiple wallet services with automatic fallback. BEEF provides complete transaction data with merkle proofs for efficient network propagation.
 
-## Process Overview
+## Overview
 
-The example follows these steps:
+The process involves several steps:
+1. Configuring transaction parameters including source BEEF data and private key.
+2. Creating a new transaction that spends from the source transaction.
+3. Converting the signed transaction to BEEF format for broadcasting.
+4. Submitting the BEEF data to multiple blockchain services simultaneously.
+5. Processing and displaying detailed responses from each service.
 
-1. **Load Source Transaction**: Decode a BEEF-encoded source transaction
-2. **Create New Transaction**: Build a new transaction that spends from the source transaction
-3. **Generate BEEF**: Convert the new transaction to BEEF format
-4. **Broadcast**: Submit the BEEF to multiple services for network propagation
-5. **Display Results**: Show detailed responses from each service
+This approach ensures reliable transaction broadcasting by leveraging multiple service providers with automatic fallback mechanisms.
 
-## Configuration Parameters
+## Code Walkthrough
 
-The example uses the following configurable constants:
+### Configuration Parameters
 
-- **`sourceTxBEEF`**: The BEEF-encoded source transaction hex (replace with your own)
-- **`wif`**: The private key in Wallet Import Format for unlocking the source transaction output
-- **`sourceOutputIndex`**: The output index from the source transaction to spend (typically `0`)
-- **`network`**: The BSV network to use (`defs.NetworkTestnet` or `defs.NetworkMainnet`)
+```go
+const (
+    wif = "cQFwZHWLNTd31aE8ZPtJ48gxQFg3PPSEyrumghwNN3znjARNgLYX"
+    sourceTxBEEF = "0100beef01fe098c19000102..." // BEEF-encoded source transaction
+    sourceOutputIndex = uint32(0)
+    network = defs.NetworkTestnet
+)
+```
+The example uses configurable constants for the private key (WIF format), source transaction BEEF data, output index to spend, and target network. These should be updated with your own values for actual use.
 
-## Response Fields
+### Preparing the Transaction
 
-Each service returns detailed results including:
+```go
+tx, err := prepareTransaction(sourceTxBEEF, wif, sourceOutputIndex, network)
+```
+The `prepareTransaction` function handles:
+- Decoding the source BEEF transaction
+- Creating unlocking scripts using the provided private key
+- Building a new transaction with appropriate inputs and outputs
+- Applying fees and signing the transaction
 
-- **Service**: Name of the service that processed the request
-- **Success**: Whether the broadcast was successful
-- **TX ID**: The transaction identifier
-- **Result**: Status of the transaction (`success`, `error`, etc.)
-- **AlreadyKnown**: Whether the transaction was already known to the service
-- **DoubleSpend**: Information about any double-spend conflicts
-- **BlockHash**: Hash of the block containing the transaction (if mined)
-- **BlockHeight**: Height of the block containing the transaction (if mined)
-- **MerklePath**: Merkle path proof for the transaction
-- **CompetingTxs**: List of competing transactions (in case of conflicts)
-- **Error**: Detailed error information (if broadcast failed)
+### Converting to BEEF Format
 
-## Example Output
+```go
+beef, err := transaction.NewBeefFromTransaction(tx)
+```
+The signed transaction is converted to BEEF format, which includes the transaction data along with any required merkle proofs for validation by blockchain services.
+
+### Broadcasting to Services
+
+```go
+serviceCfg := defs.DefaultServicesConfig(network)
+walletServices := services.New(slog.Default(), serviceCfg)
+results, err := walletServices.PostBEEF(context.Background(), beef, []string{tx.TxID().String()})
+```
+The BEEF data is submitted to multiple configured services simultaneously. The method returns results from all attempted services, allowing for comparison and fallback handling.
+
+### Processing Results
+
+```go
+for _, result := range results {
+    if !result.Success() {
+        fmt.Println("Error:", result.Error)
+    } else {
+        // Display success details for each transaction
+    }
+}
+```
+Results from each service are processed and displayed, showing success status, transaction IDs, and any error information.
+
+## Running the Example
+
+**Prerequisites**: 
+- Update the `wif` constant with your private key
+- Update `sourceTxBEEF` with valid BEEF data from a transaction you control
+- Ensure the source transaction has unspent outputs
+
+To run this example:
+
+```bash
+go run ./examples/services_examples/post_beef/post_beef.go
+```
+
+Expected output:
 
 ```text
 ===========================================================
@@ -60,10 +103,62 @@ Service WhatsOnChain PostBEEF result:
 		Result:	 success
 		AlreadyKnown:	 true
 		DoubleSpend:	 false
-		BlockHash:	 
-		BlockHeight:	 0
-		MerklePath:	 
-		CompetingTxs:	 []
-		Notes:	 
-		Data:	 
+		BlockHash:   
+        BlockHeight:     0
+        MerklePath:  
+        CompetingTxs:    []
+        Notes:   
+        Data:   
 ```
+
+## Integration Steps
+
+To integrate BEEF broadcasting into your application:
+
+1. **Prepare transaction data** including source BEEF and private keys for signing.
+2. **Create and sign transactions** using the go-sdk transaction building tools.
+3. **Convert to BEEF format** using `transaction.NewBeefFromTransaction()`.
+4. **Configure services** with appropriate network settings and API credentials.
+5. **Submit BEEF data** using `walletServices.PostBEEF()` with transaction IDs.
+6. **Process results** from multiple services to determine broadcast success.
+7. **Implement retry logic** for failed broadcasts or service errors.
+8. **Monitor transaction status** using the returned transaction IDs.
+
+### Response Analysis
+
+Each service response contains:
+
+- **Success**: Boolean indicating if the broadcast succeeded
+- **TxID**: The transaction identifier for tracking
+- **Result**: Status string (`"success"`, `"error"`, etc.)
+- **AlreadyKnown**: Whether the transaction was already in the service's mempool
+- **DoubleSpend**: Information about potential double-spend conflicts
+- **BlockHash/BlockHeight**: Block information if the transaction was mined
+- **MerklePath**: Merkle proof data if available
+- **CompetingTxs**: List of conflicting transactions
+- **Error**: Detailed error information for failed broadcasts
+
+### Error Handling
+
+```go
+for _, result := range results {
+    if !result.Success() {
+        log.Printf("Service %s failed: %v", result.Name, result.Error)
+        continue
+    }
+    
+    // Check individual transaction results
+    for _, txResult := range result.PostedBEEFResult.TxIDResults {
+        if txResult.Result == "error" {
+            log.Printf("Transaction %s failed: %s", txResult.TxID, txResult.Error)
+        }
+    }
+}
+```
+
+## Additional Resources
+
+- [BEEF Specification](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md) - BRC-62 BEEF format documentation
+- [Post BEEF](./post_beef.go) - Broadcast a BSV transaction using BEEF format
+- [Post BEEF Hex Example](../post_beef_hex/post_beef_hex.md) - Alternative hex-based broadcasting
+- [Post Multiple Transactions Example](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions
