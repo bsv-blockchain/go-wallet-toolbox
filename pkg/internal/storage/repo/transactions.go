@@ -346,28 +346,8 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusForTxID(
-	ctx context.Context,
-	txID string,
-	txStatus wdk.TxStatus,
-	provenTxReqStatus wdk.ProvenTxReqStatus,
-	txNotes []history.Builder,
-) error {
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = updateTransactionStatus(tx, txID, txStatus)
-		if err != nil {
-			return err
-		}
-
-		return updateKnownTxStatus(tx, txID, provenTxReqStatus, txNotes)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update transaction: %w", err)
-	}
-	return nil
-}
-func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
-	return tx.Model(models.Transaction{}).
+func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error {
+	return txs.db.WithContext(ctx).Model(models.Transaction{}).
 		Where("tx_id = ?", txID).
 		Updates(map[string]any{
 			"status": txStatus,
@@ -577,7 +557,7 @@ func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transaction
 			return nil
 		}
 
-		if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, historyBuilders); err != nil {
+		if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, nil, historyBuilders); err != nil {
 			return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
 
 		}
