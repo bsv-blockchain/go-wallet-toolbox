@@ -115,16 +115,6 @@ if rawTx.RawTx == "" {
 }
 ```
 
-### Use Cases
-
-Raw transaction data retrieval is useful for:
-
-- **Transaction Analysis**: Examining transaction structure, inputs, and outputs
-- **Wallet Reconstruction**: Rebuilding wallet state from blockchain data
-- **Audit Purposes**: Verifying transaction details and signatures
-- **Backup and Recovery**: Storing transaction data for offline analysis
-- **Integration Testing**: Using real transaction data in test scenarios
-
 ## Additional Resources
 
 - [Post BEEF Documentation](../post_beef/post_beef.md) - Broadcast a BSV transaction using BEEF format
