@@ -16,7 +16,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
@@ -239,21 +238,36 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.Proces
 		return nil, err
 	}
 
-	sendStatuses := maps.Values(sendStatusesLookup)
-	if seq.Every(sendStatuses, is.EqualTo(wdk.SendWithResultStatusUnproven)) {
+	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
+	notDelayedResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
+
+	for txID, currentStatus := range sendStatusesLookup {
+		if currentStatus == wdk.SendWithResultStatusUnproven {
+			sendWithResults = append(sendWithResults, wdk.SendWithResult{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: currentStatus,
+			})
+		}
+	}
+
+	if len(sendWithResults) == len(txIDs) {
+		// All txs are already broadcasted, so we return the results without sending them again
 		return &wdk.ProcessActionResult{
-			SendWithResults: seq.Collect(seq2.MapTo(maps.All(sendStatusesLookup), func(txID string, status wdk.SendWithResultStatus) wdk.SendWithResult {
-				return wdk.SendWithResult{
-					TxID:   primitives.TXIDHexString(txID),
-					Status: status,
-				}
-			})),
+			SendWithResults: sendWithResults,
 		}, nil
 	}
 
 	readyToSendTxIDs := seq.Collect(seq2.Keys(seq2.Filter(maps.All(sendStatusesLookup), func(txID string, status wdk.SendWithResultStatus) bool {
 		return status == wdk.SendWithResultStatusSending || status == wdk.SendWithResultStatusFailed
 	})))
+
+	if len(readyToSendTxIDs) == 0 {
+		// This should never happen, because:
+		// 1. WHen all txs are already broadcasted, we return early.
+		// 2. If there are txs with other-then-unproven statuses, they should be in the readyToSendTxIDs.
+		// So, if we reach this point, it means that the transactions have unsupported broadcast statuses.
+		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", sendStatusesLookup)
+	}
 
 	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), nil, wdk.ProvenTxReqProblematicStatuses)
 	if err != nil {
@@ -271,22 +285,20 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.Proces
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
-	notDelayedResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 	var (
 		sendWithResult     wdk.SendWithResult
 		reviewActionResult wdk.ReviewActionResult
 	)
 
 	aggregated := results.Aggregated(txIDs)
-	for _, txID := range txIDs {
-		aggBroadcastResult, ok := aggregated[txID]
+	for _, broadcastedTxID := range readyToSendTxIDs {
+		aggBroadcastResult, ok := aggregated[broadcastedTxID]
 		if !ok {
-			sendWithResult, reviewActionResult = p.failedResultForTxID(txID)
+			sendWithResult, reviewActionResult = p.failedResultForTxID(broadcastedTxID)
 		} else {
 			sendWithResult, reviewActionResult, err = p.updateSingleTx(
 				ctx,
-				txID,
+				broadcastedTxID,
 				aggBroadcastResult,
 				results.ServiceErrors(),
 				beef,
