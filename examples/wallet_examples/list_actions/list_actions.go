@@ -16,7 +16,8 @@ var (
 	// DefaultOffset is the default starting position for pagination
 	DefaultOffset = uint32(0)
 
-	// DefaultOriginator specifies the originator domain for the request
+	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the action listing request.
+	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
 	DefaultOriginator = "example.com"
 
 	// DefaultIncludeLabels determines whether to include labels in the response

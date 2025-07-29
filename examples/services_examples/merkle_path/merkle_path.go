@@ -13,6 +13,8 @@ import (
 // This example demonstrates retrieving a Merkle path for a specific transaction ID
 // Merkle paths provide cryptographic proof of transaction inclusion in blocks for SPV verification
 // Uses multiple blockchain data services with automatic fallback logic
+// Returns the first successful result or an error if all services fail.
+// https://whatsonchain.com/block-height/903321?tab=json <-- Example of a block with Merkle Path
 func main() {
 	show.ProcessStart("Merkle Path")
 
