@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // ConvertHeader decodes an 80-byte raw header and fills all fields.
@@ -59,6 +60,22 @@ func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
 	}, nil
 }
 
+func validateScriptHash(scriptHash string) error {
+	if scriptHash == "" {
+		return fmt.Errorf("scripthash cannot be empty")
+	}
+
+	if len(scriptHash) != 64 {
+		return fmt.Errorf("invalid scripthash length: must be 64 characters for a SHA256 hash")
+	}
+
+	if err := primitives.HexString(scriptHash).Validate(); err != nil {
+		return fmt.Errorf("invalid scripthash format: %w", err)
+	}
+
+	return nil
+}
+
 // buildURL joins baseURL with any number of path segments, preserving the
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)
@@ -103,4 +120,9 @@ func latestBlockURL(baseURL string) (string, error) {
 // /download/tx/{txid}/hex
 func rawTxURL(baseURL, txID string) (string, error) {
 	return buildURL(baseURL, "download", "tx", txID, "hex")
+}
+
+// /scripthash/{scripthash}/history
+func scriptHashHistoryURL(baseURL, scriptHash string) (string, error) {
+	return buildURL(baseURL, "scripthash", scriptHash, "history")
 }
