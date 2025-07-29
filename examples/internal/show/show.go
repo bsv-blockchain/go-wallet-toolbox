@@ -201,7 +201,7 @@ func ScriptHashHistoryOutput(result *wdk.ScriptHistoryResult) {
 		height := "-"
 		if item.Height != nil && *item.Height > 0 {
 			status = "Confirmed"
-			height = fmt.Sprintf("%d", *item.Height)
+			height = fmt.Sprint(*item.Height)
 		}
 		rows = append(rows, []string{item.TxHash, status, height})
 	}

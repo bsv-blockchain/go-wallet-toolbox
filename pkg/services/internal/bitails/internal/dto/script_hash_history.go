@@ -2,10 +2,9 @@ package dto
 
 // ScriptHistoryResponse represents the response from the script history endpoints
 type ScriptHistoryResponse struct {
-	ScriptHash string              `json:"scripthash,omitempty"`
-	History    []ScriptHistoryItem `json:"history"`
-	PgKey      string              `json:"pgkey,omitempty"`
-	Error      string              `json:"error,omitempty"`
+	History []ScriptHistoryItem `json:"history"`
+	PgKey   string              `json:"pgkey,omitempty"`
+	Error   string              `json:"error,omitempty"`
 }
 
 // ScriptHistoryItem represents a single entry in the script hash history response.

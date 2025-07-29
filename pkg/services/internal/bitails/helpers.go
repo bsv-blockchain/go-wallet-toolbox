@@ -226,8 +226,12 @@ func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash string) ([]
 	}
 
 	var dst dto.ScriptHistoryResponse
-	// NOTE: Although pagination is not supported, we still send a "limit" to match WoC behavior (max 100 items returned).
-	req := b.httpClient.R().SetContext(ctx).SetResult(&dst).SetQueryParam("limit", fmt.Sprint(b.hashScriptHistoryPageLimit)).SetResult(&dst)
+	// NOTE: Although pagination is not supported, we still send a "limit" to match WoC behavior.
+	req := b.httpClient.R().
+		SetContext(ctx).
+		SetResult(&dst).
+		SetQueryParam("limit", fmt.Sprint(b.hashScriptHistoryPageLimit)).
+		SetResult(&dst)
 
 	res, err := req.Get(url)
 	if err != nil {
@@ -238,7 +242,7 @@ func (b *Bitails) fetchScriptHistory(ctx context.Context, scriptHash string) ([]
 		return nil, fmt.Errorf("unexpected status code %d fetching script history", res.StatusCode())
 	}
 	if dst.Error != "" {
-		return nil, fmt.Errorf("error in script history %s response: %s", dst.ScriptHash, dst.Error)
+		return nil, fmt.Errorf("error in script history response: %s", dst.Error)
 	}
 
 	return dst.History, nil
