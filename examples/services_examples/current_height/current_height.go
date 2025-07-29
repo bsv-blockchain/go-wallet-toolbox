@@ -21,7 +21,7 @@ func main() {
 
 	// Configure services for mainnet with default settings
 	cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
-	cfg.BHS.APIKey = "..." // API key for Block Headers Service
+	cfg.BHS.APIKey = "..." // use default api key DefaultAppToken from the BHS service https://github.com/bsv-blockchain/block-headers-service/blob/main/config/defaults.go#L8
 
 	// Create services instance with logging and fallback configuration
 	srv := services.New(slog.Default(), cfg)
