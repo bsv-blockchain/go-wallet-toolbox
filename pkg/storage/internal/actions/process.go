@@ -234,10 +234,6 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 }
 
 func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.ProcessActionResult, error) {
-	if len(txIDs) == 0 {
-		return &wdk.ProcessActionResult{}, nil
-	}
-
 	sendStatusesLookup, err := p.getSendStatuses(ctx, txIDs...)
 	if err != nil {
 		return nil, err
