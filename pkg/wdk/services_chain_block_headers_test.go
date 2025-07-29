@@ -8,78 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
-	tests := map[string]struct {
-		block *wdk.ChainBaseBlockHeader
-	}{
-		"invalid block header - the 'previous hash' value has length greater than 32": {
-			block: &wdk.ChainBaseBlockHeader{
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226a",
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-			},
-		},
-		"invalid block header - the 'previous hash' value has length less than 32": {
-			block: &wdk.ChainBaseBlockHeader{
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-			},
-		},
-		"invalid block header - the 'merkle root' value has length greater than 32": {
-			block: &wdk.ChainBaseBlockHeader{
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226a",
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-			},
-		},
-		"invalid block header - the 'merkle root' value has length less than 32": {
-			block: &wdk.ChainBaseBlockHeader{
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
-			},
-		},
-		"invalid block header - the 'merkle root', 'previous hash' values lengths are less than 32": {
-			block: &wdk.ChainBaseBlockHeader{
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
-			},
-		},
-		"invalid block header - the 'merkle root', 'previous hash' values lengths are greater than 32": {
-			block: &wdk.ChainBaseBlockHeader{
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226aa",
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226aa",
-			},
-		},
-		"invalid block header - the 'previous hash' field is defined as a non-hex value": {
-			block: &wdk.ChainBaseBlockHeader{
-				PreviousHash: "#@A",
-				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-			},
-		},
-		"invalid block header - the 'merkle root' field is defined as a non-hex value": {
-			block: &wdk.ChainBaseBlockHeader{
-				MerkleRoot:   "#@A",
-				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-			},
-		},
-		"invalid block header - both 'merkle root' and 'previous hash' fields are defined as non-hex value": {
-			block: &wdk.ChainBaseBlockHeader{
-				MerkleRoot:   "#@A",
-				PreviousHash: "#@!",
-			},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			// when:
-			actualBytes, err := tc.block.Bytes()
-
-			// then:
-			assert.NotNil(t, err)
-			assert.Nil(t, actualBytes)
-		})
-	}
-}
-
 func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 	tests := map[string]struct {
 		block         *wdk.ChainBaseBlockHeader
@@ -151,6 +79,78 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedBytes, actualBytes)
 			assertBlockHash(t, tc.expectedHash, actualBytes)
+		})
+	}
+}
+
+func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
+	tests := map[string]struct {
+		block *wdk.ChainBaseBlockHeader
+	}{
+		"invalid block header - the 'previous hash' value has length greater than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226a",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'previous hash' value has length less than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'merkle root' value has length greater than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226a",
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'merkle root' value has length less than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+			},
+		},
+		"invalid block header - the 'merkle root', 'previous hash' values lengths are less than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea",
+			},
+		},
+		"invalid block header - the 'merkle root', 'previous hash' values lengths are greater than 32": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226aa",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226aa",
+			},
+		},
+		"invalid block header - the 'previous hash' field is defined as a non-hex value": {
+			block: &wdk.ChainBaseBlockHeader{
+				PreviousHash: "#@A",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - the 'merkle root' field is defined as a non-hex value": {
+			block: &wdk.ChainBaseBlockHeader{
+				MerkleRoot:   "#@A",
+				PreviousHash: "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+			},
+		},
+		"invalid block header - both 'merkle root' and 'previous hash' fields are defined as non-hex value": {
+			block: &wdk.ChainBaseBlockHeader{
+				MerkleRoot:   "#@A",
+				PreviousHash: "#@!",
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// when:
+			actualBytes, err := tc.block.Bytes()
+
+			// then:
+			assert.NotNil(t, err)
+			assert.Nil(t, actualBytes)
 		})
 	}
 }
