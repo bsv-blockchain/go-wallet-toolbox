@@ -186,3 +186,29 @@ func RawTxOutput(result *wdk.RawTxResult) {
 func HashToHeaderOutput(header *wdk.ChainBlockHeader) {
 	ChainTipHeaderOutput(header)
 }
+
+func ScriptHashHistoryOutput(result *wdk.ScriptHistoryResult) {
+	if result == nil {
+		Error("nil ScriptHistoryResult passed to ScriptHashHistoryOutput")
+		return
+	}
+
+	Header("SCRIPT HASH HISTORY")
+	fmt.Printf("%sService:%s %s\n", ColorCyan, ColorReset, result.Name)
+	fmt.Printf("%sScriptHash:%s %s\n", ColorCyan, ColorReset, result.ScriptHash)
+
+	headers := []string{"TxHash", "Status", "Block Height"}
+	var rows [][]string
+
+	for _, item := range result.History {
+		status := "Unconfirmed"
+		height := "-"
+		if item.Height != nil && *item.Height > 0 {
+			status = "Confirmed"
+			height = fmt.Sprint(*item.Height)
+		}
+		rows = append(rows, []string{item.TxHash, status, height})
+	}
+
+	PrintTable("Transaction History:", headers, rows)
+}

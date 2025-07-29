@@ -10,7 +10,7 @@ import (
 )
 
 func TestWhatsOnChain_HashToHeader_Success(t *testing.T) {
-	// given
+	// given:
 	given := testabilities.Given(t)
 
 	blockHash := testabilities.TestTargetHash
@@ -29,10 +29,10 @@ func TestWhatsOnChain_HashToHeader_Success(t *testing.T) {
 
 	svc := given.NewWoCService()
 
-	// when
+	// when:
 	res, err := svc.HashToHeader(t.Context(), blockHash)
 
-	// then
+	// then:
 	require.NoError(t, err)
 	assert.Equal(t, blockHash, res.Hash)
 	assert.Equal(t, uint(blockHeight), res.Height)
@@ -44,7 +44,7 @@ func TestWhatsOnChain_HashToHeader_Success(t *testing.T) {
 }
 
 func TestWhatsOnChain_HashToHeader_ErrorStatus(t *testing.T) {
-	// given
+	// given:
 	given := testabilities.Given(t)
 	blockHash := testabilities.TestTargetHash
 
@@ -52,16 +52,16 @@ func TestWhatsOnChain_HashToHeader_ErrorStatus(t *testing.T) {
 
 	svc := given.NewWoCService()
 
-	// when
+	// when:
 	_, err := svc.HashToHeader(t.Context(), blockHash)
 
-	// then
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected response status")
 }
 
 func TestWhatsOnChain_HashToHeader_InvalidBits(t *testing.T) {
-	// given
+	// given:
 	given := testabilities.Given(t)
 	blockHash := testabilities.TestTargetHash
 
@@ -71,16 +71,16 @@ func TestWhatsOnChain_HashToHeader_InvalidBits(t *testing.T) {
 
 	svc := given.NewWoCService()
 
-	// when
+	// when:
 	_, err := svc.HashToHeader(t.Context(), blockHash)
 
-	// then
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid bits value")
 }
 
 func TestWhatsOnChain_HashToHeader_HTTPError(t *testing.T) {
-	// given
+	// given:
 	given := testabilities.Given(t)
 	blockHash := testabilities.TestTargetHash
 
@@ -88,16 +88,16 @@ func TestWhatsOnChain_HashToHeader_HTTPError(t *testing.T) {
 
 	svc := given.NewWoCService()
 
-	// when
+	// when:
 	_, err := svc.HashToHeader(t.Context(), blockHash)
 
-	// then
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected response status")
 }
 
 func TestWhatsOnChain_HashToHeader_InvalidJSON(t *testing.T) {
-	// given
+	// given:
 	given := testabilities.Given(t)
 	blockHash := testabilities.TestTargetHash
 
@@ -105,16 +105,16 @@ func TestWhatsOnChain_HashToHeader_InvalidJSON(t *testing.T) {
 
 	svc := given.NewWoCService()
 
-	// when
+	// when:
 	_, err := svc.HashToHeader(t.Context(), blockHash)
 
-	// then
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to fetch block header")
 }
 
 func TestWhatsOnChain_HashToHeader_MissingFields(t *testing.T) {
-	// given
+	// given:
 	given := testabilities.Given(t)
 	blockHash := testabilities.TestTargetHash
 
@@ -124,10 +124,10 @@ func TestWhatsOnChain_HashToHeader_MissingFields(t *testing.T) {
 
 	svc := given.NewWoCService()
 
-	// when
+	// when:
 	_, err := svc.HashToHeader(t.Context(), blockHash)
 
-	// then
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid bits value")
 }

@@ -60,7 +60,7 @@ func (b *BlockHeader) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error)
 	}, nil
 }
 
-// MerklePathResult represents the result of a Merkle path computation,
+// MerkleRootOnly represents the result of a Merkle root computation,
 type MerkleRootOnly struct {
 	MerkleRoot string `json:"merkleroot"`
 }
