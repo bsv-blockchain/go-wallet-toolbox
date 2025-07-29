@@ -263,7 +263,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.Proces
 
 	if len(readyToSendTxIDs) == 0 {
 		// This should never happen, because:
-		// 1. WHen all txs are already broadcasted, we return early.
+		// 1. When all txs are already broadcasted, we return early.
 		// 2. If there are txs with other-then-unproven statuses, they should be in the readyToSendTxIDs.
 		// So, if we reach this point, it means that the transactions have unsupported broadcast statuses.
 		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", sendStatusesLookup)
