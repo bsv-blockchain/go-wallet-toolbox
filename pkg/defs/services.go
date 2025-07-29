@@ -106,6 +106,9 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			RootForHeightRetryInterval: DefaultRootForHeightRetryInterval,
 			RootForHeightRetries:       DefaultRootForHeightRetries,
 		},
+		Bitails: Bitails{
+			ScriptHashHistoryPageLimit: defaultScriptHashHistoryPageLimit,
+		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,
 			Base:      USD,

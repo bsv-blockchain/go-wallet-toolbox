@@ -111,6 +111,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"GetScriptHashHistory",
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetScriptHashHistory),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetScriptHashHistory),
 		),
 	}
 }
