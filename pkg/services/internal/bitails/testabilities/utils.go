@@ -1,9 +1,7 @@
 package testabilities
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -55,21 +53,10 @@ func IncompleteBlockHeaderRaw() string {
 	return "00000020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
-// DoubleSHA256 computes the double SHA-256 hash of the given data
-func DoubleSHA256(data []byte) string {
-	hash := sha256.Sum256(data)
-	final := sha256.Sum256(hash[:])
-	for i := range len(final) / 2 {
-		final[i], final[len(final)-1-i] = final[len(final)-1-i], final[i]
-	}
-	return fmt.Sprintf("%x", final[:])
-}
-
 // MustDecodeHex decodes a hex string or panics if invalid.
 func MustDecodeHex(t testing.TB, s string) []byte {
+	t.Helper()
 	b, err := hex.DecodeString(s)
-	if err != nil {
-		t.Fatalf("failed to decode hex string: %v", err)
-	}
+	require.NoError(t, err, "failed to decode hex string")
 	return b
 }

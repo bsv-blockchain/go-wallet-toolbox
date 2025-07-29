@@ -47,12 +47,16 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// given:
 			fix := ts.GivenServices(t)
 			tc.setup(fix)
 
 			svc := fix.Services().WithDefaultConfig()
+
+			// when:
 			header, err := svc.HashToHeader(t.Context(), blockHash)
 
+			// then:
 			require.NoError(t, err)
 			require.NotNil(t, header)
 			require.Equal(t, blockHash, header.Hash)
@@ -110,12 +114,16 @@ func TestWalletServices_HashToHeader_ErrorCases(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// given:
 			fix := ts.GivenServices(t)
 			tc.setup(fix)
 
 			svc := fix.Services().WithDefaultConfig()
+
+			// when:
 			res, err := svc.HashToHeader(t.Context(), testabilities.TestTargetHash)
 
+			// then:
 			require.Error(t, err)
 			require.Nil(t, res)
 		})
