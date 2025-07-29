@@ -26,7 +26,7 @@ func main() {
 	}
 
 	show.Success("Fetched block header from hash")
-	show.HashToHeaderOutput(header)
+	show.ChainTipHeaderOutput(header)
 	show.ProcessComplete("Hash To Header")
 }
 

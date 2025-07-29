@@ -25,7 +25,7 @@ func TestBitails_HashToHeader_Success(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	assert.Equal(t, blockHash, res.Hash)
-	assert.Equal(t, uint(testabilities.TestFakeHeaderHex), res.Height)
+	assert.Equal(t, uint(testabilities.TestZeroHeaderHeight), res.Height)
 	assert.Equal(t, testabilities.TestHeaderHex, res.MerkleRoot)
 }
 
@@ -67,11 +67,13 @@ func TestBitails_HashToHeader_RequestError(t *testing.T) {
 	given := testabilities.Given(t)
 	blockHash := testabilities.TestTargetHash
 
-	given.Bitails().WillBeUnreachable()
+	err := given.Bitails().WillBeUnreachable()
+	require.Error(t, err, "failed to set up Bitails service to be unreachable")
+
 	svc := given.NewBitailsService()
 
 	// when:
-	_, err := svc.HashToHeader(t.Context(), blockHash)
+	_, err = svc.HashToHeader(t.Context(), blockHash)
 
 	// then:
 	require.Error(t, err)

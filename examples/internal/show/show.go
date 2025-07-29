@@ -183,10 +183,6 @@ func RawTxOutput(result *wdk.RawTxResult) {
 	fmt.Printf("%sRawTx:  %x%s\n", ColorCyan, result.RawTx, ColorReset)
 }
 
-func HashToHeaderOutput(header *wdk.ChainBlockHeader) {
-	ChainTipHeaderOutput(header)
-}
-
 func ScriptHashHistoryOutput(result *wdk.ScriptHistoryResult) {
 	if result == nil {
 		Error("nil ScriptHistoryResult passed to ScriptHashHistoryOutput")
