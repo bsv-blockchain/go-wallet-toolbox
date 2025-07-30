@@ -93,13 +93,13 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("failed to write the 'version' field bytes in little-endian order: %w", err)
 	}
 	if err := writeReversedBytes(buff, hash); err != nil {
-		return nil, fmt.Errorf("failed to write the 'merkle root' field bytes in little-endian order: %w", err)
+		return nil, fmt.Errorf("failed to write the 'previous hash' field bytes in little-endian order: %w", err)
 	}
 	if err := writeReversedBytes(buff, root); err != nil {
 		return nil, fmt.Errorf("failed to write the 'merkle root' field bytes in little-endian order: %w", err)
 	}
 	if err := writeLittleEndianOrder(buff, c.Time); err != nil {
-		return nil, fmt.Errorf("failed to write the 'merkle root' field bytes in little-endian order: %w", err)
+		return nil, fmt.Errorf("failed to write the 'time' field bytes in little-endian order: %w", err)
 	}
 	if err := writeLittleEndianOrder(buff, c.Bits); err != nil {
 		return nil, fmt.Errorf("failed to write the 'bits' field bytes in little-endian order: %w", err)
