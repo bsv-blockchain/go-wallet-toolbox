@@ -30,15 +30,13 @@ func main() {
 	// Create Alice's wallet instance
 	alice := example_setup.CreateAlice()
 
-	// Create the wallet interface and establish database connection
-	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
-	if err != nil {
-		panic(fmt.Errorf("failed to create Alice's wallet: %w", err))
-	}
+	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
 
 	// Fetch transaction data in BEEF format if not provided directly
 	if beef == "" {
+		var err error
+		
 		// Get complete transaction data from WhatsonChain API
 		beef, err = utils.WocAPIGetBeefForTX(defs.NetworkTestnet, txID)
 		if err != nil {
@@ -52,8 +50,7 @@ func main() {
 	show.Step("Alice", "Internalizing transaction from faucet")
 
 	// This method will internalize the transaction from the faucet into the wallet database
-	// It processes the BEEF data and creates payment remittance records for spending
-	err = example_setup.InternalizeFromFaucet(ctx, beef, aliceWallet)
+	err := example_setup.InternalizeFromFaucet(ctx, beef, aliceWallet)
 	if err != nil {
 		panic(fmt.Errorf("failed to internalize tx: %w", err))
 	}

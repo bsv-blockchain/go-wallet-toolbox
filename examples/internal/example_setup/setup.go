@@ -103,19 +103,19 @@ func CreateAlice() *Setup {
 
 // CreateWallet creates a new wallet for the user
 // It connects to the server and creates a new wallet
-// It returns the wallet, a cleanup function, and an error if the wallet creation fails
-func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func(), error) {
+// It returns the wallet and a cleanup function, panicking if wallet creation fails
+func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
 	storageClient, cleanup, err := storage.NewClient(s.Environment.ServerURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to server: %w", err)
+		panic(fmt.Errorf("failed to connect to server: %w", err))
 	}
 
 	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageClient)
 	if err != nil {
 		cleanup()
-		return nil, nil, fmt.Errorf("failed to create wallet: %w", err)
+		panic(fmt.Errorf("failed to create wallet: %w", err))
 	}
 
 	show.Info("CreateWallet", s.IdentityKey.ToDERHex())
-	return userWallet, cleanup, nil
+	return userWallet, cleanup
 }

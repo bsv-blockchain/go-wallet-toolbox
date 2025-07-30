@@ -43,16 +43,15 @@ func main() {
 	alice := example_setup.CreateAlice()
 
 	// Create the wallet interface and establish database connection
-	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
+	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
-	if err != nil {
-		panic(fmt.Errorf("failed to create Alice's wallet: %w", err))
-	}
 
 	show.Step("Alice", "Listing actions")
 
 	// Configure pagination and filtering parameters
 	args := defaultListActionsArgs()
+	show.Info("ListActionsArgs", args)
+	show.Separator()
 
 	// Retrieve paginated list of wallet actions
 	actions, err := aliceWallet.ListActions(ctx, args, DefaultOriginator)
