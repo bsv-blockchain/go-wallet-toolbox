@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/spv"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -165,6 +165,7 @@ func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
 }
 
 func (f *arcFixture) store(txHex string) {
+	const failOnWrongScripts = false // FIXME: temporary solution to skip script verification - this is done for tests that do not have proper signatures
 	beefBytes, err := hex.DecodeString(txHex)
 	require.NoError(f, err, "failed to decode BEEF hex")
 
@@ -173,20 +174,32 @@ func (f *arcFixture) store(txHex string) {
 
 	transactions := seq2.FromMap(beef.Transactions)
 	includedTransactions := seq2.MapTo(transactions, func(txIDHash chainhash.Hash, tx *sdk.BeefTx) *knownTransaction {
-		merklePath := optional.OfPtr(tx.Transaction.MerklePath)
+		if !f.verifyTxScripts(tx.Transaction) {
+			if failOnWrongScripts {
+				// FIXME: this is a temporary solution to fail on wrong scripts
+				// FIXME: When we make proper Signatures for Transactions, this should fail on wrong scripts
+				return f.knownTxOnInvalidScripts(tx.Transaction)
+			}
+		}
+
+		merklePath := tx.Transaction.MerklePath
 		txID := txIDHash.String()
 
-		return &knownTransaction{
-			txid:        txID,
-			status:      to.IfThen(merklePath.IsEmpty(), "SEEN_ON_NETWORK").ElseThen("MINED"),
-			blockHeight: optional.Map(merklePath, func(it sdk.MerklePath) uint32 { return it.BlockHeight }).OrZeroValue(),
-			blockHash: optional.Map(merklePath, func(it sdk.MerklePath) string {
-				root, err := it.ComputeRootHex(&txID)
-				require.NoError(f, err, "failed to compute root: wrong test setup")
-				return root
-			}).OrZeroValue(),
-			merklePath: optional.Map(merklePath, func(it sdk.MerklePath) string { return it.Hex() }).OrZeroValue(),
+		knownTx := &knownTransaction{
+			txid:   txID,
+			status: "SEEN_ON_NETWORK",
 		}
+
+		if merklePath != nil {
+			knownTx.blockHash, err = merklePath.ComputeRootHex(&txID)
+			require.NoError(f, err, "failed to compute root: wrong test setup")
+
+			knownTx.status = "MINED"
+			knownTx.blockHeight = merklePath.BlockHeight
+			knownTx.merklePath = merklePath.Hex()
+		}
+
+		return knownTx
 	})
 
 	seq.ForEach(includedTransactions, func(it *knownTransaction) {
@@ -194,6 +207,39 @@ func (f *arcFixture) store(txHex string) {
 			f.knownTransactions[it.txid] = it
 		}
 	})
+}
+
+func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
+	ok, err := spv.VerifyScripts(f.Context(), tx)
+	if err != nil {
+		f.Logf("script verification failed: %s", err.Error())
+		return false
+	}
+
+	if !ok {
+		f.Logf("Transaction %s has invalid scripts", tx.TxID())
+		return false
+	}
+	return true
+}
+
+func (f *arcFixture) knownTxOnInvalidScripts(tx *sdk.Transaction) *knownTransaction {
+	/*
+		{
+			"detail": "Fees are insufficient",
+			"extraInfo": "arc error 465: inputs must have an unlocking script or an unlocker",
+			"instance": null,
+			"status": 465,
+			"title": "Fee too low",
+			"txid": "8a6af9c7f4ef19c3056d00efa9866d377df1a6a975e8f4bfced8ac4282f15c8d",
+			"type": "https://bitcoin-sv.github.io/arc/#/errors?id=_465"
+		}
+	*/
+	const statusCumulativeFeeValidationFailed = 473
+	return &knownTransaction{
+		txid:       tx.TxID().String(),
+		httpStatus: statusCumulativeFeeValidationFailed,
+	}
 }
 
 type arcQueryFixture struct {

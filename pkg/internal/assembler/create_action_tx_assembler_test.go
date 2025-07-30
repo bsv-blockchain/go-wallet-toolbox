@@ -2,15 +2,15 @@ package assembler_test
 
 import (
 	"encoding/json"
+	"testing"
+
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestTxAssemblerAlignsTsGenerated(t *testing.T) {
