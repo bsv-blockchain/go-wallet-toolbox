@@ -71,7 +71,7 @@ func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height
 	if err != nil {
 		return nil, fmt.Errorf("unexpected response from API (URL: %s): %w", req.URL, err)
 	}
-	if !res.IsSuccess() {
+	if res.StatusCode() != http.StatusOK {
 		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", req.URL, res.StatusCode())
 	}
 
