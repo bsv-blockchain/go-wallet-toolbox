@@ -45,22 +45,39 @@ func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, commissionCf
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
-	if args.IsNewTx {
-		err := p.processNewTx(ctx, userID, args)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if args.IsSendWith {
-		panic("not implemented yet")
-	}
-
 	if args.IsDelayed {
 		panic("not implemented yet")
 	}
 
-	return p.broadcastSingleTx(ctx, string(*args.TxID))
+	if args.IsNewTx {
+		if err := p.processNewTx(ctx, userID, args); err != nil {
+			return nil, err
+		}
+	}
+
+	if args.IsNoSend && len(args.SendWith) == 0 {
+		// NOTE: SendWith overrides IsNoSend, so if SendWith is NOT empty, we will broadcast txs anyway
+		return &wdk.ProcessActionResult{}, nil
+	}
+
+	return p.broadcastTxs(ctx, p.txIDsToBroadcast(args))
+}
+
+func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
+	count := len(args.SendWith)
+	if args.TxID != nil {
+		count++
+	}
+
+	result := make([]string, 0, count)
+	for _, txID := range args.SendWith {
+		result = append(result, string(txID))
+	}
+	if args.TxID != nil {
+		result = append(result, string(*args.TxID))
+	}
+
+	return result
 }
 
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
@@ -215,24 +232,44 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return
 }
 
-func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.ProcessActionResult, error) {
-	sendStatus, err := p.getSendStatus(ctx, txID)
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.ProcessActionResult, error) {
+	sendStatusesLookup, err := p.getSendStatuses(ctx, txIDs...)
 	if err != nil {
 		return nil, err
 	}
 
-	if sendStatus != wdk.SendWithResultStatusSending {
+	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
+	notDelayedResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
+
+	for txID, currentStatus := range sendStatusesLookup {
+		if currentStatus == wdk.SendWithResultStatusUnproven {
+			sendWithResults = append(sendWithResults, wdk.SendWithResult{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: currentStatus,
+			})
+		}
+	}
+
+	if len(sendWithResults) == len(txIDs) {
+		// All txs are already broadcasted, so we return the results without sending them again
 		return &wdk.ProcessActionResult{
-			SendWithResults: []wdk.SendWithResult{
-				{
-					TxID:   primitives.TXIDHexString(txID),
-					Status: sendStatus,
-				},
-			},
+			SendWithResults: sendWithResults,
 		}, nil
 	}
 
-	beef, err := p.knownTxRepo.BuildValidBEEF(ctx, txID, wdk.ProvenTxReqProblematicStatuses)
+	readyToSendTxIDs := seq.Collect(seq2.Keys(seq2.Filter(maps.All(sendStatusesLookup), func(txID string, status wdk.SendWithResultStatus) bool {
+		return status == wdk.SendWithResultStatusSending || status == wdk.SendWithResultStatusFailed
+	})))
+
+	if len(readyToSendTxIDs) == 0 {
+		// This should never happen, because:
+		// 1. When all txs are already broadcasted, we return early.
+		// 2. If there are txs with other-then-unproven statuses, they should be in the readyToSendTxIDs.
+		// So, if we reach this point, it means that the transactions have unsupported broadcast statuses.
+		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", sendStatusesLookup)
+	}
+
+	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), nil, wdk.ProvenTxReqProblematicStatuses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -243,30 +280,92 @@ func (p *process) broadcastSingleTx(ctx context.Context, txID string) (*wdk.Proc
 		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
-	results, err := p.services.PostBEEF(ctx, beef, []string{txID})
+	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	aggregated := results.Aggregated([]string{txID})
-	aggBroadcastResult, ok := aggregated[txID]
-	if !ok {
-		return nil, fmt.Errorf("failed to find aggregated result for txID %s", txID)
+	var (
+		sendWithResult     wdk.SendWithResult
+		reviewActionResult wdk.ReviewActionResult
+	)
+
+	aggregated := results.Aggregated(txIDs)
+	for _, broadcastedTxID := range readyToSendTxIDs {
+		aggBroadcastResult, ok := aggregated[broadcastedTxID]
+		if !ok {
+			sendWithResult, reviewActionResult = p.failedResultForTxID(broadcastedTxID)
+		} else {
+			sendWithResult, reviewActionResult, err = p.updateSingleTx(
+				ctx,
+				broadcastedTxID,
+				aggBroadcastResult,
+				results.ServiceErrors(),
+				beef,
+				readyToSendTxIDs,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		sendWithResults = append(sendWithResults, sendWithResult)
+		notDelayedResults = append(notDelayedResults, reviewActionResult)
 	}
 
-	newReqStatus, newTxStatus, result, err := p.processBroadcastSingleTxResult(aggBroadcastResult, txID)
+	return &wdk.ProcessActionResult{
+		SendWithResults:   sendWithResults,
+		NotDelayedResults: notDelayedResults,
+	}, nil
+}
+
+func (p *process) updateSingleTx(
+	ctx context.Context,
+	txID string,
+	aggBroadcastResult *wdk.AggregatedPostedTxID,
+	serviceErrors map[string]error,
+	beef *transaction.Beef,
+	txIDs []string,
+) (
+	sendWithResult wdk.SendWithResult,
+	reviewActionResult wdk.ReviewActionResult,
+	err error,
+) {
+	var (
+		newReqStatus wdk.ProvenTxReqStatus
+		newTxStatus  wdk.TxStatus
+	)
+
+	newReqStatus, newTxStatus, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, results.ServiceErrors(), beef, []string{txID})
+	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
 
-	err = p.txRepo.UpdateTransactionStatusForTxID(ctx, txID, newTxStatus, newReqStatus, notes)
+	err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+		return
 	}
 
-	return &result, nil
+	err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
+	if err != nil {
+		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
+		return
+	}
+
+	return
+}
+
+func (p *process) failedResultForTxID(txID string) (wdk.SendWithResult, wdk.ReviewActionResult) {
+	return wdk.SendWithResult{
+			TxID:   primitives.TXIDHexString(txID),
+			Status: wdk.SendWithResultStatusFailed,
+		}, wdk.ReviewActionResult{
+			TxID:   primitives.TXIDHexString(txID),
+			Status: wdk.ReviewActionResultStatusServiceError,
+		}
 }
 
 func (p *process) notesForPostBEEF(
@@ -311,37 +410,48 @@ func (p *process) notesForPostBEEF(
 	return records
 }
 
-func (p *process) getSendStatus(ctx context.Context, txID string) (wdk.SendWithResultStatus, error) {
-	reqTxStatus, err := p.knownTxRepo.FindKnownTxStatus(ctx, txID)
+func (p *process) getSendStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.SendWithResultStatus, error) {
+	statuses, err := p.knownTxRepo.FindKnownTxStatuses(ctx, txIDs...)
 	if err != nil {
-		return "", fmt.Errorf("failed to find known tx status: %w", err)
+		return nil, fmt.Errorf("failed to find known tx status: %w", err)
 	}
 
-	switch reqTxStatus.BroadcastStatus() {
-	case wdk.TxReqBroadcastReadyToSend:
-		return wdk.SendWithResultStatusSending, nil
-	case wdk.TxReqBroadcastError:
-		return wdk.SendWithResultStatusFailed, nil
-	case wdk.TxReqBroadcastAlreadySent:
-		return wdk.SendWithResultStatusUnproven, nil
-	case wdk.TxReqBroadcastUnknown:
-		fallthrough
-	default:
-		return "", fmt.Errorf("unknown broadcast status")
+	lookup := make(map[string]wdk.SendWithResultStatus, len(txIDs))
+	for _, txID := range txIDs {
+		knownTxStatus, statusFound := statuses[txID]
+		if !statusFound {
+			return nil, fmt.Errorf("known tx status for txID %s not found", txID)
+		}
+
+		switch knownTxStatus.BroadcastStatus() {
+		case wdk.TxReqBroadcastReadyToSend:
+			lookup[txID] = wdk.SendWithResultStatusSending
+		case wdk.TxReqBroadcastError:
+			lookup[txID] = wdk.SendWithResultStatusSending
+		case wdk.TxReqBroadcastAlreadySent:
+			lookup[txID] = wdk.SendWithResultStatusUnproven
+		case wdk.TxReqBroadcastUnknown:
+			fallthrough
+		default:
+			return nil, fmt.Errorf("unknown broadcast status")
+		}
 	}
+
+	return lookup, nil
 }
 
-func (p *process) processBroadcastSingleTxResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
+func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
-	result wdk.ProcessActionResult,
+	reviewActionResult wdk.ReviewActionResult,
+	sendWithResult wdk.SendWithResult,
 	err error,
 ) {
-	reviewActionResult := wdk.ReviewActionResult{
+	reviewActionResult = wdk.ReviewActionResult{
 		TxID: primitives.TXIDHexString(txID),
 	}
 
-	sendWithResult := wdk.SendWithResult{
+	sendWithResult = wdk.SendWithResult{
 		TxID: primitives.TXIDHexString(txID),
 	}
 
@@ -372,9 +482,6 @@ func (p *process) processBroadcastSingleTxResult(aggBroadcastResult *wdk.Aggrega
 	default:
 		err = fmt.Errorf("unknown AggregatedPostedTxIDStatus %s", aggBroadcastResult.Status)
 	}
-
-	result.SendWithResults = []wdk.SendWithResult{sendWithResult}
-	result.NotDelayedResults = []wdk.ReviewActionResult{reviewActionResult}
 
 	return
 }
