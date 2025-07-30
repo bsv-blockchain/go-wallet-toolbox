@@ -130,13 +130,7 @@ args = sdk.ListActionsArgs{
 }
 ```
 
-### Filtering and Display
-
-- Use `IncludeLabels: true` to get rich metadata for detailed views
-- Use `IncludeLabels: false` for faster loading in simple list views
-- Adjust `Limit` based on your UI's performance requirements
-- Store `TotalActions` to calculate total number of pages
-
 ## Additional Resources
 
-- [List Actions Example](./list_actions.go) - list action wallet example code
+- [List Actions Example](./list_actions.go) - Complete code example for listing wallet actions
+- [List Outputs Documentation](../list_outputs/list_outputs.md) - Get wallet transaction outputs

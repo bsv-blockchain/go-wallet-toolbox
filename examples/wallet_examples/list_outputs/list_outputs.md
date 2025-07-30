@@ -100,5 +100,5 @@ if outputs.TotalOutputs == 0 {
 
 ## Additional Resources
 
-- [List Actions Documentation](../list_actions/list_actions.md) - View wallet transaction history
+- [List Actions Documentation](../list_actions/list_actions.md) - Get wallet action history
 - [List Outputs Example](./list_outputs.go) - Complete code example for listing wallet outputs
