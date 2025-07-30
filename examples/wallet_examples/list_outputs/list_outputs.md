@@ -1,8 +1,21 @@
 # List Wallet Outputs
 
-This example demonstrates how to retrieve a paginated list of outputs from a BSV wallet using the Go Wallet Toolbox SDK.
+This example demonstrates how to retrieve a paginated list of outputs from a BSV wallet using the Go Wallet Toolbox SDK. It showcases various filtering and pagination options for managing wallet output data efficiently.
 
-## Configuration Parameters
+## Overview
+
+The process involves several steps:
+1. Setting up wallet configuration and establishing connection to storage.
+2. Configuring request parameters including filters, pagination, and output criteria.
+3. Submitting the list outputs request with specified filtering options.
+4. Retrieving paginated output data with detailed information about each output.
+5. Processing and displaying the wallet outputs with their associated metadata.
+
+This approach ensures efficient output management by providing flexible filtering and pagination capabilities for wallet operations.
+
+## Code Walkthrough
+
+### Configuration Parameters
 
 The example uses the following configurable constants:
 
@@ -14,7 +27,7 @@ The example uses the following configurable constants:
 - **`DefaultTags`**: The default tags to filter outputs by, empty means list all outputs regardless of tags (default: `[]`)
 - **`DefaultTagQueryMode`**: The default mode for querying tags when multiple tags are specified (default: `QueryModeAny`)
 
-## Request Parameters
+### Request Parameters
 
 The `ListOutputsArgs` structure supports the following options:
 
@@ -25,14 +38,22 @@ The `ListOutputsArgs` structure supports the following options:
 - **`Offset`**: Specifies the starting position for pagination (useful for retrieving large output histories)
 - **`IncludeLabels`**: Optional parameter to include output labels in the response
 
-## Response Fields
+### Response Analysis
 
-The response contains:
+The service response contains:
 
 - **`TotalOutputs`**: The total number of outputs available for the wallet
 - **`Outputs`**: An array of output objects containing detailed information about each wallet output
 
-## Example Output
+## Running the Example
+
+To run this example:
+
+```bash
+go run ./examples/wallet_examples/list_outputs/list_outputs.go
+```
+
+## Expected Output
 
 ```text
 🚀 STARTING: List Outputs
@@ -46,3 +67,36 @@ Outputs: &{TotalOutputs:1 BEEF:[] Outputs:[{Satoshis:99904 LockingScript:[] Spen
 ============================================================
 🎉 COMPLETED: List Outputs
 ```
+
+## Integration Steps
+
+To integrate wallet output listing into your application:
+
+1. **Configure wallet connection** with appropriate storage and authentication settings.
+2. **Set pagination parameters** including limit and offset for managing large output sets.
+3. **Define filtering criteria** such as baskets, tags, and tag query modes for targeted output retrieval.
+4. **Submit list outputs request** using the configured parameters and filters.
+5. **Process response data** to extract total count and individual output information.
+6. **Implement pagination logic** for handling large output histories across multiple requests.
+7. **Handle output metadata** including labels, tags, and custom instructions as needed.
+
+### Error Handling
+
+```go
+outputs, err := wallet.ListOutputs(ctx, args)
+if err != nil {
+    log.Printf("Failed to list outputs: %v", err)
+    return
+}
+
+// Validate response data
+if outputs.TotalOutputs == 0 {
+    log.Printf("No outputs found for the specified criteria")
+    return
+}
+```
+
+## Additional Resources
+
+- [List Actions Documentation](../list_actions/list_actions.md) - View wallet transaction history
+- [List Outputs Example](./list_outputs.go) - Complete code example for listing wallet outputs
