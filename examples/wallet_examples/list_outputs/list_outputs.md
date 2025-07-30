@@ -63,7 +63,9 @@ CreateWallet: 03aeac4f9aa44ff0a8e54832415cc810d1db8367ccb33febf60cb2fa4f82b5b5c4
 === STEP ===
 Alice is performing: Listing outputs
 --------------------------------------------------
-Outputs: &{TotalOutputs:1 BEEF:[] Outputs:[{Satoshis:99904 LockingScript:[] Spendable:true CustomInstructions: Tags:[] Outpoint:b45178c7de8c54651f1669c3f516a0df57e2fd8ac5602f16cb17cc0c49360b40.0 Labels:[]}]}
+ListOutputsArgs: {Basket: Tags:[] TagQueryMode:any Include: IncludeCustomInstructions:<nil> IncludeTags:<nil> IncludeLabels:0x7ff79736e380 Limit:0x7ff79736e3c4 Offset:0x7ff797ed7d6c SeekPermission:<nil>}
+============================================================
+Outputs: &{TotalOutputs:2 BEEF:[] Outputs:[{Satoshis:99904 LockingScript:[] Spendable:true CustomInstructions: Tags:[] Outpoint:b45178c7de8c54651f1669c3f516a0df57e2fd8ac5602f16cb17cc0c49360b40.0 Labels:[]} {Satoshis:1 LockingScript:[] Spendable:true CustomInstructions: Tags:[] Outpoint:15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8.0 Labels:[]}]}
 ============================================================
 🎉 COMPLETED: List Outputs
 ```

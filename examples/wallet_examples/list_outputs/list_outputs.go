@@ -34,10 +34,6 @@ var (
 )
 
 // defaultListOutputsArgs creates default arguments for listing wallet outputs.
-// This function demonstrates how to configure the ListOutputsArgs struct which controls:
-// - Filtering: which basket and tags to filter by and how to query them
-// - Pagination: how many results to return and where to start
-// - Data inclusion: whether to include additional metadata like labels
 func defaultListOutputsArgs() sdk.ListOutputsArgs {
 	return sdk.ListOutputsArgs{
 		Basket:        DefaultBasket,         // Empty basket means list from all baskets
@@ -54,17 +50,22 @@ func defaultListOutputsArgs() sdk.ListOutputsArgs {
 func main() {
 	show.ProcessStart("List Outputs")
 	ctx := context.Background()
+
+	// Create Alice's wallet instance
 	alice := example_setup.CreateAlice()
 
-	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
+	// Create the wallet interface and establish database connection
+	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
-	if err != nil {
-		panic(fmt.Errorf("failed to create Alice's wallet: %w", err))
-	}
 
 	show.Step("Alice", "Listing outputs")
-	args := defaultListOutputsArgs()
 
+	// Configure pagination and filtering parameters
+	args := defaultListOutputsArgs()
+	show.Info("ListOutputsArgs", args)
+	show.Separator()
+
+	// Retrieve paginated list of wallet outputs
 	outputs, err := aliceWallet.ListOutputs(ctx, args, DefaultOriginator)
 	if err != nil {
 		panic(fmt.Errorf("failed to list outputs: %w", err))
