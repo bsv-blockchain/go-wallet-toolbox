@@ -13,73 +13,36 @@ The process involves several steps:
 
 This approach ensures reliable transaction creation with proper error handling and confirmation mechanisms.
 
+## Prerequisites
+
+For this example to work, the wallet creating the transaction must contain funds. You will need to follow the [wallet setup process](../../README.md#example-setup) to fund the wallet with spendable outputs.
+
 ## Code Walkthrough
 
 ### Configuration Parameters
 
-```go
-var (
-    DefaultRecipientAddress = "1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq"
-    DefaultSatoshis = uint64(100)
-    DefaultTxDescription = "Create action example transaction"
-    DefaultOutputDescription = "Payment to recipient"
-    DefaultOriginator = "example.com"
-)
-```
+The example uses the following configurable constants:
 
-The example defines configuration constants:
-- **DefaultRecipientAddress**: Target address for the transaction (testnet address)
-- **DefaultSatoshis**: Amount to send in satoshis
-- **DefaultTxDescription**: Human-readable description for the transaction
-- **DefaultOutputDescription**: Description for the payment output
-- **DefaultOriginator**: Domain identifier for the requesting application
+- **`DefaultRecipientAddress`**: Target address for the transaction (default: `"1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq"`)
+- **`DefaultSatoshis`**: Amount to send in satoshis (default: `100`)
+- **`DefaultTxDescription`**: Human-readable description for the transaction (default: `"Create action example transaction"`)
+- **`DefaultOutputDescription`**: Description for the payment output (default: `"Payment to recipient"`)
+- **`DefaultOriginator`**: Domain identifier for the requesting application (default: `"example.com"`)
 
-### Setting Up the Wallet
+### Request Parameters
 
-```go
-alice := example_setup.CreateAlice()
-aliceWallet, cleanup := alice.CreateWallet(ctx)
-defer cleanup()
-```
+The `CreateActionArgs` structure supports the following options:
 
-We create Alice's wallet instance and establish a connection to the wallet database. The cleanup function ensures proper resource management when the operation completes.
+- **`Description`**: Human-readable description of the transaction
+- **`Outputs`**: Array of outputs specifying recipients, amounts, and metadata
+- **`Labels`**: Tags for categorizing and tracking the transaction
 
-### Creating Transaction Arguments
+### Response Analysis
 
-```go
-args := sdk.CreateActionArgs{
-    Description: DefaultTxDescription,
-    Outputs: []sdk.CreateActionOutput{
-        {
-            LockingScript: lockingScript,
-            Satoshis:      DefaultSatoshis,
-            OutputDescription: DefaultOutputDescription,
-            Tags: []string{"payment", "example"},
-        },
-    },
-    Labels: []string{"create_action_example"},
-}
-```
+The service response contains:
 
-The transaction arguments include:
-- **Description**: Human-readable description of the transaction
-- **Outputs**: Array of outputs specifying recipients, amounts, and metadata
-- **Labels**: Tags for categorizing and tracking the transaction
-
-### Executing the Transaction
-
-```go
-result, err := aliceWallet.CreateAction(ctx, args, DefaultOriginator)
-if err != nil {
-    panic(fmt.Errorf("failed to create action: %w", err))
-}
-```
-
-The `CreateAction` method handles the complete transaction lifecycle including input selection, signing, and broadcasting.
-
-## Prerequisites
-
-For this example to work with real funds, you would need to follow the wallet setup process to fund the wallet with spendable outputs.
+- **`Txid`**: The unique transaction identifier for the created transaction
+- **`SendWithResults`**: Array of broadcast results with transaction status and confirmation details
 
 ## Running the Example
 
@@ -129,23 +92,6 @@ To integrate transaction creation into your application:
 5. **Process response data** to extract transaction ID and broadcast status.
 6. **Handle transaction states** including pending, sending, and confirmed statuses.
 7. **Implement error handling** for insufficient funds, invalid addresses, or network issues.
-
-### Error Handling
-
-```go
-result, err := wallet.CreateAction(ctx, args, originator)
-if err != nil {
-    log.Printf("Failed to create transaction: %v", err)
-    return
-}
-
-// Check transaction status
-for _, sendResult := range result.SendWithResults {
-    if sendResult.Status != "sending" {
-        log.Printf("Transaction %s failed to broadcast: %s", sendResult.Txid, sendResult.Status)
-    }
-}
-```
 
 ## Additional Resources
 
