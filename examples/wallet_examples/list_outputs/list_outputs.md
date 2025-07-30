@@ -82,22 +82,6 @@ To integrate wallet output listing into your application:
 6. **Implement pagination logic** for handling large output histories across multiple requests.
 7. **Handle output metadata** including labels, tags, and custom instructions as needed.
 
-### Error Handling
-
-```go
-outputs, err := wallet.ListOutputs(ctx, args)
-if err != nil {
-    log.Printf("Failed to list outputs: %v", err)
-    return
-}
-
-// Validate response data
-if outputs.TotalOutputs == 0 {
-    log.Printf("No outputs found for the specified criteria")
-    return
-}
-```
-
 ## Additional Resources
 
 - [List Actions Documentation](../list_actions/list_actions.md) - Get wallet action history

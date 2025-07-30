@@ -15,66 +15,29 @@ This example is useful for building wallet interfaces that need to display trans
 
 ## Code Walkthrough
 
-### Configuring Default Parameters
+### Configuration Parameters
 
-```go
-var (
-    DefaultLimit = uint32(100)
-    DefaultOffset = uint32(0)
-    DefaultOriginator = "example.com"
-    DefaultIncludeLabels = true
-)
-```
-The example defines default configuration values:
-- **DefaultLimit**: Maximum number of actions to return per request (100)
-- **DefaultOffset**: Starting position for pagination (0 = beginning)
-- **DefaultOriginator**: Domain identifier for the requesting application
-- **DefaultIncludeLabels**: Whether to include action labels in the response
+The example uses the following configurable constants:
 
-### Creating List Arguments
+- **`DefaultLimit`**: Maximum number of actions to return per request (default: `100`)
+- **`DefaultOffset`**: Starting position for pagination (default: `0`)
+- **`DefaultOriginator`**: The originator domain or FQDN allowed to use this permission (default: `"example.com"`)
+- **`DefaultIncludeLabels`**: The default value for including labels in the response (default: `true`)
 
-```go
-func defaultListActionsArgs() sdk.ListActionsArgs {
-    return sdk.ListActionsArgs{
-        Limit:         &DefaultLimit,
-        Offset:        &DefaultOffset,
-        IncludeLabels: &DefaultIncludeLabels,
-    }
-}
-```
-The `ListActionsArgs` structure controls the query behavior:
-- **Limit**: Controls pagination size (how many results per page)
-- **Offset**: Controls pagination position (which page to start from)
-- **IncludeLabels**: Determines whether to include metadata labels with each action
+### Request Parameters
 
-### Setting Up the Wallet
+The `ListActionsArgs` structure supports the following options:
 
-```go
-alice := example_setup.CreateAlice()
-aliceWallet, cleanup, err := alice.CreateWallet(ctx)
-defer cleanup()
-```
-We create Alice's wallet instance and establish a connection to the wallet database. The cleanup function ensures proper resource management when the operation completes.
+- **`Limit`**: Controls how many actions to retrieve in a single request
+- **`Offset`**: Specifies the starting position for pagination (useful for retrieving large action histories)
+- **`IncludeLabels`**: Optional parameter to include action labels in the response
 
-### Retrieving Actions
+### Response Analysis
 
-```go
-args := defaultListActionsArgs()
-actions, err := aliceWallet.ListActions(ctx, args, DefaultOriginator)
-```
-The `ListActions` method takes:
-- **Context**: For request lifecycle management
-- **ListActionsArgs**: Configuration for pagination and filtering
-- **Originator**: String identifying the requesting application or domain
+The service response contains:
 
-### Processing Results
-
-```go
-show.Info("Actions", actions)
-```
-The response contains:
-- **TotalActions**: Total number of actions available in the wallet
-- **Actions**: Array of action objects with detailed information about each wallet activity
+- **`TotalActions`**: The total number of actions available in the wallet
+- **`Actions`**: An array of action objects containing detailed information about each wallet activity
 
 ## Running the Example
 
@@ -84,7 +47,7 @@ To run this example:
 go run ./examples/wallet_examples/list_actions/list_actions.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 🚀 STARTING: List Actions
@@ -114,23 +77,8 @@ To integrate action listing into your application:
 7. **Implement pagination logic** using offset and limit for large action histories.
 8. **Handle errors** appropriately for network issues or wallet access problems.
 
-### Pagination Example
-
-```go
-// First page
-args := sdk.ListActionsArgs{
-    Limit:  &[]uint32{10}[0],    // 10 items per page
-    Offset: &[]uint32{0}[0],     // Start from beginning
-}
-
-// Second page
-args = sdk.ListActionsArgs{
-    Limit:  &[]uint32{10}[0],    // 10 items per page
-    Offset: &[]uint32{10}[0],    // Skip first 10 items
-}
-```
-
 ## Additional Resources
 
 - [List Actions Example](./list_actions.go) - Complete code example for listing wallet actions
-- [List Outputs Documentation](../list_outputs/list_outputs.md) - Get wallet transaction outputs
+- [List Outputs Documentation](../list_outputs/list_outputs.md) - View wallet transaction outputs
+
