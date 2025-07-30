@@ -20,6 +20,21 @@ import (
 	"gorm.io/gorm"
 )
 
+type abortStep struct {
+	name string
+	fn   func(*Transactions, *gorm.DB, uint) error
+}
+
+var abortTransactionSteps = []abortStep{
+	{"release_reserved_utxos", (*Transactions).releaseReservedUTXOs},
+	{"check_if_any_output_is_spent", (*Transactions).checkIfAnyOutputIsSpent},
+	{"release_outputs_reserved", (*Transactions).releaseOutputsReservedByTransaction},
+	{"delete_outputs", (*Transactions).deleteOutputsByTransactionID},
+	{"update_transaction_status", func(txs *Transactions, tx *gorm.DB, transactionID uint) error {
+		return txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed)
+	}},
+}
+
 type Transactions struct {
 	db *gorm.DB
 }
@@ -80,6 +95,7 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 				UserID: newTx.UserID,
 			}
 		}),
+		// TODO: verify if this won't blow up for not created UTXOs (when we're using noSendChange - which are not in UTXO table)
 		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models.UserUTXO {
 			return &models.UserUTXO{
 				UserID:   newTx.UserID,
@@ -206,21 +222,39 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 	}
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
-
 }
 
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
-	transaction := models.Transaction{}
+	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
+		Preload("Labels").
+		First(&transaction).
+		Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
+	}
+
+	return txs.mapModelToTransactionEntity(&transaction), nil
+}
+
+func (txs *Transactions) FindTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
+	transaction := models.Transaction{}
+	err := txs.db.WithContext(ctx).
+		Scopes(scopes.UserID(userID)).
+		Where("tx_id = ?", txID).
 		Preload("Labels").
 		First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
+		return nil, fmt.Errorf("failed to find transaction by txID: %w", err)
 	}
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
@@ -312,33 +346,56 @@ func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusForTxID(
-	ctx context.Context,
-	txID string,
-	txStatus wdk.TxStatus,
-	provenTxReqStatus wdk.ProvenTxReqStatus,
-	txNotes []history.Builder,
-) error {
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = updateTransactionStatus(tx, txID, txStatus)
-		if err != nil {
-			return err
-		}
-
-		return updateKnownTxStatus(tx, txID, provenTxReqStatus, txNotes)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update transaction: %w", err)
-	}
-	return nil
-}
-
-func updateTransactionStatus(tx *gorm.DB, txID string, txStatus wdk.TxStatus) error {
-	return tx.Model(models.Transaction{}).
+func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error {
+	return txs.db.WithContext(ctx).Model(models.Transaction{}).
 		Where("tx_id = ?", txID).
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
+}
+
+func (txs *Transactions) checkIfAnyOutputIsSpent(tx *gorm.DB, transactionID uint) error {
+	var spentCount int64
+	err := tx.Model(&models.Output{}).
+		Where("transaction_id = ?", transactionID).
+		Where("spent_by IS NOT NULL").
+		Count(&spentCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to count spent outputs: %w", err)
+	}
+
+	if spentCount > 0 {
+		return fmt.Errorf("transaction with ID %d has spent outputs", transactionID)
+	}
+
+	return nil
+}
+
+func (txs *Transactions) updateTransactionStatusByID(tx *gorm.DB, transactionID uint, newStatus wdk.TxStatus) error {
+	return tx.Model(&models.Transaction{}).
+		Where("id = ?", transactionID).
+		Updates(map[string]any{
+			"status": newStatus,
+		}).Error
+}
+
+func (txs *Transactions) deleteOutputsByTransactionID(tx *gorm.DB, transactionID uint) error {
+	return tx.Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
+}
+
+func (txs *Transactions) releaseOutputsReservedByTransaction(tx *gorm.DB, transactionID uint) error {
+	return tx.Model(&models.Output{}).
+		Where("spent_by = ?", transactionID).
+		Updates(map[string]any{
+			"spent_by":  nil,
+			"spendable": true,
+		}).Error
+}
+
+func (txs *Transactions) releaseReservedUTXOs(tx *gorm.DB, transactionID uint) error {
+	return tx.Model(&models.UserUTXO{}).
+		Where("reserved_by_id = ?", transactionID).
+		Update("reserved_by_id", nil).Error
 }
 
 func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {
@@ -484,4 +541,31 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 
 		return query.Where("id IN (?)", subQuery)
 	}
+}
+
+func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
+	if err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		historyBuilders := []history.Builder{history.NewBuilder().AbortAction(reference)}
+
+		for _, step := range abortTransactionSteps {
+			if err := step.fn(txs, tx, transactionID); err != nil {
+				return fmt.Errorf("AbortTransactionAtomic: step '%s' failed: %w", step.name, err)
+			}
+		}
+
+		if txID == nil || *txID == "" {
+			return nil
+		}
+
+		if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, nil, historyBuilders); err != nil {
+			return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
+
+		}
+
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to abort transaction: %w", err)
+	}
+
+	return nil
 }

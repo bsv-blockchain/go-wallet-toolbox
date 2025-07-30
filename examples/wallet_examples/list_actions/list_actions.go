@@ -20,38 +20,39 @@ var (
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
 	DefaultOriginator = "example.com"
 
-	// DefaultIncludeLabels is the default value for including labels in the response
+	// DefaultIncludeLabels determines whether to include labels in the response
 	DefaultIncludeLabels = true
 )
 
-// defaultListActionsArgs creates default arguments for listing wallet actions.
-// This function demonstrates how to configure the ListActionsArgs struct which controls:
-// - Pagination: how many results to return and where to start
-// - Data inclusion: whether to include additional metadata like labels
+// defaultListActionsArgs creates default arguments for listing wallet actions
 func defaultListActionsArgs() sdk.ListActionsArgs {
 	return sdk.ListActionsArgs{
-		Limit:         &DefaultLimit,  // Maximum number of actions to return (100)
-		Offset:        &DefaultOffset, // Starting position for pagination (0 = start from beginning)
-		IncludeLabels: &DefaultIncludeLabels, // Include labels associated with actions in the response
+		Limit:         &DefaultLimit,         // Maximum number of actions to return
+		Offset:        &DefaultOffset,        // Starting position for pagination
+		IncludeLabels: &DefaultIncludeLabels, // Include labels with actions
 	}
 }
 
-// This example demonstrates how to list actions for the Alice wallet using default arguments.
-// It shows the complete flow from wallet creation to action listing with proper error handling.
+// This example demonstrates how to list actions for the Alice wallet
 func main() {
 	show.ProcessStart("List Actions")
 	ctx := context.Background()
+
+	// Create Alice's wallet instance
 	alice := example_setup.CreateAlice()
 
-	aliceWallet, cleanup, err := alice.CreateWallet(ctx)
+	// Create the wallet interface and establish database connection
+	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
-	if err != nil {
-		panic(fmt.Errorf("failed to create Alice's wallet: %w", err))
-	}
 
 	show.Step("Alice", "Listing actions")
-	args := defaultListActionsArgs()
 
+	// Configure pagination and filtering parameters
+	args := defaultListActionsArgs()
+	show.Info("ListActionsArgs", args)
+	show.Separator()
+
+	// Retrieve paginated list of wallet actions
 	actions, err := aliceWallet.ListActions(ctx, args, DefaultOriginator)
 	if err != nil {
 		panic(fmt.Errorf("failed to list actions: %w", err))
@@ -60,16 +61,3 @@ func main() {
 	show.Info("Actions", actions)
 	show.ProcessComplete("List Actions")
 }
-
-/* Output:
-🚀 STARTING: List Actions
-============================================================
-CreateWallet: 025dd4fd3fd0594315937f4775f11c1622581ea8372642b57864e45c7bc8b36e4f
-
-=== STEP ===
-Alice is performing: Listing actions
---------------------------------------------------
-Actions: &{TotalActions:0 Actions:[]}
-============================================================
-🎉 COMPLETED: List Actions
-*/

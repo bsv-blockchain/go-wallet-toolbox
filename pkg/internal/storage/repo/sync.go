@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo/syncrepo"
 	"gorm.io/gorm"
 )
@@ -15,22 +16,19 @@ type Sync struct {
 	*syncrepo.SyncTag
 	*syncrepo.SyncTagMap
 	db *gorm.DB
-
-	naming *naming
 }
 
-func NewSync(db *gorm.DB) *Sync {
+func NewSync(db *gorm.DB, query *genquery.Query) *Sync {
 	return &Sync{
-		db:     db,
-		naming: newNaming(db),
+		db: db,
 
-		SyncBasket:      syncrepo.NewSyncBasket(db),
-		SyncKnownTx:     syncrepo.NewSyncKnownTx(db),
-		SyncTransaction: syncrepo.NewSyncTransaction(db),
-		SyncOutput:      syncrepo.NewSyncOutput(db),
-		SyncLabel:       syncrepo.NewSyncLabel(db),
-		SyncLabelMap:    syncrepo.NewSyncLabelMap(db),
-		SyncTag:         syncrepo.NewSyncTag(db),
-		SyncTagMap:      syncrepo.NewSyncTagMap(db),
+		SyncBasket:      syncrepo.NewSyncBasket(db, query),
+		SyncKnownTx:     syncrepo.NewSyncKnownTx(db, query),
+		SyncTransaction: syncrepo.NewSyncTransaction(db, query),
+		SyncOutput:      syncrepo.NewSyncOutput(db, query),
+		SyncLabel:       syncrepo.NewSyncLabel(db, query),
+		SyncLabelMap:    syncrepo.NewSyncLabelMap(db, query),
+		SyncTag:         syncrepo.NewSyncTag(db, query),
+		SyncTagMap:      syncrepo.NewSyncTagMap(db, query),
 	}
 }

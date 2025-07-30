@@ -71,4 +71,8 @@ type WalletStorageProvider interface {
 	// ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
 	ProcessSyncChunk(ctx context.Context, args RequestSyncChunkArgs, chunk *SyncChunk) (*ProcessSyncChunkResult, error)
+
+	// AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
+	// @Write
+	AbortAction(ctx context.Context, auth AuthID, args AbortActionArgs) (*AbortActionResult, error)
 }

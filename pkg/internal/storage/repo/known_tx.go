@@ -15,6 +15,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gen"
 	"gorm.io/gorm"
@@ -25,11 +27,12 @@ const (
 )
 
 type KnownTx struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewKnownTxRepo(db *gorm.DB) *KnownTx {
-	return &KnownTx{db: db}
+func NewKnownTxRepo(db *gorm.DB, query *genquery.Query) *KnownTx {
+	return &KnownTx{db: db, query: query}
 }
 
 func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error {
@@ -41,6 +44,10 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}
 	return nil
+}
+
+func (p *KnownTx) UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
+	return updateKnownTxStatus(p.db.WithContext(ctx), txID, status, skipForStatuses, txNotes)
 }
 
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
@@ -73,12 +80,15 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	return nil
 }
 
-func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
+func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
 	var model models.KnownTx
-	err := tx.Model(&model).
-		Where("tx_id = ? ", txID).
-		UpdateColumn("status", status).
-		Error
+
+	query := tx.Model(&model).Where("tx_id = ? ", txID)
+	if len(skipForStatuses) > 0 {
+		query = query.Where("status NOT IN ? ", skipForStatuses)
+	}
+
+	err := query.UpdateColumn("status", status).Error
 	if err != nil {
 		return fmt.Errorf("failed to update known tx status: %w", err)
 	}
@@ -134,17 +144,22 @@ func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[st
 	return rawTxMap, nil
 }
 
-func (p *KnownTx) FindKnownTxStatus(ctx context.Context, txID string) (wdk.ProvenTxReqStatus, error) {
-	var model models.KnownTx
+func (p *KnownTx) FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error) {
+	var rows []*models.KnownTx
 	err := p.db.WithContext(ctx).
-		Model(&model).
-		Select("status").
-		Where("tx_id = ? ", txID).
-		First(&model).Error
+		Model(&models.KnownTx{}).
+		Select("status, tx_id").
+		Where("tx_id IN (?)", txIDs).
+		Find(&rows).Error
 	if err != nil {
-		return "", fmt.Errorf("failed to find proven tx status: %w", err)
+		return nil, fmt.Errorf("failed to find proven tx statuses for list of txIDs: %w", err)
 	}
-	return model.Status, nil
+
+	txIDStatuses := seq.MapTo(seq.FromSlice(rows), func(row *models.KnownTx) (string, wdk.ProvenTxReqStatus) {
+		return row.TxID, row.Status
+	})
+
+	return seq2.CollectToMap(txIDStatuses), nil
 }
 
 func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
@@ -171,7 +186,7 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 	return count == int64(len(txIDs)), nil
 }
 
-func (p *KnownTx) BuildValidBEEF(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
+func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, statusesToFilterOut)
 	if err != nil {
@@ -260,7 +275,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeT
 	return nil
 }
 
-func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) ([]byte, error) {
+func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 
 	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
@@ -276,12 +291,7 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], k
 		}
 	}
 
-	data, err := beef.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("beef serialization error: %w", err)
-	}
-
-	return data, nil
+	return beef, nil
 }
 
 func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {
@@ -352,7 +362,7 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 }
 
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
-	table := genquery.KnownTx
+	table := &p.query.KnownTx
 
 	txNoteScope := func(dao gen.Dao) gen.Dao {
 		if !spec.IncludeHistoryNotes {
@@ -376,7 +386,7 @@ func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadS
 }
 
 func (p *KnownTx) CountKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) (int64, error) {
-	table := genquery.KnownTx
+	table := &p.query.KnownTx
 
 	count, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
@@ -395,7 +405,7 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	}
 
 	if spec.TxID != nil {
-		return []gen.Condition{genquery.KnownTx.TxID.Eq(*spec.TxID)}
+		return []gen.Condition{p.query.KnownTx.TxID.Eq(*spec.TxID)}
 	}
 
 	var conditions []gen.Condition

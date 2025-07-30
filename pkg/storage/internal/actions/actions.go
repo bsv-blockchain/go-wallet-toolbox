@@ -16,9 +16,18 @@ type Actions struct {
 	*synchronizeTxStatuses
 	*listOutputs
 	*listActions
+	*abortAction
 }
 
-func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, repos *repo.Repositories, randomizer wdk.Randomizer, services wdk.Services, syncTxStatusesConfig defs.SynchronizeTxStatuses) *Actions {
+func New(
+	logger *slog.Logger,
+	funder funder.Funder,
+	commission defs.Commission,
+	repos *repo.Repositories,
+	randomizer wdk.Randomizer,
+	services wdk.Services,
+	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+) *Actions {
 	return &Actions{
 		create: newCreateAction(
 			logger,
@@ -30,6 +39,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			repos.KnownTx,
 			repos.Commission,
 			randomizer,
+			services,
 		),
 		internalize: newInternalizeAction(
 			logger,
@@ -38,6 +48,7 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 			repos.KnownTx,
 			repos.Outputs,
 			randomizer,
+			services,
 		),
 		process: newProcessAction(
 			logger,
@@ -51,5 +62,6 @@ func New(logger *slog.Logger, funder funder.Funder, commission defs.Commission, 
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
+		abortAction:           newAbortAction(logger, repos.Transactions),
 	}
 }

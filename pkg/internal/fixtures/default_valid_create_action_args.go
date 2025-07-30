@@ -11,12 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ValidCreateActionArgsWithIsNoSendTrue() wdk.ValidCreateActionArgs {
-	args := DefaultValidCreateActionArgs()
-	args.IsNoSend = true
-	args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
-	return args
-}
+const DefaultCreateActionOutputSatoshis = 42000
 
 func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 	return wdk.ValidCreateActionArgs{
@@ -26,7 +21,7 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 		Outputs: []wdk.ValidCreateActionOutput{
 			{
 				LockingScript:      "76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac",
-				Satoshis:           42000,
+				Satoshis:           DefaultCreateActionOutputSatoshis,
 				OutputDescription:  "test output",
 				CustomInstructions: to.Ptr(CreateActionTestCustomInstructions),
 				Tags:               []primitives.StringUnder300{CreateActionTestTag},
@@ -67,7 +62,7 @@ func DefaultWalletCreateActionArgs(t *testing.T, opts ...func(*sdk.CreateActionA
 		Outputs: []sdk.CreateActionOutput{
 			{
 				LockingScript:      lockingScript.Bytes(),
-				Satoshis:           42000,
+				Satoshis:           DefaultCreateActionOutputSatoshis,
 				OutputDescription:  "test output",
 				CustomInstructions: CreateActionTestCustomInstructions,
 				Tags:               []string{CreateActionTestTag},

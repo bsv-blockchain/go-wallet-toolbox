@@ -90,6 +90,11 @@ func (c *WalletStorageProviderClient) ProcessSyncChunk(ctx context.Context, args
 	return c.client.ProcessSyncChunk(ctx, args, chunk)
 }
 
+// AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
+func (c *WalletStorageProviderClient) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	return c.client.AbortAction(ctx, auth, args)
+}
+
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -106,4 +111,5 @@ type rpcWalletStorageProvider struct {
 	GetSyncChunk              func(context.Context, wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error)
 	FindOrInsertSyncStateAuth func(context.Context, wdk.AuthID, string, string) (*wdk.FindOrInsertSyncStateAuthResponse, error)
 	ProcessSyncChunk          func(context.Context, wdk.RequestSyncChunkArgs, *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error)
+	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 }
