@@ -1,19 +1,85 @@
 # Create Action Example
 
-This example demonstrates how to create and send a Bitcoin transaction using the wallet's `CreateAction` method.
+This example demonstrates how to create and send a Bitcoin transaction using the wallet's `CreateAction` method. It showcases the complete transaction creation process from wallet setup to transaction broadcasting.
 
-## Configuration
+## Overview
 
-The example uses these default values (configurable at the top of the file):
+The process involves several steps:
+1. Setting up wallet configuration and establishing connection to storage.
+2. Configuring transaction parameters including recipient address, amount, and descriptions.
+3. Creating transaction arguments with proper output specifications and metadata.
+4. Executing the transaction creation using the wallet's `CreateAction` method.
+5. Processing the response to confirm successful transaction creation and broadcasting.
 
-- **Recipient Address**: `1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq` (testnet address)
-- **Amount to Send**: 1000 satoshis
-- **Transaction Description**: "Create action example transaction"
-- **Output Description**: "Payment to recipient"
+This approach ensures reliable transaction creation with proper error handling and confirmation mechanisms.
+
+## Code Walkthrough
+
+### Configuration Parameters
+
+```go
+var (
+    DefaultRecipientAddress = "1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq"
+    DefaultSatoshis = uint64(100)
+    DefaultTxDescription = "Create action example transaction"
+    DefaultOutputDescription = "Payment to recipient"
+    DefaultOriginator = "example.com"
+)
+```
+
+The example defines configuration constants:
+- **DefaultRecipientAddress**: Target address for the transaction (testnet address)
+- **DefaultSatoshis**: Amount to send in satoshis
+- **DefaultTxDescription**: Human-readable description for the transaction
+- **DefaultOutputDescription**: Description for the payment output
+- **DefaultOriginator**: Domain identifier for the requesting application
+
+### Setting Up the Wallet
+
+```go
+alice := example_setup.CreateAlice()
+aliceWallet, cleanup := alice.CreateWallet(ctx)
+defer cleanup()
+```
+
+We create Alice's wallet instance and establish a connection to the wallet database. The cleanup function ensures proper resource management when the operation completes.
+
+### Creating Transaction Arguments
+
+```go
+args := sdk.CreateActionArgs{
+    Description: DefaultTxDescription,
+    Outputs: []sdk.CreateActionOutput{
+        {
+            LockingScript: lockingScript,
+            Satoshis:      DefaultSatoshis,
+            OutputDescription: DefaultOutputDescription,
+            Tags: []string{"payment", "example"},
+        },
+    },
+    Labels: []string{"create_action_example"},
+}
+```
+
+The transaction arguments include:
+- **Description**: Human-readable description of the transaction
+- **Outputs**: Array of outputs specifying recipients, amounts, and metadata
+- **Labels**: Tags for categorizing and tracking the transaction
+
+### Executing the Transaction
+
+```go
+result, err := aliceWallet.CreateAction(ctx, args, DefaultOriginator)
+if err != nil {
+    panic(fmt.Errorf("failed to create action: %w", err))
+}
+```
+
+The `CreateAction` method handles the complete transaction lifecycle including input selection, signing, and broadcasting.
 
 ## Prerequisites
 
-For this example to work with real funds, you would need follow the steps in the [setup example]() to continue. // add link once main README PR is merged
+For this example to work with real funds, you would need to follow the wallet setup process to fund the wallet with spendable outputs.
 
 ## Running the Example
 
@@ -21,7 +87,7 @@ For this example to work with real funds, you would need follow the steps in the
 go run examples/wallet_examples/create_action/create_action.go
 ```
 
-Typical output:
+## Expected Output
 
 ```text
 🚀 STARTING: Create Action
@@ -51,3 +117,38 @@ Broadcast status: sending
 ============================================================
 🎉 COMPLETED: Create Action
 ```
+
+## Integration Steps
+
+To integrate transaction creation into your application:
+
+1. **Configure transaction parameters** including recipient addresses, amounts, and descriptions.
+2. **Set up wallet connection** with appropriate storage and authentication settings.
+3. **Create transaction arguments** with proper output specifications, labels, and metadata.
+4. **Execute transaction creation** using the wallet's `CreateAction` method.
+5. **Process response data** to extract transaction ID and broadcast status.
+6. **Handle transaction states** including pending, sending, and confirmed statuses.
+7. **Implement error handling** for insufficient funds, invalid addresses, or network issues.
+
+### Error Handling
+
+```go
+result, err := wallet.CreateAction(ctx, args, originator)
+if err != nil {
+    log.Printf("Failed to create transaction: %v", err)
+    return
+}
+
+// Check transaction status
+for _, sendResult := range result.SendWithResults {
+    if sendResult.Status != "sending" {
+        log.Printf("Transaction %s failed to broadcast: %s", sendResult.Txid, sendResult.Status)
+    }
+}
+```
+
+## Additional Resources
+
+- [Create Action Example](./create_action.go) - Complete code example for creating transactions
+- [List Actions Documentation](../list_actions/list_actions.md) - View wallet transaction history
+- [List Outputs Documentation](../list_outputs/list_outputs.md) - View wallet transaction outputs
