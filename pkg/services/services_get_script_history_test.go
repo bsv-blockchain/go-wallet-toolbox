@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,6 +18,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 	type want struct {
 		expectErr    bool
 		historyCount int
+		name         string
 	}
 
 	cases := []struct {
@@ -35,7 +38,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 					WillBeReturned()
 			},
 			hash: testScriptHash,
-			want: want{historyCount: 3},
+			want: want{historyCount: 3, name: whatsonchain.ServiceName},
 		},
 		{
 			name: "empty history",
@@ -47,7 +50,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 					WillBeReturned()
 			},
 			hash: testScriptHash,
-			want: want{historyCount: 0},
+			want: want{historyCount: 0, name: whatsonchain.ServiceName},
 		},
 		{
 			name: "only confirmed transactions",
@@ -60,7 +63,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 					WillBeReturned()
 			},
 			hash: testScriptHash,
-			want: want{historyCount: 3},
+			want: want{historyCount: 3, name: whatsonchain.ServiceName},
 		},
 		{
 			name: "only unconfirmed transactions",
@@ -73,7 +76,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 					WillBeReturned()
 			},
 			hash: testScriptHash,
-			want: want{historyCount: 2},
+			want: want{historyCount: 2, name: whatsonchain.ServiceName},
 		},
 		{
 			name: "service API error",
@@ -85,7 +88,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 					WillBeReturned()
 			},
 			hash: testScriptHash,
-			want: want{expectErr: true},
+			want: want{expectErr: true, name: whatsonchain.ServiceName},
 		},
 		{
 			name: "service HTTP error",
@@ -135,7 +138,65 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 					WillBeReturned()
 			},
 			hash: testScriptHash,
-			want: want{historyCount: 110},
+			want: want{historyCount: 110, name: whatsonchain.ServiceName},
+		},
+		{
+			name: "bitails happy path with confirmed and unconfirmed",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(2, 800000).
+					WithUnconfirmedTransactions(1).
+					WillBeReturned()
+			},
+			hash: testScriptHash,
+			want: want{historyCount: 3, name: bitails.ServiceName},
+		},
+		{
+			name: "bitails empty history",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithEmptyHistory().
+					WillBeReturned()
+			},
+			hash: testScriptHash,
+			want: want{historyCount: 0, name: bitails.ServiceName},
+		},
+		{
+			name: "bitails confirmed error",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactionsError("some error").
+					WillBeReturned()
+			},
+			hash: testScriptHash,
+			want: want{expectErr: true},
+		},
+		{
+			name: "bitails HTTP 404 error",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactionsError("not found").
+					WithConfirmedStatusCode(http.StatusNotFound).
+					WillBeReturned()
+			},
+			hash: testScriptHash,
+			want: want{expectErr: true},
+		},
+		{
+			name: "bitails unreachable",
+			setup: func(f ts.ServicesFixture) {
+				_ = f.Bitails().WillBeUnreachable()
+			},
+			hash: testScriptHash,
+			want: want{expectErr: true},
 		},
 	}
 
@@ -157,7 +218,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, tc.hash, result.ScriptHash)
-				require.Equal(t, "WhatsOnChain", result.Name)
+				require.Equal(t, tc.want.name, result.Name)
 				require.Len(t, result.History, tc.want.historyCount)
 			}
 		})
@@ -167,26 +228,50 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 	const testScriptHash = "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 
-	// given:
-	fixture := ts.GivenServices(t)
-	ctx, cancel := context.WithCancelCause(t.Context())
+	t.Run("WhatsOnChain cancels context", func(t *testing.T) {
+		// given:
+		fixture := ts.GivenServices(t)
+		ctx, cancel := context.WithCancelCause(t.Context())
 
-	// Setup responder that cancels context when called
-	confirmedPattern := `=~/script/` + testScriptHash + `/confirmed/history`
-	fixture.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, confirmedPattern,
-		func(_ *http.Request) (*http.Response, error) {
-			cancel(context.Canceled)
-			return nil, context.Canceled
-		})
+		// Setup responder that cancels context when called
+		confirmedPattern := `=~/script/` + testScriptHash + `/confirmed/history`
+		fixture.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, confirmedPattern,
+			func(_ *http.Request) (*http.Response, error) {
+				cancel(context.Canceled)
+				return nil, context.Canceled
+			})
 
-	svc := fixture.Services().WithDefaultConfig()
+		svc := fixture.Services().WithDefaultConfig()
 
-	// when:
-	result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
+		// when:
+		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
 
-	// then:
-	require.True(t, errors.Is(err, context.Canceled))
-	require.Nil(t, result)
+		// then:
+		require.True(t, errors.Is(err, context.Canceled))
+		require.Nil(t, result)
+	})
+
+	t.Run("Bitails cancels context", func(t *testing.T) {
+		// given:
+		fixture := ts.GivenServices(t)
+		ctx, cancel := context.WithCancelCause(t.Context())
+
+		bitailsPattern := `=~/scripthash/` + testScriptHash + `/history`
+		fixture.Bitails().Transport().RegisterResponder(http.MethodGet, bitailsPattern,
+			func(_ *http.Request) (*http.Response, error) {
+				cancel(context.Canceled)
+				return nil, context.Canceled
+			})
+
+		svc := fixture.Services().WithDefaultConfig()
+
+		// when:
+		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
+
+		// then:
+		require.True(t, errors.Is(err, context.Canceled))
+		require.Nil(t, result)
+	})
 }
 
 func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) {
@@ -213,7 +298,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 					WithUnconfirmedTransactions(1).
 					WillBeReturned()
 			},
-			want: want{expectSuccess: true, serviceName: "WhatsOnChain"},
+			want: want{expectSuccess: true, serviceName: whatsonchain.ServiceName},
 		},
 		{
 			name: "service returns confirmed transactions error",
@@ -231,6 +316,43 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 			name: "service returns unconfirmed transactions error",
 			setup: func(f ts.ServicesFixture) {
 				f.WhatsOnChain().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(1, 800000).
+					WithUnconfirmedTransactionsError("Service unavailable").
+					WithUnconfirmedStatusCode(http.StatusOK).
+					WillBeReturned()
+			},
+			want: want{expectErr: true},
+		},
+		{
+			name: "bitails primary service succeeds",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(1, 800000).
+					WithUnconfirmedTransactions(1).
+					WillBeReturned()
+			},
+			want: want{expectSuccess: true, serviceName: bitails.ServiceName},
+		},
+		{
+			name: "bitails service returns confirmed transactions error",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactionsError("Service unavailable").
+					WithConfirmedStatusCode(http.StatusOK).
+					WillBeReturned()
+			},
+			want: want{expectErr: true},
+		},
+		{
+			name: "bitails service returns unconfirmed transactions error",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
 					WithConfirmedTransactions(1, 800000).
@@ -320,6 +442,39 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 			hash: testScriptHash,
 			want: want{errorContains: "failed to get script history"},
 		},
+		{
+			name: "bitails API error wrapped properly",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactionsError("Rate limit").
+					WillBeReturned()
+			},
+			hash: testScriptHash,
+			want: want{errorContains: "failed to get script history"},
+		},
+		{
+			name: "bitails HTTP error wrapped properly",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactionsError("Internal server error").
+					WithConfirmedStatusCode(http.StatusInternalServerError).
+					WillBeReturned()
+			},
+			hash: testScriptHash,
+			want: want{errorContains: "failed to get script history"},
+		},
+		{
+			name: "bitails service unreachable error wrapped properly",
+			setup: func(f ts.ServicesFixture) {
+				_ = f.Bitails().WillBeUnreachable()
+			},
+			hash: testScriptHash,
+			want: want{errorContains: "failed to get script history"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -365,7 +520,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 					WillBeReturned()
 			},
 			want: want{
-				serviceName:      "WhatsOnChain",
+				serviceName:      whatsonchain.ServiceName,
 				confirmedCount:   3,
 				unconfirmedCount: 2,
 			},
@@ -381,7 +536,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 					WillBeReturned()
 			},
 			want: want{
-				serviceName:      "WhatsOnChain",
+				serviceName:      whatsonchain.ServiceName,
 				confirmedCount:   5,
 				unconfirmedCount: 0,
 			},
@@ -397,9 +552,73 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 					WillBeReturned()
 			},
 			want: want{
-				serviceName:      "WhatsOnChain",
+				serviceName:      whatsonchain.ServiceName,
 				confirmedCount:   0,
 				unconfirmedCount: 3,
+			},
+		},
+		{
+			name: "bitails result with only unconfirmed transactions",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(0, 0).
+					WithUnconfirmedTransactions(3).
+					WillBeReturned()
+			},
+			want: want{
+				serviceName:      bitails.ServiceName,
+				confirmedCount:   0,
+				unconfirmedCount: 3,
+			},
+		},
+		{
+			name: "bitails result with confirmed and unconfirmed",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(3, 800000).
+					WithUnconfirmedTransactions(2).
+					WillBeReturned()
+			},
+			want: want{
+				serviceName:      bitails.ServiceName,
+				confirmedCount:   3,
+				unconfirmedCount: 2,
+			},
+		},
+		{
+			name: "bitails result contains proper service name and counts",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(3, 800000).
+					WithUnconfirmedTransactions(2).
+					WillBeReturned()
+			},
+			want: want{
+				serviceName:      bitails.ServiceName,
+				confirmedCount:   3,
+				unconfirmedCount: 2,
+			},
+		},
+		{
+			name: "bitails result with only confirmed transactions",
+			setup: func(f ts.ServicesFixture) {
+				f.Bitails().
+					ScriptHistoryData().
+					WithScriptHash(testScriptHash).
+					WithConfirmedTransactions(5, 750000).
+					WithUnconfirmedTransactions(0).
+					WillBeReturned()
+			},
+			want: want{
+				serviceName:      bitails.ServiceName,
+				confirmedCount:   5,
+				unconfirmedCount: 0,
 			},
 		},
 	}
@@ -440,35 +659,65 @@ func TestWalletServices_GetScriptHashHistory_ConcurrentAccess(t *testing.T) {
 	const testScriptHash = "0374d9ee2df8e5d7c5fd8359f33456996f2a1a9c76d9c783d2f8d5ee05ba5832"
 	const numConcurrent = 10
 
-	// given:
-	fixture := ts.GivenServices(t)
-	fixture.WhatsOnChain().
-		ScriptHistoryData().
-		WithScriptHash(testScriptHash).
-		WithConfirmedTransactions(1, 800000).
-		WithUnconfirmedTransactions(1).
-		WillBeReturned()
+	t.Run("WhatsOnChain concurrent access", func(t *testing.T) {
+		fixture := ts.GivenServices(t)
+		fixture.WhatsOnChain().
+			ScriptHistoryData().
+			WithScriptHash(testScriptHash).
+			WithConfirmedTransactions(1, 800000).
+			WithUnconfirmedTransactions(1).
+			WillBeReturned()
 
-	svc := fixture.Services().WithDefaultConfig()
+		svc := fixture.Services().WithDefaultConfig()
 
-	// when:
-	results := make(chan interface{}, numConcurrent)
-	errors := make(chan error, numConcurrent)
+		results := make(chan interface{}, numConcurrent)
+		errors := make(chan error, numConcurrent)
 
-	for i := 0; i < numConcurrent; i++ {
-		go func() {
-			result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
-			results <- result
-			errors <- err
-		}()
-	}
+		for i := 0; i < numConcurrent; i++ {
+			go func() {
+				result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
+				results <- result
+				errors <- err
+			}()
+		}
 
-	// then:
-	for i := 0; i < numConcurrent; i++ {
-		result := <-results
-		err := <-errors
+		for i := 0; i < numConcurrent; i++ {
+			result := <-results
+			err := <-errors
 
-		require.NoError(t, err)
-		require.NotNil(t, result)
-	}
+			require.NoError(t, err)
+			require.NotNil(t, result)
+		}
+	})
+
+	t.Run("Bitails concurrent access", func(t *testing.T) {
+		fixture := ts.GivenServices(t)
+		fixture.Bitails().
+			ScriptHistoryData().
+			WithScriptHash(testScriptHash).
+			WithConfirmedTransactions(1, 800000).
+			WithUnconfirmedTransactions(1).
+			WillBeReturned()
+
+		svc := fixture.Services().WithDefaultConfig()
+
+		results := make(chan interface{}, numConcurrent)
+		errors := make(chan error, numConcurrent)
+
+		for i := 0; i < numConcurrent; i++ {
+			go func() {
+				result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
+				results <- result
+				errors <- err
+			}()
+		}
+
+		for i := 0; i < numConcurrent; i++ {
+			result := <-results
+			err := <-errors
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+		}
+	})
 }

@@ -84,3 +84,9 @@ var ProvenTxReqProblematicStatuses = []ProvenTxReqStatus{
 	ProvenTxStatusInvalid,
 	ProvenTxStatusDoubleSpend,
 }
+
+// ProvenTxReqBeyondBroadcastStageStatuses contains statuses indicating a proven transaction has passed the broadcast stage.
+var ProvenTxReqBeyondBroadcastStageStatuses = []ProvenTxReqStatus{
+	ProvenTxStatusUnmined,
+	ProvenTxStatusCompleted,
+}

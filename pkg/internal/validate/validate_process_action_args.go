@@ -7,8 +7,8 @@ import (
 )
 
 func ProcessActionArgs(args *wdk.ProcessActionArgs) error {
-	if args.IsNoSend && !args.IsSendWith {
-		return fmt.Errorf("inconsistent IsNoSend with IsSendWith - logic error")
+	if args.IsSendWith && len(args.SendWith) == 0 {
+		return fmt.Errorf("IsSendWith is true but no sendWith arguments provided")
 	}
 
 	if args.IsNewTx {
