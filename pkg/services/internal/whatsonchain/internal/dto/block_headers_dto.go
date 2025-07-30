@@ -39,6 +39,22 @@ type BlockHeader struct {
 	PreviousBlockHash string `json:"previousblockhash"`
 }
 
+func (b *BlockHeader) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
+	bits, err := strconv.ParseUint(b.Bits, 16, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint64: %w", b.Bits, err)
+	}
+
+	return &wdk.ChainBaseBlockHeader{
+		Version:      b.Version,
+		PreviousHash: b.PreviousBlockHash,
+		MerkleRoot:   b.MerkleRoot,
+		Time:         b.Time,
+		Bits:         bits,
+		Nonce:        b.Nonce,
+	}, nil
+}
+
 // ConvertToChainBlockHeader converts a BlockHeader into a *wdk.ChainBlockHeader used in chain processing.
 func (b *BlockHeader) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error) {
 	bits, err := strconv.ParseUint(b.Bits, 16, 64)

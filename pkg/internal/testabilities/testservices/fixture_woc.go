@@ -205,6 +205,7 @@ const (
 	TestBlockBits              = "18110ef8"
 	TestBlockChainWork         = "000000000000000000000000000000000000000001669c7b159861f30c53271e"
 	TestBlockPreviousBlockHash = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b704e"
+	TestNextBlockHash          = "000000001546f288e1540d55b0a6b70f86c3fe0b29ca39ec7878c41f1f16ec5d"
 )
 
 type wocBlockResponseItem struct {
@@ -362,7 +363,25 @@ func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint3
 
 	responder := httpmock.NewJsonResponderOrPanic(
 		status,
-		map[string]string{"merkleroot": merkleRoot},
+		headerByHeightDTO{
+			Hash:              TestBlockPreviousBlockHash,
+			Confirmations:     TestBlockConfirmations,
+			Size:              TestBlockSize,
+			Height:            height,
+			Version:           TestBlockVersion,
+			VersionHex:        TestBlockVersionHex,
+			MerkleRoot:        merkleRoot,
+			Time:              TestBlockTime,
+			MedianTime:        TestBlockMedianTime,
+			Nonce:             TestBlockNonce,
+			Bits:              TestBlockBits,
+			Difficulty:        TestBlockDifficulty,
+			ChainWork:         TestBlockChainWork,
+			PreviousBlockHash: TestBlockPreviousBlockHash,
+			NextBlockHash:     TestNextBlockHash,
+			NTx:               TestBlockNTx,
+			NumTx:             TestBlockNumTx,
+		},
 	)
 
 	host := "https://api.whatsonchain.com"
