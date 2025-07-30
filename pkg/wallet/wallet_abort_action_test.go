@@ -103,8 +103,6 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 	})
 
 	s.Run("successful abort no send action with transaction ID as reference", func() {
-		// FIXME: #197
-		s.T().Skip("This should work after NoSend flag is implemented")
 		t := s.T()
 
 		// given:
