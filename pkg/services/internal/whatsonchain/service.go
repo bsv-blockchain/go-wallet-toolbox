@@ -159,7 +159,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 		}, nil
 	}
 
-	header, err := woc.hashToHeader(ctx, proof.Target)
+	header, err := woc.fetchMerkleHeader(ctx, proof.Target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch block header: %w", err)
 	}
@@ -265,4 +265,30 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 
 	woc.storeRootInCache(height, remoteRoot)
 	return remoteRoot.IsEqual(root), nil
+}
+
+func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (*wdk.ChainBlockHeader, error) {
+	url, err := blockHeaderByHashURL(woc.url, blockHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct URL for block hash %s: %w", blockHash, err)
+	}
+
+	var dto dto.BlockHeader
+	resp, err := woc.httpClient.
+		R().
+		SetContext(ctx).
+		SetResult(&dto).
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch block header from WoC: %w", err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected response status %d", resp.StatusCode())
+	}
+
+	chbh, err := dto.ConvertToChainBlockHeader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert WoC block header to ChainBlockHeader: %w", err)
+	}
+	return chbh, nil
 }

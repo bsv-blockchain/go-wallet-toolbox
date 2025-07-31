@@ -33,6 +33,7 @@ type WhatsOnChainFixture interface {
 	WillRespondOnTxStatus(status int, tc TxStatusExpectation)
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	WillRespondWithChainInfo(status int, blocks uint32)
+	WillReturnMalformedBlockHeader(blockHash string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
 
@@ -177,6 +178,14 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/hex", f.network, txID),
 		responder(status, rawTx),
+	)
+}
+
+func (f *wocFixture) WillReturnMalformedBlockHeader(blockHash string) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/%s/header", f.network, blockHash)
+	f.transport.RegisterResponder(http.MethodGet, url,
+		httpmock.NewStringResponder(http.StatusOK, `invalid-json`),
 	)
 }
 
