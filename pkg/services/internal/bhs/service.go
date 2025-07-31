@@ -75,7 +75,7 @@ func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height
 		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", req.URL, res.StatusCode())
 	}
 
-	if len(blocks) > 1 || len(blocks) == 0 {
+	if len(blocks) != 1 {
 		return nil, fmt.Errorf("expected a single block header at height %d, but received %d headers instead. Verify the BSH API and query parameters used", height, len(blocks))
 	}
 
