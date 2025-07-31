@@ -60,7 +60,7 @@ type ChainBlockHeader struct {
 func (c *ChainBaseBlockHeader) Hex() (string, error) {
 	bb, err := c.Bytes()
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal chain block header height: %w", err)
+		return "", fmt.Errorf("failed to marshal chain block header: %w", err)
 	}
 	return hex.EncodeToString(bb), nil
 }
