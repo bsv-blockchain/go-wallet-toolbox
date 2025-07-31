@@ -22,18 +22,16 @@ type headerByHeightResponse struct {
 	Work             string `json:"work"`
 }
 
-func defaultHeaderByHeightResponse() []headerByHeightResponse {
-	return []headerByHeightResponse{
-		{
-			Version:          1,
-			PreviousBlock:    "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
-			MerkleRoot:       "10f072e631081ad6bcddeabb90bc34d787fe7d7116fe0298ff26c50c5e21bfea",
-			Timestamp:        1233046715,
-			DifficultyTarget: 486604799,
-			Nonce:            2999858432,
-			Work:             "4295032833",
-			Hash:             "00000000dfd5d65c9d8561b4b8f60a63018fe3933ecb131fb37f905f87da951a",
-		},
+func defaultHeaderByHeightResponse() *headerByHeightResponse {
+	return &headerByHeightResponse{
+		Version:          1,
+		PreviousBlock:    "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+		MerkleRoot:       "10f072e631081ad6bcddeabb90bc34d787fe7d7116fe0298ff26c50c5e21bfea",
+		Timestamp:        1233046715,
+		DifficultyTarget: 486604799,
+		Nonce:            2999858432,
+		Work:             "4295032833",
+		Hash:             "00000000dfd5d65c9d8561b4b8f60a63018fe3933ecb131fb37f905f87da951a",
 	}
 }
 

@@ -40,7 +40,7 @@ type BlockHeader struct {
 }
 
 func (b *BlockHeader) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
-	bits, err := strconv.ParseUint(b.Bits, 16, 64)
+	bits, err := strconv.ParseUint(b.Bits, 16, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint64: %w", b.Bits, err)
 	}
@@ -50,7 +50,7 @@ func (b *BlockHeader) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader
 		PreviousHash: b.PreviousBlockHash,
 		MerkleRoot:   b.MerkleRoot,
 		Time:         b.Time,
-		Bits:         bits,
+		Bits:         uint32(bits),
 		Nonce:        b.Nonce,
 	}, nil
 }

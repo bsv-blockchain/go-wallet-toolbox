@@ -25,5 +25,9 @@ func (woc *WhatsOnChain) GetChainHeaderByHeight(ctx context.Context, height uint
 		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", req.URL, res.StatusCode())
 	}
 
-	return dst.ConvertToChainBaseBlockHeader()
+	base, err := dst.ConvertToChainBaseBlockHeader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert block header height response from WoC to a chain base block header: %w", err)
+	}
+	return base, nil
 }
