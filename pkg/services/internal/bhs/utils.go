@@ -31,6 +31,10 @@ func tipLongestURL(baseURL string) (string, error) {
 	return buildURL(baseURL, apiPrefix, apiVersion, "chain", "tip", "longest")
 }
 
+func headerByHeight(baseURL string) (string, error) {
+	return buildURL(baseURL, apiPrefix, apiVersion, "chain", "header", "byHeight")
+}
+
 func bearerHeader(key string) string {
 	if key == "" {
 		return "" // makes IfNotEmpty a no-op
