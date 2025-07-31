@@ -114,7 +114,7 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 func writeReversedBytes(buff *bytes.Buffer, data []byte) error {
 	for i := len(data) - 1; i >= 0; i-- {
 		if err := buff.WriteByte(data[i]); err != nil {
-			return fmt.Errorf("failed to write byte %d of data '%s' : %w", i, data, err)
+			return fmt.Errorf("failed to write byte %d of data '%x' : %w", i, data, err)
 		}
 	}
 	return nil
