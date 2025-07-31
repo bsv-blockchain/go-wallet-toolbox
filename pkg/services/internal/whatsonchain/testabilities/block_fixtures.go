@@ -38,7 +38,7 @@ func IncompleteBlockHeaderJSON(hash string, merkleRoot string) string {
 	}`, hash, 100000, merkleRoot, 1600000000, 42)
 }
 
-func ValidBlockHeaderJSON(hash string, height int, version int, merkleRoot string, time uint64, nonce int, bits string, prevHash string) string {
+func ValidBlockHeaderJSON(hash string, height int, version int, merkleRoot string, time uint32, nonce int, bits string, prevHash string) string {
 	return fmt.Sprintf(`{
 		"hash": "%s",
 		"height": %d,

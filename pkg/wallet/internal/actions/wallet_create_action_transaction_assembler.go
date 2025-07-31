@@ -121,12 +121,14 @@ func (a *createActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 		}
 	}
 
+	senderIdentityKey := to.ValueOrGet(it.SenderIdentityKey, a.keyDeriver.IdentityKeyHex)
+
 	// TODO: in TS they don't create unlocking script template at this stage, but rather create it later
 	// 	BUT they need then store the KeyID for each input in the wallet instance
 	//  or need to query for those inputs the storage
 	//  for now (until SignAction is implemented) we create unlocking script template here.
 	input.UnlockingScriptTemplate, err = brc29.Unlock(
-		a.keyDeriver,
+		senderIdentityKey,
 		brc29.KeyID{
 			DerivationPrefix: to.Value(it.DerivationPrefix),
 			DerivationSuffix: to.Value(it.DerivationSuffix),

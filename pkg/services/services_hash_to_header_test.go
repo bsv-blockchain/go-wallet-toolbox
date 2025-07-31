@@ -15,7 +15,7 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 	blockHeight := testabilities.TestBlockHeight
 	version := 536870912
 	merkleRoot := testabilities.TestMerkleRootHex
-	time := uint64(1712345678)
+	time := uint32(1712345678)
 	nonce := 123456789
 	bits := "1803a30c"
 	prevHash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
