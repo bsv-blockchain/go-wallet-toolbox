@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/http"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 )
@@ -31,5 +33,25 @@ func WocAPIGetBeefForTX(network defs.BSVNetwork, txid string) (string, error) {
 		return "", fmt.Errorf("empty response received from WhatsonChain API")
 	}
 
-	return beefHex, nil
+	atomicBeef, err := createAtomicBeef(beefHex)
+	if err != nil {
+		return "", fmt.Errorf("failed to create atomic beef: %w", err)
+	}
+
+	return atomicBeef, nil
+}
+
+// createAtomicBeef creates an atomic beef from a beef hex
+func createAtomicBeef(beefHex string) (string, error) {
+	tx, err := transaction.NewTransactionFromBEEFHex(beefHex)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse beef: %w", err)
+	}
+
+	atomicBeef, err := tx.AtomicBEEF(true)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert to atomic beef: %w", err)
+	}
+
+	return hex.EncodeToString(atomicBeef), nil
 }
