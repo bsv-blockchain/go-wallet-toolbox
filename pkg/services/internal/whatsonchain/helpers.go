@@ -7,31 +7,18 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-// tscProof represents the response from the WoC /tx/{txid}/proof/tsc endpoint
-type tscProof struct {
-	Index  int      `json:"index"`
-	Nodes  []string `json:"nodes"`
-	Target string   `json:"target"` // block hash
-	TxOrID string   `json:"txOrId"` // txid
-}
-
-// blockHeaderResponse represents the response from WoC /block/{hash}/header
-type blockHeaderResponse struct {
-	Height     int    `json:"height"`
-	MerkleRoot string `json:"merkleRoot"`
-}
-
-func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
+func (woc *WhatsOnChain) fetchMerkleHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
 	url, err := blockHeaderByHashURL(woc.url, blockHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build block header URL for hash %s: %w", blockHash, err)
 	}
 
-	var hdrResp blockHeaderResponse
+	var hdrResp dto.BlockHeaderResponse
 	res, err := woc.httpClient.R().
 		SetContext(ctx).
 		SetResult(&hdrResp).
@@ -56,12 +43,12 @@ func (woc *WhatsOnChain) hashToHeader(ctx context.Context, blockHash string) (*w
 }
 
 // getTscProof retrieves the TSC proof from WoC.
-func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*tscProof, error) {
+func (woc *WhatsOnChain) getTscProof(ctx context.Context, txID string) (*dto.TscProof, error) {
 	url, err := tscProofURL(woc.url, txID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build TSC proof URL for txID %s: %w", txID, err)
 	}
-	var proofs []tscProof
+	var proofs []dto.TscProof
 
 	req := woc.httpClient.R().
 		SetContext(ctx).
