@@ -27,7 +27,7 @@ type BlockHeader struct {
 	MerkleRoot string `json:"merkleroot"`
 
 	// Time is the block’s creation timestamp in Unix epoch seconds, set by the miner.
-	Time uint64 `json:"time"`
+	Time uint32 `json:"time"`
 
 	// Nonce is a 32-bit number that miners iterate to find a hash meeting the difficulty target.
 	Nonce uint32 `json:"nonce"`
@@ -41,7 +41,7 @@ type BlockHeader struct {
 
 // ConvertToChainBlockHeader converts a BlockHeader into a *wdk.ChainBlockHeader used in chain processing.
 func (b *BlockHeader) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error) {
-	bits, err := strconv.ParseUint(b.Bits, 16, 64)
+	bits, err := strconv.ParseUint(b.Bits, 16, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint64: %w", b.Bits, err)
 	}
@@ -52,10 +52,15 @@ func (b *BlockHeader) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error)
 			PreviousHash: b.PreviousBlockHash,
 			MerkleRoot:   b.MerkleRoot,
 			Time:         b.Time,
-			Bits:         bits,
+			Bits:         uint32(bits),
 			Nonce:        b.Nonce,
 		},
 		Height: b.Height,
 		Hash:   b.Hash,
 	}, nil
+}
+
+// MerkleRootOnly represents the result of a Merkle root computation,
+type MerkleRootOnly struct {
+	MerkleRoot string `json:"merkleroot"`
 }
