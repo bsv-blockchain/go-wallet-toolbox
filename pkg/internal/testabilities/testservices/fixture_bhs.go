@@ -28,7 +28,6 @@ func WithLongestChainTipHeight(h uint) LongestChainTipOptions {
 }
 
 type BHSFixture interface {
-	DefaultHeaderByHeightResponse() []headerByHeightResponse
 	IsUpAndRunning() BHSFixture
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
@@ -37,6 +36,7 @@ type BHSFixture interface {
 	OnLongestTipBlockHeaderResponseWith(opts ...LongestChainTipOptions)
 	OnMerkleRootVerifyResponse(height uint32, root, state string)
 	DefaultLongestTip() *longestChainTipResponse
+	DefaultHeaderByHeightResponse() *headerByHeightResponse
 	HttpClient() *resty.Client
 	Transport() *httpmock.MockTransport
 }
@@ -45,11 +45,11 @@ type bhsFixture struct {
 	testing.TB
 	transport                  *httpmock.MockTransport
 	longestChainTip            *longestChainTipResponse
-	headerByHeightResponse     []headerByHeightResponse
+	headerByHeightResponse     *headerByHeightResponse
 	bhsAnyEndpointRegexFixture *regexp.Regexp
 }
 
-func (b *bhsFixture) DefaultHeaderByHeightResponse() []headerByHeightResponse {
+func (b *bhsFixture) DefaultHeaderByHeightResponse() *headerByHeightResponse {
 	b.Helper()
 	return b.headerByHeightResponse
 }
@@ -142,7 +142,7 @@ func (b *bhsFixture) IsUpAndRunning() BHSFixture {
 	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`^%s.*`, headerByHeightPath)),
-		httpmock.NewJsonResponderOrPanic(http.StatusOK, b.headerByHeightResponse),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, []*headerByHeightResponse{b.headerByHeightResponse}),
 	)
 
 	return b
