@@ -1,73 +1,56 @@
-# Validate Merkle Root Example
+# Validate Merkle Root for Height
 
-This example demonstrates how to verify if a given Merkle root is valid for a specific block height on the BSV network. This validation is essential for SPV (Simplified Payment Verification) implementations to verify transaction inclusion in blocks.
+This example demonstrates how to verify if a given Merkle root is valid for a specific block height on the BSV blockchain using the Go Wallet Toolbox SDK. It showcases essential validation for SPV (Simplified Payment Verification) implementations to verify transaction inclusion in blocks.
 
 ## Overview
 
 The process involves several steps:
-1. Configuring the services stack with network settings and API credentials.
-2. Defining the block height and Merkle root to validate.
-3. Converting the hex-encoded Merkle root to a proper hash format.
-4. Calling `IsValidRootForHeight()` to perform the validation against blockchain data.
+1. Setting up services configuration with network settings and API credentials for blockchain data access.
+2. Defining the block height and Merkle root to validate against blockchain records.
+3. Converting the hex-encoded Merkle root to proper hash format for validation processing.
+4. Calling `IsValidRootForHeight()` to perform validation against blockchain data services.
 5. Processing the boolean result indicating whether the Merkle root matches the specified block.
 
-This validation confirms that a provided Merkle root corresponds to the actual transactions included in the block at the specified height.
+This approach confirms that a provided Merkle root corresponds to the actual transactions included in the block at the specified height.
 
 ## Code Walkthrough
 
-### Defining Validation Parameters
+### Configuration Parameters
 
-```go
-const (
-    height = uint32(903321)
-    // https://whatsonchain.com/block-height/903321?tab=json
-    rootHex = "559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd"
-)
-```
-First, we define the specific block height and Merkle root to validate. The example uses real data from block 903321 on the BSV mainnet, with the root hash obtained from blockchain explorers.
+The example uses the following configurable settings:
 
-### Configuring Services
+- **`Block Height`**: Specific block height to validate Merkle root against (default: `903321`)
+- **`Merkle Root Hex`**: Hex-encoded Merkle root to validate (default: `"559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620ab66f1f24c8a0fd"`)
+- **`Network`**: Blockchain network for validation (default: `NetworkMainnet`)
+- **`BHS API Key`**: Block Headers Service authentication credentials for accessing blockchain data
 
-```go
-cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
-cfg.BHS.APIKey = "..." // API key for Block Headers Service
-srv := services.New(slog.Default(), cfg)
-```
-We configure the services stack for mainnet with API credentials. This provides access to blockchain data services needed for validation.
+### Service Setup
 
-### Converting Hash Format
+The `IsValidRootForHeight` method requires:
 
-```go
-root, err := chainhash.NewHashFromHex(rootHex)
-```
-The hex-encoded Merkle root string is converted to a proper `chainhash.Hash` format required by the validation method.
+- **`Context`**: Request context for lifecycle management
+- **`Hash Object`**: Converted Merkle root from hex string to chainhash.Hash format
+- **`Block Height`**: Specific block number for Merkle root validation
+- **`Services Instance`**: Configured services with BHS access for blockchain data retrieval
 
-### Performing Validation
+### Response Analysis
 
-```go
-ok, err := srv.IsValidRootForHeight(context.Background(), root, height)
-```
-The `IsValidRootForHeight()` method performs the core validation by:
-- Retrieving the actual block header for the specified height
-- Comparing the provided Merkle root with the block's actual Merkle root
-- Returning a boolean indicating whether they match
+The service response contains:
 
-### Processing Results
-
-```go
-show.IsValidRootForHeightOutput(height, rootHex, ok)
-```
-The validation result is displayed, showing the height, root hash, and whether the validation was successful.
+- **`Boolean Result`**: Simple true/false validation result indicating Merkle root match
+- **`Block Height`**: The validated block height for confirmation
+- **`Merkle Root`**: The validated Merkle root hash for verification
+- **`Validation Status`**: Success or failure of the validation process
 
 ## Running the Example
 
 To run this example:
 
 ```bash
-go run ./examples/services_examples/is_valid_root/is_valid_root_for_height.go
+go run ./examples/services_examples/is_valid_root_for_height/is_valid_root_for_height.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 🚀 STARTING: Is Valid Root For Height
@@ -89,40 +72,16 @@ Height: 903321 | Merkle Root: 559ce1f8394df2f008a9c4d23e71256c999ea05aba47e8620a
 
 To integrate Merkle root validation into your application:
 
-1. **Configure services** with appropriate network settings and API credentials.
-2. **Prepare validation data** including the block height and Merkle root to verify.
-3. **Convert hex strings** to proper hash format using `chainhash.NewHashFromHex()`.
-4. **Call IsValidRootForHeight()** with context, hash, and height parameters.
-5. **Handle the response** which returns a boolean validation result.
-6. **Implement error handling** for malformed hashes, network issues, or service failures.
-7. **Consider caching** validation results for frequently checked block/root combinations.
-
-### Use Cases
-
-Merkle root validation is commonly used for:
-
-- **SPV Wallet Verification**: Confirming transaction inclusion without downloading full blocks
-- **Payment Verification**: Validating that received payments are included in confirmed blocks  
-- **Transaction Proof Validation**: Verifying Merkle proofs provided by third parties
-- **Blockchain Data Integrity**: Ensuring consistency between different data sources
-
-### Error Handling
-
-```go
-ok, err := srv.IsValidRootForHeight(ctx, root, height)
-if err != nil {
-    // Handle validation failure - network issues, invalid height, etc.
-    log.Printf("Failed to validate root for height: %v", err)
-    return err
-}
-
-if !ok {
-    // Merkle root does not match the block at this height
-    return fmt.Errorf("invalid merkle root for block %d", height)
-}
-```
+1. **Configure services** with appropriate network settings and API credentials for blockchain access.
+2. **Prepare validation data** including the specific block height and Merkle root requiring verification.
+3. **Convert hex strings** to proper hash format using `chainhash.NewHashFromHex()` for processing.
+4. **Submit validation request** using `IsValidRootForHeight()` with context, hash, and height parameters.
+5. **Process validation results** to handle boolean response indicating Merkle root validity.
+6. **Implement validation logic** for SPV operations, payment verification, or blockchain data integrity checks.
+7. **Add caching strategies** for validation results of frequently checked block/root combinations.
 
 ## Additional Resources
 
-- [Find Chain Tip Header Documentation](../find_chain_tip_header/find_chain_tip_header.md) - Get complete block header data
+- [Validate Merkle Root for Height Example](./is_valid_root_for_height.go) - Complete code example for Merkle root validation
+- [Get Chain Tip Header Documentation](../get_chain_tip_header/get_chain_tip_header.md) - Get complete block header data
 - [SPV Documentation](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0067.md) - BRC-67 SPV specification

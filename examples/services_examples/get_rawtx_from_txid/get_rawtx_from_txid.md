@@ -1,62 +1,54 @@
-# Raw Transaction Example
+# Get Raw Transaction from Transaction ID
 
-This example demonstrates how to fetch a raw BSV transaction using its transaction ID through multiple wallet services with automatic fallback. The raw transaction data is retrieved in hexadecimal format directly from blockchain service providers.
+This example demonstrates how to fetch a raw BSV transaction using its transaction ID through the Go Wallet Toolbox SDK. It showcases multiple wallet services with automatic fallback to retrieve transaction data in hexadecimal format from blockchain service providers.
 
 ## Overview
 
 The process involves several steps:
-1. Configuring the target transaction ID and network settings.
-2. Setting up multiple blockchain service providers for redundant querying.
-3. Submitting the transaction ID request to configured services simultaneously.
-4. Retrieving the raw transaction data in hexadecimal format.
-5. Processing and displaying the raw transaction results from each service.
+1. Setting up services configuration with network settings and multiple blockchain service providers.
+2. Configuring the target transaction ID for raw transaction data retrieval.
+3. Submitting the transaction ID request to configured services with automatic failover.
+4. Retrieving the raw transaction data in hexadecimal format from successful services.
+5. Processing and displaying the raw transaction results with service attribution.
 
-This approach ensures reliable transaction data retrieval by leveraging multiple service providers with automatic fallback mechanisms.
+This approach ensures reliable transaction data retrieval by leveraging multiple service providers with automatic fallback mechanisms for redundancy.
 
 ## Code Walkthrough
 
 ### Configuration Parameters
 
-```go
-txID := "9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6"
-network := defs.NetworkMainnet
-```
-The example uses a specific transaction ID on the mainnet for demonstration. You can replace this with any valid transaction ID you want to query.
+The example uses the following configurable settings:
 
-### Service Configuration
+- **`Transaction ID`**: Specific transaction to retrieve raw data for (default: `"9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6"`)
+- **`Network`**: Blockchain network to query (default: `NetworkMainnet`)
+- **`Service Providers`**: Multiple blockchain services (WhatsOnChain and Bitails) with automatic fallback
 
-```go
-cfg := defs.DefaultServicesConfig(network)
-srv := services.New(slog.Default(), cfg)
-```
-The code configures multiple blockchain service providers (WhatsOnChain and Bitails) with default settings for the specified network. This enables redundant querying with automatic fallback.
+### Service Setup
 
-### Fetching Raw Transaction
+The `RawTx` method requires:
 
-```go
-rawTx, err := srv.RawTx(txID)
-```
-The `RawTx` method queries the configured services to retrieve the raw transaction data. The method automatically handles:
-- Parallel requests to multiple services
-- Fallback to alternative services if one fails
-- Response validation and error handling
+- **`Transaction ID`**: Hexadecimal transaction identifier for data retrieval
+- **`Services Instance`**: Configured services with redundant provider access and fallback logic
+- **`Network Configuration`**: Mainnet settings for accessing production blockchain data
 
-### Processing Results
+### Response Analysis
 
-```go
-show.RawTxOutput(&rawTx)
-```
-The results are processed and displayed, showing the transaction ID and raw transaction data in hexadecimal format from each successful service response.
+The service response contains:
+
+- **`TxID`**: The requested transaction identifier for verification and confirmation
+- **`RawTx`**: The complete raw transaction data in hexadecimal format for parsing
+- **`Service`**: The name of the blockchain service that provided the successful data response
+- **`Success Status`**: Boolean indicating successful query completion and data retrieval
 
 ## Running the Example
 
 To run this example:
 
 ```bash
-go run ./examples/services_examples/raw_tx/raw_tx.go
+go run ./examples/services_examples/get_rawtx_from_txid/get_rawtx_from_txid.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 🚀 STARTING: Raw Transaction from WhatsOnChain and Bitails
@@ -81,43 +73,17 @@ RawTx:  010000000100000000000000000000000000000000000000000000000000000000000000
 
 To integrate raw transaction fetching into your application:
 
-1. **Configure transaction ID** with the specific transaction you want to retrieve.
-2. **Set network settings** appropriate for your target blockchain (mainnet, testnet, etc.).
+1. **Configure transaction ID** with the specific transaction you want to retrieve from the blockchain.
+2. **Set network settings** appropriate for your target blockchain environment (mainnet, testnet, etc.).
 3. **Configure services** with appropriate API credentials and endpoints for your target providers.
-4. **Submit transaction query** using `walletServices.RawTx()` with the transaction ID.
-5. **Process results** to extract the raw transaction data for further processing.
-6. **Implement retry logic** for failed queries or service errors.
-7. **Parse raw transaction data** using appropriate transaction parsing libraries if needed.
-
-### Response Analysis
-
-The service response contains:
-
-- **TxID**: The requested transaction identifier for verification
-- **RawTx**: The complete raw transaction data in hexadecimal format
-- **Service**: The name of the service that provided the data
-- **Success**: Boolean indicating if the query succeeded
-- **Error**: Detailed error information for failed queries
-
-### Error Handling
-
-```go
-rawTx, err := srv.RawTx(txID)
-if err != nil {
-    log.Printf("Failed to fetch raw transaction: %v", err)
-    return
-}
-
-// Validate that we received data
-if rawTx.RawTx == "" {
-    log.Printf("No raw transaction data received for TxID: %s", txID)
-    return
-}
-```
+4. **Submit transaction query** using `RawTx()` with the transaction ID for data retrieval.
+5. **Process response data** to extract the raw transaction hexadecimal data for further operations.
+6. **Handle service fallback** by monitoring which providers successfully return transaction data.
+7. **Parse transaction data** using appropriate transaction parsing libraries for detailed analysis if needed.
 
 ## Additional Resources
 
+- [Get Raw Transaction from Transaction ID Example](./get_rawtx_from_txid.go) - Complete code example for fetching raw transaction data
 - [Post BEEF Documentation](../post_beef/post_beef.md) - Broadcast a BSV transaction using BEEF format
 - [Post BEEF Hex Documentation](../post_beef_hex/post_beef_hex.md) - Broadcast from existing BEEF hex
-- [Post Multiple Transactions Documentation](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions
-- [Raw Transaction Example](./raw_tx.go) - Fetch raw transaction data by transaction ID 
+- [Post Multiple Transactions Documentation](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions 

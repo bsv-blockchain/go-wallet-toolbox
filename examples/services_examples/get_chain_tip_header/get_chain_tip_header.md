@@ -1,58 +1,56 @@
-# Find Chain Tip Header Example
+# Get Chain Tip Header
 
-This example demonstrates how to retrieve the complete block header information for the latest block (chain tip) on the BSV mainnet using blockchain data services.
+This example demonstrates how to retrieve the complete block header information for the latest block (chain tip) on the BSV blockchain using the Go Wallet Toolbox SDK. It showcases accessing blockchain data services to get detailed block metadata.
 
 ## Overview
 
 The process involves several steps:
-1. Configuring the services stack with network settings and API credentials.
+1. Setting up services configuration with network settings and API credentials.
 2. Creating a services instance with logging configuration.
 3. Calling `FindChainTipHeader()` to retrieve the latest block header data.
-4. Processing and displaying the complete block header information in a formatted table.
+4. Processing and displaying the complete block header information.
+5. Handling response data with comprehensive blockchain metadata.
 
-This provides comprehensive block metadata including hash, merkle root, difficulty, and timestamp information.
+This approach provides access to essential blockchain state information including block hash, merkle root, difficulty, and timestamp data.
 
 ## Code Walkthrough
 
-### Configuring Services
+### Configuration Parameters
 
-```go
-cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
-cfg.BHS.URL = "http://localhost:8080"
-cfg.BHS.APIKey = "..." // API key for Block Headers Service
-```
-First, we create a default configuration for mainnet services. The Block Headers Service URL and API key are configured to access the primary blockchain data service.
+The example uses the following configurable settings:
 
-### Creating Services Instance
+- **`Network`**: Blockchain network to connect to (default: `NetworkMainnet`)
+- **`BHS.URL`**: Block Headers Service endpoint URL (default: `"http://localhost:8080"`)
+- **`BHS.APIKey`**: API key for Block Headers Service authentication (default: `"..."` - use DefaultAppToken)
 
-```go
-svc := services.New(slog.Default(), cfg)
-```
-We create a services instance with default logging and our configuration. This manages connections to blockchain data providers.
+### Service Setup
 
-### Retrieving Chain Tip Header
+The `FindChainTipHeader` method requires:
 
-```go
-tip, err := svc.FindChainTipHeader(ctx)
-```
-The `FindChainTipHeader()` method retrieves the complete block header for the latest block on the longest chain, providing detailed blockchain metadata.
+- **`Context`**: Request context for lifecycle management
+- **`Services Instance`**: Configured services with BHS connection settings
+- **`Network Configuration`**: Mainnet settings for accessing production blockchain data
 
-### Processing Results
+### Response Analysis
 
-```go
-show.ChainTipHeaderOutput(tip)
-```
-The returned header contains comprehensive block information displayed in a formatted table with all relevant blockchain metadata fields.
+The service response contains:
+
+- **`Block Header`**: Complete header structure with all blockchain metadata fields
+- **`Height`**: Current block height on the longest chain
+- **`Hash`**: Unique block identifier
+- **`Merkle Root`**: Root hash of all transactions in the block
+- **`Timestamp`**: When the block was mined
+- **`Difficulty Data`**: Target bits and nonce values
 
 ## Running the Example
 
 To run this example:
 
 ```bash
-go run ./examples/services_examples/find_chain_tip_header/find_chain_tip_header.go
+go run ./examples/services_examples/get_chain_tip_header/get_chain_tip_header.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 🚀 STARTING: Find Chain Tip Header
@@ -74,39 +72,15 @@ Height  Hash                                                              Versio
 
 To integrate chain tip header retrieval into your application:
 
-1. **Configure services** with appropriate network settings and API credentials.
+1. **Configure services** with appropriate network settings and BHS API credentials.
 2. **Create services instance** with logging and your configuration.
-3. **Call FindChainTipHeader()** with a context for request lifecycle management.
-4. **Process the response** which contains complete block header data.
-5. **Extract required fields** from the header structure based on your needs.
-6. **Implement error handling** for network issues or service failures.
-7. **Consider caching** header data for short periods to reduce API calls.
-
-### Response Fields
-
-The returned block header contains:
-
-- **Height**: The latest block height on the network
-- **Hash**: The block hash (unique identifier for this block)
-- **Version**: The version of the Bitcoin protocol used
-- **Prev-Hash**: Hash of the previous block (links blocks in the chain)
-- **Merkle-Root**: Root hash of all transactions in the block
-- **Time**: UTC timestamp when the block was mined
-- **Bits**: Target difficulty threshold (in compact format)
-- **Nonce**: The proof-of-work solution found by miners
-
-### Error Handling
-
-```go
-tip, err := svc.FindChainTipHeader(ctx)
-if err != nil {
-    // Handle service failure - implement retry logic or fallback behavior
-    log.Printf("Failed to get chain tip header: %v", err)
-    return err
-}
-```
+3. **Submit header request** using `FindChainTipHeader()` with context for request management.
+4. **Process response data** to extract block header information and metadata.
+5. **Handle blockchain data** including height, hash, merkle root, and timestamp fields.
+6. **Implement caching logic** for header data to reduce API calls when appropriate.
+7. **Add monitoring** for blockchain state changes and new block detection.
 
 ## Additional Resources
 
-- [Current Height Documentation](../current_height/current_height.md) - Get just the block height
-- [Find Chain Tip Header Example](./find_chain_tip_header.go) - Get the complete block header information
+- [Get Current Block Height Documentation](../get_current_block_height/get_current_block_height.md) - Get just the block height
+- [Get Chain Tip Header Example](./get_chain_tip_header.go) - Complete code example for getting block header information

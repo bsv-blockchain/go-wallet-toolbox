@@ -1,57 +1,53 @@
-# Current Height Example
+# Get Current Block Height
 
-This example demonstrates how to retrieve the current block height of the BSV mainnet using a robust fallback mechanism across multiple blockchain data services.
+This example demonstrates how to retrieve the current block height of the BSV blockchain using the Go Wallet Toolbox SDK. It showcases a robust fallback mechanism across multiple blockchain data services for reliable height retrieval.
 
 ## Overview
 
 The process involves several steps:
-1. Configuring the services stack with network settings and API credentials.
+1. Setting up services configuration with network settings and API credentials.
 2. Creating a services instance with logging and fallback configuration.
 3. Calling `CurrentHeight()` which automatically attempts multiple services in sequence.
 4. Processing the returned block height representing the current chain tip.
+5. Handling automatic failover across multiple blockchain data providers for reliability.
 
-The services stack provides automatic failover across multiple blockchain data providers to ensure reliability.
+This approach ensures reliable access to current blockchain state through automatic service fallback and redundancy.
 
 ## Code Walkthrough
 
-### Configuring Services
+### Configuration Parameters
 
-```go
-cfg := defs.DefaultServicesConfig(defs.NetworkMainnet)
-cfg.BHS.APIKey = "..." // API key for Block Headers Service
-```
-First, we create a default configuration for mainnet services. API credentials are configured for the primary services, with automatic fallback to alternative providers if needed.
+The example uses the following configurable settings:
 
-### Creating Services Instance
+- **`Network`**: Blockchain network to connect to (default: `NetworkMainnet`)
+- **`BHS.APIKey`**: API key for Block Headers Service authentication (default: `"..."`)
+- **`Fallback Services`**: Automatic fallback to WhatsOnChain and Bitails services when primary fails
 
-```go
-srv := services.New(slog.Default(), cfg)
-```
-We create a services instance with default logging and our configuration. This services wrapper manages the fallback logic across multiple blockchain data providers.
+### Service Setup
 
-### Fetching Current Height
+The `CurrentHeight` method requires:
 
-```go
-height, err := srv.CurrentHeight(context.Background())
-```
-The `CurrentHeight()` method implements a robust fallback strategy that automatically tries multiple blockchain data services until one succeeds, returning the first valid block height obtained.
+- **`Context`**: Request context for lifecycle management
+- **`Services Instance`**: Configured services with fallback logic across multiple providers
+- **`Network Configuration`**: Mainnet settings for accessing production blockchain data
 
-### Processing Results
+### Response Analysis
 
-```go
-show.CurrentHeightOutput(height)
-```
-The returned height is a simple integer representing the total number of blocks currently mined on the BSV mainnet.
+The service response contains:
+
+- **`Block Height`**: Simple uint32 integer representing total blocks mined on the BSV blockchain
+- **`Fallback Warnings`**: Automatic logging of individual service failures during fallback attempts
+- **`Service Selection`**: First successful response from the configured service providers
 
 ## Running the Example
 
 To run this example:
 
 ```bash
-go run ./examples/services_examples/current_height/current_height.go
+go run ./examples/services_examples/get_current_block_height/get_current_block_height.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 🚀 STARTING: Get Height
@@ -74,29 +70,16 @@ Get Height: 905465
 
 To integrate current height retrieval into your application:
 
-1. **Configure services** with appropriate network settings and API credentials.
-2. **Create services instance** with logging and your configuration.
-3. **Call CurrentHeight()** with a context for request lifecycle management.
-4. **Handle the response** which returns the current block height as a uint32.
-5. **Implement error handling** for cases where all services fail.
-6. **Consider caching** the result for a reasonable period to reduce API calls.
-7. **Monitor service warnings** to understand which providers are experiencing issues.
-
-### Error Handling
-
-The services stack automatically handles individual service failures, but you should still handle the case where all services fail:
-
-```go
-height, err := srv.CurrentHeight(ctx)
-if err != nil {
-    // All services failed - implement retry logic or fallback behavior
-    log.Printf("Failed to get current height: %v", err)
-    return err
-}
-```
+1. **Configure services** with appropriate network settings and API credentials for multiple providers.
+2. **Create services instance** with logging and your configuration for automatic fallback.
+3. **Submit height request** using `CurrentHeight()` with context for request lifecycle management.
+4. **Process response data** to extract the current block height as a uint32 value.
+5. **Handle fallback behavior** by monitoring service warnings for provider availability.
+6. **Implement caching logic** for height data to reduce API calls when appropriate.
+7. **Add monitoring** for service health and fallback patterns across providers.
 
 ## Additional Resources
 
-- [Current Height Example](./current_height.go) - Get current block height example code
-- [Find Chain Tip Header Documentation](../find_chain_tip_header/find_chain_tip_header.md) - Get complete block header data
+- [Get Current Block Height Example](./get_current_block_height.go) - Complete code example for getting current block height
+- [Get Chain Tip Header Documentation](../get_chain_tip_header/get_chain_tip_header.md) - Get complete block header data
  
