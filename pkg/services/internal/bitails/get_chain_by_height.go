@@ -10,13 +10,18 @@ import (
 )
 
 func (b *Bitails) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+	url, err := blockByHeight(b.url, height)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build URL to retrieve block by height from Bitails: %w", err)
+	}
+
 	var dst dto.BlockHeaderByHeightDTO
 	req := b.httpClient.
 		R().
 		SetContext(ctx).
 		SetResult(&dst)
 
-	res, err := req.Get(fmt.Sprintf("%sblock/height/%d", b.url, height))
+	res, err := req.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected response from API (URL: %s): %w", req.URL, err)
 	}
