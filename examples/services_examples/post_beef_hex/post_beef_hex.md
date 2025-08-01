@@ -160,26 +160,6 @@ Each service returns detailed results for the broadcasted transaction:
 - **CompetingTxs**: List of conflicting transactions
 - **Error**: Detailed error information for failed broadcasts
 
-### Error Handling
-
-```go
-for _, result := range results {
-    if !result.Success() {
-        log.Printf("Service %s failed: %v", result.Name, result.Error)
-        continue
-    }
-    
-    // Check individual transaction results
-    for _, txResult := range result.PostedBEEFResult.TxIDResults {
-        if txResult.Result == "error" {
-            log.Printf("Transaction %s failed: %s", txResult.TxID, txResult.Error)
-        } else if txResult.AlreadyKnown {
-            log.Printf("Transaction %s already known to %s", txResult.TxID, result.Name)
-        }
-    }
-}
-```
-
 ## Additional Resources
 
 - [BEEF Specification](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md) - BRC-62 BEEF format documentation
