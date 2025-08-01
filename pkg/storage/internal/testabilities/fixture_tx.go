@@ -19,16 +19,20 @@ import (
 )
 
 type TxGeneratorFixture interface {
+	WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture
+	WithSatoshisToSend(satoshis uint64) TxGeneratorFixture
+	WithSender(sender testusers.User) TxGeneratorFixture
+	WithRecipient(recipient testusers.User) TxGeneratorFixture
 	Internalized() (internalizeArgs *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction)
 	Created() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 	Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 }
 
-func (s *storageFixture) Action(activeStorage *storage.Provider, satoshisOwnedByAlice, satoshisForBob uint64) TxGeneratorFixture {
+func (s *storageFixture) Action(activeStorage *storage.Provider) TxGeneratorFixture {
 	return &txGeneratorFixture{
 		TB:                    s.t,
-		satoshisToInternalize: satoshisOwnedByAlice,
-		satoshisToSend:        satoshisForBob,
+		satoshisToInternalize: fixtures.DefaultCreateActionOutputSatoshis,
+		satoshisToSend:        1,
 		parent:                s,
 		activeStorage:         activeStorage,
 		sender:                testusers.Alice,
@@ -44,6 +48,26 @@ type txGeneratorFixture struct {
 	activeStorage         *storage.Provider
 	sender                testusers.User
 	recipient             testusers.User
+}
+
+func (t *txGeneratorFixture) WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture {
+	t.satoshisToInternalize = satoshis
+	return t
+}
+
+func (t *txGeneratorFixture) WithSatoshisToSend(satoshis uint64) TxGeneratorFixture {
+	t.satoshisToSend = satoshis
+	return t
+}
+
+func (t *txGeneratorFixture) WithSender(sender testusers.User) TxGeneratorFixture {
+	t.sender = sender
+	return t
+}
+
+func (t *txGeneratorFixture) WithRecipient(recipient testusers.User) TxGeneratorFixture {
+	t.recipient = recipient
+	return t
 }
 
 func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction) {
