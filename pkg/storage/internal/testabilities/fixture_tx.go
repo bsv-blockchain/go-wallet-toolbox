@@ -2,6 +2,8 @@ package testabilities
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -15,7 +17,6 @@ import (
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type TxGeneratorFixture interface {

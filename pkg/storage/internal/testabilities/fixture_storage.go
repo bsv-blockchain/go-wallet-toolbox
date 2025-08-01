@@ -1,9 +1,9 @@
 package testabilities
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
