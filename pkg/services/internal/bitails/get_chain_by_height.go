@@ -16,7 +16,7 @@ func (b *Bitails) GetChainHeaderByHeight(ctx context.Context, height uint32) (*w
 		SetContext(ctx).
 		SetResult(&dst)
 
-	res, err := req.Get(fmt.Sprintf("%s/block/height/%d", b.url, height))
+	res, err := req.Get(fmt.Sprintf("%sblock/height/%d", b.url, height))
 	if err != nil {
 		return nil, fmt.Errorf("unexpected response from API (URL: %s): %w", req.URL, err)
 	}
@@ -24,5 +24,9 @@ func (b *Bitails) GetChainHeaderByHeight(ctx context.Context, height uint32) (*w
 		return nil, fmt.Errorf("unexpected response from API (URL: %s, code: %d)", req.URL, res.StatusCode())
 	}
 
-	return dst.ConvertToChainBaseBlockHeader(), nil
+	base, err := dst.ConvertToChainBaseBlockHeader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert block header response by height from Bitails to a chain base block header: %w", err)
+	}
+	return base, nil
 }

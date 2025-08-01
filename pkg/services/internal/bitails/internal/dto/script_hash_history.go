@@ -1,6 +1,9 @@
 package dto
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -25,17 +28,22 @@ type BlockHeaderByHeightDTO struct {
 	Version           uint32 `json:"version"`
 	MerkleRoot        string `json:"merkleroot"`
 	Time              uint32 `json:"time"`
-	Bits              uint32 `json:"bits"`
+	Bits              string `json:"bits"`
 	Nonce             uint32 `json:"nonce"`
 }
 
-func (b *BlockHeaderByHeightDTO) ConvertToChainBaseBlockHeader() *wdk.ChainBaseBlockHeader {
+func (b *BlockHeaderByHeightDTO) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
+	bits, err := strconv.ParseUint(b.Bits, 16, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint32: %w", b.Bits, err)
+	}
+
 	return &wdk.ChainBaseBlockHeader{
 		Version:      b.Version,
 		PreviousHash: b.PreviousBlockHash,
 		MerkleRoot:   b.MerkleRoot,
 		Time:         b.Time,
-		Bits:         b.Bits,
+		Bits:         uint32(bits),
 		Nonce:        b.Nonce,
-	}
+	}, nil
 }
