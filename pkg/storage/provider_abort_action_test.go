@@ -175,7 +175,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"transaction with status unproven - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				createResult, _ := given.ActionCreatedAndProcessed(activeStorage)
+				createResult, _ := given.Action(activeStorage).Processed()
 
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
@@ -186,7 +186,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"transaction with status unproven - TxID as Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				_, tx := given.ActionCreatedAndProcessed(activeStorage)
+				_, tx := given.Action(activeStorage).Processed()
 
 				return tx.TxID().String(), testusers.Alice.AuthID()
 			},

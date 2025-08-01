@@ -28,18 +28,6 @@ type TxGeneratorFixture interface {
 	Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 }
 
-func (s *storageFixture) Action(activeStorage *storage.Provider) TxGeneratorFixture {
-	return &txGeneratorFixture{
-		TB:                    s.t,
-		satoshisToInternalize: fixtures.DefaultCreateActionOutputSatoshis,
-		satoshisToSend:        1,
-		parent:                s,
-		activeStorage:         activeStorage,
-		sender:                testusers.Alice,
-		recipient:             testusers.Bob,
-	}
-}
-
 type txGeneratorFixture struct {
 	testing.TB
 	parent                *storageFixture
