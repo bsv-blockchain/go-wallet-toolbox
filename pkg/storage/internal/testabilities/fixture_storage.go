@@ -20,6 +20,7 @@ type StorageFixture interface {
 	StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager
 	ActionCreatedAndSigned(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
 	ActionCreatedAndProcessed(activeStorage *storage.Provider) (createActionResult *wdk.StorageCreateActionResult, signedTransaction *transaction.Transaction)
+	TransactionAtStage(activeStorage *storage.Provider, satoshis uint64, user testusers.User) TxGeneratorFixture
 }
 
 type storageFixture struct {

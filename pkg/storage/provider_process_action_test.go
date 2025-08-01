@@ -23,7 +23,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
+	createActionResult, signedTx := given.TransactionAtStage(activeStorage, 1000, testusers.Alice).Created()
 	txID := signedTx.TxID().String()
 
 	// and:
