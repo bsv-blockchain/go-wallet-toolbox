@@ -39,24 +39,33 @@ type BlockHeader struct {
 	PreviousBlockHash string `json:"previousblockhash"`
 }
 
-// ConvertToChainBlockHeader converts a BlockHeader into a *wdk.ChainBlockHeader used in chain processing.
-func (b *BlockHeader) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error) {
+func (b *BlockHeader) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
 	bits, err := strconv.ParseUint(b.Bits, 16, 32)
 	if err != nil {
-		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint64: %w", b.Bits, err)
+		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint32: %w", b.Bits, err)
+	}
+
+	return &wdk.ChainBaseBlockHeader{
+		Version:      b.Version,
+		PreviousHash: b.PreviousBlockHash,
+		MerkleRoot:   b.MerkleRoot,
+		Time:         b.Time,
+		Bits:         uint32(bits),
+		Nonce:        b.Nonce,
+	}, nil
+}
+
+// ConvertToChainBlockHeader converts a BlockHeader into a *wdk.ChainBlockHeader used in chain processing.
+func (b *BlockHeader) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error) {
+	base, err := b.ConvertToChainBaseBlockHeader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert BlockHeader to ChainBaseBlockHeader: %w", err)
 	}
 
 	return &wdk.ChainBlockHeader{
-		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      b.Version,
-			PreviousHash: b.PreviousBlockHash,
-			MerkleRoot:   b.MerkleRoot,
-			Time:         b.Time,
-			Bits:         uint32(bits),
-			Nonce:        b.Nonce,
-		},
-		Height: b.Height,
-		Hash:   b.Hash,
+		ChainBaseBlockHeader: *base,
+		Height:               b.Height,
+		Hash:                 b.Hash,
 	}, nil
 }
 

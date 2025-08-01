@@ -1,48 +1,77 @@
 package services_test
 
 import (
+	"net/http"
+	"strconv"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetChainHeaderByHeight_PositivePath(t *testing.T) {
-	// given:
-	const height = 1024
+func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T) {
+	t.Run("return chain base block header when only WOC service is responsive", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		svc := given.Services().WithDefaultConfig()
 
-	given := testservices.GivenServices(t)
-	svc := given.Services().WithDefaultConfig()
+		// and:
+		given.BHS().WillRespondWithInternalFailure()
+		given.WhatsOnChain().WillRespondWithBlockHeaderByHeight(http.StatusOK, testservices.TestBlockHeight, testservices.TestBlockMerkleRoot)
 
-	// and:
-	bhs := given.BHS()
-	bhs.IsUpAndRunning()
-	first := bhs.DefaultHeaderByHeightResponse()[0]
+		bits, err := strconv.ParseUint(testservices.TestBlockBits, 16, 32)
+		require.NoError(t, err)
 
-	expectedHeader := &wdk.ChainBaseBlockHeader{
-		Version:      uint32(first.Version),
-		PreviousHash: first.PreviousBlock,
-		MerkleRoot:   first.MerkleRoot,
-		Time:         first.Timestamp,
-		Bits:         first.DifficultyTarget,
-		Nonce:        first.Nonce,
-	}
+		expectedHeader := &wdk.ChainBaseBlockHeader{
+			MerkleRoot:   testservices.TestBlockMerkleRoot,
+			Version:      testservices.TestBlockVersion,
+			PreviousHash: testservices.TestBlockPreviousBlockHash,
+			Time:         uint32(testservices.TestBlockTime),
+			Bits:         uint32(bits),
+			Nonce:        testservices.TestBlockNonce,
+		}
 
-	// when:
-	actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), height)
+		// when:
+		actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
-	// then:
-	require.NoError(t, err)
-	require.Equal(t, expectedHeader, actualHeader)
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, expectedHeader, actualHeader)
+	})
+
+	t.Run("return chain base block header when only BHS service is responsive", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		svc := given.Services().WithDefaultConfig()
+
+		// and:
+		given.WhatsOnChain().WillRespondWithInternalFailure()
+		first := given.BHS().IsUpAndRunning().DefaultHeaderByHeightResponse()
+
+		expectedHeader := &wdk.ChainBaseBlockHeader{
+			Version:      uint32(first.Version),
+			PreviousHash: first.PreviousBlock,
+			MerkleRoot:   first.MerkleRoot,
+			Time:         first.Timestamp,
+			Bits:         first.DifficultyTarget,
+			Nonce:        first.Nonce,
+		}
+
+		// when:
+		actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, expectedHeader, actualHeader)
+	})
 }
 
 func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 	t.Run("return error when all services are unreachable", func(t *testing.T) {
 		// given:
-		const height = 1024
-
 		given := testservices.GivenServices(t)
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
 
@@ -50,10 +79,10 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		header, err := services.GetChainHeaderByHeight(t.Context(), height)
+		header, err := services.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
 
 		assert.ErrorContains(t, err, expectedSubstr)
 		assert.Nil(t, header)
@@ -61,19 +90,18 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 
 	t.Run("return an error when all block header services respond with internal server error", func(t *testing.T) {
 		// given:
-		const height = 1024
-
 		given := testservices.GivenServices(t)
 		given.BHS().WillRespondWithInternalFailure()
+		given.WhatsOnChain().WillRespondWithInternalFailure()
 
 		// and:
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		response, err := services.GetChainHeaderByHeight(t.Context(), height)
+		response, err := services.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
 
 		assert.NotNil(t, err)
 		assert.Nil(t, response)
@@ -91,7 +119,8 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		actualBlock, err := service.GetChainHeaderByHeight(t.Context(), 0) // Assuming height 0 for empty response scenario
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
+
 		require.Error(t, err)
 		require.Nil(t, actualBlock)
 	})
