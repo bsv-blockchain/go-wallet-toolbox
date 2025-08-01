@@ -23,7 +23,9 @@ type TxGeneratorFixture interface {
 	WithSatoshisToSend(satoshis uint64) TxGeneratorFixture
 	WithSender(sender testusers.User) TxGeneratorFixture
 	WithRecipient(recipient testusers.User) TxGeneratorFixture
-	Internalized() (internalizeArgs *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction)
+
+	PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction)
+	Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction)
 	Created() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 	Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 }
@@ -58,7 +60,7 @@ func (t *txGeneratorFixture) WithRecipient(recipient testusers.User) TxGenerator
 	return t
 }
 
-func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction) {
+func (t *txGeneratorFixture) PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction) {
 	t.Helper()
 	keyID := brc29.KeyID{
 		DerivationPrefix: fixtures.DerivationPrefix,
@@ -74,7 +76,7 @@ func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeA
 		WithInput(t.satoshisToInternalize+1).
 		WithOutputScript(t.satoshisToInternalize, lockingScript)
 
-	internalizeArgs := wdk.InternalizeActionArgs{
+	internalizeArgs = &wdk.InternalizeActionArgs{
 		Tx: spec.AtomicBEEF().Bytes(),
 		Outputs: []*wdk.InternalizeOutput{
 			{
@@ -104,10 +106,17 @@ func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeA
 		BHSMerkleRootConfirmed,
 	)
 
-	result, err := t.activeStorage.InternalizeAction(t.Context(), t.sender.AuthID(), internalizeArgs)
+	return internalizeArgs, spec.TX()
+}
+
+func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction) {
+	t.Helper()
+	internalizeArgs, internalizedTx := t.PreInternalized()
+
+	result, err := t.activeStorage.InternalizeAction(t.Context(), t.sender.AuthID(), *internalizeArgs)
 	require.NoError(t, err)
 
-	return result, spec.TX()
+	return result, internalizedTx
 }
 
 func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction) {
