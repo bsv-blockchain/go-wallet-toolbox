@@ -10,6 +10,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
+// This example demonstrates how to get a block header from a block hash.
+// It fetches the block header for a given blockhash and prints the header details.
 func main() {
 	const blockHash = "000000000000000004a288072ebb35e37233f419918f9783d499979cb6ac33eb" // example block hash
 
