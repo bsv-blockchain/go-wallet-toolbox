@@ -2,10 +2,10 @@ package services_test
 
 import (
 	"encoding/hex"
-	"errors"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/stretchr/testify/require"
@@ -33,7 +33,8 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		actualBlock, err := service.FindChainTipHeader(t.Context())
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
+
 		require.NoError(t, err)
 		require.Equal(t, expectedBlock, actualBlock)
 	})
@@ -74,7 +75,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		actualBlock, err := service.FindChainTipHeader(t.Context())
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
 
 		require.Error(t, err)
 		require.Nil(t, actualBlock)
@@ -94,7 +95,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		actualBlock, err := service.FindChainTipHeader(t.Context())
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
 
 		require.ErrorIs(t, err, target1)
 		require.ErrorIs(t, err, target2)
@@ -116,13 +117,9 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		actualBlock, err := service.FindChainTipHeader(t.Context())
 
 		// then:
-		isNotMockTransportResponderError(t, err)
+		testabilities.IsNotMockTransportResponderError(t, err)
+
 		require.Error(t, err)
 		require.Nil(t, actualBlock)
 	})
-}
-
-func isNotMockTransportResponderError(t *testing.T, err error) {
-	t.Helper()
-	require.NotErrorIs(t, err, errors.New("no responder found"))
 }
