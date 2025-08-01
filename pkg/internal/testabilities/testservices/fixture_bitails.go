@@ -30,6 +30,8 @@ type BitailsFixture interface {
 	WillReturnRawTx404(txid string)
 	WillReturnRawTxHttpError(txid string, status int)
 	WillRespondWithInternalFailure()
+	WillReturnBlockHeaderHttpError(blockHash string, status int)
+	WillReturnMalformedBlockHeader(blockHash string)
 	ScriptHistoryData() ScriptHistoryDataBuilder
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
@@ -213,9 +215,10 @@ func (b *bitailsFixture) WillReturnTscProof(txid, target string, index int, node
 }
 
 func (b *bitailsFixture) WillReturnBlockHeader(blockHash, rawHeader string) {
+	pattern := fmt.Sprintf(`^https://api\.bitails\.io/block/%s/header$`, regexp.QuoteMeta(blockHash))
 	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/block/%s/header`, regexp.QuoteMeta(blockHash))),
+		regexp.MustCompile(pattern),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
 			"header": rawHeader,
 		}),
@@ -316,6 +319,23 @@ func (b *bitailsFixture) WillReturnRawTxHttpError(txid string, status int) {
 	)
 }
 
+func (b *bitailsFixture) WillReturnBlockHeaderHttpError(blockHash string, status int) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/block/%s/header`, regexp.QuoteMeta(blockHash))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(status, "internal test error"),
+	)
+}
+
+func (b *bitailsFixture) WillReturnMalformedBlockHeader(blockHash string) {
+	pattern := fmt.Sprintf(`https?://.*\.bitails\.io/block/%s/header`, regexp.QuoteMeta(blockHash))
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(pattern),
+		httpmock.NewStringResponder(http.StatusOK, `invalid-json}`),
+	)
+}
 func (b *bitailsFixture) ScriptHistoryData() ScriptHistoryDataBuilder {
 	return &bitailsScriptHistoryBuilder{
 		fixture:          b,

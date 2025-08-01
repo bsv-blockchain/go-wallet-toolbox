@@ -28,13 +28,16 @@ type WalletServices struct {
 	config       *defs.WalletServices
 	whatsonchain *whatsonchain.WhatsOnChain
 
-	rawTxServices         servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices      servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
-	getMerklePathServices servicequeue.Queue1[string, *wdk.MerklePathResult]
-	chainHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
-	validatorServices     servicequeue.Queue2[*chainhash.Hash, uint32, bool]
-	heightServices        servicequeue.Queue[uint32]
-	scriptHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
+	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
+	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
+	getMerklePathServices        servicequeue.Queue1[string, *wdk.MerklePathResult]
+	chainHeaderServices          servicequeue.Queue[*wdk.ChainBlockHeader]
+	validatorServices            servicequeue.Queue2[*chainhash.Hash, uint32, bool]
+	heightServices               servicequeue.Queue[uint32]
+	scriptHistoryServices        servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
+	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
+	blockHeaderForHeightServices servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
+
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -113,6 +116,19 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetScriptHashHistory),
 			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetScriptHashHistory),
 		),
+
+		hashToHeaderServices: servicequeue.NewQueue1(
+			logger,
+			"HashToHeader",
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.HashToHeader),
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.HashToHeader),
+		),
+
+		blockHeaderForHeightServices: servicequeue.NewQueue1(
+			logger,
+			"GetChainHeaderByHeight",
+			servicequeue.NewService1(bhs.ServiceName, bhsService.GetChainHeaderByHeight),
+		),
 	}
 }
 
@@ -146,9 +162,13 @@ func (s *WalletServices) ChainTracker() chaintracker.ChainTracker {
 	panic("Not implemented yet")
 }
 
-// HeaderForHeight returns serialized block header for height on active chain
-func (s *WalletServices) HeaderForHeight(height int64) ([]int64, error) {
-	panic("Not implemented yet")
+// GetChainHeaderByHeight returns serialized block header for given height on active chain.
+func (s *WalletServices) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+	h, err := s.blockHeaderForHeightServices.OneByOne(ctx, height)
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine block header: all block header height services failed to return a result: %w", err)
+	}
+	return h, nil
 }
 
 // CurrentHeight returns the height of the active chain
@@ -222,11 +242,6 @@ func (s *WalletServices) UtxoStatus(
 	panic("Not implemented yet")
 }
 
-// HashToHeader attempts to retrieve BlockHeader by its hash
-func (s *WalletServices) HashToHeader(hash string) (*wdk.ChainBlockHeader, error) {
-	panic("Not implemented yet")
-}
-
 // NLockTimeIsFinal returns whether the locktime value allows the transaction to be mined at the current chain height
 // TODO: txOrLockTime type = string | number[] | BsvTransaction | number
 func (s *WalletServices) NLockTimeIsFinal(txOrLockTime any) bool {
@@ -253,6 +268,18 @@ func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash st
 			return nil, fmt.Errorf("script hash %s not found in history", scriptHash)
 		}
 		return nil, fmt.Errorf("failed to get script history: %w", err)
+	}
+	return result, nil
+}
+
+// HashToHeader attempts to retrieve BlockHeader by its hash
+func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
+	result, err := s.hashToHeaderServices.OneByOne(ctx, hash)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("block hash %s not found in any header service", hash)
+		}
+		return nil, fmt.Errorf("couldn't get block header for hash %s: %w", hash, err)
 	}
 	return result, nil
 }

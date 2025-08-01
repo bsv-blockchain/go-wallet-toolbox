@@ -11,11 +11,10 @@ import (
 )
 
 // Add beef hex directly here or use the txid to get the beef hex from the API
-// BEEF (Background Evaluation Extended Format) contains transaction data with merkle proofs
 var beef = ""
 
 // The txid is the transaction id of the transaction to internalize
-// This should be the transaction ID received from a testnet faucet
+// Pass the chosen txid or simply change the default value when running the example
 var txID = "15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8"
 
 // To internalize a transaction from the faucet, you need to pass the txid of the transaction to internalize
@@ -27,17 +26,13 @@ func main() {
 
 	show.Step("Alice", "Creating wallet and setting up environment")
 
-	// Create Alice's wallet instance
 	alice := example_setup.CreateAlice()
 
 	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
 
-	// Fetch transaction data in BEEF format if not provided directly
 	if beef == "" {
 		var err error
-		
-		// Get complete transaction data from WhatsonChain API
 		beef, err = utils.WocAPIGetBeefForTX(defs.NetworkTestnet, txID)
 		if err != nil {
 			panic(fmt.Errorf("failed to get beef for tx: %w", err))
