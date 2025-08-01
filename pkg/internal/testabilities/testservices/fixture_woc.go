@@ -373,7 +373,7 @@ func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint3
 	responder := httpmock.NewJsonResponderOrPanic(
 		status,
 		headerByHeightDTO{
-			Hash:              TestBlockPreviousBlockHash,
+			Hash:              TestBlockHash,
 			Confirmations:     TestBlockConfirmations,
 			Size:              TestBlockSize,
 			Height:            height,
