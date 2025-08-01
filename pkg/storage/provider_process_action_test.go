@@ -23,7 +23,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.TransactionAtStage(activeStorage, 1000, testusers.Alice).Created()
+	createActionResult, signedTx := given.Action(activeStorage, 1000, 1).Created()
 	txID := signedTx.TxID().String()
 
 	// and:
@@ -97,7 +97,7 @@ func TestProcessActionTwice(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
+	createActionResult, signedTx := given.Action(activeStorage, 1000, 1).Created()
 	txID := signedTx.TxID().String()
 
 	// and:
@@ -183,7 +183,7 @@ func TestProcessActionErrorCases(t *testing.T) {
 				GORM()
 
 			// and:
-			createActionResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
+			createActionResult, signedTx := given.Action(activeStorage, 1000, 1).Created()
 			txID := signedTx.TxID().String()
 
 			// and:
@@ -217,7 +217,7 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
+	createActionResult, signedTx := given.Action(activeStorage, 1000, 1).Created()
 	txID := signedTx.TxID().String()
 
 	// and:
@@ -266,7 +266,7 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.ActionCreatedAndSigned(activeStorage)
+	createActionResult, signedTx := given.Action(activeStorage, 1000, 1).Created()
 	txID := signedTx.TxID().String()
 
 	// and:

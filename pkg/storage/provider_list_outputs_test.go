@@ -189,7 +189,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
 	// and:
-	given.ActionCreatedAndSigned(activeStorage)
+	given.Action(activeStorage, fixtures.DefaultCreateActionOutputSatoshis, 1).Created()
 
 	listArgs := wdk.ListOutputsArgs{
 		Basket:              "",

@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"fmt"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -23,22 +24,26 @@ type TxGeneratorFixture interface {
 	Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 }
 
-func (s *storageFixture) TransactionAtStage(activeStorage *storage.Provider, satoshis uint64, user testusers.User) TxGeneratorFixture {
+func (s *storageFixture) Action(activeStorage *storage.Provider, satoshisOwnedByAlice, satoshisForBob uint64) TxGeneratorFixture {
 	return &txGeneratorFixture{
-		TB:            s.t,
-		satoshis:      satoshis,
-		user:          user,
-		parent:        s,
-		activeStorage: activeStorage,
+		TB:                    s.t,
+		satoshisToInternalize: satoshisOwnedByAlice,
+		satoshisToSend:        satoshisForBob,
+		parent:                s,
+		activeStorage:         activeStorage,
+		sender:                testusers.Alice,
+		recipient:             testusers.Bob,
 	}
 }
 
 type txGeneratorFixture struct {
 	testing.TB
-	parent        *storageFixture
-	satoshis      uint64
-	user          testusers.User
-	activeStorage *storage.Provider
+	parent                *storageFixture
+	satoshisToInternalize uint64
+	satoshisToSend        uint64
+	activeStorage         *storage.Provider
+	sender                testusers.User
+	recipient             testusers.User
 }
 
 func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction) {
@@ -47,15 +52,15 @@ func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeA
 		DerivationPrefix: fixtures.DerivationPrefix,
 		DerivationSuffix: fixtures.DerivationSuffix,
 	}
-	address, err := brc29.Address(fixtures.AnyoneIdentityKey, keyID, t.user.PublicKey(t))
+	address, err := brc29.Address(fixtures.AnyoneIdentityKey, keyID, t.sender.PublicKey(t))
 	require.NoError(t.TB, err)
 
 	lockingScript, err := p2pkh.Lock(address)
 	require.NoError(t.TB, err)
 
 	spec := testvectors.GivenTX().
-		WithInput(t.satoshis+2).
-		WithOutputScript(t.satoshis+1, lockingScript)
+		WithInput(t.satoshisToInternalize+1).
+		WithOutputScript(t.satoshisToInternalize, lockingScript)
 
 	internalizeArgs := wdk.InternalizeActionArgs{
 		Tx: spec.AtomicBEEF().Bytes(),
@@ -87,7 +92,7 @@ func (t *txGeneratorFixture) Internalized() (internalizeResult *wdk.InternalizeA
 		BHSMerkleRootConfirmed,
 	)
 
-	result, err := t.activeStorage.InternalizeAction(t.Context(), t.user.AuthID(), internalizeArgs)
+	result, err := t.activeStorage.InternalizeAction(t.Context(), t.sender.AuthID(), internalizeArgs)
 	require.NoError(t, err)
 
 	return result, spec.TX()
@@ -97,13 +102,40 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 	t.Helper()
 	_, parentTx := t.Internalized()
 
+	keyID := brc29.KeyID{
+		DerivationPrefix: fixtures.DerivationPrefix,
+		DerivationSuffix: fixtures.DerivationSuffix,
+	}
+	address, err := brc29.Address(t.sender.PrivateKey(t), keyID, t.recipient.PublicKey(t))
+	require.NoError(t.TB, err)
+
+	lockingScript, err := p2pkh.Lock(address)
+	require.NoError(t.TB, err)
+
 	args := wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
-		Inputs:      []wdk.ValidCreateActionInput{},
-		Outputs:     []wdk.ValidCreateActionOutput{},
-		LockTime:    0,
-		Version:     1,
-		Labels:      []primitives.StringUnder300{fixtures.CreateActionTestLabel},
+		Inputs: []wdk.ValidCreateActionInput{
+			{
+				Outpoint: wdk.OutPoint{
+					TxID: parentTx.TxID().String(),
+					Vout: 0,
+				},
+				InputDescription:      "provided by previously internalized transaction",
+				UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+			},
+		},
+		Outputs: []wdk.ValidCreateActionOutput{
+			{
+				LockingScript:      primitives.HexString(lockingScript.String()),
+				Satoshis:           primitives.SatoshiValue(t.satoshisToSend),
+				OutputDescription:  "output sent to Bob",
+				CustomInstructions: to.Ptr(fmt.Sprintf(`{"derivationPrefix":"%s","derivationSuffix":"%s","type":"BRC29"}`, fixtures.DerivationPrefix, fixtures.DerivationSuffix)),
+				Tags:               []primitives.StringUnder300{fixtures.CreateActionTestTag},
+			},
+		},
+		LockTime: 0,
+		Version:  1,
+		Labels:   []primitives.StringUnder300{fixtures.CreateActionTestLabel},
 		Options: wdk.ValidCreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
 			SendWith:               []primitives.TXIDHexString{},
@@ -111,12 +143,13 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 			KnownTxids:             []primitives.TXIDHexString{},
 			NoSendChange:           []wdk.OutPoint{},
 			RandomizeOutputs:       false,
+			TrustSelf:              to.Ptr(sdk.TrustSelfKnown),
 		},
 		IsSendWith:                   false,
 		IsDelayed:                    false,
 		IsNoSend:                     false,
 		IsNewTx:                      true,
-		IsRemixChange:                true,
+		IsRemixChange:                false,
 		IsSignAction:                 false,
 		IncludeAllSourceTransactions: false,
 	}
@@ -136,7 +169,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 
 func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, parentTx *transaction.Transaction) *transaction.Transaction {
 	t.Helper()
-	keyDeriver := sdk.NewKeyDeriver(t.user.PrivateKey(t))
+	keyDeriver := sdk.NewKeyDeriver(t.sender.PrivateKey(t))
 
 	// FIXME: Workaround START
 	// FIXME: Workaround for the fact that the go-sdk's P2PKH Unlocker can't unlock UTXO based on sourceSatoshis & sourceLockingScript
@@ -171,7 +204,7 @@ func (t *txGeneratorFixture) Processed() (createActionResult *wdk.StorageCreateA
 		SendWith:   []primitives.TXIDHexString{},
 	}
 
-	_, err := t.activeStorage.ProcessAction(t.Context(), t.user.AuthID(), args)
+	_, err := t.activeStorage.ProcessAction(t.Context(), t.sender.AuthID(), args)
 	require.NoError(t, err)
 	return createActionResult, signedTx
 }

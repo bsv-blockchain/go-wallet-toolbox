@@ -141,7 +141,7 @@ func (s *seedDbForSync) OwnsMinedTransaction() testvectors.TransactionSpec {
 func (s *seedDbForSync) OwnsInternalizedAndNotProcessedTx() (internalizedTxID string, createActionResult *wdk.StorageCreateActionResult) {
 	s.t.Helper()
 	var signedTx *transaction.Transaction
-	createActionResult, signedTx = s.storageFixture.ActionCreatedAndSigned(s.storage)
+	createActionResult, signedTx = s.storageFixture.Action(s.storage, 99902, 1000).Created()
 
 	internalizedTxID = signedTx.Inputs[0].SourceTXID.String()
 	return
