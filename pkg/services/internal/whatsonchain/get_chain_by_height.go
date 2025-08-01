@@ -27,7 +27,7 @@ func (woc *WhatsOnChain) GetChainHeaderByHeight(ctx context.Context, height uint
 
 	base, err := dst.ConvertToChainBaseBlockHeader()
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert block header height response from WoC to a chain base block header: %w", err)
+		return nil, fmt.Errorf("failed to convert block header response by height from WoC to a chain base block header: %w", err)
 	}
 	return base, nil
 }
