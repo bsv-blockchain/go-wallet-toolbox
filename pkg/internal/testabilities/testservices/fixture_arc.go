@@ -23,9 +23,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const DeploymentID = "go-wallet-toolbox-test"
-const TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
-const arcHttpStatusMalformed = 463
+const (
+	DeploymentID  = "go-wallet-toolbox-test"
+	TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
+)
+
+const (
+	arcHttpStatusMalformed                     = 463
+	arcHttpStatusCumulativeFeeValidationFailed = 473
+)
 
 var timestamp = time.Date(2018, time.November, 10, 23, 0, 0, 0, time.UTC).Format("2006-01-02T15:04:05.999999999Z")
 
@@ -123,7 +129,25 @@ func (f *arcFixture) IsUpAndRunning() {
 			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusMalformed, err.Error()))
 		}
 
-		f.store(txHex)
+		beefBytes, err := hex.DecodeString(txHex)
+		require.NoError(f, err, "failed to decode BEEF hex")
+
+		beef, err := sdk.NewBeefFromBytes(beefBytes)
+		require.NoError(f, err, "failed to create BEEF from bytes")
+
+		// FIXME: this is a temporary solution to fail on wrong scripts
+		// FIXME: When we make proper Signatures for Transactions, this should fail on wrong scripts
+		const failOnWrongScripts = false
+		if failOnWrongScripts {
+			for _, tx := range beef.Transactions {
+				if !f.verifyTxScripts(tx.Transaction) {
+					message := "arc error 465: inputs must have an unlocking script or an unlocker"
+					return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
+				}
+			}
+		}
+
+		f.store(beef)
 
 		if f.broadcastWithoutResponseBody {
 			return httpmock.NewJsonResponse(http.StatusOK, nil)
@@ -164,24 +188,10 @@ func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
 	}
 }
 
-func (f *arcFixture) store(txHex string) {
-	const failOnWrongScripts = false // FIXME: temporary solution to skip script verification - this is done for tests that do not have proper signatures
-	beefBytes, err := hex.DecodeString(txHex)
-	require.NoError(f, err, "failed to decode BEEF hex")
-
-	beef, err := sdk.NewBeefFromBytes(beefBytes)
-	require.NoError(f, err, "failed to create BEEF from bytes")
-
+func (f *arcFixture) store(beef *sdk.Beef) {
+	var err error
 	transactions := seq2.FromMap(beef.Transactions)
 	includedTransactions := seq2.MapTo(transactions, func(txIDHash chainhash.Hash, tx *sdk.BeefTx) *knownTransaction {
-		if !f.verifyTxScripts(tx.Transaction) {
-			if failOnWrongScripts {
-				// FIXME: this is a temporary solution to fail on wrong scripts
-				// FIXME: When we make proper Signatures for Transactions, this should fail on wrong scripts
-				return f.knownTxOnInvalidScripts(tx.Transaction)
-			}
-		}
-
 		merklePath := tx.Transaction.MerklePath
 		txID := txIDHash.String()
 
@@ -221,25 +231,6 @@ func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
 		return false
 	}
 	return true
-}
-
-func (f *arcFixture) knownTxOnInvalidScripts(tx *sdk.Transaction) *knownTransaction {
-	/*
-		{
-			"detail": "Fees are insufficient",
-			"extraInfo": "arc error 465: inputs must have an unlocking script or an unlocker",
-			"instance": null,
-			"status": 465,
-			"title": "Fee too low",
-			"txid": "8a6af9c7f4ef19c3056d00efa9866d377df1a6a975e8f4bfced8ac4282f15c8d",
-			"type": "https://bitcoin-sv.github.io/arc/#/errors?id=_465"
-		}
-	*/
-	const statusCumulativeFeeValidationFailed = 473
-	return &knownTransaction{
-		txid:       tx.TxID().String(),
-		httpStatus: statusCumulativeFeeValidationFailed,
-	}
 }
 
 type arcQueryFixture struct {
@@ -349,6 +340,9 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 		details = "The request is not authorized"
 	case http.StatusNotFound:
 		details = "The requested resource could not be found"
+	case arcHttpStatusCumulativeFeeValidationFailed:
+		details = "Fee too low"
+		title = "Fees are insufficient"
 	case arcHttpStatusMalformed:
 		details = "Transaction is malformed and cannot be processed"
 		title = "Malformed transaction"
