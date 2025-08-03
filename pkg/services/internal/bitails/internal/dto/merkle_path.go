@@ -3,7 +3,7 @@ package dto
 // ProofResponse defines the structure of the response from Bitails for TSC proofs.
 type ProofResponse struct {
 	Index  int      `json:"index"`
-	TxOrId string   `json:"txOrId"`
+	TxOrID string   `json:"txOrId"`
 	Target string   `json:"target"`
 	Nodes  []string `json:"nodes"`
 }

@@ -7,8 +7,9 @@ import (
 
 // ContainsUtxo checks if the provided outpoint exists within the UTXO details slice.
 func ContainsUtxo(details []wdk.UtxoDetail, outpoint *transaction.Outpoint) bool {
+	outpointTxID := outpoint.Txid.String()
 	for _, d := range details {
-		if d.TxID == outpoint.Txid.String() && d.Index == outpoint.Index {
+		if d.TxID == outpointTxID && d.Index == outpoint.Index {
 			return true
 		}
 	}

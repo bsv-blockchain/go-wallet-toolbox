@@ -19,6 +19,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -193,9 +194,6 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 		R().
 		SetContext(ctx).
 		SetResult(&blocks).
-		AddRetryCondition(func(res *resty.Response, err error) bool {
-			return res.StatusCode() == http.StatusTooManyRequests
-		}).
 		Get(url)
 
 	if err != nil {
@@ -324,17 +322,15 @@ func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, o
 	}
 
 	result := &wdk.UtxoStatusResult{
-		Name:    ServiceName,
-		Details: make([]wdk.UtxoDetail, 0, len(response.Result)),
-	}
-
-	for _, item := range response.Result {
-		result.Details = append(result.Details, wdk.UtxoDetail{
-			TxID:     item.TxHash,
-			Index:    item.TxPos,
-			Height:   item.Height,
-			Satoshis: item.Value,
-		})
+		Name: ServiceName,
+		Details: slices.Map(response.Result, func(item dto.ScriptHashUnspentItem) wdk.UtxoDetail {
+			return wdk.UtxoDetail{
+				TxID:     item.TxHash,
+				Index:    item.TxPos,
+				Height:   item.Height,
+				Satoshis: item.Value,
+			}
+		}),
 	}
 
 	if outpoint != nil {

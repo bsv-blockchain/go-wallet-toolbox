@@ -40,13 +40,15 @@ func TestWhatsOnChain_GetUtxoStatus_Success(t *testing.T) {
 	assert.True(t, result.IsUtxo)
 	assert.Equal(t, whatsonchain.ServiceName, result.Name)
 	require.Len(t, result.Details, 1)
-	assert.Equal(t, txid, result.Details[0].TxID)
-	assert.Equal(t, index, result.Details[0].Index)
-	assert.Equal(t, height, result.Details[0].Height)
-	assert.Equal(t, value, result.Details[0].Satoshis)
+	details := result.Details[0]
+	assert.Equal(t, txid, details.TxID)
+	assert.Equal(t, index, details.Index)
+	assert.Equal(t, height, details.Height)
+	assert.Equal(t, value, details.Satoshis)
 }
 
 func TestWhatsOnChain_GetUtxoStatus_APIError(t *testing.T) {
+	// given:
 	scriptHash := testabilities.TestScriptHash
 	given := testabilities.Given(t)
 	fixture := given.WhatsOnChain()
@@ -55,14 +57,17 @@ func TestWhatsOnChain_GetUtxoStatus_APIError(t *testing.T) {
 
 	woc := given.NewWoCService()
 
+	// when:
 	result, err := woc.GetUtxoStatus(t.Context(), scriptHash, nil)
 
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "WoC API error: scripthash not found")
 	assert.Nil(t, result)
 }
 
 func TestWhatsOnChain_GetUtxoStatus_HTTPError(t *testing.T) {
+	// given:
 	scriptHash := testabilities.TestScriptHash
 	given := testabilities.Given(t)
 	fixture := given.WhatsOnChain()
@@ -71,21 +76,26 @@ func TestWhatsOnChain_GetUtxoStatus_HTTPError(t *testing.T) {
 
 	woc := given.NewWoCService()
 
+	// when:
 	result, err := woc.GetUtxoStatus(t.Context(), scriptHash, nil)
 
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected status code 500")
 	assert.Nil(t, result)
 }
 
 func TestWhatsOnChain_GetUtxoStatus_ValidationError(t *testing.T) {
+	// given:
 	invalidScriptHash := "short"
 
 	given := testabilities.Given(t)
 	woc := given.NewWoCService()
 
+	// when:
 	result, err := woc.GetUtxoStatus(t.Context(), invalidScriptHash, nil)
 
+	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid scripthash length")
 	assert.Nil(t, result)

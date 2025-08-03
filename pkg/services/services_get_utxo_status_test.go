@@ -6,6 +6,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/require"
 )
@@ -48,15 +49,19 @@ func TestWalletServices_GetUtxoStatus_SuccessCases(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// given:
 			fixture := ts.GivenServices(t)
 			fixture.WhatsOnChain().WillRespondWithUtxoStatus(http.StatusOK, scriptHash, tc.jsonBody)
 
 			svc := fixture.Services().WithDefaultConfig()
+
+			// when:
 			result, err := svc.GetUtxoStatus(t.Context(), scriptHash, outpoint)
 
+			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Equal(t, "WhatsOnChain", result.Name)
+			require.Equal(t, whatsonchain.ServiceName, result.Name)
 
 			if tc.expectUTXO {
 				require.True(t, result.IsUtxo)
@@ -123,12 +128,16 @@ func TestWalletServices_GetUtxoStatus_ErrorCases(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// given:
 			fixture := ts.GivenServices(t)
 			tc.setup(fixture)
 
 			svc := fixture.Services().WithDefaultConfig()
+
+			// when:
 			result, err := svc.GetUtxoStatus(t.Context(), tc.script, outpoint)
 
+			// then:
 			require.Error(t, err)
 			require.Nil(t, result)
 		})
