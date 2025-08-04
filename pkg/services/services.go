@@ -130,6 +130,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"GetChainHeaderByHeight",
 			servicequeue.NewService1(bhs.ServiceName, bhsService.GetChainHeaderByHeight),
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetChainHeaderByHeight),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetChainHeaderByHeight),
 		),
 
 		getUtxoStatusServices: servicequeue.NewQueue2(
