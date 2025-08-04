@@ -257,9 +257,13 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.Proces
 		}, nil
 	}
 
-	readyToSendTxIDs := seq.Collect(seq2.Keys(seq2.Filter(maps.All(sendStatusesLookup), func(txID string, status wdk.SendWithResultStatus) bool {
-		return status == wdk.SendWithResultStatusSending || status == wdk.SendWithResultStatusFailed
-	})))
+	var readyToSendTxIDs []string
+	for _, txID := range txIDs {
+		status := sendStatusesLookup[txID]
+		if status == wdk.SendWithResultStatusSending || status == wdk.SendWithResultStatusFailed {
+			readyToSendTxIDs = append(readyToSendTxIDs, txID)
+		}
+	}
 
 	if len(readyToSendTxIDs) == 0 {
 		// This should never happen, because:
