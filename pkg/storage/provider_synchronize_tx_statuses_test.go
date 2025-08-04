@@ -77,10 +77,14 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// and:
-	testabilities.ThenDBState(t, activeStorage).
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.
 		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		IsMined()
+
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, txSpec.ID().String()).
+		WithStatus(wdk.TxStatusCompleted)
 
 	// then:
 	require.NoError(t, err)
