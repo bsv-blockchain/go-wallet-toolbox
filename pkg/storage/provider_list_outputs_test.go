@@ -24,7 +24,7 @@ func TestListOutputs_MinimalFilter(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	given.ActionCreatedAndProcessed(activeStorage)
+	given.Action(activeStorage).Processed()
 
 	listArgs := wdk.ListOutputsArgs{
 		Limit: 100,
@@ -63,7 +63,7 @@ func TestListOutputs_IncludeTags(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	_, createdTransaction := given.ActionCreatedAndProcessed(activeStorage)
+	_, createdTransaction := given.Action(activeStorage).Processed()
 
 	listArgs := wdk.ListOutputsArgs{
 		Limit:       100,
@@ -93,7 +93,7 @@ func TestListOutputs_IncludeCustomInstructions(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	_, createdTransaction := given.ActionCreatedAndProcessed(activeStorage)
+	_, createdTransaction := given.Action(activeStorage).Processed()
 
 	listArgs := wdk.ListOutputsArgs{
 		Limit:                     100,
@@ -123,7 +123,7 @@ func TestListOutputs_IncludeLockingScripts(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	given.ActionCreatedAndProcessed(activeStorage)
+	given.Action(activeStorage).Processed()
 
 	listArgs := wdk.ListOutputsArgs{
 		Limit:                 100,
@@ -150,7 +150,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	given.ActionCreatedAndProcessed(activeStorage)
+	given.Action(activeStorage).Processed()
 
 	listArgs := wdk.ListOutputsArgs{
 		Basket:              "",
@@ -189,7 +189,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
 	// and:
-	given.ActionCreatedAndSigned(activeStorage)
+	given.Action(activeStorage).WithSatoshisToInternalize(fixtures.DefaultCreateActionOutputSatoshis).Created()
 
 	listArgs := wdk.ListOutputsArgs{
 		Basket:              "",
