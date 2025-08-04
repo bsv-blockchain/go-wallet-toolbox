@@ -35,9 +35,9 @@ type WalletServices struct {
 	validatorServices            servicequeue.Queue2[*chainhash.Hash, uint32, bool]
 	heightServices               servicequeue.Queue[uint32]
 	scriptHistoryServices        servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
-	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	blockHeaderForHeightServices servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
-
+	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
+	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -129,6 +129,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			"GetChainHeaderByHeight",
 			servicequeue.NewService1(bhs.ServiceName, bhsService.GetChainHeaderByHeight),
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetChainHeaderByHeight),
+		),
+
+		getUtxoStatusServices: servicequeue.NewQueue2(
+			logger,
+			"GetUtxoStatus",
+			servicequeue.NewService2(whatsonchain.ServiceName, wocService.GetUtxoStatus),
 		),
 	}
 }
@@ -281,6 +287,18 @@ func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (*wdk.Ch
 			return nil, fmt.Errorf("block hash %s not found in any header service", hash)
 		}
 		return nil, fmt.Errorf("couldn't get block header for hash %s: %w", hash, err)
+	}
+	return result, nil
+}
+
+// GetUtxoStatus retrieves the UTXO status for a given script hash and outpoint.
+func (s *WalletServices) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
+	result, err := s.getUtxoStatusServices.OneByOne(ctx, scriptHash, outpoint)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("no UTXO status found for script hash %s", scriptHash)
+		}
+		return nil, fmt.Errorf("failed to get UTXO status: %w", err)
 	}
 	return result, nil
 }

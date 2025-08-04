@@ -34,6 +34,7 @@ type WhatsOnChainFixture interface {
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	WillRespondWithChainInfo(status int, blocks uint32)
 	WillReturnMalformedBlockHeader(blockHash string)
+	WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
 
@@ -702,4 +703,15 @@ func (b *scriptHistoryDataBuilder) WillBeReturned() {
 
 	b.fixture.WillRespondWithConfirmedScriptHistory(b.confirmedStatusCode, b.scriptHash, confirmedResp)
 	b.fixture.WillRespondWithUnconfirmedScriptHistory(b.unconfirmedStatusCode, b.scriptHash, unconfirmedResp)
+}
+
+func (f *wocFixture) WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unspent/all", f.network, scriptHash)
+	responder := func(*http.Request) (*http.Response, error) {
+		resp := httpmock.NewStringResponse(status, responseJSON)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	}
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
