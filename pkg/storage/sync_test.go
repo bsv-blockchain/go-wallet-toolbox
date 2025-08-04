@@ -8,7 +8,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -383,28 +382,21 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 	)
 
 	// and:
-	beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
-	givenSourceDB.Provider().BHS().OnMerkleRootVerifyResponse(
-		tsgenerated.BeefToInternalizeHeight,
-		tsgenerated.BeefToInternalizeMerkleRoot,
-		testabilities.BHSMerkleRootConfirmed,
-	)
-	internalizeArgs := wdk.InternalizeActionArgs{
-		Tx: beefToInternalize,
-		Outputs: []*wdk.InternalizeOutput{
-			{
-				OutputIndex: 0,
-				Protocol:    wdk.BasketInsertionProtocol,
-				InsertionRemittance: &wdk.BasketInsertion{
-					Basket: "custom_basket",
-					Tags:   []primitives.StringUnder300{tag1},
-				},
+	internalizeArgs, _ := givenSourceDB.Action(sourceProvider).PreInternalized()
+	internalizeArgs.Labels = []primitives.StringUnder300{commonLabel, label1}
+	internalizeArgs.Description = "first internalize"
+	internalizeArgs.Outputs = []*wdk.InternalizeOutput{
+		{
+			OutputIndex: 0,
+			Protocol:    wdk.BasketInsertionProtocol,
+			InsertionRemittance: &wdk.BasketInsertion{
+				Basket: "custom_basket",
+				Tags:   []primitives.StringUnder300{tag1},
 			},
 		},
-		Labels:      []primitives.StringUnder300{commonLabel, label1},
-		Description: "first internalize",
 	}
-	_, err := sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
+	// and:
+	_, err := sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), *internalizeArgs)
 	require.NoError(t, err)
 
 	// and:
@@ -431,7 +423,7 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 	// when:
 	internalizeArgs.Labels = []primitives.StringUnder300{commonLabel, label2}
 	internalizeArgs.Outputs[0].InsertionRemittance.Tags = []primitives.StringUnder300{tag2}
-	_, err = sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgs)
+	_, err = sourceProvider.InternalizeAction(t.Context(), testusers.Alice.AuthID(), *internalizeArgs)
 	require.NoError(t, err)
 
 	// then:
