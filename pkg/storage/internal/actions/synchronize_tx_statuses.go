@@ -4,15 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"log/slog"
 	"sync"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 const (

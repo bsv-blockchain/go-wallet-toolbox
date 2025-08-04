@@ -16,7 +16,7 @@ const (
 	ProcessActionHistoryNote     = "processAction"
 	AggregateResultsHistoryNote  = "aggregateResults"
 	AbortActionHistoryNote       = "abortAction"
-	NotifyTxOfProofHistoryNote = "notifyTxOfProof"
+	NotifyTxOfProofHistoryNote   = "notifyTxOfProof"
 
 	GetMerklePathSuccess  = "getMerklePathSuccess"
 	GetMerklePathNotFound = "getMerklePathNotFound"
