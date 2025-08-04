@@ -75,7 +75,7 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 
 func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transaction, error) {
 	outputs, err := slices.MapOrError(newTx.Outputs, func(output *entity.NewOutput) (*models.Output, error) {
-		return txs.makeNewOutput(newTx.UserID, output)
+		return txs.makeNewOutput(newTx.UserID, output, newTx.UTXOStatus)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outputs: %w", err)
@@ -137,7 +137,7 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 	return nil
 }
 
-func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*models.Output, error) {
+func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput, utxoStatus wdk.UTXOStatus) (*models.Output, error) {
 	tags := slices.Map(output.Tags, func(tag string) *models.Tag {
 		return &models.Tag{
 			Name:   tag,
@@ -189,6 +189,7 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput) (*m
 			UserID:             userID,
 			Satoshis:           sats,
 			EstimatedInputSize: txutils.EstimatedInputSizeByType(output.Type),
+			UTXOStatus:         utxoStatus,
 		}
 	}
 	return &out, nil

@@ -11,12 +11,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 )
 
@@ -279,71 +276,72 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	return inputMap, outputMap, nil
 }
 
-func (o *Outputs) SaveOutput(ctx context.Context, output *entity.Output) error {
-	tags := slices.Map(output.Tags, func(tag string) any {
-		return &models.Tag{
-			Name:   tag,
-			UserID: output.UserID,
+func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) error {
+	type outputWithTags struct {
+		Output models.Output
+		Tags   []any
+	}
+
+	modelsToStore := slices.Map(outputs, func(output *entity.Output) *outputWithTags {
+		res := &outputWithTags{
+			Output: models.Output{
+				Model: gorm.Model{
+					ID: output.ID,
+				},
+				UserID:             output.UserID,
+				TransactionID:      output.TransactionID,
+				SpentBy:            output.SpentBy,
+				Vout:               output.Vout,
+				Satoshis:           output.Satoshis,
+				LockingScript:      output.LockingScript,
+				CustomInstructions: output.CustomInstructions,
+				DerivationPrefix:   output.DerivationPrefix,
+				DerivationSuffix:   output.DerivationSuffix,
+				BasketName:         output.BasketName,
+				Spendable:          output.Spendable,
+				Change:             output.Change,
+				Description:        output.Description,
+				ProvidedBy:         output.ProvidedBy,
+				Purpose:            output.Purpose,
+				Type:               output.Type,
+				SenderIdentityKey:  output.SenderIdentityKey,
+			},
+			Tags: slices.Map(output.Tags, func(tag string) any {
+				return &models.Tag{
+					Name:   tag,
+					UserID: output.UserID,
+				}
+			}),
 		}
+
+		if output.UserUTXO != nil {
+			res.Output.UserUTXO = &models.UserUTXO{
+				UserID:             output.UserUTXO.UserID,
+				Satoshis:           output.UserUTXO.Satoshis,
+				EstimatedInputSize: output.UserUTXO.EstimatedInputSize,
+				UTXOStatus:         output.UserUTXO.Status,
+			}
+		}
+
+		return res
 	})
 
-	out := models.Output{
-		Model: gorm.Model{
-			ID: output.ID,
-		},
-		UserID:             output.UserID,
-		TransactionID:      output.TransactionID,
-		SpentBy:            output.SpentBy,
-		Vout:               output.Vout,
-		Satoshis:           output.Satoshis,
-		LockingScript:      output.LockingScript,
-		CustomInstructions: output.CustomInstructions,
-		DerivationPrefix:   output.DerivationPrefix,
-		DerivationSuffix:   output.DerivationSuffix,
-		BasketName:         output.BasketName,
-		Spendable:          output.Spendable,
-		Change:             output.Change,
-		Description:        output.Description,
-		ProvidedBy:         output.ProvidedBy,
-		Purpose:            output.Purpose,
-		Type:               output.Type,
-		SenderIdentityKey:  output.SenderIdentityKey,
-	}
-
-	if out.Spendable && out.Change {
-		if is.EmptyString(output.BasketName) {
-			return fmt.Errorf("basket not provided for change output")
-		}
-		if out.Satoshis == 0 {
-			return fmt.Errorf("change output with zero satoshis")
-		}
-		sats, err := to.UInt64(out.Satoshis)
-		if err != nil {
-			return fmt.Errorf("failed to convert satoshis to uint64: %w", err)
-		}
-
-		out.UserUTXO = &models.UserUTXO{
-			UserID:             output.UserID,
-			Satoshis:           sats,
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-		}
-	}
-
 	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Save(&out).Error
-		if err != nil {
-			return fmt.Errorf("failed to save output: %w", err)
+		for _, model := range modelsToStore {
+			err := tx.Save(&model.Output).Error
+			if err != nil {
+				return fmt.Errorf("failed to save output: %w", err)
+			}
+
+			association := tx.
+				Model(&model.Output).
+				Association("Tags")
+
+			err = association.Replace(model.Tags...)
+			if err != nil {
+				return fmt.Errorf("failed to save current tags for output: %w", err)
+			}
 		}
-
-		association := tx.
-			Model(&out).
-			Association("Tags")
-
-		err = association.Replace(tags...)
-		if err != nil {
-			return fmt.Errorf("failed to save current tags for output: %w", err)
-		}
-
 		return nil
 	})
 

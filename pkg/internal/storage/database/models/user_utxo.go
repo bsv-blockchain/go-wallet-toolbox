@@ -1,12 +1,17 @@
 package models
 
-import "time"
+import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"time"
+)
 
 // UserUTXO is a table holding user's Unspent Transaction Outputs (UTXOs).
 type UserUTXO struct {
 	UserID   int     `gorm:"primaryKey"`
 	OutputID uint    `gorm:"primaryKey"`
 	Output   *Output `gorm:"foreignKey:OutputID"`
+
+	UTXOStatus wdk.UTXOStatus `gorm:"index:idx_utxo_status"`
 
 	BasketName string        `gorm:"not null,index"`
 	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`

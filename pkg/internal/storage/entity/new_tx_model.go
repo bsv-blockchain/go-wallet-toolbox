@@ -28,6 +28,7 @@ type NewTx struct {
 
 	ReservedOutputIDs []uint
 	Outputs           []*NewOutput
+	UTXOStatus        wdk.UTXOStatus
 
 	Labels     []primitives.StringUnder300
 	Commission *entity.Commission

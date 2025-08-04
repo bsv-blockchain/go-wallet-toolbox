@@ -3,6 +3,8 @@ package actions
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/go-softwarelab/common/pkg/is"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -118,6 +120,7 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *entity.
 		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)
 	}
 
+	outputsToInternalize := make([]*entity.Output, 0, len(outputs))
 	for _, toInternalize := range outputs {
 		outputID := optional.OfPtr(toInternalize.existingOutputID).OrZeroValue() // Zero means it's a new output
 
@@ -126,10 +129,38 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *entity.
 			return fmt.Errorf("failed to convert output-to-internalize spec to entity: %w", err)
 		}
 
-		err = in.outputRepo.SaveOutput(ctx, output)
-		if err != nil {
-			return fmt.Errorf("failed to save output: %w", err)
+		if output.Spendable && output.Change {
+			if is.EmptyString(output.BasketName) {
+				return fmt.Errorf("basket not provided for change output")
+			}
+
+			if output.Satoshis == 0 {
+				return fmt.Errorf("change output with zero satoshis")
+			}
+			sats, err := satoshi.Value(output.Satoshis).UInt64()
+			if err != nil {
+				return fmt.Errorf("failed to convert satoshis to uint64: %w", err)
+			}
+
+			utxoStatus, err := in.utxoStatusByTxStatusForMerge(existingTx.Status)
+			if err != nil {
+				return fmt.Errorf("failed to get UTXO status by transaction status: %w", err)
+			}
+
+			output.UserUTXO = &entity.UserUTXO{
+				UserID:             output.UserID,
+				Satoshis:           sats,
+				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+				Status:             utxoStatus,
+			}
 		}
+
+		outputsToInternalize = append(outputsToInternalize, output)
+	}
+
+	err = in.outputRepo.SaveOutputs(ctx, outputsToInternalize)
+	if err != nil {
+		return fmt.Errorf("failed to save output: %w", err)
 	}
 
 	return nil
@@ -165,6 +196,7 @@ func (in *internalize) storeNewTx(
 		Version:     tx.Version,
 		LockTime:    tx.LockTime,
 		Status:      wdk.TxStatusUnproven,
+		UTXOStatus:  wdk.UTXOStatusUnproven,
 		Reference:   reference,
 		IsOutgoing:  false,
 		Description: string(args.Description),
@@ -315,5 +347,18 @@ func (in *internalize) isAllowedMergeStatus(status wdk.TxStatus) bool {
 		fallthrough
 	default:
 		return false
+	}
+}
+
+func (in *internalize) utxoStatusByTxStatusForMerge(txStatus wdk.TxStatus) (wdk.UTXOStatus, error) {
+	switch txStatus {
+	case wdk.TxStatusCompleted:
+		return wdk.UTXOStatusMined, nil
+	case wdk.TxStatusUnproven:
+		return wdk.UTXOStatusUnproven, nil
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusSending, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+		fallthrough
+	default:
+		return "", fmt.Errorf("unsupported transaction status for UTXO: %s", txStatus)
 	}
 }
