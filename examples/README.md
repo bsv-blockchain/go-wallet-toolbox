@@ -69,8 +69,11 @@ Provided below are two methods to get started with using the wallet toolbox.
 - [Create Action](./wallet_examples/create_action/README.md) - Create a new wallet action of a specified user. //TODO: Add README
 
 ## Services Examples
+- [Get Block Header form Block Hash](./services_examples/get_block_header_from_block_hash/get_block_header_from_block_hash.md) - Get a complete block header using a specific block hash.
 - [Get Chain Tip Header](./services_examples/get_chain_tip_header/get_chain_tip_header.md) - Finds the latest block header in the longest chain.
 - [Get Current Block Height](./services_examples/get_current_block_height/get_current_block_height.md) - Fetch current block height.
+- [Get Raw Transaction from TxID](./services_examples/get_rawtx_from_txid/get_rawtx_from_txid.md) - Get raw transaction hexadecimal from a txID value.
+- [Get Script Hash History](./services_examples/get_script_hash_history/get_script_hash_history.md) - Fetch transaction history for a specified script hash.
 - [Is Valid Root For Block Height](./services_examples/is_valid_root_for_block_height/is_valid_root_for_block_height.md) - Validates that a root hex is valid for a specified block height.
 - [Get Merkle Path For Tx](./services_examples/get_merkle_path_for_tx/get_merkle_path_for_tx.md) - Fetching Merkle Path for specified txID.
 - [Post BEEF](./services_examples/post_beef/post_beef.md) - Broadcasting a single BSV transaction.
