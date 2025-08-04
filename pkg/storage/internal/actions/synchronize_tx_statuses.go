@@ -10,7 +10,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 const (
@@ -35,9 +37,17 @@ type synchronizeTxStatuses struct {
 	keyValueRepo         KeyValueRepo
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
+	transactionRepo      TransactionsRepo
 }
 
-func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.SynchronizeTxStatuses, services wdk.Services, provenTxRepo KnownTxRepo, keyValueRepo KeyValueRepo) *synchronizeTxStatuses {
+func newSynchronizeTxStatuses(
+	logger *slog.Logger,
+	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+	services wdk.Services,
+	provenTxRepo KnownTxRepo,
+	keyValueRepo KeyValueRepo,
+	transactionRepo TransactionsRepo,
+) *synchronizeTxStatuses {
 	logger = logging.Child(logger, "synchronize_tx_statuses")
 
 	if syncTxStatusesConfig.MaxAttempts == 0 {
@@ -50,6 +60,7 @@ func newSynchronizeTxStatuses(logger *slog.Logger, syncTxStatusesConfig defs.Syn
 		keyValueRepo:         keyValueRepo,
 		syncTxStatusesConfig: syncTxStatusesConfig,
 		services:             services,
+		transactionRepo:      transactionRepo,
 	}
 }
 
@@ -125,7 +136,14 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 			continue
 		}
 
-		// TODO: Support history notes
+		transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
+		if err != nil {
+			return fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
+		}
+
+		notes := slices.Map(transactionIDs, func(transactionID uint) history.Builder {
+			return history.NewBuilder().NotifyTxOfProof(transactionID)
+		})
 
 		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
 			TxID:        txToSync.TxID,
@@ -133,6 +151,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 			MerklePath:  merkleResult.MerklePath.Bytes(),
 			BlockHash:   merkleResult.BlockHeader.Hash,
 			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
+			Notes:       notes,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update proven txs as mined: %w", err)

@@ -35,6 +35,7 @@ type TransactionsRepo interface {
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error
+	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
 }
 
 type KnownTxRepo interface {
