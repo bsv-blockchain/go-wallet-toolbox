@@ -35,6 +35,7 @@ type EventTypesSelector interface {
 	ProcessAction(userID int) Builder
 	AggregateResults(result AggregatedBroadcastResult) Builder
 	AbortAction(reference string) Builder
+	NotifyTxOfProof(transactionID uint) Builder
 
 	GetMerklePathSuccess(serviceName string) Builder
 	GetMerklePathNotFound(serviceName string) Builder
@@ -121,6 +122,11 @@ func (b *builder) PostBeefSuccess(serviceName string, txIDs []string) Builder {
 func (b *builder) AbortAction(reference string) Builder {
 	return b.WithWhat(AbortActionHistoryNote).
 		WithAttribute(referenceAttr, reference)
+}
+
+func (b *builder) NotifyTxOfProof(transactionID uint) Builder {
+	return b.WithWhat("notifyTxOfProof").
+		WithAttribute("transactionId", transactionID)
 }
 
 func (b *builder) WithWhat(what string) Builder {

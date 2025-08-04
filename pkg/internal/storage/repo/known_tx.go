@@ -317,18 +317,43 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txSta
 }
 
 func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *entity.KnownTxAsMined) error {
-	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
-		Where("tx_id = ?", knownTxAsMined.TxID).
-		Updates(&models.KnownTx{
-			Status:      wdk.ProvenTxStatusCompleted,
-			BlockHash:   &knownTxAsMined.BlockHash,
-			BlockHeight: &knownTxAsMined.BlockHeight,
-			MerklePath:  knownTxAsMined.MerklePath,
-			MerkleRoot:  &knownTxAsMined.MerkleRoot,
-			Notified:    true,
-		}).Error
+	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&models.KnownTx{}).
+			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
+			Updates(&models.KnownTx{
+				Status:      wdk.ProvenTxStatusCompleted,
+				BlockHash:   &knownTxAsMined.BlockHash,
+				BlockHeight: &knownTxAsMined.BlockHeight,
+				MerklePath:  knownTxAsMined.MerklePath,
+				MerkleRoot:  &knownTxAsMined.MerkleRoot,
+				Notified:    true,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("failed to update known tx: %w", err)
+		}
+
+		err = addTxNotes(tx, slices.Map(knownTxAsMined.Notes, func(note history.Builder) *pkgentity.TxHistoryNote {
+			return note.Entity(knownTxAsMined.TxID)
+		}))
+		if err != nil {
+			return fmt.Errorf("failed to add tx notes: %w", err)
+		}
+
+		// NOTE: There can be multiple transactions with the same tx_id, so we need to update all of them.
+		err = tx.Model(&models.Transaction{}).
+			Where(p.query.Transaction.TxID.Eq(knownTxAsMined.TxID)).
+			Updates(map[string]any{
+				p.query.Transaction.Status.ColumnName().String(): wdk.TxStatusCompleted,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("failed to update transaction status as completed: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return fmt.Errorf("failed to update known tx as mined: %w", err)
+		return fmt.Errorf("db transaction failed: %w", err)
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -36,11 +37,12 @@ var abortTransactionSteps = []abortStep{
 }
 
 type Transactions struct {
-	db *gorm.DB
+	query *genquery.Query
+	db    *gorm.DB
 }
 
-func NewTransactions(db *gorm.DB) *Transactions {
-	return &Transactions{db: db}
+func NewTransactions(db *gorm.DB, query *genquery.Query) *Transactions {
+	return &Transactions{db: db, query: query}
 }
 
 func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.NewTx) error {
@@ -224,6 +226,21 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
+func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error) {
+	var transactions []*models.Transaction
+	err := txs.db.WithContext(ctx).
+		Select(txs.query.Transaction.ID.ColumnName().String()).
+		Where(txs.query.Transaction.TxID.Eq(txID)).
+		Find(&transactions).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transaction IDs by TxID: %w", err)
+	}
+
+	return slices.Map(transactions, func(tx *models.Transaction) uint {
+		return tx.ID
+	}), nil
+}
+
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
 	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).
@@ -238,23 +255,6 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 		}
 
 		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
-	}
-
-	return txs.mapModelToTransactionEntity(&transaction), nil
-}
-
-func (txs *Transactions) FindTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
-	transaction := models.Transaction{}
-	err := txs.db.WithContext(ctx).
-		Scopes(scopes.UserID(userID)).
-		Where("tx_id = ?", txID).
-		Preload("Labels").
-		First(&transaction).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to find transaction by txID: %w", err)
 	}
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
