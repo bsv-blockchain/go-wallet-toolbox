@@ -52,28 +52,44 @@ const (
 	TxReqBroadcastUnknown     TxReqBroadcastStatus = "unknown"
 )
 
-// BroadcastStatus returns the simplified broadcast status of a transaction request based on its current status.
-func (s ProvenTxReqStatus) BroadcastStatus() TxReqBroadcastStatus {
-	switch s {
+// SendWithResultStatus returns the status of a transaction request based on its ProvenTxReqStatus.
+func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
+	if s.Sending() {
+		return SendWithResultStatusSending
+	}
+
+	if s.AlreadySent() {
+		return SendWithResultStatusUnproven
+	}
+
+	return SendWithResultStatusFailed
+}
+
+func (s ProvenTxReqStatus) Sending() bool {
+	switch s { //nolint:exhaustive
 	case ProvenTxStatusUnknown,
 		ProvenTxStatusNonFinal,
 		ProvenTxStatusInvalid,
-		ProvenTxStatusDoubleSpend:
-		return TxReqBroadcastError
-	case ProvenTxStatusSending,
+		ProvenTxStatusDoubleSpend,
+		ProvenTxStatusSending,
 		ProvenTxStatusUnsent,
 		ProvenTxStatusNoSend,
 		ProvenTxStatusUnprocessed:
-		return TxReqBroadcastReadyToSend
+		return true
+	default:
+		return false
+	}
+}
+
+func (s ProvenTxReqStatus) AlreadySent() bool {
+	switch s { //nolint:exhaustive
 	case ProvenTxStatusUnmined,
 		ProvenTxStatusCallback,
 		ProvenTxStatusUnconfirmed,
 		ProvenTxStatusCompleted:
-		return TxReqBroadcastAlreadySent
-	case ProvenTxStatusUnfail:
-		fallthrough
+		return true
 	default:
-		return TxReqBroadcastUnknown
+		return false
 	}
 }
 

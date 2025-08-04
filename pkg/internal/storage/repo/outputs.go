@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/go-softwarelab/common/pkg/must"
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -347,6 +349,72 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) err
 
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
+	}
+
+	return nil
+}
+
+func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID string, utxoStatus wdk.UTXOStatus) error {
+	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var changeOutputs []*models.Output
+		err := tx.Model(&models.Output{}).
+			Select(
+				o.query.Output.ID.ColumnName().String(),
+				o.query.Output.BasketName.ColumnName().String(),
+				o.query.Output.Satoshis.ColumnName().String(),
+				o.query.Output.Type.ColumnName().String(),
+			).
+			Where("transaction_id IN (?)",
+				o.db.Model(&models.Transaction{}).
+					Select("id").
+					Scopes(scopes.UserID(userID)).
+					Where("tx_id = ?", txID),
+			).
+			Where(o.query.Output.BasketName.IsNotNull()).
+			Where(o.query.Output.Change.Is(true)).
+			Where(o.query.Output.Satoshis.Gt(0)).
+			Where(o.query.Output.SpentBy.IsNull()).
+			Find(&changeOutputs).Error
+		if err != nil {
+			return fmt.Errorf("failed to find transaction outputs: %w", err)
+		}
+
+		if len(changeOutputs) == 0 {
+			return nil
+		}
+
+		for _, output := range changeOutputs {
+			output.Spendable = true
+			if err != nil {
+				return fmt.Errorf("failed to get locking script: %w", err)
+			}
+		}
+
+		err = tx.Save(changeOutputs).Error
+		if err != nil {
+			return fmt.Errorf("failed to save change outputs: %w", err)
+		}
+
+		newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
+			return &models.UserUTXO{
+				UserID:             userID,
+				OutputID:           output.ID,
+				BasketName:         *output.BasketName,
+				Satoshis:           must.ConvertToUInt64(output.Satoshis),
+				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+				UTXOStatus:         utxoStatus,
+			}
+		})
+
+		err = tx.Create(newUTXOs).Error
+		if err != nil {
+			return fmt.Errorf("failed to create new UTXOs: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to make outputs spendable: %w", err)
 	}
 
 	return nil

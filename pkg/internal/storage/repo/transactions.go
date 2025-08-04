@@ -280,10 +280,10 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			return err
 		}
 
-		err = makeOutputsSpendable(tx, updatedTx)
-		if err != nil {
-			return err
-		}
+		//err = makeOutputsSpendable(tx, updatedTx)
+		//if err != nil {
+		//	return err
+		//}
 
 		return upsertKnownTx(tx, &entity.UpsertKnownTx{
 			TxID:          updatedTx.TxID,

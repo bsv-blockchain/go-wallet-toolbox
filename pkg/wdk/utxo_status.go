@@ -8,4 +8,6 @@ const (
 	UTXOStatusSending  UTXOStatus = "sending"
 	UTXOStatusUnproven UTXOStatus = "unproven"
 	UTXOStatusMined    UTXOStatus = "mined"
+
+	UTXOStatusUnknown = ""
 )
