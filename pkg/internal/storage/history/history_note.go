@@ -16,6 +16,7 @@ const (
 	ProcessActionHistoryNote     = "processAction"
 	AggregateResultsHistoryNote  = "aggregateResults"
 	AbortActionHistoryNote       = "abortAction"
+	NotifyTxOfProofHistoryNote = "notifyTxOfProof"
 
 	GetMerklePathSuccess  = "getMerklePathSuccess"
 	GetMerklePathNotFound = "getMerklePathNotFound"
@@ -125,7 +126,7 @@ func (b *builder) AbortAction(reference string) Builder {
 }
 
 func (b *builder) NotifyTxOfProof(transactionID uint) Builder {
-	return b.WithWhat("notifyTxOfProof").
+	return b.WithWhat(NotifyTxOfProofHistoryNote).
 		WithAttribute("transactionId", transactionID)
 }
 

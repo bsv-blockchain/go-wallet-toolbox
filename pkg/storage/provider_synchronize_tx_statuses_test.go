@@ -36,10 +36,21 @@ func TestSynchronizeTx(t *testing.T) {
 	require.NoError(t, err)
 
 	// and:
-	testabilities.ThenDBState(t, activeStorage).
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.
 		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
-		IsMined()
+		IsMined().
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.
+				Count(1).
+				Note("notifyTxOfProof", nil, map[string]any{
+					"transactionId": uint(1),
+				})
+		})
+
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, txSpec.ID().String()).
+		WithStatus(wdk.TxStatusCompleted)
 
 	// and:
 	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
