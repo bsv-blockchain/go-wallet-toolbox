@@ -341,3 +341,20 @@ func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, o
 
 	return result, nil
 }
+
+// IsUtxo checks if the given outpoint is a UTXO for the specified script hash.
+func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
+	if scriptHash == "" {
+		return false, fmt.Errorf("scriptHash is required")
+	}
+	if outpoint == nil {
+		return false, fmt.Errorf("outpoint is required")
+	}
+
+	status, err := woc.GetUtxoStatus(ctx, scriptHash, outpoint)
+	if err != nil {
+		return false, fmt.Errorf("failed to determine UTXO status: %w", err)
+	}
+
+	return status.IsUtxo, nil
+}
