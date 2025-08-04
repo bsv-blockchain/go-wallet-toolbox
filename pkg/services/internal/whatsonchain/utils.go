@@ -2,6 +2,7 @@ package whatsonchain
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -51,6 +53,34 @@ func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) (sh
 	}
 
 	return
+}
+
+func validateScriptHash(scriptHash string) error {
+	if scriptHash == "" {
+		return fmt.Errorf("scripthash cannot be empty")
+	}
+
+	if len(scriptHash) < 20 {
+		return fmt.Errorf("invalid scripthash length: too short (minimum 20 characters)")
+	}
+
+	if len(scriptHash) > 66 {
+		return fmt.Errorf("invalid scripthash length: too long (maximum 66 characters)")
+	}
+
+	_, err := hex.DecodeString(scriptHash)
+	if err != nil {
+		return fmt.Errorf("invalid scripthash format: %w", err)
+	}
+
+	return nil
+}
+
+func toScriptHistoryItem(item dto.ScriptHashHistoryItem) wdk.ScriptHistoryItem {
+	return wdk.ScriptHistoryItem{
+		TxHash: item.TxID,
+		Height: item.Height,
+	}
 }
 
 func containsI(subject string, contains ...string) bool {
@@ -104,4 +134,9 @@ func tscProofURL(baseURL, txid string) (string, error) {
 // /chain/info
 func chainInfoURL(baseURL string) (string, error) {
 	return buildURL(baseURL, "chain", "info")
+}
+
+// /script/{scriptHash}/unspent/all
+func scriptUnspentAllURL(baseURL, scriptHash string) (string, error) {
+	return buildURL(baseURL, "script", scriptHash, "unspent", "all")
 }
