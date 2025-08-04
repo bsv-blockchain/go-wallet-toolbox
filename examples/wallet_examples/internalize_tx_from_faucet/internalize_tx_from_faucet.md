@@ -86,7 +86,7 @@ Finally, we call the wallet's `InternalizeAction` method to import the transacti
    go run ./examples/wallet_examples/internalize_tx_from_faucet/internalize_tx_from_faucet.go
    ```
 
-Expected output:
+## Expected Output
 ```text
 🚀 STARTING: Faucet Transaction Internalization
 ============================================================
@@ -132,7 +132,7 @@ To integrate transaction internalization into your application:
 ### Error Handling
 
 Common issues and solutions:
-- **Transaction not found**: Ensure the txid is correct and the transaction has been confirmed
+- **Transaction not found**: Ensure the transaction ID is correct and the transaction has been confirmed
 - **Invalid BEEF data**: Verify the API response and network settings
 - **Derivation mismatch**: Ensure the same derivation parameters are used as when generating the address
 

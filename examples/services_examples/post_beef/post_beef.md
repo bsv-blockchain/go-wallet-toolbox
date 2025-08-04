@@ -80,7 +80,7 @@ To run this example:
 go run ./examples/services_examples/post_beef/post_beef.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 🚀 STARTING: Post BEEF

@@ -47,7 +47,7 @@ The service response contains:
 To run this example:
 
 ```bash
-go run ./examples/services_examples/is_valid_root_for_height/is_valid_root_for_height.go
+go run ./examples/services_examples/is_valid_root_for_block_height/is_valid_root_for_block_height.go
 ```
 
 ## Expected Output

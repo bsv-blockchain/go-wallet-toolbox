@@ -67,7 +67,7 @@ To run this example:
 go run ./examples/wallet_examples/show_address_for_tx_from_faucet/show_address_for_tx_from_faucet.go
 ```
 
-Expected output:
+## Expected Output
 
 ```text
 ============================================================
@@ -104,8 +104,8 @@ To integrate address generation into your application:
 1. Copy the generated address from the console output.
 2. Open any of the listed testnet faucets.
 3. Paste the address and request coins.
-4. The faucet will return a **txid** if successful - save this value for the next step.
-5. Use the txid with the **internalize tx from faucet** example to import the funds into your wallet.
+4. The faucet will return a **txID** if successful - save this value for the next step.
+5. Use the txID with the **internalize tx from faucet** example to import the funds into your wallet.
 
 ## Additional Resources
 
