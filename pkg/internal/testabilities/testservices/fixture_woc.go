@@ -18,6 +18,7 @@ import (
 )
 
 type WhatsOnChainFixture interface {
+	WillRespondWithEmptyBlockHeight()
 	WillRespondWithRates(status int, content string, err error)
 	WillRespondWithRawTx(status int, txID, rawTx string, err error)
 	OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption)
@@ -67,9 +68,9 @@ func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
 
 func (f *wocFixture) WillRespondWithInternalFailure() {
 	f.TB.Helper()
-	f.transport.RegisterResponder(
+	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/.*`, f.network)),
 		httpmock.NewJsonResponderOrPanic(http.StatusInternalServerError, map[string]string{
 			"error": http.StatusText(http.StatusInternalServerError),
 		}),
@@ -95,6 +96,15 @@ func WithTipBlockHeaderHeight(height uint) TipBlockHeaderOption {
 	return func(opts *TipBlockHeaderOptions) {
 		opts.Height = height
 	}
+}
+
+func (f *wocFixture) WillRespondWithEmptyBlockHeight() {
+	f.Helper()
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/.*/header`, f.network)),
+		httpmock.NewStringResponder(http.StatusOK, "{}"),
+	)
 }
 
 func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption) {
