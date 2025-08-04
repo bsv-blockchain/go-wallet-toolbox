@@ -8,7 +8,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -330,33 +329,26 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		activeStorage := given.Provider().GORM()
 
 		// and:
-		beefToInternalize := tsgenerated.AtomicBeefToInternalize(t)
+		internalizeArgs, _ := given.Action(activeStorage).PreInternalized()
+		walletPaymentOutput := *internalizeArgs.Outputs[0]
 
-		// and:
-		given.Provider().BHS().OnMerkleRootVerifyResponse(
-			tsgenerated.BeefToInternalizeHeight,
-			tsgenerated.BeefToInternalizeMerkleRoot,
-			testabilities.BHSMerkleRootConfirmed,
-		)
+		internalizeArgs.Description = "first internalize"
+		internalizeArgs.Outputs = []*wdk.InternalizeOutput{
+			{
+				OutputIndex: 0,
+				Protocol:    wdk.BasketInsertionProtocol,
+				InsertionRemittance: &wdk.BasketInsertion{
+					Basket: "custom_basket",
+					Tags:   []primitives.StringUnder300{"custom_tag"},
+				},
+			},
+		}
 
 		// when:
 		result, err := activeStorage.InternalizeAction(
 			t.Context(),
 			testusers.Alice.AuthID(),
-			wdk.InternalizeActionArgs{
-				Tx: beefToInternalize,
-				Outputs: []*wdk.InternalizeOutput{
-					{
-						OutputIndex: 0,
-						Protocol:    wdk.BasketInsertionProtocol,
-						InsertionRemittance: &wdk.BasketInsertion{
-							Basket: "custom_basket",
-							Tags:   []primitives.StringUnder300{"custom_tag"},
-						},
-					},
-				},
-				Description: "first internalize",
-			},
+			*internalizeArgs,
 		)
 
 		// then:
@@ -366,31 +358,19 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(0), result.Satoshis)
 
 		// when:
+		internalizeArgs.Description = "second internalize"
+		internalizeArgs.Outputs = []*wdk.InternalizeOutput{&walletPaymentOutput}
 		result, err = activeStorage.InternalizeAction(
 			t.Context(),
 			testusers.Alice.AuthID(),
-			wdk.InternalizeActionArgs{
-				Tx: beefToInternalize,
-				Outputs: []*wdk.InternalizeOutput{
-					{
-						OutputIndex: 0,
-						Protocol:    wdk.WalletPaymentProtocol,
-						PaymentRemittance: &wdk.WalletPayment{
-							DerivationPrefix:  fixtures.DerivationPrefix,
-							DerivationSuffix:  fixtures.DerivationSuffix,
-							SenderIdentityKey: fixtures.AnyoneIdentityKey,
-						},
-					},
-				},
-				Description: "second internalize",
-			},
+			*internalizeArgs,
 		)
 
 		// then:
 		require.NoError(t, err)
 		assert.True(t, result.Accepted)
 		assert.True(t, result.IsMerge)
-		assert.Equal(t, int64(99904), result.Satoshis)
+		assert.Equal(t, int64(fixtures.DefaultCreateActionOutputSatoshis), result.Satoshis)
 
 		// and db state:
 		thenDBState := testabilities.ThenDBState(t, activeStorage)

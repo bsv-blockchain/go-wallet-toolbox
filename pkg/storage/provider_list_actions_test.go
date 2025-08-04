@@ -25,7 +25,7 @@ func TestListActions_HappyPath(t *testing.T) {
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
 	// and:
-	_, ownedTransaction := given.ActionCreatedAndProcessed(activeStorage)
+	_, ownedTransaction := given.Action(activeStorage).Processed()
 
 	// When:
 	args := wdk.ListActionsArgs{

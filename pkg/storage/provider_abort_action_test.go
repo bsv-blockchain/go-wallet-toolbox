@@ -17,7 +17,7 @@ func TestAbortActionSuccess(t *testing.T) {
 	defer cleanup()
 
 	activeStorage := given.Provider().GORM()
-	createResult, _ := given.ActionCreatedAndSigned(activeStorage)
+	createResult, _ := given.Action(activeStorage).Created()
 
 	// when:
 	result, err := activeStorage.AbortAction(
@@ -45,7 +45,7 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 	defer cleanup()
 
 	activeStorage := given.Provider().GORM()
-	createResult, _ := given.ActionCreatedAndSigned(activeStorage)
+	createResult, _ := given.Action(activeStorage).WithSatoshisToInternalize(99904).Created()
 
 	// when:
 	result, err := activeStorage.AbortAction(
@@ -121,7 +121,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"different user transaction - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				createResult, _ := given.ActionCreatedAndSigned(activeStorage)
+				createResult, _ := given.Action(activeStorage).Created()
 
 				return createResult.Reference, testusers.Bob.AuthID()
 			},
@@ -133,7 +133,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"different user transaction - txID as Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				_, tx := given.ActionCreatedAndSigned(activeStorage)
+				_, tx := given.Action(activeStorage).Created()
 
 				return tx.TxID().String(), testusers.Bob.AuthID()
 			},
@@ -153,7 +153,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"transaction with status failed - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				createResult, _ := given.ActionCreatedAndSigned(activeStorage)
+				createResult, _ := given.Action(activeStorage).Created()
 
 				abortResult, err := activeStorage.AbortAction(
 					t.Context(),
@@ -175,7 +175,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"transaction with status unproven - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				createResult, _ := given.ActionCreatedAndProcessed(activeStorage)
+				createResult, _ := given.Action(activeStorage).Processed()
 
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
@@ -186,7 +186,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 		"transaction with status unproven - TxID as Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				_, tx := given.ActionCreatedAndProcessed(activeStorage)
+				_, tx := given.Action(activeStorage).Processed()
 
 				return tx.TxID().String(), testusers.Alice.AuthID()
 			},
@@ -228,7 +228,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 		"unsigned_transaction": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
-				createResult, _ := given.ActionCreatedAndSigned(activeStorage)
+				createResult, _ := given.Action(activeStorage).Created()
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 		},
