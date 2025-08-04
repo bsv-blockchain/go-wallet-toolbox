@@ -82,6 +82,6 @@ To integrate Merkle root validation into your application:
 
 ## Additional Resources
 
-- [Validate Merkle Root for Height Example](./is_valid_root_for_height.go) - Complete code example for Merkle root validation
+- [Validate Merkle Root for Block Height Example](./is_valid_root_for_block_height.go) - Complete code example for Merkle root validation
 - [Get Chain Tip Header Documentation](../get_chain_tip_header/get_chain_tip_header.md) - Get complete block header data
 - [SPV Documentation](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0067.md) - BRC-67 SPV specification

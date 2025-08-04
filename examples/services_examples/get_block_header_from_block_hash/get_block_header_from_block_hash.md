@@ -49,7 +49,7 @@ The service response contains:
 To run this example:
 
 ```bash
-go run ./examples/services_examples/get_block_header_from_hash/get_block_header_from_hash.go
+go run ./examples/services_examples/get_block_header_from_block_hash/get_block_header_from_block_hash.go
 ```
 
 ## Expected Output
@@ -84,6 +84,6 @@ To integrate block header retrieval from hash into your application:
 
 ## Additional Resources
 
-- [Get Block Header from Hash Example](./get_block_header_from_hash.go) - Complete code example for getting block headers from hash
+- [Get Block Header from Block Hash Example](./get_block_header_from_block_hash.go) - Complete code example for getting block headers from hash
 - [Get Chain Tip Header Documentation](../get_chain_tip_header/get_chain_tip_header.md) - Get the latest block header
 - [Get Current Block Height Documentation](../get_current_block_height/get_current_block_height.md) - Get current blockchain height

@@ -257,4 +257,3 @@ Each service returns detailed results for each transaction in the chain:
 - [Post BEEF Documentation](../post_beef/post_beef.md) - Broadcast a BSV transaction using BEEF format
 - [Post BEEF Hex Documentation](../post_beef_hex/post_beef_hex.md) - Broadcast from existing BEEF hex
 - [Post Multiple BEEF Example](./post_beef_with_multiple_txs.go) - Broadcasting multiple transactions
-

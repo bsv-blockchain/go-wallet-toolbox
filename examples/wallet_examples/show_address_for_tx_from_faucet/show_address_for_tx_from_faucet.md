@@ -64,7 +64,7 @@ Finally, the example displays formatted instructions including:
 To run this example:
 
 ```bash
-go run ./examples/wallet_examples/faucet_address/faucet_address.go
+go run ./examples/wallet_examples/show_address_for_tx_from_faucet/show_address_for_tx_from_faucet.go
 ```
 
 Expected output:
@@ -97,7 +97,7 @@ To integrate address generation into your application:
 3. **Create the BRC-29 address** by calling `brc29.Address()` with the wallet keys, derivation parameters, and network configuration.
 4. **Fund the address** by using the generated address with a testnet faucet.
 5. **Store the derivation parameters** along with the transaction data for later spending.
-6. **Continue to internalization** using the [faucet_internalize](../faucet_internalize/faucet_internalize.md) example to import the funded transaction into your wallet.
+6. **Continue to internalization** using the [internalize_tx_from_faucet](../internalize_tx_from_faucet/internalize_tx_from_faucet.md) example to import the funded transaction into your wallet.
 
 ### Funding the Address
 
@@ -105,11 +105,11 @@ To integrate address generation into your application:
 2. Open any of the listed testnet faucets.
 3. Paste the address and request coins.
 4. The faucet will return a **txid** if successful - save this value for the next step.
-5. Use the txid with the **faucet_internalize** example to import the funds into your wallet.
+5. Use the txid with the **internalize tx from faucet** example to import the funds into your wallet.
 
 ## Additional Resources
 
 - [BRC-29 Payment Protocol](https://bsv.brc.dev/payments/0029) - Specification for payment address derivation
-- [Faucet Internalize Example](../faucet_internalize/faucet_internalize.md) - Next step to import faucet funds
+- [Internalize Transaction from Faucet Example](../internalize_tx_from_faucet/internalize_tx_from_faucet.md) - Next step to import faucet funds
 - [Scrypt Testnet Faucet](https://scrypt.io/faucet) - Get free testnet BSV
 - [Witnessonchain Testnet Faucet](https://witnessonchain.com/faucet/tbsv) - Another source for testnet BSV

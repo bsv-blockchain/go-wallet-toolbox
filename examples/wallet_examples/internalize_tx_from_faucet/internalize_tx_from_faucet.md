@@ -20,7 +20,7 @@ This example serves as the second step after generating a faucet address, comple
 ```go
 var txID = "15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8"
 ```
-First, you need the transaction ID received from the testnet faucet in the previous [faucet_address](../faucet_address/faucet_address.md) example. Replace this placeholder with your actual txid.
+First, you need the transaction ID received from the testnet faucet in the previous [show_address_for_tx_from_faucet](../show_address_for_tx_from_faucet/show_address_for_tx_from_faucet.md) example. Replace this placeholder with your actual txid.
 
 ### Creating the Wallet Instance
 
@@ -74,7 +74,7 @@ Finally, we call the wallet's `InternalizeAction` method to import the transacti
 
 ## Running the Example
 
-**Prerequisite**: You must have a transaction ID from completing the [faucet_address](../faucet_address/faucet_address.md) example.
+**Prerequisite**: You must have a transaction ID from completing the [show_address_for_tx_from_faucet](../show_address_for_tx_from_faucet/show_address_for_tx_from_faucet.md) example.
 
 1. **Update the transaction ID** in the code:
    ```go
@@ -83,7 +83,7 @@ Finally, we call the wallet's `InternalizeAction` method to import the transacti
 
 2. **Run the example**:
    ```bash
-   go run ./examples/wallet_examples/faucet_internalize/faucet_internalize.go
+   go run ./examples/wallet_examples/internalize_tx_from_faucet/internalize_tx_from_faucet.go
    ```
 
 Expected output:
@@ -138,7 +138,6 @@ Common issues and solutions:
 
 ## Additional Resources
 
-- [Faucet Address Example](../faucet_address/faucet_address.md) - Previous step to generate the receiving address
+- [Show Address for Transaction from Faucet Example](../show_address_for_tx_from_faucet/show_address_for_tx_from_faucet.md) - Previous step to generate the receiving address
 - [BRC-62 BEEF Specification](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md) - Transaction format specification
 - [WhatsonChain API](https://docs.whatsonchain.com/) - Blockchain data API documentation
-

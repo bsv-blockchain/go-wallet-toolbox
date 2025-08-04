@@ -100,4 +100,4 @@ To integrate Merkle path retrieval into your application:
 
 - [Get Merkle Path for Transaction Example](./get_merkle_path_for_tx.go) - Complete code example for getting Merkle paths
 - [SPV Documentation](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0067.md) - BRC-67 SPV specification
-- [Validate Merkle Root Example](../is_valid_root_for_height/is_valid_root_for_height.md) - Verify Merkle roots against block heights
+- [Is Valid Root for Block Height](../is_valid_root_for_block_height/is_valid_root_for_block_height.md) - Verify Merkle roots against block heights
