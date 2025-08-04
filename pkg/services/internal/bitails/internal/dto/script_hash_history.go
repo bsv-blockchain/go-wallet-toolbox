@@ -23,7 +23,7 @@ type ScriptHistoryItem struct {
 	Height *int `json:"blockheight,omitempty"`
 }
 
-type BlockHeaderByHeightDTO struct {
+type BlockHeaderByHeight struct {
 	PreviousBlockHash string `json:"previousBlockHash"`
 	Version           uint32 `json:"version"`
 	MerkleRoot        string `json:"merkleroot"`
@@ -32,7 +32,9 @@ type BlockHeaderByHeightDTO struct {
 	Nonce             uint32 `json:"nonce"`
 }
 
-func (b *BlockHeaderByHeightDTO) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
+func (b *BlockHeaderByHeight) IsZero() bool { return *b == BlockHeaderByHeight{} }
+
+func (b *BlockHeaderByHeight) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
 	bits, err := strconv.ParseUint(b.Bits, 16, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint32: %w", b.Bits, err)

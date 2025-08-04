@@ -13,6 +13,36 @@ import (
 )
 
 func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T) {
+	t.Run("return chain base block header when only Bitails is responsive", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		svc := given.Services().WithDefaultConfig()
+
+		// and:
+		given.BHS().WillRespondWithInternalFailure()
+		given.WhatsOnChain().WillRespondWithInternalFailure()
+		given.Bitails().WillRespondWithBlockByHeight()
+
+		bits, err := strconv.ParseUint(testservices.TestBlockBits, 16, 32)
+		require.NoError(t, err)
+
+		expectedHeader := &wdk.ChainBaseBlockHeader{
+			MerkleRoot:   testservices.TestBlockMerkleRoot,
+			Version:      testservices.TestBlockVersion,
+			PreviousHash: testservices.TestBlockPreviousBlockHash,
+			Time:         uint32(testservices.TestBlockTime),
+			Bits:         uint32(bits),
+			Nonce:        testservices.TestBlockNonce,
+		}
+
+		// when:
+		actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, expectedHeader, actualHeader)
+	})
+
 	t.Run("return chain base block header when only WOC service is responsive", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
@@ -20,6 +50,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 
 		// and:
 		given.BHS().WillRespondWithInternalFailure()
+		given.Bitails().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithBlockHeaderByHeight(http.StatusOK, testservices.TestBlockHeight, testservices.TestBlockMerkleRoot)
 
 		bits, err := strconv.ParseUint(testservices.TestBlockBits, 16, 32)
@@ -49,6 +80,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 
 		// and:
 		given.WhatsOnChain().WillRespondWithInternalFailure()
+		given.Bitails().WillRespondWithInternalFailure()
 		first := given.BHS().IsUpAndRunning().DefaultHeaderByHeightResponse()
 
 		expectedHeader := &wdk.ChainBaseBlockHeader{
@@ -73,6 +105,8 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 	t.Run("return error when all services are unreachable", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
+		given.Bitails().WillBeUnreachable()
+		given.WhatsOnChain().WillBeUnreachable()
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
 
 		// and:
@@ -93,6 +127,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
+		given.Bitails().WillRespondWithInternalFailure()
 
 		// and:
 		services := given.Services().WithDefaultConfig()
@@ -110,7 +145,9 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 	t.Run("return an error when all block header services return an empty header blocks response", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		given.BHS().WillRespondWithEmptyHeaderByHeightResponse()
+		given.BHS().WillRespondWithEmptyBlockHeight()
+		given.WhatsOnChain().WillRespondWithEmptyBlockHeight()
+		given.Bitails().WillRespondWithEmptyBlockHeight()
 
 		// and:
 		service := given.Services().WithDefaultConfig()

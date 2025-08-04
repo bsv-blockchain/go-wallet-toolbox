@@ -39,6 +39,8 @@ type BlockHeader struct {
 	PreviousBlockHash string `json:"previousblockhash"`
 }
 
+func (b *BlockHeader) IsZero() bool { return *b == BlockHeader{} }
+
 func (b *BlockHeader) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
 	bits, err := strconv.ParseUint(b.Bits, 16, 32)
 	if err != nil {

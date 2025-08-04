@@ -32,7 +32,7 @@ type BHSFixture interface {
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
 	WillRespondWithEmptyLongestTipBlockHeader()
-	WillRespondWithEmptyHeaderByHeightResponse()
+	WillRespondWithEmptyBlockHeight()
 	OnLongestTipBlockHeaderResponseWith(opts ...LongestChainTipOptions)
 	OnMerkleRootVerifyResponse(height uint32, root, state string)
 	DefaultLongestTip() *longestChainTipResponse
@@ -68,7 +68,7 @@ func (b *bhsFixture) WillRespondWithEmptyLongestTipBlockHeader() {
 	)
 }
 
-func (b *bhsFixture) WillRespondWithEmptyHeaderByHeightResponse() {
+func (b *bhsFixture) WillRespondWithEmptyBlockHeight() {
 	b.Helper()
 	b.transport.RegisterResponder(
 		http.MethodGet,
