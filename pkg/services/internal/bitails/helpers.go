@@ -63,22 +63,14 @@ func (b *Bitails) fetchRemoteRoot(ctx context.Context, height uint32) (*chainhas
 	return remoteRoot, nil
 }
 
-// proofResponse defines the structure of the response from Bitails for TSC proofs.
-type proofResponse struct {
-	Index  int      `json:"index"`
-	TxOrId string   `json:"txOrId"`
-	Target string   `json:"target"`
-	Nodes  []string `json:"nodes"`
-}
-
 // getTscProof queries /tx/{txid}/proof/tsc and returns nil on 404.
-func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse, error) {
+func (b *Bitails) getTscProof(ctx context.Context, txID string) (*dto.ProofResponse, error) {
 	url, err := tscProofURL(b.url, txID)
 	if err != nil {
 		return nil, fmt.Errorf("error building TSC proof URL: %w", err)
 	}
 
-	var proof proofResponse
+	var proof dto.ProofResponse
 	found, err := b.handleJSON(ctx, url, &proof, http.StatusOK, true)
 	if err != nil {
 		return nil, fmt.Errorf("error handling TSC proof JSON: %w", err)
@@ -91,21 +83,14 @@ func (b *Bitails) getTscProof(ctx context.Context, txID string) (*proofResponse,
 	return &proof, nil
 }
 
-// fetchInfoResponse is the structure for the response from Bitails when fetching transaction info.
-type fetchInfoResponse struct {
-	TxID        string `json:"txid"`
-	BlockHash   string `json:"blockhash"`
-	BlockHeight int64  `json:"blockheight"`
-}
-
 // fetchTxInfo retrieves transaction information from Bitails.
-func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*fetchInfoResponse, error) {
+func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*dto.FetchInfoResponse, error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
 		return nil, fmt.Errorf("error building transaction status URL: %w", err)
 	}
 
-	var info fetchInfoResponse
+	var info dto.FetchInfoResponse
 	_, err = b.handleJSON(ctx, url, &info, http.StatusOK, false)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching transaction info: %w", err)

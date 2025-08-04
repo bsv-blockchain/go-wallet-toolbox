@@ -2,7 +2,6 @@ package whatsonchain
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"iter"
 	"net/http"
@@ -11,27 +10,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
 )
-
-func validateScriptHash(scriptHash string) error {
-	if scriptHash == "" {
-		return fmt.Errorf("scripthash cannot be empty")
-	}
-
-	if len(scriptHash) < 20 {
-		return fmt.Errorf("invalid scripthash length: too short (minimum 20 characters)")
-	}
-
-	if len(scriptHash) > 66 {
-		return fmt.Errorf("invalid scripthash length: too long (maximum 66 characters)")
-	}
-
-	_, err := hex.DecodeString(scriptHash)
-	if err != nil {
-		return fmt.Errorf("invalid scripthash format: %w", err)
-	}
-
-	return nil
-}
 
 func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) (iter.Seq[wdk.ScriptHistoryItem], error) {
 	var history dto.ScriptHashHistoryResponse
@@ -103,11 +81,4 @@ func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash st
 		ScriptHash: scriptHash,
 		History:    combinedHistory,
 	}, nil
-}
-
-func toScriptHistoryItem(item dto.ScriptHashHistoryItem) wdk.ScriptHistoryItem {
-	return wdk.ScriptHistoryItem{
-		TxHash: item.TxID,
-		Height: item.Height,
-	}
 }

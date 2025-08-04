@@ -170,10 +170,6 @@ func (b *Bitails) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader
 	return ConvertHeader(raw, height)
 }
 
-type networkInfoResponse struct {
-	Blocks uint64 `json:"blocks"`
-}
-
 // CurrentHeight contacts the Bitails API and returns the current best-chain height.
 func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	url, err := buildURL(b.url, "network", "info")
@@ -181,7 +177,7 @@ func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 		return 0, fmt.Errorf("error building URL: %w", err)
 	}
 
-	var payload networkInfoResponse
+	var payload dto.NetworkInfoResponse
 	found, err := b.handleJSON(ctx, url, &payload, http.StatusOK, false)
 	if err != nil {
 		return 0, fmt.Errorf("error fetching current height: %w", err)
