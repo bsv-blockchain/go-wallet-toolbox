@@ -10,47 +10,44 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
-// Add beef hex directly here or use the txid to get the beef hex from the API
-var beef = ""
-
-// The txid is the transaction id of the transaction to internalize
-// Pass the chosen txid or simply change the default value when running the example
-var txID = "15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8"
+// The txID is the transaction ID of the transaction to internalize
+// Pass in your txID from the faucet_address example
+var txID = "" //example: 15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8
 
 // To internalize a transaction from the faucet, you need to pass the txid of the transaction to internalize
 // Use the faucet_address example to get the user address and follow the instructions to fund the address from the faucet
 func main() {
 	show.ProcessStart("Faucet Transaction Internalization")
-
 	ctx := context.Background()
 
-	show.Step("Alice", "Creating wallet and setting up environment")
+	if txID == "" {
+		panic(fmt.Errorf("txID must be provided"))
+	}
 
+	show.Step("Alice", "Creating wallet and setting up environment")
 	alice := example_setup.CreateAlice()
 
+	// Create the wallet interface and establish database connection
 	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
 
-	if beef == "" {
-		var err error
-		beef, err = utils.WocAPIGetBeefForTX(defs.NetworkTestnet, txID)
-		if err != nil {
-			panic(fmt.Errorf("failed to get beef for tx: %w", err))
-		}
+	show.Step("Alice", "Retrieving transaction data")
+	show.Transaction(txID)
 
-		show.Step("Alice", "Retrieving BEEF data for transaction")
-		show.Transaction(txID)
+	// Get the transactionHex from the txID
+	transactionHex, err := utils.WocAPIGetBeefForTX(defs.NetworkTestnet, txID)
+	if err != nil {
+		panic(fmt.Errorf("failed to get beef for tx: %w", err))
 	}
 
 	show.Step("Alice", "Internalizing transaction from faucet")
 
 	// This method will internalize the transaction from the faucet into the wallet database
-	err := example_setup.InternalizeFromFaucet(ctx, beef, aliceWallet)
+	err = example_setup.InternalizeFromFaucet(ctx, transactionHex, aliceWallet)
 	if err != nil {
 		panic(fmt.Errorf("failed to internalize tx: %w", err))
 	}
 
 	show.Success("Transaction internalized successfully")
 	show.ProcessComplete("Faucet Transaction Internalization")
-
 }
