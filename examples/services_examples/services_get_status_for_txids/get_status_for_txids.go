@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -25,16 +24,16 @@ func main() {
 
 	show.Step("Wallet-Services", "query depth/status for multiple txids")
 
-	res, err := srv.GetStatusForTxids(context.Background(), txids)
+	res, err := srv.GetStatusForTxIDs(context.Background(), txids)
 	if err != nil {
-		show.WalletError("GetStatusForTxids", map[string]any{"txids": txids}, err)
-		panic(fmt.Errorf("failed to get status for txids: %w", err))
+		show.WalletError("GetStatusForTxIDs", map[string]any{"txids": txids}, err)
+		return
 	}
 
-	show.WalletSuccess("GetStatusForTxids", map[string]any{
+	show.WalletSuccess("GetStatusForTxIDs", map[string]any{
 		"txids": txids,
 	}, "OK")
-	show.GetStatusForTxidsOutput(res)
+	show.GetStatusForTxIDsOutput(res)
 
 	show.ProcessComplete("Get Status For TxIDs")
 }
