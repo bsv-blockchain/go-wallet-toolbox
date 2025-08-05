@@ -9,7 +9,7 @@ package storage
 // 			result22 = ProcessAction(result21)
 // 			assert result11.NoSendChange contains in result21.Inputs
 //  2. send with after no send + no send change
-//			like 1. + folowing
+//			like 1. + following
 // 			result31 = CreateAction (sendWith = [result11.TxID, result21.TxID])
 // 			result32 = ProcessAction(result31)
 // 			assert result31.SendWithResults contains result11.TxID and result21.TxID
