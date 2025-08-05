@@ -18,6 +18,7 @@ import (
 )
 
 type WhatsOnChainFixture interface {
+	WillRespondWithEmptyBlockHeight()
 	WillRespondWithRates(status int, content string, err error)
 	WillRespondWithRawTx(status int, txID, rawTx string, err error)
 	OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption)
@@ -34,6 +35,7 @@ type WhatsOnChainFixture interface {
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	WillRespondWithChainInfo(status int, blocks uint32)
 	WillReturnMalformedBlockHeader(blockHash string)
+	WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
 
@@ -66,9 +68,9 @@ func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
 
 func (f *wocFixture) WillRespondWithInternalFailure() {
 	f.TB.Helper()
-	f.transport.RegisterResponder(
+	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/.*`, f.network)),
 		httpmock.NewJsonResponderOrPanic(http.StatusInternalServerError, map[string]string{
 			"error": http.StatusText(http.StatusInternalServerError),
 		}),
@@ -94,6 +96,15 @@ func WithTipBlockHeaderHeight(height uint) TipBlockHeaderOption {
 	return func(opts *TipBlockHeaderOptions) {
 		opts.Height = height
 	}
+}
+
+func (f *wocFixture) WillRespondWithEmptyBlockHeight() {
+	f.Helper()
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/.*/header`, f.network)),
+		httpmock.NewStringResponder(http.StatusOK, "{}"),
+	)
 }
 
 func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption) {
@@ -702,4 +713,15 @@ func (b *scriptHistoryDataBuilder) WillBeReturned() {
 
 	b.fixture.WillRespondWithConfirmedScriptHistory(b.confirmedStatusCode, b.scriptHash, confirmedResp)
 	b.fixture.WillRespondWithUnconfirmedScriptHistory(b.unconfirmedStatusCode, b.scriptHash, unconfirmedResp)
+}
+
+func (f *wocFixture) WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string) {
+	f.TB.Helper()
+	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unspent/all", f.network, scriptHash)
+	responder := func(*http.Request) (*http.Response, error) {
+		resp := httpmock.NewStringResponse(status, responseJSON)
+		resp.Header.Set("Content-Type", "application/json")
+		return resp, nil
+	}
+	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
