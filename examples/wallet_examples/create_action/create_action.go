@@ -27,48 +27,7 @@ var (
 	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the action request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
 	DefaultOriginator = "example.com"
-
 )
-
-// createLockingScript creates a P2PKH locking script from the recipient address
-func createLockingScript(address string) ([]byte, error) {
-	addr, err := script.NewAddressFromString(address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse address: %w", err)
-	}
-
-	lockingScript, err := p2pkh.Lock(addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create P2PKH script: %w", err)
-	}
-
-	return lockingScript.Bytes(), nil
-}
-
-// createActionArgs creates the arguments needed for the CreateAction
-func createActionArgs() (sdk.CreateActionArgs, error) {
-	lockingScript, err := createLockingScript(DefaultRecipientAddress)
-	if err != nil {
-		return sdk.CreateActionArgs{}, fmt.Errorf("failed to create locking script: %w", err)
-	}
-
-	signAndProcess := true
-	return sdk.CreateActionArgs{
-		Description: DefaultTransactionDescription,
-		Outputs: []sdk.CreateActionOutput{
-			{
-				LockingScript:     lockingScript,
-				Satoshis:          DefaultSatoshisToSend,
-				OutputDescription: DefaultOutputDescription,
-				Tags:              []string{"payment", "example"},
-			},
-		},
-		Labels: []string{"create_action_example"},
-		Options: &sdk.CreateActionOptions{
-			SignAndProcess: &signAndProcess,
-		},
-	}, nil
-}
 
 // This example demonstrates how to create and send a Bitcoin transaction using Alice's wallet.
 // The wallet automatically selects UTXOs, creates change outputs, calculates fees, and broadcasts the transaction.
@@ -84,9 +43,33 @@ func main() {
 
 	show.Info("Recipient address", DefaultRecipientAddress)
 
-	createArgs, err := createActionArgs()
+	// Create P2PKH locking script from the recipient address
+	addr, err := script.NewAddressFromString(DefaultRecipientAddress)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("failed to parse address: %w", err))
+	}
+
+	lockingScript, err := p2pkh.Lock(addr)
+	if err != nil {
+		panic(fmt.Errorf("failed to create P2PKH script: %w", err))
+	}
+
+	// Create the arguments needed for the CreateAction
+	signAndProcess := true
+	createArgs := sdk.CreateActionArgs{
+		Description: DefaultTransactionDescription,
+		Outputs: []sdk.CreateActionOutput{
+			{
+				LockingScript:     lockingScript.Bytes(),
+				Satoshis:          DefaultSatoshisToSend,
+				OutputDescription: DefaultOutputDescription,
+				Tags:              []string{"payment", "example"},
+			},
+		},
+		Labels: []string{"create_action_example"},
+		Options: &sdk.CreateActionOptions{
+			SignAndProcess: &signAndProcess,
+		},
 	}
 
 	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", DefaultSatoshisToSend))
