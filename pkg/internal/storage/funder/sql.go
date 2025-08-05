@@ -73,6 +73,12 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 }
 
 func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint) iter.Seq2[*models.UserUTXO, error] {
+	// TODO: 1. create iterator from outputs of no send change, HINT: seqerr.FromSlice()
+	//   	 2. filter no send changes by forbiddenOutputIDs
+	// 		 3. map to UserUTXO
+
+	outs := seqerr.FromSlice([]*models.UserUTXO{})
+
 	batches := seqerr.ProduceWithArg(
 		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
 			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs)
@@ -87,7 +93,11 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 			SortBy: "satoshis",
 		})
 
-	return seqerr.FlattenSlices(batches)
+	utxos := seqerr.FlattenSlices(batches)
+
+	// TODO: continuation
+	//       4. concat with batches, like below
+	return seqerr.Concat(outs, utxos)
 }
 
 type utxoCollector struct {

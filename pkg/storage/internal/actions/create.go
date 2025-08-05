@@ -132,6 +132,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
+	// TODO:
+	// 	1. load no send change outputs from database
+	//  2. validate them if they are no send change
 	if params.IsNoSend && len(params.NoSendChange) > 0 {
 		if err := c.validateNoSendChange(ctx, userID, params); err != nil {
 			return nil, fmt.Errorf("failed to validate no send change: %w", err)
@@ -220,6 +223,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Uint64("basketMinimumUTXOValue", basket.MinimumDesiredUTXOValue),
 	)
 
+	// TODO: pass no send change outputs to funder
 	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
