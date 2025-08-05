@@ -17,8 +17,8 @@ const (
 	SecondStorageName          = "test-storage-2"
 	StorageHandlerName         = "storage_server"
 	UserIdentityKeyHex         = "03f17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86beb"
-	DerivationPrefix           = "Pr=="
-	DerivationSuffix           = "Su=="
+	DerivationPrefix           = "Pg=="
+	DerivationSuffix           = "Sg=="
 	CustomBasket               = "custom-basket"
 	ExpectedValueToInternalize = 999
 	AnyoneIdentityKey          = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798" // generated in TS by: new PrivateKey(1).toPublicKey().toString()

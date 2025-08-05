@@ -135,15 +135,10 @@ func (f *arcFixture) IsUpAndRunning() {
 		beef, err := sdk.NewBeefFromBytes(beefBytes)
 		require.NoError(f, err, "failed to create BEEF from bytes")
 
-		// FIXME: this is a temporary solution to fail on wrong scripts
-		// FIXME: When we make proper Signatures for Transactions, this should fail on wrong scripts
-		const failOnWrongScripts = false
-		if failOnWrongScripts {
-			for _, tx := range beef.Transactions {
-				if !f.verifyTxScripts(tx.Transaction) {
-					message := "arc error 465: inputs must have an unlocking script or an unlocker"
-					return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
-				}
+		for _, tx := range beef.Transactions {
+			if !f.verifyTxScripts(tx.Transaction) {
+				message := "arc error 465: inputs must have an unlocking script or an unlocker"
+				return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
 			}
 		}
 
