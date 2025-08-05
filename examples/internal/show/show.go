@@ -183,6 +183,47 @@ func RawTxOutput(result *wdk.RawTxResult) {
 	fmt.Printf("%sRawTx:  %x%s\n", ColorCyan, result.RawTx, ColorReset)
 }
 
+// PostBEEFOutput displays the results of PostBEEF operations from multiple services
+func PostBEEFOutput(results []*wdk.PostBEEFServiceResult) {
+	if len(results) == 0 {
+		Error("No PostBEEF results to display")
+		return
+	}
+
+	Header("POST BEEF RESULTS")
+
+	for _, result := range results {
+		fmt.Printf("\n%s%s========================================%s\n", ColorBlue+ColorBold, ColorReset, ColorReset)
+		fmt.Printf("%sService: %s%s%s\n", ColorCyan+ColorBold, ColorGreen, result.Name, ColorReset)
+
+		if !result.Success() {
+			fmt.Printf("%s❌ Error:%s %v\n", ColorRed+ColorBold, ColorReset, result.Error)
+		} else {
+			fmt.Printf("%s✅ Success%s\n", ColorGreen+ColorBold, ColorReset)
+
+			for _, txResult := range result.PostedBEEFResult.TxIDResults {
+				fmt.Printf("\n%s  📋 Transaction Result:%s\n", ColorPurple+ColorBold, ColorReset)
+				fmt.Printf("    %sTX ID:%s %s\n", ColorCyan, ColorReset, txResult.TxID)
+				fmt.Printf("    %sResult:%s %s\n", ColorCyan, ColorReset, txResult.Result)
+
+				if txResult.Result == "error" {
+					fmt.Printf("    %sError:%s %v\n", ColorRed, ColorReset, txResult.Error)
+				} else {
+					fmt.Printf("    %sAlready Known:%s %t\n", ColorCyan, ColorReset, txResult.AlreadyKnown)
+					fmt.Printf("    %sDouble Spend:%s %t\n", ColorCyan, ColorReset, txResult.DoubleSpend)
+					fmt.Printf("    %sBlock Hash:%s %s\n", ColorCyan, ColorReset, txResult.BlockHash)
+					fmt.Printf("    %sBlock Height:%s %d\n", ColorCyan, ColorReset, txResult.BlockHeight)
+					fmt.Printf("    %sMerkle Path:%s %v\n", ColorCyan, ColorReset, txResult.MerklePath)
+					fmt.Printf("    %sCompeting TXs:%s %v\n", ColorCyan, ColorReset, txResult.CompetingTxs)
+					fmt.Printf("    %sNotes:%s %v\n", ColorCyan, ColorReset, txResult.Notes)
+					fmt.Printf("    %sData:%s %s\n", ColorCyan, ColorReset, txResult.Data)
+				}
+			}
+		}
+	}
+}
+
+// ScriptHashHistoryOutput displays the history of a script hash
 func ScriptHashHistoryOutput(result *wdk.ScriptHistoryResult) {
 	if result == nil {
 		Error("nil ScriptHistoryResult passed to ScriptHashHistoryOutput")
