@@ -121,3 +121,23 @@ func (woc *WhatsOnChain) storeRootInCache(height uint32, root *chainhash.Hash) {
 	defer woc.cacheMu.Unlock()
 	woc.rootCache[height] = root
 }
+
+func (woc *WhatsOnChain) doStatusRequest(ctx context.Context, url string, txids []string) (dto.WocStatusResponse, error) {
+	var response dto.WocStatusResponse
+
+	respWrapper := woc.httpClient.R().
+		SetContext(ctx).
+		SetBody(dto.WocStatusRequest{Txids: txids}).
+		SetResult(&response).
+		AddRetryCondition(httpx.RetryOnErrOr5xx)
+
+	httpResp, err := respWrapper.Post(url)
+	if err != nil {
+		return nil, fmt.Errorf("request to WoC failed: %w", err)
+	}
+	if httpResp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from WoC: %d", httpResp.StatusCode())
+	}
+
+	return response, nil
+}

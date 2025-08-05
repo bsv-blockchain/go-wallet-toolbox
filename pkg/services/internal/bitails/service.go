@@ -17,6 +17,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -274,4 +275,64 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 		ScriptHash: scriptHash,
 		History:    items,
 	}, nil
+}
+
+// GetStatusForTxids returns depth/status info for a list of txids using Bitails.
+func (b *Bitails) GetStatusForTxids(ctx context.Context, txids []string) (*wdk.GetStatusForTxidsResult, error) {
+	if len(txids) == 0 {
+		return nil, fmt.Errorf("no txids provided")
+	}
+
+	tip, err := b.CurrentHeight(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to get current height: %w", ServiceName, err)
+	}
+
+	res := &wdk.GetStatusForTxidsResult{
+		Name:    ServiceName,
+		Status:  wdk.GetStatusSuccess,
+		Results: make([]wdk.TxStatusDetail, 0, len(txids)),
+	}
+
+	var anyFound bool
+
+	for _, txid := range txids {
+		found, mined, height, err := b.getTxStatus(ctx, txid)
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to get status for %s: %w", ServiceName, txid, err)
+		}
+
+		item := wdk.TxStatusDetail{TxID: txid}
+
+		switch {
+		case !found:
+			item.Status = wdk.TxStatusNotFound.String()
+
+		case mined:
+			anyFound = true
+			item.Status = wdk.TxStatusMined.String()
+
+			d := int64(tip) - height + 1
+			if d < 0 {
+				zero := 0
+				item.Depth = &zero
+			} else {
+				dd := int(d)
+				item.Depth = &dd
+			}
+
+		default:
+			anyFound = true
+			item.Status = wdk.TxStatusUnconfirmed.String()
+			zero := 0
+			item.Depth = &zero
+		}
+
+		res.Results = append(res.Results, item)
+	}
+
+	if !anyFound {
+		return nil, servicequeue.ErrEmptyResult
+	}
+	return res, nil
 }

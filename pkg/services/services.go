@@ -39,6 +39,8 @@ type WalletServices struct {
 	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
+	getStatusForTxidsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxidsResult]
+
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -131,6 +133,13 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			servicequeue.NewService1(bhs.ServiceName, bhsService.GetChainHeaderByHeight),
 			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetChainHeaderByHeight),
 			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetChainHeaderByHeight),
+		),
+
+		getStatusForTxidsServices: servicequeue.NewQueue1(
+			logger,
+			"GetStatusForTxids",
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetStatusForTxids),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetStatusForTxids),
 		),
 
 		getUtxoStatusServices: servicequeue.NewQueue2(
@@ -328,4 +337,19 @@ func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint
 	}
 
 	return result, nil
+}
+
+// GetStatusForTxids returns depth/status info for a list of txids.
+func (s *WalletServices) GetStatusForTxids(ctx context.Context, txids []string) (*wdk.GetStatusForTxidsResult, error) {
+	if len(txids) == 0 {
+		return nil, fmt.Errorf("no txids provided")
+	}
+	res, err := s.getStatusForTxidsServices.OneByOne(ctx, txids)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("no status found for provided txids")
+		}
+		return nil, fmt.Errorf("failed to get status for txids: %w", err)
+	}
+	return res, nil
 }

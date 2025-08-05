@@ -358,3 +358,23 @@ func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint
 
 	return status.IsUtxo, nil
 }
+
+func (woc *WhatsOnChain) GetStatusForTxids(ctx context.Context, txids []string) (*wdk.GetStatusForTxidsResult, error) {
+	if len(txids) == 0 {
+		return nil, fmt.Errorf("no txids provided")
+	}
+
+	url, err := txsStatusURL(woc.url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	results, err := woc.getStatusForTxids(ctx, url, txids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status for txids: %w", err)
+	}
+	if results == nil {
+		return nil, fmt.Errorf("no status found for provided txids")
+	}
+	return results, nil
+}
