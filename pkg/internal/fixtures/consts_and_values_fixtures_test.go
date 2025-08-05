@@ -2,9 +2,10 @@ package fixtures_test
 
 import (
 	"encoding/base64"
+	"testing"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestDerivationParts(t *testing.T) {
