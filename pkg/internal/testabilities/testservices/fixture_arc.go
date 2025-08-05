@@ -215,6 +215,30 @@ func (f *arcFixture) store(beef *sdk.Beef) {
 }
 
 func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
+	defer func() {
+		if !isValid {
+			f.Logf("DEBUG DATA ON SCRIPT VERIFICATION FAILURE")
+			for vin, input := range tx.Inputs {
+				if input.UnlockingScript == nil || len(*input.UnlockingScript) == 0 {
+					f.Logf("Transaction %s has input %d without unlocking script", tx.TxID(), vin)
+				} else {
+					f.Logf("Transaction %s has input %d with unlocking script: %s", tx.TxID(), vin, input.UnlockingScript.String())
+				}
+
+				if input.SourceTransaction != nil {
+					utxo := input.SourceTransaction.Outputs[input.SourceTxOutIndex]
+					if utxo.LockingScript != nil {
+						f.Logf("Transaction %s has input %d with source transaction output locking script: %s", tx.TxID(), vin, utxo.LockingScript.String())
+					} else {
+						f.Logf("Transaction %s has input %d with source transaction output without locking script", tx.TxID(), vin)
+					}
+				} else {
+					f.Logf("Transaction %s has input %d with source transaction not set", tx.TxID(), vin)
+				}
+			}
+		}
+	}()
+
 	ok, err := spv.VerifyScripts(f.Context(), tx)
 	if err != nil {
 		f.Logf("script verification failed: %s", err.Error())
