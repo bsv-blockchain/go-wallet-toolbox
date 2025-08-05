@@ -19,6 +19,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -193,9 +194,6 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 		R().
 		SetContext(ctx).
 		SetResult(&blocks).
-		AddRetryCondition(func(res *resty.Response, err error) bool {
-			return res.StatusCode() == http.StatusTooManyRequests
-		}).
 		Get(url)
 
 	if err != nil {
@@ -294,4 +292,69 @@ func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (*w
 		return nil, fmt.Errorf("failed to convert WoC block header to ChainBlockHeader: %w", err)
 	}
 	return chbh, nil
+}
+
+// GetUtxoStatus retrieves the UTXO status for a given script hash and outpoint.
+func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
+	if err := validateScriptHash(scriptHash); err != nil {
+		return nil, fmt.Errorf("invalid scripthash: %w", err)
+	}
+
+	url, err := scriptUnspentAllURL(woc.url, scriptHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build WoC URL: %w", err)
+	}
+
+	var response dto.ScriptHashUnspentResponse
+	res, err := woc.httpClient.
+		R().
+		SetContext(ctx).
+		SetResult(&response).
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query WoC for UTXO status: %w", err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d from WoC", res.StatusCode())
+	}
+	if response.Error != "" {
+		return nil, fmt.Errorf("WoC API error: %s", response.Error)
+	}
+
+	result := &wdk.UtxoStatusResult{
+		Name: ServiceName,
+		Details: slices.Map(response.Result, func(item dto.ScriptHashUnspentItem) wdk.UtxoDetail {
+			return wdk.UtxoDetail{
+				TxID:     item.TxHash,
+				Index:    item.TxPos,
+				Height:   item.Height,
+				Satoshis: item.Value,
+			}
+		}),
+	}
+
+	if outpoint != nil {
+		result.IsUtxo = txutils.ContainsUtxo(result.Details, outpoint)
+	} else {
+		result.IsUtxo = len(result.Details) > 0
+	}
+
+	return result, nil
+}
+
+// IsUtxo checks if the given outpoint is a UTXO for the specified script hash.
+func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
+	if scriptHash == "" {
+		return false, fmt.Errorf("scriptHash is required")
+	}
+	if outpoint == nil {
+		return false, fmt.Errorf("outpoint is required")
+	}
+
+	status, err := woc.GetUtxoStatus(ctx, scriptHash, outpoint)
+	if err != nil {
+		return false, fmt.Errorf("failed to determine UTXO status: %w", err)
+	}
+
+	return status.IsUtxo, nil
 }

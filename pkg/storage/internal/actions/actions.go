@@ -60,7 +60,7 @@ func New(
 			services,
 		),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
-		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue),
+		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
 		abortAction:           newAbortAction(logger, repos.Transactions),
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
@@ -52,7 +53,7 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 		return nil, fmt.Errorf("failed to create action: %w", err)
 	}
 
-	txAssembler := newCreateActionTransactionAssembler(a.KeyDeriver, createActionResult, args)
+	txAssembler := assembler.NewCreateActionTransactionAssembler(a.KeyDeriver, args.Inputs, createActionResult)
 
 	tx, err := txAssembler.Assemble()
 	if err != nil {
@@ -62,6 +63,17 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 	if a.isSignAction() {
 		return a.handleSignAction(tx, createActionResult)
 	}
+
+	// TODO: START
+	// TODO: Sign the transaction!!!
+	// TODO: This will be applicable when go-sdk's P2PKH Unlock issue is addressed:
+	// TODO: https://github.com/bsv-blockchain/go-sdk/issues/218
+	//err = tx.Sign()
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	//}
+	// TODO: STOP
+
 	return a.handleProcessAction(ctx, tx, createActionResult)
 }
 
