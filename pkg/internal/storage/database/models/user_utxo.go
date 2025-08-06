@@ -1,11 +1,13 @@
 package models
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+<<<<<<< HEAD
+=======
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+>>>>>>> 81bcbfb (chore: update generated files)
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -38,8 +40,8 @@ func ToUserUTXOFromOutputEntity(output *entity.Output) *UserUTXO {
 	}
 
 	return &UserUTXO{
-		UserID:   userID,
-		OutputID: output.ID,
+		UserID:             userID,
+		OutputID:           output.ID,
 		BasketName:         basket,
 		Satoshis:           uint64(output.Satoshis),
 		EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
