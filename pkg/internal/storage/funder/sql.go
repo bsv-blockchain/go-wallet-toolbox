@@ -15,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -73,23 +74,6 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 }
 
 func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, noSendChangeOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
-	// TODO: 1. create iterator from outputs of no send change, HINT: seqerr.FromSlice()
-	//   	 2. filter no send changes by forbiddenOutputIDs
-	// 		 3. map to UserUTXO
-
-	hashSet := make(map[uint]bool, len(noSendChangeOutputs))
-	for _, id := range forbiddenOutputIDs {
-		hashSet[id] = true
-	}
-
-	var utxos []*models.UserUTXO
-	for _, output := range noSendChangeOutputs {
-		if _, ok := hashSet[output.ID]; ok {
-			continue
-		}
-		utxos = append(utxos, models.ToUserUTXOFromOutputEntity(output))
-	}
-
 	batches := seqerr.ProduceWithArg(
 		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
 			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs)
@@ -104,11 +88,30 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 			SortBy: "satoshis",
 		})
 
-	if len(utxos) > 0 {
-		return seqerr.Concat(seqerr.FromSlice(utxos))
+	priorityUTXOs := seq.Empty[*models.UserUTXO]()
+	utxoCandidates := seqerr.FlattenSlices(batches)
+	if len(noSendChangeOutputs) > 0 {
+		priorityUTXOs = noSendChangeOutputsIterator(forbiddenOutputIDs, noSendChangeOutputs)
 	}
 
-	return seqerr.FlattenSlices(batches)
+	return seqerr.Concat(seqerr.FromSeq(priorityUTXOs), utxoCandidates)
+}
+
+func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, noSendChangeOutputs []*entity.Output) iter.Seq[*models.UserUTXO] {
+	hashSet := make(map[uint]struct{}, len(forbiddenOutputIDs))
+	for _, id := range forbiddenOutputIDs {
+		hashSet[id] = struct{}{}
+	}
+	return func(yield func(*models.UserUTXO) bool) {
+		for _, output := range noSendChangeOutputs {
+			if _, ok := hashSet[output.ID]; ok {
+				continue
+			}
+			if !yield(models.ToUserUTXOFromOutputEntity(output)) {
+				break
+			}
+		}
+	}
 }
 
 type utxoCollector struct {
