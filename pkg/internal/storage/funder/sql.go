@@ -51,7 +51,7 @@ func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.Fe
 // @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
 // @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 // @param userID - the user ID.
-func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *entity.OutputBasket, userID int, forbiddenOutputIDs []uint) (*Result, error) {
+func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *entity.OutputBasket, userID int, forbiddenOutputIDs []uint, noSendChangeOutputs []*entity.Output) (*Result, error) {
 	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
@@ -62,7 +62,7 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
-	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs)
+	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs, noSendChangeOutputs)
 
 	err = collector.Allocate(utxos)
 	if err != nil {
@@ -72,7 +72,24 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 	return collector.GetResult()
 }
 
-func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint) iter.Seq2[*models.UserUTXO, error] {
+func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, noSendChangeOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
+	// TODO: 1. create iterator from outputs of no send change, HINT: seqerr.FromSlice()
+	//   	 2. filter no send changes by forbiddenOutputIDs
+	// 		 3. map to UserUTXO
+
+	hashSet := make(map[uint]bool, len(noSendChangeOutputs))
+	for _, id := range forbiddenOutputIDs {
+		hashSet[id] = true
+	}
+
+	var utxos []*models.UserUTXO
+	for _, output := range noSendChangeOutputs {
+		if _, ok := hashSet[output.ID]; ok {
+			continue
+		}
+		utxos = append(utxos, models.ToUserUTXOFromOutputEntity(output))
+	}
+
 	batches := seqerr.ProduceWithArg(
 		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
 			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs)
@@ -86,6 +103,10 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 			Limit:  utxoBatchSize,
 			SortBy: "satoshis",
 		})
+
+	if len(utxos) > 0 {
+		return seqerr.Concat(seqerr.FromSlice(utxos))
+	}
 
 	return seqerr.FlattenSlices(batches)
 }
