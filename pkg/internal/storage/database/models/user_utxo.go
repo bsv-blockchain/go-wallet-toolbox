@@ -1,11 +1,11 @@
 package models
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // UserUTXO is a table holding user's Unspent Transaction Outputs (UTXOs).
@@ -35,8 +35,8 @@ func ToUserUTXOFromOutputEntity(output *entity.Output) *UserUTXO {
 	}
 
 	return &UserUTXO{
-		UserID:   userID,
-		OutputID: output.ID,
+		UserID:             userID,
+		OutputID:           output.ID,
 		BasketName:         basket,
 		Satoshis:           uint64(output.Satoshis),
 		EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
