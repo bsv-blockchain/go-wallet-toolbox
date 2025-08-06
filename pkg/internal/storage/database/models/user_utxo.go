@@ -1,6 +1,8 @@
 package models
 
 import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -38,37 +40,9 @@ func ToUserUTXOFromOutputEntity(output *entity.Output) *UserUTXO {
 	return &UserUTXO{
 		UserID:   userID,
 		OutputID: output.ID,
-		Output: &Output{
-			UserID:             userID,
-			TransactionID:      output.TransactionID,
-			SpentBy:            output.SpentBy,
-			Vout:               output.Vout,
-			Satoshis:           output.Satoshis,
-			LockingScript:      output.LockingScript,
-			CustomInstructions: output.CustomInstructions,
-			DerivationPrefix:   output.DerivationPrefix,
-			DerivationSuffix:   output.DerivationSuffix,
-			BasketName:         &basket,
-			Basket: &OutputBasket{
-				Name:   basket,
-				UserID: userID,
-			},
-			Spendable:         output.Spendable,
-			Change:            output.Change,
-			Description:       output.Description,
-			ProvidedBy:        output.ProvidedBy,
-			Purpose:           output.Purpose,
-			Type:              output.Type,
-			SenderIdentityKey: output.SenderIdentityKey,
-			Transaction: &Transaction{
-				UserID: userID,
-				TxID:   output.TxID,
-			},
-		},
 		BasketName:         basket,
-		Satoshis:           output.UserUTXO.Satoshis,
-		EstimatedInputSize: output.UserUTXO.EstimatedInputSize,
+		Satoshis:           uint64(output.Satoshis),
+		EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
 		CreatedAt:          output.CreatedAt,
-		ReservedByID:       output.UserUTXO.ReservedByID,
 	}
 }
