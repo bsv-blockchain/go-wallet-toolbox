@@ -534,7 +534,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		secondResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		assert.NotEmpty(t, secondResult.Txid, "Wallet result should have transaction id")

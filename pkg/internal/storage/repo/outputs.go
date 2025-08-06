@@ -384,15 +384,14 @@ func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID str
 		}
 
 		for _, output := range changeOutputs {
-			output.Spendable = true
+			err = tx.Model(&models.Output{}).
+				Where("id = ?", output.ID).
+				Updates(map[string]any{
+					"spendable": true,
+				}).Error
 			if err != nil {
-				return fmt.Errorf("failed to get locking script: %w", err)
+				return fmt.Errorf("failed to update output %d to spendable: %w", output.ID, err)
 			}
-		}
-
-		err = tx.Save(changeOutputs).Error
-		if err != nil {
-			return fmt.Errorf("failed to save change outputs: %w", err)
 		}
 
 		newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {

@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
-	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
@@ -280,10 +279,35 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			return err
 		}
 
-		//err = makeOutputsSpendable(tx, updatedTx)
-		//if err != nil {
-		//	return err
-		//}
+		var changeOutputs []*models.Output
+		err = tx.Model(&models.Output{}).
+			Select(txs.query.Output.ID.ColumnName().String(), txs.query.Output.Vout.ColumnName().String()).
+			Scopes(scopes.UserID(updatedTx.UserID)).
+			Where(txs.query.Output.TransactionID.Eq(updatedTx.TransactionID)).
+			Where(txs.query.Output.BasketName.IsNotNull()).
+			Where(txs.query.Output.Change.Is(true)).
+			Where(txs.query.Output.Satoshis.Gt(0)).
+			Where(txs.query.Output.SpentBy.IsNull()).
+			Find(&changeOutputs).Error
+		if err != nil {
+			return fmt.Errorf("failed to find outputs for transaction: %w", err)
+		}
+
+		for _, output := range changeOutputs {
+			lockingScript, err := updatedTx.GetLockingScriptBytes(output.Vout)
+			if err != nil {
+				return fmt.Errorf("failed to get locking script: %w", err)
+			}
+
+			err = tx.Model(&models.Output{}).
+				Where("id = ?", output.ID).
+				Updates(map[string]any{
+					txs.query.Output.LockingScript.ColumnName().String(): lockingScript,
+				}).Error
+			if err != nil {
+				return fmt.Errorf("failed to update locking script for change output: %w", err)
+			}
+		}
 
 		return upsertKnownTx(tx, &entity.UpsertKnownTx{
 			TxID:          updatedTx.TxID,
@@ -295,54 +319,6 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
-	}
-	return nil
-}
-
-func makeOutputsSpendable(tx *gorm.DB, updatedTx entity.UpdatedTx) error {
-	var changeOutputs []*models.Output
-	err := tx.
-		Model(&models.Transaction{
-			Model: gorm.Model{
-				ID: updatedTx.TransactionID,
-			},
-		}).
-		Association("Outputs").
-		Find(&changeOutputs, "basket_name IS NOT NULL AND change = ? AND satoshis > 0 AND spent_by IS NULL", true)
-	if err != nil {
-		return fmt.Errorf("failed to find transaction outputs: %w", err)
-	}
-
-	if len(changeOutputs) == 0 {
-		return nil
-	}
-
-	for _, output := range changeOutputs {
-		output.Spendable = true
-		output.LockingScript, err = updatedTx.GetLockingScriptBytes(output.Vout)
-		if err != nil {
-			return fmt.Errorf("failed to get locking script: %w", err)
-		}
-	}
-
-	err = tx.Save(changeOutputs).Error
-	if err != nil {
-		return fmt.Errorf("failed to save change outputs: %w", err)
-	}
-
-	newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
-		return &models.UserUTXO{
-			UserID:             updatedTx.UserID,
-			OutputID:           output.ID,
-			BasketName:         *output.BasketName,
-			Satoshis:           must.ConvertToUInt64(output.Satoshis),
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-		}
-	})
-
-	err = tx.Create(newUTXOs).Error
-	if err != nil {
-		return fmt.Errorf("failed to create new UTXOs: %w", err)
 	}
 	return nil
 }

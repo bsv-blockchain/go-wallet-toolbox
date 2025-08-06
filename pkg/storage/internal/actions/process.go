@@ -243,15 +243,21 @@ func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string) 
 	var readyToSendTxIDs []string
 
 	for txID, currentStatus := range knownTxStatusesLookup {
-		// NOTE: Even though the state name is "Unproven", it means that the transaction is broadcasted.
-		// NOTE: It can be mined already.
 		if currentStatus.AlreadySent() {
 			sendWithResults = append(sendWithResults, wdk.SendWithResult{
 				TxID:   primitives.TXIDHexString(txID),
 				Status: currentStatus.SendWithResultStatus(),
 			})
 
-			// TODO: Update transaction model and create UTXOs (tx status according to currentStatus)
+			utxoStatus := wdk.UTXOStatusUnproven
+			if currentStatus == wdk.ProvenTxStatusCompleted {
+				utxoStatus = wdk.UTXOStatusMined
+			}
+
+			err = p.outputRepo.MakeOutputsSpendable(ctx, userID, txID, utxoStatus)
+			if err != nil {
+				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
+			}
 		} else {
 			readyToSendTxIDs = append(readyToSendTxIDs, txID)
 		}
