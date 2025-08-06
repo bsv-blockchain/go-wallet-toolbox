@@ -1,74 +1,168 @@
-# Post BEEF Transaction from Hex
+# Post BEEF Hex
 
-This example demonstrates how to broadcast a BSV transaction from an existing [BEEF](../../README.md#beef-background-evaluation-extended-format) hex string through multiple wallet services with automatic fallback.
+This example demonstrates broadcasting a BSV transaction from an existing BEEF hex string using multiple wallet services.
+Unlike creating transactions from scratch, this focuses purely on the broadcasting mechanism with pre-encoded BEEF data.
 
-## Difference from Post BEEF Example
+## Overview
 
-Unlike the `post_beef.go` example which creates a new transaction from scratch, this example:
+The process involves several steps:
+1. Decoding the provided BEEF hex string into binary format for processing.
+2. Parsing the binary BEEF data to create a structured BEEF object.
+3. Configuring multiple blockchain service providers for redundant broadcasting.
+4. Submitting the BEEF data to all configured services simultaneously.
+5. Processing and displaying detailed responses from each service.
 
-- **Takes existing BEEF**: Uses a pre-encoded BEEF hex string containing the transaction
-- **Direct broadcasting**: Focuses purely on the broadcasting mechanism
+This approach ensures reliable transaction broadcasting by leveraging multiple service providers with automatic fallback mechanisms.
 
-## Process Overview
+## Code Walkthrough
 
-The example follows these simplified steps:
+### Configuration Parameters
 
-1. **Decode BEEF Hex**: Converts the hex string to binary BEEF format
-2. **Parse BEEF**: Creates a BEEF object from the binary data
-3. **Broadcast**: Submits the BEEF to multiple services for network propagation
-4. **Display Results**: Shows detailed responses from each service
+```go
+const (
+    transactionID = "c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620"
+    beefHex = "0200beef01fef695190002..." // Complete BEEF hex string
+    network = defs.NetworkTestnet
+)
+```
+The example uses configurable constants for the transaction ID to broadcast, the complete BEEF hex string containing the transaction data, and the target network. The transaction ID must match the transaction contained in the BEEF data.
 
-## Configuration Parameters
+### Decoding BEEF Hex Data
 
-The example uses the following configurable constants:
+```go
+beefBytes, err := hex.DecodeString(beefHex)
+beef, err := transaction.NewBeefFromBytes(beefBytes)
+```
+The BEEF hex string is first decoded into binary format, then parsed into a BEEF object. This BEEF object contains the transaction data along with any required merkle proofs and dependencies.
 
-- **`transactionID`**: The transaction ID of the transaction to be broadcast (must match the transaction in the BEEF)
-- **`beefHex`**: The complete BEEF hex string containing the transaction and its dependencies
-- **`network`**: The BSV network to use (`defs.NetworkTestnet` or `defs.NetworkMainnet`)
+### Broadcasting to Services
 
-## Response Fields
+```go
+serviceCfg := defs.DefaultServicesConfig(network)
+walletServices := services.New(slog.Default(), serviceCfg)
+results, err := walletServices.PostBEEF(context.Background(), beef, []string{transactionID})
+```
+The parsed BEEF data is submitted to multiple configured services simultaneously. The transaction ID is provided to track the broadcast status of the specific transaction contained in the BEEF.
 
-Each service returns detailed results including:
+### Processing Results
 
-- **Service**: Name of the service that processed the request
-- **Success**: Whether the broadcast was successful
-- **TX ID**: The transaction identifier
-- **Result**: Status of the transaction (`success`, `error`, etc.)
-- **AlreadyKnown**: Whether the transaction was already known to the service
-- **DoubleSpend**: Information about any double-spend conflicts
-- **BlockHash**: Hash of the block containing the transaction (if mined)
-- **BlockHeight**: Height of the block containing the transaction (if mined)
-- **MerklePath**: Merkle path proof for the transaction
-- **CompetingTxs**: List of competing transactions (in case of conflicts)
-- **Error**: Detailed error information (if broadcast failed)
+```go
+show.PostBEEFOutput(results)
+```
+Results from each service are processed and displayed, showing success status and detailed information for the broadcasted transaction. This allows comparison of how different services handle the same BEEF data.
 
-## Example Output
+## Running the Example
+
+**Prerequisites**: 
+- Update `transactionID` with your transaction ID
+- Update `beefHex` with valid BEEF hex data
+- Ensure the transaction matches the BEEF content
+
+```bash
+go run ./examples/services_examples/post_beef_hex/post_beef_hex.go
+```
+
+## Expected Output
 
 ```text
-===========================================================
-Service ARC PostBEEF result:
-	Success:
-		TX ID: c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620
-		Result:	 success
-		AlreadyKnown:	 false
-		DoubleSpend:	 false
-		BlockHash:	 
-		BlockHeight:	 0
-		MerklePath:	 
-		CompetingTxs:	 []
-		Notes:	 
-		Data:	 
-===========================================================
-Service WhatsOnChain PostBEEF result:
-	Success:
-		TX ID: c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620
-		Result:	 success
-		AlreadyKnown:	 true
-		DoubleSpend:	 false
-		BlockHash:	 
-		BlockHeight:	 0
-		MerklePath:	 
-		CompetingTxs:	 []
-		Notes:	 
-		Data:	 
+🚀 STARTING: Post BEEF Hex
+============================================================
+
+=== STEP ===
+Transaction is performing: parsing BEEF hex data
+--------------------------------------------------
+
+=== STEP ===
+Wallet-Services is performing: broadcasting transaction c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620
+--------------------------------------------------
+✅ SUCCESS: Posted BEEF to services
+
+============================================================
+POST BEEF RESULTS
+============================================================
+
+========================================
+Service: ARC
+✅ Success
+
+  📋 Transaction Result:
+    TX ID: c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620
+    Result: success
+    Already Known: false
+    Double Spend: false
+    Block Hash: 0000000083da78df17e4616ace62a455850db086e957e6cc4c2cc0b4ba78527c
+    Block Height: 1676910
+    Merkle Path: <nil>
+    Competing TXs: []
+    Notes: [0xc0000c03c0]
+    Data:
+
+========================================
+Service: WhatsOnChain
+✅ Success
+
+  📋 Transaction Result:
+    TX ID: c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620
+    Result: success
+    Already Known: false
+    Double Spend: false
+    Block Hash: 0000000083da78df17e4616ace62a455850db086e957e6cc4c2cc0b4ba78527c
+    Block Height: 1676910
+    Merkle Path: <nil>
+    Competing TXs: []
+    Notes: [0xc0000c03c0]
+    Data:
+
+========================================
+Service: Bitails
+✅ Success
+
+  📋 Transaction Result:
+    TX ID: c7218bcddee6e7a2ad097007d50831837bb174ad78c078f65260d7971a46d620
+    Result: success
+    Already Known: false
+    Double Spend: false
+    Block Hash:
+    Block Height: 0
+    Merkle Path: <nil>
+    Competing TXs: []
+    Notes: [0xc000332080]
+    Data:
+============================================================
+🎉 COMPLETED: Post BEEF Hex
 ```
+
+## Integration Steps
+
+To integrate BEEF hex broadcasting into your application:
+
+1. **Obtain BEEF hex data** from existing transactions or external sources that provide BEEF-encoded transaction data.
+2. **Validate BEEF format** by ensuring the hex string is properly formatted and contains valid BEEF data.
+3. **Extract transaction ID** from the BEEF data or ensure you have the correct transaction ID that matches the BEEF content.
+4. **Decode and parse BEEF** using `hex.DecodeString()` and `transaction.NewBeefFromBytes()` to create BEEF objects.
+5. **Configure services** with appropriate network settings and API credentials for all target services.
+6. **Submit BEEF data** using `walletServices.PostBEEF()` with the corresponding transaction ID.
+7. **Process results** from multiple services to determine broadcast success.
+8. **Implement error handling** for malformed BEEF data, network issues, and service-specific errors.
+9. **Monitor transaction status** using the returned transaction ID to track broadcast progress.
+
+### Response Analysis
+
+Each service returns detailed results for the broadcasted transaction:
+
+- **Success**: Boolean indicating if the broadcast succeeded
+- **TxID**: The transaction identifier matching the BEEF content
+- **Result**: Status string (`"success"`, `"error"`, `"already_known"`, etc.)
+- **AlreadyKnown**: Whether the transaction was already in the service's mempool
+- **DoubleSpend**: Information about potential double-spend conflicts
+- **BlockHash/BlockHeight**: Block information if the transaction was mined
+- **MerklePath**: Merkle proof data if available
+- **CompetingTxs**: List of conflicting transactions
+- **Error**: Detailed error information for failed broadcasts
+
+## Additional Resources
+
+- [BEEF Specification](https://github.com/bitcoin-sv/BRCs/blob/master/transactions/0062.md) - BRC-62 BEEF format documentation
+- [Post BEEF Documentation](../post_beef/post_beef.md) - Broadcast a BSV transaction using BEEF format
+- [Post BEEF Hex Example](./post_beef_hex.go) - Broadcast from existing BEEF hex
+- [Post Multiple BEEF Documentation](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions
