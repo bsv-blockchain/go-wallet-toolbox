@@ -10,18 +10,13 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	feemodel "github.com/bsv-blockchain/go-sdk/transaction/fee_model"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
-// main demonstrates how to construct and post a chain of three dependent transactions (grandparent, parent, and child) using WalletServices with the BEEF format.
-// The process involves creating a chain of transactions, serializing them to BEEF, and submitting all of them for broadcasting.
-//
-// This example is configurable by setting some constants at the top of the main function:
-//   - `sourceTxBEEF`: the BEEF-encoded source transaction hex; replace with your own transaction hex.
-//   - `wif`: the private key in Wallet Import Format; replace with your own WIF for the private key that can unlock the output from the source transaction.
-//   - `sourceOutputIndex`: the output index from the source transaction to spend; adjust based on which output you want to use.
-//   - `network`: the BSV network to use (e.g., Testnet or Mainnet); change to `defs.NetworkMainnet` for mainnet operations.
+// This example demonstrates broadcasting a chain of three dependent transactions using BEEF format
+// Creates grandparent, parent, and child transactions where each spends from the previous transaction
 func main() {
 	const (
 		wif = "cQFwZHWLNTd31aE8ZPtJ48gxQFg3PPSEyrumghwNN3znjARNgLYX"
@@ -33,8 +28,12 @@ func main() {
 		network = defs.NetworkTestnet
 	)
 
+	show.ProcessStart("Post Multiple BEEF Transactions")
+
 	// Set to LevelDebug to see http request logs
 	// slog.SetLogLoggerLevel(slog.LevelDebug)
+
+	show.Step("Transaction", "creating transaction chain from BEEF source")
 
 	privKey, err := primitives.PrivateKeyFromWif(wif)
 	if err != nil {
@@ -62,8 +61,9 @@ func main() {
 	}
 
 	serviceCfg := defs.DefaultServicesConfig(network)
-
 	walletServices := services.New(slog.Default(), serviceCfg)
+
+	show.Step("Wallet-Services", "broadcasting 3 chained transactions")
 
 	results, err := walletServices.PostBEEF(context.Background(), beef, []string{
 		grandParentTx.TxID().String(),
@@ -74,32 +74,10 @@ func main() {
 		panic(err)
 	}
 
-	for _, result := range results {
-		fmt.Println("===========================================================")
-		fmt.Printf("Service %s PostBEEF result:\n", result.Name)
-		if !result.Success() {
-			fmt.Println("	Error:", result.Error)
-		} else {
-			fmt.Println("	Success:")
-			for _, resultForTxID := range result.PostedBEEFResult.TxIDResults {
-				fmt.Println("	TX ID:", resultForTxID.TxID)
-				fmt.Println("		Result:	", resultForTxID.Result)
-				if resultForTxID.Result == "error" {
-					fmt.Println("		Error:	", resultForTxID.Error)
-				} else {
-					fmt.Println("		AlreadyKnown:	", resultForTxID.AlreadyKnown)
-					fmt.Println("		DoubleSpend:	", resultForTxID.DoubleSpend)
-					fmt.Println("		BlockHash:	", resultForTxID.BlockHash)
-					fmt.Println("		BlockHeight:	", resultForTxID.BlockHeight)
-					fmt.Println("		MerklePath:	", resultForTxID.MerklePath)
-					fmt.Println("		CompetingTxs:	", resultForTxID.CompetingTxs)
-					fmt.Println("		Notes:	", resultForTxID.Notes)
-					fmt.Println("		Data:	", resultForTxID.Data)
-				}
-			}
-		}
-	}
+	show.Success("Posted BEEF with multiple transactions to services")
+	show.PostBEEFOutput(results)
 
+	show.ProcessComplete("Post Multiple BEEF Transactions")
 }
 
 func prepareTransaction(sourceTxBEEF string, priv *primitives.PrivateKey, sourceOutputIndex uint32, network defs.BSVNetwork, outputsSatoshis ...uint64) (*transaction.Transaction, error) {
