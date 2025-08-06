@@ -67,8 +67,15 @@ func (t *txGeneratorFixture) PreInternalized() (internalizeArgs *wdk.Internalize
 		DerivationPrefix: fixtures.DerivationPrefix,
 		DerivationSuffix: fixtures.DerivationSuffix,
 	}
-	address, err := brc29.Address(fixtures.AnyoneIdentityKey, keyID, t.sender.PublicKey(t))
+
+	anyonePriv, anyonePub := sdk.AnyoneKey()
+
+	address, err := brc29.Address(anyonePriv, keyID, t.sender.PublicKey(t), brc29.WithTestNet())
 	require.NoError(t.TB, err)
+	fmt.Println("ADDRESS: \n\n\n", address.AddressString, "\n\n\n===========================")
+	fmt.Println("keyID: ", keyID.String())
+	fmt.Println("sender: ", fixtures.AnyoneIdentityKey)
+	fmt.Println("recipient: ", t.sender.PublicKey(t).ToDERHex())
 
 	lockingScript, err := p2pkh.Lock(address)
 	require.NoError(t.TB, err)
@@ -86,7 +93,7 @@ func (t *txGeneratorFixture) PreInternalized() (internalizeArgs *wdk.Internalize
 				PaymentRemittance: &wdk.WalletPayment{
 					DerivationPrefix:  fixtures.DerivationPrefix,
 					DerivationSuffix:  fixtures.DerivationSuffix,
-					SenderIdentityKey: fixtures.AnyoneIdentityKey,
+					SenderIdentityKey: primitives.PubKeyHex(anyonePub.ToDERHex()),
 				},
 			},
 		},
@@ -128,7 +135,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 		DerivationPrefix: fixtures.DerivationPrefix,
 		DerivationSuffix: fixtures.DerivationSuffix,
 	}
-	address, err := brc29.Address(t.sender.PrivateKey(t), keyID, t.recipient.PublicKey(t))
+	address, err := brc29.Address(t.sender.PrivateKey(t), keyID, t.recipient.PublicKey(t), brc29.WithTestNet())
 	require.NoError(t.TB, err)
 
 	lockingScript, err := p2pkh.Lock(address)
@@ -192,14 +199,6 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, parentTx *transaction.Transaction) *transaction.Transaction {
 	t.Helper()
 	keyDeriver := sdk.NewKeyDeriver(t.sender.PrivateKey(t))
-
-	// FIXME: Workaround START
-	// FIXME: Workaround for the fact that the go-sdk's P2PKH Unlocker can't unlock UTXO based on sourceSatoshis & sourceLockingScript
-	// FIXME: For now it requires the whole parent transaction to be set in the input
-	// FIXME: It should work after this issue is resolved and applied to this project:
-	// FIXME: https://github.com/bsv-blockchain/go-sdk/issues/218
-	createActionResult.Inputs[0].SourceTransaction = parentTx.Bytes()
-	// FIXME: END
 
 	signed, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, createActionResult).Assemble()
 	require.NoError(t, err)

@@ -5,8 +5,6 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	sighash "github.com/bsv-blockchain/go-sdk/transaction/sighash"
-	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	testTx "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -74,23 +72,19 @@ func (b *createActionInputBuilder) CreateActionInput() sdk.CreateActionInput {
 	}
 }
 
-func (b *createActionInputBuilder) createUnlockingScript(inputTx *transaction.Transaction) *script.Script {
-	txToSign := transaction.NewTransaction()
-	unlock, err := p2pkh.Unlock(testusers.Alice.PrivateKey(b), to.Ptr(sighash.NoneForkID))
-	require.NoError(b, err, "unlocking script template should be created without error, invalid test setup")
-	txToSign.AddInputFromTx(inputTx, 0, unlock)
+func (b *createActionInputBuilder) createUnlockingScript(_ *transaction.Transaction) *script.Script {
+	unlockingScript := &script.Script{}
+	err := unlockingScript.AppendOpcodes(script.Op3)
+	require.NoError(b, err, "invalid test setup, cannot create custom unlocking script")
 
-	err = txToSign.Sign()
-	require.NoError(b, err, "Transaction should be signed without error, invalid test setup")
-
-	inputUnlockingScript := txToSign.Inputs[0].UnlockingScript
-	return inputUnlockingScript
+	return unlockingScript
 }
 
 func (b *createActionInputBuilder) createInputTx() *transaction.Transaction {
-	lockingScript, err := p2pkh.Lock(b.user.Address(b))
-	require.NoError(b, err, "locking script template should be created without error, invalid test setup")
+	lockingScript := &script.Script{}
+	err := lockingScript.AppendOpcodes(script.Op3, script.OpEQUAL)
+	require.NoError(b, err, "invalid test setup, cannot create custom locking script")
 
-	inputTx := testTx.GivenTX().WithOutputScript(b.satoshis, lockingScript).TX()
+	inputTx := testTx.GivenTX().WithInput(b.satoshis+1).WithOutputScript(b.satoshis, lockingScript).TX()
 	return inputTx
 }
