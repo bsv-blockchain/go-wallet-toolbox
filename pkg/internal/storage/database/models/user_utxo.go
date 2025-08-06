@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // UserUTXO is a table holding user's Unspent Transaction Outputs (UTXOs).

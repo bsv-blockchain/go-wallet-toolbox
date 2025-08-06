@@ -444,7 +444,7 @@ func (p *process) getKnownTxStatuses(ctx context.Context, txIDs ...string) (map[
 		}
 
 		if knownTxStatus == wdk.ProvenTxStatusUnfail {
-			return nil, fmt.Errorf("wrong statuses to proceeed with broadcast: %s", knownTxStatus)
+			return nil, fmt.Errorf("wrong statuses to proceed with broadcast: %s", knownTxStatus)
 		}
 
 		lookup[txID] = knownTxStatus
