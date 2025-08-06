@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	// DefaultKeyID is the default key ID for the encryption key.
-	DefaultKeyID = "key-id"
+	// keyID is the key ID for the encryption key.
+	keyID = "key-id"
 
 	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the output listing request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
@@ -41,7 +41,7 @@ func main() {
 	args := sdk.EncryptArgs{
 		EncryptionArgs: sdk.EncryptionArgs{
 			ProtocolID:   sdk.Protocol{Protocol: DefaultProtocolID},
-			KeyID:        DefaultKeyID,
+			KeyID:        keyID,
 			Counterparty: sdk.Counterparty{},
 		},
 		Plaintext: []byte(plaintext),

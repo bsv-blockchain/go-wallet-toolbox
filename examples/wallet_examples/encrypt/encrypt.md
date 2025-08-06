@@ -19,7 +19,7 @@ This approach ensures secure message encryption using wallet-based cryptographic
 
 The example uses the following configurable constants:
 
-- **`DefaultKeyID`**: The key identifier for the encryption key (default: `"key-id"`)
+- **`keyID`**: The key identifier for the encryption key (default: `"key-id"`)
 - **`DefaultOriginator`**: The originator domain or FQDN used to identify the source of the encryption request (default: `"example.com"`)
 - **`DefaultProtocolID`**: The protocol identifier for the encryption operation (default: `"encryption"`)
 - **`plaintext`**: The message text to be encrypted (default: `"Hello, world!"`)
