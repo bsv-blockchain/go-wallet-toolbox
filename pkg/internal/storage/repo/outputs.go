@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/go-softwarelab/common/pkg/must"
+	"gorm.io/gorm/clause"
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -405,7 +406,9 @@ func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID str
 			}
 		})
 
-		err = tx.Create(newUTXOs).Error
+		err = tx.
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(newUTXOs).Error
 		if err != nil {
 			return fmt.Errorf("failed to create new UTXOs: %w", err)
 		}
