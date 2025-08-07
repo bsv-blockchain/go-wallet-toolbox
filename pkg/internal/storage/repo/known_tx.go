@@ -233,28 +233,18 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 				return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q): %w", txID, err)
 			}
 
-			if len(rawTx) == 0 {
-				return fmt.Errorf("raw tx is nil or empty for tx (TxID: %q): %w", txID, BeefNotFoundError)
-			}
-
-			if merklePath == nil {
-				return fmt.Errorf("merkle path is nil for tx (TxID: %q): %w", txID, BeefNotFoundError)
-			}
-
 			inputBeef, _ := transaction.NewBeefV2().Bytes()
 
 			model = models.KnownTx{
 				TxID:       txID,
 				RawTx:      rawTx,
-				MerklePath: merklePath.Bytes(),
+				MerklePath: to.If(merklePath != nil, merklePath.Bytes).ElseThen(nil),
 				InputBeef:  inputBeef,
 			}
+		} else {
+			return fmt.Errorf("known tx not found for tx (TxID: %q): %w", txID, wdk.NotFoundError)
 		}
-		return fmt.Errorf("known tx not found for tx (TxID: %q): %w", txID, BeefNotFoundError)
 	} else if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("known tx not found for tx (TxID: %q): %w", txID, BeefNotFoundError)
-		}
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
 	}
 

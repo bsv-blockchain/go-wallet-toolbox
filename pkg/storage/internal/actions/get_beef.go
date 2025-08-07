@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -55,12 +56,8 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 			}
 
 			merklePathResult, err := g.services.MerklePath(ctx, txID)
-			if err != nil {
+			if err != nil && !errors.Is(err, wdk.NotFoundError)  {
 				return nil, nil, fmt.Errorf("failed to get merkle path for txID %s: %w", txID, err)
-			}
-
-			if merklePathResult == nil || merklePathResult.MerklePath == nil {
-				return nil, nil, fmt.Errorf("merkle path for txID %s is nil", txID)
 			}
 
 			serviceFetchedTransactions[txID] = rawTxWithMerklePath{
@@ -77,6 +74,11 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 		beef, err := g.knownTxRepo.GetBEEFForTxID(ctx, txID, getBeefOptions...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get beef for transaction %s: %w", txID, err)
+		}
+
+		if !options.IgnoreNewProven {
+			// TODO: Store the transactions that have been fetched from the services
+			_ = serviceFetchedTransactions // NOTE: Only the
 		}
 
 		return beef, nil
