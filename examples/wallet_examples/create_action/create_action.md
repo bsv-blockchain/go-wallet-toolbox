@@ -23,8 +23,8 @@ For this example to work, the wallet creating the transaction must contain funds
 
 The example uses the following configurable constants:
 
-- **`DefaultRecipientAddress`**: Target address for the transaction (default: `"1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq"`)
-- **`DefaultSatoshisToSend`**: Amount to send in satoshis (default: `100`)
+- **`RecipientAddress`**: Target address for the transaction (default: `"1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq"`)
+- **`SatoshisToSend`**: Amount to send in satoshis (default: `100`)
 - **`DefaultTransactionDescription`**: Human-readable description for the transaction (default: `"Create action example transaction"`)
 - **`DefaultOutputDescription`**: Description for the payment output (default: `"Payment to recipient"`)
 - **`DefaultOriginator`**: Domain identifier for the requesting application (default: `"example.com"`)

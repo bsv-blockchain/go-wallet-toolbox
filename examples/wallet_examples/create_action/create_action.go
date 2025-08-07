@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	// DefaultRecipientAddress is the address to send satoshis to (P2PKH address)
-	DefaultRecipientAddress = "1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq"
+	// RecipientAddress is the address to send satoshis to (P2PKH address)
+	RecipientAddress = "" //example: 1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq
 
-	// DefaultSatoshisToSend is the amount to send to the recipient
-	DefaultSatoshisToSend = uint64(100)
+	// SatoshisToSend is the amount to send to the recipient
+	SatoshisToSend = uint64(0) //example: 100
 
 	// DefaultOutputDescription describes the purpose of this output
 	DefaultOutputDescription = "Payment to recipient"
@@ -35,16 +35,24 @@ func main() {
 	show.ProcessStart("Create Action")
 	ctx := context.Background()
 
+	if RecipientAddress == "" {
+		panic(fmt.Errorf("recipient address must be provided"))
+	}
+
+	if SatoshisToSend == 0 {
+		panic(fmt.Errorf("satoshis to send must be provided"))
+	}
+
 	show.Step("Alice", "Creating wallet and setting up environment")
 	alice := example_setup.CreateAlice()
 
 	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
 
-	show.Info("Recipient address", DefaultRecipientAddress)
+	show.Info("Recipient address", RecipientAddress)
 
 	// Create P2PKH locking script from the recipient address
-	addr, err := script.NewAddressFromString(DefaultRecipientAddress)
+	addr, err := script.NewAddressFromString(RecipientAddress)
 	if err != nil {
 		panic(fmt.Errorf("failed to parse address: %w", err))
 	}
@@ -61,7 +69,7 @@ func main() {
 		Outputs: []sdk.CreateActionOutput{
 			{
 				LockingScript:     lockingScript.Bytes(),
-				Satoshis:          DefaultSatoshisToSend,
+				Satoshis:          SatoshisToSend,
 				OutputDescription: DefaultOutputDescription,
 				Tags:              []string{"payment", "example"},
 			},
@@ -72,7 +80,7 @@ func main() {
 		},
 	}
 
-	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", DefaultSatoshisToSend))
+	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", SatoshisToSend))
 	show.Info("Transaction description", DefaultTransactionDescription)
 	show.Info("Output description", DefaultOutputDescription)
 
