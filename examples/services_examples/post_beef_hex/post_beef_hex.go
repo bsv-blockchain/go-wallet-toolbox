@@ -7,18 +7,13 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
-// main demonstrates how to broadcast a single BSV transaction using WalletServices.
-//
-// In contrast to the post_beef.go example, this example just broadcasts a transaction contained in the provided BEEF hex string.
-//
-// This example is configurable by setting the following constants at the top of the main function:
-//   - `beefHex`: The BEEF where the transaction is contained.
-//   - `transactionID`: The transaction ID of the transaction to be broadcasted.
-//   - `network`: The BSV network to use (e.g., Testnet or Mainnet). Change to `defs.NetworkMainnet` for mainnet operations.
+// This example demonstrates broadcasting a BSV transaction from existing BEEF hex data
+// Focuses purely on the broadcasting mechanism with pre-encoded BEEF data
 func main() {
 	const (
 		// this transaction is already broadcasted, set your own txID and beefHex
@@ -27,8 +22,12 @@ func main() {
 		network       = defs.NetworkTestnet
 	)
 
+	show.ProcessStart("Post BEEF Hex")
+
 	// //Set to LevelDebug to see http request logs
 	// slog.SetLogLoggerLevel(slog.LevelDebug)
+
+	show.Step("Transaction", "parsing BEEF hex data")
 
 	beefBytes, err := hex.DecodeString(beefHex)
 	if err != nil {
@@ -41,38 +40,17 @@ func main() {
 	}
 
 	serviceCfg := defs.DefaultServicesConfig(network)
-
 	walletServices := services.New(slog.Default(), serviceCfg)
+
+	show.Step("Wallet-Services", fmt.Sprintf("broadcasting transaction %s", transactionID))
 
 	results, err := walletServices.PostBEEF(context.Background(), beef, []string{transactionID})
 	if err != nil {
 		panic(err)
 	}
 
-	for _, result := range results {
-		fmt.Println("===========================================================")
-		fmt.Printf("Service %s PostBEEF result:", result.Name)
-		if !result.Success() {
-			fmt.Println("	Error:", result.Error)
-		} else {
-			fmt.Println("	Success:")
-			for _, resultForTxID := range result.PostedBEEFResult.TxIDResults {
-				fmt.Println("		TX ID:", resultForTxID.TxID)
-				fmt.Println("		Result:	", resultForTxID.Result)
-				if resultForTxID.Result == "error" {
-					fmt.Println("		Error:	", resultForTxID.Error)
-				} else {
-					fmt.Println("		AlreadyKnown:	", resultForTxID.AlreadyKnown)
-					fmt.Println("		DoubleSpend:	", resultForTxID.DoubleSpend)
-					fmt.Println("		BlockHash:	", resultForTxID.BlockHash)
-					fmt.Println("		BlockHeight:	", resultForTxID.BlockHeight)
-					fmt.Println("		MerklePath:	", resultForTxID.MerklePath)
-					fmt.Println("		CompetingTxs:	", resultForTxID.CompetingTxs)
-					fmt.Println("		Notes:	", resultForTxID.Notes)
-					fmt.Println("		Data:	", resultForTxID.Data)
-				}
-			}
-		}
-	}
+	show.Success("Posted BEEF to services")
+	show.PostBEEFOutput(results)
 
+	show.ProcessComplete("Post BEEF Hex")
 }

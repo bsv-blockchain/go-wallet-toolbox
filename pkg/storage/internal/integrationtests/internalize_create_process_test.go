@@ -18,6 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	derPrefix = "Pr=="
+	derSuffix = "Su=="
+)
+
 func TestInternalizeThenCreateThenProcess(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -37,8 +42,8 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 					OutputIndex: 0,
 					Protocol:    wdk.WalletPaymentProtocol,
 					PaymentRemittance: &wdk.WalletPayment{
-						DerivationPrefix:  fixtures.DerivationPrefix,
-						DerivationSuffix:  fixtures.DerivationSuffix,
+						DerivationPrefix:  derPrefix,
+						DerivationSuffix:  derSuffix,
 						SenderIdentityKey: fixtures.AnyoneIdentityKey,
 					},
 				},
@@ -300,8 +305,8 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 					OutputIndex: 0,
 					Protocol:    wdk.WalletPaymentProtocol,
 					PaymentRemittance: &wdk.WalletPayment{
-						DerivationPrefix:  fixtures.DerivationPrefix,
-						DerivationSuffix:  fixtures.DerivationSuffix,
+						DerivationPrefix:  derPrefix,
+						DerivationSuffix:  derSuffix,
 						SenderIdentityKey: fixtures.AnyoneIdentityKey,
 					},
 				},

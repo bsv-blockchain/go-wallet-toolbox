@@ -10,14 +10,15 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-// WocAPIGetBeefForTX fetches a beef from the WhatsonChain API
+// WocAPIGetBeefForTX fetches a beef from the WhatsOnChain API
+// Then converts the beef to an atomic beef format using createAtomicBeef and returns the atomic beef
 func WocAPIGetBeefForTX(network defs.BSVNetwork, txid string) (string, error) {
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/beef", network, txid)
 
 	client := resty.New()
 	resp, err := client.R().Get(url)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch from WhatsonChain API: %w", err)
+		return "", fmt.Errorf("failed to fetch from WhatsOnChain API: %w", err)
 	}
 
 	if resp.StatusCode() == http.StatusNotFound {
@@ -25,19 +26,19 @@ func WocAPIGetBeefForTX(network defs.BSVNetwork, txid string) (string, error) {
 	}
 
 	if resp.StatusCode() != http.StatusOK {
-		return "", fmt.Errorf("failed to retrieve successful response from WhatsonChain API. Status: %d", resp.StatusCode())
+		return "", fmt.Errorf("failed to retrieve successful response from WhatsOnChain API. Status: %d", resp.StatusCode())
 	}
 
 	beefHex := resp.String()
 	if beefHex == "" {
-		return "", fmt.Errorf("empty response received from WhatsonChain API")
+		return "", fmt.Errorf("empty response received from WhatsOnChain API")
 	}
 
 	atomicBeef, err := createAtomicBeef(beefHex)
 	if err != nil {
 		return "", fmt.Errorf("failed to create atomic beef: %w", err)
 	}
-
+	
 	return atomicBeef, nil
 }
 
