@@ -1,14 +1,69 @@
 package wallet_test
 
 import (
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
-func (s *WalletTestSuite) TestWalletCreateActionNoSendChain() {
+func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
+	s.Run("second create action call should consume all no send changes from the previous create action result", func() {
+		t := s.T()
+		const inputValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+		given.Faucet(aliceWallet).TopUp(inputValue)
+
+		// given - 1st create action result call to obtain no send change funds for the 2nd create action call:
+		firstCreateActionCallArgs := fixtures.DefaultWalletCreateActionArgs(t)
+		firstCreateActionCallArgs.Outputs[0].Satoshis = 1
+		firstCreateActionCallArgs.Options.NoSend = to.Ptr(true)
+
+		// when:
+		firstCreateActionResult, err := aliceWallet.CreateAction(t.Context(), firstCreateActionCallArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotEmpty(t, firstCreateActionResult.NoSendChange)
+
+		// given - 2nd create action call that should consume all no send changes from the previous call
+		firstCreateActionTx := testabilities.CreateTxFromBEEF(t, firstCreateActionResult.Tx)
+
+		var satoshisToSpent uint64
+		for _, o := range firstCreateActionTx.Outputs {
+			satoshisToSpent += o.Satoshis
+		}
+
+		const calculatedFee = 6 // fee_calculator.go -> Calculate
+
+		secondCreateActionCallArgs := firstCreateActionCallArgs
+		secondCreateActionCallArgs.Outputs[0].Satoshis = satoshisToSpent - calculatedFee
+		secondCreateActionCallArgs.Options.NoSend = to.Ptr(true)
+		secondCreateActionCallArgs.Options.NoSendChange = firstCreateActionResult.NoSendChange
+
+		// when:
+		secondCreateActionResult, err := aliceWallet.CreateAction(t.Context(), secondCreateActionCallArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, secondCreateActionResult)
+		require.NotNil(t, secondCreateActionResult.Tx)
+
+		secondCreateActionTx := testabilities.CreateTxFromBEEF(t, secondCreateActionResult.Tx)
+		require.Len(t, secondCreateActionTx.Inputs, len(firstCreateActionResult.NoSendChange))
+
+		for vin, input := range secondCreateActionTx.Inputs {
+			require.Equal(t, firstCreateActionResult.NoSendChange[vin].Txid.String(), input.SourceTXID.String())
+			require.Equal(t, firstCreateActionResult.NoSendChange[vin].Index, input.SourceTxOutIndex)
+		}
+	})
+
 	s.Run("create twice noSend create actions, providing noSendChange to the second one", func() {
 		t := s.T()
 		const inputValue = testValueForFunding
@@ -48,9 +103,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain() {
 		require.NotEmpty(t, result.NoSendChange) // NOTE: These are OTHER than the first noSendChange
 		require.NotNil(t, result.Tx)
 
-		tx, err := transaction.NewTransactionFromBEEF(result.Tx)
-		require.NoError(t, err, "Failed to decode transaction from result")
-
+		tx := testabilities.CreateTxFromBEEF(t, result.Tx)
 		for vin, input := range tx.Inputs {
 			if vin < len(firstNoSendChange) {
 				require.Equal(t, firstNoSendChange[vin].Txid.String(), input.SourceTXID.String())
