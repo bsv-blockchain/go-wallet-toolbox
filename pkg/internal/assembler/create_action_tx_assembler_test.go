@@ -20,14 +20,6 @@ func TestTxAssemblerAlignsTsGenerated(t *testing.T) {
 	// and:
 	createActionResult := givenTsGeneratedStorageCreateActionResult(t)
 
-	// FIXME: Workaround START
-	// FIXME: Workaround for the fact that the go-sdk's P2PKH Unlocker can't unlock UTXO based on sourceSatoshis & sourceLockingScript
-	// FIXME: For now it requires the whole parent transaction to be set in the input
-	// FIXME: It should work after this issue is resolved and applied to this project:
-	// FIXME: https://github.com/bsv-blockchain/go-sdk/issues/218
-	createActionResult.Inputs[0].SourceTransaction = tsgenerated.ParentTransaction(t).Bytes()
-	// FIXME: END
-
 	// when:
 	signed, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, createActionResult).Assemble()
 

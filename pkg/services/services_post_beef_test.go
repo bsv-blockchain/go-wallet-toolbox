@@ -55,7 +55,11 @@ func TestPostBEEF(t *testing.T) {
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
-		parentTx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+		parentTx := txtestabilities.GivenTX().
+			WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
+			WithInput(100).
+			WithP2PKHOutput(99).
+			TX()
 		parentTxID := parentTx.TxID().String()
 
 		childTx := txtestabilities.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(98).TX()
@@ -92,7 +96,11 @@ func TestPostBEEF(t *testing.T) {
 }
 
 func TestPostBEEF_BroadcastFailures(t *testing.T) {
-	parentTx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+	parentTx := txtestabilities.GivenTX().
+		WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
+		WithInput(100).
+		WithP2PKHOutput(99).
+		TX()
 	parentTxID := parentTx.TxID().String()
 
 	childTx := txtestabilities.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(98).TX()

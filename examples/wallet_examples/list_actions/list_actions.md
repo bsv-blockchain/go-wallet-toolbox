@@ -81,4 +81,3 @@ To integrate action listing into your application:
 
 - [List Actions Example](./list_actions.go) - Complete code example for listing wallet actions
 - [List Outputs Documentation](../list_outputs/list_outputs.md) - View wallet transaction outputs
-
