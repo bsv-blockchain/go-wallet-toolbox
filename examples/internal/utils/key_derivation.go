@@ -30,16 +30,13 @@ func DerivationParts() PaymentRemittance {
 	suffix := "" // empty string will use default base64 suffix
 	bytes := derivationBytes(prefix, suffix)
 
-	derivationPrefix := base64.StdEncoding.EncodeToString(bytes.DerivationPrefix)
-	derivationSuffix := base64.StdEncoding.EncodeToString(bytes.DerivationSuffix)
-
 	var identityKey string
 	_, publicKey := sdk.AnyoneKey()
 	identityKey = publicKey.ToDERHex()
 
 	paymentRemittance := &PaymentRemittance{
-		DerivationPrefix:  []byte(derivationPrefix),
-		DerivationSuffix:  []byte(derivationSuffix),
+		DerivationPrefix:  bytes.DerivationPrefix,
+		DerivationSuffix:  bytes.DerivationSuffix,
 		SenderIdentityKey: identityKey,
 	}
 
