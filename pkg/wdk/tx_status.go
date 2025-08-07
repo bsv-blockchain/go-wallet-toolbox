@@ -41,39 +41,46 @@ const (
 	ProvenTxStatusUnfail      ProvenTxReqStatus = "unfail"
 )
 
-// TxReqBroadcastStatus is a reduced ProvenTxReqStatus, used to decide whether to broadcast a transaction or not.
-type TxReqBroadcastStatus string
+// SendWithResultStatus returns the status of a transaction request based on its ProvenTxReqStatus.
+func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
+	if s.Sending() {
+		return SendWithResultStatusSending
+	}
 
-// Possible transaction request broadcast statuses
-const (
-	TxReqBroadcastReadyToSend TxReqBroadcastStatus = "readyToSend"
-	TxReqBroadcastAlreadySent TxReqBroadcastStatus = "alreadySent"
-	TxReqBroadcastError       TxReqBroadcastStatus = "error"
-	TxReqBroadcastUnknown     TxReqBroadcastStatus = "unknown"
-)
+	if s.AlreadySent() {
+		return SendWithResultStatusUnproven
+	}
 
-// BroadcastStatus returns the simplified broadcast status of a transaction request based on its current status.
-func (s ProvenTxReqStatus) BroadcastStatus() TxReqBroadcastStatus {
-	switch s {
+	return SendWithResultStatusFailed
+}
+
+// Sending returns true if the ProvenTxReqStatus is considered still in the sending or processing phase.
+func (s ProvenTxReqStatus) Sending() bool {
+	switch s { //nolint:exhaustive
 	case ProvenTxStatusUnknown,
 		ProvenTxStatusNonFinal,
 		ProvenTxStatusInvalid,
-		ProvenTxStatusDoubleSpend:
-		return TxReqBroadcastError
-	case ProvenTxStatusSending,
+		ProvenTxStatusDoubleSpend,
+		ProvenTxStatusSending,
 		ProvenTxStatusUnsent,
 		ProvenTxStatusNoSend,
 		ProvenTxStatusUnprocessed:
-		return TxReqBroadcastReadyToSend
+		return true
+	default:
+		return false
+	}
+}
+
+// AlreadySent returns true if the transaction status indicates it has already been sent or processed.
+func (s ProvenTxReqStatus) AlreadySent() bool {
+	switch s { //nolint:exhaustive
 	case ProvenTxStatusUnmined,
 		ProvenTxStatusCallback,
 		ProvenTxStatusUnconfirmed,
 		ProvenTxStatusCompleted:
-		return TxReqBroadcastAlreadySent
-	case ProvenTxStatusUnfail:
-		fallthrough
+		return true
 	default:
-		return TxReqBroadcastUnknown
+		return false
 	}
 }
 
