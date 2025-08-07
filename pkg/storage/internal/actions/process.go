@@ -273,7 +273,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string) (*wdk.Proces
 		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", sendStatusesLookup)
 	}
 
-	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), nil, wdk.ProvenTxReqProblematicStatuses)
+	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
