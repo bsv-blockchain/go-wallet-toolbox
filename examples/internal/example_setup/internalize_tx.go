@@ -11,7 +11,7 @@ import (
 )
 
 // InternalizeFromFaucet is a helper function to internalize a transaction from the faucet
-func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Interface) error {
+func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Interface, identityKey *ec.PublicKey) error {
 	beef, err := hex.DecodeString(beefHex)
 	if err != nil {
 		show.Error(err.Error())
@@ -19,11 +19,6 @@ func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Inter
 	}
 
 	paymentRemittance := utils.DerivationParts()
-
-	senderIdentityKey, err := ec.PublicKeyFromString(paymentRemittance.SenderIdentityKey)
-	if err != nil {
-		return err
-	}
 
 	internalizeArgs := sdk.InternalizeActionArgs{
 		Tx: beef,
@@ -34,7 +29,7 @@ func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Inter
 				PaymentRemittance: &sdk.Payment{
 					DerivationPrefix:  paymentRemittance.DerivationPrefix,
 					DerivationSuffix:  paymentRemittance.DerivationSuffix,
-					SenderIdentityKey: senderIdentityKey,
+					SenderIdentityKey: identityKey,
 				},
 			},
 		},
