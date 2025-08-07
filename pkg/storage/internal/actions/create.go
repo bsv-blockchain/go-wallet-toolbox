@@ -16,7 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -66,17 +66,18 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 }
 
 type create struct {
-	logger         *slog.Logger
-	funder         funder.Funder
-	basketRepo     BasketRepo
-	txRepo         TransactionsRepo
-	outputRepo     OutputRepo
-	knownTxRepo    KnownTxRepo
-	commissionRepo CommissionRepo
-	commission     *commission.ScriptGenerator
-	commissionCfg  defs.Commission
-	random         wdk.Randomizer
-	chaintracker   chaintracker.ChainTracker
+	logger                 *slog.Logger
+	funder                 funder.Funder
+	basketRepo             BasketRepo
+	txRepo                 TransactionsRepo
+	outputRepo             OutputRepo
+	knownTxRepo            KnownTxRepo
+	commissionRepo         CommissionRepo
+	commission             *commission.ScriptGenerator
+	commissionCfg          defs.Commission
+	random                 wdk.Randomizer
+	chaintracker           chaintracker.ChainTracker
+	priorityOutputsService *services.PriorityOutputsService
 }
 
 func newCreateAction(
@@ -93,16 +94,17 @@ func newCreateAction(
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:         logger,
-		funder:         funder,
-		basketRepo:     basketRepo,
-		txRepo:         txRepo,
-		commissionCfg:  commissionCfg,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		random:         random,
-		chaintracker:   chaintracker,
+		logger:                 logger,
+		funder:                 funder,
+		basketRepo:             basketRepo,
+		txRepo:                 txRepo,
+		commissionCfg:          commissionCfg,
+		outputRepo:             outputRepo,
+		knownTxRepo:            knownTxRepo,
+		commissionRepo:         commissionRepo,
+		random:                 random,
+		chaintracker:           chaintracker,
+		priorityOutputsService: services.NewPriorityOutputsService(outputRepo, logger),
 	}
 
 	if commissionCfg.Enabled() {
@@ -132,23 +134,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	var noSendChangeOutputs []*entity.Output
-	if params.IsNoSend && len(params.NoSendChange) > 0 {
-		outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, params.NoSendChange)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find outputs by outpoints: %w", err)
-		}
-
-		if len(params.NoSendChange) != len(outputs) {
-			return nil, fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(params.NoSendChange))
-		}
-
-		err = validate.NoSendChangeOutputs(outputs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to validate no send change outputs: %w", err)
-		}
-
-		noSendChangeOutputs = outputs
+	priorityOutputs, err := c.priorityOutputsService.CreateOutputs(ctx, userID, params.IsNoSend, params.NoSendChange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create priority outputs by: %w", err)
 	}
 
 	c.logger.DebugContext(ctx, "Processing inputs",
@@ -233,7 +221,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Uint64("basketMinimumUTXOValue", basket.MinimumDesiredUTXOValue),
 	)
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, noSendChangeOutputs)
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}
