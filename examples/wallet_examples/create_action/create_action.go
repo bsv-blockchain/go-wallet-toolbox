@@ -63,7 +63,6 @@ func main() {
 	}
 
 	// Create the arguments needed for the CreateAction
-	signAndProcess := true
 	createArgs := sdk.CreateActionArgs{
 		Description: DefaultTransactionDescription,
 		Outputs: []sdk.CreateActionOutput{
@@ -75,9 +74,6 @@ func main() {
 			},
 		},
 		Labels: []string{"create_action_example"},
-		Options: &sdk.CreateActionOptions{
-			SignAndProcess: &signAndProcess,
-		},
 	}
 
 	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", SatoshisToSend))
