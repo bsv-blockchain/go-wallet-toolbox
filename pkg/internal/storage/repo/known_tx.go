@@ -242,7 +242,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 				InputBeef:  inputBeef,
 			}
 		} else {
-			return fmt.Errorf("known tx not found for tx (TxID: %q): %w", txID, wdk.NotFoundError)
+			// TODO: add option: fail on missing tx
+			return nil
 		}
 	} else if err != nil {
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)

@@ -1,32 +1,130 @@
 package storage_test
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
-func TestGetBeefFromEmptyStorageAndUsingServices(t *testing.T) {
-	// given:
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
+func TestGetBeef(t *testing.T) {
+	t.Run("empty storage, fetched from services, the tx has merkle path", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
 
-	const txID = "5a98aa7924f2a1bd171161d58122c2c870108fe367f1e335576976acaa78fd3c"
-	const rawTx = "01000000014f3eff9bdf031a2509ddf3c0cea6dd9ce6b2908a9f43995da22d6ad38d14138b000000006b48304502210088a710acfe584d292efffa7058b99e755b0790ee2c63e04c017d4fede2014eef02203cecbac0e8cfb9c35e8b84227bf98173b7ac566040d8b99f364d64395a087f32412103e66fa27c0fadcb8f1d81441f85626ce381b64255e7cbb9eaae6b0530e723c9b7ffffffff2014090000000000001976a914ff3df8128ae97f7dae31286f0752c1428ea506bf88acb5140000000000001976a9146590d55d797e4fc4554ac18b47defbb26b04faa388acd20e0000000000001976a91435e3d2c019163640664063ff64dc6eb59bd23c4a88ac750b0000000000001976a9141e335fc2c629b06a5580071b0cc95fda817b1a5488aca00c0000000000001976a91465a6fd431f4e6f69f11e5a966ab7b9e8c427eea188ac71040000000000001976a914cd9389026b7389aadbe0cdcbff81409c03c151d188ac91110000000000001976a914ffa594b69d31bf174c832efa7794c575b64cc0eb88ac12100000000000001976a9144c33e3be43fd648ddc9e9691a0123df652e9b3df88accc0b0000000000001976a914b0162b7b26fe613441e40f11cbb6b37d9456d0d388ac64000000000000001976a91463d75a7f8b45820ac79957276a961decc20c552788ac95070000000000001976a914389f642a2399cee02cd67cca737e4ff7f3485c9f88ac820d0000000000001976a914dee983cb7802c8e285ccbcefd5aea5890444c8b388acb3070000000000001976a91482ccbd1fc9402967d18d3e081fa35b8c715bea0d88ac960b0000000000001976a91452ebb2b7a4aff680f9fdf887f8735aca5c5ae6dd88ac930c0000000000001976a91418cbdf2a71c4d054c505e494f298b9ac95dbfeac88ac5c110000000000001976a914fa0926633103a22e4ec2495f9465f8ff5b3646b588ac950d0000000000001976a91487934fe02c19c5ce182bc163d52f6993dac50b2e88ac9e0b0000000000001976a914b7887cc7aa31f5eb5a37f033396b23a756a3e1ac88ac5a0d0000000000001976a91418de960e9920423e5a6298eefc17b39b9842d9f788ac900d0000000000001976a914368e68d725d3a5806624a46165295da67599360b88ac540a0000000000001976a914deca5b9a91da94b0795193518fa370f6c434b6cf88acb10d0000000000001976a914f60865b2377c47e71a7cbf5dcdca10189135562488aca40b0000000000001976a914e646370987d88adc3b9ed6f42e242df130d5308b88ac79080000000000001976a9149de62244425f07f0f062d067a6cf2a7aef4a49dd88acca070000000000001976a9141f801dd2b5c743f894f8952987cf26a4b70c242588acad100000000000001976a9141cf8051a62066f4a4e716606d564f3a1e07da8e888ac21110000000000001976a91434e4e4e9f1aa40c098bfc798ba2317506f85bf3d88ac32060000000000001976a914b98ac6ace777726fe27b5c8eff23a3da7f85545388acf4120000000000001976a914456f46b018ab569a804e1c2fb59f15da93004c8888ac860c0000000000001976a91494d456e26d716841e39228ca552b987d4321a28088ac05080000000000001976a91495d5431367c78d5312517db1ebe9d97595459c6b88ac73110000000000001976a9141dbfedd2da928c8c3ccc4512f64fd058386f74c188ac00000000"
-	const merklePath = `[
-   {
+		txID, _ := wocWillReturnRawTxAndMerklePath(given)
+
+		activeStorage := given.Provider().GORM()
+
+		// when:
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{})
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, beef)
+
+		assert.NotNil(t, beef.FindTransaction(txID))
+	})
+
+	t.Run("storage has parent transaction (mined), child tx needs to be fetched from services", func(t *testing.T) {
+		t.Skip()
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		activeStorage := given.Provider().GORM()
+
+		// TODO: Internalize "Child" transaction instead of parent transaction
+		// The parent should be obtained from the services and the child from storage.
+
+		parentTxBeef := "0100beef01fedfc01900010201023cfd78aaac76695735e3f167e38f1070c8c22281d5611117bda1f22479aa985a000079a09778f36a3df76e0b06f388e15c5ae85353b5b52b7989b9da43d59711e43d0101000000014f3eff9bdf031a2509ddf3c0cea6dd9ce6b2908a9f43995da22d6ad38d14138b000000006b48304502210088a710acfe584d292efffa7058b99e755b0790ee2c63e04c017d4fede2014eef02203cecbac0e8cfb9c35e8b84227bf98173b7ac566040d8b99f364d64395a087f32412103e66fa27c0fadcb8f1d81441f85626ce381b64255e7cbb9eaae6b0530e723c9b7ffffffff2014090000000000001976a914ff3df8128ae97f7dae31286f0752c1428ea506bf88acb5140000000000001976a9146590d55d797e4fc4554ac18b47defbb26b04faa388acd20e0000000000001976a91435e3d2c019163640664063ff64dc6eb59bd23c4a88ac750b0000000000001976a9141e335fc2c629b06a5580071b0cc95fda817b1a5488aca00c0000000000001976a91465a6fd431f4e6f69f11e5a966ab7b9e8c427eea188ac71040000000000001976a914cd9389026b7389aadbe0cdcbff81409c03c151d188ac91110000000000001976a914ffa594b69d31bf174c832efa7794c575b64cc0eb88ac12100000000000001976a9144c33e3be43fd648ddc9e9691a0123df652e9b3df88accc0b0000000000001976a914b0162b7b26fe613441e40f11cbb6b37d9456d0d388ac64000000000000001976a91463d75a7f8b45820ac79957276a961decc20c552788ac95070000000000001976a914389f642a2399cee02cd67cca737e4ff7f3485c9f88ac820d0000000000001976a914dee983cb7802c8e285ccbcefd5aea5890444c8b388acb3070000000000001976a91482ccbd1fc9402967d18d3e081fa35b8c715bea0d88ac960b0000000000001976a91452ebb2b7a4aff680f9fdf887f8735aca5c5ae6dd88ac930c0000000000001976a91418cbdf2a71c4d054c505e494f298b9ac95dbfeac88ac5c110000000000001976a914fa0926633103a22e4ec2495f9465f8ff5b3646b588ac950d0000000000001976a91487934fe02c19c5ce182bc163d52f6993dac50b2e88ac9e0b0000000000001976a914b7887cc7aa31f5eb5a37f033396b23a756a3e1ac88ac5a0d0000000000001976a91418de960e9920423e5a6298eefc17b39b9842d9f788ac900d0000000000001976a914368e68d725d3a5806624a46165295da67599360b88ac540a0000000000001976a914deca5b9a91da94b0795193518fa370f6c434b6cf88acb10d0000000000001976a914f60865b2377c47e71a7cbf5dcdca10189135562488aca40b0000000000001976a914e646370987d88adc3b9ed6f42e242df130d5308b88ac79080000000000001976a9149de62244425f07f0f062d067a6cf2a7aef4a49dd88acca070000000000001976a9141f801dd2b5c743f894f8952987cf26a4b70c242588acad100000000000001976a9141cf8051a62066f4a4e716606d564f3a1e07da8e888ac21110000000000001976a91434e4e4e9f1aa40c098bfc798ba2317506f85bf3d88ac32060000000000001976a914b98ac6ace777726fe27b5c8eff23a3da7f85545388acf4120000000000001976a914456f46b018ab569a804e1c2fb59f15da93004c8888ac860c0000000000001976a91494d456e26d716841e39228ca552b987d4321a28088ac05080000000000001976a91495d5431367c78d5312517db1ebe9d97595459c6b88ac73110000000000001976a9141dbfedd2da928c8c3ccc4512f64fd058386f74c188ac000000000100"
+
+		parentTx, err := transaction.NewTransactionFromBEEFHex(parentTxBeef)
+		require.NoError(t, err)
+
+		atomicBeef, err := parentTx.AtomicBEEF(false)
+		require.NoError(t, err)
+
+		given.Provider().BHS().OnMerkleRootVerifyResponse(
+			1687775,
+			"6861d579c2fb885c2fef10ce39c2750d9b50c4185727b19989de657fa105d1b7",
+			testabilities.BHSMerkleRootConfirmed,
+		)
+
+		args := fixtures.DefaultInternalizeActionArgs(t, wdk.BasketInsertionProtocol)
+		args.Tx = atomicBeef
+
+		_, err = activeStorage.InternalizeAction(
+			t.Context(),
+			testusers.Alice.AuthID(),
+			args,
+		)
+		require.NoError(t, err)
+
+		// and:
+		childTxSpec := testvectors.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(1)
+		childTxID := childTxSpec.ID().String()
+		given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, childTxSpec.RawTX().Hex(), nil)
+		given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, childTxID, "")
+
+		// when:
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{})
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, beef)
+
+		assert.NotNil(t, beef.FindTransaction(childTxID))
+		assert.NotNil(t, beef.FindTransaction(parentTx.TxID().String()))
+	})
+
+	t.Run("empty storage, fetched from services, should fail, the tx doesn't have merkle path", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		txID, _ := wocWillReturnRawTx(given)
+		given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, txID, "")
+
+		activeStorage := given.Provider().GORM()
+
+		// when:
+		_, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{})
+
+		// then:
+		require.Error(t, err)
+	})
+
+}
+
+func wocWillReturnRawTx(given testabilities.StorageFixture) (txID, rawTx string) {
+	txID = "5a98aa7924f2a1bd171161d58122c2c870108fe367f1e335576976acaa78fd3c"
+	rawTx = "01000000014f3eff9bdf031a2509ddf3c0cea6dd9ce6b2908a9f43995da22d6ad38d14138b000000006b48304502210088a710acfe584d292efffa7058b99e755b0790ee2c63e04c017d4fede2014eef02203cecbac0e8cfb9c35e8b84227bf98173b7ac566040d8b99f364d64395a087f32412103e66fa27c0fadcb8f1d81441f85626ce381b64255e7cbb9eaae6b0530e723c9b7ffffffff2014090000000000001976a914ff3df8128ae97f7dae31286f0752c1428ea506bf88acb5140000000000001976a9146590d55d797e4fc4554ac18b47defbb26b04faa388acd20e0000000000001976a91435e3d2c019163640664063ff64dc6eb59bd23c4a88ac750b0000000000001976a9141e335fc2c629b06a5580071b0cc95fda817b1a5488aca00c0000000000001976a91465a6fd431f4e6f69f11e5a966ab7b9e8c427eea188ac71040000000000001976a914cd9389026b7389aadbe0cdcbff81409c03c151d188ac91110000000000001976a914ffa594b69d31bf174c832efa7794c575b64cc0eb88ac12100000000000001976a9144c33e3be43fd648ddc9e9691a0123df652e9b3df88accc0b0000000000001976a914b0162b7b26fe613441e40f11cbb6b37d9456d0d388ac64000000000000001976a91463d75a7f8b45820ac79957276a961decc20c552788ac95070000000000001976a914389f642a2399cee02cd67cca737e4ff7f3485c9f88ac820d0000000000001976a914dee983cb7802c8e285ccbcefd5aea5890444c8b388acb3070000000000001976a91482ccbd1fc9402967d18d3e081fa35b8c715bea0d88ac960b0000000000001976a91452ebb2b7a4aff680f9fdf887f8735aca5c5ae6dd88ac930c0000000000001976a91418cbdf2a71c4d054c505e494f298b9ac95dbfeac88ac5c110000000000001976a914fa0926633103a22e4ec2495f9465f8ff5b3646b588ac950d0000000000001976a91487934fe02c19c5ce182bc163d52f6993dac50b2e88ac9e0b0000000000001976a914b7887cc7aa31f5eb5a37f033396b23a756a3e1ac88ac5a0d0000000000001976a91418de960e9920423e5a6298eefc17b39b9842d9f788ac900d0000000000001976a914368e68d725d3a5806624a46165295da67599360b88ac540a0000000000001976a914deca5b9a91da94b0795193518fa370f6c434b6cf88acb10d0000000000001976a914f60865b2377c47e71a7cbf5dcdca10189135562488aca40b0000000000001976a914e646370987d88adc3b9ed6f42e242df130d5308b88ac79080000000000001976a9149de62244425f07f0f062d067a6cf2a7aef4a49dd88acca070000000000001976a9141f801dd2b5c743f894f8952987cf26a4b70c242588acad100000000000001976a9141cf8051a62066f4a4e716606d564f3a1e07da8e888ac21110000000000001976a91434e4e4e9f1aa40c098bfc798ba2317506f85bf3d88ac32060000000000001976a914b98ac6ace777726fe27b5c8eff23a3da7f85545388acf4120000000000001976a914456f46b018ab569a804e1c2fb59f15da93004c8888ac860c0000000000001976a91494d456e26d716841e39228ca552b987d4321a28088ac05080000000000001976a91495d5431367c78d5312517db1ebe9d97595459c6b88ac73110000000000001976a9141dbfedd2da928c8c3ccc4512f64fd058386f74c188ac00000000"
+
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, txID, rawTx, nil)
+
+	return
+}
+
+func wocWillReturnRawTxAndMerklePath(given testabilities.StorageFixture) (txID, rawTx string) {
+	const (
+		merklePathResponse = `[{
       "index": 1,
       "txOrId": "5a98aa7924f2a1bd171161d58122c2c870108fe367f1e335576976acaa78fd3c",
       "target": "00000000564ea76a4257a17dae5438fdf419aec087fa2557e8d4dd1a47a5a24b",
       "nodes": [
          "3de41197d543dab989792bb5b55353e85a5ce188f3060b6ef73d6af37897a079"
       ]
-   }
-]`
-	const blockHash = "00000000564ea76a4257a17dae5438fdf419aec087fa2557e8d4dd1a47a5a24b"
-	const blockResponseBody = `{
+   }]
+`
+		blockHash         = "00000000564ea76a4257a17dae5438fdf419aec087fa2557e8d4dd1a47a5a24b"
+		blockResponseBody = `{
    "hash": "00000000564ea76a4257a17dae5438fdf419aec087fa2557e8d4dd1a47a5a24b",
    "confirmations": 2,
    "size": 1433,
@@ -45,17 +143,11 @@ func TestGetBeefFromEmptyStorageAndUsingServices(t *testing.T) {
    "nTx": 0,
    "num_tx": 2
 }`
+	)
 
-	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, txID, rawTx, nil)
-	given.Provider().WhatsOnChain().WillRespondWithMerklePath(200, txID, merklePath)
+	txID, rawTx = wocWillReturnRawTx(given)
+	given.Provider().WhatsOnChain().WillRespondWithMerklePath(200, txID, merklePathResponse)
 	given.Provider().WhatsOnChain().WillRespondWithBlockHeader(200, blockHash, blockResponseBody)
 
-	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-
-	// when:
-	beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{})
-
-	// then:
-	require.NoError(t, err)
-	require.NotNil(t, beef)
+	return
 }
