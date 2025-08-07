@@ -41,17 +41,6 @@ const (
 	ProvenTxStatusUnfail      ProvenTxReqStatus = "unfail"
 )
 
-// TxReqBroadcastStatus is a reduced ProvenTxReqStatus, used to decide whether to broadcast a transaction or not.
-type TxReqBroadcastStatus string
-
-// Possible transaction request broadcast statuses
-const (
-	TxReqBroadcastReadyToSend TxReqBroadcastStatus = "readyToSend"
-	TxReqBroadcastAlreadySent TxReqBroadcastStatus = "alreadySent"
-	TxReqBroadcastError       TxReqBroadcastStatus = "error"
-	TxReqBroadcastUnknown     TxReqBroadcastStatus = "unknown"
-)
-
 // SendWithResultStatus returns the status of a transaction request based on its ProvenTxReqStatus.
 func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
 	if s.Sending() {
@@ -65,6 +54,7 @@ func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
 	return SendWithResultStatusFailed
 }
 
+// Sending returns true if the ProvenTxReqStatus is considered still in the sending or processing phase.
 func (s ProvenTxReqStatus) Sending() bool {
 	switch s { //nolint:exhaustive
 	case ProvenTxStatusUnknown,
@@ -81,6 +71,7 @@ func (s ProvenTxReqStatus) Sending() bool {
 	}
 }
 
+// AlreadySent returns true if the transaction status indicates it has already been sent or processed.
 func (s ProvenTxReqStatus) AlreadySent() bool {
 	switch s { //nolint:exhaustive
 	case ProvenTxStatusUnmined,

@@ -501,7 +501,7 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 }
 
 func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
-	// FIXME: This test needs to wait for noSendChange to be implemented as the ARC canno broadcast two "separated" transactions in one BEEF
+	// FIXME: This test needs to wait for noSendChange to be implemented as the ARC cannot broadcast two "separated" transactions in one BEEF
 	s.T().Skip("This test needs to wait for noSendChange to be implemented as the ARC cannot broadcast two 'separated' transactions in one BEEF")
 	s.Run("createAction with 'noSend' then createAction with 'sendWith' to broadcast both txs", func() {
 		t := s.T()
