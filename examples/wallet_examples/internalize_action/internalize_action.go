@@ -25,16 +25,19 @@ var (
 
 	// suffix is the derivation suffix for the payment remittance
 	suffix = "" // example: NaGLC6fMH50=
+
+	// identityKey is the sender identity key for the payment remittance
+	identityKey = "" // example: 0231c72ef229534d40d08af5b9a586b619d0b2ee2ace2874339c9cbcc4a79281c0
 )
 
 // This example demonstrates how to internalize a transaction into Alice's wallet.
-// atomicBeefHex, prefix, and suffix are required to internalize a transaction.
+// atomicBeefHex, identityKey, prefix, and suffix are required to internalize a transaction.
 func main() {
 	show.ProcessStart("Internalize Action")
 	ctx := context.Background()
 
-	if prefix == "" || suffix == "" || atomicBeefHex == "" {
-		panic("prefix, suffix, and atomicBeefHex are required")
+	if prefix == "" || suffix == "" || atomicBeefHex == "" || identityKey == "" {
+		panic("prefix, suffix, atomicBeefHex, and identityKey are required")
 	}
 
 	show.Step("Alice", "Creating wallet and setting up environment")
@@ -54,8 +57,7 @@ func main() {
 		panic(fmt.Errorf("failed to decode derivation suffix: %w", err))
 	}
 
-	_, publicKey := sdk.AnyoneKey()
-	senderIdentityKey, err := ec.PublicKeyFromString(publicKey.ToDERHex())
+	senderIdentityKey, err := ec.PublicKeyFromString(identityKey)
 	if err != nil {
 		panic(fmt.Errorf("failed to get sender identity key: %w", err))
 	}

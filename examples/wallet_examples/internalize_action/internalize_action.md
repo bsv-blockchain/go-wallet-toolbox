@@ -12,7 +12,7 @@ The process involves several steps:
 4. Submitting the internalization request to add the external transaction to wallet history.
 5. Processing the response to confirm successful transaction internalization.
 
-Atomic BEEF transactions start with the prefix `0x01010101` followed by the subject transaction ID, ensuring that all included transaction data relates to validating a single transaction and its dependencies.
+Atomic BEEF transactions start with the prefix `01010101` followed by the subject transaction ID, ensuring that all included transaction data relates to validating a single transaction and its dependencies.
 
 ## Code Walkthrough
 
@@ -20,9 +20,10 @@ Atomic BEEF transactions start with the prefix `0x01010101` followed by the subj
 
 The example uses the following required configurable constants:
 
-- **`atomicBeefHex`**: Atomic BEEF hex data for the transaction (required - must not be empty). Contains the `0x01010101` prefix, subject TXID, and transaction dependencies
+- **`atomicBeefHex`**: Atomic BEEF hex data for the transaction (required - must not be empty). Contains the `01010101` prefix, subject TXID, and transaction dependencies
 - **`prefix`**: Base64-encoded derivation prefix for payment remittance (required)
 - **`suffix`**: Base64-encoded derivation suffix for payment remittance (required)
+- **`identityKey`**: Hex-encoded sender identity key for payment remittance (required)
 - **`defaultOriginator`**: Domain identifier for the requesting application (default: `"example.com"`)
 
 ### Request Parameters
@@ -35,13 +36,13 @@ The `InternalizeActionArgs` structure supports the following options:
 
 The Atomic BEEF format ensures that:
 - All included transactions relate to a single subject transaction
-- The structure starts with `0x01010101` prefix followed by the subject TXID
+- The structure starts with `01010101` prefix followed by the subject TXID
 - Only necessary dependency transactions are included for validation
 
 The payment remittance includes:
 - **`DerivationPrefix`**: Decoded base64 derivation prefix
 - **`DerivationSuffix`**: Decoded base64 derivation suffix  
-- **`SenderIdentityKey`**: Generated public key for sender identification
+- **`SenderIdentityKey`**: Public key parsed from the provided hex-encoded identity key
 
 ### Response Analysis
 
@@ -81,19 +82,18 @@ Args: {Tx:[1 1 1 1 200 192 108 95 172 99 81 11 43 2 204 171 151 74 110 240 176 1
 🎉 COMPLETED: Internalize Action
 ```
 
-**Note:** The example requires all three parameters (`atomicBeefHex`, `prefix`, `suffix`) to be provided before running, or it will panic with a validation error. The `atomicBeefHex` must be a valid Atomic BEEF structure starting with `0x01010101`.
+**Note:** The example requires all four parameters (`atomicBeefHex`, `prefix`, `suffix`, `identityKey`) to be provided before running, or it will panic with a validation error. The `atomicBeefHex` must be a valid Atomic BEEF structure starting with `0x01010101`.
 
 ## Integration Steps
 
 To integrate Atomic BEEF transaction internalization into your application:
 
-1. **Prepare required parameters**: Ensure you have the Atomic BEEF hex data (with `0x01010101` prefix and subject TXID), base64-encoded derivation prefix, and suffix.
+1. **Prepare required parameters**: Ensure you have the Atomic BEEF hex data (with `0x01010101` prefix and subject TXID), base64-encoded derivation prefix, suffix, and hex-encoded identity key.
 2. **Set up wallet connection** with appropriate storage and authentication settings.
-3. **Decode parameters**: Convert base64 prefix/suffix to bytes and hex Atomic BEEF data to bytes.
-4. **Generate sender identity key** using the SDK's key generation functions.
-5. **Create internalization arguments** with decoded Atomic BEEF transaction data and payment remittance configuration.
-6. **Submit internalization request** using the wallet's `InternalizeAction` method.
-7. **Process response data** to confirm successful internalization and handle any errors.
+3. **Decode parameters**: Convert base64 prefix/suffix to bytes, hex Atomic BEEF data to bytes, and parse the hex identity key to public key format.
+4. **Create internalization arguments** with decoded Atomic BEEF transaction data and payment remittance configuration.
+5. **Submit internalization request** using the wallet's `InternalizeAction` method.
+6. **Process response data** to confirm successful internalization and handle any errors.
 
 ## Additional Resources
 
