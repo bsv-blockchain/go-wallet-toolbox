@@ -64,11 +64,13 @@ go run ./examples/wallet_examples/decrypt/decrypt.go
 ```text
 🚀 STARTING: Decrypt
 ============================================================
-CreateWallet: 03d2276c31630d6614f65c6634f40c0735a822d3501cc403ff459200971f747970
+CreateWallet: 0200d66e0a2139239c13fdbb99b60185884214670ac5531aadaff8c9e9272e3b57
 
 === STEP ===
 Alice is performing: Decrypting
 --------------------------------------------------
+DecryptArgs: {EncryptionArgs:{ProtocolID:{SecurityLevel:0 Protocol:encryption} KeyID:key-id Counterparty:{Type:0 Counterparty:<nil>} Privileged:false PrivilegedReason: SeekPermission:false} Ciphertext:[220 119 136 203 17 165 76 206 75 228 144 225 235 47 193 218 155 164 179 233 45 112 160 238 33 21 110 175 176 161 88 157 37 181 228 183 194 110 216 84 109 233 220 130 43 252 193 241 151 47 58 62 246 139 62 117 44 213 191 45 130]}
+============================================================
 Decrypted: Hello, world!
 ============================================================
 🎉 COMPLETED: Decrypt
