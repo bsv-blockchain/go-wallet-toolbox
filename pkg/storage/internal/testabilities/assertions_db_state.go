@@ -3,11 +3,11 @@ package testabilities
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"maps"
 	"testing"
 	"time"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -308,7 +308,7 @@ func (d *dbStateAssertion) Outputs(user testusers.User, basketName string) Outpu
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
 
 	actions, err := d.storage.ListActions(d.Context(), wdk.AuthID{UserID: &userID}, wdk.ListActionsArgs{
-		Limit: primitives.PositiveIntegerDefault10Max10000(1000),
+		Limit:          primitives.PositiveIntegerDefault10Max10000(1000),
 		IncludeOutputs: to.Ptr[primitives.BooleanDefaultFalse](true),
 		LabelQueryMode: to.Ptr(defs.QueryModeAny),
 	})
