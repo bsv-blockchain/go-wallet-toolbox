@@ -32,7 +32,7 @@ type rawTxWithMerklePath struct {
 }
 
 func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
-	if stdslices.Contains(options.KnownTxids, txID) {
+	if stdslices.Contains(options.KnownTxIDs, txID) {
 		beef := transaction.NewBeefV2()
 		txIDHash, err := chainhash.NewHashFromHex(txID)
 		if err != nil {
@@ -56,7 +56,7 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 			}
 
 			merklePathResult, err := g.services.MerklePath(ctx, txID)
-			if err != nil && !errors.Is(err, wdk.NotFoundError)  {
+			if err != nil && !errors.Is(err, wdk.NotFoundError) {
 				return nil, nil, fmt.Errorf("failed to get merkle path for txID %s: %w", txID, err)
 			}
 
@@ -82,9 +82,15 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 		}
 
 		return beef, nil
-	} else if !options.IgnoreServices {
-		// TODO: Add support for getting the BEEF all from the services
-		return nil, fmt.Errorf("ignoring storage is not supported for GetBEEF")
+	}
+
+	if !options.IgnoreServices {
+		beef, err := g.services.GetBEEF(ctx, txID, options.KnownTxIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get beef for transaction %s using services: %w", txID, err)
+		}
+
+		return beef, nil
 	}
 
 	return nil, fmt.Errorf("no storage or services provided to get BEEF for transaction %s", txID)

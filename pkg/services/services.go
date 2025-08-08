@@ -329,3 +329,77 @@ func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint
 
 	return result, nil
 }
+
+func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error) {
+	beef := transaction.NewBeefV2()
+
+	knownTxIDsLookup := make(map[string]struct{}, len(knownTxIDs))
+	for _, knownTxID := range knownTxIDs {
+		knownTxIDsLookup[knownTxID] = struct{}{}
+	}
+
+	var txGetter func(txID string, depth uint) error
+	txGetter = func(txID string, depth uint) error {
+		if depth > s.config.GetBeefMaxDepth {
+			return fmt.Errorf("max depth of recursion reached: %d", s.config.GetBeefMaxDepth)
+		}
+		rawTxResult, err := s.RawTx(txID)
+		if err != nil {
+			return fmt.Errorf("failed to get raw transaction for txID %s: %w", txID, err)
+		}
+
+		if rawTxResult.RawTx == nil {
+			return fmt.Errorf("raw transaction for txID %s is nil", txID)
+		}
+
+		tx, err := transaction.NewTransactionFromBytes(rawTxResult.RawTx)
+		if err != nil {
+			return fmt.Errorf("failed to create transaction from raw bytes for txID %s: %w", txID, err)
+		}
+
+		merklePathResult, err := s.MerklePath(ctx, txID)
+		if err != nil && !errors.Is(err, wdk.NotFoundError) {
+			return fmt.Errorf("failed to get merkle path for txID %s: %w", txID, err)
+		}
+
+		isMined := merklePathResult != nil && merklePathResult.MerklePath != nil
+
+		if isMined {
+			tx.MerklePath = merklePathResult.MerklePath
+		}
+
+		_, err = beef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction for txID %s: %w", txID, err)
+		}
+
+		if isMined {
+			return nil
+		}
+
+		for _, input := range tx.Inputs {
+			beefTx := beef.Transactions[*input.SourceTXID]
+			if beefTx == nil {
+				sourceTxID := input.SourceTXID.String()
+				if _, exists := knownTxIDsLookup[sourceTxID]; exists {
+					beef.MergeTxidOnly(input.SourceTXID)
+					continue
+				}
+
+				err = txGetter(sourceTxID, depth+1)
+				if err != nil {
+					return fmt.Errorf("failed to get beef for input source txID %s: %w", sourceTxID, err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	err := txGetter(txID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get BEEF for txID %s: %w", txID, err)
+	}
+
+	return beef, nil
+}

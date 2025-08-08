@@ -524,6 +524,8 @@ func (p *Provider) FindUserTransactionByTxID(ctx context.Context, userID int, tx
 	return txEntity, nil
 }
 
+// GetBeefForTransaction retrieves beef data for a transaction by txID, considering the given context and options.
+// Returns the transaction beef structure or an error if retrieval fails.
 func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
 	beef, err := p.actions.GetBeef(ctx, txID, options)
 	if err != nil {
