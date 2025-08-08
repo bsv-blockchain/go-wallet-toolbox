@@ -13,11 +13,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/is"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Outputs struct {
@@ -279,76 +279,144 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	return inputMap, outputMap, nil
 }
 
-func (o *Outputs) SaveOutput(ctx context.Context, output *entity.Output) error {
-	tags := slices.Map(output.Tags, func(tag string) any {
-		return &models.Tag{
-			Name:   tag,
-			UserID: output.UserID,
+func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) error {
+	type outputWithTags struct {
+		Output models.Output
+		Tags   []any
+	}
+
+	modelsToStore := slices.Map(outputs, func(output *entity.Output) *outputWithTags {
+		res := &outputWithTags{
+			Output: models.Output{
+				Model: gorm.Model{
+					ID: output.ID,
+				},
+				UserID:             output.UserID,
+				TransactionID:      output.TransactionID,
+				SpentBy:            output.SpentBy,
+				Vout:               output.Vout,
+				Satoshis:           output.Satoshis,
+				LockingScript:      output.LockingScript,
+				CustomInstructions: output.CustomInstructions,
+				DerivationPrefix:   output.DerivationPrefix,
+				DerivationSuffix:   output.DerivationSuffix,
+				BasketName:         output.BasketName,
+				Spendable:          output.Spendable,
+				Change:             output.Change,
+				Description:        output.Description,
+				ProvidedBy:         output.ProvidedBy,
+				Purpose:            output.Purpose,
+				Type:               output.Type,
+				SenderIdentityKey:  output.SenderIdentityKey,
+			},
+			Tags: slices.Map(output.Tags, func(tag string) any {
+				return &models.Tag{
+					Name:   tag,
+					UserID: output.UserID,
+				}
+			}),
 		}
+
+		if output.UserUTXO != nil {
+			res.Output.UserUTXO = &models.UserUTXO{
+				UserID:             output.UserUTXO.UserID,
+				Satoshis:           output.UserUTXO.Satoshis,
+				EstimatedInputSize: output.UserUTXO.EstimatedInputSize,
+				UTXOStatus:         output.UserUTXO.Status,
+			}
+		}
+
+		return res
 	})
 
-	out := models.Output{
-		Model: gorm.Model{
-			ID: output.ID,
-		},
-		UserID:             output.UserID,
-		TransactionID:      output.TransactionID,
-		SpentBy:            output.SpentBy,
-		Vout:               output.Vout,
-		Satoshis:           output.Satoshis,
-		LockingScript:      output.LockingScript,
-		CustomInstructions: output.CustomInstructions,
-		DerivationPrefix:   output.DerivationPrefix,
-		DerivationSuffix:   output.DerivationSuffix,
-		BasketName:         output.BasketName,
-		Spendable:          output.Spendable,
-		Change:             output.Change,
-		Description:        output.Description,
-		ProvidedBy:         output.ProvidedBy,
-		Purpose:            output.Purpose,
-		Type:               output.Type,
-		SenderIdentityKey:  output.SenderIdentityKey,
-	}
-
-	if out.Spendable && out.Change {
-		if is.EmptyString(output.BasketName) {
-			return fmt.Errorf("basket not provided for change output")
-		}
-		if out.Satoshis == 0 {
-			return fmt.Errorf("change output with zero satoshis")
-		}
-		sats, err := to.UInt64(out.Satoshis)
-		if err != nil {
-			return fmt.Errorf("failed to convert satoshis to uint64: %w", err)
-		}
-
-		out.UserUTXO = &models.UserUTXO{
-			UserID:             output.UserID,
-			Satoshis:           sats,
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-		}
-	}
-
 	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Save(&out).Error
-		if err != nil {
-			return fmt.Errorf("failed to save output: %w", err)
+		for _, model := range modelsToStore {
+			err := tx.Save(&model.Output).Error
+			if err != nil {
+				return fmt.Errorf("failed to save output: %w", err)
+			}
+
+			association := tx.
+				Model(&model.Output).
+				Association("Tags")
+
+			err = association.Replace(model.Tags...)
+			if err != nil {
+				return fmt.Errorf("failed to save current tags for output: %w", err)
+			}
 		}
-
-		association := tx.
-			Model(&out).
-			Association("Tags")
-
-		err = association.Replace(tags...)
-		if err != nil {
-			return fmt.Errorf("failed to save current tags for output: %w", err)
-		}
-
 		return nil
 	})
 
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
+	}
+
+	return nil
+}
+
+func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID string, utxoStatus wdk.UTXOStatus) error {
+	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var changeOutputs []*models.Output
+		err := tx.Model(&models.Output{}).
+			Select(
+				o.query.Output.ID.ColumnName().String(),
+				o.query.Output.BasketName.ColumnName().String(),
+				o.query.Output.Satoshis.ColumnName().String(),
+				o.query.Output.Type.ColumnName().String(),
+			).
+			Where("transaction_id IN (?)",
+				o.db.Model(&models.Transaction{}).
+					Select("id").
+					Scopes(scopes.UserID(userID)).
+					Where("tx_id = ?", txID),
+			).
+			Where(o.query.Output.BasketName.IsNotNull()).
+			Where(o.query.Output.Change.Is(true)).
+			Where(o.query.Output.Satoshis.Gt(0)).
+			Where(o.query.Output.SpentBy.IsNull()).
+			Find(&changeOutputs).Error
+		if err != nil {
+			return fmt.Errorf("failed to find transaction outputs: %w", err)
+		}
+
+		if len(changeOutputs) == 0 {
+			return nil
+		}
+
+		for _, output := range changeOutputs {
+			err = tx.Model(&models.Output{}).
+				Where("id = ?", output.ID).
+				Updates(map[string]any{
+					"spendable": true,
+				}).Error
+			if err != nil {
+				return fmt.Errorf("failed to update output %d to spendable: %w", output.ID, err)
+			}
+		}
+
+		newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
+			return &models.UserUTXO{
+				UserID:             userID,
+				OutputID:           output.ID,
+				BasketName:         *output.BasketName,
+				Satoshis:           must.ConvertToUInt64(output.Satoshis),
+				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+				UTXOStatus:         utxoStatus,
+			}
+		})
+
+		err = tx.
+			Clauses(clause.OnConflict{DoNothing: true}).
+			Create(newUTXOs).Error
+		if err != nil {
+			return fmt.Errorf("failed to create new UTXOs: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to make outputs spendable: %w", err)
 	}
 
 	return nil

@@ -9,13 +9,8 @@ import (
 )
 
 // InternalizeFromFaucet is a helper function to internalize a transaction from the faucet
-func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet sdk.Interface) error {
+func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet sdk.Interface, identityKey *ec.PublicKey) error {
 	paymentRemittance := utils.DerivationParts()
-
-	senderIdentityKey, err := ec.PublicKeyFromString(paymentRemittance.SenderIdentityKey)
-	if err != nil {
-		return err
-	}
 
 	internalizeArgs := sdk.InternalizeActionArgs{
 		Tx: atomicBeefBytes,
@@ -26,7 +21,7 @@ func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet s
 				PaymentRemittance: &sdk.Payment{
 					DerivationPrefix:  paymentRemittance.DerivationPrefix,
 					DerivationSuffix:  paymentRemittance.DerivationSuffix,
-					SenderIdentityKey: senderIdentityKey,
+					SenderIdentityKey: identityKey,
 				},
 			},
 		},
@@ -41,5 +36,4 @@ func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet s
 
 	show.WalletSuccess("InternalizeAction", internalizeArgs, *iar)
 	return nil
-
 }
