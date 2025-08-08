@@ -119,6 +119,22 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse source transaction on input %d returned from storage: %w", it.Vin, err)
 		}
+	} else {
+		lockingScript, err := script.NewFromHex(it.SourceLockingScript)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse input %d locking script: %w", it.Vin, err)
+		}
+
+		satoshis, err := to.UInt64(it.SourceSatoshis)
+		if err != nil {
+			return nil, fmt.Errorf("cannot convert input %d source satoshis to uint64: %w", it.Vin, err)
+		}
+
+		input.SetSourceTxOutput(&transaction.TransactionOutput{
+			Satoshis:      satoshis,
+			LockingScript: lockingScript,
+			Change:        false,
+		})
 	}
 
 	senderIdentityKey := to.ValueOrGet(it.SenderIdentityKey, a.keyDeriver.IdentityKeyHex)

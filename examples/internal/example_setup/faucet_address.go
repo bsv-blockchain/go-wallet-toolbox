@@ -1,6 +1,7 @@
 package example_setup
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -13,8 +14,8 @@ func FaucetAddress(wallet *Setup) {
 	parts := utils.DerivationParts()
 
 	keyID := brc29.KeyID{
-		DerivationPrefix: string(parts.DerivationPrefix),
-		DerivationSuffix: string(parts.DerivationSuffix),
+		DerivationPrefix: base64.StdEncoding.EncodeToString(parts.DerivationPrefix),
+		DerivationSuffix: base64.StdEncoding.EncodeToString(parts.DerivationSuffix),
 	}
 
 	address, err := brc29.Address(
