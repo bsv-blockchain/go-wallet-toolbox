@@ -45,6 +45,9 @@ func main() {
 	srv := services.New(slog.Default(), defs.DefaultServicesConfig(alice.Environment.BSVNetwork))
 	show.Step("Wallet-Services", fmt.Sprintf("fetching BEEF from services for txID: %q", txID))
 	beef, err := srv.GetBEEF(ctx, txID, nil)
+	if err != nil {
+		panic(fmt.Errorf("failed to get BEEF for txID %s: %w", txID, err))
+	}
 
 	atomicBeef, err := beef.AtomicBytes(txIDHash)
 	if err != nil {
