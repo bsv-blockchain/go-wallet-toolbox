@@ -13,7 +13,7 @@ var (
 	// keyID is the key ID for the encryption key.
 	keyID = "key-id"
 
-	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the output listing request.
+	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the encryption request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
 	DefaultOriginator = "example.com"
 
