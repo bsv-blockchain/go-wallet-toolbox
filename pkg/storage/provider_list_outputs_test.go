@@ -1,6 +1,8 @@
 package storage_test
 
 import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/go-softwarelab/common/pkg/seq"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -36,8 +38,8 @@ func TestListOutputs_MinimalFilter(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Len(t, result.Outputs, 33)
-	require.Equal(t, primitives.PositiveInteger(33), result.TotalOutputs)
+	require.Len(t, result.Outputs, 31)
+	require.Equal(t, primitives.PositiveInteger(31), result.TotalOutputs)
 
 	// and:
 	require.Nil(t, result.BEEF)
@@ -63,26 +65,35 @@ func TestListOutputs_IncludeTags(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	_, createdTransaction := given.Action(activeStorage).Processed()
+	// and:
+	internalizeArgs := fixtures.DefaultInternalizeActionArgs(t, wdk.BasketInsertionProtocol)
 
+	internalizeResult, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		internalizeArgs,
+	)
+	require.NoError(t, err)
+
+	// when:
 	listArgs := wdk.ListOutputsArgs{
 		Limit:       100,
 		IncludeTags: true,
 	}
-
-	// when:
 	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), listArgs)
 
 	// Then:
 	require.NoError(t, err)
 
 	// and:
-	outpoint := primitives.NewOutpointString(createdTransaction.TxID().String(), 0)
+	outpoint := primitives.NewOutpointString(internalizeResult.TxID, 0)
 	output, _ := testutils.FindOutput(t, result.Outputs, func(p *wdk.WalletOutput) bool {
 		return p.Outpoint == outpoint
 	})
 
-	assert.Contains(t, output.Tags, primitives.StringUnder300(fixtures.CreateActionTestTag))
+	for _, tag := range internalizeArgs.Outputs[0].InsertionRemittance.Tags {
+		assert.Contains(t, output.Tags, tag)
+	}
 }
 
 func TestListOutputs_IncludeCustomInstructions(t *testing.T) {
@@ -93,26 +104,33 @@ func TestListOutputs_IncludeCustomInstructions(t *testing.T) {
 
 	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 
-	_, createdTransaction := given.Action(activeStorage).Processed()
+	// and:
+	internalizeArgs := fixtures.DefaultInternalizeActionArgs(t, wdk.BasketInsertionProtocol)
 
+	internalizeResult, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		internalizeArgs,
+	)
+	require.NoError(t, err)
+
+	// when:
 	listArgs := wdk.ListOutputsArgs{
 		Limit:                     100,
 		IncludeCustomInstructions: true,
 	}
-
-	// when:
 	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), listArgs)
 
 	// Then:
 	require.NoError(t, err)
 
 	// and:
-	outpoint := primitives.NewOutpointString(createdTransaction.TxID().String(), 0)
+	outpoint := primitives.NewOutpointString(internalizeResult.TxID, 0)
 	output, _ := testutils.FindOutput(t, result.Outputs, func(p *wdk.WalletOutput) bool {
 		return p.Outpoint == outpoint
 	})
 
-	assert.NotEmpty(t, output.CustomInstructions)
+	assert.Equal(t, to.Value(internalizeArgs.Outputs[0].InsertionRemittance.CustomInstructions), *output.CustomInstructions)
 }
 
 func TestListOutputs_IncludeLockingScripts(t *testing.T) {
@@ -165,7 +183,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 33)
+	require.Len(t, actualResult.Outputs, 31)
 
 	// and:
 	require.NotNil(t, actualResult.BEEF)
@@ -204,11 +222,11 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 33)
+	require.Len(t, actualResult.Outputs, 0)
 
 	// and:
 	beef := testutils.BEEFFromHex(t, *actualResult.BEEF)
-	require.Len(t, beef.Transactions, 2) // parent transaction with BUMP and the internalized one (with no BUMP)
+	require.Len(t, beef.Transactions, 0)
 }
 
 func TestListOutputs_FilterTags(t *testing.T) {
@@ -340,4 +358,58 @@ func TestListOutputs_NoOutputsToReturn(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
 	require.Equal(t, expectedResult, actualResult)
+}
+
+func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+
+	createActionRes, _ := given.Action(activeStorage).Processed()
+
+	changeOutputs := seq.Filter(seq.FromSlice(createActionRes.Outputs), func(output *wdk.StorageCreateTransactionSdkOutput) bool {
+		return output.Purpose == wdk.ChangePurpose && output.ProvidedBy == wdk.ProvidedByStorage
+	})
+
+	balance := satoshi.Value(0)
+	for output := range changeOutputs {
+		balance = satoshi.MustAdd(balance, output.Satoshis)
+	}
+
+	changeOutputsCount := seq.Count(changeOutputs)
+
+	args := wdk.ListOutputsArgs{
+		Basket: "",
+		Limit:  1000,
+		Offset: 0,
+	}
+
+	// when:
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), args)
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, result.Outputs, changeOutputsCount)
+
+	// when:
+	createActionArgs := fixtures.DefaultValidCreateActionArgs()
+	createActionArgs.Outputs[0].Satoshis = primitives.SatoshiValue(satoshi.MustSubtract(balance, 5).Int64())
+	_, err = activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		createActionArgs,
+	)
+
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	result, err = activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), args)
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, result.Outputs, 0) //NOTE: After create action that uses all of owned UTXOs, they should be reserved and not spendable
 }
