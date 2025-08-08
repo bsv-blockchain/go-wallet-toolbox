@@ -20,8 +20,8 @@ This approach ensures secure message decryption using wallet-based cryptographic
 The example uses the following configurable constants:
 
 - **`keyID`**: The key identifier for the decryption key (default: `"key-id"`)
-- **`DefaultOriginator`**: The originator domain or FQDN used to identify the source of the decryption request (default: `"example.com"`)
-- **`DefaultProtocolID`**: The protocol identifier for the decryption operation (default: `"encryption"`)
+- **`originator`**: The originator domain or FQDN used to identify the source of the decryption request (default: `"example.com"`)
+- **`protocolID`**: The protocol identifier for the decryption operation (default: `"encryption"`)
 - **`ciphertext`**: The encrypted message data to be decrypted (predefined byte array for Alice's wallet)
 
 ### Decryption Parameters
@@ -38,11 +38,12 @@ The `DecryptArgs` structure supports the following options:
 
 The decryption follows this pattern:
 
-1. **Wallet Setup**: Create and initialize Alice's wallet instance
-2. **Arguments Creation**: Configure decryption parameters with protocol and key information
-3. **Ciphertext Input**: Use predefined encrypted message data for decryption
-4. **Decryption Execution**: Call wallet's `Decrypt` method with configured arguments
-5. **Result Processing**: Extract and display the decrypted plaintext message
+1. **Input Validation**: Verify that ciphertext is not empty
+2. **Wallet Setup**: Create and initialize Alice's wallet instance
+3. **Arguments Creation**: Configure decryption parameters with protocol and key information
+4. **Ciphertext Input**: Use predefined encrypted message data for decryption
+5. **Decryption Execution**: Call wallet's `Decrypt` method with configured arguments
+6. **Result Processing**: Extract and display the decrypted plaintext message
 
 ### Response Analysis
 
