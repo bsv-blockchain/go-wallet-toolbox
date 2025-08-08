@@ -65,14 +65,14 @@ go run ./examples/wallet_examples/encrypt/encrypt.go
 ```text
 🚀 STARTING: Encrypt
 ============================================================
-Config file not found, generating new configuration: examples/examples-config.yaml
-Generated new configuration file: examples/examples-config.yaml
-CreateWallet: 02c840e94d9547d2371fa503c60f8f6d8356b35f4e9ab33d79950fdb4cc9e2b014
+CreateWallet: 0200d66e0a2139239c13fdbb99b60185884214670ac5531aadaff8c9e9272e3b57
 
 === STEP ===
 Alice is performing: Encrypting
 --------------------------------------------------
-Encrypted: &{Ciphertext:[112 59 65 61 125 51 231 179 217 78 200 193 84 191 10 66 32 106 183 73 35 227 32 124 118 10 150 215 86 95 173 216 155 52 202 173 106 199 49 124 176 150 22 143 49 195 32 222 146 224 164 107 84 131 79 35 119 68 13 224 85]}
+EncryptArgs: {EncryptionArgs:{ProtocolID:{SecurityLevel:0 Protocol:encryption} KeyID:key-id Counterparty:{Type:0 Counterparty:<nil>} Privileged:false PrivilegedReason: SeekPermission:false} Plaintext:[72 101 108 108 111 44 32 119 111 114 108 100 33]}
+============================================================
+Encrypted: &{Ciphertext:[220 119 136 203 17 165 76 206 75 228 144 225 235 47 193 218 155 164 179 233 45 112 160 238 33 21 110 175 176 161 88 157 37 181 228 183 194 110 216 84 109 233 220 130 43 252 193 241 151 47 58 62 246 139 62 117 44 213 191 45 130]}
 ============================================================
 🎉 COMPLETED: Encrypt
 ```

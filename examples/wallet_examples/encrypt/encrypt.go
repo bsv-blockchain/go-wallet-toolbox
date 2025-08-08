@@ -30,12 +30,10 @@ var (
 func main() {
 	show.ProcessStart("Encrypt")
 	ctx := context.Background()
-
 	alice := example_setup.CreateAlice()
 
 	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
-
 	show.Step("Alice", "Encrypting")
 
 	args := sdk.EncryptArgs{
@@ -46,9 +44,10 @@ func main() {
 		},
 		Plaintext: []byte(plaintext),
 	}
+	show.Info("EncryptArgs", args)
+	show.Separator()
 
 	encrypted, err := aliceWallet.Encrypt(ctx, args, DefaultOriginator)
-
 	if err != nil {
 		panic(fmt.Errorf("failed to encrypt: %w", err))
 	}
