@@ -22,7 +22,7 @@ The example uses the following configurable constants:
 - **`keyID`**: The key identifier for the decryption key (default: `"key-id"`)
 - **`originator`**: The originator domain or FQDN used to identify the source of the decryption request (default: `"example.com"`)
 - **`protocolID`**: The protocol identifier for the decryption operation (default: `"encryption"`)
-- **`ciphertext`**: The encrypted message data to be decrypted (predefined byte array for Alice's wallet)
+- **`ciphertext`**: The encrypted message data to be decrypted.
 
 ### Decryption Parameters
 
