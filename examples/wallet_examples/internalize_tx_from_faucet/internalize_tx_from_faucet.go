@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
@@ -24,6 +26,11 @@ func main() {
 		panic(fmt.Errorf("txID must be provided"))
 	}
 
+	txIDHash, err := chainhash.NewHashFromHex(txID)
+	if err != nil {
+		panic(fmt.Errorf("invalid txID: %w", err))
+	}
+
 	show.Step("Alice", "Creating wallet and setting up environment")
 	alice := example_setup.CreateAlice()
 
@@ -35,15 +42,19 @@ func main() {
 	show.Transaction(txID)
 
 	// Get the transactionHex from the txID
-	transactionHex, err := utils.WocAPIGetBeefForTX(defs.NetworkTestnet, txID)
+	srv := services.New(slog.Default(), defs.DefaultServicesConfig(alice.Environment.BSVNetwork))
+	show.Step("Wallet-Services", fmt.Sprintf("fetching BEEF from services for txID: %q", txID))
+	beef, err := srv.GetBEEF(ctx, txID, nil)
+
+	atomicBeef, err := beef.AtomicBytes(txIDHash)
 	if err != nil {
-		panic(fmt.Errorf("failed to get beef for tx: %w", err))
+		panic(fmt.Errorf("failed to get atomic bytes for txID %s: %w", txID, err))
 	}
 
 	show.Step("Alice", "Internalizing transaction from faucet")
 
 	// This method will internalize the transaction from the faucet into the wallet database
-	err = example_setup.InternalizeFromFaucet(ctx, transactionHex, aliceWallet)
+	err = example_setup.InternalizeFromFaucet(ctx, atomicBeef, aliceWallet)
 	if err != nil {
 		panic(fmt.Errorf("failed to internalize tx: %w", err))
 	}

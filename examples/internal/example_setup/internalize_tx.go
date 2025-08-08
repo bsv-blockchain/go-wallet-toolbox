@@ -2,8 +2,6 @@ package example_setup
 
 import (
 	"context"
-	"encoding/hex"
-
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -11,13 +9,7 @@ import (
 )
 
 // InternalizeFromFaucet is a helper function to internalize a transaction from the faucet
-func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Interface) error {
-	beef, err := hex.DecodeString(beefHex)
-	if err != nil {
-		show.Error(err.Error())
-		return err
-	}
-
+func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet sdk.Interface) error {
 	paymentRemittance := utils.DerivationParts()
 
 	senderIdentityKey, err := ec.PublicKeyFromString(paymentRemittance.SenderIdentityKey)
@@ -26,7 +18,7 @@ func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Inter
 	}
 
 	internalizeArgs := sdk.InternalizeActionArgs{
-		Tx: beef,
+		Tx: atomicBeefBytes,
 		Outputs: []sdk.InternalizeOutput{
 			{
 				OutputIndex: 0,
@@ -49,5 +41,5 @@ func InternalizeFromFaucet(ctx context.Context, beefHex string, wallet sdk.Inter
 
 	show.WalletSuccess("InternalizeAction", internalizeArgs, *iar)
 	return nil
-	
+
 }
