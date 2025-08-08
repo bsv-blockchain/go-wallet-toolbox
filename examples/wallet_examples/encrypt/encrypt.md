@@ -20,8 +20,8 @@ This approach ensures secure message encryption using wallet-based cryptographic
 The example uses the following configurable constants:
 
 - **`keyID`**: The key identifier for the encryption key (default: `"key-id"`)
-- **`DefaultOriginator`**: The originator domain or FQDN used to identify the source of the encryption request (default: `"example.com"`)
-- **`DefaultProtocolID`**: The protocol identifier for the encryption operation (default: `"encryption"`)
+- **`originator`**: The originator domain or FQDN used to identify the source of the encryption request (default: `"example.com"`)
+- **`protocolID`**: The protocol identifier for the encryption operation (default: `"encryption"`)
 - **`plaintext`**: The message text to be encrypted (default: `"Hello, world!"`)
 
 ### Encryption Parameters
@@ -38,11 +38,12 @@ The `EncryptArgs` structure supports the following options:
 
 The encryption follows this pattern:
 
-1. **Wallet Setup**: Create and initialize Alice's wallet instance
-2. **Arguments Creation**: Configure encryption parameters with protocol and key information
-3. **Message Conversion**: Convert plaintext string to byte array for encryption
-4. **Encryption Execution**: Call wallet's `Encrypt` method with configured arguments
-5. **Result Processing**: Handle and display the encrypted message output
+1. **Input Validation**: Verify that plaintext is not empty
+2. **Wallet Setup**: Create and initialize Alice's wallet instance
+3. **Arguments Creation**: Configure encryption parameters with protocol and key information
+4. **Message Conversion**: Convert plaintext string to byte array for encryption
+5. **Encryption Execution**: Call wallet's `Encrypt` method with configured arguments
+6. **Result Processing**: Handle and display the encrypted message output
 
 ### Response Analysis
 
