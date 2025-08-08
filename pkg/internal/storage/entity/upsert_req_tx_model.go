@@ -10,12 +10,4 @@ type UpsertKnownTx struct {
 	TxID          string
 	Status        wdk.ProvenTxReqStatus
 	SkipForStatus *wdk.ProvenTxReqStatus
-	MerklePath    *UpsertKnownTxWithMerklePath
-}
-
-type UpsertKnownTxWithMerklePath struct {
-	BlockHeight uint32
-	MerklePath  []byte
-	MerkleRoot  string
-	BlockHash   string
 }

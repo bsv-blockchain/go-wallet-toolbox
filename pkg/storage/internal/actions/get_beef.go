@@ -79,7 +79,7 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 
 		if !options.IgnoreNewProven {
 			// TODO: Store the transactions that have been fetched from the services
-			_ = serviceFetchedTransactions // NOTE: Only the
+			_ = serviceFetchedTransactions // NOTE: Only mined transactions should be stored in the known transactions repo
 		}
 
 		return beef, nil
