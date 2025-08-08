@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -20,7 +22,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
-	"log/slog"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.

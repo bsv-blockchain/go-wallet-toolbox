@@ -1,9 +1,10 @@
 package testservices
 
 import (
+	"testing"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type MinedTransactionFixture interface {

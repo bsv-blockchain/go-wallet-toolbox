@@ -330,6 +330,9 @@ func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint
 	return result, nil
 }
 
+// GetBEEF retrieves the BEEF structure for a given transaction ID.
+// It recursively fetches transaction ancestry up to a configured depth limit and merges transaction data, merkle paths, and input ancestry into the BEEF structure.
+// Use optional knownTxIDs to skip fetching of already-known transactions in the ancestry tree.
 func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error) {
 	beef := transaction.NewBeefV2()
 
