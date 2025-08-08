@@ -56,7 +56,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	mergeToBeef *transaction.Beef,
 	txID string,
 	statusesToFilterOut []wdk.ProvenTxReqStatus,
-	transactionGetterService func(ctx context.Context, txID string) (rawTx []byte, merklePath *transaction.MerklePath, err error),
+	transactionGetterService entity.TxGetterFcn,
 ) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
@@ -76,7 +76,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		if transactionGetterService != nil {
 			rawTx, merklePath, err := transactionGetterService(ctx, txID)
 			if err != nil {
-				return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q): %w", txID, err)
+				return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
 			}
 
 			inputBeef, _ := transaction.NewBeefV2().Bytes()
@@ -88,7 +88,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 				InputBeef:  inputBeef,
 			}
 		} else {
-			return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, wdk.NotFoundError)
+			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.NotFoundError)
 		}
 	} else if err != nil {
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
@@ -135,6 +135,16 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	err = mergeToBeef.MergeBeefBytes(model.InputBeef)
 	if err != nil {
 		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+	}
+
+	subjectTx := mergeToBeef.FindTransaction(txID)
+	if subjectTx == nil {
+		return fmt.Errorf("transaction %q has not been merged into BEEF object, even though its raw tx was merged", txID)
+	}
+
+	if subjectTx.MerklePath != nil {
+		// The Transaction already has a merkle path, no need to recursively build it
+		return nil
 	}
 
 	for _, input := range tx.Inputs {
