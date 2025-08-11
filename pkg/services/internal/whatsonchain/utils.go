@@ -12,7 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
@@ -92,41 +91,6 @@ func containsI(subject string, contains ...string) bool {
 		}
 	}
 	return false
-}
-
-func mapWocStatusResponse(response dto.WocStatusResponse) []wdk.TxStatusDetail {
-	results := make([]wdk.TxStatusDetail, 0, len(response))
-
-	for _, tx := range response {
-		results = append(results, mapSingleTxStatus(tx))
-	}
-
-	return results
-}
-
-func mapSingleTxStatus(tx dto.WocStatusItem) wdk.TxStatusDetail {
-	var (
-		depth  *int
-		status wdk.Status
-	)
-
-	switch {
-	case tx.Confirmations > 0:
-		depth = to.Ptr(tx.Confirmations)
-		status = wdk.TxStatusMined
-	case tx.Confirmations == 0 && tx.BlockHash != "":
-		depth = to.Ptr(0)
-		status = wdk.TxStatusUnconfirmed
-	default:
-		depth = nil
-		status = wdk.TxStatusNotFound
-	}
-
-	return wdk.TxStatusDetail{
-		TxID:   tx.TxID,
-		Depth:  depth,
-		Status: status.String(),
-	}
 }
 
 // buildURL joins baseURL with any number of path segments.

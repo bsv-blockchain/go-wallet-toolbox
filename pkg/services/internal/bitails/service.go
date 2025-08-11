@@ -9,13 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -24,6 +19,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Bitails struct {
@@ -332,4 +330,13 @@ func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.G
 		return nil, servicequeue.ErrEmptyResult
 	}
 	return res, nil
+}
+
+// NLockTimeIsFinal checks if the provided transaction or lock time is final.
+func (b *Bitails) NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error) {
+	isFinal, err := wdk.NLockTimeIsFinal(ctx, b, txOrLockTime)
+	if err != nil {
+		return false, fmt.Errorf("failed to check NLockTime finality: %w", err)
+	}
+	return isFinal, nil
 }

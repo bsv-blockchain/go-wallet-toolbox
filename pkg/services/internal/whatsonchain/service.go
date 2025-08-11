@@ -9,13 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -23,6 +18,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const ServiceName = "WhatsOnChain"
@@ -389,4 +387,13 @@ func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 	}
 
 	return results, nil
+}
+
+// NLockTimeIsFinal checks if the provided transaction or lock time is final.
+func (woc *WhatsOnChain) NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error) {
+	isFinal, err := wdk.NLockTimeIsFinal(ctx, woc, txOrLockTime)
+	if err != nil {
+		return false, fmt.Errorf("failed to check NLockTime finality: %w", err)
+	}
+	return isFinal, nil
 }
