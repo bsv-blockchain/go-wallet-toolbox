@@ -19,9 +19,9 @@ This approach ensures efficient balance calculation by using pagination to handl
 
 The example uses the following configurable constants:
 
-- **`DefaultLimit`**: Number of outputs to retrieve per page for balance calculation (default: `100`)
-- **`DefaultOriginator`**: The originator domain or FQDN used to identify the source of the balance request (default: `"example.com"`)
-- **`DefaultBasket`**: The target basket for balance calculation - "default" holds automatically managed "change" (default: `"default"`)
+- **`Limit`**: Number of outputs to retrieve per page for balance calculation (default: `100`)
+- **`Originator`**: The originator domain or FQDN used to identify the source of the balance request (default: `"example.com"`)
+- **`Basket`**: The target basket for balance calculation - "default" holds automatically managed "change" (default: `"default"`)
 
 ### Balance Calculation Logic
 

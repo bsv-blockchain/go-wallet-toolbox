@@ -10,15 +10,15 @@ import (
 )
 
 var (
-	// DefaultLimit is the number of outputs to retrieve per page for balance calculation.
-	DefaultLimit = uint32(100)
+	// Limit is the number of outputs to retrieve per page for balance calculation.
+	Limit = uint32(100)
 
-	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the balance request.
+	// Originator specifies the originator domain or FQDN used to identify the source of the balance request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
-	DefaultOriginator = "example.com"
+	Originator = "example.com"
 
-	// DefaultBasket is the default basket to get balance from (holds automatically managed "change").
-	DefaultBasket = "default"
+	// Basket is the basket to get balance from (holds automatically managed "change").
+	Basket = "default"
 )
 
 // This example demonstrates how to calculate the balance of a wallet by summing
@@ -40,12 +40,12 @@ func main() {
 	for {
 		// Retrieve outputs from the 'default' basket with pagination
 		args := sdk.ListOutputsArgs{
-			Basket: DefaultBasket,
-			Limit:  &DefaultLimit,
+			Basket: Basket,
+			Limit:  &Limit,
 			Offset: &offset,
 		}
 
-		outputs, err := aliceWallet.ListOutputs(ctx, args, DefaultOriginator)
+		outputs, err := aliceWallet.ListOutputs(ctx, args, Originator)
 		if err != nil {
 			panic(fmt.Errorf("failed to list outputs: %w", err))
 		}
@@ -59,12 +59,11 @@ func main() {
 		offset += uint32(len(outputs.Outputs))
 
 		// Break if we've retrieved all outputs
-		if len(outputs.Outputs) == 0 || offset >= outputs.TotalOutputs {
+		if len(outputs.Outputs) < int(Limit) {
 			break
 		}
 	}
 
 	show.Info("Total Balance (satoshis)", balance)
-
 	show.ProcessComplete("Get Wallet Balance")
 }
