@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWalletServices_GetStatusForTxids_Success_Single(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Success_Single(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	txid := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -26,7 +26,7 @@ func TestWalletServices_GetStatusForTxids_Success_Single(t *testing.T) {
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{txid})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{txid})
 
 	// then:
 	require.NoError(t, err)
@@ -42,10 +42,10 @@ func TestWalletServices_GetStatusForTxids_Success_Single(t *testing.T) {
 	assert.Equal(t, "mined", item.Status)
 }
 
-func TestWalletServices_GetStatusForTxids_Success_Multiple(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Success_Multiple(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
-	txids := []string{
+	txIDs := []string{
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 		"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
@@ -59,68 +59,68 @@ func TestWalletServices_GetStatusForTxids_Success_Multiple(t *testing.T) {
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), txids)
+	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
 
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	assert.Equal(t, whatsonchain.ServiceName, res.Name)
 	assert.Equal(t, wdk.GetStatusSuccess, res.Status)
-	require.Len(t, res.Results, len(txids))
+	require.Len(t, res.Results, len(txIDs))
 
 	for i, it := range res.Results {
-		assert.Equal(t, txids[i], it.TxID)
+		assert.Equal(t, txIDs[i], it.TxID)
 		require.NotNil(t, it.Depth)
 		assert.Equal(t, 10, *it.Depth)
 		assert.Equal(t, "mined", it.Status)
 	}
 }
 
-func TestWalletServices_GetStatusForTxids_Error_NoTxids(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Error_NoTxids(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), nil)
+	res, err := svc.GetStatusForTxIDs(t.Context(), nil)
 
 	// then:
 	require.Error(t, err)
 	assert.Nil(t, res)
-	assert.Contains(t, err.Error(), "no txids provided")
+	assert.Contains(t, err.Error(), "no txIDs provided")
 }
 
-func TestWalletServices_GetStatusForTxids_Error_HTTP500(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Error_HTTP500(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusInternalServerError, ts.TxStatusExpectation{})
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
 	// then:
 	require.Error(t, err)
 	assert.Nil(t, res)
-	assert.Contains(t, err.Error(), "failed to get status for txids")
+	assert.Contains(t, err.Error(), "failed to get status for txIDs")
 }
 
-func TestWalletServices_GetStatusForTxids_Error_Unreachable(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Error_Unreachable(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	_ = fix.WhatsOnChain().WillBeUnreachable()
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
 	// then:
 	require.Error(t, err)
 	assert.Nil(t, res)
-	assert.Contains(t, err.Error(), "failed to get status for txids")
+	assert.Contains(t, err.Error(), "failed to get status for txIDs")
 }
 
-func TestWalletServices_GetStatusForTxids_ContextCancelled(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_ContextCancelled(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	ctx, cancel := context.WithCancelCause(t.Context())
@@ -136,7 +136,7 @@ func TestWalletServices_GetStatusForTxids_ContextCancelled(t *testing.T) {
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(ctx, []string{
+	res, err := svc.GetStatusForTxIDs(ctx, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	})
 
@@ -146,7 +146,7 @@ func TestWalletServices_GetStatusForTxids_ContextCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestWalletServices_GetStatusForTxids_Success_Single_Bitails(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Success_Single_Bitails(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	txid := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -161,7 +161,7 @@ func TestWalletServices_GetStatusForTxids_Success_Single_Bitails(t *testing.T) {
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{txid})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{txid})
 
 	// then:
 	require.NoError(t, err)
@@ -177,10 +177,10 @@ func TestWalletServices_GetStatusForTxids_Success_Single_Bitails(t *testing.T) {
 	assert.Equal(t, "mined", item.Status)
 }
 
-func TestWalletServices_GetStatusForTxids_Success_Multiple_Bitails(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Success_Multiple_Bitails(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
-	txids := []string{
+	txIDs := []string{
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 		"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
@@ -191,31 +191,31 @@ func TestWalletServices_GetStatusForTxids_Success_Multiple_Bitails(t *testing.T)
 
 	// tip 105; mined at 100 -> depth 6
 	fix.Bitails().WillReturnNetworkInfo(http.StatusOK, 105)
-	for _, txid := range txids {
+	for _, txid := range txIDs {
 		fix.Bitails().WillReturnTxStatusMined(txid, 100)
 	}
 
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), txids)
+	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
 
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	assert.Equal(t, bitails.ServiceName, res.Name)
 	assert.Equal(t, wdk.GetStatusSuccess, res.Status)
-	require.Len(t, res.Results, len(txids))
+	require.Len(t, res.Results, len(txIDs))
 
 	for i, it := range res.Results {
-		assert.Equal(t, txids[i], it.TxID)
+		assert.Equal(t, txIDs[i], it.TxID)
 		require.NotNil(t, it.Depth)
 		assert.Equal(t, 6, *it.Depth)
 		assert.Equal(t, "mined", it.Status)
 	}
 }
 
-func TestWalletServices_GetStatusForTxids_Bitails_Mixed(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Bitails_Mixed(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	_ = fix.WhatsOnChain().WillBeUnreachable()
@@ -232,7 +232,7 @@ func TestWalletServices_GetStatusForTxids_Bitails_Mixed(t *testing.T) {
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{minedTx, unconfTx, notFoundTx})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{minedTx, unconfTx, notFoundTx})
 
 	// then:
 	require.NoError(t, err)
@@ -259,10 +259,10 @@ func TestWalletServices_GetStatusForTxids_Bitails_Mixed(t *testing.T) {
 	assert.Nil(t, got.Depth)
 }
 
-func TestWalletServices_GetStatusForTxids_Bitails_NoStatusFound(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Bitails_NoStatusFound(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
-	txids := []string{
+	txIDs := []string{
 		"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 	}
@@ -271,22 +271,22 @@ func TestWalletServices_GetStatusForTxids_Bitails_NoStatusFound(t *testing.T) {
 	require.Error(t, err)
 
 	fix.Bitails().WillReturnNetworkInfo(http.StatusOK, 200)
-	for _, tx := range txids {
+	for _, tx := range txIDs {
 		fix.Bitails().WillReturnTxStatusNotFound(tx)
 	}
 
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), txids)
+	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
 
 	// then:
 	require.Error(t, err)
 	assert.Nil(t, res)
-	assert.Contains(t, err.Error(), "no status found for provided txids")
+	assert.Contains(t, err.Error(), "no status found for provided txIDs")
 }
 
-func TestWalletServices_GetStatusForTxids_Bitails_AllProvidersFail(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Bitails_AllProvidersFail(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 
@@ -297,17 +297,17 @@ func TestWalletServices_GetStatusForTxids_Bitails_AllProvidersFail(t *testing.T)
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	})
 
 	// then:
 	require.Error(t, err)
 	assert.Nil(t, res)
-	assert.Contains(t, err.Error(), "failed to get status for txids")
+	assert.Contains(t, err.Error(), "failed to get status for txIDs")
 }
 
-func TestWalletServices_GetStatusForTxids_Bitails_ContextCancelled(t *testing.T) {
+func TestWalletServices_GetStatusForTxIDs_Bitails_ContextCancelled(t *testing.T) {
 	// given:
 	fix := ts.GivenServices(t)
 	err := fix.WhatsOnChain().WillBeUnreachable()
@@ -324,7 +324,7 @@ func TestWalletServices_GetStatusForTxids_Bitails_ContextCancelled(t *testing.T)
 	svc := fix.Services().WithDefaultConfig()
 
 	// when:
-	res, err := svc.GetStatusForTxids(ctx, []string{
+	res, err := svc.GetStatusForTxIDs(ctx, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	})
 

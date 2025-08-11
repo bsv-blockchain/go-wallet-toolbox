@@ -6,7 +6,3 @@ type TxStatusExpectation struct {
 	ExpectBlockHeight   int64
 	ExpectConfirmations int
 }
-
-const (
-	DefaultConfirmations = 10
-)

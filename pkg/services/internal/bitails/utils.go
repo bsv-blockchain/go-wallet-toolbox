@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // ConvertHeader decodes an 80-byte raw header and fills all fields.
@@ -74,6 +75,14 @@ func validateScriptHash(scriptHash string) error {
 	}
 
 	return nil
+}
+
+func calcDepth(tip, height uint32) *int {
+	d := int(tip) - int(height) + 1
+	if d < 0 {
+		return to.Ptr(0)
+	}
+	return to.Ptr(d)
 }
 
 // buildURL joins baseURL with any number of path segments, preserving the

@@ -272,10 +272,10 @@ func GetUtxoStatusOutput(result *wdk.UtxoStatusResult) {
 	}
 }
 
-// GetStatusForTxidsOutput pretty-prints the GetStatusForTxids result.
-func GetStatusForTxidsOutput(res *wdk.GetStatusForTxidsResult) {
+// GetStatusForTxIDsOutput pretty-prints the GetStatusForTxIDs result.
+func GetStatusForTxIDsOutput(res *wdk.GetStatusForTxIDsResult) {
 	if res == nil {
-		Error("nil GetStatusForTxidsResult passed")
+		Error("nil GetStatusForTxIDsResult passed")
 		return
 	}
 

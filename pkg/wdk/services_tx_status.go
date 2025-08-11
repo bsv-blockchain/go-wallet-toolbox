@@ -7,8 +7,8 @@ type TxStatusDetail struct {
 	Status string
 }
 
-// GetStatusForTxidsResult represents result of a GetStatusForTxids query
-type GetStatusForTxidsResult struct {
+// GetStatusForTxIDsResult represents result of a GetStatusForTxIDs query
+type GetStatusForTxIDsResult struct {
 	Name    string
 	Status  GetStatusResult
 	Results []TxStatusDetail
@@ -20,8 +20,6 @@ type GetStatusResult string
 const (
 	// GetStatusSuccess indicates the query was successful
 	GetStatusSuccess GetStatusResult = "success"
-	// GetStatusError indicates the query encountered an error
-	GetStatusError GetStatusResult = "error"
 )
 
 // Status represents the status of a transaction

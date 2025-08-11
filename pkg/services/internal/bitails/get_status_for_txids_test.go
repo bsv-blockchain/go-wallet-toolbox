@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBitails_GetStatusForTxids_Mixed(t *testing.T) {
+func TestBitails_GetStatusForTxIDs_Mixed(t *testing.T) {
 	// given:
 	given := bt.Given(t)
 	svc := given.NewBitailsService()
@@ -28,7 +28,7 @@ func TestBitails_GetStatusForTxids_Mixed(t *testing.T) {
 	given.Bitails().WillReturnTxStatusNotFound(notFoundTx)
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{minedTx, unconfTx, notFoundTx})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{minedTx, unconfTx, notFoundTx})
 
 	// then:
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestBitails_GetStatusForTxids_Mixed(t *testing.T) {
 	assert.Nil(t, got.Depth)
 }
 
-func TestBitails_GetStatusForTxids_AllNotFound_ReturnsEmptyResult(t *testing.T) {
+func TestBitails_GetStatusForTxIDs_AllNotFound_ReturnsEmptyResult(t *testing.T) {
 	// given:
 	given := bt.Given(t)
 	svc := given.NewBitailsService()
@@ -68,26 +68,26 @@ func TestBitails_GetStatusForTxids_AllNotFound_ReturnsEmptyResult(t *testing.T) 
 	given.Bitails().WillReturnTxStatusNotFound(tx2)
 
 	// when:
-	_, err := svc.GetStatusForTxids(t.Context(), []string{tx1, tx2})
+	_, err := svc.GetStatusForTxIDs(t.Context(), []string{tx1, tx2})
 
 	// then:
 	require.ErrorIs(t, err, servicequeue.ErrEmptyResult)
 }
 
-func TestBitails_GetStatusForTxids_NoInput(t *testing.T) {
+func TestBitails_GetStatusForTxIDs_NoInput(t *testing.T) {
 	// given:
 	given := bt.Given(t)
 	svc := given.NewBitailsService()
 
 	// when:
-	_, err := svc.GetStatusForTxids(t.Context(), nil)
+	_, err := svc.GetStatusForTxIDs(t.Context(), nil)
 
 	// then:
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no txids provided")
+	require.Contains(t, err.Error(), "no txIDs provided")
 }
 
-func TestBitails_GetStatusForTxids_TipHeightFailure(t *testing.T) {
+func TestBitails_GetStatusForTxIDs_TipHeightFailure(t *testing.T) {
 	// given:
 	given := bt.Given(t)
 	svc := given.NewBitailsService()
@@ -97,14 +97,14 @@ func TestBitails_GetStatusForTxids_TipHeightFailure(t *testing.T) {
 	tx := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 	// when:
-	_, err := svc.GetStatusForTxids(t.Context(), []string{tx})
+	_, err := svc.GetStatusForTxIDs(t.Context(), []string{tx})
 
 	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get current height")
 }
 
-func TestBitails_GetStatusForTxids_PerItemHTTPError(t *testing.T) {
+func TestBitails_GetStatusForTxIDs_PerItemHTTPError(t *testing.T) {
 	// given:
 	given := bt.Given(t)
 	svc := given.NewBitailsService()
@@ -114,14 +114,14 @@ func TestBitails_GetStatusForTxids_PerItemHTTPError(t *testing.T) {
 	given.Bitails().WillReturnTxStatusHttpError(tx, http.StatusInternalServerError)
 
 	// when:
-	_, err := svc.GetStatusForTxids(t.Context(), []string{tx})
+	_, err := svc.GetStatusForTxIDs(t.Context(), []string{tx})
 
 	// then:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get status for")
 }
 
-func TestBitails_GetStatusForTxids_NegativeConfirmationsClampedToZero(t *testing.T) {
+func TestBitails_GetStatusForTxIDs_NegativeConfirmationsClampedToZero(t *testing.T) {
 	// given:
 	given := bt.Given(t)
 	svc := given.NewBitailsService()
@@ -131,7 +131,7 @@ func TestBitails_GetStatusForTxids_NegativeConfirmationsClampedToZero(t *testing
 	given.Bitails().WillReturnTxInfo(tx, "blockhash", 120)
 
 	// when:
-	res, err := svc.GetStatusForTxids(t.Context(), []string{tx})
+	res, err := svc.GetStatusForTxIDs(t.Context(), []string{tx})
 
 	// then:
 	require.NoError(t, err)

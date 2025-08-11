@@ -13,4 +13,5 @@ type ListOutputsFilter struct {
 	IncludeCustomInstructions bool
 	Tags                      []string
 	TagsQueryMode             defs.QueryMode
+	IncludeSpent              bool
 }

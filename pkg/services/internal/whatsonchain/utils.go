@@ -94,16 +94,6 @@ func containsI(subject string, contains ...string) bool {
 	return false
 }
 
-func mapWocStatusResponse(response dto.WocStatusResponse) []wdk.TxStatusDetail {
-	results := make([]wdk.TxStatusDetail, 0, len(response))
-
-	for _, tx := range response {
-		results = append(results, mapSingleTxStatus(tx))
-	}
-
-	return results
-}
-
 func mapSingleTxStatus(tx dto.WocStatusItem) wdk.TxStatusDetail {
 	var (
 		depth  *int

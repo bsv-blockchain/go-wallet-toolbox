@@ -16,7 +16,7 @@ import (
 //
 //	found=false on 404
 //	found=true  with mined=true/false and height (if mined) on 200
-func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, mined bool, height int64, err error) {
+func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, mined bool, height uint32, err error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
 		return false, false, 0, fmt.Errorf("build tx status URL: %w", err)
@@ -30,10 +30,10 @@ func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, min
 	if !found {
 		return false, false, 0, nil
 	}
-	if info.BlockHeight > 0 {
-		return true, true, info.BlockHeight, nil
-	}
-	return true, false, 0, nil
+
+	mined = info.BlockHeight > 0
+	height = info.BlockHeight
+	return
 }
 
 // fetchRemoteRoot retrieves the Merkle root for a given block height from Bitails.

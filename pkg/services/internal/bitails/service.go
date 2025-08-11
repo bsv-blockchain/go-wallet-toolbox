@@ -67,7 +67,7 @@ func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("beef is required to post transactions")
 	}
 	if len(txIDs) == 0 {
-		return nil, fmt.Errorf("no txids provided")
+		return nil, fmt.Errorf("no txIDs provided")
 	}
 
 	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
@@ -277,10 +277,10 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 	}, nil
 }
 
-// GetStatusForTxids returns depth/status info for a list of txids using Bitails.
-func (b *Bitails) GetStatusForTxids(ctx context.Context, txids []string) (*wdk.GetStatusForTxidsResult, error) {
-	if len(txids) == 0 {
-		return nil, fmt.Errorf("no txids provided")
+// GetStatusForTxIDs returns depth/status info for a list of txIDs using Bitails.
+func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+	if len(txIDs) == 0 {
+		return nil, fmt.Errorf("no txIDs provided")
 	}
 
 	tip, err := b.CurrentHeight(ctx)
@@ -288,15 +288,15 @@ func (b *Bitails) GetStatusForTxids(ctx context.Context, txids []string) (*wdk.G
 		return nil, fmt.Errorf("%s: failed to get current height: %w", ServiceName, err)
 	}
 
-	res := &wdk.GetStatusForTxidsResult{
+	res := &wdk.GetStatusForTxIDsResult{
 		Name:    ServiceName,
 		Status:  wdk.GetStatusSuccess,
-		Results: make([]wdk.TxStatusDetail, 0, len(txids)),
+		Results: make([]wdk.TxStatusDetail, 0, len(txIDs)),
 	}
 
 	var anyFound bool
 
-	for _, txid := range txids {
+	for _, txid := range txIDs {
 		found, mined, height, err := b.getTxStatus(ctx, txid)
 		if err != nil {
 			return nil, fmt.Errorf("%s: failed to get status for %s: %w", ServiceName, txid, err)
@@ -311,21 +311,12 @@ func (b *Bitails) GetStatusForTxids(ctx context.Context, txids []string) (*wdk.G
 		case mined:
 			anyFound = true
 			item.Status = wdk.TxStatusMined.String()
-
-			d := int64(tip) - height + 1
-			if d < 0 {
-				zero := 0
-				item.Depth = &zero
-			} else {
-				dd := int(d)
-				item.Depth = &dd
-			}
+			item.Depth = calcDepth(tip, height)
 
 		default:
 			anyFound = true
 			item.Status = wdk.TxStatusUnconfirmed.String()
-			zero := 0
-			item.Depth = &zero
+			item.Depth = to.Ptr(0)
 		}
 
 		res.Results = append(res.Results, item)
