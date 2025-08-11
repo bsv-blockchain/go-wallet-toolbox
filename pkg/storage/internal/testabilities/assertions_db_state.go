@@ -357,7 +357,7 @@ func (d *outputsListAssertion) WithCountHavingTxID(expected int) OutputsListAsse
 	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *outputInfo) bool {
 		return output.txID != ""
 	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID %d, but got %d", expected, count)
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID, but got %d", expected, count)
 	return d
 }
 
