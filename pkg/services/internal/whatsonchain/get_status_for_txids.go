@@ -3,9 +3,8 @@ package whatsonchain
 import (
 	"context"
 
-	"github.com/go-softwarelab/common/pkg/slices"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 func (woc *WhatsOnChain) getStatusForTxIDs(ctx context.Context, url string, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {

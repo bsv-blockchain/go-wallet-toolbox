@@ -5,13 +5,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_GetStatusForTxIDs_Success_Single(t *testing.T) {
@@ -250,21 +249,13 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_Mixed(t *testing.T) {
 
 	got = res.Results[1]
 	assert.Equal(t, unconfTx, got.TxID)
-<<<<<<< HEAD
 	assert.Equal(t, "known", got.Status)
-=======
-	assert.Equal(t, "unconfirmed", got.Status)
->>>>>>> 6683398 (FEAT (#404) : add internalize action to wallet examples (#437))
 	require.NotNil(t, got.Depth)
 	assert.Equal(t, 0, *got.Depth)
 
 	got = res.Results[2]
 	assert.Equal(t, notFoundTx, got.TxID)
-<<<<<<< HEAD
 	assert.Equal(t, "unknown", got.Status)
-=======
-	assert.Equal(t, "not_found", got.Status)
->>>>>>> 6683398 (FEAT (#404) : add internalize action to wallet examples (#437))
 	assert.Nil(t, got.Depth)
 }
 
