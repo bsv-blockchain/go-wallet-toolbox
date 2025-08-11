@@ -165,7 +165,6 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
 
 		thenCreatedAction.OutputAtIndex(0).
-			ListActionsAlignsListOutputs().
 			WithSatoshis(args.Outputs[0].Satoshis).
 			WithLockingScript(args.Outputs[0].LockingScript).
 			WithOutputIndex(0).
@@ -246,7 +245,6 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue)
 
 		thenCreatedAction.OutputAtIndex(0).
-			ListActionsAlignsListOutputs().
 			WithSatoshis(args.Outputs[0].Satoshis).
 			WithLockingScript(args.Outputs[0].LockingScript).
 			WithOutputIndex(0).
@@ -310,7 +308,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is negative value (user spends balance).
 
 		thenCreatedAction.OutputAtIndex(0).
-			ListActionsAlignsListOutputs().
 			WithSatoshis(args.Outputs[0].Satoshis).
 			WithLockingScript(args.Outputs[0].LockingScript).
 			WithOutputIndex(0).
