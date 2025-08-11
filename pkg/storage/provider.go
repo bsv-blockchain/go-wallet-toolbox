@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
@@ -522,6 +523,17 @@ func (p *Provider) FindUserTransactionByTxID(ctx context.Context, userID int, tx
 	}
 
 	return txEntity, nil
+}
+
+// GetBeefForTransaction retrieves beef data for a transaction by txID, considering the given context and options.
+// Returns the transaction beef structure or an error if retrieval fails.
+func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
+	beef, err := p.actions.GetBeef(ctx, txID, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get beef for transaction %s: %w", txID, err)
+	}
+
+	return beef, nil
 }
 
 // CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.

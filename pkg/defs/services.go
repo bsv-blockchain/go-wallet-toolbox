@@ -40,6 +40,9 @@ const (
 
 	// BHSApiKey is the token for the BHS service
 	BHSApiKey = ""
+
+	// DefaultGetBeefMaxDepth is the maximum depth for GetBEEF requests
+	DefaultGetBeefMaxDepth = 100
 )
 
 // WalletServices is a struct that has options for wallet services
@@ -51,6 +54,7 @@ type WalletServices struct {
 	ExchangeratesApiKey             string            `mapstructure:"exchangerates_api_key"`
 	ChaintracksFiatExchangeRatesUrl string            `mapstructure:"chaintracks_fiat_exchange_rates_url"`
 	Chaintracks                     any               `mapstructure:"chaintracks"` // TODO: create *ChaintracksServiceClient
+	GetBeefMaxDepth                 uint              `mapstructure:"get_beef_max_depth"`
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
@@ -123,6 +127,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 		ExchangeratesApiKey:             "bd539d2ff492bcb5619d5f27726a766f",
 		ChaintracksFiatExchangeRatesUrl: "",  // TODO: implement me
 		Chaintracks:                     nil, // TODO: implement me
+		GetBeefMaxDepth:                 DefaultGetBeefMaxDepth,
 	}
 
 	switch chain {

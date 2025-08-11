@@ -45,12 +45,14 @@ type WhatsOnChainFixture interface {
 	WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture
 	ScriptHistoryData() ScriptHistoryDataBuilder
 	WithScriptHistoryValidationError(scriptHash string, expectedError string)
+	MinedTransaction() MinedTransactionFixture
 }
 
 type wocFixture struct {
 	testing.TB
-	transport *httpmock.MockTransport
-	network   defs.BSVNetwork
+	getBeefFixture *minedTransactionFixture
+	transport      *httpmock.MockTransport
+	network        defs.BSVNetwork
 }
 
 func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
@@ -59,11 +61,14 @@ func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
 		transport: httpmock.NewMockTransport(),
 	}, opts...)
 
-	return &wocFixture{
+	fixture := &wocFixture{
 		TB:        t,
 		transport: options.transport,
 		network:   options.network,
 	}
+
+	fixture.getBeefFixture = newGetBeefFixture(t, fixture)
+	return fixture
 }
 
 func (f *wocFixture) WillRespondWithInternalFailure() {
@@ -724,4 +729,8 @@ func (f *wocFixture) WillRespondWithUtxoStatus(status int, scriptHash string, re
 		return resp, nil
 	}
 	f.transport.RegisterResponder(http.MethodGet, url, responder)
+}
+
+func (f *wocFixture) MinedTransaction() MinedTransactionFixture {
+	return f.getBeefFixture
 }

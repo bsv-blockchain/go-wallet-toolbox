@@ -71,6 +71,7 @@ wallet_services:
             USD: 1
         timestamp: {}
     fiat_update_interval: 24h0m0s
+    get_beef_max_depth: 100
     whats_on_chain:
         api_key: ""
         broadcast_delay: 3s

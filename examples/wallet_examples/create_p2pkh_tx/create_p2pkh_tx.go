@@ -74,7 +74,7 @@ func main() {
 				Tags:              []string{"payment", "example"},
 			},
 		},
-		Labels: []string{"create_p2pkh_tx_example"},
+		Labels: []string{"create_action_example"},
 		Options: &sdk.CreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr(false),
 		},
