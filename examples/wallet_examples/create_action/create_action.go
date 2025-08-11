@@ -9,6 +9,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 	RecipientAddress = "" //example: 1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq
 
 	// SatoshisToSend is the amount to send to the recipient
-	SatoshisToSend = uint64(0) //example: 100
+	SatoshisToSend = uint64(1) //example: 100
 
 	// DefaultOutputDescription describes the purpose of this output
 	DefaultOutputDescription = "Payment to recipient"
@@ -74,6 +75,9 @@ func main() {
 			},
 		},
 		Labels: []string{"create_action_example"},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(false),
+		},
 	}
 
 	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", SatoshisToSend))
