@@ -4,10 +4,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-<<<<<<< HEAD
-=======
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
->>>>>>> 81bcbfb (chore: update generated files)
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
