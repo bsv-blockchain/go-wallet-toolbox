@@ -35,7 +35,7 @@ func main() {
 	show.Step("Alice", "Calculating wallet balance")
 
 	var balance uint64
-	var offset uint32 = 0
+	var offset uint32
 
 	for {
 		// Retrieve outputs from the 'default' basket with pagination
