@@ -299,3 +299,9 @@ func GetStatusForTxIDsOutput(res *wdk.GetStatusForTxIDsResult) {
 	}
 	PrintTable("Per-TX status:", headers, rows)
 }
+
+func Beef(beefHex string) {
+	Header("BEEF HEX")
+
+	fmt.Printf("%q", beefHex)
+}

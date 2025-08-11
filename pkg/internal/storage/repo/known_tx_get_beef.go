@@ -1,0 +1,163 @@
+package repo
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"iter"
+
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
+)
+
+func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
+	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
+
+	// TODO: Handle knownTxIDs properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
+	// TODO: Handle TrustSelf
+	// TODO: Handle min Proof Level
+	_ = options.KnownTxIDs
+
+	beef := transaction.NewBeefV2()
+	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options.StatusesToFilterOut, options.TxGetterFcn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
+	}
+
+	return beef, nil
+}
+
+func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
+	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
+	beef := transaction.NewBeefV2()
+
+	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
+	_ = options.KnownTxIDs
+
+	for txid := range txids {
+		if beef.FindTransaction(txid) != nil {
+			continue
+		}
+		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, options.StatusesToFilterOut, options.TxGetterFcn)
+		if err != nil {
+			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
+		}
+	}
+
+	return beef, nil
+}
+
+func (p *KnownTx) recursiveBuildValidBEEF(
+	ctx context.Context,
+	depth int,
+	mergeToBeef *transaction.Beef,
+	txID string,
+	statusesToFilterOut []wdk.ProvenTxReqStatus,
+	transactionGetterService entity.TxGetterFcn,
+) error {
+	if depth > maxDepthOfRecursion {
+		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
+	}
+
+	var model models.KnownTx
+	query := p.db.WithContext(ctx).
+		Model(&model).
+		Select("raw_tx, input_beef, merkle_path")
+
+	if len(statusesToFilterOut) > 0 {
+		query = query.Where("status NOT IN ? ", statusesToFilterOut)
+	}
+
+	err := query.First(&model, "tx_id = ? ", txID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		if transactionGetterService == nil {
+			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.NotFoundError)
+		}
+
+		rawTx, merklePath, err := transactionGetterService(ctx, txID)
+		if err != nil {
+			return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
+		}
+
+		inputBeef, _ := transaction.NewBeefV2().Bytes()
+
+		model = models.KnownTx{
+			TxID:       txID,
+			RawTx:      rawTx,
+			MerklePath: to.If(merklePath != nil, merklePath.Bytes).ElseThen(nil),
+			InputBeef:  inputBeef,
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
+	}
+
+	if model.RawTx == nil || model.InputBeef == nil {
+		return fmt.Errorf("raw tx or input beef is nil in transaction %s", txID)
+	}
+
+	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
+	if err != nil {
+		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
+	}
+
+	if model.HasMerklePath() {
+		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
+		if err != nil {
+			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
+		}
+		err = tx.AddMerkleProof(merklePath)
+		if err != nil {
+			return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
+		}
+
+		_, err = mergeToBeef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
+		}
+
+		return nil
+	}
+
+	for i := range tx.Inputs {
+		if len(tx.Inputs[i].SourceTXID) == 0 {
+			return fmt.Errorf("input of tx (id: %s) has empty SourceTXID at index %d ", txID, i)
+		}
+	}
+
+	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
+	}
+
+	err = mergeToBeef.MergeBeefBytes(model.InputBeef)
+	if err != nil {
+		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+	}
+
+	subjectTx := mergeToBeef.FindTransaction(txID)
+	if subjectTx == nil {
+		return fmt.Errorf("transaction %q has not been merged into BEEF object, even though its raw tx was merged", txID)
+	}
+
+	if subjectTx.MerklePath != nil {
+		// The Transaction already has a merkle path, no need to recursively build it
+		return nil
+	}
+
+	for _, input := range tx.Inputs {
+		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
+		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
+			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), statusesToFilterOut, transactionGetterService)
+			if err != nil {
+				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
+			}
+		}
+	}
+
+	// Result is in mergeToBeef
+	return nil
+}
