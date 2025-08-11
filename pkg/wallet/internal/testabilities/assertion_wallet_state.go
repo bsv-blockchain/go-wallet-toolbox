@@ -47,7 +47,6 @@ type WalletActionOutputAssertion interface {
 	WithCustomInstructions(expected string) WalletActionOutputAssertion
 	WithSpendable(expected bool) WalletActionOutputAssertion
 	WithBasket(expected string) WalletActionOutputAssertion
-	ListActionsAlignsListOutputs() WalletActionOutputAssertion
 }
 
 func ThenWalletState(t testing.TB, wallet WalletReader) WalletStateAssertion {
@@ -196,6 +195,9 @@ func (a *walletActionOutputAssertion) WithCustomInstructions(expected string) Wa
 func (a *walletActionOutputAssertion) WithSpendable(expected bool) WalletActionOutputAssertion {
 	a.Helper()
 	assert.Equal(a, expected, a.output.Spendable, "Action output spendable does not match")
+	if a.output.Spendable {
+		a.listActionsAlignsListOutputs()
+	}
 	return a
 }
 
@@ -205,7 +207,8 @@ func (a *walletActionOutputAssertion) WithBasket(expected string) WalletActionOu
 	return a
 }
 
-func (a *walletActionOutputAssertion) ListActionsAlignsListOutputs() WalletActionOutputAssertion {
+func (a *walletActionOutputAssertion) listActionsAlignsListOutputs() WalletActionOutputAssertion {
+	// NOTE: ListOutputs returns only outputs that are spendable, so we need to ensure that the action output is also spendable.
 	listedOutputs, err := a.wallet.ListOutputs(a.Context(), sdk.ListOutputsArgs{
 		Limit:                     to.Ptr[uint32](validate.MaxPaginationLimit),
 		IncludeCustomInstructions: to.Ptr(true),
