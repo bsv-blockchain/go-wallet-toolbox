@@ -501,9 +501,11 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 }
 
 func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
+	// FIXME: This test needs to wait for noSendChange to be implemented as the ARC cannot broadcast two "separated" transactions in one BEEF
+	s.T().Skip("This test needs to wait for noSendChange to be implemented as the ARC cannot broadcast two 'separated' transactions in one BEEF")
 	s.Run("createAction with 'noSend' then createAction with 'sendWith' to broadcast both txs", func() {
 		t := s.T()
-		const topUpValue = testValueForFunding
+		const topUpValue = fixtures.DefaultCreateActionOutputSatoshis + 1
 
 		// given:
 		given, cleanup := testabilities.Given(t)
@@ -534,13 +536,13 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		secondResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		assert.NotEmpty(t, secondResult.Txid, "Wallet result should have transaction id")
 		assert.NotEqual(t, firstResult.Txid, secondResult.Txid, "Wallet result should have different transaction id for second action")
 		assert.NotEmpty(t, secondResult.Tx, "Wallet result should have transaction bytes")
-		assert.Len(t, secondResult.SendWithResults, 2, "Wallet result should have single send with results")
+		require.Len(t, secondResult.SendWithResults, 2, "Wallet result should have single send with results")
 
 		assert.Equal(t, secondResult.SendWithResults[0].Txid, firstResult.Txid, "Wallet result should have same txid as the one from first send with result")
 		assert.Equal(t, secondResult.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")

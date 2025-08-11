@@ -8,14 +8,19 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	derPrefix = "Pr=="
+	derSuffix = "Su=="
 )
 
 func TestInternalizeThenCreateThenProcess(t *testing.T) {
@@ -31,14 +36,14 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 	t.Run("Internalize", func(t *testing.T) {
 		// given:
 		args := wdk.InternalizeActionArgs{
-			Tx: tsgenerated.AtomicBeefToInternalize(t),
+			Tx: tsgenerated.ParentTransactionAtomicBeef(t),
 			Outputs: []*wdk.InternalizeOutput{
 				{
 					OutputIndex: 0,
 					Protocol:    wdk.WalletPaymentProtocol,
 					PaymentRemittance: &wdk.WalletPayment{
-						DerivationPrefix:  fixtures.DerivationPrefix,
-						DerivationSuffix:  fixtures.DerivationSuffix,
+						DerivationPrefix:  derPrefix,
+						DerivationSuffix:  derSuffix,
 						SenderIdentityKey: fixtures.AnyoneIdentityKey,
 					},
 				},
@@ -200,7 +205,7 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 			},
 		}
 		args.IsSignAction = true
-		args.InputBEEF = tsgenerated.AtomicBeefToInternalize(t)
+		args.InputBEEF = tsgenerated.ParentTransactionAtomicBeef(t)
 
 		// when:
 		result, err := activeStorage.CreateAction(
@@ -294,14 +299,14 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 	t.Run("Internalize - this way the storage will 'know' specified UTXO", func(t *testing.T) {
 		// given:
 		args := wdk.InternalizeActionArgs{
-			Tx: tsgenerated.AtomicBeefToInternalize(t),
+			Tx: tsgenerated.ParentTransactionAtomicBeef(t),
 			Outputs: []*wdk.InternalizeOutput{
 				{
 					OutputIndex: 0,
 					Protocol:    wdk.WalletPaymentProtocol,
 					PaymentRemittance: &wdk.WalletPayment{
-						DerivationPrefix:  fixtures.DerivationPrefix,
-						DerivationSuffix:  fixtures.DerivationSuffix,
+						DerivationPrefix:  derPrefix,
+						DerivationSuffix:  derSuffix,
 						SenderIdentityKey: fixtures.AnyoneIdentityKey,
 					},
 				},
@@ -338,7 +343,7 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 			},
 		}
 		args.IsSignAction = true
-		args.InputBEEF = tsgenerated.AtomicBeefToInternalize(t)
+		args.InputBEEF = tsgenerated.ParentTransactionAtomicBeef(t)
 
 		// when:
 		result, err := activeStorage.CreateAction(

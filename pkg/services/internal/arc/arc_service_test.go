@@ -92,7 +92,11 @@ func TestPostBEEFWithARCService(t *testing.T) {
 		service := given.NewArcService()
 
 		// and:
-		parentTx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+		parentTx := txtestabilities.GivenTX().
+			WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
+			WithInput(100).
+			WithP2PKHOutput(99).
+			TX()
 		parentTxID := parentTx.TxID().String()
 
 		// and:
@@ -323,10 +327,18 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			service := given.NewArcService()
 
 			// and:
-			grandParentTx := txtestabilities.GivenTX().WithInput(300).WithP2PKHOutput(299).TX()
+			grandParentTx := txtestabilities.GivenTX().
+				WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
+				WithInput(300).
+				WithP2PKHOutput(299).
+				TX()
 			grandParentTxID := grandParentTx.TxID().String()
 
-			parentTx := txtestabilities.GivenTX().WithInputFromUTXO(grandParentTx, 0).WithP2PKHOutput(199).TX()
+			parentTx := txtestabilities.GivenTX().
+				WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
+				WithInputFromUTXO(grandParentTx, 0).
+				WithP2PKHOutput(199).
+				TX()
 			parentTxID := parentTx.TxID().String()
 
 			// and:

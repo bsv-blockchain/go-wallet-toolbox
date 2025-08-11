@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/spv"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -23,9 +23,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const DeploymentID = "go-wallet-toolbox-test"
-const TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
-const arcHttpStatusMalformed = 463
+const (
+	DeploymentID  = "go-wallet-toolbox-test"
+	TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
+)
+
+const (
+	arcHttpStatusMalformed                     = 463
+	arcHttpStatusCumulativeFeeValidationFailed = 473
+)
 
 var timestamp = time.Date(2018, time.November, 10, 23, 0, 0, 0, time.UTC).Format("2006-01-02T15:04:05.999999999Z")
 
@@ -123,7 +129,20 @@ func (f *arcFixture) IsUpAndRunning() {
 			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusMalformed, err.Error()))
 		}
 
-		f.store(txHex)
+		beefBytes, err := hex.DecodeString(txHex)
+		require.NoError(f, err, "failed to decode BEEF hex")
+
+		beef, err := sdk.NewBeefFromBytes(beefBytes)
+		require.NoError(f, err, "failed to create BEEF from bytes")
+
+		for _, tx := range beef.Transactions {
+			if !f.verifyTxScripts(tx.Transaction) {
+				message := "arc error 465: inputs must have an unlocking script or an unlocker"
+				return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
+			}
+		}
+
+		f.store(beef)
 
 		if f.broadcastWithoutResponseBody {
 			return httpmock.NewJsonResponse(http.StatusOK, nil)
@@ -164,29 +183,28 @@ func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
 	}
 }
 
-func (f *arcFixture) store(txHex string) {
-	beefBytes, err := hex.DecodeString(txHex)
-	require.NoError(f, err, "failed to decode BEEF hex")
-
-	beef, err := sdk.NewBeefFromBytes(beefBytes)
-	require.NoError(f, err, "failed to create BEEF from bytes")
-
+func (f *arcFixture) store(beef *sdk.Beef) {
+	var err error
 	transactions := seq2.FromMap(beef.Transactions)
 	includedTransactions := seq2.MapTo(transactions, func(txIDHash chainhash.Hash, tx *sdk.BeefTx) *knownTransaction {
-		merklePath := optional.OfPtr(tx.Transaction.MerklePath)
+		merklePath := tx.Transaction.MerklePath
 		txID := txIDHash.String()
 
-		return &knownTransaction{
-			txid:        txID,
-			status:      to.IfThen(merklePath.IsEmpty(), "SEEN_ON_NETWORK").ElseThen("MINED"),
-			blockHeight: optional.Map(merklePath, func(it sdk.MerklePath) uint32 { return it.BlockHeight }).OrZeroValue(),
-			blockHash: optional.Map(merklePath, func(it sdk.MerklePath) string {
-				root, err := it.ComputeRootHex(&txID)
-				require.NoError(f, err, "failed to compute root: wrong test setup")
-				return root
-			}).OrZeroValue(),
-			merklePath: optional.Map(merklePath, func(it sdk.MerklePath) string { return it.Hex() }).OrZeroValue(),
+		knownTx := &knownTransaction{
+			txid:   txID,
+			status: "SEEN_ON_NETWORK",
 		}
+
+		if merklePath != nil {
+			knownTx.blockHash, err = merklePath.ComputeRootHex(&txID)
+			require.NoError(f, err, "failed to compute root: wrong test setup")
+
+			knownTx.status = "MINED"
+			knownTx.blockHeight = merklePath.BlockHeight
+			knownTx.merklePath = merklePath.Hex()
+		}
+
+		return knownTx
 	})
 
 	seq.ForEach(includedTransactions, func(it *knownTransaction) {
@@ -194,6 +212,44 @@ func (f *arcFixture) store(txHex string) {
 			f.knownTransactions[it.txid] = it
 		}
 	})
+}
+
+func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
+	defer func() {
+		if !isValid {
+			f.Logf("DEBUG DATA ON SCRIPT VERIFICATION FAILURE")
+			for vin, input := range tx.Inputs {
+				if input.UnlockingScript == nil || len(*input.UnlockingScript) == 0 {
+					f.Logf("Transaction %s has input %d without unlocking script", tx.TxID(), vin)
+				} else {
+					f.Logf("Transaction %s has input %d with unlocking script: %s", tx.TxID(), vin, input.UnlockingScript.String())
+				}
+
+				if input.SourceTransaction != nil {
+					utxo := input.SourceTransaction.Outputs[input.SourceTxOutIndex]
+					if utxo.LockingScript != nil {
+						f.Logf("Transaction %s has input %d with source transaction output locking script: %s", tx.TxID(), vin, utxo.LockingScript.String())
+					} else {
+						f.Logf("Transaction %s has input %d with source transaction output without locking script", tx.TxID(), vin)
+					}
+				} else {
+					f.Logf("Transaction %s has input %d with source transaction not set", tx.TxID(), vin)
+				}
+			}
+		}
+	}()
+
+	ok, err := spv.VerifyScripts(f.Context(), tx)
+	if err != nil {
+		f.Logf("script verification failed: %s", err.Error())
+		return false
+	}
+
+	if !ok {
+		f.Logf("Transaction %s has invalid scripts", tx.TxID())
+		return false
+	}
+	return true
 }
 
 type arcQueryFixture struct {
@@ -303,6 +359,9 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 		details = "The request is not authorized"
 	case http.StatusNotFound:
 		details = "The requested resource could not be found"
+	case arcHttpStatusCumulativeFeeValidationFailed:
+		details = "Fee too low"
+		title = "Fees are insufficient"
 	case arcHttpStatusMalformed:
 		details = "Transaction is malformed and cannot be processed"
 		title = "Malformed transaction"

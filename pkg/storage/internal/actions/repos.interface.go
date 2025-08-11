@@ -22,7 +22,8 @@ type OutputRepo interface {
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
 	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error)
-	SaveOutput(ctx context.Context, output *entity.Output) error
+	SaveOutputs(ctx context.Context, output []*entity.Output) error
+	MakeOutputsSpendable(ctx context.Context, userID int, txID string, utxoStatus wdk.UTXOStatus) error
 }
 
 type TransactionsRepo interface {
@@ -35,6 +36,7 @@ type TransactionsRepo interface {
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error
+	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
 }
 
 type KnownTxRepo interface {

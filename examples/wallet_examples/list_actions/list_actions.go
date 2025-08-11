@@ -33,10 +33,10 @@ func defaultListActionsArgs() sdk.ListActionsArgs {
 	}
 }
 
-// This example demonstrates how to list actions for the Alice wallet using default arguments.
-// It shows the complete flow from wallet creation to action listing with proper error handling.
+// This example demonstrates how to list actions for the Alice wallet
 func main() {
 	show.ProcessStart("List Actions")
+
 	ctx := context.Background()
 
 	// Create Alice's wallet instance

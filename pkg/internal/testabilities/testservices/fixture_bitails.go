@@ -15,6 +15,7 @@ import (
 )
 
 type BitailsFixture interface {
+	WillRespondWithEmptyBlockHeight()
 	WillBeUnreachable() error
 	WillReturnInternalError()
 	WillReturnTxInfo(txid string, blockHash string, blockHeight int64)
@@ -32,6 +33,7 @@ type BitailsFixture interface {
 	WillRespondWithInternalFailure()
 	WillReturnBlockHeaderHttpError(blockHash string, status int)
 	WillReturnMalformedBlockHeader(blockHash string)
+	WillRespondWithBlockByHeight()
 	ScriptHistoryData() ScriptHistoryDataBuilder
 	OnBroadcast() BitailsBroadcastFixture
 	HttpClient() *resty.Client
@@ -106,6 +108,7 @@ func (b *bitailsFixture) WillReturnInternalError() {
 		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
 		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
 	)
+
 	b.transport.RegisterRegexpResponder(
 		http.MethodPost,
 		regexp.MustCompile(`https?://.*\.bitails\.io.*`),
@@ -248,6 +251,30 @@ func (b *bitailsFixture) WillReturnTxStatus(txid string, blockHeight int) {
 	)
 }
 
+func (b *bitailsFixture) WillRespondWithEmptyBlockHeight() {
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/height/.*`),
+		httpmock.NewStringResponder(http.StatusOK, "{}"),
+	)
+}
+
+func (b *bitailsFixture) WillRespondWithBlockByHeight() {
+	b.Helper()
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/height/.*`),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
+			"previousBlockHash": TestBlockPreviousBlockHash,
+			"version":           TestBlockVersion,
+			"time":              TestBlockTime,
+			"bits":              TestBlockBits,
+			"nonce":             TestBlockNonce,
+			"merkleRoot":        TestBlockMerkleRoot,
+		}),
+	)
+}
+
 func (b *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, headerHex string) {
 	pattern := `=~.*?/block/header/height/` + strconv.Itoa(int(height)) + `/raw$`
 
@@ -288,6 +315,12 @@ func (b *bitailsFixture) WillRespondWithInternalFailure() {
 	b.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(`https?://.*\.bitails\.io/block/latest`),
+		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
+	)
+
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(`https?://.*\.bitails\.io/block/height/.*`),
 		httpmock.NewStringResponder(http.StatusInternalServerError, "internal test error"),
 	)
 }

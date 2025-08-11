@@ -1,6 +1,9 @@
 package entity
 
-import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
 
 type KnownTxForStatusSync struct {
 	TxID     string
@@ -14,4 +17,5 @@ type KnownTxAsMined struct {
 	MerklePath  []byte
 	MerkleRoot  string
 	BlockHash   string
+	Notes       []history.Builder
 }

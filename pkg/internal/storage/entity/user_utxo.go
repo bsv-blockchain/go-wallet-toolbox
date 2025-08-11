@@ -1,6 +1,10 @@
 package entity
 
-import "time"
+import (
+	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
 
 type UserUTXO struct {
 	UserID             int
@@ -10,4 +14,5 @@ type UserUTXO struct {
 	EstimatedInputSize uint64
 	CreatedAt          time.Time
 	ReservedByID       *uint
+	Status             wdk.UTXOStatus
 }

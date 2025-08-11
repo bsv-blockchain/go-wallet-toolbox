@@ -10,21 +10,13 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	feemodel "github.com/bsv-blockchain/go-sdk/transaction/fee_model"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
-// main demonstrates how to broadcast a single BSV transaction using WalletServices.
-//
-// The process involves creating a new transaction that uses a provided BEEF-encoded source transaction as input,
-// and submitting it to multiple wallet services for propagation to the BSV network.
-// The results from each service are printed.
-//
-// This example is configurable by setting the following constants at the top of the main function:
-//   - `sourceTxBEEF`: The BEEF-encoded source transaction hex. Replace this with your own transaction hex.
-//   - `wif`: The private key in Wallet Import Format. Replace this with your own WIF for the private key that can unlock the output from the source transaction.
-//   - `sourceOutputIndex`: The output index from the source transaction to spend. Adjust this based on the output you want to use.
-//   - `network`: The BSV network to use (e.g., Testnet or Mainnet). Change to `defs.NetworkMainnet` for mainnet operations.
+// This example demonstrates broadcasting a BSV transaction using multiple wallet services
+// Creates a new transaction from a BEEF-encoded source and submits it for network propagation
 func main() {
 	const (
 		wif = "cQFwZHWLNTd31aE8ZPtJ48gxQFg3PPSEyrumghwNN3znjARNgLYX"
@@ -36,8 +28,12 @@ func main() {
 		network = defs.NetworkTestnet
 	)
 
+	show.ProcessStart("Post BEEF")
+
 	// Set to LevelDebug to see http request logs
 	// slog.SetLogLoggerLevel(slog.LevelDebug)
+
+	show.Step("Transaction", "preparing transaction from BEEF source")
 
 	tx, err := prepareTransaction(sourceTxBEEF, wif, sourceOutputIndex, network)
 	if err != nil {
@@ -50,40 +46,19 @@ func main() {
 	}
 
 	serviceCfg := defs.DefaultServicesConfig(network)
-
 	walletServices := services.New(slog.Default(), serviceCfg)
+
+	show.Step("Wallet-Services", fmt.Sprintf("broadcasting transaction %s", tx.TxID().String()))
 
 	results, err := walletServices.PostBEEF(context.Background(), beef, []string{tx.TxID().String()})
 	if err != nil {
 		panic(err)
 	}
 
-	for _, result := range results {
-		fmt.Println("===========================================================")
-		fmt.Printf("Service %s PostBEEF result:", result.Name)
-		if !result.Success() {
-			fmt.Println("	Error:", result.Error)
-		} else {
-			fmt.Println("	Success:")
-			for _, resultForTxID := range result.PostedBEEFResult.TxIDResults {
-				fmt.Println("		TX ID:", resultForTxID.TxID)
-				fmt.Println("		Result:	", resultForTxID.Result)
-				if resultForTxID.Result == "error" {
-					fmt.Println("		Error:	", resultForTxID.Error)
-				} else {
-					fmt.Println("		AlreadyKnown:	", resultForTxID.AlreadyKnown)
-					fmt.Println("		DoubleSpend:	", resultForTxID.DoubleSpend)
-					fmt.Println("		BlockHash:	", resultForTxID.BlockHash)
-					fmt.Println("		BlockHeight:	", resultForTxID.BlockHeight)
-					fmt.Println("		MerklePath:	", resultForTxID.MerklePath)
-					fmt.Println("		CompetingTxs:	", resultForTxID.CompetingTxs)
-					fmt.Println("		Notes:	", resultForTxID.Notes)
-					fmt.Println("		Data:	", resultForTxID.Data)
-				}
-			}
-		}
-	}
+	show.Success("Posted BEEF to services")
+	show.PostBEEFOutput(results)
 
+	show.ProcessComplete("Post BEEF")
 }
 
 func prepareTransaction(sourceTxBEEF string, wif string, sourceOutputIndex uint32, network defs.BSVNetwork, outputsSatoshis ...uint64) (*transaction.Transaction, error) {
