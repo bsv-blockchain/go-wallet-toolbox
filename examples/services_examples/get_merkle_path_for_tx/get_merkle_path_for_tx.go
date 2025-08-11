@@ -19,8 +19,10 @@ func main() {
 	show.ProcessStart("Merkle Path")
 
 	// Define transaction ID and network for Merkle path lookup
-	txID := "9ca4300a599b48638073cb35f833475a8c6cfca0d4bbe6dd7244d174e7a0e7f6"
-	network := defs.NetworkMainnet
+	txID := "5a98aa7924f2a1bd171161d58122c2c870108fe367f1e335576976acaa78fd3c"
+	network := defs.NetworkTestnet
+
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	// Configure services stack with default settings
 	serviceCfg := defs.DefaultServicesConfig(network)
