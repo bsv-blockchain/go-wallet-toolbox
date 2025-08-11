@@ -355,8 +355,13 @@ func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAt
 
 // IsAuthenticated checks the authentication status of the user.
 func (w *Wallet) IsAuthenticated(ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-	// TODO implement me
-	panic("implement me")
+	err := validate.Originator(originator)
+	if err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+	return &sdk.AuthenticatedResult{
+		Authenticated: true,
+	}, nil
 }
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
