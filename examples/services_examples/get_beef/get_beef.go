@@ -25,16 +25,14 @@ func main() {
 	ctx := context.Background()
 	beef, err := srv.GetBEEF(ctx, txID, nil)
 	if err != nil {
-		show.Error(fmt.Sprintf("failed to fetch BEEF: %v", err))
-		return
+		panic(fmt.Errorf("failed to fetch BEEF: %w", err))
 	}
 
 	show.Success(fmt.Sprintf("Success, found a BEEF that contains %d transactions and %d BUMPS", len(beef.Transactions), len(beef.BUMPs)))
 
 	bytes, err := beef.Bytes()
 	if err != nil {
-		show.Error(fmt.Sprintf("failed to serialize BEEF: %v", err))
-		return
+		panic(fmt.Errorf("failed to serialize BEEF: %w", err))
 	}
 
 	beefHex := hex.EncodeToString(bytes)
