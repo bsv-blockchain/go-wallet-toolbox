@@ -89,6 +89,7 @@ func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*entity.Output) it
 
 func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) entity.ListOutputsFilter {
 	return entity.ListOutputsFilter{
+		IncludeSpent:              false,
 		UserID:                    userID,
 		Basket:                    string(args.Basket),
 		Limit:                     must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, validate.MaxPaginationLimit)),

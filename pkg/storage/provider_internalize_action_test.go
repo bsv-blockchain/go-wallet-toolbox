@@ -66,7 +66,7 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
 		})
 
-	thenDBState.AllOutputs(testusers.Alice).WithCountHavingOutpoint(1)
+	thenDBState.AllOutputs(testusers.Alice).WithCountHavingTxID(1)
 }
 
 func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
@@ -106,7 +106,7 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 		})
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
-	thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCountHavingOutpoint(1)
+	thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCountHavingTxID(1)
 }
 
 func TestInternalizeActionErrorCases(t *testing.T) {
@@ -191,7 +191,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 			WithStatus(wdk.ProvenTxStatusUnmined)
 
 		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
-		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingOutpoint(1)
+		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingTxID(1)
 	})
 
 	t.Run("two outputs - two basket insertions", func(t *testing.T) {
@@ -268,7 +268,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.AllOutputs(testusers.Alice).WithCount(2)
 		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
 		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).
-			WithCountHavingOutpoint(2).
+			WithCountHavingTxID(2).
 			WithCountHavingTags(2, "custom_tag").
 			WithCountHavingTags(1, "tag_for_first_output").
 			WithCountHavingTags(1, "tag_for_second_output")
@@ -317,7 +317,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
 		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
 		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).
-			WithCountHavingOutpoint(1).
+			WithCountHavingTxID(1).
 			WithCountHavingTags(1, "custom_tag", "tag_for_first_output")
 	})
 
@@ -379,7 +379,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 			WithStatus(wdk.ProvenTxStatusUnmined)
 
 		thenDBState.AllOutputs(testusers.Alice).WithCount(1)
-		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingOutpoint(1)
+		thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCountHavingTxID(1)
 		thenDBState.Outputs(testusers.Alice, fixtures.CustomBasket).WithCount(0)
 	})
 
