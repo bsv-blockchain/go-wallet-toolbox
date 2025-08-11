@@ -22,7 +22,7 @@ var (
 	DefaultOutputDescription = "Payment to recipient"
 
 	// DefaultTransactionDescription describes the purpose of this transaction
-	DefaultTransactionDescription = "Create action example transaction"
+	DefaultTransactionDescription = "Create P2pkh Transaction Example"
 
 	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the action request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
@@ -32,7 +32,7 @@ var (
 // This example demonstrates how to create and send a Bitcoin transaction using Alice's wallet.
 // The wallet automatically selects UTXOs, creates change outputs, calculates fees, and broadcasts the transaction.
 func main() {
-	show.ProcessStart("Create Action")
+	show.ProcessStart("Create P2pkh Transaction")
 	ctx := context.Background()
 
 	if RecipientAddress == "" {
@@ -73,7 +73,7 @@ func main() {
 				Tags:              []string{"payment", "example"},
 			},
 		},
-		Labels: []string{"create_action_example"},
+		Labels: []string{"create_p2pkh_tx_example"},
 	}
 
 	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", SatoshisToSend))
@@ -97,5 +97,5 @@ func main() {
 	}
 
 	show.Success("Transaction created and sent successfully")
-	show.ProcessComplete("Create Action")
+	show.ProcessComplete("Create P2pkh Transaction")
 }

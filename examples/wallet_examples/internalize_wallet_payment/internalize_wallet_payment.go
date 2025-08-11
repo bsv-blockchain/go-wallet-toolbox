@@ -33,7 +33,7 @@ var (
 // This example demonstrates how to internalize a transaction into Alice's wallet.
 // atomicBeefHex, identityKey, prefix, and suffix are required to internalize a transaction.
 func main() {
-	show.ProcessStart("Internalize Action")
+	show.ProcessStart("Internalize Wallet Payment")
 	ctx := context.Background()
 
 	if prefix == "" || suffix == "" || atomicBeefHex == "" || identityKey == "" {
@@ -94,5 +94,5 @@ func main() {
 
 	show.WalletSuccess("InternalizeAction", internalizeArgs, *result)
 	show.Success("Transaction internalized successfully")
-	show.ProcessComplete("Internalize Action")
+	show.ProcessComplete("Internalize Wallet Payment")
 }
