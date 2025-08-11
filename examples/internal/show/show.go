@@ -271,3 +271,9 @@ func GetUtxoStatusOutput(result *wdk.UtxoStatusResult) {
 			detail.TxID, detail.Index, detail.Height, detail.Satoshis)
 	}
 }
+
+func Beef(beefHex string) {
+	Header("BEEF HEX")
+
+	fmt.Printf("%q", beefHex)
+}
