@@ -1,10 +1,10 @@
-# Get BEEF (Bitcoin Extended Transaction Format)
+# Get BEEF (Background Evaluation Extended Format)
 
 This example demonstrates how to retrieve a transaction in BEEF format using a specific transaction ID (txID) on the BSV blockchain with the Go Wallet Toolbox SDK. It showcases how to construct a portable and verifiable transaction package, including its ancestry.
 
 ## Overview
 
-BEEF (Bitcoin Extended Transaction Format) is a standardized way to package a transaction along with its Merkle path (if mined) and the full transactions of its inputs. This allows for the verification of a transaction's validity and history without relying on a trusted third-party node to provide the inputs.
+BEEF (Background Evaluation Extended Format) is a standardized way to package a transaction along with its Merkle path (if mined) and the full transactions of its inputs. This allows for the verification of a transaction's validity and history without relying on a trusted third-party node to provide the inputs.
 
 The process involves these steps:
 1.  Setting up the services configuration for the desired network.
