@@ -72,10 +72,6 @@ func (t *txGeneratorFixture) PreInternalized() (internalizeArgs *wdk.Internalize
 
 	address, err := brc29.Address(anyonePriv, keyID, t.sender.PublicKey(t), brc29.WithTestNet())
 	require.NoError(t.TB, err)
-	fmt.Println("ADDRESS: \n\n\n", address.AddressString, "\n\n\n===========================")
-	fmt.Println("keyID: ", keyID.String())
-	fmt.Println("sender: ", fixtures.AnyoneIdentityKey)
-	fmt.Println("recipient: ", t.sender.PublicKey(t).ToDERHex())
 
 	lockingScript, err := p2pkh.Lock(address)
 	require.NoError(t.TB, err)

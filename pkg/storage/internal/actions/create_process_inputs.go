@@ -280,7 +280,7 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	}
 
 	if btx.DataFormat == transaction.TxIDOnly {
-		beefForTx, err := proc.parent.knownTxRepo.GetBEEFForTxID(proc.ctx, xinput.Outpoint.TxID, readyToBeInputProvenTxStatuses)
+		beefForTx, err := proc.parent.knownTxRepo.GetBEEFForTxID(proc.ctx, xinput.Outpoint.TxID, entity.WithStatusesToFilterOut(readyToBeInputProvenTxStatuses...))
 		if err != nil {
 			return nil, fmt.Errorf("failed to build beef for tx %s: %w", xinput.Outpoint.TxID, err)
 		}
