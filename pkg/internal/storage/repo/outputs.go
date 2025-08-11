@@ -93,6 +93,10 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			query = query.Omit(omitFields...)
 		}
 
+		if !filter.IncludeSpent {
+			query = query.Where(o.query.Output.Spendable.Value(true))
+		}
+
 		if filter.Basket != "" {
 			query = query.Where("basket_name = ?", filter.Basket)
 		}

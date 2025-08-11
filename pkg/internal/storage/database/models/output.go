@@ -22,7 +22,7 @@ type Output struct {
 	BasketName *string
 	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`
 
-	Spendable bool
+	Spendable bool `gorm:"index"`
 	Change    bool
 
 	Description string `gorm:"type:string"`
