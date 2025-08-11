@@ -56,7 +56,12 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	if args.IncludeTransactions {
 		uniqueTxIDs := l.uniqueTxTDsForAllOutputs(outputModels)
 
-		beef, err := l.knownTxRepo.GetBEEFForTxIDs(ctx, uniqueTxIDs, args.KnownTxids, wdk.ProvenTxReqProblematicStatuses)
+		beef, err := l.knownTxRepo.GetBEEFForTxIDs(
+			ctx,
+			uniqueTxIDs,
+			entity.WithKnownTxIDs(args.KnownTxids...),
+			entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching BEEF data: %w", err)
 		}
@@ -84,6 +89,7 @@ func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*entity.Output) it
 
 func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) entity.ListOutputsFilter {
 	return entity.ListOutputsFilter{
+		IncludeSpent:              false,
 		UserID:                    userID,
 		Basket:                    string(args.Basket),
 		Limit:                     must.ConvertToIntFromUnsigned(to.NoMoreThan(args.Limit, validate.MaxPaginationLimit)),

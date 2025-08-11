@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -25,6 +26,7 @@ type StorageReader interface {
 	FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
+	ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
 	CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
 }
 
@@ -59,7 +61,7 @@ type UserTransactionAssertion interface {
 
 type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
-	WithCountHavingOutpoint(expected int) OutputsListAssertion
+	WithCountHavingTxID(expected int) OutputsListAssertion
 	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
 }
 
@@ -304,16 +306,29 @@ func (d *dbStateAssertion) Outputs(user testusers.User, basketName string) Outpu
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
-	outputs, err := d.storage.ListOutputs(d.Context(), wdk.AuthID{UserID: &userID}, wdk.ListOutputsArgs{
-		Limit:       1000,
-		Basket:      primitives.StringUnder300(basketName),
-		IncludeTags: true,
+
+	actions, err := d.storage.ListActions(d.Context(), wdk.AuthID{UserID: &userID}, wdk.ListActionsArgs{
+		Limit:          primitives.PositiveIntegerDefault10Max10000(1000),
+		IncludeOutputs: to.Ptr[primitives.BooleanDefaultFalse](true),
+		LabelQueryMode: to.Ptr(defs.QueryModeAny),
 	})
-	require.NoError(d.TB, err)
+	require.NoError(d, err)
+
+	var outputs []*outputInfo
+	for _, action := range actions.Actions {
+		for _, output := range action.Outputs {
+			if basketName == "" || output.Basket == basketName {
+				outputs = append(outputs, &outputInfo{
+					WalletActionOutput: output,
+					txID:               action.TxID,
+				})
+			}
+		}
+	}
 
 	return &outputsListAssertion{
 		TB:      d.TB,
-		outputs: outputs.Outputs,
+		outputs: outputs,
 	}
 }
 
@@ -323,7 +338,12 @@ func (d *dbStateAssertion) AllOutputs(user testusers.User) OutputsListAssertion 
 
 type outputsListAssertion struct {
 	testing.TB
-	outputs []*wdk.WalletOutput
+	outputs []*outputInfo
+}
+
+type outputInfo struct {
+	wdk.WalletActionOutput
+	txID string
 }
 
 func (d *outputsListAssertion) WithCount(expected int) OutputsListAssertion {
@@ -332,13 +352,12 @@ func (d *outputsListAssertion) WithCount(expected int) OutputsListAssertion {
 	return d
 }
 
-func (d *outputsListAssertion) WithCountHavingOutpoint(expected int) OutputsListAssertion {
+func (d *outputsListAssertion) WithCountHavingTxID(expected int) OutputsListAssertion {
 	d.Helper()
-	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
-		err := output.Outpoint.Validate()
-		return err == nil
+	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *outputInfo) bool {
+		return output.txID != ""
 	}))
-	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID %d, but got %d", expected, count)
+	assert.Equal(d, expected, count, "Expected outputs list to have %d items with txID, but got %d", expected, count)
 	return d
 }
 
@@ -350,10 +369,10 @@ func (d *outputsListAssertion) WithCountHavingTags(expected int, tags ...string)
 		lookup[tag] = struct{}{}
 	}
 
-	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *wdk.WalletOutput) bool {
+	count := seq.Count(seq.Filter(seq.FromSlice(d.outputs), func(output *outputInfo) bool {
 		contains := 0
 		for _, tag := range output.Tags {
-			if _, ok := lookup[string(tag)]; ok {
+			if _, ok := lookup[tag]; ok {
 				contains++
 			}
 			if contains >= len(tags) {
