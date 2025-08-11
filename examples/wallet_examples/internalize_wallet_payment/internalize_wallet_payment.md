@@ -20,11 +20,11 @@ Atomic BEEF transactions start with the prefix `01010101` followed by the subjec
 
 The example uses the following required configurable constants:
 
-- **`atomicBeefHex`**: Atomic BEEF hex data for the transaction (required - must not be empty). Contains the `01010101` prefix, subject TXID, and transaction dependencies
-- **`prefix`**: Base64-encoded derivation prefix for payment remittance (required)
-- **`suffix`**: Base64-encoded derivation suffix for payment remittance (required)
-- **`identityKey`**: Hex-encoded sender identity key for payment remittance (required)
-- **`defaultOriginator`**: Domain identifier for the requesting application (default: `"example.com"`)
+- **`AtomicBeefHex`**: Atomic BEEF hex data for the transaction (required - must not be empty). Contains the `01010101` prefix, subject TXID, and transaction dependencies
+- **`Prefix`**: Base64-encoded derivation prefix for payment remittance (required)
+- **`Suffix`**: Base64-encoded derivation suffix for payment remittance (required)
+- **`IdentityKey`**: Hex-encoded sender identity key for payment remittance (required)
+- **`Originator`**: Domain identifier for the requesting application (default: `"example.com"`)
 
 ### Request Parameters
 
@@ -56,7 +56,7 @@ The service response contains:
 To run this example:
 
 ```bash
-go run ./examples/wallet_examples/internalize_wallet_payment/internalize_wallet_payment.go
+go run examples/wallet_examples/internalize_wallet_payment/internalize_wallet_payment.go
 ```
 
 ## Expected Output
@@ -82,13 +82,13 @@ Args: {Tx:[1 1 1 1 200 192 108 95 172 99 81 11 43 2 204 171 151 74 110 240 176 1
 🎉 COMPLETED: Internalize Wallet Payment
 ```
 
-**Note:** The example requires all four parameters (`atomicBeefHex`, `prefix`, `suffix`, `identityKey`) to be provided before running, or it will panic with a validation error. The `atomicBeefHex` must be a valid Atomic BEEF structure starting with `0101010101`.
+**Note:** The example requires all four parameters (`AtomicBeefHex`, `Prefix`, `Suffix`, `IdentityKey`) to be provided before running, or it will panic with a validation error. The `AtomicBeefHex` must be a valid Atomic BEEF structure starting with `01010101`.
 
 ## Integration Steps
 
 To integrate Atomic BEEF transaction internalization into your application:
 
-1. **Prepare required parameters**: Ensure you have the Atomic BEEF hex data (with `0101010101` prefix and subject TXID), base64-encoded derivation prefix, suffix, and hex-encoded identity key.
+1. **Prepare required parameters**: Ensure you have the Atomic BEEF hex data (with `01010101` prefix and subject TXID), base64-encoded derivation prefix, suffix, and hex-encoded identity key.
 2. **Set up wallet connection** with appropriate storage and authentication settings.
 3. **Decode parameters**: Convert base64 prefix/suffix to bytes, hex Atomic BEEF data to bytes, and parse the hex identity key to public key format.
 4. **Create internalization arguments** with decoded Atomic BEEF transaction data and payment remittance configuration.
@@ -97,7 +97,7 @@ To integrate Atomic BEEF transaction internalization into your application:
 
 ## Additional Resources
 
-- [Create P2pkh Transaction Documentation](../create_p2pkh_tx/create_p2pkh_tx.md) - Create new wallet transactions
+- [Create P2PKH Transaction Documentation](../create_p2pkh_tx/create_p2pkh_tx.md) - Create new wallet transactions
 - [Internalize Wallet Payment Example](./internalize_wallet_payment.go) - Complete code example for internalizing transactions
 - [List Actions Documentation](../list_actions/list_actions.md) - View wallet transaction history
 - [List Outputs Documentation](../list_outputs/list_outputs.md) - View wallet transaction outputs
