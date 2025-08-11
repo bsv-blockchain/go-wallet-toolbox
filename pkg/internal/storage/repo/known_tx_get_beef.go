@@ -74,22 +74,22 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 
 	err := query.First(&model, "tx_id = ? ", txID).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		if transactionGetterService != nil {
-			rawTx, merklePath, err := transactionGetterService(ctx, txID)
-			if err != nil {
-				return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
-			}
-
-			inputBeef, _ := transaction.NewBeefV2().Bytes()
-
-			model = models.KnownTx{
-				TxID:       txID,
-				RawTx:      rawTx,
-				MerklePath: to.If(merklePath != nil, merklePath.Bytes).ElseThen(nil),
-				InputBeef:  inputBeef,
-			}
-		} else {
+		if transactionGetterService == nil {
 			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.NotFoundError)
+		}
+
+		rawTx, merklePath, err := transactionGetterService(ctx, txID)
+		if err != nil {
+			return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
+		}
+
+		inputBeef, _ := transaction.NewBeefV2().Bytes()
+
+		model = models.KnownTx{
+			TxID:       txID,
+			RawTx:      rawTx,
+			MerklePath: to.If(merklePath != nil, merklePath.Bytes).ElseThen(nil),
+			InputBeef:  inputBeef,
 		}
 	} else if err != nil {
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)

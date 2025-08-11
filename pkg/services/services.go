@@ -348,7 +348,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 		}
 		rawTxResult, err := s.RawTx(txID)
 		if err != nil {
-			return fmt.Errorf("failed to get raw transaction for txID %s: %w", txID, err)
+			return fmt.Errorf("failed to get raw transaction for txID %q: %w", txID, err)
 		}
 
 		if rawTxResult.RawTx == nil {
@@ -357,12 +357,12 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 
 		tx, err := transaction.NewTransactionFromBytes(rawTxResult.RawTx)
 		if err != nil {
-			return fmt.Errorf("failed to create transaction from raw bytes for txID %s: %w", txID, err)
+			return fmt.Errorf("failed to create transaction from raw bytes for txID %q: %w", txID, err)
 		}
 
 		merklePathResult, err := s.MerklePath(ctx, txID)
 		if err != nil && !errors.Is(err, wdk.NotFoundError) {
-			return fmt.Errorf("failed to get merkle path for txID %s: %w", txID, err)
+			return fmt.Errorf("failed to get merkle path for txID %q: %w", txID, err)
 		}
 
 		isMined := merklePathResult != nil && merklePathResult.MerklePath != nil
@@ -373,7 +373,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 
 		_, err = beef.MergeTransaction(tx)
 		if err != nil {
-			return fmt.Errorf("failed to merge transaction for txID %s: %w", txID, err)
+			return fmt.Errorf("failed to merge transaction txID %q: %w", txID, err)
 		}
 
 		if isMined {
@@ -391,7 +391,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 
 				err = txGetter(sourceTxID, depth+1)
 				if err != nil {
-					return fmt.Errorf("failed to get beef for input source txID %s: %w", sourceTxID, err)
+					return fmt.Errorf("failed to get beef for txID %q at depth %d: %w", sourceTxID, depth, err)
 				}
 			}
 		}
@@ -401,7 +401,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 
 	err := txGetter(txID, 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get BEEF for txID %s: %w", txID, err)
+		return nil, fmt.Errorf("failed to get BEEF for subject TxID %q: %w", txID, err)
 	}
 
 	return beef, nil
