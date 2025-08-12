@@ -354,9 +354,14 @@ func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAt
 }
 
 // IsAuthenticated checks the authentication status of the user.
-func (w *Wallet) IsAuthenticated(ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) IsAuthenticated(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	err := validate.Originator(originator)
+	if err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+	return &sdk.AuthenticatedResult{
+		Authenticated: true,
+	}, nil
 }
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
@@ -384,7 +389,13 @@ func (w *Wallet) GetNetwork(ctx context.Context, args any, originator string) (*
 }
 
 // GetVersion retrieves the current version string of the wallet.
-func (w *Wallet) GetVersion(ctx context.Context, args any, originator string) (*sdk.GetVersionResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetVersion(_ context.Context, _ any, originator string) (*sdk.GetVersionResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.GetVersionResult{
+		Version: defs.Version,
+	}, nil
+
 }
