@@ -73,7 +73,7 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 	return collector.GetResult()
 }
 
-func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, noSendChangeOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
+func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
 	batches := seqerr.ProduceWithArg(
 		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
 			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs)
@@ -90,21 +90,22 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 
 	priorityUTXOs := seq.Empty[*models.UserUTXO]()
 	utxoCandidates := seqerr.FlattenSlices(batches)
-	if len(noSendChangeOutputs) > 0 {
-		priorityUTXOs = noSendChangeOutputsIterator(forbiddenOutputIDs, noSendChangeOutputs)
+
+	if len(priorityOutputs) > 0 {
+		priorityUTXOs = noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs)
 	}
 
 	return seqerr.Concat(seqerr.FromSeq(priorityUTXOs), utxoCandidates)
 }
 
-func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, noSendChangeOutputs []*entity.Output) iter.Seq[*models.UserUTXO] {
-	hashSet := make(map[uint]struct{}, len(forbiddenOutputIDs))
+func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq[*models.UserUTXO] {
+	forbiddenIDsLookup := make(map[uint]struct{}, len(forbiddenOutputIDs))
 	for _, id := range forbiddenOutputIDs {
-		hashSet[id] = struct{}{}
+		forbiddenIDsLookup[id] = struct{}{}
 	}
 	return func(yield func(*models.UserUTXO) bool) {
-		for _, output := range noSendChangeOutputs {
-			if _, ok := hashSet[output.ID]; ok {
+		for _, output := range priorityOutputs {
+			if _, ok := forbiddenIDsLookup[output.ID]; ok {
 				continue
 			}
 			if !yield(models.ToUserUTXOFromOutputEntity(output)) {

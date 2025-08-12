@@ -16,7 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions/services"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -66,18 +66,17 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 }
 
 type create struct {
-	logger                 *slog.Logger
-	funder                 funder.Funder
-	basketRepo             BasketRepo
-	txRepo                 TransactionsRepo
-	outputRepo             OutputRepo
-	knownTxRepo            KnownTxRepo
-	commissionRepo         CommissionRepo
-	commission             *commission.ScriptGenerator
-	commissionCfg          defs.Commission
-	random                 wdk.Randomizer
-	chaintracker           chaintracker.ChainTracker
-	priorityOutputsService *services.PriorityOutputsService
+	logger         *slog.Logger
+	funder         funder.Funder
+	basketRepo     BasketRepo
+	txRepo         TransactionsRepo
+	outputRepo     OutputRepo
+	knownTxRepo    KnownTxRepo
+	commissionRepo CommissionRepo
+	commission     *commission.ScriptGenerator
+	commissionCfg  defs.Commission
+	random         wdk.Randomizer
+	chaintracker   chaintracker.ChainTracker
 }
 
 func newCreateAction(
@@ -94,17 +93,16 @@ func newCreateAction(
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:                 logger,
-		funder:                 funder,
-		basketRepo:             basketRepo,
-		txRepo:                 txRepo,
-		commissionCfg:          commissionCfg,
-		outputRepo:             outputRepo,
-		knownTxRepo:            knownTxRepo,
-		commissionRepo:         commissionRepo,
-		random:                 random,
-		chaintracker:           chaintracker,
-		priorityOutputsService: services.NewPriorityOutputsService(outputRepo, logger),
+		logger:         logger,
+		funder:         funder,
+		basketRepo:     basketRepo,
+		txRepo:         txRepo,
+		commissionCfg:  commissionCfg,
+		outputRepo:     outputRepo,
+		knownTxRepo:    knownTxRepo,
+		commissionRepo: commissionRepo,
+		random:         random,
+		chaintracker:   chaintracker,
 	}
 
 	if commissionCfg.Enabled() {
@@ -134,9 +132,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	priorityOutputs, err := c.priorityOutputsService.CreateOutputs(ctx, userID, params.IsNoSend, params.NoSendChange)
+	priorityOutputs, err := c.createOutputs(ctx, userID, params.IsNoSend, params.NoSendChange)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create priority outputs by: %w", err)
+		return nil, fmt.Errorf("failed to create priority outputs: %w", err)
 	}
 
 	c.logger.DebugContext(ctx, "Processing inputs",
@@ -361,6 +359,49 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		InputBeef:               inputBeef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+func (c *create) createOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint) ([]*entity.Output, error) {
+	logger := c.logger.With(
+		slog.String("service", "priority_outputs_service"),
+		slog.String("service_method", "create_outputs"),
+		slog.Bool("is_no_send_param", isNoSend),
+		slog.Int("no_send_change_len", len(noSendChange)),
+		logging.UserID(userID),
+	)
+
+	if isNoSend && len(noSendChange) == 0 {
+		logger.DebugContext(ctx, "Processing terminated immediately due to arguments values")
+		return nil, nil
+	}
+
+	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, noSendChange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs by outpoints: %w", err)
+	}
+
+	logger = logger.With(
+		slog.String("component", "repository"),
+		slog.String("component_method", "find_outputs_by_outpoints"))
+
+	logger.DebugContext(ctx, "Entity outputs successfully returned from the repository")
+
+	if len(noSendChange) != len(outputs) {
+		return nil, fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(noSendChange))
+	}
+
+	err = validate.NoSendChangeOutputs(outputs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate no send change outputs: %w", err)
+	}
+
+	logger = logger.With(
+		slog.String("component", "no_send_change_outputs_validator"),
+		slog.String("component_method", "no_send_change_outputs"))
+
+	logger.DebugContext(ctx, "Entity outputs (no send change outputs) successfully validated")
+
+	return outputs, nil
 }
 
 func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
