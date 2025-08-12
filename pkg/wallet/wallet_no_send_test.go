@@ -66,7 +66,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 
 	s.Run("create twice noSend create actions, providing noSendChange to the second one", func() {
 		t := s.T()
-		t.Skip()
 		const inputValue = testValueForFunding
 
 		// given:

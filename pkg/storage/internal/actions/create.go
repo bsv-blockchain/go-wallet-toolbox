@@ -132,7 +132,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	priorityOutputs, err := c.createOutputs(ctx, userID, params.IsNoSend, params.NoSendChange)
+	priorityOutputs, err := c.getNoSendOutputs(ctx, userID, params.IsNoSend, params.NoSendChange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create priority outputs: %w", err)
 	}
@@ -361,7 +361,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}, nil
 }
 
-func (c *create) createOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint) ([]*entity.Output, error) {
+func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint) ([]*entity.Output, error) {
 	logger := c.logger.With(
 		slog.String("service", "priority_outputs_service"),
 		slog.String("service_method", "create_outputs"),
@@ -372,7 +372,7 @@ func (c *create) createOutputs(ctx context.Context, userID int, isNoSend bool, n
 
 	if isNoSend && len(noSendChange) == 0 {
 		logger.DebugContext(ctx, "Processing terminated immediately due to arguments values")
-		return nil, nil
+		return []*entity.Output{}, nil
 	}
 
 	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, noSendChange)
