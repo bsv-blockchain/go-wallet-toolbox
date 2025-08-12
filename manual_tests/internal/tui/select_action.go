@@ -12,6 +12,7 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		fixtures.ActionInternalize,
 		fixtures.ActionBalance,
 		fixtures.ActionSendData,
+		fixtures.ActionSendDataPeriodically,
 	}
 
 	title := fmt.Sprintf("Select action for %s:", user.Name)
@@ -26,6 +27,9 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 			return balanceModel, balanceModel.Init()
 		case fixtures.ActionSendData:
 			sendDataModel := NewSendDataForm(manager, user)
+			return sendDataModel, sendDataModel.Init()
+		case fixtures.ActionSendDataPeriodically:
+			sendDataModel := NewSendDataPeriodicallyForm(manager, user)
 			return sendDataModel, sendDataModel.Init()
 		default:
 			manager.Panic(nil, "Unsupported action type: "+string(actionType))

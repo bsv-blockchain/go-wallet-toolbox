@@ -43,7 +43,7 @@ func (m *SummaryView) Init() tea.Cmd {
 	return nil
 }
 
-func (m *SummaryView) Update(msg tea.Msg) (*SummaryView, tea.Cmd) {
+func (m *SummaryView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {

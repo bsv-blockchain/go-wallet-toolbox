@@ -37,7 +37,7 @@ type sendDataResultMsg struct {
 }
 
 func (m *SendDataWaiting) sendData() tea.Msg {
-	summary, err := m.manager.CreateActionWithData(*m.user, m.data)
+	_, summary, err := m.manager.CreateActionWithData(*m.user, m.data)
 	return sendDataResultMsg{
 		err:     err,
 		summary: summary,

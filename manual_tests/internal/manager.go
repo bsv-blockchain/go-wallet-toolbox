@@ -217,21 +217,21 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 	return summary, nil
 }
 
-func (m *Manager) CreateActionWithData(user fixtures.UserConfig, data string) (fixtures.Summary, error) {
+func (m *Manager) CreateActionWithData(user fixtures.UserConfig, data string) (string, fixtures.Summary, error) {
 	var summary fixtures.Summary
 
 	summary = append(summary, fmt.Sprintf("Using wallet for user %s", user.Name))
 
 	userWallet, err := m.WalletForUser(user)
 	if err != nil {
-		return summary, fmt.Errorf("failed to get wallet for user %s: %w", user.Name, err)
+		return "", summary, fmt.Errorf("failed to get wallet for user %s: %w", user.Name, err)
 	}
 
 	summary = append(summary, fmt.Sprintf("Creating data output with data: %s", data))
 
 	dataOutput, err := transaction.CreateOpReturnOutput([][]byte{[]byte(data)})
 	if err != nil {
-		return summary, fmt.Errorf("failed to create OP_RETURN output with data %q: %w", data, err)
+		return "", summary, fmt.Errorf("failed to create OP_RETURN output with data %q: %w", data, err)
 	}
 
 	createArgs := sdk.CreateActionArgs{
@@ -254,12 +254,13 @@ func (m *Manager) CreateActionWithData(user fixtures.UserConfig, data string) (f
 
 	result, err := userWallet.CreateAction(m.ctx, createArgs, "")
 	if err != nil {
-		return summary, fmt.Errorf("failed to create action for user %s: %w", user.Name, err)
+		return "", summary, fmt.Errorf("failed to create action for user %s: %w", user.Name, err)
 	}
 
 	summary = append(summary, fmt.Sprintf("Create action result: %#v", result))
 
+	txID := result.Txid.String()
 	summary = append(summary, fmt.Sprintf("TxID: %s", result.Txid.String()))
 
-	return summary, nil
+	return txID, summary, nil
 }

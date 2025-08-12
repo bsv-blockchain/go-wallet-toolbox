@@ -80,7 +80,7 @@ func (m *ResultView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		var cmd tea.Cmd
-		m.summaryView, cmd = m.summaryView.Update(msg)
+		_, cmd = m.summaryView.Update(msg)
 		return m, cmd
 	}
 
