@@ -17,6 +17,7 @@ type Actions struct {
 	*listOutputs
 	*listActions
 	*abortAction
+	*getBeef
 }
 
 func New(
@@ -63,5 +64,6 @@ func New(
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
 		abortAction:           newAbortAction(logger, repos.Transactions),
+		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
 }
