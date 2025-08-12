@@ -382,5 +382,9 @@ func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 		return nil, fmt.Errorf("no results found for provided txIDs")
 	}
 
+	if results.Status != wdk.GetStatusSuccess {
+		return nil, fmt.Errorf("failed to get status for txIDs: %s", results.Status)
+	}
+
 	return results, nil
 }

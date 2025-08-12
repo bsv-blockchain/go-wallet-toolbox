@@ -13,6 +13,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
+// This example demonstrates how to check if an outpoint is a UTXO.
+// The services package is used to interact with the WhatsOnChain API.
+// The scriptHash is the script hash of the UTXO you want to check.
+// The txidHex is the transaction ID of the UTXO you want to check.
+// The txIndex is the index of the UTXO you want to check.
+// The result is a boolean indicating if the outpoint is a UTXO.
 func main() {
 	const (
 		scriptHash = "b3005d46af31c4b5675b73c17579b7bd366dfe10635b7b43ac111aea5226efb6"
@@ -55,20 +61,3 @@ func main() {
 
 	show.ProcessComplete("Is UTXO")
 }
-
-/* Output:
-
-🚀 STARTING: Is UTXO
-============================================================
-
-=== STEP ===
-Wallet-Services is performing: checking if outpoint is a UTXO
---------------------------------------------------
-
-WALLET CALL: IsUtxo
-Args: map[index:1 scriptHash:b3005d46af31c4b5675b73c17579b7bd366dfe10635b7b43ac111aea5226efb6 txid:ab0f76f957662335f98ee430a665f924c28310ec5126c2aede56086f9233326f]
-✅ Result: true
-============================================================
-🎉 COMPLETED: Is UTXO
-
-*/
