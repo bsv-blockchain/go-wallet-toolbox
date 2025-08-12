@@ -132,7 +132,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	priorityOutputs, err := c.getNoSendOutputs(ctx, userID, params.IsNoSend, params.NoSendChange)
+	priorityOutputs, err := c.getNoSendOutputs(ctx, userID, params.IsNoSend, params.NoSendChange, reference)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create priority outputs: %w", err)
 	}
@@ -361,17 +361,16 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}, nil
 }
 
-func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint) ([]*entity.Output, error) {
+func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint, ref string) ([]*entity.Output, error) {
 	logger := c.logger.With(
-		slog.String("service", "priority_outputs_service"),
-		slog.String("service_method", "create_outputs"),
-		slog.Bool("is_no_send_param", isNoSend),
-		slog.Int("no_send_change_len", len(noSendChange)),
+		logging.Reference(ref),
+		slog.Bool("isNoSendParam", isNoSend),
+		slog.Int("noSendChangeParam", len(noSendChange)),
 		logging.UserID(userID),
 	)
 
 	if isNoSend && len(noSendChange) == 0 {
-		logger.DebugContext(ctx, "Processing terminated immediately due to arguments values")
+		logger.DebugContext(ctx, "NoSendOutputs not provided")
 		return []*entity.Output{}, nil
 	}
 
@@ -379,10 +378,6 @@ func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs by outpoints: %w", err)
 	}
-
-	logger = logger.With(
-		slog.String("component", "repository"),
-		slog.String("component_method", "find_outputs_by_outpoints"))
 
 	logger.DebugContext(ctx, "Entity outputs successfully returned from the repository")
 
@@ -394,10 +389,6 @@ func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate no send change outputs: %w", err)
 	}
-
-	logger = logger.With(
-		slog.String("component", "no_send_change_outputs_validator"),
-		slog.String("component_method", "no_send_change_outputs"))
 
 	logger.DebugContext(ctx, "Entity outputs (no send change outputs) successfully validated")
 

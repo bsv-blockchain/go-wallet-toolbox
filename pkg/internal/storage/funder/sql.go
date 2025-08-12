@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -51,6 +52,8 @@ func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.Fe
 // @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
 // @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 // @param userID - the user ID.
+// @param forbiddenOutputIDs - defines the output IDs that should not be used as sources to cover the target satoshis value.
+// @param priorityOutputs - defines the outputs that should be used as source to cover the target satoshi value before fetching the required number of outputs from database.
 func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *entity.OutputBasket, userID int, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) (*Result, error) {
 	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
 	if err != nil {
@@ -87,12 +90,12 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 			SortBy: "satoshis",
 		})
 
-	secondaryOutputs := seqerr.FlattenSlices(batches)
+	standardUTXOs := seqerr.FlattenSlices(batches)
 	if len(priorityOutputs) == 0 {
-		return seqerr.Concat(secondaryOutputs)
+		return seqerr.Concat(standardUTXOs)
 	}
 
-	return seqerr.Concat(noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs), secondaryOutputs)
+	return seqerr.Concat(noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs), standardUTXOs)
 }
 
 func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
@@ -100,13 +103,34 @@ func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*e
 	for _, id := range forbiddenOutputIDs {
 		forbiddenIDsLookup[id] = struct{}{}
 	}
+
 	return func(yield func(*models.UserUTXO, error) bool) {
 		for _, output := range priorityOutputs {
 			if _, ok := forbiddenIDsLookup[output.ID]; ok {
 				continue
 			}
-			utxo, err := models.ToUserUTXOFromOutputEntity(output)
-			if !yield(utxo, err) {
+
+			userID := output.UserID
+
+			var basket string
+			if output.BasketName != nil {
+				basket = *output.BasketName
+			}
+
+			satoshis, err := to.UInt64(output.Satoshis)
+			if err != nil {
+				yield(nil, fmt.Errorf("failed to convert output satoshis: %d to uint64: %w", output.Satoshis, err))
+				break
+			}
+
+			if !yield(&models.UserUTXO{
+				UserID:             userID,
+				OutputID:           output.ID,
+				BasketName:         basket,
+				Satoshis:           satoshis,
+				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+				CreatedAt:          output.CreatedAt,
+			}, nil) {
 				break
 			}
 		}
