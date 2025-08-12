@@ -22,19 +22,19 @@ const (
 	GetStatusSuccess GetStatusResult = "success"
 )
 
-// Status represents the status of a transaction
-type Status string
+// ResultStatusForTxID represents the status of a transaction
+type ResultStatusForTxID string
 
 const (
-	// TxStatusMined indicates the transaction has been mined
-	TxStatusMined Status = "mined"
-	// TxStatusUnconfirmed indicates the transaction is unconfirmed
-	TxStatusUnconfirmed Status = "known"
-	// TxStatusNotFound indicates the transaction was not found
-	TxStatusNotFound Status = "unknown"
+	// ResultStatusForTxIDMined indicates the transaction has been mined
+	ResultStatusForTxIDMined ResultStatusForTxID = "mined"
+	// ResultStatusForTxIDKnown indicates the transaction is unconfirmed
+	ResultStatusForTxIDKnown ResultStatusForTxID = "known"
+	// ResultStatusForTxIDNotFound indicates the transaction was not found
+	ResultStatusForTxIDNotFound ResultStatusForTxID = "unknown"
 )
 
 // String returns the string representation of the Status.
-func (s Status) String() string {
+func (s ResultStatusForTxID) String() string {
 	return string(s)
 }

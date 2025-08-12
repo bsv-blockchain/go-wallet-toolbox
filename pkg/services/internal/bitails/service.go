@@ -296,26 +296,30 @@ func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.G
 
 	var anyFound bool
 
-	for _, txid := range txIDs {
-		found, mined, height, err := b.getTxStatus(ctx, txid)
+	for _, txID := range txIDs {
+		found, mined, height, err := b.getTxStatus(ctx, txID)
 		if err != nil {
-			return nil, fmt.Errorf("%s: failed to get status for %s: %w", ServiceName, txid, err)
+			return nil, fmt.Errorf("%s: failed to get status for %s: %w", ServiceName, txID, err)
 		}
 
-		item := wdk.TxStatusDetail{TxID: txid}
+		item := wdk.TxStatusDetail{TxID: txID}
 
 		switch {
 		case !found:
-			item.Status = wdk.TxStatusNotFound.String()
+			item.Status = wdk.ResultStatusForTxIDNotFound.String()
 
 		case mined:
 			anyFound = true
-			item.Status = wdk.TxStatusMined.String()
-			item.Depth = calcDepth(tip, height)
+			item.Status = wdk.ResultStatusForTxIDMined.String()
+			depth, err := calcDepth(tip, height)
+			if err != nil {
+				return nil, fmt.Errorf("failed to calculate depth for %s: %w", txID, err)
+			}
+			item.Depth = depth
 
 		default:
 			anyFound = true
-			item.Status = wdk.TxStatusUnconfirmed.String()
+			item.Status = wdk.ResultStatusForTxIDKnown.String()
 			item.Depth = to.Ptr(0)
 		}
 

@@ -13,7 +13,7 @@ func (woc *WhatsOnChain) getStatusForTxIDs(ctx context.Context, url string, txID
 		return nil, err
 	}
 
-	results := slices.Map(response, mapSingleTxStatus)
+	results := slices.Map(response, woc.mapSingleTxStatus)
 
 	return &wdk.GetStatusForTxIDsResult{
 		Name:    ServiceName,

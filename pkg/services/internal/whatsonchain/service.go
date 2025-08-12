@@ -373,8 +373,14 @@ func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
 	}
+
 	if results == nil {
 		return nil, fmt.Errorf("no status found for provided txIDs")
 	}
+
+	if len(results.Results) == 0 {
+		return nil, fmt.Errorf("no results found for provided txIDs")
+	}
+
 	return results, nil
 }

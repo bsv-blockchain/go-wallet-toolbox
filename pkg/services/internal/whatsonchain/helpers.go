@@ -3,6 +3,7 @@ package whatsonchain
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -140,4 +141,41 @@ func (woc *WhatsOnChain) doStatusRequest(ctx context.Context, url string, txids 
 	}
 
 	return response, nil
+}
+
+func (woc *WhatsOnChain) mapSingleTxStatus(tx dto.WocStatusItem) wdk.TxStatusDetail {
+	var (
+		depth  *int
+		status wdk.ResultStatusForTxID
+	)
+
+	if tx.Error != nil {
+		if *tx.Error != "unknown" {
+			woc.logger.Warn("unexpected error for tx", slog.String("txid", tx.TxID), slog.String("error", *tx.Error))
+		}
+		status = wdk.ResultStatusForTxIDNotFound
+		return wdk.TxStatusDetail{TxID: tx.TxID, Depth: nil, Status: status.String()}
+	}
+
+	if tx.Confirmations == nil {
+		if tx.BlockHash != "" {
+			woc.logger.Warn("blockhash present but confirmations=nil", slog.String("txid", tx.TxID), slog.String("blockhash", tx.BlockHash))
+		}
+		status = wdk.ResultStatusForTxIDKnown
+		depth = to.Ptr(0)
+		return wdk.TxStatusDetail{TxID: tx.TxID, Depth: depth, Status: status.String()}
+	}
+
+	if *tx.Confirmations <= 0 || (tx.BlockHash != "" && *tx.Confirmations == 0) {
+		woc.logger.Warn("non-positive confirmations or blockhash with zero confirmations", slog.String("txid", tx.TxID), slog.String("blockhash", tx.BlockHash), slog.Int("confirmations", *tx.Confirmations))
+	}
+
+	status = wdk.ResultStatusForTxIDMined
+	depth = to.Ptr(*tx.Confirmations)
+
+	return wdk.TxStatusDetail{
+		TxID:   tx.TxID,
+		Depth:  depth,
+		Status: status.String(),
+	}
 }

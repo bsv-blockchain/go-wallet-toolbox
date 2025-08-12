@@ -348,7 +348,7 @@ func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 	res, err := s.getStatusForTxIDsServices.OneByOne(ctx, txIDs)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("no status found for provided txIDs")
+			return nil, fmt.Errorf("no status found for provided txIDs: %w", wdk.NotFoundError)
 		}
 		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
 	}

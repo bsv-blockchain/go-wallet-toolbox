@@ -12,23 +12,19 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// getTxStatus returns:
-//
-//	found=false on 404
-//	found=true  with mined=true/false and height (if mined) on 200
+// getTxStatus retrieves the status of a transaction by its txid from Bitails.
 func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, mined bool, height uint32, err error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
-		return false, false, 0, fmt.Errorf("build tx status URL: %w", err)
+		err = fmt.Errorf("build tx status URL: %w", err)
+		return
 	}
 
 	var info dto.FetchInfoResponse
 	found, err = b.handleJSON(ctx, url, &info, http.StatusOK, true /* allow 404 */)
 	if err != nil {
-		return false, false, 0, fmt.Errorf("fetch tx status: %w", err)
-	}
-	if !found {
-		return false, false, 0, nil
+		err = fmt.Errorf("fetch tx status: %w", err)
+		return
 	}
 
 	mined = info.BlockHeight > 0

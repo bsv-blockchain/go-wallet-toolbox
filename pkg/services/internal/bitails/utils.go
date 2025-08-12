@@ -77,12 +77,13 @@ func validateScriptHash(scriptHash string) error {
 	return nil
 }
 
-func calcDepth(tip, height uint32) *int {
-	d := int(tip) - int(height) + 1
-	if d < 0 {
-		return to.Ptr(0)
+func calcDepth(tip, height uint32) (*int, error) {
+	if height > tip {
+		return nil, fmt.Errorf("invalid block height: height=%d is greater than tip=%d", height, tip)
 	}
-	return to.Ptr(d)
+
+	d := int(tip) - int(height) + 1
+	return to.Ptr(d), nil
 }
 
 // buildURL joins baseURL with any number of path segments, preserving the
