@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -88,27 +87,26 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 			SortBy: "satoshis",
 		})
 
-	priorityUTXOs := seq.Empty[*models.UserUTXO]()
-	utxoCandidates := seqerr.FlattenSlices(batches)
-
-	if len(priorityOutputs) > 0 {
-		priorityUTXOs = noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs)
+	secondaryOutputs := seqerr.FlattenSlices(batches)
+	if len(priorityOutputs) == 0 {
+		return seqerr.Concat(secondaryOutputs)
 	}
 
-	return seqerr.Concat(seqerr.FromSeq(priorityUTXOs), utxoCandidates)
+	return seqerr.Concat(noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs), secondaryOutputs)
 }
 
-func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq[*models.UserUTXO] {
+func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
 	forbiddenIDsLookup := make(map[uint]struct{}, len(forbiddenOutputIDs))
 	for _, id := range forbiddenOutputIDs {
 		forbiddenIDsLookup[id] = struct{}{}
 	}
-	return func(yield func(*models.UserUTXO) bool) {
+	return func(yield func(*models.UserUTXO, error) bool) {
 		for _, output := range priorityOutputs {
 			if _, ok := forbiddenIDsLookup[output.ID]; ok {
 				continue
 			}
-			if !yield(models.ToUserUTXOFromOutputEntity(output)) {
+			utxo, err := models.ToUserUTXOFromOutputEntity(output)
+			if !yield(utxo, err) {
 				break
 			}
 		}

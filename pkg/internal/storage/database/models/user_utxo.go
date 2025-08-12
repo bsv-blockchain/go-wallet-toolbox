@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -28,12 +29,16 @@ type UserUTXO struct {
 	ReservedBy   *Transaction
 }
 
-func ToUserUTXOFromOutputEntity(output *entity.Output) *UserUTXO {
+func ToUserUTXOFromOutputEntity(output *entity.Output) (*UserUTXO, error) {
 	userID := output.UserID
 
 	var basket string
 	if output.BasketName != nil {
 		basket = *output.BasketName
+	}
+
+	if output.Satoshis < 0 {
+		return nil, fmt.Errorf("negative satoshis - overflow conversion int64 -> uint64")
 	}
 
 	return &UserUTXO{
@@ -43,5 +48,5 @@ func ToUserUTXOFromOutputEntity(output *entity.Output) *UserUTXO {
 		Satoshis:           uint64(output.Satoshis),
 		EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
 		CreatedAt:          output.CreatedAt,
-	}
+	}, nil
 }
