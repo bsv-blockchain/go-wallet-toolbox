@@ -10,6 +10,7 @@ import (
 func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Model {
 	actionsTypes := []fixtures.ActionType{
 		fixtures.ActionInternalize,
+		fixtures.ActionBalance,
 	}
 
 	title := fmt.Sprintf("Select action for %s:", user.Name)
@@ -19,6 +20,9 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		case fixtures.ActionInternalize:
 			internalizeModel := NewInternalizeActionForm(manager, user)
 			return internalizeModel, internalizeModel.Init()
+		case fixtures.ActionBalance:
+			balanceModel := NewBalanceView(manager, user)
+			return balanceModel, balanceModel.Init()
 		default:
 			manager.Panic(nil, "Unsupported action type: "+string(actionType))
 			return nil, nil

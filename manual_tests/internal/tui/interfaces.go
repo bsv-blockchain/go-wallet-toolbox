@@ -14,4 +14,5 @@ type ManagerInterface interface {
 	GetWalletConfigs() []fixtures.UserConfig
 	GetBSVNetwork() defs.BSVNetwork
 	InternalizeTxID(txID string, user fixtures.UserConfig, keyID brc29.KeyID, address string) (fixtures.Summary, error)
+	Balance(user fixtures.UserConfig) (uint64, error)
 }
