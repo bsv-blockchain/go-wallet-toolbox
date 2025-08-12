@@ -64,15 +64,10 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 		return a.handleSignAction(tx, createActionResult)
 	}
 
-	// TODO: START
-	// TODO: Sign the transaction!!!
-	// TODO: This will be applicable when go-sdk's P2PKH Unlock issue is addressed:
-	// TODO: https://github.com/bsv-blockchain/go-sdk/issues/218
 	err = tx.Sign()
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign transaction: %w", err)
 	}
-	// TODO: STOP
 
 	return a.handleProcessAction(ctx, tx, createActionResult)
 }

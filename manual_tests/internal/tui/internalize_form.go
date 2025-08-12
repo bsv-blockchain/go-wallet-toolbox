@@ -1,0 +1,220 @@
+package tui
+
+import (
+	"encoding/base64"
+	"fmt"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/go-softwarelab/common/pkg/to"
+)
+
+const (
+	derivationPrefixIndex = iota
+	derivationSuffixIndex
+)
+
+type internalizeData struct {
+	address          string
+	derivationPrefix string
+	derivationSuffix string
+}
+
+type InternalizeForm struct {
+	manager  ManagerInterface
+	user     *fixtures.UserConfig
+	inputs   []textinput.Model
+	focused  int
+	selected internalizeData
+	errorMsg string
+}
+
+func NewInternalizeActionForm(manager ManagerInterface, user *fixtures.UserConfig) *InternalizeForm {
+	inputs := make([]textinput.Model, 2)
+	i := derivationPrefixIndex
+	inputs[i] = textinput.New()
+	inputs[i].Placeholder = "Base64 DerivationPrefix string"
+	inputs[i].Focus()
+	inputs[i].CharLimit = 40
+	inputs[i].Width = 40
+	inputs[i].Prompt = ""
+	inputs[i].Validate = validateCanonicalBase64
+	inputs[i].SetValue(fixtures.DefaultDerivationPrefix)
+
+	i = derivationSuffixIndex
+	inputs[i] = textinput.New()
+	inputs[i].Placeholder = "Base64 DerivationSuffix string"
+	inputs[i].CharLimit = 40
+	inputs[i].Width = 40
+	inputs[i].Prompt = ""
+	inputs[i].Validate = validateCanonicalBase64
+	inputs[i].SetValue(fixtures.DefaultDerivationSuffix)
+
+	model := &InternalizeForm{
+		manager: manager,
+		user:    user,
+		inputs:  inputs,
+		focused: 0,
+	}
+
+	model.recalculateAddress()
+	return model
+}
+
+func (m *InternalizeForm) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m *InternalizeForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyEnter:
+			if m.continueIsFocused() {
+				waitingView := NewInternalizeWaiting(m.manager, m.user, m.selected)
+				return waitingView, waitingView.Init()
+			} else {
+				m.nextInput()
+			}
+		case tea.KeyCtrlC, tea.KeyEsc:
+			return m, tea.Quit
+		case tea.KeyShiftTab, tea.KeyCtrlP:
+			m.prevInput()
+		case tea.KeyTab, tea.KeyCtrlN:
+			m.nextInput()
+		case tea.KeyDown:
+			m.nextInput()
+		case tea.KeyUp:
+			m.prevInput()
+		}
+
+		m.controlInputsFocus()
+	}
+
+	cmds := make([]tea.Cmd, len(m.inputs))
+	for i := range m.inputs {
+		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func (m *InternalizeForm) View() string {
+	m.recalculateAddress()
+
+	return fmt.Sprintf(
+		`Provide derivation prefix and suffix to calculte an address on which you can receive funds.
+
+ %s
+ %s
+
+ %s  
+ %s  
+
+ %s
+ %s
+
+ %s%s
+`,
+		inputStyle.Width(30).Render("Derivation Prefix"),
+		m.inputs[derivationPrefixIndex].View(),
+		inputStyle.Width(30).Render("Derivation Suffix"),
+		m.inputs[derivationSuffixIndex].View(),
+		calculatedAddressStyle.Width(30).Render("Calculated Address"),
+		lipgloss.NewStyle().Foreground(hotBlue).Render(m.selected.address),
+		to.If(m.errorMsg != "", func() string {
+			return errorStyle.Render("Error: " + m.errorMsg + "\n")
+		}).ElseThen(""),
+		to.IfThen(m.continueIsFocused(), continueStyleFocused).ElseThen(continueStyle).
+			Render("Continue ->"),
+	)
+}
+
+// nextInput focuses the next input field
+func (m *InternalizeForm) nextInput() {
+	m.focused = (m.focused + 1) % (len(m.inputs) + 1)
+}
+
+// prevInput focuses the previous input field
+func (m *InternalizeForm) prevInput() {
+	m.focused--
+	if m.focused < 0 {
+		m.focused = len(m.inputs)
+	}
+}
+
+func (m *InternalizeForm) controlInputsFocus() {
+	for i := range m.inputs {
+		m.inputs[i].Blur()
+	}
+	if m.focused < len(m.inputs) {
+		m.inputs[m.focused].Focus()
+	}
+}
+
+func (m *InternalizeForm) continueIsFocused() bool {
+	return m.focused == len(m.inputs)
+}
+
+func (m *InternalizeForm) recalculateAddress() {
+	errorMsg := ""
+	if err := m.inputs[derivationPrefixIndex].Err; err != nil {
+		errorMsg = fmt.Sprintf("Error in Derivation Prefix: %v", err)
+	}
+	if err := m.inputs[derivationSuffixIndex].Err; err != nil {
+		errorMsg = fmt.Sprintf("%s Error in Derivation Suffix: %v", errorMsg, err)
+	}
+
+	m.selected.derivationPrefix = m.inputs[derivationPrefixIndex].Value()
+	m.selected.derivationSuffix = m.inputs[derivationSuffixIndex].Value()
+
+	addressString := "-------"
+	var err error
+	if errorMsg == "" {
+		addressString, err = calculateAddressForInternalize(
+			m.selected.derivationPrefix,
+			m.selected.derivationSuffix,
+			m.user,
+			m.manager.GetBSVNetwork(),
+		)
+		if err != nil {
+			errorMsg = fmt.Sprintf("Failed to calculate address: %v", err)
+		}
+	}
+
+	m.selected.address = addressString
+	m.errorMsg = errorMsg
+}
+
+func validateCanonicalBase64(input string) error {
+	bin, err := base64.StdEncoding.DecodeString(input)
+	if err != nil {
+		return fmt.Errorf("invalid base64 string: %w", err)
+	}
+
+	backToBase64Str := base64.StdEncoding.EncodeToString(bin)
+	if backToBase64Str != input {
+		return fmt.Errorf("input is not canonical base64: %s", input)
+	}
+
+	return nil
+}
+
+func calculateAddressForInternalize(derivationPrefix, derivationSuffix string, user *fixtures.UserConfig, bsvNetwork defs.BSVNetwork) (string, error) {
+	anyonePriv, _ := sdk.AnyoneKey()
+	keyID := brc29.KeyID{
+		DerivationPrefix: derivationPrefix,
+		DerivationSuffix: derivationSuffix,
+	}
+
+	networkOption := to.IfThen(bsvNetwork == defs.NetworkMainnet, brc29.WithMainNet()).ElseThen(brc29.WithTestNet())
+	address, err := brc29.Address(anyonePriv, keyID, user.PublicKey(), networkOption)
+	if err != nil {
+		return "", fmt.Errorf("failed to calculate address: %w", err)
+	}
+
+	return address.AddressString, nil
+}
