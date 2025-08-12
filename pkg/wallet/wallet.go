@@ -389,7 +389,13 @@ func (w *Wallet) GetNetwork(ctx context.Context, args any, originator string) (*
 }
 
 // GetVersion retrieves the current version string of the wallet.
-func (w *Wallet) GetVersion(ctx context.Context, args any, originator string) (*sdk.GetVersionResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetVersion(_ context.Context, _ any, originator string) (*sdk.GetVersionResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.GetVersionResult{
+		Version: defs.Version,
+	}, nil
+
 }
