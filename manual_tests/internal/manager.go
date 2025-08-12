@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 	"log/slog"
 	"time"
 )
@@ -186,6 +187,7 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 		return summary, fmt.Errorf("failed to get wallet for user %s: %w", user.Name, err)
 	}
 
+	_, anyonePub := sdk.AnyoneKey()
 	internalizeArgs := sdk.InternalizeActionArgs{
 		Tx: atomicBeef,
 		Outputs: slices.Map(vouts, func(vout int) sdk.InternalizeOutput {
@@ -195,7 +197,7 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 				PaymentRemittance: &sdk.Payment{
 					DerivationPrefix:  derivationPrefixBytes,
 					DerivationSuffix:  derivationSuffixBytes,
-					SenderIdentityKey: user.PublicKey(),
+					SenderIdentityKey: anyonePub,
 				},
 			}
 		}),
@@ -211,6 +213,53 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 	}
 
 	summary = append(summary, fmt.Sprintf("Internalized action for user %s: %#v", user.Name, internalizeResult))
+
+	return summary, nil
+}
+
+func (m *Manager) CreateActionWithData(user fixtures.UserConfig, data string) (fixtures.Summary, error) {
+	var summary fixtures.Summary
+
+	summary = append(summary, fmt.Sprintf("Using wallet for user %s", user.Name))
+
+	userWallet, err := m.WalletForUser(user)
+	if err != nil {
+		return summary, fmt.Errorf("failed to get wallet for user %s: %w", user.Name, err)
+	}
+
+	summary = append(summary, fmt.Sprintf("Creating data output with data: %s", data))
+
+	dataOutput, err := transaction.CreateOpReturnOutput([][]byte{[]byte(data)})
+	if err != nil {
+		return summary, fmt.Errorf("failed to create OP_RETURN output with data %q: %w", data, err)
+	}
+
+	createArgs := sdk.CreateActionArgs{
+		Description: fmt.Sprintf("Create action for user %s with data at %s", user.Name, time.Now().Format(time.RFC3339)),
+		Outputs: []sdk.CreateActionOutput{
+			{
+				LockingScript:     dataOutput.LockingScript.Bytes(),
+				Satoshis:          0,
+				OutputDescription: "Data output",
+				Tags:              []string{"data"},
+			},
+		},
+		Labels: []string{"create action with data", user.Name},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(false),
+		},
+	}
+
+	summary = append(summary, fmt.Sprintf("Create action args: %#v", createArgs))
+
+	result, err := userWallet.CreateAction(m.ctx, createArgs, "")
+	if err != nil {
+		return summary, fmt.Errorf("failed to create action for user %s: %w", user.Name, err)
+	}
+
+	summary = append(summary, fmt.Sprintf("Create action result: %#v", result))
+
+	summary = append(summary, fmt.Sprintf("TxID: %s", result.Txid.String()))
 
 	return summary, nil
 }

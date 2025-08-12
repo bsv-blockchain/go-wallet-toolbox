@@ -15,4 +15,5 @@ type ManagerInterface interface {
 	GetBSVNetwork() defs.BSVNetwork
 	InternalizeTxID(txID string, user fixtures.UserConfig, keyID brc29.KeyID, address string) (fixtures.Summary, error)
 	Balance(user fixtures.UserConfig) (uint64, error)
+	CreateActionWithData(user fixtures.UserConfig, data string) (fixtures.Summary, error)
 }

@@ -31,31 +31,43 @@ func (m *SendDataWaiting) Init() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, m.sendData)
 }
 
-type sendDataResultMsg struct{ err error }
+type sendDataResultMsg struct {
+	err     error
+	summary fixtures.Summary
+}
 
 func (m *SendDataWaiting) sendData() tea.Msg {
-	// TODO: implement manager.SendData(m.user, m.data)
-	// For now, we'll just simulate a successful operation
-	return sendDataResultMsg{err: nil}
+	summary, err := m.manager.CreateActionWithData(*m.user, m.data)
+	return sendDataResultMsg{
+		err:     err,
+		summary: summary,
+	}
 }
 
 func (m *SendDataWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
-			m.quitting = true
 			return m, tea.Quit
 		}
 	}
 
 	switch msg := msg.(type) {
 	case sendDataResultMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			return m, nil // Keep view and show error
+		goToSelectAction := func() tea.Model {
+			return NewSelectAction(m.manager, m.user)
 		}
-		summaryView := NewSendDataSummary(m.manager, m.user, m.data)
-		return summaryView, summaryView.Init()
+
+		mode := ResultViewSuccess
+		resultMsg := "Transaction created successfully!"
+
+		if msg.err != nil {
+			mode = ResultViewError
+			resultMsg = "Failed to create transaction: " + msg.err.Error()
+		}
+
+		resultView := NewResultView(m.manager, resultMsg, mode, goToSelectAction, msg.summary)
+		return resultView, resultView.Init()
 	default:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -64,11 +76,5 @@ func (m *SendDataWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *SendDataWaiting) View() string {
-	if m.quitting {
-		return "Quitting..."
-	}
-	if m.err != nil {
-		return fmt.Sprintf("Error: %v", m.err)
-	}
-	return fmt.Sprintf("%s Sending data...", m.spinner.View())
+	return fmt.Sprintf("%s Creating action with data transaction...", m.spinner.View())
 }
