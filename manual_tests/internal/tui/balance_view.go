@@ -25,6 +25,7 @@ type balanceView struct {
 	spinner spinner.Model
 	loading bool
 	err     error
+	focus   bool
 }
 
 func NewBalanceView(manager ManagerInterface, user *fixtures.UserConfig) tea.Model {
@@ -36,6 +37,7 @@ func NewBalanceView(manager ManagerInterface, user *fixtures.UserConfig) tea.Mod
 		user:    user,
 		spinner: s,
 		loading: true,
+		focus:   false,
 	}
 }
 
@@ -63,11 +65,19 @@ func (m balanceView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
+		case "enter":
+			if m.focus {
+				return NewSelectAction(m.manager, m.user), nil
+			}
 		}
 	case balanceResultMsg:
 		m.loading = false
-		m.balance = msg.balance
-		m.err = msg.err
+		if msg.err != nil {
+			m.err = msg.err
+		} else {
+			m.balance = msg.balance
+			m.focus = true
+		}
 		return m, nil
 
 	default:
@@ -98,10 +108,19 @@ func (m balanceView) View() string {
 		)
 	}
 	balanceValue := lipgloss.NewStyle().Bold(true).Render(m.balance)
+
+	var buttons string
+	if m.focus {
+		buttons = continueStyleFocused.Render("Back")
+	} else {
+		buttons = continueStyle.Render("Back")
+	}
+
 	return fmt.Sprintf(
-		"Balance for %s\n\n%s %s\n\n(press 'q' to quit)",
+		"Balance for %s\n\n%s %s\n\n%s\n\n(press 'q' to quit)",
 		m.user.Name,
 		balanceStyle.Render(),
 		balanceValue,
+		buttons,
 	)
 }
