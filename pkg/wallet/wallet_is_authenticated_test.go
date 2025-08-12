@@ -72,6 +72,26 @@ func (s *WalletTestSuite) TestWalletIsAuthenticated() {
 			args:       nil,
 			originator: "subdomain.example.com",
 		},
+		"max single label length (63) across multiple parts": {
+			originator: strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63),
+			args:       map[string]any{"k": "v"},
+		},
+		"max total length (250 chars) should pass": {
+			originator: strings.Repeat("a", 250),
+			args:       struct{ Foo string }{Foo: "bar"},
+		},
+		"default originator still passes": {
+			originator: fixtures.DefaultOriginator,
+			args:       nil,
+		},
+		"case-insensitive originator (if normalization is supported)": {
+			originator: strings.ToUpper(fixtures.DefaultOriginator),
+			args:       nil,
+		},
+		"originator with 2 labels and simple map args": {
+			originator: "example.com",
+			args:       map[string]string{"key": "value"},
+		},
 	}
 
 	for name, test := range successTestCases {
