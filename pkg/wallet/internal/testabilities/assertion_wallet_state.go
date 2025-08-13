@@ -27,6 +27,7 @@ type WalletReader interface {
 type WalletStateAssertion interface {
 	HasActionsCount(expected int, labels ...string) WalletStateAssertion
 	ActionAtIndex(index int, labels ...string) WalletActionAssertion
+	HasActionsWithStatusCount(expected int, status sdk.ActionStatus) WalletStateAssertion
 }
 
 type WalletActionAssertion interface {
@@ -66,6 +67,20 @@ func (a *walletStateAssertion) HasActionsCount(expected int, labels ...string) W
 	result := a.listActions(labels...)
 	assert.Len(a, result.Actions, expected, "Expected number of transactions does not match")
 	assert.Equal(a, expected, int(result.TotalActions), "Total count of transactions does not match")
+	return a
+}
+
+func (a *walletStateAssertion) HasActionsWithStatusCount(expected int, status sdk.ActionStatus) WalletStateAssertion {
+	a.Helper()
+	result := a.listActions()
+	counter := 0
+	for _, action := range result.Actions {
+		if action.Status == status {
+			counter++
+		}
+	}
+
+	assert.Equal(a, expected, counter, "Expected number of transactions with status %s does not match", status)
 	return a
 }
 
