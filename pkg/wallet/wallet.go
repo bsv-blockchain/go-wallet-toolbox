@@ -25,6 +25,7 @@ type Wallet struct {
 	keyDeriver *sdk.KeyDeriver
 	flags      *wallet_opts.Flags
 	services   *services.WalletServices
+	chain      defs.BSVNetwork
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -105,6 +106,7 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 		keyDeriver: keyDeriver,
 		flags:      &options.Flags,
 		services:   options.Services,
+		chain:      chain,
 	}, nil
 }
 
@@ -413,9 +415,15 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 }
 
 // GetNetwork retrieves the Bitcoin network the client is using (mainnet or testnet).
-func (w *Wallet) GetNetwork(ctx context.Context, args any, originator string) (*sdk.GetNetworkResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetNetwork(_ context.Context, _ any, originator string) (*sdk.GetNetworkResult, error) {
+	err := validate.Originator(originator)
+	if err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.GetNetworkResult{
+		Network: sdk.Network(w.chain),
+	}, nil
 }
 
 // GetVersion retrieves the current version string of the wallet.
