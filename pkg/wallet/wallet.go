@@ -367,9 +367,14 @@ func (w *Wallet) IsAuthenticated(_ context.Context, _ any, originator string) (*
 }
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
-func (w *Wallet) WaitForAuthentication(ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) WaitForAuthentication(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.AuthenticatedResult{
+		Authenticated: true,
+	}, nil
 }
 
 // GetHeight retrieves the current height of the blockchain.
