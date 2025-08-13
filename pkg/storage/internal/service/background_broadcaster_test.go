@@ -3,11 +3,6 @@ package service_test
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/stretchr/testify/require"
 	"iter"
 	"log/slog"
 	"sync/atomic"
@@ -15,7 +10,12 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockBroadcaster struct {

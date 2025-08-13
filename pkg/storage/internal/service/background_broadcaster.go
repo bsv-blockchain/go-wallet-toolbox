@@ -3,10 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"log/slog"
 	"sync"
+
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 )
 
 const (

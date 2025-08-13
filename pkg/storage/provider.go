@@ -96,6 +96,7 @@ func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProvid
 	}, nil
 }
 
+// Stop gracefully terminates the background broadcaster and releases related resources.
 func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 }
