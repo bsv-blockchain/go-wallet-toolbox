@@ -3,10 +3,7 @@ package randomizer
 import (
 	"encoding/base64"
 	"fmt"
-	"slices"
 	"sync"
-
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // TestRandomizer is a test implementation of the Randomizer interface.
@@ -14,6 +11,7 @@ import (
 type TestRandomizer struct {
 	base64Locker  sync.Mutex
 	baseCharacter byte
+	rollCounter   int
 }
 
 // NewTestRandomizer creates and returns a new instance of TestRandomizer.
@@ -30,23 +28,45 @@ func (t *TestRandomizer) Base64(length uint64) (string, error) {
 		return "", fmt.Errorf("length cannot be zero")
 	}
 
-	randomBytes := slices.Repeat([]byte{t.nextBaseCharacter()}, must.ConvertToIntFromUnsigned(length))
+	randomBytes := t.nextBytes(length)
 	return base64.StdEncoding.EncodeToString(randomBytes), nil
 }
 
-func (t *TestRandomizer) nextBaseCharacter() byte {
+func (t *TestRandomizer) nextBytes(length uint64) []byte {
+	if length == 0 {
+		panic("length cannot be zero for random bytes generation")
+	}
+
 	t.base64Locker.Lock()
 	defer t.base64Locker.Unlock()
 
 	current := t.baseCharacter
+	currentRollCounter := t.rollCounter
 
 	if t.baseCharacter < 0x7F {
 		t.baseCharacter++
 	} else {
 		t.baseCharacter = 0x21
+
+		if length < 3 {
+			panic("test randomizes base character overflow - too short length for randomization")
+		}
+		if t.rollCounter == 0xFF {
+			panic("test randomizes base character overflow - too many calls for randomization")
+		}
+		t.rollCounter++
 	}
 
-	return current
+	result := make([]byte, length)
+	for i := range result {
+		result[i] = current
+		if currentRollCounter > 0 {
+			result[0] = 0x20
+			result[1] = byte(currentRollCounter % 0xFF)
+		}
+	}
+
+	return result
 }
 
 // Shuffle performs a deterministic shuffle operation on a slice of size n.

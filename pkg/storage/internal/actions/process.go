@@ -72,7 +72,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		return &wdk.ProcessActionResult{}, nil
 	}
 
-	return p.broadcastTxs(ctx, userID, p.txIDsToBroadcast(args), args.IsDelayed)
+	return p.broadcastTxs(ctx, p.txIDsToBroadcast(args), args.IsDelayed)
 }
 
 func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
@@ -244,7 +244,7 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return
 }
 
-func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string, isDelayed bool) (*wdk.ProcessActionResult, error) {
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool) (*wdk.ProcessActionResult, error) {
 	knownTxStatusesLookup, err := p.getKnownTxStatuses(ctx, txIDs...)
 	if err != nil {
 		return nil, err

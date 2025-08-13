@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"testing"
 	"time"
 
@@ -216,6 +217,83 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 
 	thenDBState.HasUserTransactionByReference(testusers.Alice, *args.Reference).
 		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
+}
+
+func TestProcessAction_DelayedBroadcastForManyTransactions(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and:
+	const count = 100
+	createActionResults := make([]*wdk.StorageCreateActionResult, count)
+	signedTxs := make([]*transaction.Transaction, count)
+	for i := 0; i < count; i++ {
+		satoshisToInternalize := uint64(1000 + i) // this makes transactions different
+		createActionResults[i], signedTxs[i] = given.Action(activeStorage).
+			WithDelayedBroadcast().
+			WithSatoshisToInternalize(satoshisToInternalize).
+			WithSatoshisToSend(1).
+			Created()
+	}
+
+	processActionArgs := make([]wdk.ProcessActionArgs, count)
+	for i := 0; i < count; i++ {
+		txID := signedTxs[i].TxID().String()
+		processActionArgs[i] = wdk.ProcessActionArgs{
+			IsNewTx:    true,
+			IsSendWith: false,
+			IsNoSend:   false,
+			IsDelayed:  true,
+			Reference:  to.Ptr(createActionResults[i].Reference),
+			TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+			RawTx:      signedTxs[i].Bytes(),
+			SendWith:   []primitives.TXIDHexString{},
+		}
+	}
+
+	// when:
+	var err error
+	results := make([]*wdk.ProcessActionResult, count)
+	for i := 0; i < count; i++ {
+		results[i], err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), processActionArgs[i])
+		require.NoError(t, err)
+	}
+
+	// then:
+	for i := 0; i < count; i++ {
+		txID := signedTxs[i].TxID().String()
+		require.Len(t, results[i].SendWithResults, 1)
+		sendWithResult := results[i].SendWithResults[0]
+		assert.Equal(t, txID, string(sendWithResult.TxID))
+		assert.Equal(t, wdk.SendWithResultStatusSending, sendWithResult.Status)
+
+		require.Len(t, results[i].NotDelayedResults, 0)
+	}
+
+	// and:
+	for i := 0; i < count; i++ {
+		txID := signedTxs[i].TxID().String()
+		err = given.Provider().ARC().WaitForBroadcastWithTimeout(txID, time.Second)
+		assert.NoError(t, err)
+	}
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	for i := 0; i < count; i++ {
+		txID := signedTxs[i].TxID().String()
+
+		thenDBState.HasKnownTX(txID).
+			NotMined().
+			WithStatus(wdk.ProvenTxStatusUnmined).
+			HasRawTx()
+
+		thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResults[i].Reference).
+			WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
+	}
 }
 
 func TestProcessActionErrorCases(t *testing.T) {

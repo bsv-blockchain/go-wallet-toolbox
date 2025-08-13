@@ -90,3 +90,33 @@ func TestRandomUint64ByTestRandomizer(t *testing.T) {
 	// then:
 	require.Equal(t, uint64(0), value, "Random value should be 0")
 }
+
+func TestRandomManyBase64Values(t *testing.T) {
+	// given:
+	random := randomizer.NewTestRandomizer()
+
+	lookup := make(map[string]struct{})
+	const (
+		baseCharacterRange       = 0x7F - 0x21
+		combinationOfRollCounter = baseCharacterRange + 1
+		count                    = combinationOfRollCounter * 255 // this is the maximum number of unique combinations for test randomizer
+		length                   = 3
+	)
+
+	// when:
+	for i := 0; i < count; i++ {
+		randomized, err := random.Base64(length)
+		require.NoError(t, err)
+
+		// then:
+		require.NotEmpty(t, randomized, "Randomized value should not be empty")
+
+		// and:
+		_, exists := lookup[randomized]
+		require.False(t, exists, "Randomized value should be unique")
+
+		// and:
+		lookup[randomized] = struct{}{}
+	}
+
+}

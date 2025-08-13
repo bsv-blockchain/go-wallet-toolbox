@@ -59,6 +59,7 @@ func (bb *BackgroundBroadcaster) Stop() {
 }
 
 func (bb *BackgroundBroadcaster) Add(beef *transaction.Beef, txIDs []string) (added bool) {
+	bb.logger.InfoContext(bb.ctx, "Adding new beef to delayed broadcast", "txIDs", txIDs)
 	select {
 	case bb.broadcastChannel <- broadcastItem{beef: beef, txIDs: txIDs}:
 		return true
