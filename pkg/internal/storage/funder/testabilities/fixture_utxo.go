@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"gorm.io/gorm"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"gorm.io/gorm"
 )
 
 var FirstCreatedAt = time.Date(2006, 02, 01, 15, 4, 5, 7, time.UTC)
@@ -19,6 +19,7 @@ type UserUTXOFixture interface {
 	InBasket(basket *entity.OutputBasket) UserUTXOFixture
 	P2PKH() UserUTXOFixture
 	WithSatoshis(sats int64) UserUTXOFixture
+	WithStatus(status wdk.UTXOStatus) UserUTXOFixture
 	Stored()
 }
 
@@ -42,6 +43,7 @@ type userUtxoFixture struct {
 	satoshis           uint64
 	estimatedInputSize uint64
 	basket             *entity.OutputBasket
+	status             wdk.UTXOStatus
 }
 
 func newUtxoFixture(t testing.TB, parent UTXODatabase, index uint) *userUtxoFixture {
@@ -55,6 +57,7 @@ func newUtxoFixture(t testing.TB, parent UTXODatabase, index uint) *userUtxoFixt
 		vout:               uint32(index),
 		satoshis:           1,
 		estimatedInputSize: txutils.P2PKHEstimatedInputSize,
+		status:             wdk.UTXOStatusUnproven,
 	}
 }
 
@@ -82,6 +85,11 @@ func (f *userUtxoFixture) WithSatoshis(satoshis int64) UserUTXOFixture {
 	return f
 }
 
+func (f *userUtxoFixture) WithStatus(status wdk.UTXOStatus) UserUTXOFixture {
+	f.status = status
+	return f
+}
+
 func (f *userUtxoFixture) Stored() {
 	if f.satoshis == 0 {
 		return
@@ -94,6 +102,7 @@ func (f *userUtxoFixture) Stored() {
 		EstimatedInputSize: f.estimatedInputSize,
 		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second),
 		BasketName:         f.basket.Name,
+		UTXOStatus:         f.status,
 		Basket: &models.OutputBasket{
 			CreatedAt:               FirstCreatedAt,
 			UpdatedAt:               FirstCreatedAt,

@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"log/slog"
 	"strings"
 
@@ -56,7 +57,7 @@ func (d *Database) CreateRepositories() *repo.Repositories {
 }
 
 func (d *Database) CreateFunder(feeModel defs.FeeModel) funder.Funder {
-	utxoRepo := repo.NewUTXOs(d.DB)
+	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB))
 	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel)
 }
 

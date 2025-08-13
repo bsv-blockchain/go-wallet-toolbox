@@ -83,6 +83,17 @@ func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ..
 
 func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Output) (isNew bool, outputID uint, err error) {
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var transaction models.Transaction
+		err = tx.Model(models.Transaction{}).
+			Select("status").
+			Where("id = ?", entity.TransactionID).
+			First(&transaction).Error
+		if err != nil {
+			return fmt.Errorf("failed to check known transaction: %w", err)
+		}
+
+		utxoStatus := s.utxoStatusByTxStatus(transaction.Status)
+
 		isNew, outputID, err = s.upsertOutput(tx, entity)
 		if err != nil {
 			return fmt.Errorf("failed to upsert output: %w", err)
@@ -90,6 +101,7 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 
 		if entity.UserUTXO != nil {
 			entity.UserUTXO.OutputID = outputID
+			entity.UserUTXO.Status = utxoStatus
 
 			err = s.upsertUserUTXO(tx, entity.UserUTXO)
 			if err != nil {
@@ -186,6 +198,7 @@ func (s *SyncOutput) upsertUserUTXO(tx *gorm.DB, userUTXO *entity.UserUTXO) erro
 		EstimatedInputSize: userUTXO.EstimatedInputSize,
 		CreatedAt:          userUTXO.CreatedAt,
 		ReservedByID:       userUTXO.ReservedByID,
+		UTXOStatus:         userUTXO.Status,
 	}
 
 	updateTx := tx.Model(&models.UserUTXO{}).
@@ -232,5 +245,19 @@ func (s *SyncOutput) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOut
 		SenderIdentityKey:  model.SenderIdentityKey,
 		BasketID:           model.BasketNumID,
 		SpentBy:            model.SpentBy,
+	}
+}
+
+func (s *SyncOutput) utxoStatusByTxStatus(txStatus wdk.TxStatus) wdk.UTXOStatus {
+	// TODO: Make it exhaustive
+	switch txStatus {
+	case wdk.TxStatusCompleted:
+		return wdk.UTXOStatusMined
+	case wdk.TxStatusSending:
+		return wdk.UTXOStatusSending
+	case wdk.TxStatusUnproven:
+		return wdk.UTXOStatusUnproven
+	default:
+		return wdk.UTXOStatusUnknown
 	}
 }

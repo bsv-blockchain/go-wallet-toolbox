@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -11,16 +13,25 @@ import (
 )
 
 type UTXOs struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewUTXOs(db *gorm.DB) *UTXOs {
+func NewUTXOs(db *gorm.DB, query *genquery.Query) *UTXOs {
 	return &UTXOs{
-		db: db,
+		db:    db,
+		query: query,
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketName string, page *queryopts.Paging, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error) {
+func (u *UTXOs) FindNotReservedUTXOs(
+	ctx context.Context,
+	userID int,
+	basketName string,
+	page *queryopts.Paging,
+	forbiddenOutputIDs []uint,
+	includeSending bool,
+) ([]*models.UserUTXO, error) {
 	var result []*models.UserUTXO
 
 	query := u.db.WithContext(ctx).Scopes(
@@ -30,6 +41,12 @@ func (u *UTXOs) FindNotReservedUTXOs(ctx context.Context, userID int, basketName
 		notReserved(),
 		outputNotIn(forbiddenOutputIDs),
 	)
+
+	statuses := []string{string(wdk.UTXOStatusMined), string(wdk.UTXOStatusUnproven)}
+	if includeSending {
+		statuses = append(statuses, string(wdk.UTXOStatusSending))
+	}
+	query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
 
 	err := query.Find(&result).Error
 	if err != nil {
