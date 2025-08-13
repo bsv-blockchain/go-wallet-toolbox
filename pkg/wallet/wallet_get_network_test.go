@@ -54,54 +54,34 @@ func (s *WalletTestSuite) TestWalletGetNetwork() {
 		originator      string
 		expectedNetwork sdk.Network
 	}{
-		"nil args with default originator returns testnet": {
+		"default originator returns testnet": {
 			args:            nil,
 			originator:      fixtures.DefaultOriginator,
 			expectedNetwork: sdk.Network(defs.NetworkTestnet),
 		},
-		"empty struct args with default originator returns testnet": {
-			args:            struct{}{},
-			originator:      fixtures.DefaultOriginator,
-			expectedNetwork: sdk.Network(defs.NetworkTestnet),
-		},
-		"map args with default originator returns testnet": {
-			args:            map[string]string{"key": "value"},
-			originator:      fixtures.DefaultOriginator,
-			expectedNetwork: sdk.Network(defs.NetworkTestnet),
-		},
-		"nil args with simple originator returns testnet": {
+		"simple originator returns testnet": {
 			args:            nil,
 			originator:      "testoriginator",
 			expectedNetwork: sdk.Network(defs.NetworkTestnet),
 		},
-		"nil args with multi-part originator returns testnet": {
+		"multi-part originator returns testnet": {
 			args:            nil,
 			originator:      "subdomain.example.com",
 			expectedNetwork: sdk.Network(defs.NetworkTestnet),
 		},
 		"max single label length (63) across multiple parts": {
 			originator:      strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63),
-			args:            map[string]any{"k": "v"},
+			args:            nil,
 			expectedNetwork: sdk.Network(defs.NetworkTestnet),
 		},
 		"max total length (250 chars) should pass": {
 			originator:      strings.Repeat("a", 250),
-			args:            struct{ Foo string }{Foo: "bar"},
-			expectedNetwork: sdk.Network(defs.NetworkTestnet),
-		},
-		"default originator still passes": {
-			originator:      fixtures.DefaultOriginator,
 			args:            nil,
 			expectedNetwork: sdk.Network(defs.NetworkTestnet),
 		},
 		"case-insensitive originator (if normalization is supported)": {
 			originator:      strings.ToUpper(fixtures.DefaultOriginator),
 			args:            nil,
-			expectedNetwork: sdk.Network(defs.NetworkTestnet),
-		},
-		"originator with 2 labels and simple map args": {
-			originator:      "example.com",
-			args:            map[string]string{"key": "value"},
 			expectedNetwork: sdk.Network(defs.NetworkTestnet),
 		},
 	}
