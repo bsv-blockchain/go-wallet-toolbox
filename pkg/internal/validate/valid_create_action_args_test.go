@@ -27,6 +27,22 @@ func TestWrongCreateActionArgs(t *testing.T) {
 	tests := map[string]struct {
 		modifier func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs
 	}{
+		"IsSendWith is set to false with all unique options.NoSendChange elements": {
+			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
+				args.IsSendWith = false
+				args.Options.NoSendChange = []wdk.OutPoint{
+					{
+						TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+						Vout: 0,
+					},
+					{
+						TxID: "856421d5ad6f00e10c33d80a341121c0a1dc0c19e10cd3840ead142aff321eff",
+						Vout: 0,
+					},
+				}
+				return args
+			},
+		},
 		"IsSendWith is set even though there is no 'send-with' txs in options": {
 			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
 				args.IsSendWith = true
