@@ -132,10 +132,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
 	}
 
-	if params.IsNoSend && len(params.NoSendChange) > 0 {
-		if err := c.validateNoSendChange(ctx, userID, params); err != nil {
-			return nil, fmt.Errorf("failed to validate no send change: %w", err)
-		}
+	priorityOutputs, err := c.getNoSendOutputs(ctx, userID, params.IsNoSend, params.NoSendChange, reference)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create priority outputs: %w", err)
 	}
 
 	c.logger.DebugContext(ctx, "Processing inputs",
@@ -220,7 +219,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Uint64("basketMinimumUTXOValue", basket.MinimumDesiredUTXOValue),
 	)
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs)
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}
@@ -362,6 +361,40 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}, nil
 }
 
+func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint, ref string) ([]*entity.Output, error) {
+	logger := c.logger.With(
+		logging.Reference(ref),
+		slog.Bool("isNoSendParam", isNoSend),
+		slog.Int("noSendChangeParam", len(noSendChange)),
+		logging.UserID(userID),
+	)
+
+	if isNoSend && len(noSendChange) == 0 {
+		logger.DebugContext(ctx, "NoSendOutputs not provided")
+		return []*entity.Output{}, nil
+	}
+
+	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, noSendChange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs by outpoints: %w", err)
+	}
+
+	logger.DebugContext(ctx, "Entity outputs successfully returned from the repository")
+
+	if len(noSendChange) != len(outputs) {
+		return nil, fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(noSendChange))
+	}
+
+	err = validate.NoSendChangeOutputs(outputs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate no send change outputs: %w", err)
+	}
+
+	logger.DebugContext(ctx, "Entity outputs (no send change outputs) successfully validated")
+
+	return outputs, nil
+}
+
 func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.NewOutput) []int {
 	if !isNoSend {
 		return nil
@@ -374,26 +407,6 @@ func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.Ne
 		}
 	}
 	return vouts
-}
-
-func (c *create) validateNoSendChange(ctx context.Context, userID int, params CreateActionParams) error {
-	outpoints := params.NoSendChange
-
-	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, outpoints)
-	if err != nil {
-		return fmt.Errorf("failed to find outputs by outpoints: %w", err)
-	}
-
-	if len(outpoints) != len(outputs) {
-		return fmt.Errorf("failed to validate outputs: the number of outputs (%d) doesn't match the number of outpoints (%d)", len(outputs), len(outpoints))
-	}
-
-	err = validate.NoSendChangeOutputs(outputs)
-	if err != nil {
-		return fmt.Errorf("failed to validate no send change outputs: %w", err)
-	}
-
-	return nil
 }
 
 type serviceChargeOutput struct {
