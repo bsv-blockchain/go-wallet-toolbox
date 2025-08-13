@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -37,8 +36,6 @@ type Provider struct {
 	actions *actions.Actions
 	random  wdk.Randomizer
 	logger  *slog.Logger
-
-	backgroundBroadcaster *service.BackgroundBroadcaster
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -54,7 +51,7 @@ type GORMProviderConfig struct {
 }
 
 // NewGORMProvider creates a new storage provider with GORM repository.
-func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...ProviderOption) (*Provider, error) {
+func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProviderConfig, opts ...ProviderOption) (*Provider, error) {
 	if err := config.FeeModel.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid fee model: %w", err)
 	}
@@ -93,16 +90,14 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Database: db,
 
 		repo:    repos,
-		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		actions: actions.New(ctx, logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
 		random:  random,
 		logger:  logger,
 	}, nil
 }
 
 func (p *Provider) Stop() {
-	if p.backgroundBroadcaster != nil {
-		p.backgroundBroadcaster.Stop()
-	}
+	p.actions.StopBackgroundBroadcaster()
 }
 
 func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *providerOptions) (*database.Database, error) {

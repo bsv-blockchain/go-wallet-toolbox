@@ -15,7 +15,7 @@ const (
 )
 
 type broadcaster interface {
-	Broadcast(ctx context.Context, beef *transaction.Beef, txids []string) error
+	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txids []string) error
 }
 
 type BackgroundBroadcaster struct {
@@ -93,7 +93,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 		}
 	}()
 
-	err = bb.broadcastHandler.Broadcast(bb.ctx, item.beef, item.txIDs)
+	err = bb.broadcastHandler.BackgroundBroadcast(bb.ctx, item.beef, item.txIDs)
 	if err != nil {
 		return fmt.Errorf("failed to broadcast beef: %w", err)
 	}

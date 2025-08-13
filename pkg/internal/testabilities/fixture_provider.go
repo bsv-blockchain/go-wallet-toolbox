@@ -114,6 +114,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.require.NoError(err)
 
 	activeStorage, err := storage.NewGORMProvider(
+		p.t.Context(),
 		p.logger,
 		storage.GORMProviderConfig{
 			Chain:                 p.network,

@@ -1,7 +1,7 @@
 package actions
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
+	"context"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -22,6 +22,7 @@ type Actions struct {
 }
 
 func New(
+	ctx context.Context,
 	logger *slog.Logger,
 	funder funder.Funder,
 	commission defs.Commission,
@@ -29,7 +30,6 @@ func New(
 	randomizer wdk.Randomizer,
 	services wdk.Services,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
-	backgroundBroadcaster service.BackgroundBroadcaster,
 ) *Actions {
 	return &Actions{
 		create: newCreateAction(
@@ -54,6 +54,7 @@ func New(
 			services,
 		),
 		process: newProcessAction(
+			ctx,
 			logger,
 			repos.Transactions,
 			commission,

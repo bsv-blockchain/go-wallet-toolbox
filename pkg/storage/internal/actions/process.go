@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/go-softwarelab/common/pkg/to"
 	"log/slog"
 	"maps"
@@ -22,10 +23,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq2"
 )
 
-type backgroundBroadcaster interface {
-	Add(beef *transaction.Beef, txIDs []string) (added bool)
-}
-
 type process struct {
 	logger                *slog.Logger
 	commissionCfg         defs.Commission
@@ -34,10 +31,11 @@ type process struct {
 	knownTxRepo           KnownTxRepo
 	commissionRepo        CommissionRepo
 	services              wdk.Services
-	backgroundBroadcaster backgroundBroadcaster
+	backgroundBroadcaster *service.BackgroundBroadcaster
 }
 
 func newProcessAction(
+	ctx context.Context,
 	logger *slog.Logger,
 	txRepo TransactionsRepo,
 	commissionCfg defs.Commission,
@@ -45,19 +43,20 @@ func newProcessAction(
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
 	services wdk.Services,
-	backgroundBroadcaster backgroundBroadcaster,
 ) *process {
 	logger = logging.Child(logger, "processAction")
-	return &process{
-		logger:                logger,
-		commissionCfg:         commissionCfg,
-		txRepo:                txRepo,
-		outputRepo:            outputRepo,
-		knownTxRepo:           knownTxRepo,
-		commissionRepo:        commissionRepo,
-		services:              services,
-		backgroundBroadcaster: backgroundBroadcaster,
+	p := &process{
+		logger:         logger,
+		commissionCfg:  commissionCfg,
+		txRepo:         txRepo,
+		outputRepo:     outputRepo,
+		knownTxRepo:    knownTxRepo,
+		commissionRepo: commissionRepo,
+		services:       services,
 	}
+
+	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p)
+	return p
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
@@ -544,4 +543,14 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	}
 
 	return
+}
+
+func (p *process) StopBackgroundBroadcaster() {
+	if p.backgroundBroadcaster != nil {
+		p.backgroundBroadcaster.Stop()
+	}
+}
+
+func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txids []string) error {
+	return fmt.Errorf("BackgroundBroadcast is not implemented in process action")
 }
