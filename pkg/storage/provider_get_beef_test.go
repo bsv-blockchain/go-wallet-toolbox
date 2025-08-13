@@ -3,6 +3,7 @@ package storage_test
 import (
 	"testing"
 
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -122,4 +123,136 @@ func TestGetBeef(t *testing.T) {
 		// then:
 		require.Error(t, err)
 	})
+}
+
+func TestGetBeef_WithOptions(t *testing.T) {
+	t.Run("knownTxIDs target returns txid-only", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		givenMinedTx := given.Provider().WhatsOnChain().MinedTransaction()
+		txID := givenMinedTx.TxID()
+
+		activeStorage := given.Provider().GORM()
+
+		// when:
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{KnownTxIDs: []string{txID}})
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, beef)
+		btx := beef.FindTransaction(txID)
+		assert.Nil(t, btx)
+	})
+
+	t.Run("trustSelf known represents current tx as txid-only", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		givenMinedTx := given.Provider().WhatsOnChain().MinedTransaction()
+		givenMinedTx.WillReturnRawTx()
+		givenMinedTx.WillReturnMerklePath()
+		txID := givenMinedTx.TxID()
+
+		activeStorage := given.Provider().GORM()
+
+		// when:
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{TrustSelf: sdk.TrustSelfKnown})
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, beef)
+		btx := beef.FindTransaction(txID)
+		assert.Nil(t, btx)
+	})
+
+	t.Run("minProofLevel ignores proof at depth 0", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		parent := given.Provider().WhatsOnChain().MinedTransaction()
+		parent.WillReturnRawTx()
+		parent.WillReturnMerklePath()
+
+		childSpec := testvectors.GivenTX().WithInputFromUTXO(parent.Tx(), 0).WithP2PKHOutput(1)
+		childTxID := childSpec.ID().String()
+		given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, childSpec.RawTX().Hex(), nil)
+		given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, childTxID, "")
+
+		activeStorage := given.Provider().GORM()
+
+		// when:
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{MinProofLevel: 1})
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, beef)
+		btx := beef.FindTransaction(childTxID)
+		require.NotNil(t, btx)
+		assert.Nil(t, btx.MerklePath)
+		assert.NotEmpty(t, btx.Hex())
+
+		// and:
+		ptx := beef.FindTransaction(parent.TxID())
+		require.NotNil(t, ptx)
+		assert.NotNil(t, ptx.MerklePath)
+	})
+
+	t.Run("knownTxIDs on inputs merges parent as txid-only", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		parent := given.Provider().WhatsOnChain().MinedTransaction().Tx()
+
+		childSpec := testvectors.GivenTX().WithInputFromUTXO(parent, 0).WithP2PKHOutput(1)
+		childTxID := childSpec.ID().String()
+		given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, childSpec.RawTX().Hex(), nil)
+		given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, childTxID, "")
+
+		activeStorage := given.Provider().GORM()
+
+		// when:
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{KnownTxIDs: []string{parent.TxID().String()}})
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, beef)
+		child := beef.FindTransaction(childTxID)
+		require.NotNil(t, child)
+		p := beef.FindTransaction(parent.TxID().String())
+		assert.Nil(t, p)
+	})
+}
+
+func TestGetBeef_PersistNewProven_WhenIgnoreNewProvenFalse(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	mined := given.Provider().WhatsOnChain().MinedTransaction()
+	mined.WillReturnRawTx()
+	mined.WillReturnMerklePath()
+	txID := mined.TxID()
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreNewProven: false})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, beef)
+	assert.NotNil(t, beef.FindTransaction(txID))
+
+	// and when:
+	beef2, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreServices: true})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, beef2)
+	assert.NotNil(t, beef2.FindTransaction(txID))
 }

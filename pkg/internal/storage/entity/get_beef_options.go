@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -13,6 +14,8 @@ type GetBEEFOptions struct {
 	StatusesToFilterOut []wdk.ProvenTxReqStatus
 	TxGetterFcn         TxGetterFcn
 	KnownTxIDs          []string
+	TrustSelf           wallet.TrustSelf
+	MinProofLevel       int
 }
 
 type GetBEEFOption = func(*GetBEEFOptions)
@@ -32,5 +35,17 @@ func WithTxGetterFcn(txGetterFcn TxGetterFcn) GetBEEFOption {
 func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.KnownTxIDs = knownTxIDs
+	}
+}
+
+func WithTrustSelf(trust wallet.TrustSelf) GetBEEFOption {
+	return func(opts *GetBEEFOptions) {
+		opts.TrustSelf = trust
+	}
+}
+
+func WithMinProofLevel(level int) GetBEEFOption {
+	return func(opts *GetBEEFOptions) {
+		opts.MinProofLevel = level
 	}
 }

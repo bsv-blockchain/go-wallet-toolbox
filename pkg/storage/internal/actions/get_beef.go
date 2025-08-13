@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -30,6 +31,7 @@ func newGetBeef(logger *slog.Logger, knownTxRepo KnownTxRepo, services wdk.Servi
 type rawTxWithMerklePath struct {
 	rawTx      []byte
 	merklePath *transaction.MerklePath
+	header     *wdk.MerklePathBlockHeader
 }
 
 func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
@@ -64,11 +66,22 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 			serviceFetchedTransactions[txID] = rawTxWithMerklePath{
 				rawTx:      rawTxResult.RawTx,
 				merklePath: merklePathResult.MerklePath,
+				header:     merklePathResult.BlockHeader,
 			}
 
 			return rawTxResult.RawTx, merklePathResult.MerklePath, nil
 		}
 		getBeefOptions = append(getBeefOptions, entity.WithTxGetterFcn(txGetter))
+	}
+
+	if len(options.KnownTxIDs) > 0 {
+		getBeefOptions = append(getBeefOptions, entity.WithKnownTxIDs(options.KnownTxIDs...))
+	}
+	if options.TrustSelf != "" {
+		getBeefOptions = append(getBeefOptions, entity.WithTrustSelf(options.TrustSelf))
+	}
+	if options.MinProofLevel > 0 {
+		getBeefOptions = append(getBeefOptions, entity.WithMinProofLevel(options.MinProofLevel))
 	}
 
 	if !options.IgnoreStorage {
@@ -78,8 +91,30 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 		}
 
 		if !options.IgnoreNewProven {
-			// TODO: Store the transactions that have been fetched from the services
-			_ = serviceFetchedTransactions // NOTE: Only mined transactions should be stored in the known transactions repo
+			for id, fetched := range serviceFetchedTransactions {
+				if fetched.merklePath == nil || fetched.header == nil || len(fetched.rawTx) == 0 {
+					continue
+				}
+				emptyBeef, _ := transaction.NewBeefV2().Bytes()
+				_ = g.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+					TxID:      id,
+					RawTx:     fetched.rawTx,
+					InputBeef: emptyBeef,
+					Status:    wdk.ProvenTxStatusCompleted,
+				}, history.NewBuilder().GetMerklePathSuccess("services"))
+
+				if fetched.merklePath != nil {
+					merklePathBytes := fetched.merklePath.Bytes()
+					_ = g.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+						TxID:        id,
+						BlockHeight: fetched.header.Height,
+						MerklePath:  merklePathBytes,
+						MerkleRoot:  fetched.header.MerkleRoot,
+						BlockHash:   fetched.header.Hash,
+						Notes:       []history.Builder{history.NewBuilder().GetMerklePathSuccess("services")},
+					})
+				}
+			}
 		}
 
 		return beef, nil
