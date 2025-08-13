@@ -99,7 +99,7 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 			return fmt.Errorf("failed to upsert output: %w", err)
 		}
 
-		if entity.UserUTXO != nil {
+		if entity.UserUTXO != nil && utxoStatus != wdk.UTXOStatusUnknown {
 			entity.UserUTXO.OutputID = outputID
 			entity.UserUTXO.Status = utxoStatus
 
@@ -257,6 +257,8 @@ func (s *SyncOutput) utxoStatusByTxStatus(txStatus wdk.TxStatus) wdk.UTXOStatus 
 		return wdk.UTXOStatusSending
 	case wdk.TxStatusUnproven:
 		return wdk.UTXOStatusUnproven
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+		fallthrough
 	default:
 		return wdk.UTXOStatusUnknown
 	}
