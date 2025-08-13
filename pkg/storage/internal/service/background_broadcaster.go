@@ -16,7 +16,7 @@ const (
 )
 
 type broadcaster interface {
-	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txids []string) error
+	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error
 }
 
 type BackgroundBroadcaster struct {

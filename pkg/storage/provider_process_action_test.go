@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
@@ -138,6 +139,80 @@ func TestProcessActionTwice(t *testing.T) {
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		HasRawTx()
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, *args.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
+}
+
+func TestProcessAction_DelayedBroadcast(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and:
+	createActionResult, signedTx := given.Action(activeStorage).WithDelayedBroadcast().Created()
+	txID := signedTx.TxID().String()
+
+	// and:
+	args := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  true,
+		Reference:  to.Ptr(createActionResult.Reference),
+		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:      signedTx.Bytes(),
+		SendWith:   []primitives.TXIDHexString{},
+	}
+
+	// when:
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.NoError(t, err)
+
+	require.Len(t, result.SendWithResults, 1)
+	sendWithResult := result.SendWithResults[0]
+	assert.Equal(t, txID, string(sendWithResult.TxID))
+	assert.Equal(t, wdk.SendWithResultStatusSending, sendWithResult.Status)
+
+	require.Len(t, result.NotDelayedResults, 0)
+
+	err = given.Provider().ARC().WaitForBroadcastWithTimeout(txID, time.Second)
+
+	require.NoError(t, err)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		HasRawTx().
+		TxNotes(func(then testabilities.TxNotesAssertion) {
+			then.
+				Count(5).
+				Note("processAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, map[string]any{
+					"name": "ARC",
+				}).
+				Note("postBeefError", nil, map[string]any{
+					"name": "WhatsOnChain",
+				}).
+				Note("postBeefError", nil, map[string]any{
+					"name": "Bitails",
+				}).
+				Note("aggregateResults", nil, map[string]any{
+					"aggStatus":         "success",
+					"doubleSpendCount":  0,
+					"serviceErrorCount": 2,
+					"statusErrorCount":  0,
+					"status_now":        "unmined",
+					"successCount":      1,
+				})
+		})
 
 	thenDBState.HasUserTransactionByReference(testusers.Alice, *args.Reference).
 		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)

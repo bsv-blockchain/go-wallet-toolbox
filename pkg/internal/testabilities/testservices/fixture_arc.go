@@ -3,6 +3,7 @@ package testservices
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -42,6 +43,7 @@ type ARCFixture interface {
 	WillAlwaysReturnStatus(httpStatus int)
 	WhenQueryingTx(txID string) ARCQueryFixture
 	OnBroadcast() ArcBroadcastFixture
+	WaitForBroadcastWithTimeout(txID string, duration time.Duration) error
 }
 
 type ARCQueryFixture interface {
@@ -180,6 +182,27 @@ func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
 		TB:     f,
 		parent: f,
 		txID:   txID,
+	}
+}
+
+func (f *arcFixture) WaitForBroadcastWithTimeout(txID string, duration time.Duration) error {
+	timeout := time.After(duration)
+	for {
+		known := f.knownTransactions[txID]
+		if known != nil {
+			if known.noBody || known.status == "MINED" || known.status == "SEEN_ON_NETWORK" {
+				return nil
+			}
+
+			return fmt.Errorf("transaction %s problematic status in MockARCFixture: %#v", txID, known)
+		}
+
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for transaction %s", txID)
+		default:
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 }
 

@@ -1,9 +1,6 @@
 package testabilities
 
 import (
-	"log/slog"
-	"testing"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
@@ -15,6 +12,8 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
+	"log/slog"
+	"testing"
 )
 
 type ServicesFixture interface {

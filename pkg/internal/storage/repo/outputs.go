@@ -359,7 +359,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) err
 	return nil
 }
 
-func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID string, utxoStatus wdk.UTXOStatus) error {
+func (o *Outputs) MakeOutputsSpendable(ctx context.Context, txID string, utxoStatus wdk.UTXOStatus) error {
 	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var changeOutputs []*models.Output
 		err := tx.Model(&models.Output{}).
@@ -368,11 +368,11 @@ func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID str
 				o.query.Output.BasketName.ColumnName().String(),
 				o.query.Output.Satoshis.ColumnName().String(),
 				o.query.Output.Type.ColumnName().String(),
+				o.query.Output.UserID.ColumnName().String(),
 			).
 			Where("transaction_id IN (?)",
 				o.db.Model(&models.Transaction{}).
 					Select("id").
-					Scopes(scopes.UserID(userID)).
 					Where("tx_id = ?", txID),
 			).
 			Where(o.query.Output.BasketName.IsNotNull()).
@@ -401,7 +401,7 @@ func (o *Outputs) MakeOutputsSpendable(ctx context.Context, userID int, txID str
 
 		newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
 			return &models.UserUTXO{
-				UserID:             userID,
+				UserID:             output.UserID,
 				OutputID:           output.ID,
 				BasketName:         *output.BasketName,
 				Satoshis:           must.ConvertToUInt64(output.Satoshis),

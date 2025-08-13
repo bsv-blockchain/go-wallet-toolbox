@@ -56,6 +56,7 @@ func newProcessAction(
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p)
+	p.backgroundBroadcaster.Start()
 	return p
 }
 
@@ -265,7 +266,7 @@ func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string, 
 				utxoStatus = wdk.UTXOStatusMined
 			}
 
-			err = p.outputRepo.MakeOutputsSpendable(ctx, userID, txID, utxoStatus)
+			err = p.outputRepo.MakeOutputsSpendable(ctx, txID, utxoStatus)
 			if err != nil {
 				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
 			}
@@ -348,7 +349,6 @@ func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string, 
 		} else {
 			sendWithResult, reviewActionResult, err = p.updateSingleTx(
 				ctx,
-				userID,
 				broadcastedTxID,
 				aggBroadcastResult,
 				results.ServiceErrors(),
@@ -372,7 +372,6 @@ func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string, 
 
 func (p *process) updateSingleTx(
 	ctx context.Context,
-	userID int,
 	txID string,
 	aggBroadcastResult *wdk.AggregatedPostedTxID,
 	serviceErrors map[string]error,
@@ -409,7 +408,7 @@ func (p *process) updateSingleTx(
 	}
 
 	if newUtxoStatus != wdk.UTXOStatusUnknown {
-		err = p.outputRepo.MakeOutputsSpendable(ctx, userID, txID, newUtxoStatus)
+		err = p.outputRepo.MakeOutputsSpendable(ctx, txID, newUtxoStatus)
 		if err != nil {
 			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
 			return
@@ -551,6 +550,33 @@ func (p *process) StopBackgroundBroadcaster() {
 	}
 }
 
-func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txids []string) error {
-	return fmt.Errorf("BackgroundBroadcast is not implemented in process action")
+func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error {
+	results, err := p.services.PostBEEF(ctx, beef, txIDs)
+	if err != nil {
+		return fmt.Errorf("failed to post BEEF in background: %w", err)
+	}
+
+	aggregated := results.Aggregated(txIDs)
+	for _, broadcastedTxID := range txIDs {
+		aggBroadcastResult, ok := aggregated[broadcastedTxID]
+		if !ok {
+			return fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
+		}
+
+		sendWithResult, _, err := p.updateSingleTx(
+			ctx,
+			broadcastedTxID,
+			aggBroadcastResult,
+			results.ServiceErrors(),
+			beef,
+			txIDs,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to update single tx after background broadcast: %w", err)
+		}
+
+		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", sendWithResult.Status)
+	}
+
+	return nil
 }
