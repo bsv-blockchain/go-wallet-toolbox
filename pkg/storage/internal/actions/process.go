@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/to"
 	"log/slog"
 	"maps"
 	"slices"
@@ -21,34 +22,45 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq2"
 )
 
-type process struct {
-	logger         *slog.Logger
-	commissionCfg  defs.Commission
-	txRepo         TransactionsRepo
-	outputRepo     OutputRepo
-	knownTxRepo    KnownTxRepo
-	commissionRepo CommissionRepo
-	services       wdk.Services
+type backgroundBroadcaster interface {
+	Add(beef *transaction.Beef, txIDs []string) (added bool)
 }
 
-func newProcessAction(logger *slog.Logger, txRepo TransactionsRepo, commissionCfg defs.Commission, outputRepo OutputRepo, knownTxRepo KnownTxRepo, commissionRepo CommissionRepo, services wdk.Services) *process {
+type process struct {
+	logger                *slog.Logger
+	commissionCfg         defs.Commission
+	txRepo                TransactionsRepo
+	outputRepo            OutputRepo
+	knownTxRepo           KnownTxRepo
+	commissionRepo        CommissionRepo
+	services              wdk.Services
+	backgroundBroadcaster backgroundBroadcaster
+}
+
+func newProcessAction(
+	logger *slog.Logger,
+	txRepo TransactionsRepo,
+	commissionCfg defs.Commission,
+	outputRepo OutputRepo,
+	knownTxRepo KnownTxRepo,
+	commissionRepo CommissionRepo,
+	services wdk.Services,
+	backgroundBroadcaster backgroundBroadcaster,
+) *process {
 	logger = logging.Child(logger, "processAction")
 	return &process{
-		logger:         logger,
-		commissionCfg:  commissionCfg,
-		txRepo:         txRepo,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		services:       services,
+		logger:                logger,
+		commissionCfg:         commissionCfg,
+		txRepo:                txRepo,
+		outputRepo:            outputRepo,
+		knownTxRepo:           knownTxRepo,
+		commissionRepo:        commissionRepo,
+		services:              services,
+		backgroundBroadcaster: backgroundBroadcaster,
 	}
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
-	if args.IsDelayed {
-		panic("not implemented yet")
-	}
-
 	if args.IsNewTx {
 		if err := p.processNewTx(ctx, userID, args); err != nil {
 			return nil, err
@@ -60,7 +72,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		return &wdk.ProcessActionResult{}, nil
 	}
 
-	return p.broadcastTxs(ctx, userID, p.txIDsToBroadcast(args))
+	return p.broadcastTxs(ctx, userID, p.txIDsToBroadcast(args), args.IsDelayed)
 }
 
 func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
@@ -232,14 +244,14 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return
 }
 
-func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string) (*wdk.ProcessActionResult, error) {
+func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string, isDelayed bool) (*wdk.ProcessActionResult, error) {
 	knownTxStatusesLookup, err := p.getKnownTxStatuses(ctx, txIDs...)
 	if err != nil {
 		return nil, err
 	}
 
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
-	notDelayedResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
+	notDelayedResults := make([]wdk.ReviewActionResult, 0, to.IfThen(!isDelayed, len(txIDs)).ElseThen(0))
 	var readyToSendTxIDs []string
 
 	for txID, currentStatus := range knownTxStatusesLookup {
@@ -287,6 +299,36 @@ func (p *process) broadcastTxs(ctx context.Context, userID int, txIDs []string) 
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
+	}
+
+	// TODO: Create batch string which will be necessary for CRON job to rebuild the BEEF when multiple txs are broadcasted
+
+	if isDelayed {
+		for _, txID := range readyToSendTxIDs {
+			err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+			}
+
+			err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+			}
+
+			sendWithResults = append(sendWithResults, wdk.SendWithResult{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: wdk.SendWithResultStatusSending,
+			})
+		}
+
+		added := p.backgroundBroadcaster.Add(beef, readyToSendTxIDs)
+		if !added {
+			p.logger.DebugContext(ctx, "Background broadcaster channel is full, will be added later by the CRON")
+		}
+
+		return &wdk.ProcessActionResult{
+			SendWithResults: sendWithResults,
+		}, nil
 	}
 
 	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)

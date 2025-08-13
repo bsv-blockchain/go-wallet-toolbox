@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -36,6 +37,8 @@ type Provider struct {
 	actions *actions.Actions
 	random  wdk.Randomizer
 	logger  *slog.Logger
+
+	backgroundBroadcaster *service.BackgroundBroadcaster
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -94,6 +97,12 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		random:  random,
 		logger:  logger,
 	}, nil
+}
+
+func (p *Provider) Stop() {
+	if p.backgroundBroadcaster != nil {
+		p.backgroundBroadcaster.Stop()
+	}
 }
 
 func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *providerOptions) (*database.Database, error) {
