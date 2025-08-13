@@ -180,6 +180,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 
 		// then:
 		require.NoError(t, err)
-		require.NotEmpty(t, forthCreateActionsResult.SendWithResults) // TODO: Update assertions to be more robust.
+		require.NotEmpty(t, forthCreateActionsResult.SendWithResults)
 	})
 }
