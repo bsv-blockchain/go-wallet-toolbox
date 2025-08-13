@@ -90,7 +90,6 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("recovered from panic during broadcast: %v", r)
-			return
 		}
 	}()
 
