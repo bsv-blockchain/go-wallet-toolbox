@@ -33,6 +33,10 @@ type BitailsFixture interface {
 	WillRespondWithInternalFailure()
 	WillReturnBlockHeaderHttpError(blockHash string, status int)
 	WillReturnMalformedBlockHeader(blockHash string)
+	WillReturnTxStatusNotFound(txid string)
+	WillReturnTxStatusMined(txid string, height int)
+	WillReturnTxStatusUnconfirmed(txid string)
+	WillReturnTxStatusHttpError(txid string, status int)
 	WillRespondWithBlockByHeight()
 	ScriptHistoryData() ScriptHistoryDataBuilder
 	OnBroadcast() BitailsBroadcastFixture
@@ -502,5 +506,45 @@ func (b *bitailsScriptHistoryBuilder) WillBeReturned() {
 		http.MethodGet,
 		regexp.MustCompile(`/scripthash/`+regexp.QuoteMeta(b.scriptHash)+`/history(?:\?.*)?$`),
 		httpmock.NewJsonResponderOrPanic(statusCode, response),
+	)
+}
+
+func (b *bitailsFixture) WillReturnTxStatusNotFound(txid string) {
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
+		httpmock.NewStringResponder(http.StatusNotFound, "not found"),
+	)
+}
+
+func (b *bitailsFixture) WillReturnTxStatusHttpError(txid string, status int) {
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
+		httpmock.NewStringResponder(status, http.StatusText(status)),
+	)
+}
+
+func (b *bitailsFixture) WillReturnTxStatusMined(txid string, height int) {
+	body := map[string]any{
+		"blockhash":   "some-block-hash",
+		"blockheight": height,
+	}
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
+	)
+}
+
+func (b *bitailsFixture) WillReturnTxStatusUnconfirmed(txid string) {
+	body := map[string]any{
+		"blockhash":   "",
+		"blockheight": 0,
+	}
+	b.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https?://.*\.bitails\.io/tx/%s/status`, regexp.QuoteMeta(txid))),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, body),
 	)
 }

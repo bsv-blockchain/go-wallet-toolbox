@@ -76,7 +76,7 @@ type PostedTxID struct {
 	// DoubleSpend is when service indicated this broadcast double spends at least one input
 	DoubleSpend bool
 	BlockHash   string
-	BlockHeight int64
+	BlockHeight uint32
 	MerklePath  *transaction.MerklePath
 
 	// CompetingTxs may be an array of txids that were first seen spends of at least one input.
