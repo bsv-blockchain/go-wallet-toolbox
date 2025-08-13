@@ -12,5 +12,5 @@ type ProofResponse struct {
 type FetchInfoResponse struct {
 	TxID        string `json:"txid"`
 	BlockHash   string `json:"blockhash"`
-	BlockHeight int64  `json:"blockheight"`
+	BlockHeight uint32 `json:"blockheight"`
 }

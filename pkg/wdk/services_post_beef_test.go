@@ -147,7 +147,7 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
 	})
 
-	t.Run("success, two services, two txids - one per service", func(t *testing.T) {
+	t.Run("success, two services, two txIDs - one per service", func(t *testing.T) {
 		// given:
 		txID1 := mockTxID(1)
 		txID2 := mockTxID(2)
@@ -194,7 +194,7 @@ func TestAggregated(t *testing.T) {
 		}
 	})
 
-	t.Run("success, two services, two txids - two per service", func(t *testing.T) {
+	t.Run("success, two services, two txIDs - two per service", func(t *testing.T) {
 		// given:
 		txID1 := mockTxID(1)
 		txID2 := mockTxID(2)
