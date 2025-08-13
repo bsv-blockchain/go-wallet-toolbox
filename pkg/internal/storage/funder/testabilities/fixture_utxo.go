@@ -1,7 +1,6 @@
 package testabilities
 
 import (
-	"gorm.io/gorm"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"gorm.io/gorm"
 )
 
 var FirstCreatedAt = time.Date(2006, 02, 01, 15, 4, 5, 7, time.UTC)
