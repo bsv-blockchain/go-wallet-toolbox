@@ -17,6 +17,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -66,7 +67,7 @@ func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 		return nil, fmt.Errorf("beef is required to post transactions")
 	}
 	if len(txIDs) == 0 {
-		return nil, fmt.Errorf("no txids provided")
+		return nil, fmt.Errorf("no txIDs provided")
 	}
 
 	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
@@ -274,4 +275,59 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 		ScriptHash: scriptHash,
 		History:    items,
 	}, nil
+}
+
+// GetStatusForTxIDs returns depth/status info for a list of txIDs using Bitails.
+func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+	if len(txIDs) == 0 {
+		return nil, fmt.Errorf("no txIDs provided")
+	}
+
+	tip, err := b.CurrentHeight(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to get current height: %w", ServiceName, err)
+	}
+
+	res := &wdk.GetStatusForTxIDsResult{
+		Name:    ServiceName,
+		Status:  wdk.GetStatusSuccess,
+		Results: make([]wdk.TxStatusDetail, 0, len(txIDs)),
+	}
+
+	var anyFound bool
+
+	for _, txID := range txIDs {
+		found, mined, height, err := b.getTxStatus(ctx, txID)
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to get status for %s: %w", ServiceName, txID, err)
+		}
+
+		item := wdk.TxStatusDetail{TxID: txID}
+
+		switch {
+		case !found:
+			item.Status = wdk.ResultStatusForTxIDNotFound.String()
+
+		case mined:
+			anyFound = true
+			item.Status = wdk.ResultStatusForTxIDMined.String()
+			depth, err := calcDepth(tip, height)
+			if err != nil {
+				return nil, fmt.Errorf("failed to calculate depth for %s: %w", txID, err)
+			}
+			item.Depth = depth
+
+		default:
+			anyFound = true
+			item.Status = wdk.ResultStatusForTxIDKnown.String()
+			item.Depth = to.Ptr(0)
+		}
+
+		res.Results = append(res.Results, item)
+	}
+
+	if !anyFound {
+		return nil, servicequeue.ErrEmptyResult
+	}
+	return res, nil
 }

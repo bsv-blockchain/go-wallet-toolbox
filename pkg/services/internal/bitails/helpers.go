@@ -12,6 +12,26 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+// getTxStatus retrieves the status of a transaction by its txid from Bitails.
+func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, mined bool, height uint32, err error) {
+	url, err := txStatusURL(b.url, txid)
+	if err != nil {
+		err = fmt.Errorf("build tx status URL: %w", err)
+		return
+	}
+
+	var info dto.FetchInfoResponse
+	found, err = b.handleJSON(ctx, url, &info, http.StatusOK, true /* allow 404 */)
+	if err != nil {
+		err = fmt.Errorf("fetch tx status: %w", err)
+		return
+	}
+
+	mined = info.BlockHeight > 0
+	height = info.BlockHeight
+	return
+}
+
 // fetchRemoteRoot retrieves the Merkle root for a given block height from Bitails.
 func (b *Bitails) fetchRemoteRoot(ctx context.Context, height uint32) (*chainhash.Hash, error) {
 	url, err := blockHeaderByHeightURL(b.url, height)

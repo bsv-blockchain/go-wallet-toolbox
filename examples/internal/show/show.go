@@ -272,6 +272,34 @@ func GetUtxoStatusOutput(result *wdk.UtxoStatusResult) {
 	}
 }
 
+// GetStatusForTxIDsOutput pretty-prints the GetStatusForTxIDs result.
+func GetStatusForTxIDsOutput(res *wdk.GetStatusForTxIDsResult) {
+	if res == nil {
+		Error("nil GetStatusForTxIDsResult passed")
+		return
+	}
+
+	Header("TX STATUS (MULTI)")
+	fmt.Printf("%sService:%s %s\n", ColorCyan, ColorReset, res.Name)
+	fmt.Printf("%sOverall:%s %s\n\n", ColorCyan, ColorReset, res.Status)
+
+	headers := []string{"TxID", "Status", "Depth"}
+	rows := make([][]string, 0, len(res.Results))
+
+	for _, it := range res.Results {
+		depth := "-"
+		if it.Depth != nil {
+			depth = fmt.Sprint(*it.Depth)
+		}
+		rows = append(rows, []string{
+			it.TxID,
+			it.Status,
+			depth,
+		})
+	}
+	PrintTable("Per-TX status:", headers, rows)
+}
+
 func Beef(beefHex string) {
 	Header("BEEF HEX")
 

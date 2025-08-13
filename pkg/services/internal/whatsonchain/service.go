@@ -220,7 +220,7 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 // PostBEEF attempts to post beef with given txIDs
 func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
 	if len(txIDs) == 0 {
-		return nil, fmt.Errorf("no txids provided")
+		return nil, fmt.Errorf("no txIDs provided")
 	}
 	if beef == nil {
 		return nil, fmt.Errorf("beef is required to post transactions")
@@ -357,4 +357,34 @@ func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint
 	}
 
 	return status.IsUtxo, nil
+}
+
+func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+	if len(txIDs) == 0 {
+		return nil, fmt.Errorf("no txIDs provided")
+	}
+
+	url, err := txsStatusURL(woc.url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	results, err := woc.getStatusForTxIDs(ctx, url, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
+	}
+
+	if results == nil {
+		return nil, fmt.Errorf("no status found for provided txIDs")
+	}
+
+	if len(results.Results) == 0 {
+		return nil, fmt.Errorf("no results found for provided txIDs")
+	}
+
+	if results.Status != wdk.GetStatusSuccess {
+		return nil, fmt.Errorf("failed to get status for txIDs: %s", results.Status)
+	}
+
+	return results, nil
 }
