@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,6 +17,9 @@ import (
 const (
 	derivationPrefixIndex = iota
 	derivationSuffixIndex
+	regenerateButtonIndex = 2
+	continueButtonIndex   = 3
+	backButtonIndex       = 4
 )
 
 type internalizeData struct {
@@ -81,6 +85,10 @@ func (m *InternalizeForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case m.continueIsFocused():
 				internalizeWaiting := NewInternalizeWaiting(m.manager, m.user, m.selected)
 				return internalizeWaiting, internalizeWaiting.Init()
+			case m.regenerateIsFocused():
+				// Regenerate random derivation prefix and suffix
+				m.regenerateRandomDerivation()
+				return m, nil
 			default:
 				m.nextInput()
 
@@ -122,7 +130,9 @@ func (m *InternalizeForm) View() string {
  %s
  %s
 
- %s%s
+ %s
+ %s
+ %s
  %s
 `,
 		inputStyle.Width(30).Render("Derivation Prefix"),
@@ -134,6 +144,8 @@ func (m *InternalizeForm) View() string {
 		to.If(m.errorMsg != "", func() string {
 			return errorStyle.Render("Error: " + m.errorMsg + "\n")
 		}).ElseThen(""),
+		to.IfThen(m.regenerateIsFocused(), navStyleFocused).ElseThen(navStyle).
+			Render("[ Regenerate Random Values ]"),
 		to.IfThen(m.continueIsFocused(), navStyleFocused).ElseThen(navStyle).
 			Render("Continue ->"),
 		to.IfThen(m.backIsFocused(), navStyleFocused).ElseThen(navStyle).
@@ -143,14 +155,14 @@ func (m *InternalizeForm) View() string {
 
 // nextInput focuses the next input field
 func (m *InternalizeForm) nextInput() {
-	m.focused = (m.focused + 1) % (len(m.inputs) + 2)
+	m.focused = (m.focused + 1) % (len(m.inputs) + 3) // Updated to include regenerate button
 }
 
 // prevInput focuses the previous input field
 func (m *InternalizeForm) prevInput() {
 	m.focused--
 	if m.focused < 0 {
-		m.focused = len(m.inputs)
+		m.focused = len(m.inputs) + 2 // Updated to include regenerate button
 	}
 }
 
@@ -164,11 +176,16 @@ func (m *InternalizeForm) controlInputsFocus() {
 }
 
 func (m *InternalizeForm) continueIsFocused() bool {
-	return m.focused == len(m.inputs)
+	return m.focused == continueButtonIndex
 }
 
 func (m *InternalizeForm) backIsFocused() bool {
-	return m.focused == len(m.inputs)+1
+	return m.focused == backButtonIndex
+}
+
+// regenerateIsFocused checks if the regenerate button is focused
+func (m *InternalizeForm) regenerateIsFocused() bool {
+	return m.focused == regenerateButtonIndex
 }
 
 func (m *InternalizeForm) recalculateAddress() {
@@ -229,4 +246,27 @@ func calculateAddressForInternalize(derivationPrefix, derivationSuffix string, u
 	}
 
 	return address.AddressString, nil
+}
+
+func (m *InternalizeForm) regenerateRandomDerivation() {
+	r := randomizer.New()
+	const length = 10
+	prefixValue, err := r.Base64(length)
+	if err != nil {
+		m.errorMsg = fmt.Sprintf("Failed to generate random prefix: %v", err)
+		return
+	}
+
+	suffixValue, err := r.Base64(length)
+	if err != nil {
+		m.errorMsg = fmt.Sprintf("Failed to generate random suffix: %v", err)
+		return
+	}
+
+	// Update input fields
+	m.inputs[derivationPrefixIndex].SetValue(prefixValue)
+	m.inputs[derivationSuffixIndex].SetValue(suffixValue)
+
+	// Recalculate address with new values
+	m.recalculateAddress()
 }
