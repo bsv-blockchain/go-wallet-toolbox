@@ -74,11 +74,16 @@ func (m *InternalizeForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			if m.continueIsFocused() {
-				waitingView := NewInternalizeWaiting(m.manager, m.user, m.selected)
-				return waitingView, waitingView.Init()
-			} else {
+			switch {
+			case m.backIsFocused():
+				selectAction := NewSelectAction(m.manager, m.user)
+				return selectAction, selectAction.Init()
+			case m.continueIsFocused():
+				internalizeWaiting := NewInternalizeWaiting(m.manager, m.user, m.selected)
+				return internalizeWaiting, internalizeWaiting.Init()
+			default:
 				m.nextInput()
+
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
@@ -118,6 +123,7 @@ func (m *InternalizeForm) View() string {
  %s
 
  %s%s
+ %s
 `,
 		inputStyle.Width(30).Render("Derivation Prefix"),
 		m.inputs[derivationPrefixIndex].View(),
@@ -128,14 +134,16 @@ func (m *InternalizeForm) View() string {
 		to.If(m.errorMsg != "", func() string {
 			return errorStyle.Render("Error: " + m.errorMsg + "\n")
 		}).ElseThen(""),
-		to.IfThen(m.continueIsFocused(), continueStyleFocused).ElseThen(continueStyle).
+		to.IfThen(m.continueIsFocused(), navStyleFocused).ElseThen(navStyle).
 			Render("Continue ->"),
+		to.IfThen(m.backIsFocused(), navStyleFocused).ElseThen(navStyle).
+			Render("<- Back"),
 	)
 }
 
 // nextInput focuses the next input field
 func (m *InternalizeForm) nextInput() {
-	m.focused = (m.focused + 1) % (len(m.inputs) + 1)
+	m.focused = (m.focused + 1) % (len(m.inputs) + 2)
 }
 
 // prevInput focuses the previous input field
@@ -157,6 +165,10 @@ func (m *InternalizeForm) controlInputsFocus() {
 
 func (m *InternalizeForm) continueIsFocused() bool {
 	return m.focused == len(m.inputs)
+}
+
+func (m *InternalizeForm) backIsFocused() bool {
+	return m.focused == len(m.inputs)+1
 }
 
 func (m *InternalizeForm) recalculateAddress() {

@@ -8,11 +8,13 @@ import (
 )
 
 func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Model {
+	const backOption = "<- Back"
 	actionsTypes := []fixtures.ActionType{
 		fixtures.ActionInternalize,
 		fixtures.ActionBalance,
 		fixtures.ActionSendData,
 		fixtures.ActionSendDataPeriodically,
+		backOption,
 	}
 
 	title := fmt.Sprintf("Select action for %s:", user.Name)
@@ -31,6 +33,10 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		case fixtures.ActionSendDataPeriodically:
 			sendDataModel := NewSendDataPeriodicallyForm(manager, user)
 			return sendDataModel, sendDataModel.Init()
+		case backOption:
+			// Return to wallet selection view when Back is selected
+			selectWalletModel := NewSelectWallet(manager)
+			return selectWalletModel, selectWalletModel.Init()
 		default:
 			manager.Panic(nil, "Unsupported action type: "+string(actionType))
 			return nil, nil

@@ -98,7 +98,7 @@ func (m *SummaryView) View() string {
 
 	continueButton := ""
 	if m.showContinue {
-		continueButton = to.IfThen(m.continueIsFocused, continueStyleFocused).ElseThen(continueStyle).
+		continueButton = to.IfThen(m.continueIsFocused, navStyleFocused).ElseThen(navStyle).
 			Render("Continue ->")
 	}
 
@@ -108,4 +108,3 @@ func (m *SummaryView) View() string {
 func (m *SummaryView) ContinueFocused() bool {
 	return m.continueIsFocused
 }
-

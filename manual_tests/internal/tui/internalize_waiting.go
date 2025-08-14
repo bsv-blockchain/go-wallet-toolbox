@@ -47,9 +47,13 @@ func (m *InternalizeWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			if m.continueIsFocused() {
+			switch {
+			case m.continueIsFocused():
 				return m.submit()
-			} else {
+			case m.backIsFocused():
+				selectAction := NewSelectAction(m.manager, m.user)
+				return selectAction, selectAction.Init()
+			default:
 				m.nextFocus()
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
@@ -90,12 +94,15 @@ func (m *InternalizeWaiting) View() string {
 %s
 
 %s
+%s
 `,
 		instructions,
 		inputStyle.Width(30).Render("New Transaction ID"),
 		m.txInput.View(),
-		to.IfThen(m.continueIsFocused(), continueStyleFocused).ElseThen(continueStyle).
+		to.IfThen(m.continueIsFocused(), navStyleFocused).ElseThen(navStyle).
 			Render("Continue ->"),
+		to.IfThen(m.backIsFocused(), navStyleFocused).ElseThen(navStyle).
+			Render("<- Back"),
 	)
 }
 
@@ -134,19 +141,23 @@ func (m *InternalizeWaiting) submit() (tea.Model, tea.Cmd) {
 
 // nextFocus focuses the next input field
 func (m *InternalizeWaiting) nextFocus() {
-	m.focused = (m.focused + 1) % 2
+	m.focused = (m.focused + 1) % 3
 }
 
 // prevFocus focuses the previous input field
 func (m *InternalizeWaiting) prevFocus() {
 	m.focused--
 	if m.focused < 0 {
-		m.focused = 1
+		m.focused = 2
 	}
 }
 
 func (m *InternalizeWaiting) continueIsFocused() bool {
 	return m.focused == 1
+}
+
+func (m *InternalizeWaiting) backIsFocused() bool {
+	return m.focused == 2
 }
 
 func validateTxID(input string) error {

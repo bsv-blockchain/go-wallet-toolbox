@@ -111,9 +111,9 @@ func (m balanceView) View() string {
 
 	var buttons string
 	if m.focus {
-		buttons = continueStyleFocused.Render("Back")
+		buttons = navStyleFocused.Render("Back")
 	} else {
-		buttons = continueStyle.Render("Back")
+		buttons = navStyle.Render("Back")
 	}
 
 	return fmt.Sprintf(
