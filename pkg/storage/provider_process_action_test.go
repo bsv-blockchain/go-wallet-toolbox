@@ -217,7 +217,7 @@ func TestProcessActionDoubleSpending(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.Action(activeStorage).Processed()
+	createActionResult, signedTx := given.Action(activeStorage).Created()
 	txID := signedTx.TxID().String()
 
 	// and:
