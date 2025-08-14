@@ -11,8 +11,13 @@ import (
 )
 
 const (
-	BackgroundBroadcasterChannelSize = 1000
+	// BackgroundBroadcasterWorkerCount defines the number of workers that will process broadcast items.
 	BackgroundBroadcasterWorkerCount = 10
+
+	// BackgroundBroadcasterChannelSize defines the buffer size for the broadcast channel.
+	// The average broadcast time in tests is 300ms, so for 10 workers, 1000 elements should be processed in 30sec
+	// This is chosen as a trade-off between memory usage and throughput; it can be tuned based on expected workload.
+	BackgroundBroadcasterChannelSize = 1000
 )
 
 type broadcaster interface {

@@ -3,7 +3,6 @@ package testservices
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -43,7 +42,6 @@ type ARCFixture interface {
 	WillAlwaysReturnStatus(httpStatus int)
 	WhenQueryingTx(txID string) ARCQueryFixture
 	OnBroadcast() ArcBroadcastFixture
-	WaitForBroadcastWithTimeout(txID string, duration time.Duration) error
 	HoldBroadcasting() ARCFixture
 	ReleaseBroadcasting() ARCFixture
 }
@@ -198,27 +196,6 @@ func (f *arcFixture) HoldBroadcasting() ARCFixture {
 func (f *arcFixture) ReleaseBroadcasting() ARCFixture {
 	f.holdBroadcastExecution.Unlock()
 	return f
-}
-
-func (f *arcFixture) WaitForBroadcastWithTimeout(txID string, duration time.Duration) error {
-	timeout := time.After(duration)
-	for {
-		known := f.getKnownTransaction(txID)
-		if known != nil {
-			if known.noBody || known.status == "MINED" || known.status == "SEEN_ON_NETWORK" {
-				return nil
-			}
-
-			return fmt.Errorf("transaction %s problematic status in MockARCFixture: %#v", txID, known)
-		}
-
-		select {
-		case <-timeout:
-			return fmt.Errorf("timed out waiting for transaction %s", txID)
-		default:
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
 }
 
 func (f *arcFixture) getKnownTransaction(txID string) *knownTransaction {

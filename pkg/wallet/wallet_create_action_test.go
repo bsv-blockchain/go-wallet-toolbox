@@ -367,18 +367,8 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 
 		// when, we release broadcasting, the background task should process the action:
 		given.Services().ARC().ReleaseBroadcasting()
-		err = given.Services().ARC().WaitForBroadcastWithTimeout(result.Txid.String(), 5*time.Second)
-		require.NoError(t, err)
 
-		// then:
-		thenState.
-			HasActionsCount(2).
-			HasActionsCount(1, fixtures.CreateActionTestLabel)
-
-		thenCreatedAction = thenState.ActionAtIndex(1)
-		thenCreatedAction.
-			WithTxID(result.Txid.String()).
-			WithStatus(sdk.ActionStatusUnproven)
+		thenState.WaitForActionsWithStatusCount(2, sdk.ActionStatusUnproven, 5*time.Second)
 	})
 
 	s.Run("delayed broadcast multiple transactions", func() {
@@ -435,13 +425,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 		// when, we release broadcasting, the background task should process the action:
 		given.Services().ARC().ReleaseBroadcasting()
 
-		for _, result := range results {
-			err = given.Services().ARC().WaitForBroadcastWithTimeout(result.Txid.String(), 5*time.Second)
-			require.NoError(t, err)
-		}
-
-		// then:
-		thenState.HasActionsWithStatusCount(2*count, sdk.ActionStatusUnproven)
+		thenState.WaitForActionsWithStatusCount(2*count, sdk.ActionStatusUnproven, 5*time.Second)
 	})
 }
 

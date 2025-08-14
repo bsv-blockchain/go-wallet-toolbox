@@ -182,12 +182,11 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 
 	require.Len(t, result.NotDelayedResults, 0)
 
-	err = given.Provider().ARC().WaitForBroadcastWithTimeout(txID, time.Second)
-
-	require.NoError(t, err)
-
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.WaitForTxStatusByReference(testusers.Alice, *args.Reference, wdk.TxStatusUnproven, 2*time.Second)
+
+	// and db state:
 	thenDBState.HasKnownTX(txID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
@@ -274,17 +273,12 @@ func TestProcessAction_DelayedBroadcastForManyTransactions(t *testing.T) {
 		require.Len(t, results[i].NotDelayedResults, 0)
 	}
 
-	// and:
-	for i := 0; i < count; i++ {
-		txID := signedTxs[i].TxID().String()
-		err = given.Provider().ARC().WaitForBroadcastWithTimeout(txID, time.Second)
-		assert.NoError(t, err)
-	}
-
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	for i := 0; i < count; i++ {
 		txID := signedTxs[i].TxID().String()
+
+		thenDBState.WaitForTxStatusByReference(testusers.Alice, createActionResults[i].Reference, wdk.TxStatusUnproven, 2*time.Second)
 
 		thenDBState.HasKnownTX(txID).
 			NotMined().
