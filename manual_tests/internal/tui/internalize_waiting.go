@@ -81,8 +81,6 @@ func (m *InternalizeWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *InternalizeWaiting) View() string {
-	// TODO: Handle invalid transaction ID input
-
 	instructions := ""
 	if m.manager.GetBSVNetwork() == defs.NetworkTestnet {
 		instructions = RenderTestnetFaucetInstructions(m.selected.address)

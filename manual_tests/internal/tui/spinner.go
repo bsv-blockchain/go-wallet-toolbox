@@ -3,10 +3,11 @@ package tui
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"time"
 )
 
 func Wait(ctx context.Context, duration time.Duration) chan struct{} {

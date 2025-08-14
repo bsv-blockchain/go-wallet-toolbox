@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/base64"
 	"fmt"
+
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
@@ -153,16 +154,15 @@ func (m *InternalizeForm) View() string {
 	)
 }
 
-// nextInput focuses the next input field
 func (m *InternalizeForm) nextInput() {
-	m.focused = (m.focused + 1) % (len(m.inputs) + 3) // Updated to include regenerate button
+	m.focused = (m.focused + 1) % (len(m.inputs) + 3)
 }
 
 // prevInput focuses the previous input field
 func (m *InternalizeForm) prevInput() {
 	m.focused--
 	if m.focused < 0 {
-		m.focused = len(m.inputs) + 2 // Updated to include regenerate button
+		m.focused = len(m.inputs) + 2
 	}
 }
 
@@ -263,10 +263,8 @@ func (m *InternalizeForm) regenerateRandomDerivation() {
 		return
 	}
 
-	// Update input fields
 	m.inputs[derivationPrefixIndex].SetValue(prefixValue)
 	m.inputs[derivationSuffixIndex].SetValue(suffixValue)
 
-	// Recalculate address with new values
 	m.recalculateAddress()
 }

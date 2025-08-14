@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal"
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/tui"
 	"log/slog"
 	"os"
 	"time"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal"
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
