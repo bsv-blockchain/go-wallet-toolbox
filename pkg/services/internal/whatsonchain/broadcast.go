@@ -51,11 +51,10 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 
 	res, err := req.Post(url)
 	if err != nil {
-		response := "no response"
 		if res != nil {
-			response = res.String()
+			woc.logger.DebugContext(ctx, "broadcast request failed with response", "url", url, "error", err, "status_code", res.StatusCode(), "response", res.String())
 		}
-		return StatusError, "", fmt.Errorf("failed to send request to WoC, got response %q: %w", response, err)
+		return StatusError, "", fmt.Errorf("failed to send request to WoC: %w", err)
 	}
 
 	if res.StatusCode() != http.StatusOK {
