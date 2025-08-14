@@ -86,10 +86,6 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 		}
 	}
 
-	if len(hash) != 32 {
-		return nil, fmt.Errorf("'previous hash' field should be a 32 byte-hex length")
-	}
-
 	root, err := hex.DecodeString(c.MerkleRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert 'merkle root' field into bytes slice: %w", err)
