@@ -1,9 +1,13 @@
 package wallet_opts
 
-import sdk "github.com/bsv-blockchain/go-sdk/wallet"
+import (
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+)
 
 type Opts struct {
 	Flags
+	Services *services.WalletServices
 }
 
 type Flags struct {
