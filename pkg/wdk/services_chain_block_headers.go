@@ -70,9 +70,20 @@ func (c *ChainBaseBlockHeader) Hex() (string, error) {
 // followed by time, bits, and nonce fields written in little-endian order.
 // Returns an error if any of the fields cannot be parsed or written.
 func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
-	hash, err := hex.DecodeString(c.PreviousHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
+	var hash []byte
+	var err error
+
+	if c.PreviousHash == "" {
+		hash = make([]byte, 32)
+	} else {
+		hash, err = hex.DecodeString(c.PreviousHash)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
+		}
+
+		if len(hash) != 32 {
+			return nil, fmt.Errorf("'previous hash' field should be a 32 byte-hex length")
+		}
 	}
 
 	if len(hash) != 32 {
