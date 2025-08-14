@@ -249,7 +249,6 @@ func (s *SyncOutput) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOut
 }
 
 func (s *SyncOutput) utxoStatusByTxStatus(txStatus wdk.TxStatus) wdk.UTXOStatus {
-	// TODO: Make it exhaustive
 	switch txStatus {
 	case wdk.TxStatusCompleted:
 		return wdk.UTXOStatusMined

@@ -304,27 +304,12 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// TODO: Create batch string which will be necessary for CRON job to rebuild the BEEF when multiple txs are broadcasted
 
 	if isDelayed {
-		for _, txID := range readyToSendTxIDs {
-			err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
-			}
-
-			err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
-			}
-
-			sendWithResults = append(sendWithResults, wdk.SendWithResult{
-				TxID:   primitives.TXIDHexString(txID),
-				Status: wdk.SendWithResultStatusSending,
-			})
+		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process delayed transactions: %w", err)
 		}
 
-		added := p.backgroundBroadcaster.Add(beef, readyToSendTxIDs)
-		if !added {
-			p.logger.DebugContext(ctx, "Background broadcaster channel is full, will be added later by the CRON")
-		}
+		sendWithResults = append(sendWithResults, resultsForDelayedTxs...)
 
 		return &wdk.ProcessActionResult{
 			SendWithResults: sendWithResults,
@@ -368,6 +353,33 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		SendWithResults:   sendWithResults,
 		NotDelayedResults: notDelayedResults,
 	}, nil
+}
+
+func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string, beef *transaction.Beef) ([]wdk.SendWithResult, error) {
+	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
+	for _, txID := range txIDs {
+		err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+		}
+
+		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+		}
+
+		sendWithResults = append(sendWithResults, wdk.SendWithResult{
+			TxID:   primitives.TXIDHexString(txID),
+			Status: wdk.SendWithResultStatusSending,
+		})
+	}
+
+	added := p.backgroundBroadcaster.Add(beef, txIDs)
+	if !added {
+		p.logger.DebugContext(ctx, "Background broadcaster channel is full, will be added later by the CRON")
+	}
+
+	return sendWithResults, nil
 }
 
 func (p *process) updateSingleTx(
