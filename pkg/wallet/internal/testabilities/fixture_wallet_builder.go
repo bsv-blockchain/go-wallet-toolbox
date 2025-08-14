@@ -1,13 +1,16 @@
 package testabilities
 
 import (
+	"log/slog"
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +30,7 @@ type WalletBuilder interface {
 	WithActiveStorage(storageType StorageType) WalletBuilder
 	WithRemoteStorage() WalletBuilder
 	WithSQLiteStorage() WalletBuilder
+	WithServices() WalletBuilder
 	ForUser(user testusers.User) *wallet.Wallet
 }
 
@@ -34,11 +38,17 @@ type walletBuilder struct {
 	testing.TB
 	walletFixture *walletFixture
 	storageType   StorageType
+	withServices  bool
 	givenStorage  testabilities.StorageFixture
 }
 
 func (w *walletBuilder) WithActiveStorage(storageType StorageType) WalletBuilder {
 	w.storageType = storageType
+	return w
+}
+
+func (w *walletBuilder) WithServices() WalletBuilder {
+	w.withServices = true
 	return w
 }
 
@@ -59,7 +69,14 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	keyDeriver := sdk.NewKeyDeriver(privKey)
 	activeStorage, cleanup := w.storage()
 
-	userWallet, err := wallet.New(defs.NetworkTestnet, keyDeriver, activeStorage)
+	var opts []func(*wallet_opts.Opts)
+	if w.withServices {
+		serviceCfg := defs.DefaultServicesConfig(defs.NetworkTestnet)
+		walletServices := services.New(slog.Default(), serviceCfg)
+		opts = append(opts, wallet.WithServices(walletServices))
+	}
+
+	userWallet, err := wallet.New(defs.NetworkTestnet, keyDeriver, activeStorage, opts...)
 	require.NoErrorf(w, err, "Couldn't create wallet for user %s - invalid test setup", user.Name)
 
 	w.walletFixture.addUserWalletSetup(&userWalletSetup{
