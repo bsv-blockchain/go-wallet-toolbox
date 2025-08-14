@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+const (
+	minRandomizeLength = 3 // minimum length for randomization to avoid early overflow
+)
+
 // TestRandomizer is a test implementation of the Randomizer interface.
 // It provides deterministic outputs for testing purposes.
 type TestRandomizer struct {
@@ -48,7 +52,7 @@ func (t *TestRandomizer) nextBytes(length uint64) []byte {
 	} else {
 		t.baseCharacter = 0x21
 
-		if length < 3 {
+		if length < minRandomizeLength {
 			panic("test randomizes base character overflow - too short length for randomization")
 		}
 		if t.rollCounter == 0xFF {
