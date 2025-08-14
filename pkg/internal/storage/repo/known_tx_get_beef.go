@@ -18,8 +18,8 @@ import (
 func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 
-	for _, known := range options.KnownTxIDs {
-		if known == txID {
+	if options.KnownTxIDsSet != nil {
+		if _, ok := options.KnownTxIDsSet[txID]; ok {
 			beef := transaction.NewBeefV2()
 			h, err := chainhash.NewHashFromHex(txID)
 			if err != nil {
@@ -27,6 +27,18 @@ func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entit
 			}
 			beef.MergeTxidOnly(h)
 			return beef, nil
+		}
+	} else {
+		for _, known := range options.KnownTxIDs {
+			if known == txID {
+				beef := transaction.NewBeefV2()
+				h, err := chainhash.NewHashFromHex(txID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse txid %s: %w", txID, err)
+				}
+				beef.MergeTxidOnly(h)
+				return beef, nil
+			}
 		}
 	}
 
@@ -49,10 +61,14 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], o
 		}
 
 		known := false
-		for _, k := range options.KnownTxIDs {
-			if k == txid {
-				known = true
-				break
+		if options.KnownTxIDsSet != nil {
+			_, known = options.KnownTxIDsSet[txid]
+		} else {
+			for _, k := range options.KnownTxIDs {
+				if k == txid {
+					known = true
+					break
+				}
 			}
 		}
 		if known {
@@ -135,7 +151,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 
 		if options.MinProofLevel > 0 && depth < options.MinProofLevel {
-			// treat as if no merkle path so we can ignore the proof at this depth
+
+			return nil
 
 		} else {
 			merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
@@ -195,10 +212,14 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
 			knownInput := false
-			for _, k := range options.KnownTxIDs {
-				if k == input.SourceTXID.String() {
-					knownInput = true
-					break
+			if options.KnownTxIDsSet != nil {
+				_, knownInput = options.KnownTxIDsSet[input.SourceTXID.String()]
+			} else {
+				for _, k := range options.KnownTxIDs {
+					if k == input.SourceTXID.String() {
+						knownInput = true
+						break
+					}
 				}
 			}
 			if knownInput {

@@ -14,6 +14,7 @@ type GetBEEFOptions struct {
 	StatusesToFilterOut []wdk.ProvenTxReqStatus
 	TxGetterFcn         TxGetterFcn
 	KnownTxIDs          []string
+	KnownTxIDsSet       map[string]struct{}
 	TrustSelf           wallet.TrustSelf
 	MinProofLevel       int
 }
@@ -35,6 +36,12 @@ func WithTxGetterFcn(txGetterFcn TxGetterFcn) GetBEEFOption {
 func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.KnownTxIDs = knownTxIDs
+	}
+}
+
+func WithKnownTxIDsLookup(knownSet map[string]struct{}) GetBEEFOption {
+	return func(opts *GetBEEFOptions) {
+		opts.KnownTxIDsSet = knownSet
 	}
 }
 

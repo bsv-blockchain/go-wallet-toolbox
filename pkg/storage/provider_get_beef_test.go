@@ -256,3 +256,115 @@ func TestGetBeef_PersistNewProven_WhenIgnoreNewProvenFalse(t *testing.T) {
 	require.NotNil(t, beef2)
 	assert.NotNil(t, beef2.FindTransaction(txID))
 }
+
+func TestGetBeef_IgnoreNewProven_DoesNotPersist(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	mined := given.Provider().WhatsOnChain().MinedTransaction()
+	mined.WillReturnRawTx()
+	mined.WillReturnMerklePath()
+	txID := mined.TxID()
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreNewProven: true})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, beef)
+	assert.NotNil(t, beef.FindTransaction(txID))
+
+	// and when:
+	_, err = activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreServices: true})
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestGetBeef_IgnoreServices_WithMissingStorage_ReturnsError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	mined := given.Provider().WhatsOnChain().MinedTransaction()
+	txID := mined.TxID()
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	_, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreServices: true})
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestGetBeef_ServicesPath_WithKnownTxIDsContainsTarget_ReturnsTxIDOnly(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	mined := given.Provider().WhatsOnChain().MinedTransaction()
+	mined.WillReturnRawTx()
+	mined.WillReturnMerklePath()
+	txID := mined.TxID()
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreStorage: true, KnownTxIDs: []string{txID}})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, beef)
+	assert.Nil(t, beef.FindTransaction(txID))
+}
+
+func TestGetBeef_KnownTxIDsWithDuplicates_OnInputs_MergesParentAsTxIDOnly(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	parent := given.Provider().WhatsOnChain().MinedTransaction().Tx()
+
+	childSpec := testvectors.GivenTX().WithInputFromUTXO(parent, 0).WithP2PKHOutput(1)
+	childTxID := childSpec.ID().String()
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, childSpec.RawTX().Hex(), nil)
+	given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, childTxID, "")
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	dupParent := parent.TxID().String()
+	beef, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{KnownTxIDs: []string{dupParent, dupParent, dupParent}})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, beef)
+	child := beef.FindTransaction(childTxID)
+	require.NotNil(t, child)
+	p := beef.FindTransaction(parent.TxID().String())
+	assert.Nil(t, p)
+}
+
+func TestGetBeef_ServicesRawTxError_Propagates(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	parent := given.Provider().WhatsOnChain().MinedTransaction().Tx()
+	childSpec := testvectors.GivenTX().WithInputFromUTXO(parent, 0).WithP2PKHOutput(1)
+	childTxID := childSpec.ID().String()
+
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(500, childTxID, "", nil)
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	_, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{})
+
+	// then:
+	require.Error(t, err)
+}
