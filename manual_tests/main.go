@@ -30,7 +30,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Closing program with model")
+	fmt.Println("Closing the program")
 
 	time.Sleep(2 * time.Second)
 	fmt.Println("Exiting program gracefully")
