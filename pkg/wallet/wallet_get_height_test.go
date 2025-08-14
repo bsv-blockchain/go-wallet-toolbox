@@ -28,17 +28,14 @@ func TestWallet_GetHeight(t *testing.T) {
 }
 
 func TestWallet_GetHeight_InvalidOriginator(t *testing.T) {
-	tests := []struct {
-		name       string
-		originator string
-	}{
-		{"too long", strings.Repeat("a", 251)},
-		{"empty part", "invalid..originator"},
-		{"part too long", "part1." + strings.Repeat("a", 64) + ".part3"},
+	tests := map[string]string{
+		"too long":      strings.Repeat("a", 251),
+		"empty part":    "invalid..originator",
+		"part too long": "part1." + strings.Repeat("a", 64) + ".part3",
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, originator := range tests {
+		t.Run(name, func(t *testing.T) {
 			// given:
 			given, cleanup := testabilities.Given(t)
 			defer cleanup()
@@ -46,7 +43,7 @@ func TestWallet_GetHeight_InvalidOriginator(t *testing.T) {
 			w := given.Wallet().WithSQLiteStorage().WithServices().ForUser(testusers.Alice)
 
 			// when:
-			result, err := w.GetHeight(t.Context(), struct{}{}, tc.originator)
+			result, err := w.GetHeight(t.Context(), struct{}{}, originator)
 
 			// then:
 			require.Error(t, err)
@@ -57,18 +54,15 @@ func TestWallet_GetHeight_InvalidOriginator(t *testing.T) {
 }
 
 func TestWallet_GetHeight_ValidOriginators(t *testing.T) {
-	tests := []struct {
-		name       string
-		originator string
-	}{
-		{"empty", ""},
-		{"simple domain", "example.com"},
-		{"subdomain", "api.example.com"},
-		{"short", "a.b"},
+	tests := map[string]string{
+		"empty":         "",
+		"simple domain": "example.com",
+		"subdomain":     "api.example.com",
+		"short":         "a.b",
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, originator := range tests {
+		t.Run(name, func(t *testing.T) {
 			// given:
 			given, cleanup := testabilities.Given(t)
 			defer cleanup()
@@ -76,7 +70,7 @@ func TestWallet_GetHeight_ValidOriginators(t *testing.T) {
 			w := given.Wallet().WithSQLiteStorage().WithServices().ForUser(testusers.Alice)
 
 			// when:
-			result, err := w.GetHeight(t.Context(), struct{}{}, tc.originator)
+			result, err := w.GetHeight(t.Context(), struct{}{}, originator)
 
 			// then:
 			require.NoError(t, err)
