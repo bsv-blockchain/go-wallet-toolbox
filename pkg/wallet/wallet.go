@@ -390,12 +390,12 @@ func (w *Wallet) WaitForAuthentication(_ context.Context, _ any, originator stri
 
 // GetHeight retrieves the current height of the blockchain.
 func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.GetHeightResult, error) {
-	if err := validate.Originator(originator); err != nil {
-		return nil, fmt.Errorf("invalid originator: %w", err)
-	}
-
 	if w.services == nil {
 		return nil, fmt.Errorf("services are not configured for this wallet")
+	}
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
 	currentHeight, err := w.services.CurrentHeight(ctx)

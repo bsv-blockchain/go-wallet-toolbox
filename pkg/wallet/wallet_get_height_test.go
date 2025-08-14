@@ -1,7 +1,6 @@
 package wallet_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestWallet_GetHeight(t *testing.T) {
 	validOriginator := "example.com"
 
 	// when:
-	result, err := w.GetHeight(context.Background(), struct{}{}, validOriginator)
+	result, err := w.GetHeight(t.Context(), struct{}{}, validOriginator)
 
 	// then:
 	require.NoError(t, err)
@@ -47,7 +46,7 @@ func TestWallet_GetHeight_InvalidOriginator(t *testing.T) {
 			w := given.Wallet().WithSQLiteStorage().WithServices().ForUser(testusers.Alice)
 
 			// when:
-			result, err := w.GetHeight(context.Background(), struct{}{}, tc.originator)
+			result, err := w.GetHeight(t.Context(), struct{}{}, tc.originator)
 
 			// then:
 			require.Error(t, err)
@@ -77,7 +76,7 @@ func TestWallet_GetHeight_ValidOriginators(t *testing.T) {
 			w := given.Wallet().WithSQLiteStorage().WithServices().ForUser(testusers.Alice)
 
 			// when:
-			result, err := w.GetHeight(context.Background(), struct{}{}, tc.originator)
+			result, err := w.GetHeight(t.Context(), struct{}{}, tc.originator)
 
 			// then:
 			require.NoError(t, err)
@@ -98,7 +97,7 @@ func TestWallet_GetHeight_WalletWithoutServices(t *testing.T) {
 		ForUser(testusers.Alice)
 
 	// When
-	result, err := wallet.GetHeight(context.Background(), nil, "test-originator")
+	result, err := wallet.GetHeight(t.Context(), nil, "test-originator")
 
 	// Then
 	require.Error(t, err)
