@@ -38,9 +38,6 @@ func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if newModel != nil {
 				return newModel, newCmd
 			}
-			// If onSelect returns nil, we just return the current model.
-			// This is useful if the onSelect function does not change the model,
-			// but we still want to handle the command (e.g., for logging or other side effects).
 		case "down", "j":
 			m.cursor++
 			if m.cursor >= len(m.items) {

@@ -71,6 +71,6 @@ func (m ModelSpinner) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ModelSpinner) View() string {
-	str := fmt.Sprintf("\n\n   %s Loading forever...press q to quit\n\n", m.spinner.View())
+	str := fmt.Sprintf("\n\n   %s %s...press q to quit\n\n", m.spinner.View(), m.message)
 	return str
 }
