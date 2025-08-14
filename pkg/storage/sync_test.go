@@ -85,7 +85,7 @@ func TestSyncProcess(t *testing.T) {
 	// and outputs:
 	thenDBState.AllOutputs(testusers.Alice).
 		WithCount(33).
-		WithCountHavingOutpoint(3).
+		WithCountHavingTxID(3).
 		WithCountHavingTags(3, fixtures.CreateActionTestTag).
 		WithCountHavingTags(1, fixtures.FaucetTag(0)).
 		WithCountHavingTags(1, fixtures.FaucetTag(1))
@@ -202,7 +202,7 @@ func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 	// and outputs:
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
 		WithCount(numberOfTxs).
-		WithCountHavingOutpoint(numberOfTxs)
+		WithCountHavingTxID(numberOfTxs)
 
 	// and:
 	const fee = 4 //NOTE: Minimum fee to cover so many UTXOs as inputs
@@ -313,7 +313,7 @@ func TestSyncProcessWithBasketsNumIDMissmatch(t *testing.T) {
 	thenDBState := testabilities.ThenSync(t).DBState(backupProvider)
 	thenDBState.Outputs(testusers.Bob, wdk.BasketNameForChange).
 		WithCount(1).
-		WithCountHavingOutpoint(1)
+		WithCountHavingTxID(1)
 }
 
 func TestSyncProcessWithRelinquishOutput(t *testing.T) {

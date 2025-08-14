@@ -140,3 +140,8 @@ func chainInfoURL(baseURL string) (string, error) {
 func scriptUnspentAllURL(baseURL, scriptHash string) (string, error) {
 	return buildURL(baseURL, "script", scriptHash, "unspent", "all")
 }
+
+// /txs/status
+func txsStatusURL(baseURL string) (string, error) {
+	return buildURL(baseURL, "txs", "status")
+}

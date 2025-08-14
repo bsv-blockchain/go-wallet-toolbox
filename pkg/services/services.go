@@ -39,6 +39,8 @@ type WalletServices struct {
 	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
+	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
+
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -133,6 +135,13 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetChainHeaderByHeight),
 		),
 
+		getStatusForTxIDsServices: servicequeue.NewQueue1(
+			logger,
+			"GetStatusForTxIDs",
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetStatusForTxIDs),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetStatusForTxIDs),
+		),
+
 		getUtxoStatusServices: servicequeue.NewQueue2(
 			logger,
 			"GetUtxoStatus",
@@ -215,7 +224,7 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 	result, err := s.getMerklePathServices.OneByOne(ctx, txid)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("transaction with txID: %s not found", txid)
+			return nil, fmt.Errorf("transaction with txID: %s not found: %w", txid, wdk.NotFoundError)
 		}
 		return nil, fmt.Errorf("couldn't get merkle path for id %s: %w", txid, err)
 	}
@@ -223,8 +232,8 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (wdk.PostBeefResult, error) {
-	res, err := s.postBEEFServices.All(ctx, beef, txids)
+func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
+	res, err := s.postBEEFServices.All(ctx, beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
 	}
@@ -328,4 +337,97 @@ func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint
 	}
 
 	return result, nil
+}
+
+// GetStatusForTxIDs returns depth/status info for a list of txIDs.
+func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+	if len(txIDs) == 0 {
+		return nil, fmt.Errorf("no txIDs provided")
+	}
+
+	res, err := s.getStatusForTxIDsServices.OneByOne(ctx, txIDs)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("no status found for provided txIDs: %w", wdk.NotFoundError)
+		}
+		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
+	}
+	return res, nil
+}
+
+// GetBEEF retrieves the BEEF structure for a given transaction ID.
+// It recursively fetches transaction ancestry up to a configured depth limit and merges transaction data, merkle paths, and input ancestry into the BEEF structure.
+// Use optional knownTxIDs to skip fetching of already-known transactions in the ancestry tree.
+func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error) {
+	beef := transaction.NewBeefV2()
+
+	knownTxIDsLookup := make(map[string]struct{}, len(knownTxIDs))
+	for _, knownTxID := range knownTxIDs {
+		knownTxIDsLookup[knownTxID] = struct{}{}
+	}
+
+	var txGetter func(txID string, depth uint) error
+	txGetter = func(txID string, depth uint) error {
+		if depth > s.config.GetBeefMaxDepth {
+			return fmt.Errorf("max depth of recursion reached: %d", s.config.GetBeefMaxDepth)
+		}
+		rawTxResult, err := s.RawTx(txID)
+		if err != nil {
+			return fmt.Errorf("failed to get raw transaction for txID %q: %w", txID, err)
+		}
+
+		if rawTxResult.RawTx == nil {
+			return fmt.Errorf("raw transaction for txID %s is nil", txID)
+		}
+
+		tx, err := transaction.NewTransactionFromBytes(rawTxResult.RawTx)
+		if err != nil {
+			return fmt.Errorf("failed to create transaction from raw bytes for txID %q: %w", txID, err)
+		}
+
+		merklePathResult, err := s.MerklePath(ctx, txID)
+		if err != nil && !errors.Is(err, wdk.NotFoundError) {
+			return fmt.Errorf("failed to get merkle path for txID %q: %w", txID, err)
+		}
+
+		isMined := merklePathResult != nil && merklePathResult.MerklePath != nil
+
+		if isMined {
+			tx.MerklePath = merklePathResult.MerklePath
+		}
+
+		_, err = beef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction txID %q: %w", txID, err)
+		}
+
+		if isMined {
+			return nil
+		}
+
+		for _, input := range tx.Inputs {
+			beefTx := beef.Transactions[*input.SourceTXID]
+			if beefTx == nil {
+				sourceTxID := input.SourceTXID.String()
+				if _, exists := knownTxIDsLookup[sourceTxID]; exists {
+					beef.MergeTxidOnly(input.SourceTXID)
+					continue
+				}
+
+				err = txGetter(sourceTxID, depth+1)
+				if err != nil {
+					return fmt.Errorf("failed to get beef for txID %q at depth %d: %w", sourceTxID, depth, err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	err := txGetter(txID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get BEEF for subject TxID %q: %w", txID, err)
+	}
+
+	return beef, nil
 }

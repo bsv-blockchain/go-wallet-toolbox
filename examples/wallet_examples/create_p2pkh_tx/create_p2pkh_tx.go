@@ -9,6 +9,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 var (
@@ -16,23 +17,23 @@ var (
 	RecipientAddress = "" //example: 1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq
 
 	// SatoshisToSend is the amount to send to the recipient
-	SatoshisToSend = uint64(0) //example: 100
+	SatoshisToSend = uint64(1) //example: 100
 
-	// DefaultOutputDescription describes the purpose of this output
-	DefaultOutputDescription = "Payment to recipient"
+	// OutputDescription describes the purpose of this output
+	OutputDescription = "Payment to recipient"
 
-	// DefaultTransactionDescription describes the purpose of this transaction
-	DefaultTransactionDescription = "Create action example transaction"
+	// TransactionDescription describes the purpose of this transaction
+	TransactionDescription = "Create P2PKH Transaction Example"
 
-	// DefaultOriginator specifies the originator domain or FQDN used to identify the source of the action request.
+	// Originator specifies the originator domain or FQDN used to identify the source of the action request.
 	// NOTE: Replace "example.com" with the actual originator domain or FQDN in real usage.
-	DefaultOriginator = "example.com"
+	Originator = "example.com"
 )
 
 // This example demonstrates how to create and send a Bitcoin transaction using Alice's wallet.
 // The wallet automatically selects UTXOs, creates change outputs, calculates fees, and broadcasts the transaction.
 func main() {
-	show.ProcessStart("Create Action")
+	show.ProcessStart("Create P2PKH Transaction")
 	ctx := context.Background()
 
 	if RecipientAddress == "" {
@@ -64,23 +65,26 @@ func main() {
 
 	// Create the arguments needed for the CreateAction
 	createArgs := sdk.CreateActionArgs{
-		Description: DefaultTransactionDescription,
+		Description: TransactionDescription,
 		Outputs: []sdk.CreateActionOutput{
 			{
 				LockingScript:     lockingScript.Bytes(),
 				Satoshis:          SatoshisToSend,
-				OutputDescription: DefaultOutputDescription,
+				OutputDescription: OutputDescription,
 				Tags:              []string{"payment", "example"},
 			},
 		},
 		Labels: []string{"create_action_example"},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(false),
+		},
 	}
 
 	show.Step("Alice", fmt.Sprintf("Creating transaction to send %d satoshis", SatoshisToSend))
-	show.Info("Transaction description", DefaultTransactionDescription)
-	show.Info("Output description", DefaultOutputDescription)
+	show.Info("Transaction description", TransactionDescription)
+	show.Info("Output description", OutputDescription)
 
-	result, err := aliceWallet.CreateAction(ctx, createArgs, DefaultOriginator)
+	result, err := aliceWallet.CreateAction(ctx, createArgs, Originator)
 	if err != nil {
 		panic(fmt.Errorf("failed to create action: %w", err))
 	}
@@ -97,5 +101,5 @@ func main() {
 	}
 
 	show.Success("Transaction created and sent successfully")
-	show.ProcessComplete("Create Action")
+	show.ProcessComplete("Create P2PKH Transaction")
 }

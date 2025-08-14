@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"iter"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -184,114 +182,6 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 	}
 
 	return count == int64(len(txIDs)), nil
-}
-
-func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
-	beef := transaction.NewBeefV2()
-	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, statusesToFilterOut)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
-	}
-
-	return beef, nil
-}
-
-func (p *KnownTx) recursiveBuildValidBEEF(ctx context.Context, depth int, mergeToBeef *transaction.Beef, txID string, statusesToFilterOut []wdk.ProvenTxReqStatus) error {
-	if depth > maxDepthOfRecursion {
-		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
-	}
-
-	var model models.KnownTx
-	query := p.db.WithContext(ctx).
-		Model(&model).
-		Select("raw_tx, input_beef, merkle_path")
-
-	if len(statusesToFilterOut) > 0 {
-		query = query.Where("status NOT IN ? ", statusesToFilterOut)
-	}
-
-	err := query.First(&model, "tx_id = ? ", txID).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
-	}
-
-	if model.RawTx == nil || model.InputBeef == nil {
-		return fmt.Errorf("raw tx or input beef is nil in transaction %s", txID)
-	}
-
-	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
-	if err != nil {
-		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
-	}
-
-	if model.HasMerklePath() {
-		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
-		if err != nil {
-			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
-		}
-		err = tx.AddMerkleProof(merklePath)
-		if err != nil {
-			return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
-		}
-
-		_, err = mergeToBeef.MergeTransaction(tx)
-		if err != nil {
-			return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
-		}
-
-		return nil
-	}
-
-	for i := range tx.Inputs {
-		if len(tx.Inputs[i].SourceTXID) == 0 {
-			return fmt.Errorf("input of tx (id: %s) has empty SourceTXID at index %d ", txID, i)
-		}
-	}
-
-	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
-	}
-
-	err = mergeToBeef.MergeBeefBytes(model.InputBeef)
-	if err != nil {
-		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
-	}
-
-	for _, input := range tx.Inputs {
-		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
-		if beefTx == nil || beefTx.DataFormat != transaction.RawTxAndBumpIndex {
-			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), statusesToFilterOut)
-			if err != nil {
-				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
-			}
-		}
-	}
-
-	// Result is in mergeToBeef
-	return nil
-}
-
-func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], knownTxIDs []string, statusesToFilterOut []wdk.ProvenTxReqStatus) (*transaction.Beef, error) {
-	beef := transaction.NewBeefV2()
-
-	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
-	_ = knownTxIDs
-
-	for txid := range txids {
-		if beef.FindTransaction(txid) != nil {
-			continue
-		}
-		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, statusesToFilterOut)
-		if err != nil {
-			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
-		}
-	}
-
-	return beef, nil
 }
 
 func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {

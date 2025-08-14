@@ -23,6 +23,7 @@ type Wallet struct {
 	storage    wdk.WalletStorage
 	keyDeriver *sdk.KeyDeriver
 	flags      *wallet_opts.Flags
+	chain      defs.BSVNetwork
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -94,6 +95,7 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 		storage:    storageManager,
 		keyDeriver: keyDeriver,
 		flags:      &options.Flags,
+		chain:      chain,
 	}, nil
 }
 
@@ -354,15 +356,25 @@ func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAt
 }
 
 // IsAuthenticated checks the authentication status of the user.
-func (w *Wallet) IsAuthenticated(ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) IsAuthenticated(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	err := validate.Originator(originator)
+	if err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+	return &sdk.AuthenticatedResult{
+		Authenticated: true,
+	}, nil
 }
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
-func (w *Wallet) WaitForAuthentication(ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) WaitForAuthentication(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.AuthenticatedResult{
+		Authenticated: true,
+	}, nil
 }
 
 // GetHeight retrieves the current height of the blockchain.
@@ -378,13 +390,25 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 }
 
 // GetNetwork retrieves the Bitcoin network the client is using (mainnet or testnet).
-func (w *Wallet) GetNetwork(ctx context.Context, args any, originator string) (*sdk.GetNetworkResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetNetwork(_ context.Context, _ any, originator string) (*sdk.GetNetworkResult, error) {
+	err := validate.Originator(originator)
+	if err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.GetNetworkResult{
+		Network: sdk.Network(w.chain),
+	}, nil
 }
 
 // GetVersion retrieves the current version string of the wallet.
-func (w *Wallet) GetVersion(ctx context.Context, args any, originator string) (*sdk.GetVersionResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetVersion(_ context.Context, _ any, originator string) (*sdk.GetVersionResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.GetVersionResult{
+		Version: defs.Version,
+	}, nil
+
 }
