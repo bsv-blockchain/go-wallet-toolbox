@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/require"
@@ -32,35 +33,35 @@ func TestWallet_GetHeaderForHeight_Validation(t *testing.T) {
 			args: sdk.GetHeaderArgs{
 				Height: 100,
 			},
-			originator: "test-originator",
+			originator: fixtures.DefaultOriginator,
 		},
 		"zero height (should be handled by validation)": {
 			ctx: context.Background(),
 			args: sdk.GetHeaderArgs{
 				Height: 0,
 			},
-			originator: "test-originator",
+			originator: fixtures.DefaultOriginator,
 		},
 		"height 1 (genesis + 1)": {
 			ctx: context.Background(),
 			args: sdk.GetHeaderArgs{
 				Height: 1,
 			},
-			originator: "test-originator",
+			originator: fixtures.DefaultOriginator,
 		},
-		"height 100 (common test height)": {
+		"height 100": {
 			ctx: context.Background(),
 			args: sdk.GetHeaderArgs{
 				Height: 100,
 			},
-			originator: "test-originator",
+			originator: fixtures.DefaultOriginator,
 		},
-		"height 100000 (medium height)": {
+		"height 100000": {
 			ctx: context.Background(),
 			args: sdk.GetHeaderArgs{
-				Height: 1000,
+				Height: 100000,
 			},
-			originator: "test-originator",
+			originator: fixtures.DefaultOriginator,
 		},
 	}
 
@@ -90,7 +91,7 @@ func TestWallet_GetHeaderForHeight_WalletWithoutServices(t *testing.T) {
 	result, err := wallet.GetHeaderForHeight(
 		context.Background(),
 		sdk.GetHeaderArgs{Height: 100},
-		"test-originator",
+		fixtures.DefaultOriginator,
 	)
 
 	// Then
@@ -134,7 +135,7 @@ func TestWallet_GetHeaderForHeight_ServiceErrors(t *testing.T) {
 			result, err := wallet.GetHeaderForHeight(
 				context.Background(),
 				sdk.GetHeaderArgs{Height: tc.height},
-				"test-originator",
+				fixtures.DefaultOriginator,
 			)
 
 			// Then
