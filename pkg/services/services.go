@@ -39,6 +39,8 @@ type WalletServices struct {
 	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
+	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
+
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
 	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
@@ -133,6 +135,13 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetChainHeaderByHeight),
 		),
 
+		getStatusForTxIDsServices: servicequeue.NewQueue1(
+			logger,
+			"GetStatusForTxIDs",
+			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetStatusForTxIDs),
+			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetStatusForTxIDs),
+		),
+
 		getUtxoStatusServices: servicequeue.NewQueue2(
 			logger,
 			"GetUtxoStatus",
@@ -223,8 +232,8 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 }
 
 // PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (wdk.PostBeefResult, error) {
-	res, err := s.postBEEFServices.All(ctx, beef, txids)
+func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
+	res, err := s.postBEEFServices.All(ctx, beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
 	}
@@ -328,6 +337,22 @@ func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint
 	}
 
 	return result, nil
+}
+
+// GetStatusForTxIDs returns depth/status info for a list of txIDs.
+func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+	if len(txIDs) == 0 {
+		return nil, fmt.Errorf("no txIDs provided")
+	}
+
+	res, err := s.getStatusForTxIDsServices.OneByOne(ctx, txIDs)
+	if err != nil {
+		if errors.Is(err, servicequeue.ErrEmptyResult) {
+			return nil, fmt.Errorf("no status found for provided txIDs: %w", wdk.NotFoundError)
+		}
+		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
+	}
+	return res, nil
 }
 
 // GetBEEF retrieves the BEEF structure for a given transaction ID.

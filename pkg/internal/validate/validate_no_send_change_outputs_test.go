@@ -12,23 +12,34 @@ import (
 )
 
 func TestNoSendChangeOutputs_Success(t *testing.T) {
-	validOutput := &entity.Output{
-		ID:         1,
-		Spendable:  true,
-		Change:     false,
-		ProvidedBy: string(wdk.ProvidedByStorage),
-		Purpose:    wdk.ChangePurpose,
-		BasketName: to.Ptr(wdk.BasketNameForChange),
-	}
-
 	tests := map[string]struct {
 		inputs []*entity.Output
 	}{
 		"single valid output": {
-			inputs: []*entity.Output{validOutput},
+			inputs: []*entity.Output{
+				{
+					ID:         1,
+					ProvidedBy: string(wdk.ProvidedByStorage),
+					Purpose:    wdk.ChangePurpose,
+					BasketName: to.Ptr(wdk.BasketNameForChange),
+				},
+			},
 		},
 		"multiple valid outputs": {
-			inputs: []*entity.Output{validOutput, validOutput},
+			inputs: []*entity.Output{
+				{
+					ID:         1,
+					ProvidedBy: string(wdk.ProvidedByStorage),
+					Purpose:    wdk.ChangePurpose,
+					BasketName: to.Ptr(wdk.BasketNameForChange),
+				},
+				{
+					ID:         2,
+					ProvidedBy: string(wdk.ProvidedByStorage),
+					Purpose:    wdk.ChangePurpose,
+					BasketName: to.Ptr(wdk.BasketNameForChange),
+				},
+			},
 		},
 		"empty outputs": {
 			inputs: []*entity.Output{},
@@ -47,53 +58,41 @@ func TestNoSendChangeOutputs_Error(t *testing.T) {
 		outputs  []*entity.Output
 		expected string
 	}{
-		"bad ProvidedBy": {
-			outputs: []*entity.Output{{
-				ID:         2,
-				Spendable:  true,
-				Change:     false,
-				ProvidedBy: string(wdk.ProvidedByYou),
-				Purpose:    "default",
-				BasketName: nil,
-			}},
-			expected: "validate no send change output error:",
-		},
-		"not spendable": {
-			outputs: []*entity.Output{{
-				ID:         3,
-				Spendable:  false,
-				Change:     false,
-				ProvidedBy: "storage",
-				Purpose:    "default",
-				BasketName: nil,
-			}},
-			expected: "validate no send change output error:",
-		},
-		"bad Purpose": {
+		"'ProvidedBy' field value doesn't match wdk.ProvidedByStorage value": {
 			outputs: []*entity.Output{{
 				ID:         4,
-				Spendable:  true,
-				Change:     false,
-				ProvidedBy: "storage",
-				Purpose:    "bad-purpose",
-				BasketName: nil,
+				ProvidedBy: string(wdk.ProvidedByYou),
+				Purpose:    wdk.ChangePurpose,
+				BasketName: to.Ptr(wdk.BasketNameForChange),
 			}},
-			expected: "validate no send change output error:",
+			expected: "provided by field value doesn't match",
 		},
-		"bad BasketName": {
+
+		"'Purpose' field value doesn't match wdk.ChangePurpose value": {
 			outputs: []*entity.Output{{
 				ID:         5,
-				Spendable:  true,
-				Change:     false,
-				ProvidedBy: "storage",
-				Purpose:    "default",
+				ProvidedBy: string(wdk.ProvidedByStorage),
+				Purpose:    "bad-purpose",
+				BasketName: to.Ptr(wdk.BasketNameForChange),
+			}},
+			expected: "purpose field value doesn't match",
+		},
+		"'BasketName' field value is nil": {
+			outputs: []*entity.Output{{
+				ID:         5,
+				ProvidedBy: string(wdk.ProvidedByStorage),
+				Purpose:    wdk.ChangePurpose,
+			}},
+			expected: "basket name field value is set to nil",
+		},
+		"'BasketName' field value doesn't match wdk.BasketNameForChange value": {
+			outputs: []*entity.Output{{
+				ID:         5,
+				ProvidedBy: string(wdk.ProvidedByStorage),
+				Purpose:    wdk.ChangePurpose,
 				BasketName: to.Ptr("bad-basket-name"),
 			}},
-			expected: "validate no send change output error:",
-		},
-		"nil output": {
-			outputs:  []*entity.Output{nil},
-			expected: "validate no send change output error:",
+			expected: "basket name field value doesn't match",
 		},
 	}
 	for name, test := range tests {

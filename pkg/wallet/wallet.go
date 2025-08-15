@@ -7,6 +7,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -23,6 +24,8 @@ type Wallet struct {
 	storage    wdk.WalletStorage
 	keyDeriver *sdk.KeyDeriver
 	flags      *wallet_opts.Flags
+	services   *services.WalletServices
+	chain      defs.BSVNetwork
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -53,6 +56,13 @@ func WithTrustSelf(value sdk.TrustSelf) func(*wallet_opts.Opts) {
 		} else {
 			opts.TrustSelf = &value
 		}
+	}
+}
+
+// WithServices allows to set the wallet services that will be used by the wallet.
+func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.Services = services
 	}
 }
 
@@ -87,6 +97,7 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 			AutoKnownTxids:               false,
 			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
 		},
+		Services: nil,
 	}, opts...)
 
 	return &Wallet{
@@ -94,6 +105,8 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 		storage:    storageManager,
 		keyDeriver: keyDeriver,
 		flags:      &options.Flags,
+		services:   options.Services,
+		chain:      chain,
 	}, nil
 }
 
@@ -365,15 +378,34 @@ func (w *Wallet) IsAuthenticated(_ context.Context, _ any, originator string) (*
 }
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
-func (w *Wallet) WaitForAuthentication(ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) WaitForAuthentication(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.AuthenticatedResult{
+		Authenticated: true,
+	}, nil
 }
 
 // GetHeight retrieves the current height of the blockchain.
-func (w *Wallet) GetHeight(ctx context.Context, args any, originator string) (*sdk.GetHeightResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.GetHeightResult, error) {
+	if w.services == nil {
+		return nil, fmt.Errorf("services are not configured for this wallet")
+	}
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	currentHeight, err := w.services.CurrentHeight(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current height: %w", err)
+	}
+
+	return &sdk.GetHeightResult{
+		Height: currentHeight,
+	}, nil
 }
 
 // GetHeaderForHeight retrieves the block header of a block at a specified height.
@@ -383,9 +415,15 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 }
 
 // GetNetwork retrieves the Bitcoin network the client is using (mainnet or testnet).
-func (w *Wallet) GetNetwork(ctx context.Context, args any, originator string) (*sdk.GetNetworkResult, error) {
-	// TODO implement me
-	panic("implement me")
+func (w *Wallet) GetNetwork(_ context.Context, _ any, originator string) (*sdk.GetNetworkResult, error) {
+	err := validate.Originator(originator)
+	if err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	return &sdk.GetNetworkResult{
+		Network: sdk.Network(w.chain),
+	}, nil
 }
 
 // GetVersion retrieves the current version string of the wallet.

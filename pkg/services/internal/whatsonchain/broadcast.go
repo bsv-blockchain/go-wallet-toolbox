@@ -32,7 +32,7 @@ type txBroadcastResponse struct {
 
 type txInfoResult struct {
 	BlockHash   string
-	BlockHeight int64
+	BlockHeight uint32
 }
 
 func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (BroadcastStatus, string, error) {
@@ -84,7 +84,7 @@ func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoR
 	type wocStatusResponse []struct {
 		TxID          string `json:"txid"`
 		BlockHash     string `json:"blockhash"`
-		BlockHeight   int64  `json:"blockheight"`
+		BlockHeight   uint32 `json:"blockheight"`
 		BlockTime     int64  `json:"blocktime"`
 		Confirmations int    `json:"confirmations"`
 	}

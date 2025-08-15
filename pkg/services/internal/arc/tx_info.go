@@ -5,7 +5,7 @@ import "time"
 // TXInfo is the struct that represents the transaction information from ARC
 type TXInfo struct {
 	BlockHash    string    `json:"blockHash"`
-	BlockHeight  int64     `json:"blockHeight"`
+	BlockHeight  uint32    `json:"blockHeight"`
 	CompetingTxs []string  `json:"competingTxs"`
 	ExtraInfo    string    `json:"extraInfo"`
 	MerklePath   string    `json:"merklePath"`
