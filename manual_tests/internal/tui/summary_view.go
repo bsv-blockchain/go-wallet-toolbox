@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	summaryWidth = 80
+	summaryWidth = 100
 )
 
 var (

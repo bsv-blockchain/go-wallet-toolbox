@@ -17,4 +17,5 @@ type ManagerInterface interface {
 	InternalizeTxID(txID string, user fixtures.UserConfig, keyID brc29.KeyID, address string) (fixtures.Summary, error)
 	Balance(user fixtures.UserConfig) (uint64, error)
 	CreateActionWithData(user fixtures.UserConfig, data string) (string, fixtures.Summary, error)
+	CreateActionWithP2pkh(user fixtures.UserConfig, recipientAddress string, satoshis uint64) (string, fixtures.Summary, error)
 }
