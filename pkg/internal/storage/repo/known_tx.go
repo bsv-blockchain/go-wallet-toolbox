@@ -361,7 +361,15 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
 	}
 
-	// TODO: Add more conditions based on the spec
+	if spec.TxID != nil {
+		conditions = append(conditions, table.TxID.Eq(*spec.TxID))
+	}
+
+	if spec.Attempts != nil {
+		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
+	}
+
+	// Add additional fields here as needed, following the same pattern
 
 	return conditions
 }
