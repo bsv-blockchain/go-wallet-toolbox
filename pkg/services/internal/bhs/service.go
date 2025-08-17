@@ -163,12 +163,3 @@ func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.Chai
 
 	return block.ConvertToChainBlockHeader(), nil
 }
-
-// NLockTimeIsFinal checks if the provided transaction or lock time is final.
-func (b *BlockHeadersService) NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error) {
-	isFinal, err := wdk.NLockTimeIsFinal(ctx, b, txOrLockTime)
-	if err != nil {
-		return false, fmt.Errorf("failed to check NLockTime finality: %w", err)
-	}
-	return isFinal, nil
-}

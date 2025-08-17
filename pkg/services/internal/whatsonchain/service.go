@@ -388,12 +388,3 @@ func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 
 	return results, nil
 }
-
-// NLockTimeIsFinal checks if the provided transaction or lock time is final.
-func (woc *WhatsOnChain) NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error) {
-	isFinal, err := wdk.NLockTimeIsFinal(ctx, woc, txOrLockTime)
-	if err != nil {
-		return false, fmt.Errorf("failed to check NLockTime finality: %w", err)
-	}
-	return isFinal, nil
-}

@@ -58,8 +58,3 @@ type UtxoStatusResult struct {
 	// there could be more than one block in which it is a valid UTXO.
 	Details []UtxoStatusDetails
 }
-
-// ScriptHasher is an interface for hashing output scripts
-type ScriptHasher interface {
-	HashOutputScript(scriptHex string) (string, error)
-}
