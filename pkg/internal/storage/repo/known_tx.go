@@ -348,7 +348,7 @@ func (p *KnownTx) SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch
 
 func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []gen.Condition {
 	if spec == nil {
-		return []gen.Condition{}
+		return nil
 	}
 
 	table := &p.query.KnownTx
@@ -364,12 +364,25 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	if spec.TxID != nil {
 		conditions = append(conditions, table.TxID.Eq(*spec.TxID))
 	}
-
 	if spec.Attempts != nil {
 		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
 	}
-
-	// Add additional fields here as needed, following the same pattern
+	if spec.Status != nil {
+		converted := comparableProvenTxStatusToString(spec.Status)
+		conditions = append(conditions, cmpCondition(table.Status, converted))
+	}
+	if spec.Notified != nil {
+		conditions = append(conditions, cmpBoolCondition(table.Notified, spec.Notified))
+	}
+	if spec.BlockHeight != nil {
+		conditions = append(conditions, cmpCondition(table.BlockHeight, spec.BlockHeight))
+	}
+	if spec.MerkleRoot != nil {
+		conditions = append(conditions, cmpCondition(table.MerkleRoot, spec.MerkleRoot))
+	}
+	if spec.BlockHash != nil {
+		conditions = append(conditions, cmpCondition(table.BlockHash, spec.BlockHash))
+	}
 
 	return conditions
 }

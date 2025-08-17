@@ -2,6 +2,7 @@ package repo
 
 import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/types"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
@@ -59,7 +60,7 @@ func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExp
 	case entity.NotIn:
 		return fieldExpr.NotIn(cmpExpr.GetInValues()...)
 	default:
-		panic("unsupported comparison operator")
+		panic("unsupported comparison operator " + cmp.String())
 	}
 }
 
@@ -68,4 +69,50 @@ func ordered[T types.Ordered](a, b T) (T, T) {
 		return b, a
 	}
 	return a, b
+}
+
+func cmpBoolCondition(field field.Bool, cmp *entity.Comparable[bool]) gen.Condition {
+	switch cmp.Cmp {
+	case entity.Equal:
+		return field.Is(cmp.Value)
+	case entity.NotEqual:
+		return field.Is(!cmp.Value)
+
+	case entity.GreaterThan,
+		entity.LessThan,
+		entity.GreaterThanOrEqual,
+		entity.LessThanOrEqual,
+		entity.Between,
+		entity.NotBetween,
+		entity.Like,
+		entity.NotLike,
+		entity.In,
+		entity.NotIn:
+		panic("unsupported comparison operator for bool: " + cmp.Cmp.String())
+
+	default:
+		panic("unknown comparison operator for bool: " + cmp.Cmp.String())
+	}
+}
+
+func comparableProvenTxStatusToString(src *entity.Comparable[wdk.ProvenTxReqStatus]) *entity.Comparable[string] {
+	if src == nil {
+		return nil
+	}
+	dst := &entity.Comparable[string]{
+		Cmp: src.Cmp,
+	}
+	if src.Value != "" {
+		dst.Value = string(src.Value)
+	}
+	if src.ValueRight != "" {
+		dst.ValueRight = string(src.ValueRight)
+	}
+	if len(src.InValues) > 0 {
+		dst.InValues = make([]string, len(src.InValues))
+		for i, v := range src.InValues {
+			dst.InValues[i] = string(v)
+		}
+	}
+	return dst
 }

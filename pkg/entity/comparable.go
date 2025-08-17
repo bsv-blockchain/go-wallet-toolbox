@@ -49,3 +49,34 @@ func (c *Comparable[T]) GetValueRight() T {
 func (c *Comparable[T]) GetInValues() []T {
 	return c.InValues
 }
+
+func (op CmpOperator) String() string {
+	switch op {
+	case GreaterThan:
+		return "gt"
+	case LessThan:
+		return "lt"
+	case Equal:
+		return "eq"
+	case NotEqual:
+		return "neq"
+	case GreaterThanOrEqual:
+		return "gte"
+	case LessThanOrEqual:
+		return "lte"
+	case Between:
+		return "between"
+	case NotBetween:
+		return "not_between"
+	case Like:
+		return "like"
+	case NotLike:
+		return "not_like"
+	case In:
+		return "in"
+	case NotIn:
+		return "not_in"
+	default:
+		return "unknown"
+	}
+}

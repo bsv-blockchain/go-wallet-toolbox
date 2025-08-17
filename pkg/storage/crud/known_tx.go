@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -29,6 +30,12 @@ type KnownTxReader interface {
 
 	TxID(txID string) KnownTxReadOperations
 	Attempts() NumericCondition[KnownTxReader, uint64]
+	Status() StringCondition[KnownTxReader]
+	Notified() BoolCondition[KnownTxReader]
+	BlockHeight() NumericCondition[KnownTxReader, uint32]
+	MerkleRoot() StringCondition[KnownTxReader]
+	BlockHash() StringCondition[KnownTxReader]
+
 	Since(value time.Time, column entity.SinceField) KnownTxReader
 	Paged(limit, offset int, desc bool) KnownTxReader
 }
@@ -105,6 +112,57 @@ func (k *knownTx) Attempts() NumericCondition[KnownTxReader, uint64] {
 		parent: k,
 		conditionSetter: func(spec *entity.Comparable[uint64]) {
 			k.spec.Attempts = spec
+		},
+	}
+}
+
+func (k *knownTx) Status() StringCondition[KnownTxReader] {
+	return &stringCondition[KnownTxReader]{
+		parent: k,
+		conditionSetter: func(spec *entity.Comparable[string]) {
+			converted := &entity.Comparable[wdk.ProvenTxReqStatus]{
+				Value:      wdk.ProvenTxReqStatus(spec.Value),
+				ValueRight: wdk.ProvenTxReqStatus(spec.ValueRight),
+				InValues:   mapStringsToProvenTxStatuses(spec.InValues),
+				Cmp:        spec.Cmp,
+			}
+			k.spec.Status = converted
+		},
+	}
+}
+
+func (k *knownTx) Notified() BoolCondition[KnownTxReader] {
+	return &boolCondition[KnownTxReader]{
+		parent: k,
+		conditionSetter: func(spec *entity.Comparable[bool]) {
+			k.spec.Notified = spec
+		},
+	}
+}
+
+func (k *knownTx) BlockHeight() NumericCondition[KnownTxReader, uint32] {
+	return &numericCondition[KnownTxReader, uint32]{
+		parent: k,
+		conditionSetter: func(spec *entity.Comparable[uint32]) {
+			k.spec.BlockHeight = spec
+		},
+	}
+}
+
+func (k *knownTx) MerkleRoot() StringCondition[KnownTxReader] {
+	return &stringCondition[KnownTxReader]{
+		parent: k,
+		conditionSetter: func(spec *entity.Comparable[string]) {
+			k.spec.MerkleRoot = spec
+		},
+	}
+}
+
+func (k *knownTx) BlockHash() StringCondition[KnownTxReader] {
+	return &stringCondition[KnownTxReader]{
+		parent: k,
+		conditionSetter: func(spec *entity.Comparable[string]) {
+			k.spec.BlockHash = spec
 		},
 	}
 }
