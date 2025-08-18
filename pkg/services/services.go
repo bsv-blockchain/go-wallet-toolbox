@@ -152,7 +152,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"IsUtxo",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsUtxo),
-		)}
+		),
+	}
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
@@ -262,12 +263,6 @@ func (s *WalletServices) UtxoStatus(
 	outputFormat UtxoStatusOutputFormat,
 	useNext bool,
 ) (UtxoStatusResult, error) {
-	panic("Not implemented yet")
-}
-
-// NLockTimeIsFinal returns whether the locktime value allows the transaction to be mined at the current chain height
-// TODO: txOrLockTime type = string | number[] | BsvTransaction | number
-func (s *WalletServices) NLockTimeIsFinal(txOrLockTime any) bool {
 	panic("Not implemented yet")
 }
 
@@ -430,4 +425,14 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 	}
 
 	return beef, nil
+}
+
+// NLockTimeIsFinal checks if the provided value is a valid nLockTime and whether it is final.
+func (s *WalletServices) NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error) {
+	heightProvider := s
+	isFinal, err := wdk.NLockTimeIsFinal(ctx, heightProvider, txOrLockTime)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse nLockTime or final: %w", err)
+	}
+	return isFinal, nil
 }
