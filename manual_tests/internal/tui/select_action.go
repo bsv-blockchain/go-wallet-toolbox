@@ -12,6 +12,7 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 	actionsTypes := []fixtures.ActionType{
 		fixtures.ActionInternalize,
 		fixtures.ActionBalance,
+		fixtures.ActionListOutputs,
 		fixtures.ActionSendData,
 		fixtures.ActionSendDataPeriodically,
 		fixtures.ActionSendP2PKH,
@@ -29,6 +30,9 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		case fixtures.ActionBalance:
 			balanceModel := NewBalanceView(manager, user)
 			return balanceModel, balanceModel.Init()
+		case fixtures.ActionListOutputs:
+			listOutputsForm := NewListOutputsForm(manager, user)
+			return listOutputsForm, listOutputsForm.Init()
 		case fixtures.ActionSendData:
 			sendDataModel := NewSendDataForm(manager, user)
 			return sendDataModel, sendDataModel.Init()

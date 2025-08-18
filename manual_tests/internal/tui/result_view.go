@@ -44,13 +44,18 @@ type ResultView struct {
 
 // NewResultView creates a new ResultView.
 func NewResultView(manager ManagerInterface, message string, mode ResultViewMode, nextView func() tea.Model, summary []string) *ResultView {
+	sv := NewSummaryView(summary, nextView != nil)
+	if len(summary) > 0 {
+		// Focus the Continue button by default for easier navigation
+		sv.FocusContinue()
+	}
 	return &ResultView{
 		manager:     manager,
 		message:     message,
 		mode:        mode,
 		nextView:    nextView,
 		summary:     summary,
-		summaryView: NewSummaryView(summary, nextView != nil),
+		summaryView: sv,
 	}
 }
 

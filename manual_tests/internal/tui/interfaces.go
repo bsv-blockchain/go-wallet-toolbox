@@ -18,4 +18,5 @@ type ManagerInterface interface {
 	Balance(user fixtures.UserConfig) (uint64, error)
 	CreateActionWithData(user fixtures.UserConfig, data string) (string, fixtures.Summary, error)
 	CreateActionWithP2pkh(user fixtures.UserConfig, recipientAddress string, satoshis uint64) (string, fixtures.Summary, error)
+	ListOutputs(user fixtures.UserConfig, limit uint32, offset uint32, includeLabels bool, basket string) (fixtures.Summary, error)
 }

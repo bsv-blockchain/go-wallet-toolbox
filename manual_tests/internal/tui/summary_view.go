@@ -108,3 +108,8 @@ func (m *SummaryView) View() string {
 func (m *SummaryView) ContinueFocused() bool {
 	return m.continueIsFocused
 }
+
+// FocusContinue programmatically focuses the Continue button
+func (m *SummaryView) FocusContinue() {
+	m.continueIsFocused = true
+}

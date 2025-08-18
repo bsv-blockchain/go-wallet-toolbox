@@ -9,4 +9,5 @@ const (
 	ActionSendDataPeriodically  ActionType = "send_data_periodically"
 	ActionSendP2PKH             ActionType = "send_p2pkh"
 	ActionSendP2PKHPeriodically ActionType = "send_p2pkh_periodically"
+	ActionListOutputs           ActionType = "list_outputs"
 )
