@@ -25,7 +25,7 @@ func RunOriginatorValidationErrorTests[TResult any](
 			originator: "a." + strings.Repeat("b", 64) + ".c",
 		},
 		"empty originator part": {
-			originator: "part1..part3",
+			originator: "a..c",
 		},
 	}
 
