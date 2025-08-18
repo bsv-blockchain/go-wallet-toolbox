@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
@@ -42,6 +42,8 @@ type ARCFixture interface {
 	WillAlwaysReturnStatus(httpStatus int)
 	WhenQueryingTx(txID string) ARCQueryFixture
 	OnBroadcast() ArcBroadcastFixture
+	HoldBroadcasting() ARCFixture
+	ReleaseBroadcasting() ARCFixture
 }
 
 type ARCQueryFixture interface {
@@ -65,11 +67,12 @@ type ArcBroadcastFixture interface {
 type arcFixture struct {
 	testing.TB
 	transport                    *httpmock.MockTransport
-	knownTransactions            map[string]*knownTransaction
+	knownTransactions            sync.Map
 	broadcastWithoutResponseBody bool
 	network                      defs.BSVNetwork
 	url                          string
 	token                        string
+	holdBroadcastExecution       sync.RWMutex
 }
 
 func NewARCFixture(t testing.TB, opts ...Option) ARCFixture {
@@ -79,12 +82,11 @@ func NewARCFixture(t testing.TB, opts ...Option) ARCFixture {
 	}, opts...)
 
 	return &arcFixture{
-		TB:                t,
-		transport:         options.transport,
-		network:           options.network,
-		url:               to.IfThen(options.network == defs.NetworkMainnet, defs.ArcURL).ElseThen(defs.ArcTestURL),
-		token:             to.IfThen(options.network == defs.NetworkMainnet, defs.ArcToken).ElseThen(defs.ArcTestToken),
-		knownTransactions: make(map[string]*knownTransaction),
+		TB:        t,
+		transport: options.transport,
+		network:   options.network,
+		url:       to.IfThen(options.network == defs.NetworkMainnet, defs.ArcURL).ElseThen(defs.ArcTestURL),
+		token:     to.IfThen(options.network == defs.NetworkMainnet, defs.ArcToken).ElseThen(defs.ArcTestToken),
 	}
 }
 
@@ -102,6 +104,9 @@ func (f *arcFixture) WillAlwaysReturnStatus(httpStatus int) {
 
 func (f *arcFixture) IsUpAndRunning() {
 	f.transport.RegisterResponder(http.MethodPost, f.url+"/v1/tx", func(req *http.Request) (*http.Response, error) {
+		f.holdBroadcastExecution.RLock()
+		defer f.holdBroadcastExecution.RUnlock()
+
 		b, err := io.ReadAll(req.Body)
 		if !assert.NoError(f, err) {
 			return nil, err
@@ -147,19 +152,19 @@ func (f *arcFixture) IsUpAndRunning() {
 		if f.broadcastWithoutResponseBody {
 			return httpmock.NewJsonResponse(http.StatusOK, nil)
 		} else {
-			return f.knownTransactions[tx.TxID().String()].toResponseOrError()
+			return f.getKnownTransaction(tx.TxID().String()).toResponseOrError()
 		}
 	})
 
 	f.transport.RegisterResponder("GET", "=~"+f.url+"/v1/tx/.*", func(req *http.Request) (*http.Response, error) {
 		txid := req.URL.String()[len(f.url+"/v1/tx/"):]
-		return f.knownTransactions[txid].toResponse()
+		return f.getKnownTransaction(txid).toResponse()
 	})
 }
 
 func (f *arcFixture) TxInfoJSON(id string) string {
-	tx, ok := f.knownTransactions[id]
-	require.True(f, ok, "Trying to get transaction info for not existing transaction, looks like invalid test setup")
+	tx := f.getKnownTransaction(id)
+	require.NotNil(f, tx, "Trying to get transaction info for not existing transaction, looks like invalid test setup")
 
 	_, content := tx.toResponseContent()
 	b, err := json.Marshal(content)
@@ -181,6 +186,32 @@ func (f *arcFixture) WhenQueryingTx(txID string) ARCQueryFixture {
 		parent: f,
 		txID:   txID,
 	}
+}
+
+func (f *arcFixture) HoldBroadcasting() ARCFixture {
+	f.holdBroadcastExecution.Lock()
+	return f
+}
+
+func (f *arcFixture) ReleaseBroadcasting() ARCFixture {
+	f.holdBroadcastExecution.Unlock()
+	return f
+}
+
+func (f *arcFixture) getKnownTransaction(txID string) *knownTransaction {
+	tx, ok := f.knownTransactions.Load(txID)
+	if !ok {
+		return nil
+	}
+	return tx.(*knownTransaction)
+}
+
+func (f *arcFixture) saveKnownTransaction(tx *knownTransaction) {
+	if tx == nil || tx.txid == "" {
+		return
+	}
+
+	f.knownTransactions.Store(tx.txid, tx)
 }
 
 func (f *arcFixture) store(beef *sdk.Beef) {
@@ -207,11 +238,12 @@ func (f *arcFixture) store(beef *sdk.Beef) {
 		return knownTx
 	})
 
-	seq.ForEach(includedTransactions, func(it *knownTransaction) {
-		if _, ok := f.knownTransactions[it.txid]; !ok {
-			f.knownTransactions[it.txid] = it
+	for it := range includedTransactions {
+		tx := f.getKnownTransaction(it.txid)
+		if tx == nil {
+			f.saveKnownTransaction(it)
 		}
-	})
+	}
 }
 
 func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
@@ -333,12 +365,13 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePathHex(merklePath stri
 }
 
 func (a *arcQueryFixture) knownTransaction() *knownTransaction {
-	tx, ok := a.parent.knownTransactions[a.txID]
-	if !ok {
+	tx := a.parent.getKnownTransaction(a.txID)
+
+	if tx == nil {
 		tx = &knownTransaction{
 			txid: a.txID,
 		}
-		a.parent.knownTransactions[a.txID] = tx
+		a.parent.saveKnownTransaction(tx)
 	}
 	return tx
 }

@@ -73,7 +73,7 @@ type storageFixture struct {
 	testServer *httptest.Server
 	db         *database.Database
 
-	providerFixture ProviderFixture
+	providerFixture *providerFixture
 
 	storagePrivKey string
 	storageName    string
@@ -172,5 +172,8 @@ func newStorageFixture(t testing.TB, identityKey string, name string, configModi
 		storageName:    s.storageName,
 	}
 
-	return s, dbCleanup
+	return s, func() {
+		s.providerFixture.Cleanup()
+		dbCleanup()
+	}
 }

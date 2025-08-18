@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -21,6 +22,7 @@ type Actions struct {
 }
 
 func New(
+	ctx context.Context,
 	logger *slog.Logger,
 	funder funder.Funder,
 	commission defs.Commission,
@@ -52,6 +54,7 @@ func New(
 			services,
 		),
 		process: newProcessAction(
+			ctx,
 			logger,
 			repos.Transactions,
 			commission,

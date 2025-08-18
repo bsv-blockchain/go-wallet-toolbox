@@ -239,6 +239,25 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 			return fmt.Errorf("failed to update transaction status as completed: %w", err)
 		}
 
+		err = tx.Model(&models.UserUTXO{}).
+			Where(
+				"output_id in (?)",
+				tx.Model(&models.Output{}).
+					Select("id").
+					Where(
+						"transaction_id = (?)",
+						tx.Model(&models.Transaction{}).
+							Select("id").
+							Where(p.query.Transaction.TxID.Eq(knownTxAsMined.TxID)),
+					),
+			).
+			Updates(map[string]any{
+				p.query.UserUTXO.UTXOStatus.ColumnName().String(): wdk.UTXOStatusMined,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("failed to update user UTXO status as mined: %w", err)
+		}
+
 		return nil
 	})
 
