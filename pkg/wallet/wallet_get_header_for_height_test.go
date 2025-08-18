@@ -20,13 +20,11 @@ type testCase struct {
 
 func TestGetHeaderForHeightOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(t,
-		func(w *wallet.Wallet, ctx context.Context, args sdk.GetHeaderArgs, originator string) (*sdk.GetHeaderResult, error) {
-			return w.GetHeaderForHeight(ctx, args, originator)
-		},
-		func() sdk.GetHeaderArgs {
-			return sdk.GetHeaderArgs{
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.GetHeaderResult, error) {
+			args := sdk.GetHeaderArgs{
 				Height: 100,
 			}
+			return w.GetHeaderForHeight(ctx, args, originator)
 		},
 	)
 }

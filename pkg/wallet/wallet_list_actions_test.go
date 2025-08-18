@@ -17,11 +17,9 @@ import (
 
 func TestListActionsOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(t,
-		func(w *wallet.Wallet, ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.ListActionsResult, error) {
+			args := sdk.ListActionsArgs{}
 			return w.ListActions(ctx, args, originator)
-		},
-		func() sdk.ListActionsArgs {
-			return sdk.ListActionsArgs{}
 		},
 	)
 }

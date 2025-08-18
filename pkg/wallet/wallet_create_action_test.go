@@ -25,11 +25,9 @@ const testValueForFunding = 99904
 
 func TestCreateActionOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(t,
-		func(w *wallet.Wallet, ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.CreateActionResult, error) {
+			args := fixtures.DefaultWalletCreateActionArgs(t)
 			return w.CreateAction(ctx, args, originator)
-		},
-		func() sdk.CreateActionArgs {
-			return fixtures.DefaultWalletCreateActionArgs(t)
 		},
 	)
 }

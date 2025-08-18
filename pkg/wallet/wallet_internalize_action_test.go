@@ -16,11 +16,9 @@ import (
 
 func TestInternalizeActionOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(t,
-		func(w *wallet.Wallet, ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.InternalizeActionResult, error) {
+			args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
 			return w.InternalizeAction(ctx, args, originator)
-		},
-		func() sdk.InternalizeActionArgs {
-			return fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
 		},
 	)
 }

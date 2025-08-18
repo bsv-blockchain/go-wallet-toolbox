@@ -17,14 +17,9 @@ import (
 
 func TestRelinquishOutputOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(t,
-		func(w *wallet.Wallet, ctx context.Context, args sdk.RelinquishOutputArgs, originator string) (*sdk.RelinquishOutputResult, error) {
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.RelinquishOutputResult, error) {
+			args := sdk.RelinquishOutputArgs{}
 			return w.RelinquishOutput(ctx, args, originator)
-		},
-		func() sdk.RelinquishOutputArgs {
-			return sdk.RelinquishOutputArgs{
-				Basket: "test-basket",
-				Output: *testutils.SdkOutpoint(t, fixtures.MockOutpoint),
-			}
 		},
 	)
 }

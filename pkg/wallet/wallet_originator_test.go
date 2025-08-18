@@ -11,26 +11,21 @@ import (
 )
 
 // RunOriginatorValidationErrorTests runs the standard originator validation tests for any wallet method.
-func RunOriginatorValidationErrorTests[TArgs any, TResult any](
+func RunOriginatorValidationErrorTests[TResult any](
 	t *testing.T,
-	walletMethod func(wallet *wallet.Wallet, ctx context.Context, args TArgs, originator string) (TResult, error),
-	argsFactory func() TArgs,
+	walletMethod func(wallet *wallet.Wallet, ctx context.Context, originator string) (TResult, error),
 ) {
 	errorTestCases := map[string]struct {
 		originator string
-		args       func() TArgs
 	}{
 		"too long originator": {
 			originator: strings.Repeat("a", 251),
-			args:       argsFactory,
 		},
 		"too long originator part": {
 			originator: "a." + strings.Repeat("b", 64) + ".c",
-			args:       argsFactory,
 		},
 		"empty originator part": {
 			originator: "part1..part3",
-			args:       argsFactory,
 		},
 	}
 
@@ -43,7 +38,7 @@ func RunOriginatorValidationErrorTests[TArgs any, TResult any](
 			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
 
 			// when:
-			result, err := walletMethod(aliceWallet, t.Context(), test.args(), test.originator)
+			result, err := walletMethod(aliceWallet, t.Context(), test.originator)
 
 			// then:
 			then.Result(result).HasError(err)

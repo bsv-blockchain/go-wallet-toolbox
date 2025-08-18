@@ -15,11 +15,8 @@ import (
 
 func TestWaitForAuthenticationOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(t,
-		func(w *wallet.Wallet, ctx context.Context, args any, originator string) (*sdk.AuthenticatedResult, error) {
-			return w.WaitForAuthentication(ctx, args, originator)
-		},
-		func() any {
-			return nil
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.AuthenticatedResult, error) {
+			return w.WaitForAuthentication(ctx, nil, originator)
 		},
 	)
 }
