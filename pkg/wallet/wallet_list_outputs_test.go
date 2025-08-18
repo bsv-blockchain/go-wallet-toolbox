@@ -1,30 +1,34 @@
 package wallet_test
 
 import (
-	"strings"
+	"context"
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestListOutputsOriginatorValidation(t *testing.T) {
+	RunOriginatorValidationErrorsTests(t,
+		func(w *wallet.Wallet, ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error) {
+			return w.ListOutputs(ctx, args, originator)
+		},
+		func() sdk.ListOutputsArgs {
+			return fixtures.DefaultWalletListOutputsArgs()
+		},
+	)
+}
+
 func TestWalletListOutputsArgsValidation(t *testing.T) {
 	errorTestCases := map[string]struct {
 		originator string
 		args       func() sdk.ListOutputsArgs
 	}{
-		"too long originator": {
-			originator: strings.Repeat("a", 251),
-			args:       fixtures.DefaultWalletListOutputsArgs,
-		},
-		"too long originator part": {
-			originator: "a." + strings.Repeat("b", 64) + ".c",
-			args:       fixtures.DefaultWalletListOutputsArgs,
-		},
 		"invalid limit (too high)": {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.ListOutputsArgs {
