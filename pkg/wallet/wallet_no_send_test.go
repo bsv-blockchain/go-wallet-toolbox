@@ -114,7 +114,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 
 	s.Run("send with after creating three times noSend create actions using no send changes from the previous create action results", func() {
 		t := s.T()
-		t.Skip() // TODO: Remove this after handling noSend + sendWith
+		t.Skip() // TODO: Remove this after handling isNotNewTX method on wallet level
 
 		const inputValue = testValueForFunding
 
@@ -146,7 +146,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 		secondCreateActionsArgs := firstCreateActionsArgs
 		secondCreateActionsArgs.Options.NoSend = to.Ptr(true)
 		secondCreateActionsArgs.Options.NoSendChange = firstCreateActionResult.NoSendChange
-		secondCreateActionsArgs.Outputs[0].Satoshis = 1
 
 		secondCreateActionResult, err := aliceWallet.CreateAction(t.Context(), secondCreateActionsArgs, fixtures.DefaultOriginator)
 
@@ -158,7 +157,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 		thirdCreateActionArgs := secondCreateActionsArgs
 		thirdCreateActionArgs.Options.NoSend = to.Ptr(true)
 		thirdCreateActionArgs.Options.NoSendChange = secondCreateActionResult.NoSendChange
-		thirdCreateActionArgs.Outputs[0].Satoshis = 1
 
 		thirdCreateActionsResult, err := aliceWallet.CreateAction(t.Context(), thirdCreateActionArgs, fixtures.DefaultOriginator)
 
@@ -168,6 +166,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 
 		// given - 4th - CreateAction with send with (tx1, tx2, tx3) - all transactions from the previous create action results
 		forthCreateActionArgs := thirdCreateActionArgs
+		forthCreateActionArgs.Outputs = nil
 		forthCreateActionArgs.Options.NoSend = to.Ptr(false)
 		forthCreateActionArgs.Options.NoSendChange = nil
 		forthCreateActionArgs.Options.SendWith = append(forthCreateActionArgs.Options.SendWith,
