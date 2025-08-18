@@ -21,13 +21,13 @@ func NewTestTransactionWithLocktime(t testing.TB, lock uint32, inputSequences ..
 	return tx
 }
 
-type stubHeight struct {
+type StubHeight struct {
 	h   uint32
 	err error
 }
 
-func (s stubHeight) CurrentHeight(context.Context) (uint32, error) { return s.h, s.err }
+func (s StubHeight) CurrentHeight(context.Context) (uint32, error) { return s.h, s.err }
 
-func NewStubHeight(h uint32, err error) stubHeight {
-	return stubHeight{h: h, err: err}
+func NewStubHeight(h uint32, err error) StubHeight {
+	return StubHeight{h: h, err: err}
 }

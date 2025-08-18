@@ -46,6 +46,7 @@ func main() {
 		models.TransactionLabel{},
 		models.Tag{},
 		models.OutputTag{},
+		models.UserUTXO{},
 	)
 
 	g.Execute()

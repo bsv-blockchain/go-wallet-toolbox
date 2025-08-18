@@ -40,7 +40,6 @@ type WalletServices struct {
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
-	nLockTimeIsFinalServices     servicequeue.Queue1[any, bool]
 
 	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
 	// postBeefServices: ServiceCollection<sdk.PostBeefService>
@@ -153,13 +152,6 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*options.
 			logger,
 			"IsUtxo",
 			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsUtxo),
-		),
-		nLockTimeIsFinalServices: servicequeue.NewQueue1(
-			logger,
-			"NLockTimeIsFinal",
-			servicequeue.NewService1(whatsonchain.ServiceName, wocService.NLockTimeIsFinal),
-			servicequeue.NewService1(bitails.ServiceName, bitailsService.NLockTimeIsFinal),
-			servicequeue.NewService1(bhs.ServiceName, bhsService.NLockTimeIsFinal),
 		),
 	}
 }

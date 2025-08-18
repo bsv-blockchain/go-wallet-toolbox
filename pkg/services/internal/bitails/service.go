@@ -331,12 +331,3 @@ func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.G
 	}
 	return res, nil
 }
-
-// NLockTimeIsFinal checks if the provided transaction or lock time is final.
-func (b *Bitails) NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error) {
-	isFinal, err := wdk.NLockTimeIsFinal(ctx, b, txOrLockTime)
-	if err != nil {
-		return false, fmt.Errorf("failed to check NLockTime finality: %w", err)
-	}
-	return isFinal, nil
-}
