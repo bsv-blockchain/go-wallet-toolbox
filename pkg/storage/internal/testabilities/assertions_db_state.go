@@ -37,6 +37,12 @@ type DBStateAssertion interface {
 	HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
+	WaitForTxStatusByReference(
+		user testusers.User,
+		reference string,
+		status wdk.TxStatus,
+		timeout time.Duration,
+	)
 
 	// CanCreateActionForSatoshis - is the only way to check if UserUTXOs have been created for the user,
 	// by attempting to create an action for the user (which requires UserUTXOs to exist).
@@ -237,7 +243,7 @@ func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) 
 	return d
 }
 
-func (d *dbStateAssertion) HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion {
+func (d *dbStateAssertion) getUserTransactionByReference(user testusers.User, reference string) *entity.Transaction {
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
@@ -245,12 +251,40 @@ func (d *dbStateAssertion) HasUserTransactionByReference(user testusers.User, re
 	require.NoError(d.TB, err)
 	require.NotNil(d.TB, tx)
 
-	assert.Equal(d, reference, tx.Reference, "Expected user transaction to have the same TxID as the one requested")
+	assert.Equal(d, reference, tx.Reference, "Expected user transaction to have the same Reference as the one requested")
+
+	return tx
+}
+
+func (d *dbStateAssertion) HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion {
+	d.Helper()
+
+	tx := d.getUserTransactionByReference(user, reference)
 
 	return &userTransactionAssertion{
 		TB:          d.TB,
 		transaction: tx,
 	}
+}
+
+func (d *dbStateAssertion) WaitForTxStatusByReference(
+	user testusers.User,
+	reference string,
+	status wdk.TxStatus,
+	timeout time.Duration,
+) {
+	d.Helper()
+
+	condition := func() bool {
+		currentStatus := d.getUserTransactionByReference(user, reference).Status
+		return currentStatus == status
+	}
+
+	if condition() {
+		return
+	}
+
+	assert.Eventually(d, condition, timeout, 500*time.Millisecond, "Expected user transaction with reference '%s' to have status '%s' within %s", reference, status, timeout)
 }
 
 func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion {

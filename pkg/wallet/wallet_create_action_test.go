@@ -3,13 +3,16 @@ package wallet_test
 import (
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -315,6 +318,182 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
 			WithSpendable(false).
 			WithBasket("")
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
+	s.Run("delayed broadcast single transaction", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		given.Services().ARC().HoldBroadcasting()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast())
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+
+		// and:
+		assert.NotEmpty(t, result.Txid, "Wallet result should have transaction id")
+		assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
+		assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
+		assert.Equal(t, result.Txid, result.SendWithResults[0].Txid, "Wallet result should have same txid as the one from send with result")
+		assert.Equal(t, sdk.ActionResultStatusSending, result.SendWithResults[0].Status, "Wallet send with result should have sending status")
+
+		// and check the state of wallet:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithTxID(result.Txid.String()).
+			WithStatus(sdk.ActionStatusSending)
+
+		// when, we release broadcasting, the background task should process the action:
+		given.Services().ARC().ReleaseBroadcasting()
+
+		thenState.WaitForActionsWithStatusCount(2, sdk.ActionStatusUnproven, 5*time.Second)
+	})
+
+	s.Run("delayed broadcast multiple transactions", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+		const count = 10
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		given.Services().ARC().HoldBroadcasting()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		faucet := given.Faucet(aliceWallet)
+		for range count {
+			// NOTE: We need to create multiple UTXOs one for each transaction because they will be reserved until the broadcast is released.
+			_, _ = faucet.TopUp(topUpValue)
+		}
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast(), walletargs.WithSatoshisAsFirstOutput(1))
+
+		var err error
+		results := make([]*sdk.CreateActionResult, count)
+		for i := range count {
+			results[i], err = aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+			require.NoError(t, err, "Failed to create action %d", i)
+		}
+
+		// and:
+		for _, result := range results {
+			require.NotNil(t, result, "Wallet should return result")
+
+			assert.NotEmpty(t, result.Txid, "Wallet result should have transaction id")
+			assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
+			assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
+			assert.Equal(t, result.Txid, result.SendWithResults[0].Txid, "Wallet result should have same txid as the one from send with result")
+			assert.Equal(t, sdk.ActionResultStatusSending, result.SendWithResults[0].Status, "Wallet send with result should have sending status")
+		}
+
+		// and check the state of wallet:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2*count).
+			HasActionsCount(count, fixtures.CreateActionTestLabel)
+
+		thenState.HasActionsWithStatusCount(count, sdk.ActionStatusSending).
+			HasActionsWithStatusCount(count, sdk.ActionStatusUnproven)
+
+		// when, we release broadcasting, the background task should process the action:
+		given.Services().ARC().ReleaseBroadcasting()
+
+		thenState.WaitForActionsWithStatusCount(2*count, sdk.ActionStatusUnproven, 5*time.Second)
+	})
+
+	s.Run("delayed broadcast multiple transactions - check for double spending", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+		const count = 100
+		const initialUTXOsCount = 50
+		// NOTE: While new actions are being created, the background broadcaster sends the previously created ones and generates new UTXOs.
+		// Using 50 (half of the total count) should provide enough time for new UTXOs to become available before they are needed.
+		// This timing differs between machines, so this number should be used with caution.
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		faucet := given.Faucet(aliceWallet)
+
+		for range initialUTXOsCount {
+			_, _ = faucet.TopUp(topUpValue)
+		}
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast(), walletargs.WithSatoshisAsFirstOutput(1))
+
+		usedUTXOs := make(map[wdk.OutPoint]bool)
+
+		var err error
+		results := make([]*sdk.CreateActionResult, count)
+		for i := range count {
+			results[i], err = aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+			require.NoError(t, err, "Failed to create action %d", i)
+
+			tx, err := transaction.NewTransactionFromBEEF(results[i].Tx)
+			require.NoError(t, err, "Failed to parse transaction for action %d", i)
+
+			for _, input := range tx.Inputs {
+				outpoint := wdk.OutPoint{
+					TxID: input.SourceTXID.String(),
+					Vout: input.SourceTxOutIndex,
+				}
+
+				found := usedUTXOs[outpoint]
+				require.False(t, found, "Outpoint %s should not be used before", outpoint.String())
+
+				usedUTXOs[outpoint] = true
+			}
+		}
+
+		// and:
+		for _, result := range results {
+			require.NotNil(t, result, "Wallet should return result")
+
+			assert.NotEmpty(t, result.Txid, "Wallet result should have transaction id")
+			assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
+			assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
+			assert.Equal(t, result.Txid, result.SendWithResults[0].Txid, "Wallet result should have same txid as the one from send with result")
+			assert.Equal(t, sdk.ActionResultStatusSending, result.SendWithResults[0].Status, "Wallet send with result should have sending status")
+		}
+
+		// and check the state of wallet:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.WaitForActionsWithStatusCount(count+initialUTXOsCount, sdk.ActionStatusUnproven, 5*time.Second)
 	})
 }
 

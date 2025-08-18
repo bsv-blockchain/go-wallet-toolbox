@@ -51,7 +51,7 @@ type GORMProviderConfig struct {
 }
 
 // NewGORMProvider creates a new storage provider with GORM repository.
-func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...ProviderOption) (*Provider, error) {
+func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProviderConfig, opts ...ProviderOption) (*Provider, error) {
 	if err := config.FeeModel.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid fee model: %w", err)
 	}
@@ -90,10 +90,15 @@ func NewGORMProvider(logger *slog.Logger, config GORMProviderConfig, opts ...Pro
 		Database: db,
 
 		repo:    repos,
-		actions: actions.New(logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		actions: actions.New(ctx, logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
 		random:  random,
 		logger:  logger,
 	}, nil
+}
+
+// Stop gracefully terminates the background broadcaster and releases related resources.
+func (p *Provider) Stop() {
+	p.actions.StopBackgroundBroadcaster()
 }
 
 func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *providerOptions) (*database.Database, error) {

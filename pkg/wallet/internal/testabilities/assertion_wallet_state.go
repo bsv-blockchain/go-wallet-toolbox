@@ -5,6 +5,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
@@ -27,6 +28,8 @@ type WalletReader interface {
 type WalletStateAssertion interface {
 	HasActionsCount(expected int, labels ...string) WalletStateAssertion
 	ActionAtIndex(index int, labels ...string) WalletActionAssertion
+	HasActionsWithStatusCount(expected int, status sdk.ActionStatus) WalletStateAssertion
+	WaitForActionsWithStatusCount(expectedCount int, status sdk.ActionStatus, timeout time.Duration)
 }
 
 type WalletActionAssertion interface {
@@ -67,6 +70,36 @@ func (a *walletStateAssertion) HasActionsCount(expected int, labels ...string) W
 	assert.Len(a, result.Actions, expected, "Expected number of transactions does not match")
 	assert.Equal(a, expected, int(result.TotalActions), "Total count of transactions does not match")
 	return a
+}
+
+func (a *walletStateAssertion) getActionsWithStatusCount(status sdk.ActionStatus) int {
+	a.Helper()
+	result := a.listActions()
+	counter := 0
+	for _, action := range result.Actions {
+		if action.Status == status {
+			counter++
+		}
+	}
+
+	return counter
+}
+
+func (a *walletStateAssertion) HasActionsWithStatusCount(expected int, status sdk.ActionStatus) WalletStateAssertion {
+	counter := a.getActionsWithStatusCount(status)
+	assert.Equal(a, expected, counter, "Expected number of transactions with status %s does not match", status)
+	return a
+}
+
+func (a *walletStateAssertion) WaitForActionsWithStatusCount(expectedCount int, status sdk.ActionStatus, timeout time.Duration) {
+	a.Helper()
+
+	condition := func() bool {
+		current := a.getActionsWithStatusCount(status)
+		return current == expectedCount
+	}
+
+	assert.Eventually(a, condition, timeout, 500*time.Millisecond, "Expected %d actions with status %s", expectedCount, status)
 }
 
 func (a *walletStateAssertion) ActionAtIndex(index int, labels ...string) WalletActionAssertion {

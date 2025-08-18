@@ -7,6 +7,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFunderSQLFund(t *testing.T) {
@@ -98,7 +100,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.thereAreUTXOInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			then.Result(result).WithError(err)
@@ -184,7 +186,7 @@ func TestFunderSQLFund(t *testing.T) {
 			given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(test.possessedUTXOs).P2PKH().Stored()
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
@@ -307,7 +309,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.havingUTXOsInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
@@ -327,7 +329,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -102, 990, basket, testusers.Alice.ID, nil, nil)
+		result, err := funder.Fund(ctx, -102, 990, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -347,7 +349,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -2, 999, basket, testusers.Alice.ID, nil, nil)
+		result, err := funder.Fund(ctx, -2, 999, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -367,7 +369,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(0)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -386,7 +388,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(-5)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -411,11 +413,59 @@ func TestFunderSQLFund(t *testing.T) {
 		}
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
 			HasChangeCount(1).ForAmount(5000)
+	})
+
+	t.Run("don't include UTXOs in Sending state that results in insufficient funds", func(t *testing.T) {
+		// given:
+		given, _, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and:
+		funder := given.NewFunderService()
+
+		// and:
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 250
+
+		// and:
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
+
+		// when:
+		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
+
+		// then:
+		require.Error(t, err)
+	})
+
+	t.Run("include UTXOs in Sending state", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and:
+		funder := given.NewFunderService()
+
+		// and:
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 250
+
+		// and:
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
+
+		// when:
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, true)
+
+		// then:
+		require.NoError(t, err)
+
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(0, 1)
 	})
 
 	testCasesSplitUserProvidedInputIntoChanges := map[string]struct {
@@ -487,7 +537,7 @@ func TestFunderSQLFund(t *testing.T) {
 			basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
 
 			// when:
-			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil)
+			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			then.Result(result).WithoutError(err).
