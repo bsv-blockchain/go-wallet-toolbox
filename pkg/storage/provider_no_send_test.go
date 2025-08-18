@@ -1,6 +1,8 @@
 package storage_test
 
 import (
+	"testing"
+
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
@@ -12,7 +14,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestNoSendWithSendWith(t *testing.T) {
