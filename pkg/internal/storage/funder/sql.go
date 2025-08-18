@@ -25,7 +25,14 @@ var changeOutputSize = txutils.P2PKHOutputSize
 const utxoBatchSize = 1000
 
 type UTXORepository interface {
-	FindNotReservedUTXOs(ctx context.Context, userID int, basketName string, page *queryopts.Paging, forbiddenOutputIDs []uint) ([]*models.UserUTXO, error)
+	FindNotReservedUTXOs(
+		ctx context.Context,
+		userID int,
+		basketName string,
+		page *queryopts.Paging,
+		forbiddenOutputIDs []uint,
+		includeSending bool,
+	) ([]*models.UserUTXO, error)
 	CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error)
 }
 
@@ -46,15 +53,16 @@ func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.Fe
 	}
 }
 
-// Fund
-// @param targetSat - the target amount of satoshis to fund (total inputs - total outputs)
-// @param currentTxSize - the current size of the transaction in bytes (size of tx + current inputs + current outputs)
-// @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
-// @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
-// @param userID - the user ID.
-// @param forbiddenOutputIDs - defines the output IDs that should not be used as sources to cover the target satoshis value.
-// @param priorityOutputs - defines the outputs that should be used as source to cover the target satoshi value before fetching the required number of outputs from database.
-func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize uint64, basket *entity.OutputBasket, userID int, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) (*Result, error) {
+func (f *SQL) Fund(
+	ctx context.Context,
+	targetSat satoshi.Value,
+	currentTxSize uint64,
+	basket *entity.OutputBasket,
+	userID int,
+	forbiddenOutputIDs []uint,
+	priorityOutputs []*entity.Output,
+	includeSending bool,
+) (*Result, error) {
 	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
@@ -65,7 +73,7 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
-	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs, priorityOutputs)
+	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs, priorityOutputs, includeSending)
 
 	err = collector.Allocate(utxos)
 	if err != nil {
@@ -75,10 +83,10 @@ func (f *SQL) Fund(ctx context.Context, targetSat satoshi.Value, currentTxSize u
 	return collector.GetResult()
 }
 
-func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
+func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output, includeSending bool) iter.Seq2[*models.UserUTXO, error] {
 	batches := seqerr.ProduceWithArg(
 		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
-			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs)
+			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs, includeSending)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to load utxos: %w", err)
 			}
