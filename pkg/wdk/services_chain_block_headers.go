@@ -70,13 +70,22 @@ func (c *ChainBaseBlockHeader) Hex() (string, error) {
 // followed by time, bits, and nonce fields written in little-endian order.
 // Returns an error if any of the fields cannot be parsed or written.
 func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
-	hash, err := hex.DecodeString(c.PreviousHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
-	}
+	var prevHash []byte
+	var err error
 
-	if len(hash) != 32 {
-		return nil, fmt.Errorf("'previous hash' field should be a 32 byte-hex length")
+	genesis := c.PreviousHash == ""
+
+	if genesis {
+		prevHash = make([]byte, 32)
+	} else {
+		prevHash, err = hex.DecodeString(c.PreviousHash)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert 'previous hash' field into bytes slice: %w", err)
+		}
+
+		if len(prevHash) != 32 {
+			return nil, fmt.Errorf("'previous hash' field should be a 32 byte-hex length")
+		}
 	}
 
 	root, err := hex.DecodeString(c.MerkleRoot)
@@ -92,7 +101,7 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 	if err := writeLittleEndianOrder(buff, c.Version); err != nil {
 		return nil, fmt.Errorf("failed to write the 'version' field bytes in little-endian order: %w", err)
 	}
-	if err := writeReversedBytes(buff, hash); err != nil {
+	if err := writeReversedBytes(buff, prevHash); err != nil {
 		return nil, fmt.Errorf("failed to write the 'previous hash' field bytes in little-endian order: %w", err)
 	}
 	if err := writeReversedBytes(buff, root); err != nil {

@@ -410,8 +410,25 @@ func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.
 
 // GetHeaderForHeight retrieves the block header of a block at a specified height.
 func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs, originator string) (*sdk.GetHeaderResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if w.services == nil {
+		return nil, fmt.Errorf("wallet services not configured: cannot retrieve block header")
+	}
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	wdkResult, err := w.services.GetChainHeaderByHeight(ctx, args.Height)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get header for height %d: %w", args.Height, err)
+	}
+
+	result, err := mapping.MapGetHeaderResults(wdkResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map get header results: %w", err)
+	}
+
+	return result, nil
 }
 
 // GetNetwork retrieves the Bitcoin network the client is using (mainnet or testnet).
