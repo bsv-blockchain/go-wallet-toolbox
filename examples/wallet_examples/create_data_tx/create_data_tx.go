@@ -77,16 +77,17 @@ func main() {
 	}
 
 	show.WalletSuccess("CreateAction", createArgs, *result)
-
-	if result.Txid.String() != "" {
-		show.Transaction(result.Txid.String())
-		show.Info("Status", "Transaction successfully created and broadcast")
-
-		if len(result.SendWithResults) > 0 {
-			show.Info("Broadcast status", result.SendWithResults[0].Status)
-		}
+	
+	txID := result.Txid.String()
+	if txID == "" {
+		panic(fmt.Errorf("transaction ID is empty, action creation failed"))
 	}
 
-	show.Success("Transaction created and sent successfully")
+	show.Transaction(txID)
+	show.Info("Status", "Transaction successfully created and broadcast")
+
+	if len(result.SendWithResults) > 0 {
+		show.Info("Broadcast status", result.SendWithResults[0].Status)
+	}
 	show.ProcessComplete("Create Data Transaction")
 }
