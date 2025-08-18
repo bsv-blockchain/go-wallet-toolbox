@@ -12,8 +12,7 @@ github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
-github.com/bsv-blockchain/go-sdk v1.2.6 h1:6J1I1rBNhCZuQ64OoNAZICMVDKYEEGYkmsD21dQt4LY=
-github.com/bsv-blockchain/go-sdk v1.2.6/go.mod h1:Dc8WX7olShuMHLfNTBpVQnkxZWbu3djbAer/73yMcd4=
+github.com/bsv-blockchain/go-sdk v1.2.8 h1:3l77KtXylwmfkTQT6RGQwMsyWYKJ4JrG4lDcjYtOdJ4=
 github.com/bsv-blockchain/go-sdk v1.2.8/go.mod h1:Dc8WX7olShuMHLfNTBpVQnkxZWbu3djbAer/73yMcd4=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1 h1:6mRV8T4ug8456p/rufoDselui3eKY6kr9mRYx8e87Rw=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1/go.mod h1:aNNGIH9aN/aCQ9vw0gTiQiOajkyBQIPJM9O6nHhhF5g=
