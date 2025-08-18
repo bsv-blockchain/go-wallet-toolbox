@@ -24,6 +24,7 @@ type TxGeneratorFixture interface {
 	WithSatoshisToSend(satoshis uint64) TxGeneratorFixture
 	WithSender(sender testusers.User) TxGeneratorFixture
 	WithRecipient(recipient testusers.User) TxGeneratorFixture
+	WithDelayedBroadcast() TxGeneratorFixture
 
 	PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction)
 	Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction)
@@ -39,6 +40,7 @@ type txGeneratorFixture struct {
 	activeStorage         *storage.Provider
 	sender                testusers.User
 	recipient             testusers.User
+	delayedBroadcast      bool
 }
 
 func (t *txGeneratorFixture) WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture {
@@ -58,6 +60,11 @@ func (t *txGeneratorFixture) WithSender(sender testusers.User) TxGeneratorFixtur
 
 func (t *txGeneratorFixture) WithRecipient(recipient testusers.User) TxGeneratorFixture {
 	t.recipient = recipient
+	return t
+}
+
+func (t *txGeneratorFixture) WithDelayedBroadcast() TxGeneratorFixture {
+	t.delayedBroadcast = true
 	return t
 }
 
@@ -162,7 +169,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 		Version:  1,
 		Labels:   []primitives.StringUnder300{fixtures.CreateActionTestLabel},
 		Options: wdk.ValidCreateActionOptions{
-			AcceptDelayedBroadcast: to.Ptr[primitives.BooleanDefaultTrue](false),
+			AcceptDelayedBroadcast: to.Ptr(primitives.BooleanDefaultTrue(t.delayedBroadcast)),
 			SendWith:               []primitives.TXIDHexString{},
 			SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
 			KnownTxids:             []primitives.TXIDHexString{},
@@ -171,7 +178,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 			TrustSelf:              to.Ptr(sdk.TrustSelfKnown),
 		},
 		IsSendWith:                   false,
-		IsDelayed:                    false,
+		IsDelayed:                    t.delayedBroadcast,
 		IsNoSend:                     false,
 		IsNewTx:                      true,
 		IsRemixChange:                false,

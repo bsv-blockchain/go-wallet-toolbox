@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"gorm.io/gorm"
@@ -56,7 +57,7 @@ func (d *Database) CreateRepositories() *repo.Repositories {
 }
 
 func (d *Database) CreateFunder(feeModel defs.FeeModel) funder.Funder {
-	utxoRepo := repo.NewUTXOs(d.DB)
+	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB))
 	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel)
 }
 

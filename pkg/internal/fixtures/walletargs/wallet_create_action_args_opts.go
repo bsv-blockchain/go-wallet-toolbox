@@ -32,3 +32,18 @@ func WithSendWith(sendWith ...chainhash.Hash) func(args *wallet.CreateActionArgs
 		args.Options.SendWith = sendWith
 	}
 }
+
+func WithDelayedBroadcast() func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Options.AcceptDelayedBroadcast = to.Ptr(true)
+	}
+}
+
+func WithSatoshisAsFirstOutput(satoshis uint64) func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		if len(args.Outputs) == 0 {
+			panic("no provided outputs")
+		}
+		args.Outputs[0].Satoshis = satoshis
+	}
+}

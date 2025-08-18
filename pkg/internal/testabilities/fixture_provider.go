@@ -50,12 +50,12 @@ type providerFixture struct {
 	services       wdk.Services
 	storagePrivKey string
 	storageName    string
+	providers      []*storage.Provider
 
 	t               testing.TB
 	require         *require.Assertions
 	logger          *slog.Logger
 	db              *database.Database
-	activeStorage   *storage.Provider
 	servicesSniffer *testutils.HTTPSniffer
 }
 
@@ -114,6 +114,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.require.NoError(err)
 
 	activeStorage, err := storage.NewGORMProvider(
+		p.t.Context(),
 		p.logger,
 		storage.GORMProviderConfig{
 			Chain:                 p.network,
@@ -130,7 +131,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	_, err = activeStorage.Migrate(p.t.Context(), p.storageName, storageIdentityKey)
 	p.require.NoError(err)
 
-	p.activeStorage = activeStorage
+	p.providers = append(p.providers, activeStorage)
 
 	return activeStorage
 }
@@ -149,5 +150,12 @@ func (p *providerFixture) seedUsers(provider *storage.Provider) {
 		p.require.NoError(err)
 
 		user.ID = res.User.UserID
+	}
+}
+
+func (p *providerFixture) Cleanup() {
+	p.t.Helper()
+	for _, provider := range p.providers {
+		provider.Stop()
 	}
 }
