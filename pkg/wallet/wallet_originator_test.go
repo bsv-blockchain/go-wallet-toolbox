@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// RunOriginatorValidationErrorsTests runs the standard originator validation tests for any wallet method.
-func RunOriginatorValidationErrorsTests[TArgs any, TResult any](
+// RunOriginatorValidationErrorTests runs the standard originator validation tests for any wallet method.
+func RunOriginatorValidationErrorTests[TArgs any, TResult any](
 	t *testing.T,
 	walletMethod func(wallet *wallet.Wallet, ctx context.Context, args TArgs, originator string) (TResult, error),
 	argsFactory func() TArgs,

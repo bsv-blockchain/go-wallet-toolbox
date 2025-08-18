@@ -16,7 +16,7 @@ import (
 )
 
 func TestRelinquishOutputOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorsTests(t,
+	RunOriginatorValidationErrorTests(t,
 		func(w *wallet.Wallet, ctx context.Context, args sdk.RelinquishOutputArgs, originator string) (*sdk.RelinquishOutputResult, error) {
 			return w.RelinquishOutput(ctx, args, originator)
 		},

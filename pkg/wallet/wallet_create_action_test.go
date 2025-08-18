@@ -24,7 +24,7 @@ import (
 const testValueForFunding = 99904
 
 func TestCreateActionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorsTests(t,
+	RunOriginatorValidationErrorTests(t,
 		func(w *wallet.Wallet, ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
 			return w.CreateAction(ctx, args, originator)
 		},

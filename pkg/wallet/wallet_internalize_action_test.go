@@ -15,7 +15,7 @@ import (
 )
 
 func TestInternalizeActionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorsTests(t,
+	RunOriginatorValidationErrorTests(t,
 		func(w *wallet.Wallet, ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
 			return w.InternalizeAction(ctx, args, originator)
 		},

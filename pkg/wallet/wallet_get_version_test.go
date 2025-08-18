@@ -15,7 +15,7 @@ import (
 )
 
 func TestGetVersionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorsTests(t,
+	RunOriginatorValidationErrorTests(t,
 		func(w *wallet.Wallet, ctx context.Context, args any, originator string) (*sdk.GetVersionResult, error) {
 			return w.GetVersion(ctx, args, originator)
 		},

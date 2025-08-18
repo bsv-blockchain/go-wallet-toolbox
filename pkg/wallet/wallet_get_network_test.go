@@ -15,7 +15,7 @@ import (
 )
 
 func TestGetNetworkOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorsTests(t,
+	RunOriginatorValidationErrorTests(t,
 		func(w *wallet.Wallet, ctx context.Context, args any, originator string) (*sdk.GetNetworkResult, error) {
 			return w.GetNetwork(ctx, args, originator)
 		},
