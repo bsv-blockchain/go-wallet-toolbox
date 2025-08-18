@@ -26,7 +26,7 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 
 	beef, err := m.storageInfra.Services.GetBEEF(m.ctx, txID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get beef for txID %q, network %q: %w", txID, m.GetBSVNetwork(), err)
+		return summary, fmt.Errorf("failed to get beef for txID %q, network %q: %w", txID, m.GetBSVNetwork(), err)
 	}
 
 	atomicBeef, err := beef.AtomicBytes(txIDHash)
