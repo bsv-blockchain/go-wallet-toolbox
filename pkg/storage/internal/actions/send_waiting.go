@@ -37,7 +37,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 		Time: time.Now().Add(-agedLimit),
 	}
 	var txsToBroadcast []*entity.KnownTxForStatusSync
-	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, SortBy: "asc"}
+	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
 	for range sendWaitingMaxPages {
 		txIDsPage, err := p.knownTxRepo.FindKnownTxIDsByStatuses(
 			ctx,
@@ -54,7 +54,6 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 		}
 
 		txsToBroadcast = append(txsToBroadcast, txIDsPage...)
-
 		paging.Next()
 	}
 

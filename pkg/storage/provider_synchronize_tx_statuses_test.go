@@ -56,6 +56,50 @@ func TestSynchronizeTx(t *testing.T) {
 	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
 }
 
+func TestSynchronizeManyTxs(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	const count = 150
+
+	// and:
+	txIDs := make([]string, count)
+	for i := range count {
+		txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+		givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
+		txIDs[i] = txSpec.ID().String()
+	}
+
+	// and:
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+
+	// when:
+	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+
+	for _, txID := range txIDs {
+		thenDBState.
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusCompleted).
+			IsMined()
+
+		thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).
+			WithStatus(wdk.TxStatusCompleted)
+	}
+
+	// and:
+	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
+}
+
 func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
