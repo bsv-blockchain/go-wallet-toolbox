@@ -45,3 +45,7 @@ storage.*.sqlite
 
 # Example config
 examples/examples-config.yaml
+
+# Manual tests
+manual_tests/*.sqlite
+manual_tests/manual_tests.log

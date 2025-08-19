@@ -1,0 +1,25 @@
+package tui
+
+import (
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func NewSelectWallet(manager ManagerInterface) tea.Model {
+	walletConfigs := manager.GetWalletConfigs()
+	items := make([]string, len(walletConfigs))
+	walletConfigLookup := make(map[string]fixtures.UserConfig)
+
+	for i, wc := range walletConfigs {
+		items[i] = wc.Name
+		walletConfigLookup[wc.Name] = wc
+	}
+
+	onSelect := func(selectedWalletName string) (tea.Model, tea.Cmd) {
+		user := walletConfigLookup[selectedWalletName]
+		actionSelector := NewSelectAction(manager, &user)
+		return actionSelector, actionSelector.Init()
+	}
+
+	return NewItemSelector(items, "Select wallet:", onSelect)
+}
