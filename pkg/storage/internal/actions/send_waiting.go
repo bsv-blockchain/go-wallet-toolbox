@@ -34,7 +34,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 	defer p.sendWaitingLock.Unlock()
 
 	since := queryopts.Since{
-		Time: time.Now().Add(-agedLimit),
+		Time: time.Now().Add(agedLimit),
 	}
 	var txsToBroadcast []*entity.KnownTxForStatusSync
 	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
