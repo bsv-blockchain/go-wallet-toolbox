@@ -28,6 +28,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		Tag:              newTag(db, opts...),
 		Transaction:      newTransaction(db, opts...),
 		TransactionLabel: newTransactionLabel(db, opts...),
+		UserUTXO:         newUserUTXO(db, opts...),
 	}
 }
 
@@ -44,6 +45,7 @@ type Query struct {
 	Tag              tag
 	Transaction      transaction
 	TransactionLabel transactionLabel
+	UserUTXO         userUTXO
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -61,6 +63,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		Tag:              q.Tag.clone(db),
 		Transaction:      q.Transaction.clone(db),
 		TransactionLabel: q.TransactionLabel.clone(db),
+		UserUTXO:         q.UserUTXO.clone(db),
 	}
 }
 
@@ -85,6 +88,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		Tag:              q.Tag.replaceDB(db),
 		Transaction:      q.Transaction.replaceDB(db),
 		TransactionLabel: q.TransactionLabel.replaceDB(db),
+		UserUTXO:         q.UserUTXO.replaceDB(db),
 	}
 }
 
@@ -99,6 +103,7 @@ type queryCtx struct {
 	Tag              ITagDo
 	Transaction      ITransactionDo
 	TransactionLabel ITransactionLabelDo
+	UserUTXO         IUserUTXODo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
@@ -113,6 +118,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		Tag:              q.Tag.WithContext(ctx),
 		Transaction:      q.Transaction.WithContext(ctx),
 		TransactionLabel: q.TransactionLabel.WithContext(ctx),
+		UserUTXO:         q.UserUTXO.WithContext(ctx),
 	}
 }
 

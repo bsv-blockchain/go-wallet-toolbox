@@ -46,6 +46,7 @@ type CreateActionParams struct {
 	IncludeInputSourceRawTxs bool
 	TrustSelf                bool
 	IsNoSend                 bool
+	IsDelayed                bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -62,6 +63,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		TrustSelf:                args.Options.TrustSelf != nil && *args.Options.TrustSelf == sdk.TrustSelfKnown,
 		IsNoSend:                 args.IsNoSend,
 		NoSendChange:             args.Options.NoSendChange,
+		IsDelayed:                args.IsDelayed,
 	}
 }
 
@@ -219,7 +221,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Uint64("basketMinimumUTXOValue", basket.MinimumDesiredUTXOValue),
 	)
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs)
+	includeUTXOsInSendingState := params.IsDelayed
+
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}

@@ -116,6 +116,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		Satoshis:           satoshis.MustUInt64(),
 		EstimatedInputSize: txutils.P2PKHEstimatedInputSize,
 		BasketName:         f.basketName,
+		UTXOStatus:         wdk.UTXOStatusUnproven,
 
 		Output: output,
 	}
