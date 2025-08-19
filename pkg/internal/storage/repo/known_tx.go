@@ -184,15 +184,13 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 	return count == int64(len(txIDs)), nil
 }
 
-func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
+func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
 	var rows []*models.KnownTx
 	err := p.db.WithContext(ctx).
 		Model(&models.KnownTx{}).
 		Select("tx_id, status, attempts, batch").
 		Scopes(scopes.FromQueryOpts(opts)...).
 		Where("status IN ? ", txStatus).
-		Order("created_at ASC").
-		Limit(limit).
 		Find(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find known tx ids by statuses: %w", err)
@@ -204,6 +202,23 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txSta
 			Attempts: row.Attempts,
 			Status:   row.Status,
 		}
+	}), nil
+}
+
+func (p *KnownTx) FindKnownTxIDsByBatch(ctx context.Context, batch string) ([]string, error) {
+	var rows []*models.KnownTx
+	err := p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Select("tx_id").
+		Where("batch = ? ", batch).
+		Order("created_at ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find known tx ids by batch: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.KnownTx) string {
+		return row.TxID
 	}), nil
 }
 

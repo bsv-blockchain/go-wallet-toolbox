@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -35,6 +36,7 @@ type process struct {
 	services              wdk.Services
 	backgroundBroadcaster *service.BackgroundBroadcaster
 	randomizer            wdk.Randomizer
+	sendWaitingLock       sync.Mutex
 }
 
 func newProcessAction(
@@ -566,7 +568,6 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 		sendWithResult.Status = wdk.SendWithResultStatusFailed
 		reviewActionResult.Status = wdk.ReviewActionResultStatusInvalidTx
 	case wdk.AggregatedPostedTxIDServiceError:
-		// TODO: make sure, this tx will be attempted to be sent again in a periodic task (TaskSendWaiting)
 		reqStatus = wdk.ProvenTxStatusSending
 		txStatus = wdk.TxStatusSending
 		utxoStatus = wdk.UTXOStatusSending
