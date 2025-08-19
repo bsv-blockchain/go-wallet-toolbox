@@ -151,9 +151,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 
 		if options.MinProofLevel > 0 && depth < options.MinProofLevel {
-
-			return nil
-
+			// Intentionally skip attaching the merkle proof at this depth
 		} else {
 			merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
 			if err != nil {

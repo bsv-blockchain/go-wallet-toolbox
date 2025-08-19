@@ -72,7 +72,6 @@ func (g *getBeef) prepareOptions(options wdk.StorageGetBeefOptions, serviceFetch
 	}
 
 	if len(options.KnownTxIDs) > 0 {
-		getBeefOptions = append(getBeefOptions, entity.WithKnownTxIDs(options.KnownTxIDs...))
 		knownSet := make(map[string]struct{}, len(options.KnownTxIDs))
 		for _, id := range options.KnownTxIDs {
 			knownSet[id] = struct{}{}
