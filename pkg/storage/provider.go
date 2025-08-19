@@ -366,6 +366,15 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 	return nil
 }
 
+func (p *Provider) SendWaitingTransactions(ctx context.Context) error {
+	err := p.actions.SynchronizeTxStatuses(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+	}
+	return nil
+}
+
+
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	if auth.UserID == nil {

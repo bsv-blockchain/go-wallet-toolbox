@@ -184,11 +184,12 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 	return count == int64(len(txIDs)), nil
 }
 
-func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {
+func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
 	var rows []*models.KnownTx
 	err := p.db.WithContext(ctx).
 		Model(&models.KnownTx{}).
-		Select("tx_id, status, attempts").
+		Select("tx_id, status, attempts, batch").
+		Scopes(scopes.FromQueryOpts(opts)...).
 		Where("status IN ? ", txStatus).
 		Order("created_at ASC").
 		Limit(limit).
@@ -331,6 +332,20 @@ func (p *KnownTx) CountKnownTxs(ctx context.Context, spec *pkgentity.KnownTxRead
 	}
 
 	return count, nil
+}
+
+func (p *KnownTx) SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error {
+	if len(txIDs) == 0 {
+		return nil
+	}
+
+	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
+		Where("tx_id IN ? ", txIDs).
+		UpdateColumn("batch", batch).Error
+	if err != nil {
+		return fmt.Errorf("failed to set batch for known transactions: %w", err)
+	}
+	return nil
 }
 
 func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []gen.Condition {

@@ -23,6 +23,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
+const transactionBatchLength = 16
+
 type process struct {
 	logger                *slog.Logger
 	commissionCfg         defs.Commission
@@ -32,6 +34,7 @@ type process struct {
 	commissionRepo        CommissionRepo
 	services              wdk.Services
 	backgroundBroadcaster *service.BackgroundBroadcaster
+	randomizer            wdk.Randomizer
 }
 
 func newProcessAction(
@@ -43,6 +46,7 @@ func newProcessAction(
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
 	services wdk.Services,
+	randomizer wdk.Randomizer,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -53,6 +57,7 @@ func newProcessAction(
 		knownTxRepo:    knownTxRepo,
 		commissionRepo: commissionRepo,
 		services:       services,
+		randomizer:     randomizer,
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p)
@@ -72,7 +77,14 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		return &wdk.ProcessActionResult{}, nil
 	}
 
-	return p.broadcastTxs(ctx, p.txIDsToBroadcast(args), args.IsDelayed)
+	txIDs := p.txIDsToBroadcast(args)
+	if len(txIDs) > 1 {
+		if err := p.setBatchForTxs(ctx, txIDs); err != nil {
+			return nil, fmt.Errorf("failed to set batch for transactions: %w", err)
+		}
+	}
+
+	return p.broadcastTxs(ctx, txIDs, args.IsDelayed)
 }
 
 func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
@@ -301,8 +313,6 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
-	// TODO: Create batch string which will be necessary for CRON job to rebuild the BEEF when multiple txs are broadcasted
-
 	if isDelayed {
 		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
 		if err != nil {
@@ -353,6 +363,19 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		SendWithResults:   sendWithResults,
 		NotDelayedResults: notDelayedResults,
 	}, nil
+}
+
+func (p *process) setBatchForTxs(ctx context.Context, txIDs []string) error {
+	batch, err := p.randomizer.Base64(transactionBatchLength)
+	if err != nil {
+		return fmt.Errorf("failed to generate random batch: %w", err)
+	}
+
+	err = p.knownTxRepo.SetBatchForKnownTxs(ctx, txIDs, batch)
+	if err != nil {
+		return fmt.Errorf("failed to set batch for known txs: %w", err)
+	}
+	return nil
 }
 
 func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string, beef *transaction.Beef) ([]wdk.SendWithResult, error) {

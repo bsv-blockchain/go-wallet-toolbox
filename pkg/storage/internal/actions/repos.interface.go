@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -43,7 +44,7 @@ type KnownTxRepo interface {
 	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
-	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus ...wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error)
+	FindKnownTxIDsByStatuses(ctx context.Context, limit int, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
 	GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error)
 	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error
 	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error)
@@ -52,6 +53,7 @@ type KnownTxRepo interface {
 	SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
+	SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error
 }
 
 type KeyValueRepo interface {

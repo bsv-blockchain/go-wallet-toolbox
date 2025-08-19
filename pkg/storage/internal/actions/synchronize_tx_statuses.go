@@ -92,7 +92,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 	}
 
 	// TODO: Use pagination (plus created_at older than now) strategy to process all the transactions that need synchronization
-	txsToSync, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
+	txsToSync, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync)
 	if err != nil {
 		return fmt.Errorf("knownTxRepo.FindTxIDsByStatuses failed: %w", err)
 	}
