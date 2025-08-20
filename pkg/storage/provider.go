@@ -367,11 +367,11 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 	return nil
 }
 
-// SendWaitingTransactions synchronizes the statuses of waiting transactions and returns an error if synchronization fails.
+// SendWaitingTransactions tries to broadcast transactions that are waiting to be sent 
 func (p *Provider) SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error {
 	err := p.actions.SendWaitingTransactions(ctx, agedLimit)
 	if err != nil {
-		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+		return fmt.Errorf("failed to send waiting transactions: %w", err)
 	}
 	return nil
 }

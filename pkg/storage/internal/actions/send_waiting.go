@@ -23,7 +23,7 @@ var (
 )
 
 func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error {
-	log := p.logger.With("action", "send waiting transactions").With("agedLimit", agedLimit.Seconds())
+	log := p.logger.With("action", "send waiting transactions").With("agedLimit", agedLimit.String())
 	log.InfoContext(ctx, "Attempting to send waiting transactions")
 
 	lockAcquired := p.sendWaitingLock.TryLock()
