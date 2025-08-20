@@ -88,7 +88,6 @@ func (bb *BackgroundBroadcaster) worker() {
 				return
 			}
 			if err := bb.broadcast(&item); err != nil {
-				// Enhanced logging with broadcasting error context
 				var broadcastErr *walletErrors.BroadcastingError
 				if errors.As(err, &broadcastErr) {
 					bb.logger.Error("Failed to broadcast transaction",

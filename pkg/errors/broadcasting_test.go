@@ -1,4 +1,3 @@
-// pkg/errors/broadcasting_test.go
 package errors_test
 
 import (
