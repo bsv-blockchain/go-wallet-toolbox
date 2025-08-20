@@ -12,7 +12,7 @@ require (
 	github.com/go-softwarelab/common v1.6.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/jarcoal/httpmock v1.4.0
-	github.com/mattn/go-sqlite3 v1.14.30
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.2
