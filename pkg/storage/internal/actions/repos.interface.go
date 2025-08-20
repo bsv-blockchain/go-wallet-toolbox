@@ -54,7 +54,6 @@ type KnownTxRepo interface {
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
 	SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error
-	FindKnownTxIDsByBatch(ctx context.Context, batch string) ([]string, error)
 }
 
 type KeyValueRepo interface {

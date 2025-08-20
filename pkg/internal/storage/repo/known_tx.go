@@ -205,23 +205,6 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 	}), nil
 }
 
-func (p *KnownTx) FindKnownTxIDsByBatch(ctx context.Context, batch string) ([]string, error) {
-	var rows []*models.KnownTx
-	err := p.db.WithContext(ctx).
-		Model(&models.KnownTx{}).
-		Select("tx_id").
-		Where("batch = ? ", batch).
-		Order("created_at ASC").
-		Find(&rows).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to find known tx ids by batch: %w", err)
-	}
-
-	return slices.Map(rows, func(row *models.KnownTx) string {
-		return row.TxID
-	}), nil
-}
-
 func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *entity.KnownTxAsMined) error {
 	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&models.KnownTx{}).

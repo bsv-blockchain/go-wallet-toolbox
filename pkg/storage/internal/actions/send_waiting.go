@@ -3,7 +3,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"log/slog"
@@ -33,11 +32,14 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 	}
 	defer p.sendWaitingLock.Unlock()
 
+	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
 	since := queryopts.Since{
 		Time: time.Now().Add(agedLimit),
 	}
-	var txsToBroadcast []*entity.KnownTxForStatusSync
-	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
+
+	var txIDsToBroadcast []string
+	batchesToBroadcast := make(map[string][]string)
+
 	for range sendWaitingMaxPages {
 		txIDsPage, err := p.knownTxRepo.FindKnownTxIDsByStatuses(
 			ctx,
@@ -53,29 +55,37 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 			break
 		}
 
-		txsToBroadcast = append(txsToBroadcast, txIDsPage...)
+		for _, item := range txIDsPage {
+			if item.Batch != nil {
+				batchesToBroadcast[*item.Batch] = append(batchesToBroadcast[*item.Batch], item.TxID)
+			} else {
+				txIDsToBroadcast = append(txIDsToBroadcast, item.TxID)
+			}
+		}
+
 		paging.Next()
 	}
 
-	if len(txsToBroadcast) == 0 {
+	if len(txIDsToBroadcast) == 0 && len(batchesToBroadcast) == 0 {
 		log.InfoContext(ctx, "No transactions found to send")
 		return nil
 	}
 
-	log.InfoContext(ctx, "Found transactions to send", "count", len(txsToBroadcast))
+	log.InfoContext(ctx, "Found transactions to send", "transactions count", len(txIDsToBroadcast), "batches count", len(batchesToBroadcast))
 
-	processedBatches := map[string]struct{}{}
+	for _, txID := range txIDsToBroadcast {
+		p.delayedBroadcastTransaction(ctx, log, []string{txID})
+	}
 
-	for _, transaction := range txsToBroadcast {
-		if transaction.Batch != nil {
-			if _, exists := processedBatches[*transaction.Batch]; exists {
-				log.DebugContext(ctx, "Skipping already processed batch", "batch", *transaction.Batch)
-				continue
-			}
-			processedBatches[*transaction.Batch] = struct{}{}
+	for batchName, txIDs := range batchesToBroadcast {
+		log.InfoContext(ctx, "Processing batch", "batchName", batchName, "txIDs", txIDs)
+
+		if len(txIDs) == 0 {
+			log.WarnContext(ctx, "No transactions found in batch", "batchName", batchName)
+			continue
 		}
 
-		p.delayedBroadcastTransaction(ctx, log, transaction)
+		p.delayedBroadcastTransaction(ctx, log, txIDs)
 	}
 
 	// TODO: Keep in mind that the transactions above max attempts will be reviewed in another "reviewStatus"
@@ -83,16 +93,10 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 	return nil
 }
 
-func (p *process) delayedBroadcastTransaction(ctx context.Context, log *slog.Logger, transaction *entity.KnownTxForStatusSync) {
-	log.InfoContext(ctx, "Attempting to broadcast transaction", "txID", transaction.TxID)
+func (p *process) delayedBroadcastTransaction(ctx context.Context, log *slog.Logger, txIDs []string) {
+	log.InfoContext(ctx, "Attempting to broadcast transactions", "txIDs", txIDs)
 
-	txIDs, err := p.batchedTxIDsForDelayedBroadcast(ctx, transaction)
-	if err != nil {
-		log.ErrorContext(ctx, "Failed to get batched tx IDs for delayed broadcast", "txID", transaction.TxID, "error", err)
-		return
-	}
-
-	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
+	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
 		log.ErrorContext(ctx, "Failed to increase known tx attempts", "txIDs", txIDs, "error", err)
 		return
 	}
@@ -107,7 +111,7 @@ func (p *process) delayedBroadcastTransaction(ctx context.Context, log *slog.Log
 	for _, res := range result.NotDelayedResults {
 		if res.Status != wdk.ReviewActionResultStatusSuccess {
 			success = false
-			log.WarnContext(ctx, "Problematic broadcast result", "txID", transaction.TxID, "status", res.Status)
+			log.WarnContext(ctx, "Problematic broadcast result", "txID", res.TxID, "status", res.Status)
 		}
 	}
 
@@ -116,16 +120,4 @@ func (p *process) delayedBroadcastTransaction(ctx context.Context, log *slog.Log
 	}
 
 	log.InfoContext(ctx, "Successfully broadcasted transactions", "txIDs", txIDs)
-}
-
-func (p *process) batchedTxIDsForDelayedBroadcast(ctx context.Context, transaction *entity.KnownTxForStatusSync) ([]string, error) {
-	if transaction.Batch == nil {
-		return []string{transaction.TxID}, nil
-	}
-	txIDs, err := p.knownTxRepo.FindKnownTxIDsByBatch(ctx, *transaction.Batch)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find known txs by batch %s: %w", *transaction.Batch, err)
-	}
-
-	return txIDs, nil
 }
