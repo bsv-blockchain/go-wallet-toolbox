@@ -1,34 +1,32 @@
 package wallet_test
 
 import (
-	"strings"
+	"context"
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAbortActionOriginatorValidation(t *testing.T) {
+	RunOriginatorValidationErrorTests(t,
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.AbortActionResult, error) {
+			args := fixtures.DefaultWalletAbortActionArgs()
+			return w.AbortAction(ctx, args, originator)
+		},
+	)
+}
 
 func TestWalletAbortActionArgsValidation(t *testing.T) {
 	errorTestCases := map[string]struct {
 		originator string
 		args       func() sdk.AbortActionArgs
 	}{
-		"too long originator": {
-			originator: strings.Repeat("a", 251),
-			args: func() sdk.AbortActionArgs {
-				return fixtures.DefaultWalletAbortActionArgs()
-			},
-		},
-		"too long originator part": {
-			originator: "a." + strings.Repeat("b", 64) + ".c",
-			args: func() sdk.AbortActionArgs {
-				return fixtures.DefaultWalletAbortActionArgs()
-			},
-		},
 		"empty reference": {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.AbortActionArgs {

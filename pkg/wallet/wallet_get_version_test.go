@@ -1,48 +1,25 @@
 package wallet_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestWalletGetVersionArgsValidation(t *testing.T) {
-	errorTestCases := map[string]struct {
-		originator string
-	}{
-		"too long originator": {
-			originator: strings.Repeat("a", 251),
+func TestGetVersionOriginatorValidation(t *testing.T) {
+	RunOriginatorValidationErrorTests(t,
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.GetVersionResult, error) {
+			return w.GetVersion(ctx, nil, originator)
 		},
-
-		"too long originator part": {
-			originator: "a." + strings.Repeat("b", 64) + ".c",
-		},
-
-		"empty part in originator": {
-			originator: "a..c",
-		},
-	}
-
-	for name, test := range errorTestCases {
-		t.Run(name, func(t *testing.T) {
-			// given:
-			given, then, cleanup := testabilities.New(t)
-			defer cleanup()
-			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
-
-			// when:
-			result, err := aliceWallet.GetVersion(t.Context(), nil, test.originator)
-
-			// then:
-			then.Result(result).HasError(err)
-			then.Storage().HadNoInteraction()
-		})
-	}
+	)
 }
 
 func (s *WalletTestSuite) TestWalletGetVersion() {
