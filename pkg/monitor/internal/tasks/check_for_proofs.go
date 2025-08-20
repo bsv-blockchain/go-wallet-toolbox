@@ -3,9 +3,6 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"log/slog"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 )
 
 type TransactionStatusesSynchronizer interface {
@@ -13,13 +10,11 @@ type TransactionStatusesSynchronizer interface {
 }
 
 type CheckForProofsTask struct {
-	logger  *slog.Logger
 	storage TransactionStatusesSynchronizer
 }
 
-func NewCheckForProofsTask(logger *slog.Logger, storage TransactionStatusesSynchronizer) TaskInterface {
+func NewCheckForProofsTask(storage TransactionStatusesSynchronizer) TaskInterface {
 	return &CheckForProofsTask{
-		logger:  logging.Child(logger, "check_for_proofs"),
 		storage: storage,
 	}
 }
