@@ -247,6 +247,135 @@ func TestNoSendSendWithScenario_SendWithNewTx(t *testing.T) {
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, thirdTxID).WithStatus(wdk.TxStatusUnproven)
 }
 
+func TestNoSendSendWithScenario_SendWithSeparatedNewTx(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// and:
+	const inputSatoshis = 99904
+
+	keyDeriver := testusers.Alice.KeyDeriver(t)
+	activeStorage := given.Provider().GORM()
+
+	given.
+		Action(activeStorage).
+		WithSatoshisToInternalize(inputSatoshis).
+		WithSatoshisToSend(1).
+		Processed()
+
+	// Step 1 - Process Action with IsNoSend flag set to true, empty noSendChange outpoints. Inputs will be allocated
+	// normally from spendable outputs (basket for change)
+	createActionArgs := fixtures.DefaultValidCreateActionArgs()
+	createActionArgs.Outputs[0].Satoshis = 1
+	createActionArgs.IsNoSend = true
+	createActionArgs.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(true))
+
+	firstCreateActionResult, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), createActionArgs)
+	require.NoError(t, err)
+	require.NotNil(t, firstCreateActionResult)
+	require.NotEmpty(t, firstCreateActionResult.NoSendChangeOutputVouts)
+
+	firstTx, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, firstCreateActionResult).Assemble()
+	require.NoError(t, err)
+	require.NotNil(t, firstTx)
+	require.NoError(t, firstTx.Sign())
+
+	firstTxID := firstTx.TxID().String()
+
+	firstProcessActionArgs := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		IsNoSend:  true,
+		Reference: to.Ptr(firstCreateActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(firstTxID)),
+		RawTx:     firstTx.Bytes(),
+	}
+
+	firstProcessActionResult, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), firstProcessActionArgs)
+	require.NoError(t, err)
+	require.NotNil(t, firstProcessActionResult)
+
+	// Step 2 - Create Action With NoSendChange from the previous create action result.
+	createActionArgs.Options.NoSendChange = slices.Map(firstCreateActionResult.NoSendChangeOutputVouts, func(vout int) wdk.OutPoint {
+		return wdk.OutPoint{TxID: firstTxID, Vout: uint32(vout)}
+	})
+
+	secondCreateActionResult, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), createActionArgs)
+	require.NoError(t, err)
+	require.NotNil(t, secondCreateActionResult)
+
+	secondTx, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, secondCreateActionResult).Assemble()
+	require.NoError(t, err)
+	require.NotNil(t, secondTx)
+	require.NoError(t, secondTx.Sign())
+
+	secondTxID := secondTx.TxID().String()
+	secondProcessActionArgs := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		IsNoSend:  true,
+		Reference: to.Ptr(secondCreateActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(secondTxID)),
+		RawTx:     secondTx.Bytes(),
+	}
+
+	secondProcessActionResult, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), secondProcessActionArgs)
+	require.NoError(t, err)
+	require.NotNil(t, secondProcessActionResult)
+
+	// Step 3
+	createActionArgs.Options.NoSendChange = nil // NOTE: In this scenario we don't use NoSendChange from previous txs, so UTXOs will originate from different transactions
+
+	createActionArgs.IsNewTx = true
+	createActionArgs.IsSendWith = true
+	createActionArgs.Options.SendWith = []primitives.HexString{
+		primitives.HexString(firstTxID),
+		primitives.HexString(secondTxID),
+	}
+
+	thirdCreateActionResult, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), createActionArgs)
+	require.NoError(t, err)
+	require.NotNil(t, thirdCreateActionResult)
+
+	thirdTx, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, thirdCreateActionResult).Assemble()
+	require.NoError(t, err)
+	require.NotNil(t, thirdTx)
+	require.NoError(t, thirdTx.Sign())
+
+	thirdTxID := thirdTx.TxID().String()
+
+	thirdProcessActionArgs := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		IsNoSend:  false,
+		Reference: to.Ptr(thirdCreateActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(thirdTxID)),
+		RawTx:     thirdTx.Bytes(),
+		SendWith: []primitives.HexString{
+			primitives.HexString(firstTxID),
+			primitives.HexString(secondTxID),
+		},
+		IsSendWith: true,
+	}
+
+	thirdProcessActionResult, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), thirdProcessActionArgs)
+	require.NoError(t, err)
+	require.NotNil(t, thirdProcessActionResult)
+
+	// NOTE: ServiceError is because only working broadcaster for unit tests is ARC which does not support sending BEEFs that have multiple subject transactions
+
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, firstTxID, wdk.ReviewActionResultStatusServiceError)
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, secondTxID, wdk.ReviewActionResultStatusServiceError)
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, thirdTxID, wdk.ReviewActionResultStatusServiceError)
+
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, firstTxID, wdk.SendWithResultStatusSending)
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, secondTxID, wdk.SendWithResultStatusSending)
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, thirdTxID, wdk.SendWithResultStatusSending)
+
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, firstTxID).WithStatus(wdk.TxStatusSending)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, secondTxID).WithStatus(wdk.TxStatusSending)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, thirdTxID).WithStatus(wdk.TxStatusSending)
+}
+
 func notDelayedResultsContainTx(t *testing.T, result []wdk.ReviewActionResult, txID string, status wdk.ReviewActionResultStatus) {
 	idx := stdslices.IndexFunc(result, func(i wdk.ReviewActionResult) bool {
 		return i.TxID == primitives.TXIDHexString(txID)
