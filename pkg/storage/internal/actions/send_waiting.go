@@ -97,11 +97,6 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 func (p *process) delayedBroadcastTransaction(ctx context.Context, log *slog.Logger, txIDs []string) {
 	log.InfoContext(ctx, "Attempting to broadcast transactions", "txIDs", txIDs)
 
-	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
-		log.ErrorContext(ctx, "Failed to increase known tx attempts", "txIDs", txIDs, "error", err)
-		return
-	}
-
 	result, err := p.broadcastTxs(ctx, txIDs, false)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to broadcast transaction", "txIDs", txIDs, "error", err)

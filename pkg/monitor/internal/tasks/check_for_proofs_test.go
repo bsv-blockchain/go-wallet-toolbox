@@ -10,6 +10,7 @@ import (
 )
 
 func TestSynchronizeTransactionStatuses(t *testing.T) {
+	t.Parallel()
 	// given:
 	given, then := testabilities.New(t)
 

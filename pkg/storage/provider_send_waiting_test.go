@@ -128,7 +128,7 @@ func TestSendWaitingTransactions_SeveralFailures(t *testing.T) {
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID).
 		WithStatus(wdk.ProvenTxStatusUnmined).
-		WithAttempts(tries + 1)
+		WithAttempts(tries + 2) // +2: one for the initial sending and one for the final successful send
 }
 
 func TestSendWaitingTransactions_ConcurrentCalls(t *testing.T) {
@@ -174,7 +174,7 @@ func TestSendWaitingTransactions_ConcurrentCalls(t *testing.T) {
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID).
 		WithStatus(wdk.ProvenTxStatusUnmined).
-		WithAttempts(1)
+		WithAttempts(2) // +1 for the initial sending and +1 for the final successful send
 
 	// NOTE: even though we called SendWaitingTransactions 100 times, the transaction was sent only once
 }

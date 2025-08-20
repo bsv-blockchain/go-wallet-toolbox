@@ -315,6 +315,10 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
+	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
+		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
+	}
+
 	if isDelayed {
 		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
 		if err != nil {

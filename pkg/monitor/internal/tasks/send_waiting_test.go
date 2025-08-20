@@ -11,6 +11,7 @@ import (
 )
 
 func TestSendWaitingMonitorTask(t *testing.T) {
+	t.Parallel()
 	// given:
 	given, then := testabilities.New(t)
 
@@ -37,6 +38,7 @@ func TestSendWaitingMonitorTask(t *testing.T) {
 }
 
 func TestSendWaitingMonitorTask_StartedImmediately(t *testing.T) {
+	t.Parallel()
 	// given:
 	given, then := testabilities.New(t)
 
@@ -60,6 +62,7 @@ func TestSendWaitingMonitorTask_StartedImmediately(t *testing.T) {
 }
 
 func TestSendWaitingMonitorTask_FirstRunWithZeroAgedLimit(t *testing.T) {
+	t.Parallel()
 	// given:
 	mockStorage := &testabilities.MockStorage{}
 	task := tasks.NewSendWaitingTask(mockStorage)
