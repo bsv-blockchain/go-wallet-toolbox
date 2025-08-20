@@ -89,7 +89,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 		p.delayedBroadcastTransaction(ctx, log, txIDs)
 	}
 
-	// TODO: Keep in mind that the transactions above max attempts will be reviewed in another "reviewStatus"
+	// TODO: Keep in mind that the transactions above max attempts will be reviewed in another "reviewStatus" periodic task.
 
 	return nil
 }

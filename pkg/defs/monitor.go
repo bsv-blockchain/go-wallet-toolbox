@@ -79,14 +79,14 @@ func (t *TasksConfig) all() iter.Seq2[MonitorTask, TaskConfig] {
 
 // EnabledTasks returns a map of enabled monitoring tasks and their corresponding intervals as time.Duration values.
 func (t *TasksConfig) EnabledTasks() map[MonitorTask]TaskConfig {
-	durations := make(map[MonitorTask]TaskConfig)
+	tasks := make(map[MonitorTask]TaskConfig)
 	for taskName, taskConfig := range t.all() {
 		if !taskConfig.Enabled {
 			continue
 		}
-		durations[taskName] = taskConfig
+		tasks[taskName] = taskConfig
 	}
-	return durations
+	return tasks
 }
 
 // Validate verifies each task name and configuration in the map, ensuring names are valid and intervals are non-zero.
@@ -120,9 +120,10 @@ func DefaultMonitorConfig() Monitor {
 				IntervalSeconds: must.ConvertToUInt((1 * time.Minute).Seconds()),
 			},
 			SendWaiting: TaskConfig{
-				Enabled: true,
 				// NOTE: Normally, background broadcaster should handle new transactions.
-				// NOTE: This task can be considered as a fallback if there are still waiting transactions
+				// NOTE: This task can be considered as a fallback if there are still waiting transactions.
+				// NOTE: StartImmediately is set to true to try broadcasting transactions that were in the queue when the app shut down.
+				Enabled: true,
 				IntervalSeconds:  must.ConvertToUInt((5 * time.Minute).Seconds()),
 				StartImmediately: true,
 			},
