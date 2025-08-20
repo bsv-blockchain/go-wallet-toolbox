@@ -80,6 +80,9 @@ func (b *Bitails) sendBroadcastRequest(ctx context.Context, rawHex string) ([]br
 		SetResult(&respArr).
 		Post(url)
 	if err != nil {
+		if r != nil {
+			b.logger.DebugContext(ctx, "broadcast request failed with response", "url", url, "error", err, "status_code", r.StatusCode(), "response", r.String())
+		}
 		return nil, fmt.Errorf("%s request failed: %w", ServiceName, err)
 	}
 	if r.StatusCode() != HTTPStatusOK && r.StatusCode() != HTTPStatusCreated {
