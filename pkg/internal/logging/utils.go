@@ -11,10 +11,14 @@ import (
 )
 
 const (
-	ServiceKey   = "service"
-	ErrorKey     = "error"
-	UserIDKey    = "userId"
-	ReferenceKey = "reference"
+	ServiceKey           = "service"
+	ErrorKey             = "error"
+	UserIDKey            = "userId"
+	ReferenceKey         = "reference"
+	TxIDKey              = "txID"
+	txIDsKey             = "txIDs"
+	OperationKey         = "operation"
+	ServiceErrorCountKey = "serviceErrorCount"
 )
 
 var strLevelToSlog = map[defs.LogLevel]slog.Level{
@@ -91,6 +95,25 @@ func UserID[ID int | *int](userID ID) slog.Attr {
 
 func Reference(ref string) slog.Attr {
 	return slog.String(ReferenceKey, ref)
+}
+
+func TxID(txID string) slog.Attr {
+	return slog.String(TxIDKey, txID)
+}
+
+func Operation(op defs.Operation) slog.Attr {
+	return slog.String(OperationKey, string(op))
+}
+
+func ServiceErrorCount(count int) slog.Attr {
+	return slog.Int(ServiceErrorCountKey, count)
+}
+
+func TxIDs(txIDs []string) slog.Attr {
+	if len(txIDs) == 0 {
+		return slog.String(txIDsKey, "<none>")
+	}
+	return slog.Any(txIDsKey, txIDs)
 }
 
 // DefaultIfNil returns the default logger if the given logger is nil.

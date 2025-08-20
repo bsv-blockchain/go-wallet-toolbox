@@ -10,6 +10,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -306,7 +307,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	if isDelayed {
 		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process delayed transactions: %w", err)
+			return nil, broadcastError.NewBroadcastingError(err, defs.DelayedBroadcast).
+				WithPrimaryTxID(readyToSendTxIDs)
 		}
 
 		sendWithResults = append(sendWithResults, resultsForDelayedTxs...)
@@ -318,7 +320,10 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to post BEEF: %w", err)
+		return nil, broadcastError.NewBroadcastingError(err, defs.ImmediateBroadcast).
+			WithPrimaryTxID(readyToSendTxIDs).
+			WithPostBEEFResults(results).
+			WithBEEFData(p.logger, beef, nil)
 	}
 
 	var (
@@ -341,7 +346,14 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				readyToSendTxIDs,
 			)
 			if err != nil {
-				return nil, err
+				processResult := &wdk.ProcessActionResult{
+					SendWithResults:   sendWithResults,
+					NotDelayedResults: notDelayedResults,
+				}
+				return nil, broadcastError.NewBroadcastingError(err, defs.ImmediateBroadcast).
+					WithContext(processResult, broadcastedTxID, "").
+					WithPostBEEFResults(results).
+					WithBEEFData(p.logger, beef, nil)
 			}
 		}
 
@@ -565,14 +577,22 @@ func (p *process) StopBackgroundBroadcaster() {
 func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error {
 	results, err := p.services.PostBEEF(ctx, beef, txIDs)
 	if err != nil {
-		return fmt.Errorf("failed to post BEEF in background: %w", err)
+		return broadcastError.NewBroadcastingError(err, defs.BackgroundBroadcast).
+			WithPostBEEFResults(results).
+			WithBEEFData(p.logger, beef, nil)
 	}
 
 	aggregated := results.Aggregated(txIDs)
 	for _, broadcastedTxID := range txIDs {
 		aggBroadcastResult, ok := aggregated[broadcastedTxID]
 		if !ok {
-			return fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
+			return broadcastError.NewBroadcastingError(
+				fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID),
+				defs.BackgroundBroadcast,
+			).
+				WithTxID(broadcastedTxID).
+				WithPostBEEFResults(results).
+				WithBEEFData(p.logger, beef, nil)
 		}
 
 		sendWithResult, _, err := p.updateSingleTx(
@@ -584,7 +604,11 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 			txIDs,
 		)
 		if err != nil {
-			return fmt.Errorf("failed to update single tx after background broadcast: %w", err)
+			return broadcastError.NewBroadcastingError(fmt.Errorf("failed to update single tx after background broadcast: %w", err), defs.BackgroundBroadcast).
+				WithTxID(broadcastedTxID).
+				WithSendWithResults([]wdk.SendWithResult{sendWithResult}).
+				WithPostBEEFResults(results).
+				WithBEEFData(p.logger, beef, nil)
 		}
 
 		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", sendWithResult.Status)

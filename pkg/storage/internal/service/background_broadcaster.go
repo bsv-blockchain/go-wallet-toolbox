@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	walletErrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 )
 
@@ -85,9 +88,22 @@ func (bb *BackgroundBroadcaster) worker() {
 				return
 			}
 			if err := bb.broadcast(&item); err != nil {
-				bb.logger.Error("Failed to broadcast transaction", "error", err, "txIDs", item.txIDs)
+				// Enhanced logging with broadcasting error context
+				var broadcastErr *walletErrors.BroadcastingError
+				if errors.As(err, &broadcastErr) {
+					bb.logger.Error("Failed to broadcast transaction",
+						logging.Error(err),
+						logging.TxIDs(item.txIDs),
+						logging.TxID(broadcastErr.TxID),
+						logging.Reference(broadcastErr.Reference),
+						logging.Operation(broadcastErr.Operation),
+						logging.ServiceErrorCount(len(broadcastErr.ServiceErrors)),
+					)
+				} else {
+					bb.logger.Error("Failed to broadcast transaction", "error", err, "txIDs", item.txIDs)
+				}
 			} else {
-				bb.logger.Info("Successfully broadcasted transaction", "txIDs", item.txIDs)
+				bb.logger.Info("Successfully broadcasted transaction", logging.TxIDs(item.txIDs))
 			}
 		}
 	}
@@ -96,13 +112,20 @@ func (bb *BackgroundBroadcaster) worker() {
 func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("recovered from panic during broadcast: %v", r)
+			panicErr := fmt.Errorf("recovered from panic during broadcast: %v", r)
+			broadcastErr := walletErrors.NewBroadcastingError(panicErr, defs.BackgroundBroadcast).WithPrimaryTxID(item.txIDs)
+			err = broadcastErr
 		}
 	}()
 
 	err = bb.broadcastHandler.BackgroundBroadcast(bb.ctx, item.beef, item.txIDs)
 	if err != nil {
-		return fmt.Errorf("failed to broadcast beef: %w", err)
+		var broadcastErr *walletErrors.BroadcastingError
+		if !errors.As(err, &broadcastErr) {
+			broadcastErr = walletErrors.NewBroadcastingError(err, defs.BackgroundBroadcast).
+				WithPrimaryTxID(item.txIDs)
+		}
+		return broadcastErr
 	}
 
 	return nil

@@ -6,6 +6,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	walletErrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -91,17 +92,27 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process created action: %w", err)
+		enhancedErr := walletErrors.EnhanceWithCreateActionContext(
+			err,
+			txID.String(),
+			createActionResult.Reference,
+			tx.Bytes(),
+			a.wdkArgs.Options.NoSendChange,
+			processActionResult,
+		)
+		return nil, fmt.Errorf("failed to process created action: %w", enhancedErr)
 	}
 
 	err = a.validateProcessActionResult(processActionResult)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("validation failed for createAction (txID: %s, reference: %s): %w",
+			txID.String(), createActionResult.Reference, err)
 	}
 
 	result, err := mapping.MapCreateActionResultFromStorageResults(txID, tx, createActionResult, processActionResult, a.wdkArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
+		return nil, fmt.Errorf("failed to build result after processing created action (txID: %s, reference: %s): %w",
+			txID.String(), createActionResult.Reference, err)
 	}
 
 	return result, nil
