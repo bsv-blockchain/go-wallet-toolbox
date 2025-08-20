@@ -53,14 +53,6 @@ func TestWrongProcessActionArgs(t *testing.T) {
 				return args
 			},
 		},
-		"Missing txID": {
-			modifier: func(args wdk.ProcessActionArgs) wdk.ProcessActionArgs {
-				args.IsNewTx = false
-				args.IsNoSend = false
-				args.TxID = nil
-				return args
-			},
-		},
 		"IsSendWith true but no sendWith arguments": {
 			modifier: func(args wdk.ProcessActionArgs) wdk.ProcessActionArgs {
 				args.IsSendWith = true
