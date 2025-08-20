@@ -123,7 +123,7 @@ func DefaultMonitorConfig() Monitor {
 				// NOTE: Normally, background broadcaster should handle new transactions.
 				// NOTE: This task can be considered as a fallback if there are still waiting transactions.
 				// NOTE: StartImmediately is set to true to try broadcasting transactions that were in the queue when the app shut down.
-				Enabled: true,
+				Enabled:          true,
 				IntervalSeconds:  must.ConvertToUInt((5 * time.Minute).Seconds()),
 				StartImmediately: true,
 			},
