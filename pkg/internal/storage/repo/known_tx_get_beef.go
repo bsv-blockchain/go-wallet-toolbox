@@ -18,28 +18,14 @@ import (
 func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 
-	if options.KnownTxIDsSet != nil {
-		if _, ok := options.KnownTxIDsSet[txID]; ok {
-			beef := transaction.NewBeefV2()
-			h, err := chainhash.NewHashFromHex(txID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse txid %s: %w", txID, err)
-			}
-			beef.MergeTxidOnly(h)
-			return beef, nil
+	if options.IsKnownTxID(txID) {
+		beef := transaction.NewBeefV2()
+		h, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse txid %s: %w", txID, err)
 		}
-	} else {
-		for _, known := range options.KnownTxIDs {
-			if known == txID {
-				beef := transaction.NewBeefV2()
-				h, err := chainhash.NewHashFromHex(txID)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse txid %s: %w", txID, err)
-				}
-				beef.MergeTxidOnly(h)
-				return beef, nil
-			}
-		}
+		beef.MergeTxidOnly(h)
+		return beef, nil
 	}
 
 	beef := transaction.NewBeefV2()
@@ -60,18 +46,7 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], o
 			continue
 		}
 
-		known := false
-		if options.KnownTxIDsSet != nil {
-			_, known = options.KnownTxIDsSet[txid]
-		} else {
-			for _, k := range options.KnownTxIDs {
-				if k == txid {
-					known = true
-					break
-				}
-			}
-		}
-		if known {
+		if options.IsKnownTxID(txid) {
 			h, err := chainhash.NewHashFromHex(txid)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse txid %s: %w", txid, err)
@@ -97,6 +72,15 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 ) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
+	}
+
+	if options.TrustsSelfAsKnown() {
+		h, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
+		}
+		mergeToBeef.MergeTxidOnly(h)
+		return nil
 	}
 
 	var model models.KnownTx
@@ -141,17 +125,9 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	}
 
 	if model.HasMerklePath() {
-		if options.TrustSelf == "known" {
-			h, err := chainhash.NewHashFromHex(txID)
-			if err != nil {
-				return fmt.Errorf("failed to parse txid %s: %w", txID, err)
-			}
-			mergeToBeef.MergeTxidOnly(h)
-			return nil
-		}
-
 		if options.MinProofLevel > 0 && depth < options.MinProofLevel {
 			// Intentionally skip attaching the merkle proof at this depth
+			return nil
 		} else {
 			merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
 			if err != nil {
@@ -177,15 +153,6 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 	}
 
-	if options.TrustSelf == "known" {
-		h, err := chainhash.NewHashFromHex(txID)
-		if err != nil {
-			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
-		}
-		mergeToBeef.MergeTxidOnly(h)
-		return nil
-	}
-
 	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
@@ -209,17 +176,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	for _, input := range tx.Inputs {
 		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
-			knownInput := false
-			if options.KnownTxIDsSet != nil {
-				_, knownInput = options.KnownTxIDsSet[input.SourceTXID.String()]
-			} else {
-				for _, k := range options.KnownTxIDs {
-					if k == input.SourceTXID.String() {
-						knownInput = true
-						break
-					}
-				}
-			}
+			knownInput := options.IsKnownTxID(input.SourceTXID.String())
 			if knownInput {
 				mergeToBeef.MergeTxidOnly(input.SourceTXID)
 				continue

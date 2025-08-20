@@ -35,7 +35,10 @@ func WithTxGetterFcn(txGetterFcn TxGetterFcn) GetBEEFOption {
 
 func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
-		opts.KnownTxIDs = knownTxIDs
+		opts.KnownTxIDsSet = make(map[string]struct{})
+		for _, txID := range knownTxIDs {
+			opts.KnownTxIDsSet[txID] = struct{}{}
+		}
 	}
 }
 
@@ -55,4 +58,16 @@ func WithMinProofLevel(level int) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.MinProofLevel = level
 	}
+}
+
+func (ko *GetBEEFOptions) IsKnownTxID(txID string) bool {
+	if ko.KnownTxIDsSet == nil {
+		return false
+	}
+	_, ok := ko.KnownTxIDsSet[txID]
+	return ok
+}
+
+func (ko GetBEEFOptions) TrustsSelfAsKnown() bool {
+	return ko.TrustSelf == "known"
 }
