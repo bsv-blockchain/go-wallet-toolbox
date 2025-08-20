@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/testabilities"
 	"github.com/stretchr/testify/require"
 )
@@ -56,4 +57,26 @@ func TestSendWaitingMonitorTask_StartedImmediately(t *testing.T) {
 		WaitForTaskExecution(100 * time.Millisecond).
 		ExecutedInTime().
 		Called()
+}
+
+func TestSendWaitingMonitorTask_FirstRunWithZeroAgedLimit(t *testing.T) {
+	// given:
+	mockStorage := &testabilities.MockStorage{}
+	task := tasks.NewSendWaitingTask(mockStorage)
+
+	// when:
+	err := task.Run(t.Context())
+	require.NoError(t, err, "task should run without error")
+
+	// then:
+	require.Equal(t, 1, mockStorage.SendWaitingTransactionsCalled)
+	require.Equal(t, time.Duration(0), mockStorage.SendWaitingLastAgedLimit)
+
+	// when:
+	err = task.Run(t.Context())
+
+	// then:
+	require.NoError(t, err, "task should run without error on subsequent call")
+	require.Equal(t, 2, mockStorage.SendWaitingTransactionsCalled)
+	require.NotZero(t, mockStorage.SendWaitingLastAgedLimit)
 }

@@ -17,7 +17,8 @@ type SendWaitingTask struct {
 
 func NewSendWaitingTask(storage WaitingTransactionsSender) TaskInterface {
 	return &SendWaitingTask{
-		storage: storage,
+		storage:  storage,
+		firstRun: true,
 	}
 }
 
