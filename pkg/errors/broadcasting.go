@@ -6,8 +6,27 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
+
+// BroadcastOperation defines the type for various operations in the wallet system.
+type BroadcastOperation string
+
+const (
+	// BackgroundBroadcast represents a background broadcasting operation.
+	BackgroundBroadcast BroadcastOperation = "backgroundBroadcast"
+
+	// ImmediateBroadcast represents an immediate broadcasting operation.
+	ImmediateBroadcast BroadcastOperation = "immediateBroadcast"
+
+	// DelayedBroadcast represents a delayed broadcasting operation.
+	DelayedBroadcast BroadcastOperation = "delayedBroadcast"
+
+	// CreateAction represents an action to create a new wallet action.
+	CreateAction BroadcastOperation = "createAction"
+
+	// ProcessAction represents an action to process an existing wallet action.
+	ProcessAction BroadcastOperation = "processAction"
 )
 
 // BroadcastingError represents an error that occurred during transaction broadcasting
@@ -18,7 +37,7 @@ type BroadcastingError struct {
 	SendWithResults []wdk.SendWithResult
 	ReviewResults   []wdk.ReviewActionResult
 	ServiceErrors   map[string]error
-	Operation       defs.Operation
+	Operation       BroadcastOperation
 	Tx              []byte
 	NoSendChange    []wdk.OutPoint
 }
@@ -66,14 +85,14 @@ func EnhanceWithCreateActionContext(
 	var broadcastErr *BroadcastingError
 	if errors.As(err, &broadcastErr) {
 		return broadcastErr.
-			WithOperation(defs.CreateAction).
+			WithOperation(CreateAction).
 			WithReference(reference).
 			WithTxIDIfEmpty(txID).
 			WithProcessActionContext(processResult, txID, reference).
 			WithTransactionData(tx, noSendChange)
 	}
 
-	return NewBroadcastingError(err, defs.CreateAction).
+	return NewBroadcastingError(err, CreateAction).
 		WithTxID(txID).
 		WithReference(reference).
 		WithTransactionData(tx, noSendChange).
@@ -114,7 +133,7 @@ func (e *BroadcastingError) WithTxIDIfEmpty(txID string) *BroadcastingError {
 }
 
 // WithOperation sets the operation context for the error
-func (e *BroadcastingError) WithOperation(operation defs.Operation) *BroadcastingError {
+func (e *BroadcastingError) WithOperation(operation BroadcastOperation) *BroadcastingError {
 	e.Operation = operation
 	return e
 }
@@ -186,7 +205,7 @@ func (e *BroadcastingError) WithServiceErrors(serviceErrors map[string]error) *B
 }
 
 // NewBroadcastingError creates a new broadcasting error with the given underlying error
-func NewBroadcastingError(err error, operation defs.Operation) *BroadcastingError {
+func NewBroadcastingError(err error, operation BroadcastOperation) *BroadcastingError {
 	return &BroadcastingError{
 		Err:       err,
 		Operation: operation,

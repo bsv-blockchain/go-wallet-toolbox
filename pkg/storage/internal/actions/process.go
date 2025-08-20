@@ -307,7 +307,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	if isDelayed {
 		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
 		if err != nil {
-			return nil, broadcastError.NewBroadcastingError(err, defs.DelayedBroadcast).
+			return nil, broadcastError.NewBroadcastingError(err, broadcastError.DelayedBroadcast).
 				WithPrimaryTxID(readyToSendTxIDs)
 		}
 
@@ -320,7 +320,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
-		return nil, broadcastError.NewBroadcastingError(err, defs.ImmediateBroadcast).
+		return nil, broadcastError.NewBroadcastingError(err, broadcastError.ImmediateBroadcast).
 			WithPrimaryTxID(readyToSendTxIDs).
 			WithPostBEEFResults(results).
 			WithBEEFData(p.logger, beef, nil)
@@ -350,7 +350,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 					SendWithResults:   sendWithResults,
 					NotDelayedResults: notDelayedResults,
 				}
-				return nil, broadcastError.NewBroadcastingError(err, defs.ImmediateBroadcast).
+				return nil, broadcastError.NewBroadcastingError(err, broadcastError.ImmediateBroadcast).
 					WithContext(processResult, broadcastedTxID, "").
 					WithPostBEEFResults(results).
 					WithBEEFData(p.logger, beef, nil)
@@ -577,7 +577,7 @@ func (p *process) StopBackgroundBroadcaster() {
 func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error {
 	results, err := p.services.PostBEEF(ctx, beef, txIDs)
 	if err != nil {
-		return broadcastError.NewBroadcastingError(err, defs.BackgroundBroadcast).
+		return broadcastError.NewBroadcastingError(err, broadcastError.BackgroundBroadcast).
 			WithPostBEEFResults(results).
 			WithBEEFData(p.logger, beef, nil)
 	}
@@ -588,7 +588,7 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 		if !ok {
 			return broadcastError.NewBroadcastingError(
 				fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID),
-				defs.BackgroundBroadcast,
+				broadcastError.BackgroundBroadcast,
 			).
 				WithTxID(broadcastedTxID).
 				WithPostBEEFResults(results).
@@ -604,7 +604,7 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 			txIDs,
 		)
 		if err != nil {
-			return broadcastError.NewBroadcastingError(fmt.Errorf("failed to update single tx after background broadcast: %w", err), defs.BackgroundBroadcast).
+			return broadcastError.NewBroadcastingError(fmt.Errorf("failed to update single tx after background broadcast: %w", err), broadcastError.BackgroundBroadcast).
 				WithTxID(broadcastedTxID).
 				WithSendWithResults([]wdk.SendWithResult{sendWithResult}).
 				WithPostBEEFResults(results).
