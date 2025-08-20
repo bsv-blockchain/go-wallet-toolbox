@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	stdslices "slices"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
@@ -14,20 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProcessAction_SendFlagFalse_SendWithSlice_IncludesTwoTransactions(t *testing.T) {
+func TestNoSendSendWithScenario_SendWithoutNewTx(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
 	// and:
-	const inputSatoshish = 99904
+	const inputSatoshis = 99904
 
 	keyDeriver := testusers.Alice.KeyDeriver(t)
 	activeStorage := given.Provider().GORM()
 
 	given.
 		Action(activeStorage).
-		WithSatoshisToInternalize(inputSatoshish).
+		WithSatoshisToInternalize(inputSatoshis).
 		WithSatoshisToSend(1).
 		Processed()
 
@@ -102,25 +103,32 @@ func TestProcessAction_SendFlagFalse_SendWithSlice_IncludesTwoTransactions(t *te
 	require.NoError(t, err)
 	require.NotNil(t, thirdProcessActionResult)
 
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, firstTxID, wdk.ReviewActionResultStatusSuccess)
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, secondTxID, wdk.ReviewActionResultStatusSuccess)
+
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, firstTxID, wdk.SendWithResultStatusUnproven)
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, secondTxID, wdk.SendWithResultStatusUnproven)
+
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, firstTxID).WithStatus(wdk.TxStatusUnproven)
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, secondTxID).WithStatus(wdk.TxStatusUnproven)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, secondTxID).WithStatus(wdk.TxStatusUnproven)
 }
 
-func TestProcessAction_NegativePath(t *testing.T) { // TODO: Temp name for the test.
+func TestNoSendSendWithScenario_SendWithNewTx(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
 	// and:
-	const inputSatoshish = 99904
+	const inputSatoshis = 99904
 
 	keyDeriver := testusers.Alice.KeyDeriver(t)
 	activeStorage := given.Provider().GORM()
 
 	given.
 		Action(activeStorage).
-		WithSatoshisToInternalize(inputSatoshish).
+		WithSatoshisToInternalize(inputSatoshis).
 		WithSatoshisToSend(1).
 		Processed()
 
@@ -201,7 +209,7 @@ func TestProcessAction_NegativePath(t *testing.T) { // TODO: Temp name for the t
 	require.NoError(t, err)
 	require.NotNil(t, thirdCreateActionResult)
 
-	thirdTx, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, secondCreateActionResult).Assemble()
+	thirdTx, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, thirdCreateActionResult).Assemble()
 	require.NoError(t, err)
 	require.NotNil(t, thirdTx)
 	require.NoError(t, thirdTx.Sign())
@@ -225,7 +233,34 @@ func TestProcessAction_NegativePath(t *testing.T) { // TODO: Temp name for the t
 	require.NoError(t, err)
 	require.NotNil(t, thirdProcessActionResult)
 
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, firstTxID, wdk.ReviewActionResultStatusSuccess)
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, secondTxID, wdk.ReviewActionResultStatusSuccess)
+	notDelayedResultsContainTx(t, thirdProcessActionResult.NotDelayedResults, thirdTxID, wdk.ReviewActionResultStatusSuccess)
+
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, firstTxID, wdk.SendWithResultStatusUnproven)
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, secondTxID, wdk.SendWithResultStatusUnproven)
+	sendWithResultContainTx(t, thirdProcessActionResult.SendWithResults, thirdTxID, wdk.SendWithResultStatusUnproven)
+
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, firstTxID).WithStatus(wdk.TxStatusUnproven)
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, secondTxID).WithStatus(wdk.TxStatusUnproven)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, thirdTxID).WithStatus(wdk.TxStatusUnproven)
+}
+
+func notDelayedResultsContainTx(t *testing.T, result []wdk.ReviewActionResult, txID string, status wdk.ReviewActionResultStatus) {
+	idx := stdslices.IndexFunc(result, func(i wdk.ReviewActionResult) bool {
+		return i.TxID == primitives.TXIDHexString(txID)
+	})
+
+	require.GreaterOrEqual(t, idx, 0, "Expected to find txID %s in not delayed results", txID)
+	require.Equal(t, status, result[idx].Status, "Expected status for txID %s to be %s, got %s", txID, status, result[idx].Status)
+}
+
+func sendWithResultContainTx(t *testing.T, result []wdk.SendWithResult, txID string, status wdk.SendWithResultStatus) {
+	idx := stdslices.IndexFunc(result, func(i wdk.SendWithResult) bool {
+		return i.TxID == primitives.TXIDHexString(txID)
+	})
+
+	require.GreaterOrEqual(t, idx, 0, "Expected to find txID %s in send with results", txID)
+	require.Equal(t, status, result[idx].Status, "Expected status for txID %s to be %s, got %s", txID, status, result[idx].Status)
 }
