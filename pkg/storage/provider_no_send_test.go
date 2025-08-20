@@ -203,8 +203,8 @@ func TestProcessAction_NegativePath(t *testing.T) { // TODO: Temp name for the t
 
 	thirdTx, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, secondCreateActionResult).Assemble()
 	require.NoError(t, err)
-	require.NotNil(t, secondTx)
-	require.NoError(t, secondTx.Sign())
+	require.NotNil(t, thirdTx)
+	require.NoError(t, thirdTx.Sign())
 
 	thirdTxID := thirdTx.TxID().String()
 
@@ -213,7 +213,7 @@ func TestProcessAction_NegativePath(t *testing.T) { // TODO: Temp name for the t
 		IsNoSend:  false,
 		Reference: to.Ptr(thirdCreateActionResult.Reference),
 		TxID:      to.Ptr(primitives.TXIDHexString(thirdTxID)),
-		RawTx:     secondTx.Bytes(),
+		RawTx:     thirdTx.Bytes(),
 		SendWith: []primitives.HexString{
 			primitives.HexString(firstTxID),
 			primitives.HexString(secondTxID),
@@ -222,6 +222,10 @@ func TestProcessAction_NegativePath(t *testing.T) { // TODO: Temp name for the t
 	}
 
 	thirdProcessActionResult, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), thirdProcessActionArgs)
-	require.Error(t, err)
-	require.Nil(t, thirdProcessActionResult)
+	require.NoError(t, err)
+	require.NotNil(t, thirdProcessActionResult)
+
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, firstTxID).WithStatus(wdk.TxStatusUnproven)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, secondTxID).WithStatus(wdk.TxStatusUnproven)
 }
