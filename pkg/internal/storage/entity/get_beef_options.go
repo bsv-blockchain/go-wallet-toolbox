@@ -42,12 +42,6 @@ func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
 	}
 }
 
-func WithKnownTxIDsLookup(knownSet map[string]struct{}) GetBEEFOption {
-	return func(opts *GetBEEFOptions) {
-		opts.KnownTxIDsSet = knownSet
-	}
-}
-
 func WithTrustSelf(trust wallet.TrustSelf) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.TrustSelf = trust
@@ -68,6 +62,6 @@ func (ko *GetBEEFOptions) IsKnownTxID(txID string) bool {
 	return ok
 }
 
-func (ko GetBEEFOptions) TrustsSelfAsKnown() bool {
-	return ko.TrustSelf == "known"
+func (ko *GetBEEFOptions) TrustsSelfAsKnown() bool {
+	return ko.TrustSelf == wallet.TrustSelfKnown
 }

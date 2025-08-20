@@ -39,11 +39,11 @@ func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageG
 		return g.beefForKnownID(txID)
 	}
 
-	serviceFetchedTransactions := make(map[string]rawTxWithMerklePath)
-	getBeefOptions := g.prepareOptions(options, serviceFetchedTransactions)
+	serviceFetchedMinedTxs := make(map[string]rawTxWithMerklePath)
+	getBeefOptions := g.prepareOptions(options, serviceFetchedMinedTxs)
 
 	if !options.IgnoreStorage {
-		return g.getFromStorage(ctx, txID, options, getBeefOptions, serviceFetchedTransactions)
+		return g.getFromStorage(ctx, txID, options, getBeefOptions, serviceFetchedMinedTxs)
 	}
 
 	if !options.IgnoreServices {
@@ -70,15 +70,9 @@ func (g *getBeef) prepareOptions(options wdk.StorageGetBeefOptions, serviceFetch
 		txGetter := g.makeTxGetter(serviceFetchedTransactions)
 		getBeefOptions = append(getBeefOptions, entity.WithTxGetterFcn(txGetter))
 	}
-
 	if len(options.KnownTxIDs) > 0 {
-		knownSet := make(map[string]struct{}, len(options.KnownTxIDs))
-		for _, id := range options.KnownTxIDs {
-			knownSet[id] = struct{}{}
-		}
-		getBeefOptions = append(getBeefOptions, entity.WithKnownTxIDsLookup(knownSet))
+		getBeefOptions = append(getBeefOptions, entity.WithKnownTxIDs(options.KnownTxIDs...))
 	}
-
 	if options.TrustSelf != "" {
 		getBeefOptions = append(getBeefOptions, entity.WithTrustSelf(options.TrustSelf))
 	}
@@ -89,7 +83,7 @@ func (g *getBeef) prepareOptions(options wdk.StorageGetBeefOptions, serviceFetch
 	return getBeefOptions
 }
 
-func (g *getBeef) makeTxGetter(serviceFetchedTransactions map[string]rawTxWithMerklePath) entity.TxGetterFcn {
+func (g *getBeef) makeTxGetter(serviceFetchedMinedTxs map[string]rawTxWithMerklePath) entity.TxGetterFcn {
 	return func(ctx context.Context, txID string) (rawTx []byte, merklePath *transaction.MerklePath, err error) {
 		rawTxResult, err := g.services.RawTx(txID)
 		if err != nil {
@@ -101,11 +95,15 @@ func (g *getBeef) makeTxGetter(serviceFetchedTransactions map[string]rawTxWithMe
 		}
 
 		merklePathResult, err := g.services.MerklePath(ctx, txID)
-		if err != nil && !errors.Is(err, wdk.NotFoundError) {
+		if errors.Is(err, wdk.NotFoundError) {
+			return rawTxResult.RawTx, nil, nil
+		}
+
+		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get merkle path for txID %s: %w", txID, err)
 		}
 
-		serviceFetchedTransactions[txID] = rawTxWithMerklePath{
+		serviceFetchedMinedTxs[txID] = rawTxWithMerklePath{
 			rawTx:      rawTxResult.RawTx,
 			merklePath: merklePathResult.MerklePath,
 			header:     merklePathResult.BlockHeader,
@@ -128,8 +126,8 @@ func (g *getBeef) getFromStorage(
 	}
 
 	if !options.IgnoreNewProven {
-		for id, fetched := range serviceFetchedTransactions {
-			if err := g.persistNewProven(ctx, id, fetched); err != nil {
+		for fetchedTxID, fetched := range serviceFetchedTransactions {
+			if err := g.persistNewProven(ctx, txID, fetchedTxID, fetched); err != nil {
 				return nil, err
 			}
 		}
@@ -138,35 +136,36 @@ func (g *getBeef) getFromStorage(
 	return beef, nil
 }
 
-func (g *getBeef) persistNewProven(ctx context.Context, id string, fetched rawTxWithMerklePath) error {
+func (g *getBeef) persistNewProven(ctx context.Context, subjectTxID, txID string, fetched rawTxWithMerklePath) error {
 	if fetched.merklePath == nil || fetched.header == nil || len(fetched.rawTx) == 0 {
 		return nil
 	}
 
 	emptyBeef, err := transaction.NewBeefV2().Bytes()
 	if err != nil {
-		return fmt.Errorf("failed to serialize empty beef for transaction %s: %w", id, err)
+		return fmt.Errorf("failed to serialize empty beef for transaction %s: %w", txID, err)
 	}
+
 	if err := g.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
-		TxID:      id,
+		TxID:      txID,
 		RawTx:     fetched.rawTx,
 		InputBeef: emptyBeef,
 		Status:    wdk.ProvenTxStatusCompleted,
-	}, history.NewBuilder().GetMerklePathSuccess("services")); err != nil {
-		g.logger.Error("failed to upsert known transaction", "txID", id, "error", err)
-		return fmt.Errorf("failed to upsert known transaction %s: %w", id, err)
+	}, history.NewBuilder().ServiceFetchedWhileGettingBeef(subjectTxID)); err != nil {
+		g.logger.Error("failed to upsert known transaction", "txID", txID, "error", err)
+		return fmt.Errorf("failed to upsert known transaction %s: %w", txID, err)
 	}
 
 	merklePathBytes := fetched.merklePath.Bytes()
 	if err := g.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
-		TxID:        id,
+		TxID:        txID,
 		BlockHeight: fetched.header.Height,
 		MerklePath:  merklePathBytes,
 		MerkleRoot:  fetched.header.MerkleRoot,
 		BlockHash:   fetched.header.Hash,
 		Notes:       []history.Builder{history.NewBuilder().GetMerklePathSuccess("services")},
 	}); err != nil {
-		g.logger.Error("failed to update known tx as mined", slog.String("txID", id), slog.Any("error", err))
+		g.logger.Error("failed to update known tx as mined", slog.String("txID", txID), slog.Any("error", err))
 	}
 
 	return nil

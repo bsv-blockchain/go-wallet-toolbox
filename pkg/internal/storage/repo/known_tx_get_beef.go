@@ -17,18 +17,8 @@ import (
 
 func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
-
-	if options.IsKnownTxID(txID) {
-		beef := transaction.NewBeefV2()
-		h, err := chainhash.NewHashFromHex(txID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse txid %s: %w", txID, err)
-		}
-		beef.MergeTxidOnly(h)
-		return beef, nil
-	}
-
 	beef := transaction.NewBeefV2()
+
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
@@ -43,15 +33,6 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], o
 
 	for txid := range txids {
 		if beef.FindTransaction(txid) != nil {
-			continue
-		}
-
-		if options.IsKnownTxID(txid) {
-			h, err := chainhash.NewHashFromHex(txid)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse txid %s: %w", txid, err)
-			}
-			beef.MergeTxidOnly(h)
 			continue
 		}
 
@@ -74,10 +55,10 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
 	}
 
-	if options.TrustsSelfAsKnown() {
+	if options.IsKnownTxID(txID) {
 		h, err := chainhash.NewHashFromHex(txID)
 		if err != nil {
-			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
+			return fmt.Errorf("failed to parse string txID Hex to chainhash %s: %w", txID, err)
 		}
 		mergeToBeef.MergeTxidOnly(h)
 		return nil
@@ -113,6 +94,13 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 	} else if err != nil {
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
+	} else if options.TrustsSelfAsKnown() {
+		txIDHash, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
+		}
+		mergeToBeef.MergeTxidOnly(txIDHash)
+		return nil
 	}
 
 	if model.RawTx == nil || model.InputBeef == nil {
@@ -124,27 +112,23 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
 	}
 
-	if model.HasMerklePath() {
-		if options.MinProofLevel > 0 && depth < options.MinProofLevel {
-			// Intentionally skip attaching the merkle proof at this depth
-			return nil
-		} else {
-			merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
-			if err != nil {
-				return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
-			}
-			err = tx.AddMerkleProof(merklePath)
-			if err != nil {
-				return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
-			}
-
-			_, err = mergeToBeef.MergeTransaction(tx)
-			if err != nil {
-				return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
-			}
-
-			return nil
+	ignoreMerkleProof := options.MinProofLevel > 0 && depth < options.MinProofLevel // If enabled, we intentionally skip attaching the merkle proof at this depth
+	if model.HasMerklePath() && !ignoreMerkleProof {
+		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
+		if err != nil {
+			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
 		}
+		err = tx.AddMerkleProof(merklePath)
+		if err != nil {
+			return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
+		}
+
+		_, err = mergeToBeef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
+		}
+
+		return nil
 	}
 
 	for i := range tx.Inputs {
@@ -176,11 +160,6 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	for _, input := range tx.Inputs {
 		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
-			knownInput := options.IsKnownTxID(input.SourceTXID.String())
-			if knownInput {
-				mergeToBeef.MergeTxidOnly(input.SourceTXID)
-				continue
-			}
 			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
