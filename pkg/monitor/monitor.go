@@ -189,7 +189,7 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	task.Cronjob = job
 	d.activeTasks[taskName] = task
 
-	d.logger.Info("Starting a task","task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
+	d.logger.Info("Starting a task", "task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
 	return nil
 }
 

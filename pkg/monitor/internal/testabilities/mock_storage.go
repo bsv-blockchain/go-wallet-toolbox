@@ -7,7 +7,7 @@ import (
 
 type MockStorage struct {
 	SynchronizeTransactionStatusesCalled int
-	SendWaitingTransactionsCalled   int
+	SendWaitingTransactionsCalled        int
 }
 
 func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) error {
