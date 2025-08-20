@@ -367,7 +367,7 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 	return nil
 }
 
-// SendWaitingTransactions tries to broadcast transactions that are waiting to be sent 
+// SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
 func (p *Provider) SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error {
 	err := p.actions.SendWaitingTransactions(ctx, agedLimit)
 	if err != nil {
