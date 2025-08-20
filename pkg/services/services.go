@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
@@ -435,4 +436,13 @@ func (s *WalletServices) NLockTimeIsFinal(ctx context.Context, txOrLockTime any)
 		return false, fmt.Errorf("failed to parse nLockTime or final: %w", err)
 	}
 	return isFinal, nil
+}
+
+// HashOutputScript returns the little-endian SHA256 hash of a hex-encoded script as a hex string.
+func (s *WalletServices) HashOutputScript(scriptHex string) (string, error) {
+	outputScript, err := txutils.HashOutputScript(scriptHex)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash output script: %w", err)
+	}
+	return outputScript, nil
 }

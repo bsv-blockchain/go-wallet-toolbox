@@ -1,35 +1,33 @@
 package wallet_test
 
 import (
-	"strings"
+	"context"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestInternalizeActionOriginatorValidation(t *testing.T) {
+	RunOriginatorValidationErrorTests(t,
+		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.InternalizeActionResult, error) {
+			args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+			return w.InternalizeAction(ctx, args, originator)
+		},
+	)
+}
+
 func TestWalletInternalizeActionArgsValidation(t *testing.T) {
 	errorTestCases := map[string]struct {
 		originator string
 		args       func() sdk.InternalizeActionArgs
 	}{
-		"too long originator": {
-			originator: strings.Repeat("a", 251),
-			args: func() sdk.InternalizeActionArgs {
-				return fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
-			},
-		},
-		"too long originator part": {
-			originator: "a." + strings.Repeat("b", 64) + ".c",
-			args: func() sdk.InternalizeActionArgs {
-				return fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
-			},
-		},
 		"empty args": {
 			originator: fixtures.DefaultOriginator,
 			args: func() sdk.InternalizeActionArgs {

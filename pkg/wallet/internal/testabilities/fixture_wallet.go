@@ -57,11 +57,11 @@ func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
 }
 
 func (w *walletFixture) AliceWalletWithStorage(storageType StorageType) *wallet.Wallet {
-	return w.Wallet().WithActiveStorage(storageType).ForUser(testusers.Alice)
+	return w.Wallet().WithActiveStorage(storageType).WithServices().ForUser(testusers.Alice)
 }
 
 func (w *walletFixture) BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet) {
-	return w.Wallet().WithActiveStorage(storageType).ForUser(testusers.Bob)
+	return w.Wallet().WithActiveStorage(storageType).WithServices().ForUser(testusers.Bob)
 }
 
 func (w *walletFixture) Wallet() WalletBuilder {
