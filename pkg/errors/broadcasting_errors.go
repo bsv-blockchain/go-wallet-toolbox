@@ -55,6 +55,7 @@ func (e *BroadcastingError) Is(target error) bool {
 	return false
 }
 
+// EnhanceWithCreateActionContext enhances the error with context specific to a CreateAction operation
 func EnhanceWithCreateActionContext(
 	err error,
 	txID, reference string,
@@ -62,7 +63,6 @@ func EnhanceWithCreateActionContext(
 	noSendChange []wdk.OutPoint,
 	processResult *wdk.ProcessActionResult,
 ) error {
-	// If it's already a BroadcastingError, enhance it with full context
 	var broadcastErr *BroadcastingError
 	if errors.As(err, &broadcastErr) {
 		return broadcastErr.
@@ -73,7 +73,6 @@ func EnhanceWithCreateActionContext(
 			WithTransactionData(tx, noSendChange)
 	}
 
-	// For other error types, create a new BroadcastingError with the context
 	return NewBroadcastingError(err, defs.CreateAction).
 		WithTxID(txID).
 		WithReference(reference).
