@@ -25,6 +25,7 @@ type TxGeneratorFixture interface {
 	WithSender(sender testusers.User) TxGeneratorFixture
 	WithRecipient(recipient testusers.User) TxGeneratorFixture
 	WithDelayedBroadcast() TxGeneratorFixture
+	WillFailOnBroadcast() TxGeneratorFixture
 
 	PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction)
 	Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction)
@@ -41,6 +42,7 @@ type txGeneratorFixture struct {
 	sender                testusers.User
 	recipient             testusers.User
 	delayedBroadcast      bool
+	failedBroadcast       bool
 }
 
 func (t *txGeneratorFixture) WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture {
@@ -65,6 +67,11 @@ func (t *txGeneratorFixture) WithRecipient(recipient testusers.User) TxGenerator
 
 func (t *txGeneratorFixture) WithDelayedBroadcast() TxGeneratorFixture {
 	t.delayedBroadcast = true
+	return t
+}
+
+func (t *txGeneratorFixture) WillFailOnBroadcast() TxGeneratorFixture {
+	t.failedBroadcast = true
 	return t
 }
 
@@ -216,6 +223,10 @@ func (t *txGeneratorFixture) Processed() (createActionResult *wdk.StorageCreateA
 	t.Helper()
 	createActionResult, signedTx = t.Created()
 	txID := signedTx.TxID().String()
+
+	if t.failedBroadcast {
+		t.parent.Provider().ARC().WhenQueryingTx(txID).WillReturnNoBody()
+	}
 
 	args := wdk.ProcessActionArgs{
 		IsNewTx:    true,
