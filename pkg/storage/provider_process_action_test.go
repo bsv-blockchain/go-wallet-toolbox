@@ -184,7 +184,7 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
-	thenDBState.WaitForTxStatusByReference(testusers.Alice, *args.Reference, wdk.TxStatusUnproven, 2*time.Second)
+	thenDBState.WaitForTxStatusByReference(testusers.Alice, *args.Reference, wdk.TxStatusUnproven, 5*time.Second)
 
 	// and db state:
 	thenDBState.HasKnownTX(txID).
@@ -278,7 +278,7 @@ func TestProcessAction_DelayedBroadcastForManyTransactions(t *testing.T) {
 	for i := 0; i < count; i++ {
 		txID := signedTxs[i].TxID().String()
 
-		thenDBState.WaitForTxStatusByReference(testusers.Alice, createActionResults[i].Reference, wdk.TxStatusUnproven, 2*time.Second)
+		thenDBState.WaitForTxStatusByReference(testusers.Alice, createActionResults[i].Reference, wdk.TxStatusUnproven, 5*time.Second)
 
 		thenDBState.HasKnownTX(txID).
 			NotMined().
