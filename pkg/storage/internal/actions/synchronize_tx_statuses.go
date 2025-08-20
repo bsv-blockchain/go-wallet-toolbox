@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	syncTxStatusMaxPages  = 100
-	syncTxStatusesPerPage = 100
+	syncTxStatusMaxPages  = 10
+	syncTxStatusesPerPage = 1000
 	lastBlockHeightKey    = "synchronize_tx_statuses_last_block_height"
 )
 
@@ -101,11 +101,12 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 			return fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
 		}
 
-		if len(txsPage) == 0 {
+		txsToSync = append(txsToSync, txsPage...)
+
+		if len(txsPage) < syncTxStatusesPerPage {
 			break
 		}
 
-		txsToSync = append(txsToSync, txsPage...)
 		paging.Next()
 	}
 

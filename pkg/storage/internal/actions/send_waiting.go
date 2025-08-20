@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	sendWaitingMaxPages     = 100
-	sendWaitingItemsPerPage = 100
+	sendWaitingMaxPages     = 10
+	sendWaitingItemsPerPage = 1000
 )
 
 var (
@@ -23,7 +23,7 @@ var (
 )
 
 func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error {
-	log := p.logger.With("action", "send waiting transactions").With("agedLimit", agedLimit.String())
+	log := p.logger.With("action", "send_waiting_transactions").With(slog.Duration("agedLimit", agedLimit))
 	log.InfoContext(ctx, "Attempting to send waiting transactions")
 
 	lockAcquired := p.sendWaitingLock.TryLock()
@@ -34,8 +34,8 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 	defer p.sendWaitingLock.Unlock()
 
 	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
-	since := queryopts.Since{
-		Time: time.Now().Add(agedLimit),
+	until := queryopts.Until{
+		Time: time.Now().Add(-agedLimit),
 	}
 
 	var txIDsToBroadcast []string
@@ -45,15 +45,11 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 		txIDsPage, err := p.knownTxRepo.FindKnownTxIDsByStatuses(
 			ctx,
 			statusesOfWaitingTxs,
-			queryopts.WithSince(since),
+			queryopts.WithUntil(until),
 			queryopts.WithPage(paging),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to find known txs by statuses: %w", err)
-		}
-
-		if len(txIDsPage) == 0 {
-			break
 		}
 
 		for _, item := range txIDsPage {
@@ -62,6 +58,10 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 			} else {
 				txIDsToBroadcast = append(txIDsToBroadcast, item.TxID)
 			}
+		}
+
+		if len(txIDsPage) < sendWaitingItemsPerPage {
+			break
 		}
 
 		paging.Next()
