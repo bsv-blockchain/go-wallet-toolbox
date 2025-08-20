@@ -43,8 +43,25 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 	// TODO: merge BEEF Party ??
 }
 
-func (a *CreateAction) handleNotNewTX(context.Context) (*wallet.CreateActionResult, error) {
-	return nil, fmt.Errorf("CreateAction is not yet fully implemented")
+func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateActionResult, error) {
+	processActionArgs := mapping.MapProcessActionArgsForSendWith(a.wdkArgs)
+
+	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process created action: %w", err)
+	}
+
+	err = a.validateProcessActionResult(processActionResult)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := mapping.MapCreateActionResultFromStorageResultsForSendWith(processActionResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
+	}
+
+	return result, nil
 }
 
 func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateActionArgs) (*wallet.CreateActionResult, error) {
@@ -87,7 +104,7 @@ func (a *CreateAction) handleSignAction(tx *transaction.Transaction, createActio
 func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
 	txID := tx.TxID()
 
-	processActionArgs := mapping.MapProcessActionArgs(txID, tx, createActionResult.Reference, a.wdkArgs)
+	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, createActionResult.Reference, a.wdkArgs)
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
@@ -99,7 +116,7 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.
 		return nil, err
 	}
 
-	result, err := mapping.MapCreateActionResultFromStorageResults(txID, tx, createActionResult, processActionResult, a.wdkArgs)
+	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(txID, tx, createActionResult, processActionResult, a.wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
 	}

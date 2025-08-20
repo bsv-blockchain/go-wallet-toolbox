@@ -91,6 +91,11 @@ func WalletCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 			return fmt.Errorf("invalid output at index %d: %w", i, err)
 		}
 	}
+
+	if !args.IsNewTx && len(args.Options.SendWith) == 0 {
+		return fmt.Errorf("IsNewTx is false but no sendWith arguments provided")
+	}
+
 	return nil
 }
 

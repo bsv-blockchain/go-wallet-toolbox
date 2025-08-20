@@ -10,7 +10,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-func MapCreateActionResultFromStorageResults(txID *chainhash.Hash, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult, processActionResult *wdk.ProcessActionResult, wdkArgs wdk.ValidCreateActionArgs) (*wallet.CreateActionResult, error) {
+func MapCreateActionResultFromStorageResultsForNewTx(txID *chainhash.Hash, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult, processActionResult *wdk.ProcessActionResult, wdkArgs wdk.ValidCreateActionArgs) (*wallet.CreateActionResult, error) {
 	noSendChange, err := MapIndexesToOutpoints(txID, createActionResult.NoSendChangeOutputVouts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare no send change outpoints, %w", err)
@@ -33,5 +33,18 @@ func MapCreateActionResultFromStorageResults(txID *chainhash.Hash, tx *transacti
 			return nil, fmt.Errorf("failed to prepare atomic beef from result transaction: %w", err)
 		}
 	}
+	return result, nil
+}
+
+func MapCreateActionResultFromStorageResultsForSendWith(processActionResult *wdk.ProcessActionResult) (*wallet.CreateActionResult, error) {
+	sendWithResults, err := MapSendWithResultsFromWDKToSDK(processActionResult.SendWithResults)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare SendWithResults: %w", err)
+	}
+
+	result := &wallet.CreateActionResult{
+		SendWithResults: sendWithResults,
+	}
+
 	return result, nil
 }
