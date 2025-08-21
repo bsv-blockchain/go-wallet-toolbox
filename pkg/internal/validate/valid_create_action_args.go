@@ -2,10 +2,10 @@ package validate
 
 import (
 	"fmt"
-	"github.com/go-softwarelab/common/pkg/is"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/is"
 )
 
 func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
