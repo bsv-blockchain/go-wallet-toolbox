@@ -546,3 +546,28 @@ func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transaction
 
 	return nil
 }
+
+func (txs *Transactions) AlignTxStatusToKnownTxStatus(ctx context.Context, knownTxStatus wdk.ProvenTxReqStatus, txStatus wdk.TxStatus) (rowsAffected int64, err error) {
+	userTxTableName := txs.query.Transaction.TableName()
+	knownTxTableName := txs.query.KnownTx.TableName()
+	userTxTxIDColumn := txs.query.Transaction.TxID.ColumnName().String()
+	knownTxTxIDColumn := txs.query.Transaction.TxID.ColumnName().String()
+
+	result := txs.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Where(txs.query.Transaction.Status.Neq(string(txStatus))).
+		Where(
+			"exists (?)",
+			txs.db.WithContext(ctx).
+				Select("1").
+				Model(&models.KnownTx{}).
+				Where(txs.query.KnownTx.Status.Eq(string(knownTxStatus))).
+				Where(fmt.Sprintf("%s.%s = %s.%s", userTxTableName, userTxTxIDColumn, knownTxTableName, knownTxTxIDColumn)),
+		).
+		UpdateColumn(txs.query.Transaction.Status.ColumnName().String(), txStatus)
+
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to align transaction status: %w", result.Error)
+	}
+	return result.RowsAffected, nil
+}
