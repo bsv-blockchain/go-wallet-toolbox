@@ -147,9 +147,6 @@ func TestGetBeef_WithOptions(t *testing.T) {
 	})
 
 	t.Run("trustSelf known represents current tx as txid-only", func(t *testing.T) {
-		t.Skip() // FIXME
-		// FIXME: trust self works differently
-		// FIXME: when trustSelf == "known", when we found a transaction in the STORAGE (not by services), we merge it as txid only
 		// given:
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
@@ -161,8 +158,12 @@ func TestGetBeef_WithOptions(t *testing.T) {
 
 		activeStorage := given.Provider().GORM()
 
+		// and:
+		_, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{IgnoreNewProven: false})
+		require.NoError(t, err)
+
 		// when:
-		beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{TrustSelf: sdk.TrustSelfKnown})
+		beef, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{TrustSelf: sdk.TrustSelfKnown, IgnoreServices: true})
 
 		// then:
 		require.NoError(t, err)
@@ -285,6 +286,7 @@ func TestGetBeef_IgnoreNewProven_DoesNotPersist(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to get raw transaction for txID")
 }
 
 func TestGetBeef_IgnoreServices_WithMissingStorage_ReturnsError(t *testing.T) {
@@ -302,6 +304,7 @@ func TestGetBeef_IgnoreServices_WithMissingStorage_ReturnsError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
+	require.ErrorContains(t, err, "is nil")
 }
 
 func TestGetBeef_ServicesPath_WithKnownTxIDsContainsTarget_ReturnsTxIDOnly(t *testing.T) {
@@ -367,6 +370,87 @@ func TestGetBeef_ServicesRawTxError_Propagates(t *testing.T) {
 
 	// when:
 	_, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{})
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestGetBeef_ServicesReturnsNilRawTx_ReturnsError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	parent := given.Provider().WhatsOnChain().MinedTransaction().Tx()
+	childSpec := testvectors.GivenTX().WithInputFromUTXO(parent, 0).WithP2PKHOutput(1)
+	childTxID := childSpec.ID().String()
+
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, "", nil)
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	_, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{})
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestGetBeef_ServicesMerklePathError_Propagates(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	parent := given.Provider().WhatsOnChain().MinedTransaction().Tx()
+	childSpec := testvectors.GivenTX().WithInputFromUTXO(parent, 0).WithP2PKHOutput(1)
+	childTxID := childSpec.ID().String()
+
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, childSpec.RawTX().Hex(), nil)
+	given.Provider().WhatsOnChain().WillRespondWithMerklePath(500, childTxID, "")
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	_, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{})
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestGetBeef_ServicesReturnsInvalidRawTx_ReturnsError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	parent := given.Provider().WhatsOnChain().MinedTransaction().Tx()
+	childSpec := testvectors.GivenTX().WithInputFromUTXO(parent, 0).WithP2PKHOutput(1)
+	childTxID := childSpec.ID().String()
+
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, childTxID, "00", nil)
+	given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, childTxID, "")
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	_, err := activeStorage.GetBeefForTransaction(t.Context(), childTxID, wdk.StorageGetBeefOptions{})
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestGetBeef_ServicesReturnsTxWithMissingSourceTXID_ReturnsError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	spec := testvectors.GivenTX().WithInput(1).WithP2PKHOutput(1)
+	txID := spec.ID().String()
+	given.Provider().WhatsOnChain().WillRespondWithRawTx(200, txID, spec.RawTX().Hex(), nil)
+	given.Provider().WhatsOnChain().WillRespondWithMerklePath(404, txID, "")
+
+	activeStorage := given.Provider().GORM()
+
+	// when:
+	_, err := activeStorage.GetBeefForTransaction(t.Context(), txID, wdk.StorageGetBeefOptions{})
 
 	// then:
 	require.Error(t, err)
