@@ -22,8 +22,8 @@ var (
 	}
 )
 
-func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error {
-	log := p.logger.With("action", "send_waiting_transactions").With(slog.Duration("agedLimit", agedLimit))
+func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+	log := p.logger.With("action", "sendWaitingTransactions").With(slog.Duration("minTransactionAge", minTransactionAge))
 	log.InfoContext(ctx, "Attempting to send waiting transactions")
 
 	lockAcquired := p.sendWaitingLock.TryLock()
@@ -35,10 +35,9 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 
 	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
 	until := queryopts.Until{
-		Time: time.Now().Add(-agedLimit),
+		Time: time.Now().Add(-minTransactionAge),
 	}
 
-	var txIDsToBroadcast []string
 	batchesToBroadcast := make(map[string][]string)
 
 	for range sendWaitingMaxPages {
@@ -56,7 +55,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 			if item.Batch != nil {
 				batchesToBroadcast[*item.Batch] = append(batchesToBroadcast[*item.Batch], item.TxID)
 			} else {
-				txIDsToBroadcast = append(txIDsToBroadcast, item.TxID)
+				batchesToBroadcast[item.TxID] = []string{item.TxID}
 			}
 		}
 
@@ -67,26 +66,17 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 		paging.Next()
 	}
 
-	if len(txIDsToBroadcast) == 0 && len(batchesToBroadcast) == 0 {
+	if len(batchesToBroadcast) == 0 {
 		log.InfoContext(ctx, "No transactions found to send")
 		return nil
 	}
 
-	log.InfoContext(ctx, "Found transactions to send", "transactions count", len(txIDsToBroadcast), "batches count", len(batchesToBroadcast))
-
-	for _, txID := range txIDsToBroadcast {
-		p.delayedBroadcastTransaction(ctx, log, []string{txID})
-	}
+	log.InfoContext(ctx, "Found transactions to send", "batchesCount", len(batchesToBroadcast))
 
 	for batchName, txIDs := range batchesToBroadcast {
 		log.InfoContext(ctx, "Processing batch", "batchName", batchName, "txIDs", txIDs)
 
-		if len(txIDs) == 0 {
-			log.WarnContext(ctx, "No transactions found in batch", "batchName", batchName)
-			continue
-		}
-
-		p.delayedBroadcastTransaction(ctx, log, txIDs)
+		p.broadcastDelayedTransaction(ctx, log, txIDs)
 	}
 
 	// TODO: Keep in mind that the transactions above max attempts will be reviewed in another "reviewStatus" periodic task.
@@ -94,7 +84,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, agedLimit time.Du
 	return nil
 }
 
-func (p *process) delayedBroadcastTransaction(ctx context.Context, log *slog.Logger, txIDs []string) {
+func (p *process) broadcastDelayedTransaction(ctx context.Context, log *slog.Logger, txIDs []string) {
 	log.InfoContext(ctx, "Attempting to broadcast transactions", "txIDs", txIDs)
 
 	result, err := p.broadcastTxs(ctx, txIDs, false)

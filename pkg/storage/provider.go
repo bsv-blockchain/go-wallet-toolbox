@@ -368,8 +368,8 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 }
 
 // SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
-func (p *Provider) SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error {
-	err := p.actions.SendWaitingTransactions(ctx, agedLimit)
+func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+	err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
 		return fmt.Errorf("failed to send waiting transactions: %w", err)
 	}

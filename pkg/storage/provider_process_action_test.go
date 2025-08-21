@@ -62,7 +62,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 	thenDBState.HasKnownTX(txID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
-		WithAttempts(0).
+		WithAttempts(1).
 		HasRawTx().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.

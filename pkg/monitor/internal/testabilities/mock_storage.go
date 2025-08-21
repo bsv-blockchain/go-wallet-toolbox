@@ -8,7 +8,7 @@ import (
 type MockStorage struct {
 	SynchronizeTransactionStatusesCalled int
 	SendWaitingTransactionsCalled        int
-	SendWaitingLastAgedLimit             time.Duration
+	SendWaitingLastMinTransactionAge     time.Duration
 }
 
 func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) error {
@@ -16,8 +16,8 @@ func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) error {
 	return nil
 }
 
-func (m *MockStorage) SendWaitingTransactions(_ context.Context, agedLimit time.Duration) error {
+func (m *MockStorage) SendWaitingTransactions(_ context.Context, minTransactionAge time.Duration) error {
 	m.SendWaitingTransactionsCalled++
-	m.SendWaitingLastAgedLimit = agedLimit
+	m.SendWaitingLastMinTransactionAge = minTransactionAge
 	return nil
 }

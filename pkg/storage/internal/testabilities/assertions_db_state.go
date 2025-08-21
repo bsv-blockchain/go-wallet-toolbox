@@ -52,7 +52,6 @@ type DBStateAssertion interface {
 
 type KnownTxAssertion interface {
 	WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion
-	WithAttempts(expected uint64) KnownTxAssertion
 	IsMined() KnownTxAssertion
 	NotMined() KnownTxAssertion
 	HasRawTx() KnownTxAssertion
@@ -159,12 +158,6 @@ type knownTxAssertion struct {
 func (d *knownTxAssertion) WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion {
 	d.Helper()
 	assert.Equal(d, state, d.knownTx.Status, "Expected known transaction to have the status %s", state)
-	return d
-}
-
-func (d *knownTxAssertion) WithAttempts(expected uint64) KnownTxAssertion {
-	d.Helper()
-	assert.Equal(d, expected, d.knownTx.Attempts, "Expected known transaction to have %d attempts", expected)
 	return d
 }
 

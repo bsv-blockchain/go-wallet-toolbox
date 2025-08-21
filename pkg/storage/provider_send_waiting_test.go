@@ -57,7 +57,7 @@ func TestSendWaitingTransactions_Empty(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSendWaitingTransactions_AgedLimit(t *testing.T) {
+func TestSendWaitingTransactions_MinTransactionAge(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -73,11 +73,11 @@ func TestSendWaitingTransactions_AgedLimit(t *testing.T) {
 	txID := signedTx.TxID().String()
 
 	// and:
-	const agedLimit = 5 * time.Minute
+	const minTransactionAge = 5 * time.Minute
 
 	// when:
 	given.Provider().ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
-	err := activeStorage.SendWaitingTransactions(t.Context(), agedLimit)
+	err := activeStorage.SendWaitingTransactions(t.Context(), minTransactionAge)
 
 	// then:
 	require.NoError(t, err)

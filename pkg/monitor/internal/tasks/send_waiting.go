@@ -7,7 +7,7 @@ import (
 )
 
 type WaitingTransactionsSender interface {
-	SendWaitingTransactions(ctx context.Context, agedLimit time.Duration) error
+	SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error
 }
 
 type SendWaitingTask struct {
@@ -23,14 +23,14 @@ func NewSendWaitingTask(storage WaitingTransactionsSender) TaskInterface {
 }
 
 func (t *SendWaitingTask) Run(ctx context.Context) error {
-	if err := t.storage.SendWaitingTransactions(ctx, t.agedLimit()); err != nil {
+	if err := t.storage.SendWaitingTransactions(ctx, t.minTransactionAge()); err != nil {
 		return fmt.Errorf("send waiting transactions failed: %w", err)
 	}
 
 	return nil
 }
 
-func (t *SendWaitingTask) agedLimit() time.Duration {
+func (t *SendWaitingTask) minTransactionAge() time.Duration {
 	if t.firstRun {
 		t.firstRun = false
 		return 0
