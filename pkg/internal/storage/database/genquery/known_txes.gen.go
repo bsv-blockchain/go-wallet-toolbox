@@ -34,6 +34,7 @@ func newKnownTx(db *gorm.DB, opts ...gen.DOOption) knownTx {
 	_knownTx.Status = field.NewString(tableName, "status")
 	_knownTx.Attempts = field.NewUint64(tableName, "attempts")
 	_knownTx.Notified = field.NewBool(tableName, "notified")
+	_knownTx.Batch = field.NewString(tableName, "batch")
 	_knownTx.RawTx = field.NewBytes(tableName, "raw_tx")
 	_knownTx.InputBeef = field.NewBytes(tableName, "input_beef")
 	_knownTx.BlockHeight = field.NewUint32(tableName, "block_height")
@@ -61,6 +62,7 @@ type knownTx struct {
 	Status      field.String
 	Attempts    field.Uint64
 	Notified    field.Bool
+	Batch       field.String
 	RawTx       field.Bytes
 	InputBeef   field.Bytes
 	BlockHeight field.Uint32
@@ -90,6 +92,7 @@ func (k *knownTx) updateTableName(table string) *knownTx {
 	k.Status = field.NewString(table, "status")
 	k.Attempts = field.NewUint64(table, "attempts")
 	k.Notified = field.NewBool(table, "notified")
+	k.Batch = field.NewString(table, "batch")
 	k.RawTx = field.NewBytes(table, "raw_tx")
 	k.InputBeef = field.NewBytes(table, "input_beef")
 	k.BlockHeight = field.NewUint32(table, "block_height")
@@ -112,13 +115,14 @@ func (k *knownTx) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (k *knownTx) fillFieldMap() {
-	k.fieldMap = make(map[string]field.Expr, 13)
+	k.fieldMap = make(map[string]field.Expr, 14)
 	k.fieldMap["created_at"] = k.CreatedAt
 	k.fieldMap["updated_at"] = k.UpdatedAt
 	k.fieldMap["tx_id"] = k.TxID
 	k.fieldMap["status"] = k.Status
 	k.fieldMap["attempts"] = k.Attempts
 	k.fieldMap["notified"] = k.Notified
+	k.fieldMap["batch"] = k.Batch
 	k.fieldMap["raw_tx"] = k.RawTx
 	k.fieldMap["input_beef"] = k.InputBeef
 	k.fieldMap["block_height"] = k.BlockHeight

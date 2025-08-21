@@ -10,6 +10,7 @@ import (
 
 type MonitorAssertions interface {
 	SynchronizeTransactionStatuses() ExecutedTaskAssertions
+	SendWaitingTransactions() ExecutedTaskAssertions
 }
 
 type ExecutedTaskAssertions interface {
@@ -41,6 +42,16 @@ func (m *monitorAssertions) SynchronizeTransactionStatuses() ExecutedTaskAsserti
 			return m.fixtures.mockStorage.SynchronizeTransactionStatusesCalled
 		},
 		taskName: defs.CheckForProofsMonitorTask,
+		parent:   m,
+	}
+}
+
+func (m *monitorAssertions) SendWaitingTransactions() ExecutedTaskAssertions {
+	return &storageMethodAssertions{
+		called: func() int {
+			return m.fixtures.mockStorage.SendWaitingTransactionsCalled
+		},
+		taskName: defs.SendWaitingMonitorTask,
 		parent:   m,
 	}
 }

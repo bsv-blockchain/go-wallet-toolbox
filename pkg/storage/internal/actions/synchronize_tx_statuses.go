@@ -11,13 +11,15 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 const (
-	syncTxStatusLimit  = 100
-	lastBlockHeightKey = "synchronize_tx_statuses_last_block_height"
+	syncTxStatusMaxPages  = 10
+	syncTxStatusesPerPage = 1000
+	lastBlockHeightKey    = "synchronize_tx_statuses_last_block_height"
 )
 
 var (
@@ -91,11 +93,23 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 		}()
 	}
 
-	// TODO: Use pagination (plus created_at older than now) strategy to process all the transactions that need synchronization
-	txsToSync, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, syncTxStatusLimit, statusesReadyToSync...)
-	if err != nil {
-		return fmt.Errorf("knownTxRepo.FindTxIDsByStatuses failed: %w", err)
+	var txsToSync []*entity.KnownTxForStatusSync
+	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
+	for range syncTxStatusMaxPages {
+		txsPage, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statusesReadyToSync, queryopts.WithPage(paging))
+		if err != nil {
+			return fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
+		}
+
+		txsToSync = append(txsToSync, txsPage...)
+
+		if len(txsPage) < syncTxStatusesPerPage {
+			break
+		}
+
+		paging.Next()
 	}
+
 	if len(txsToSync) == 0 {
 		s.logger.Info("no transactions need synchronization", slog.Any("height", currentHeight))
 		return nil

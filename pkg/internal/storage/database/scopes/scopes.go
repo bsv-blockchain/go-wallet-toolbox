@@ -49,6 +49,18 @@ func Since(since *queryopts.Since) func(*gorm.DB) *gorm.DB {
 	}
 }
 
+func Until(until *queryopts.Until) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		until.ApplyDefaults()
+		return db.Where(
+			&clause.Lte{
+				Column: clause.Column{Name: until.Field, Table: until.TableName},
+				Value:  until.Time,
+			},
+		)
+	}
+}
+
 func FromQueryOpts(opts []queryopts.Options) []func(*gorm.DB) *gorm.DB {
 	options := queryopts.MergeOptions(opts)
 
@@ -58,6 +70,9 @@ func FromQueryOpts(opts []queryopts.Options) []func(*gorm.DB) *gorm.DB {
 	}
 	if options.Since != nil {
 		sc = append(sc, Since(options.Since))
+	}
+	if options.Until != nil {
+		sc = append(sc, Until(options.Until))
 	}
 
 	return sc
