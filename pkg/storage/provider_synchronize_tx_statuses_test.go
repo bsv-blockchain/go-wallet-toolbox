@@ -40,6 +40,7 @@ func TestSynchronizeTx(t *testing.T) {
 	thenDBState.
 		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
+		WithAttempts(0).
 		IsMined().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
@@ -205,15 +206,19 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnTransactionWithoutMerklePath()
 
 	// when:
-	for range defs.DefaultSynchronizeTxStatuses().MaxAttempts + 1 {
+	for attempt := range defs.DefaultSynchronizeTxStatuses().MaxAttempts {
 		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).HasKnownTX(txSpec.ID().String()).WithAttempts(attempt + 1)
 	}
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithAttempts(defs.DefaultSynchronizeTxStatuses().MaxAttempts).
 		NotMined()
 }
 

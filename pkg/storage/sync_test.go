@@ -48,6 +48,7 @@ func TestSyncProcess(t *testing.T) {
 	// and knownTxs:
 	thenDBState.HasKnownTX(ownedMinedTx.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
+		WithAttempts(0).
 		HasRawTx().
 		IsMined()
 
