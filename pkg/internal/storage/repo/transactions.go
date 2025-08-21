@@ -2,8 +2,11 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/seqerr"
+	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -398,8 +401,8 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 
 func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error) {
 	var (
-		actions []*models.Transaction
-		total   int64
+		total    int64
+		entities []*entity.Transaction
 	)
 
 	err := txs.db.Transaction(func(tx *gorm.DB) error {
@@ -413,21 +416,27 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Where("status IN ?", filter.Status)
 		}
 		if len(filter.Labels) > 0 {
-			query = query.Scopes(txs.labelFilterScope(query, userID, filter))
+			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
+
 		if total == 0 {
 			return nil
 		}
+
+		knownItemsCount := int(total)
 
 		if filter.Offset > 0 {
 			query = query.Offset(filter.Offset)
 		}
 		if filter.Limit > 0 {
 			query = query.Limit(filter.Limit)
+			if filter.Limit < knownItemsCount {
+				knownItemsCount = filter.Limit
+			}
 		}
 
 		rows, err := query.Order("id ASC").Rows()
@@ -436,24 +445,15 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		}
 		defer rows.Close()
 
-		const batchSize = 1000
-		batch := make([]*models.Transaction, 0, batchSize)
-
-		for rows.Next() { // iterator
-			var tx models.Transaction
-			if err := txs.db.ScanRows(rows, &tx); err != nil {
-				return fmt.Errorf("scan failed: %w", err)
-			}
-
-			batch = append(batch, &tx)
-			if len(batch) >= batchSize {
-				actions = append(actions, batch...)
-				batch = batch[:0]
-			}
-		}
-
-		if len(batch) > 0 {
-			actions = append(actions, batch...)
+		entities, err = seqerr.ToSlice(
+			seqerr.Map(
+				batchedRowsIter[models.Transaction](txs.db, rows),
+				txs.mapModelToTransactionEntity,
+			),
+			make([]*entity.Transaction, 0, knownItemsCount),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to read rows: %w", err)
 		}
 
 		if err := rows.Err(); err != nil {
@@ -466,7 +466,23 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		return nil, 0, fmt.Errorf("failed to run transaction query: %w", err)
 	}
 
-	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil
+	return entities, total, nil
+}
+
+func batchedRowsIter[T any](db *gorm.DB, rows *sql.Rows) iter.Seq2[*T, error] {
+	return func(yield func(*T, error) bool) {
+		for rows.Next() {
+			var model T
+			if err := db.ScanRows(rows, &model); err != nil {
+				yield(nil, fmt.Errorf("scan failed: %w", err))
+				return
+			}
+
+			if !yield(&model, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {

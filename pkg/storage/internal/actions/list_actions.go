@@ -42,7 +42,7 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	if total == 0 {
-		return &wdk.ListActionsResult{TotalActions: primitives.PositiveInteger(must.ConvertToUInt64(total))}, nil
+		return &wdk.ListActionsResult{TotalActions: primitives.PositiveInteger(must.ConvertToUInt64(total)), Actions: []wdk.WalletAction{}}, nil
 	}
 
 	transactionIDs, txIDs, actions := l.mapTransactionsToActions(txs)
