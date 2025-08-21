@@ -397,42 +397,73 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 }
 
 func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error) {
-	var actions []*models.Transaction
-	var total int64
+	var (
+		actions []*models.Transaction
+		total   int64
+	)
 
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		query := tx.Model(&models.Transaction{}).
+	err := txs.db.Transaction(func(tx *gorm.DB) error {
+		query := tx.
+			WithContext(ctx).
+			Model(&models.Transaction{}).
+			Debug().
 			Where("user_id = ?", userID)
 
 		if len(filter.Status) > 0 {
 			query = query.Where("status IN ?", filter.Status)
 		}
-
 		if len(filter.Labels) > 0 {
-			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
+			query = query.Scopes(txs.labelFilterScope(query, userID, filter))
 		}
 
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
-
 		if total == 0 {
 			return nil
 		}
 
-		if err := query.
-			Limit(filter.Limit).
-			Offset(filter.Offset).
-			Order("id ASC").
-			Find(&actions).Error; err != nil {
-			return fmt.Errorf("query failed: %w", err)
+		if filter.Offset > 0 {
+			query = query.Offset(filter.Offset)
+		}
+		if filter.Limit > 0 {
+			query = query.Limit(filter.Limit)
 		}
 
+		rows, err := query.Order("id ASC").Rows()
+		if err != nil {
+			return fmt.Errorf("query rows failed: %w", err)
+		}
+		defer rows.Close()
+
+		const batchSize = 1000
+		batch := make([]*models.Transaction, 0, batchSize)
+
+		for rows.Next() { // iterator
+			var tx models.Transaction
+			if err := txs.db.ScanRows(rows, &tx); err != nil {
+				return fmt.Errorf("scan failed: %w", err)
+			}
+
+			batch = append(batch, &tx)
+			if len(batch) >= batchSize {
+				actions = append(actions, batch...)
+				batch = batch[:0]
+			}
+		}
+
+		if len(batch) > 0 {
+			actions = append(actions, batch...)
+		}
+
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("row iteration failed: %w", err)
+		}
 		return nil
 	})
 
 	if err != nil {
-		return nil, 0, fmt.Errorf("transaction failed: %w", err)
+		return nil, 0, fmt.Errorf("failed to run transaction query: %w", err)
 	}
 
 	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil

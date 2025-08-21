@@ -8,8 +8,11 @@ import (
 type Transaction struct {
 	gorm.Model
 
-	UserID      int
-	Status      wdk.TxStatus
+	// Composite index:
+	DeletedAt gorm.DeletedAt `gorm:"index:idx_transactions_user_id_status_deleted_at"`
+	UserID    int            `gorm:"index:idx_transactions_user_id_status_deleted_at"`
+	Status    wdk.TxStatus   `gorm:"index:idx_transactions_user_id_status_deleted_at"`
+
 	Reference   string `gorm:"uniqueIndex"`
 	IsOutgoing  bool
 	Satoshis    int64

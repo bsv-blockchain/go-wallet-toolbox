@@ -41,6 +41,10 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 		return nil, fmt.Errorf("failed to list transactions: %w", err)
 	}
 
+	if total == 0 {
+		return &wdk.ListActionsResult{TotalActions: primitives.PositiveInteger(must.ConvertToUInt64(total))}, nil
+	}
+
 	transactionIDs, txIDs, actions := l.mapTransactionsToActions(txs)
 
 	inputMap, outputMap, err := l.fetchInputsOutputs(ctx, transactionIDs, args)
