@@ -40,4 +40,5 @@ type KnownTxReadSpecification struct {
 	TxID *string
 
 	IncludeHistoryNotes bool
+	Attempts            *Comparable[uint64]
 }
