@@ -2,10 +2,10 @@ package validate
 
 import (
 	"fmt"
+	"github.com/go-softwarelab/common/pkg/is"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/is"
 )
 
 func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
@@ -50,14 +50,6 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("inconsistent IsNoSend with Options.NoSend")
 	}
 
-	if !args.IsNoSend && len(args.Options.NoSendChange) > 0 {
-		return fmt.Errorf("NoSendChange outputs are supported only with IsNoSend flag")
-	}
-
-	if args.IsNoSend && len(args.Options.NoSendChange) > 0 && !is.UniqueSlice(args.Options.NoSendChange) {
-		return fmt.Errorf("duplicated outpoints in Options.NoSendChange")
-	}
-
 	return nil
 }
 
@@ -94,6 +86,14 @@ func WalletCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 
 	if !args.IsNewTx && len(args.Options.SendWith) == 0 {
 		return fmt.Errorf("IsNewTx is false but no sendWith arguments provided")
+	}
+
+	if !args.IsNoSend && len(args.Options.NoSendChange) > 0 {
+		return fmt.Errorf("NoSendChange outputs are supported only with IsNoSend flag")
+	}
+
+	if args.IsNoSend && len(args.Options.NoSendChange) > 0 && !is.UniqueSlice(args.Options.NoSendChange) {
+		return fmt.Errorf("duplicated outpoints in Options.NoSendChange")
 	}
 
 	return nil
