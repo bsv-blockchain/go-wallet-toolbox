@@ -28,6 +28,7 @@ type KnownTxReader interface {
 	KnownTxReadOperations
 
 	TxID(txID string) KnownTxReadOperations
+	Attempts() NumericCondition[KnownTxReader, uint64]
 	Since(value time.Time, column entity.SinceField) KnownTxReader
 	Paged(limit, offset int, desc bool) KnownTxReader
 }
@@ -97,4 +98,13 @@ func (k *knownTx) Paged(limit, offset int, desc bool) KnownTxReader {
 func (k *knownTx) IncludeHistoryNotes() KnownTxReader {
 	k.spec.IncludeHistoryNotes = true
 	return k
+}
+
+func (k *knownTx) Attempts() NumericCondition[KnownTxReader, uint64] {
+	return &numericCondition[KnownTxReader, uint64]{
+		parent: k,
+		conditionSetter: func(spec *entity.Comparable[uint64]) {
+			k.spec.Attempts = spec
+		},
+	}
 }
