@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const nLockTimeThreshold = uint32(500_000_000)
+
 func TestProcessActionHappyPath(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
@@ -673,7 +675,7 @@ func TestProcessActionNLockTimeIsFinalThresholdBoundary(t *testing.T) {
 
 	createActionResult, originalTx := given.Action(activeStorage).Created()
 
-	const nLockTimeThreshold = uint32(500_000_000)
+	const nLockTimeThreshold = nLockTimeThreshold
 	modifiedTx := *originalTx
 	modifiedTx.LockTime = nLockTimeThreshold
 	if len(modifiedTx.Inputs) > 0 {
