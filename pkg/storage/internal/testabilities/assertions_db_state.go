@@ -57,6 +57,7 @@ type KnownTxAssertion interface {
 	NotMined() KnownTxAssertion
 	HasRawTx() KnownTxAssertion
 	TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion
+	WithAttempts(attempts uint64) KnownTxAssertion
 }
 
 type UserTransactionAssertion interface {
@@ -202,6 +203,12 @@ func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAsse
 		txNotes: d.knownTx.TxNotes,
 	})
 
+	return d
+}
+
+func (d *knownTxAssertion) WithAttempts(expected uint64) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.Attempts, "Expected known transaction to have %d Attempts", expected)
 	return d
 }
 

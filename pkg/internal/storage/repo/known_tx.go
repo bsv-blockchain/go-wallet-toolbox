@@ -351,11 +351,15 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 		return []gen.Condition{}
 	}
 
+	table := &p.query.KnownTx
 	if spec.TxID != nil {
-		return []gen.Condition{p.query.KnownTx.TxID.Eq(*spec.TxID)}
+		return []gen.Condition{table.TxID.Eq(*spec.TxID)}
 	}
 
 	var conditions []gen.Condition
+	if spec.Attempts != nil {
+		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
+	}
 
 	// TODO: Add more conditions based on the spec
 
