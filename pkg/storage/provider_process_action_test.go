@@ -460,7 +460,17 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		GORM()
 
 	// and:
-	createActionResult, signedTx := given.Action(activeStorage).Created()
+	const (
+		satoshisToInternalize = 5000
+		satoshisToSend        = 1000
+		ownedSatoshisAfterTx  = satoshisToInternalize - satoshisToSend - 1
+	)
+
+	// and:
+	createActionResult, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(satoshisToInternalize).
+		WithSatoshisToSend(satoshisToSend).
+		Created()
 	txID := signedTx.TxID().String()
 
 	// and:
@@ -491,6 +501,10 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
 		WithTxID(txID).WithStatus(wdk.TxStatusUnprocessed)
 
+	// and:
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+
 	// then retry:
 	given.Provider().BeefVerifier().DefaultBehavior()
 	args = wdk.ProcessActionArgs{
@@ -510,4 +524,8 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
 		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
+
+	// and:
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBaAbleToReserveSatoshis(ownedSatoshisAfterTx)
 }
