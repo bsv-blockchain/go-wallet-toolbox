@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -362,6 +363,15 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 	err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+	}
+	return nil
+}
+
+// SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
+func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+	err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
+	if err != nil {
+		return fmt.Errorf("failed to send waiting transactions: %w", err)
 	}
 	return nil
 }
