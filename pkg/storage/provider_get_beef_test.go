@@ -286,7 +286,7 @@ func TestGetBeef_IgnoreNewProven_DoesNotPersist(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	require.ErrorContains(t, err, "failed to get raw transaction for txID")
+	require.ErrorContains(t, err, "not known to storage")
 }
 
 func TestGetBeef_IgnoreServices_WithMissingStorage_ReturnsError(t *testing.T) {
