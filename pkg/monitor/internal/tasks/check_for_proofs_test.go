@@ -9,17 +9,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTaskTime(t *testing.T) {
+func TestSynchronizeTransactionStatuses(t *testing.T) {
+	t.Parallel()
 	// given:
 	given, then := testabilities.New(t)
 
-	taskInterval := time.Millisecond * 100
+	const seconds = 1
+	taskInterval := seconds * time.Second
 
 	daemon := given.Daemon()
 
 	// when:
-	err := daemon.Start(map[defs.MonitorTask]time.Duration{
-		defs.CheckForProofsMonitorTask: taskInterval,
+	err := daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
+		defs.CheckForProofsMonitorTask: {
+			Enabled:          true,
+			IntervalSeconds:  seconds,
+			StartImmediately: false,
+		},
 	})
 	require.NoError(t, err)
 

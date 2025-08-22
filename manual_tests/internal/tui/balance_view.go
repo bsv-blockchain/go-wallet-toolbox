@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
-	
+	"sort"
+	"strings"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +18,7 @@ var balanceStyle = lipgloss.NewStyle().
 
 type balanceResultMsg struct {
 	balance string
+	stats   map[string]int
 	err     error
 }
 
@@ -23,6 +26,7 @@ type balanceView struct {
 	manager ManagerInterface
 	user    *fixtures.UserConfig
 	balance string
+	stats   map[string]int
 	spinner spinner.Model
 	loading bool
 	err     error
@@ -50,11 +54,17 @@ func (m balanceView) calculateBalance() tea.Cmd {
 	return func() tea.Msg {
 		balance, err := m.manager.Balance(*m.user)
 		if err != nil {
-			return balanceResultMsg{balance: "", err: fmt.Errorf("failed to calculate balance for %s: %w", m.user.Name, err)}
+			return balanceResultMsg{err: fmt.Errorf("failed to calculate balance for %s: %w", m.user.Name, err)}
+		}
+
+		stats, err := m.manager.ActionsStats(*m.user)
+		if err != nil {
+			return balanceResultMsg{err: fmt.Errorf("failed to get actions stats for %s: %w", m.user.Name, err)}
 		}
 
 		return balanceResultMsg{
 			balance: fmt.Sprintf("%d sats", balance),
+			stats:   stats,
 			err:     nil,
 		}
 	}
@@ -77,6 +87,7 @@ func (m balanceView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		} else {
 			m.balance = msg.balance
+			m.stats = msg.stats
 			m.focus = true
 		}
 		return m, nil
@@ -110,11 +121,38 @@ func (m balanceView) View() string {
 	}
 	balanceValue := lipgloss.NewStyle().Bold(true).Render(m.balance)
 
+	// Build stats section
+	var statsSection string
+	if len(m.stats) > 0 {
+		keys := make([]string, 0, len(m.stats))
+		for k := range m.stats {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		lines := make([]string, 0, len(keys))
+		for _, k := range keys {
+			lines = append(lines, fmt.Sprintf("- %s: %d", k, m.stats[k]))
+		}
+		statsHeader := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00ff00")).Render("Tx Stats:")
+		statsSection = fmt.Sprintf("%s\n%s", statsHeader, strings.Join(lines, "\n"))
+	}
+
 	var buttons string
 	if m.focus {
 		buttons = navStyleFocused.Render("Back")
 	} else {
 		buttons = navStyle.Render("Back")
+	}
+
+	if statsSection != "" {
+		return fmt.Sprintf(
+			"Balance for %s\n\n%s %s\n\n%s\n\n%s\n\n(press 'q' to quit)",
+			m.user.Name,
+			balanceStyle.Render(),
+			balanceValue,
+			statsSection,
+			buttons,
+		)
 	}
 
 	return fmt.Sprintf(

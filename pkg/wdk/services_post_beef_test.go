@@ -101,6 +101,41 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
 	})
 
+	t.Run("already known, one service, one txid", func(t *testing.T) {
+		// given:
+		txID := mockTxID(1)
+		result := wdk.PostBeefResult{
+			&wdk.PostBEEFServiceResult{
+				Name: "service1",
+				PostedBEEFResult: &wdk.PostedBEEF{
+					TxIDResults: []wdk.PostedTxID{
+						{
+							Result: wdk.PostedTxIDResultAlreadyKnown,
+							TxID:   txID,
+						},
+					},
+				},
+			},
+		}
+
+		// when:
+		aggregated := result.Aggregated([]string{txID})
+
+		// then:
+		require.Equal(t, 1, len(aggregated))
+
+		aggTxID, ok := aggregated[txID]
+		require.True(t, ok)
+
+		require.Equal(t, 1, aggTxID.SuccessCount)
+		require.Equal(t, 0, aggTxID.DoubleSpendCount)
+		require.Equal(t, 0, aggTxID.StatusErrorCount)
+		require.Equal(t, 0, aggTxID.ServiceErrorCount)
+		require.Equal(t, 0, len(aggTxID.CompetingTxs))
+		require.Equal(t, 1, len(aggTxID.TxIDResults))
+		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
+	})
+
 	t.Run("success, two services, one txid", func(t *testing.T) {
 		// given:
 		txID := mockTxID(1)

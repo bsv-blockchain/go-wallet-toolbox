@@ -88,7 +88,7 @@ func newAggregatedPostBEEF(results PostBeefResult, txids []string) AggregatedPos
 			agg.TxIDResults = append(agg.TxIDResults, txIDResult)
 
 			switch {
-			case txIDResult.Result == PostedTxIDResultSuccess:
+			case txIDResult.Result == PostedTxIDResultSuccess, txIDResult.Result == PostedTxIDResultAlreadyKnown:
 				agg.SuccessCount++
 			case txIDResult.DoubleSpend:
 				agg.DoubleSpendCount++
