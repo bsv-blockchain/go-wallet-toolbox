@@ -16,17 +16,21 @@ type MonitorTask string
 const (
 	// CheckForProofsMonitorTask is a monitoring task that checks for proofs in the wallet.
 	CheckForProofsMonitorTask MonitorTask = "check_for_proofs"
+
+	// SendWaitingMonitorTask is a monitoring task that check for transactions that have not been sent yet and try to broadcast them.
+	SendWaitingMonitorTask MonitorTask = "send_waiting"
 )
 
 // ParseMonitorTaskStr parses a string to a MonitorTask or returns an error
 func ParseMonitorTaskStr(task string) (MonitorTask, error) {
-	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask)
+	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask)
 }
 
 // TaskConfig defines configuration parameters for a monitoring task
 type TaskConfig struct {
-	Enabled         bool `mapstructure:"enabled"`
-	IntervalSeconds uint `mapstructure:"interval_seconds"`
+	Enabled          bool `mapstructure:"enabled"`
+	IntervalSeconds  uint `mapstructure:"interval_seconds"`
+	StartImmediately bool `mapstructure:"start_immediately"`
 }
 
 // Interval returns the monitoring interval as a time.Duration based on IntervalSeconds in the TaskConfig.
@@ -35,10 +39,11 @@ func (t *TaskConfig) Interval() time.Duration {
 }
 
 // TasksConfig is a map of monitoring tasks with their configuration parameters
-// This is a struct that contains fields for each MonitorTask/
+// This is a struct that contains fields for each MonitorTask
 // Make sure each field has a mapstructure tag that matches the MonitorTask enum value.
 type TasksConfig struct {
 	CheckForProofs TaskConfig `mapstructure:"check_for_proofs"`
+	SendWaiting    TaskConfig `mapstructure:"send_waiting"`
 }
 
 func (t *TasksConfig) all() iter.Seq2[MonitorTask, TaskConfig] {
@@ -73,15 +78,15 @@ func (t *TasksConfig) all() iter.Seq2[MonitorTask, TaskConfig] {
 }
 
 // EnabledTasks returns a map of enabled monitoring tasks and their corresponding intervals as time.Duration values.
-func (t *TasksConfig) EnabledTasks() map[MonitorTask]time.Duration {
-	durations := make(map[MonitorTask]time.Duration)
+func (t *TasksConfig) EnabledTasks() map[MonitorTask]TaskConfig {
+	tasks := make(map[MonitorTask]TaskConfig)
 	for taskName, taskConfig := range t.all() {
 		if !taskConfig.Enabled {
 			continue
 		}
-		durations[taskName] = taskConfig.Interval()
+		tasks[taskName] = taskConfig
 	}
-	return durations
+	return tasks
 }
 
 // Validate verifies each task name and configuration in the map, ensuring names are valid and intervals are non-zero.
@@ -112,7 +117,15 @@ func DefaultMonitorConfig() Monitor {
 		Tasks: TasksConfig{
 			CheckForProofs: TaskConfig{
 				Enabled:         true,
-				IntervalSeconds: 60, // TODO: Will probably need to be extended - for now, it's better to have a short interval for debugging purposes
+				IntervalSeconds: must.ConvertToUInt((1 * time.Minute).Seconds()),
+			},
+			SendWaiting: TaskConfig{
+				// NOTE: Normally, background broadcaster should handle new transactions.
+				// NOTE: This task can be considered as a fallback if there are still waiting transactions.
+				// NOTE: StartImmediately is set to true to try broadcasting transactions that were in the queue when the app shut down.
+				Enabled:          true,
+				IntervalSeconds:  must.ConvertToUInt((5 * time.Minute).Seconds()),
+				StartImmediately: true,
 			},
 		},
 	}

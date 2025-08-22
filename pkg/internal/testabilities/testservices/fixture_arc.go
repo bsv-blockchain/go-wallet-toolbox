@@ -356,12 +356,16 @@ func (a *arcQueryFixture) WillReturnHttpStatus(httpStatus int) {
 func (a *arcQueryFixture) WillReturnTransactionWithoutMerklePath() {
 	tx := a.knownTransaction()
 	tx.status = "SEEN_ON_NETWORK"
+	tx.unreachable = false
+	tx.noBody = false
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithMerklePathHex(merklePath string) {
 	tx := a.knownTransaction()
 	tx.status = "MINED"
 	tx.merklePath = merklePath
+	tx.unreachable = false
+	tx.noBody = false
 }
 
 func (a *arcQueryFixture) knownTransaction() *knownTransaction {

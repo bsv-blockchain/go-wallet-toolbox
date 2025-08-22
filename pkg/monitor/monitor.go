@@ -79,13 +79,16 @@ type taskFactoryFunc func() tasks.TaskInterface
 func (d *Daemon) allTasksFactories() map[defs.MonitorTask]taskFactoryFunc {
 	return map[defs.MonitorTask]taskFactoryFunc{
 		defs.CheckForProofsMonitorTask: func() tasks.TaskInterface {
-			return tasks.NewCheckForProofsTask(d.logger, d.storage)
+			return tasks.NewCheckForProofsTask(d.storage)
+		},
+		defs.SendWaitingMonitorTask: func() tasks.TaskInterface {
+			return tasks.NewSendWaitingTask(d.storage)
 		},
 	}
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
-func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
+func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
 	d.startLock.Lock()
 	defer d.startLock.Unlock()
 
@@ -95,14 +98,14 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]time.Duration) error {
 	}
 
 	factories := d.allTasksFactories()
-	for taskName, taskInterval := range tasksToStart {
+	for taskName, taskConfig := range tasksToStart {
 		taskFactory, ok := factories[taskName]
 		if !ok {
 			d.logger.Warn("Task does not exist. Skipping.", slog.Any("task", taskName))
 			continue
 		}
 
-		if err := d.initializeTask(taskFactory(), taskName, taskInterval); err != nil {
+		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
 			return err
 		}
 	}
@@ -157,17 +160,27 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	return task, ok
 }
 
-func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, interval time.Duration) error {
+func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, taskConfig defs.TaskConfig) error {
 	task := &ActiveTask{
 		Instance: taskInstance,
 		TaskName: taskName,
 		// NOTE: Cronjob (gocron.Job) is not set here, as it will be set when the job is created.
 	}
 
+	opts := []gocron.JobOption{
+		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
+	}
+
+	if taskConfig.StartImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
+
+	interval := taskConfig.Interval()
+
 	job, err := d.scheduler.NewJob(
 		gocron.DurationJob(interval),
 		gocron.NewTask(d.singleTaskRunner(task)),
-		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
+		opts...,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create job %s: %w", taskName, err)
@@ -176,7 +189,7 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	task.Cronjob = job
 	d.activeTasks[taskName] = task
 
-	d.logger.Info("Starting a task", slog.Any("task", taskName), slog.Any("interval", interval))
+	d.logger.Info("Starting a task", "task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
 	return nil
 }
 
