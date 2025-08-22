@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -448,4 +449,65 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 	assert.Equal(t, txID, string(reviewActionResult.TxID))
 	assert.Equal(t, wdk.ReviewActionResultStatusServiceError, reviewActionResult.Status)
 	assert.Empty(t, reviewActionResult.CompetingTxs)
+}
+
+func TestProcessAction_ResendAfterError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and:
+	createActionResult, signedTx := given.Action(activeStorage).Created()
+	txID := signedTx.TxID().String()
+
+	// and:
+	beefVerifyMockError := fmt.Errorf("mock beef verifier error")
+	given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
+
+	// when:
+	args := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		Reference: to.Ptr(createActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+	}
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.Error(t, err)
+	require.ErrorIs(t, err, beefVerifyMockError)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnprocessed).
+		WithAttempts(0).
+		HasRawTx()
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnprocessed)
+
+	// then retry:
+	given.Provider().BeefVerifier().DefaultBehavior()
+	args = wdk.ProcessActionArgs{
+		IsNewTx:   false,
+		Reference: to.Ptr(createActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+	}
+	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+	require.NoError(t, err)
+
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		WithAttempts(1).
+		HasRawTx()
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
 }

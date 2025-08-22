@@ -37,6 +37,7 @@ type process struct {
 	backgroundBroadcaster *service.BackgroundBroadcaster
 	randomizer            wdk.Randomizer
 	sendWaitingLock       sync.Mutex
+	beefVerifier          wdk.BeefVerifier
 }
 
 func newProcessAction(
@@ -49,6 +50,7 @@ func newProcessAction(
 	commissionRepo CommissionRepo,
 	services wdk.Services,
 	randomizer wdk.Randomizer,
+	beefVerifier wdk.BeefVerifier,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -60,6 +62,7 @@ func newProcessAction(
 		commissionRepo: commissionRepo,
 		services:       services,
 		randomizer:     randomizer,
+		beefVerifier:   beefVerifier,
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p)
@@ -309,7 +312,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
-	if ok, err := beef.Verify(ctx, p.services, false); err != nil {
+	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, p.services, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")

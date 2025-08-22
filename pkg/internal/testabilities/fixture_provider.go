@@ -38,6 +38,8 @@ type ProviderFixture interface {
 	GORMWithCleanDatabase() *storage.Provider
 
 	StorageIdentityKey() string
+
+	BeefVerifier() BeefVerifierFixture
 }
 
 type providerFixture struct {
@@ -48,6 +50,7 @@ type providerFixture struct {
 	feeModel       defs.FeeModel
 	randomizer     wdk.Randomizer
 	services       wdk.Services
+	beefVerifier   *beefVerifierFixture
 	storagePrivKey string
 	storageName    string
 	providers      []*storage.Provider
@@ -125,6 +128,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		},
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),
+		storage.WithBeefVerifier(p.beefVerifier),
 	)
 	p.require.NoError(err)
 
@@ -158,4 +162,9 @@ func (p *providerFixture) Cleanup() {
 	for _, provider := range p.providers {
 		provider.Stop()
 	}
+}
+
+func (p *providerFixture) BeefVerifier() BeefVerifierFixture {
+	p.t.Helper()
+	return p.beefVerifier
 }

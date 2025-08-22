@@ -82,6 +82,13 @@ func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProvid
 		random = randomizer.New()
 	}
 
+	var beefVerifier wdk.BeefVerifier
+	if options.beefVerifier != nil {
+		beefVerifier = options.beefVerifier
+	} else {
+		beefVerifier = &DefaultBeefVerifier{}
+	}
+
 	if config.Services == nil {
 		logger.Warn("services is not set, some actions may not work")
 	}
@@ -91,7 +98,7 @@ func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProvid
 		Database: db,
 
 		repo:    repos,
-		actions: actions.New(ctx, logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
+		actions: actions.New(ctx, logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses, beefVerifier),
 		random:  random,
 		logger:  logger,
 	}, nil
