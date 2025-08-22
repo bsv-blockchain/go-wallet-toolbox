@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -212,7 +213,7 @@ func convertStringLikeSlice[ResultType, ArgType ~string](input []ArgType) []Resu
 	return slices.Map(input, func(s ArgType) ResultType { return ResultType(s) })
 }
 
-func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *entity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
+func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgentity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
 	err := in.txRepo.AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
 	if err != nil {
 		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)
