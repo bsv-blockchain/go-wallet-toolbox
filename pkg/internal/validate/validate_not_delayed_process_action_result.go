@@ -1,8 +1,7 @@
 package validate
 
 import (
-	"fmt"
-
+	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
 )
@@ -20,7 +19,5 @@ func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) error {
 		return nil
 	}
 
-	// TODO: add more context to the error
-	//   and allow for making errors.Is on it
-	return fmt.Errorf("undelayed result require review")
+	return broadcastError.NewValidationBroadcastError(result)
 }

@@ -2,11 +2,12 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	walletErrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -87,26 +88,24 @@ func (a *CreateAction) handleSignAction(tx *transaction.Transaction, createActio
 
 func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
 	txID := tx.TxID()
-
 	processActionArgs := mapping.MapProcessActionArgs(txID, tx, createActionResult.Reference, a.wdkArgs)
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
-		enhancedErr := walletErrors.EnhanceWithCreateActionContext(
-			err,
-			txID.String(),
-			createActionResult.Reference,
-			tx.Bytes(),
-			a.wdkArgs.Options.NoSendChange,
-			processActionResult,
-		)
-		return nil, fmt.Errorf("failed to process created action: %w", enhancedErr)
+		return nil, fmt.Errorf("failed to process created action (txID: %s, reference: %s): %w",
+			txID.String(), createActionResult.Reference, err)
 	}
 
 	err = a.validateProcessActionResult(processActionResult)
 	if err != nil {
-		return nil, fmt.Errorf("validation failed for createAction (txID: %s, reference: %s): %w",
-			txID.String(), createActionResult.Reference, err)
+		var broadcastErr *broadcastError.BroadcastingError
+		if errors.As(err, &broadcastErr) {
+			broadcastErr.Operation = broadcastError.CreateAction
+			broadcastErr.Reference = createActionResult.Reference
+			broadcastErr.Tx = tx.Bytes()
+			broadcastErr.NoSendChange = a.wdkArgs.Options.NoSendChange
+		}
+		return nil, fmt.Errorf("validation failed for createAction: %w", err)
 	}
 
 	result, err := mapping.MapCreateActionResultFromStorageResults(txID, tx, createActionResult, processActionResult, a.wdkArgs)
