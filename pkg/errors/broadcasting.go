@@ -59,16 +59,30 @@ func (e *BroadcastingError) Error() string {
 	if len(e.SendWithResults) > 0 {
 		successCount := 0
 		failedCount := 0
+		sendingCount := 0
 		for _, result := range e.SendWithResults {
 			switch result.Status {
 			case wdk.SendWithResultStatusUnproven:
 				successCount++
 			case wdk.SendWithResultStatusFailed:
 				failedCount++
+			case wdk.SendWithResultStatusSending:
+				sendingCount++
 			}
 		}
-		parts = append(parts, fmt.Sprintf("transactions: %d total, %d succeeded, %d failed",
-			len(e.SendWithResults), successCount, failedCount))
+
+		statusParts := []string{fmt.Sprintf("%d total", len(e.SendWithResults))}
+		if successCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d succeeded", successCount))
+		}
+		if sendingCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d sending", sendingCount))
+		}
+		if failedCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d failed", failedCount))
+		}
+
+		parts = append(parts, fmt.Sprintf("transactions: %s", strings.Join(statusParts, ", ")))
 	}
 
 	if len(e.ServiceErrors) > 0 {

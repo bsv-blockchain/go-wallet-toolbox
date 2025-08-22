@@ -259,14 +259,14 @@ func TestBroadcastingErrorErrorMessageTransactionCounting(t *testing.T) {
 		expectedMessage string
 	}{
 		{
-			name: "mixed success and failure",
+			name: "mixed success, sending, and failure",
 			sendWithResults: []wdk.SendWithResult{
 				{Status: wdk.SendWithResultStatusUnproven},
 				{Status: wdk.SendWithResultStatusFailed},
 				{Status: wdk.SendWithResultStatusUnproven},
 				{Status: wdk.SendWithResultStatusSending},
 			},
-			expectedMessage: "transactions: 4 total, 2 succeeded, 1 failed",
+			expectedMessage: "transactions: 4 total, 2 succeeded, 1 sending, 1 failed",
 		},
 		{
 			name: "all successful",
@@ -274,7 +274,7 @@ func TestBroadcastingErrorErrorMessageTransactionCounting(t *testing.T) {
 				{Status: wdk.SendWithResultStatusUnproven},
 				{Status: wdk.SendWithResultStatusUnproven},
 			},
-			expectedMessage: "transactions: 2 total, 2 succeeded, 0 failed",
+			expectedMessage: "transactions: 2 total, 2 succeeded",
 		},
 		{
 			name: "all failed",
@@ -282,7 +282,23 @@ func TestBroadcastingErrorErrorMessageTransactionCounting(t *testing.T) {
 				{Status: wdk.SendWithResultStatusFailed},
 				{Status: wdk.SendWithResultStatusFailed},
 			},
-			expectedMessage: "transactions: 2 total, 0 succeeded, 2 failed",
+			expectedMessage: "transactions: 2 total, 2 failed",
+		},
+		{
+			name: "all sending",
+			sendWithResults: []wdk.SendWithResult{
+				{Status: wdk.SendWithResultStatusSending},
+				{Status: wdk.SendWithResultStatusSending},
+			},
+			expectedMessage: "transactions: 2 total, 2 sending",
+		},
+		{
+			name: "only success and sending",
+			sendWithResults: []wdk.SendWithResult{
+				{Status: wdk.SendWithResultStatusUnproven},
+				{Status: wdk.SendWithResultStatusSending},
+			},
+			expectedMessage: "transactions: 2 total, 1 succeeded, 1 sending",
 		},
 	}
 
