@@ -72,7 +72,7 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 
 	// and:
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-		ShouldBaAbleToReserveSatoshis(initialTopUp)
+		ShouldBeAbleToReserveSatoshis(initialTopUp)
 }
 
 func TestAbortActionErrorCases(t *testing.T) {
@@ -331,5 +331,5 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 
 	// and:
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-		ShouldBaAbleToReserveSatoshis(satoshisToInternalize - 10)
+		ShouldBeAbleToReserveSatoshis(satoshisToInternalize - 10)
 }

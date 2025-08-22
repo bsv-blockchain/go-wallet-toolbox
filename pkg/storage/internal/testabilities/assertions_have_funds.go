@@ -17,7 +17,7 @@ import (
 
 type FundsAssertion interface {
 	CanReserveSatoshis(amount uint64) bool
-	ShouldBaAbleToReserveSatoshis(amount uint64)
+	ShouldBeAbleToReserveSatoshis(amount uint64)
 	ShouldNotBeAbleToReserveSatoshis(amount uint64)
 }
 
@@ -99,7 +99,7 @@ func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
 	return true
 }
 
-func (t *thenFundsAssertion) ShouldBaAbleToReserveSatoshis(amount uint64) {
+func (t *thenFundsAssertion) ShouldBeAbleToReserveSatoshis(amount uint64) {
 	require.True(t, t.CanReserveSatoshis(amount), "should be able to reserve %d satoshis", amount)
 }
 

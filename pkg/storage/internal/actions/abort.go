@@ -71,7 +71,7 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("failed to update transaction status: %w", err)
 	}
 
-	// TODO: KnownTx is not tauched here because the same transaction can be owend by another user and we don't want to affect their state.
+	// TODO: KnownTx is not touched here because the same transaction can be owend by another user and we don't want to affect their state.
 	// NOTE: The abandoned knownTx will be updated to failed by cron job
 
 	return &wdk.AbortActionResult{Aborted: true}, nil

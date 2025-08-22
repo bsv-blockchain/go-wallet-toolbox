@@ -527,5 +527,5 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 
 	// and:
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-		ShouldBaAbleToReserveSatoshis(ownedSatoshisAfterTx)
+		ShouldBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
 }

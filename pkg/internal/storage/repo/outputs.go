@@ -16,6 +16,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gen/field"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -401,21 +402,18 @@ type spendableOutputReadModel struct {
 
 func makeOutputsSpendable(query *genquery.Query, tx *gorm.DB, filterScope func(db *gorm.DB) *gorm.DB) error {
 	txTableName := query.Transaction.TableName()
-	txTableStatusColumn := query.Transaction.Status.ColumnName().String()
 	outputTableName := query.Output.TableName()
 	outputTableTransactionIDColumn := query.Output.TransactionID.ColumnName().String()
-
-	query.Output.BasketName.ColumnName()
 
 	var changeOutputs []*spendableOutputReadModel
 	err := tx.Model(&models.Output{}).
 		Select(
-			fmt.Sprintf("%s.%s", outputTableName, query.Output.ID.ColumnName().String()),
+			query.Output.ID.BuildColumn(tx.Statement, field.WithTable).String(),
 			query.Output.BasketName.ColumnName().String(),
-			fmt.Sprintf("%s.%s", outputTableName, query.Output.Satoshis.ColumnName().String()),
+			query.Output.Satoshis.BuildColumn(tx.Statement, field.WithTable).String(),
 			query.Output.Type.ColumnName().String(),
-			fmt.Sprintf("%s.%s", outputTableName, query.Output.UserID.ColumnName().String()),
-			fmt.Sprintf("trx.%s as tx_status", txTableStatusColumn),
+			query.Output.UserID.BuildColumn(tx.Statement, field.WithTable).String(),
+			query.Transaction.As("trx").Status.As("tx_status").BuildColumn(tx.Statement, field.WithAll).String(),
 		).
 		Joins(fmt.Sprintf("INNER JOIN %s as trx ON trx.ID = %s.%s", txTableName, outputTableName, outputTableTransactionIDColumn)).
 		Scopes(filterScope).
