@@ -1,11 +1,13 @@
 package storage_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -15,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const nLockTimeThreshold = uint32(500_000_000)
 
 func TestProcessActionHappyPath(t *testing.T) {
 	// given:
@@ -448,4 +452,253 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 	assert.Equal(t, txID, string(reviewActionResult.TxID))
 	assert.Equal(t, wdk.ReviewActionResultStatusServiceError, reviewActionResult.Status)
 	assert.Empty(t, reviewActionResult.CompetingTxs)
+}
+
+func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {
+	tests := map[string]struct {
+		setupService func(given testabilities.StorageFixture)
+		lockTime     uint32
+		sequences    []uint32
+		description  string
+	}{
+		"zero locktime is always final": {
+			setupService: func(given testabilities.StorageFixture) {
+				// No special setup needed for zero locktime
+			},
+			lockTime:    0,
+			sequences:   []uint32{0, 1, 2},
+			description: "zero locktime should always be final",
+		},
+		"all inputs max sequence shortcut": {
+			setupService: func(given testabilities.StorageFixture) {
+				// No height check needed when all inputs have max sequence
+			},
+			lockTime:    700_000,
+			sequences:   []uint32{testutils.MaxSeq, testutils.MaxSeq, testutils.MaxSeq},
+			description: "all max sequence inputs should be final regardless of locktime",
+		},
+		"block height locktime final": {
+			setupService: func(given testabilities.StorageFixture) {
+				const currentHeight = uint32(800_000)
+				given.Provider().WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, currentHeight)
+			},
+			lockTime:    799_999,
+			sequences:   []uint32{0},
+			description: "locktime less than current height should be final",
+		},
+		"timestamp locktime final": {
+			setupService: func(given testabilities.StorageFixture) {
+				// No special setup needed for timestamp validation
+			},
+			lockTime:    uint32(time.Now().Unix() - 3600),
+			sequences:   []uint32{0},
+			description: "past timestamp locktime should be final",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			test.setupService(given)
+
+			activeStorage := given.Provider().
+				WithRandomizer(randomizer.NewTestRandomizer()).
+				GORM()
+
+			createActionResult, originalTx := given.Action(activeStorage).Created()
+
+			modifiedTx := *originalTx
+			modifiedTx.LockTime = test.lockTime
+			for i, seq := range test.sequences {
+				if i < len(modifiedTx.Inputs) {
+					modifiedTx.Inputs[i].SequenceNumber = seq
+				}
+			}
+
+			txID := modifiedTx.TxID().String()
+
+			args := wdk.ProcessActionArgs{
+				IsNewTx:    true,
+				IsSendWith: false,
+				IsNoSend:   false,
+				IsDelayed:  false,
+				Reference:  to.Ptr(createActionResult.Reference),
+				TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+				RawTx:      modifiedTx.Bytes(),
+				SendWith:   []primitives.TXIDHexString{},
+			}
+
+			// when:
+			result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+			// then:
+			require.NoError(t, err)
+			require.NotNil(t, result)
+		})
+	}
+}
+
+func TestProcessActionNLockTimeIsFinalFailure(t *testing.T) {
+	tests := map[string]struct {
+		setupService func(given testabilities.StorageFixture)
+		lockTime     uint32
+		sequences    []uint32
+	}{
+		"block height locktime not final": {
+			setupService: func(given testabilities.StorageFixture) {
+				const currentHeight = uint32(800_000)
+				given.Provider().WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, currentHeight)
+			},
+			lockTime:  800_001,
+			sequences: []uint32{0},
+		},
+		"timestamp locktime not final": {
+			setupService: func(given testabilities.StorageFixture) {
+				// No special setup needed for timestamp validation
+			},
+			lockTime:  uint32(time.Now().Unix() + 7200),
+			sequences: []uint32{0},
+		},
+		"mixed sequences with future block height": {
+			setupService: func(given testabilities.StorageFixture) {
+				const currentHeight = uint32(500_000)
+				given.Provider().WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, currentHeight)
+			},
+			lockTime:  500_001,
+			sequences: []uint32{testutils.MaxSeq - 1, 0, testutils.MaxSeq},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			test.setupService(given)
+
+			activeStorage := given.Provider().
+				WithRandomizer(randomizer.NewTestRandomizer()).
+				GORM()
+
+			// and:
+			createActionResult, originalTx := given.Action(activeStorage).Created()
+
+			modifiedTx := *originalTx
+			modifiedTx.LockTime = test.lockTime
+			for i, seq := range test.sequences {
+				if i < len(modifiedTx.Inputs) {
+					modifiedTx.Inputs[i].SequenceNumber = seq
+				}
+			}
+
+			txID := modifiedTx.TxID().String()
+
+			args := wdk.ProcessActionArgs{
+				IsNewTx:    true,
+				IsSendWith: false,
+				IsNoSend:   false,
+				IsDelayed:  false,
+				Reference:  to.Ptr(createActionResult.Reference),
+				TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+				RawTx:      modifiedTx.Bytes(),
+				SendWith:   []primitives.TXIDHexString{},
+			}
+
+			// when:
+			_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+			// then:
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "transaction nLockTime is not final")
+		})
+	}
+}
+
+func TestProcessActionNLockTimeIsFinalServiceError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	givenProvider := given.Provider()
+
+	err := givenProvider.WhatsOnChain().WillBeUnreachable()
+	require.Error(t, err)
+	givenProvider.Bitails().WillReturnNetworkInfo(http.StatusBadGateway, 0)
+	err = givenProvider.BHS().WillBeUnreachable()
+	require.Error(t, err)
+
+	activeStorage := givenProvider.
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	createActionResult, originalTx := given.Action(activeStorage).Created()
+
+	modifiedTx := *originalTx
+	modifiedTx.LockTime = 400_000
+	if len(modifiedTx.Inputs) > 0 {
+		modifiedTx.Inputs[0].SequenceNumber = 0
+	}
+
+	txID := modifiedTx.TxID().String()
+
+	args := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  false,
+		Reference:  to.Ptr(createActionResult.Reference),
+		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:      modifiedTx.Bytes(),
+		SendWith:   []primitives.TXIDHexString{},
+	}
+
+	// when:
+	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to check nLockTime finality")
+}
+
+func TestProcessActionNLockTimeIsFinalThresholdBoundary(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	createActionResult, originalTx := given.Action(activeStorage).Created()
+
+	const nLockTimeThreshold = nLockTimeThreshold
+	modifiedTx := *originalTx
+	modifiedTx.LockTime = nLockTimeThreshold
+	if len(modifiedTx.Inputs) > 0 {
+		modifiedTx.Inputs[0].SequenceNumber = 0
+	}
+
+	txID := modifiedTx.TxID().String()
+
+	args := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  false,
+		Reference:  to.Ptr(createActionResult.Reference),
+		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:      modifiedTx.Bytes(),
+		SendWith:   []primitives.TXIDHexString{},
+	}
+
+	// when:
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, result)
 }
