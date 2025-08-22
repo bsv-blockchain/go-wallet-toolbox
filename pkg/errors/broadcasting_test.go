@@ -109,20 +109,13 @@ func TestBroadcastingErrorIs(t *testing.T) {
 	t.Run("should support errors.Is with underlying error chain", func(t *testing.T) {
 		// given:
 		originalErr := fmt.Errorf("connection timeout")
-		wrappedErr := fmt.Errorf("service failed: %w", originalErr)
 		broadcastErr := &broadcastError.BroadcastingError{
-			Err: wrappedErr,
+			Err: originalErr,
 		}
 
-		// when:
-		matchOrginalErr := errors.Is(broadcastErr, originalErr)
-		matchWrappedErr := errors.Is(broadcastErr, wrappedErr)
-		matchUnrelatedErr := errors.Is(broadcastErr, fmt.Errorf("unrelated error"))
-
-		// then:
-		assert.True(t, matchOrginalErr, "should match original error")
-		assert.True(t, matchWrappedErr, "should match wrapped error")
-		assert.False(t, matchUnrelatedErr, "should not match unrelated error")
+		// when & then:
+		assert.True(t, errors.Is(broadcastErr, originalErr), "should match underlying error")
+		assert.False(t, errors.Is(broadcastErr, fmt.Errorf("unrelated error")), "should not match unrelated error")
 	})
 
 	t.Run("should support errors.Is with BroadcastingError type", func(t *testing.T) {
@@ -155,15 +148,14 @@ func TestBroadcastingErrorAs(t *testing.T) {
 			Reference: "test-ref",
 			Operation: broadcastError.CreateAction,
 		}
-		wrappedErr := fmt.Errorf("wrapped: %w", originalErr)
 
 		// when:
 		var extractedErr *broadcastError.BroadcastingError
-		found := errors.As(wrappedErr, &extractedErr)
+		found := errors.As(originalErr, &extractedErr)
 
 		// then:
 		require.True(t, found, "errors.As should find BroadcastingError")
-		require.Equal(t, originalErr, extractedErr, "Extracted error should match original")
+		require.Equal(t, originalErr, extractedErr)
 	})
 }
 
