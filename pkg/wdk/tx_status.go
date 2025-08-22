@@ -21,6 +21,7 @@ func (s TxStatus) String() string {
 	return string(s)
 }
 
+// ToUTXOStatus converts a TxStatus value to its corresponding UTXOStatus based on predefined status mappings.
 func (s TxStatus) ToUTXOStatus() UTXOStatus {
 	if s == TxStatusCompleted {
 		return UTXOStatusMined

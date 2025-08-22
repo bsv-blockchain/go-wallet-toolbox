@@ -1,8 +1,9 @@
 package entity
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type Output struct {

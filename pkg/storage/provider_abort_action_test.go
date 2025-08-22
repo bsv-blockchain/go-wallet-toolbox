@@ -2,16 +2,16 @@ package storage_test
 
 import (
 	"fmt"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
-	"github.com/go-softwarelab/common/pkg/to"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
@@ -284,7 +284,6 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 }
 
 func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T) {
-	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()

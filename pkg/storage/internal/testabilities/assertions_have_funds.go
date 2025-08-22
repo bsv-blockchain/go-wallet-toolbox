@@ -2,6 +2,8 @@ package testabilities
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
@@ -11,7 +13,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type FundsAssertion interface {
