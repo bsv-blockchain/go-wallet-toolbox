@@ -70,7 +70,7 @@ func New(
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
-		abortAction:           newAbortAction(logger, repos.Transactions),
+		abortAction:           newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx),
 		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
 }

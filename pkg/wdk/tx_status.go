@@ -21,6 +21,22 @@ func (s TxStatus) String() string {
 	return string(s)
 }
 
+func (s TxStatus) ToUTXOStatus() UTXOStatus {
+	if s == TxStatusCompleted {
+		return UTXOStatusMined
+	}
+
+	if s == TxStatusSending {
+		return UTXOStatusSending
+	}
+
+	if s == TxStatusUnproven {
+		return UTXOStatusUnproven
+	}
+
+	return UTXOStatusUnknown
+}
+
 // ProvenTxReqStatus represents the status of a proven transaction in a defined processing state as a string.
 type ProvenTxReqStatus string
 

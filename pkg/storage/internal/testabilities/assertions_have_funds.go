@@ -85,6 +85,7 @@ func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
 		args,
 	)
 	if err != nil {
+		t.Logf("CreateAction error: %v", err)
 		return false
 	}
 

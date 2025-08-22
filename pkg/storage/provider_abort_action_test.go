@@ -1,6 +1,10 @@
 package storage_test
 
 import (
+	"fmt"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/go-softwarelab/common/pkg/to"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -44,33 +48,31 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
+	// and:
+	const initialTopUp = 100_000
+
 	activeStorage := given.Provider().GORM()
-	createResult, _ := given.Action(activeStorage).WithSatoshisToInternalize(99904).Created()
+	createResult, _ := given.Action(activeStorage).WithSatoshisToInternalize(initialTopUp).Created()
 
 	// when:
-	result, err := activeStorage.AbortAction(
+	_, err := activeStorage.AbortAction(
 		t.Context(),
 		testusers.Alice.AuthID(),
 		wdk.AbortActionArgs{
 			Reference: primitives.Base64String(createResult.Reference),
 		},
 	)
-	require.NoError(t, err)
-
-	createResult, err = activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		fixtures.DefaultValidCreateActionArgs(),
-	)
 
 	// then:
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.True(t, result.Aborted)
 
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
-		WithStatus(wdk.TxStatusUnsigned)
+		WithStatus(wdk.TxStatusFailed)
+
+	// and:
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBaAbleToReserveSatoshis(initialTopUp)
 }
 
 func TestAbortActionErrorCases(t *testing.T) {
@@ -223,12 +225,32 @@ func TestAbortActionErrorCases(t *testing.T) {
 
 func TestAbortActionAbortableStatuses(t *testing.T) {
 	tests := map[string]struct {
-		setupTransaction func(given testabilities.StorageFixture) (string, wdk.AuthID)
+		setupTransaction func(given testabilities.StorageFixture, activeStorage *storage.Provider) (string, wdk.AuthID)
 	}{
 		"unsigned_transaction": {
-			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
-				activeStorage := given.Provider().GORM()
+			setupTransaction: func(given testabilities.StorageFixture, activeStorage *storage.Provider) (string, wdk.AuthID) {
 				createResult, _ := given.Action(activeStorage).Created()
+				return createResult.Reference, testusers.Alice.AuthID()
+			},
+		},
+		"unprocessed_transaction": {
+			setupTransaction: func(given testabilities.StorageFixture, activeStorage *storage.Provider) (string, wdk.AuthID) {
+				createResult, signedTx := given.Action(activeStorage).Created()
+				txID := signedTx.TxID().String()
+
+				beefVerifyMockError := fmt.Errorf("mock beef verifier error")
+				given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
+
+				// when:
+				args := wdk.ProcessActionArgs{
+					IsNewTx:   true,
+					Reference: to.Ptr(createResult.Reference),
+					TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+					RawTx:     signedTx.Bytes(),
+				}
+				_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+				require.Error(t, err)
+
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 		},
@@ -240,7 +262,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 			defer cleanup()
 
 			activeStorage := given.Provider().GORM()
-			reference, user := test.setupTransaction(given)
+			reference, user := test.setupTransaction(given, activeStorage)
 
 			// when:
 			result, err := activeStorage.AbortAction(
@@ -259,4 +281,56 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 				WithStatus(wdk.TxStatusFailed)
 		})
 	}
+}
+
+func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T) {
+	//testmode.DevelopmentOnly_SetFileSQLiteMode(t)
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and:
+	const (
+		satoshisToInternalize = 5000
+		satoshisToSend        = 1000
+	)
+
+	// and:
+	createActionResult, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(satoshisToInternalize).
+		WithSatoshisToSend(satoshisToSend).
+		Created()
+	txID := signedTx.TxID().String()
+
+	// and:
+	beefVerifyMockError := fmt.Errorf("mock beef verifier error")
+	given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
+
+	// when:
+	args := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		Reference: to.Ptr(createActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+	}
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.Error(t, err)
+
+	// when:
+	abortResult, err := activeStorage.AbortAction(t.Context(), testusers.Alice.AuthID(), wdk.AbortActionArgs{
+		Reference: primitives.Base64String(createActionResult.Reference),
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.True(t, abortResult.Aborted)
+
+	// and:
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBaAbleToReserveSatoshis(satoshisToInternalize - 10)
 }

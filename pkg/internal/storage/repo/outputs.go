@@ -359,68 +359,113 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) err
 	return nil
 }
 
-func (o *Outputs) MakeOutputsSpendable(ctx context.Context, txID string, utxoStatus wdk.UTXOStatus) error {
+func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) error {
 	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var changeOutputs []*models.Output
-		err := tx.Model(&models.Output{}).
-			Select(
-				o.query.Output.ID.ColumnName().String(),
-				o.query.Output.BasketName.ColumnName().String(),
-				o.query.Output.Satoshis.ColumnName().String(),
-				o.query.Output.Type.ColumnName().String(),
-				o.query.Output.UserID.ColumnName().String(),
-			).
-			Where("transaction_id IN (?)",
-				o.db.Model(&models.Transaction{}).
-					Select("id").
-					Where("tx_id = ?", txID),
-			).
-			Where(o.query.Output.BasketName.IsNotNull()).
-			Where(o.query.Output.Change.Is(true)).
-			Where(o.query.Output.Satoshis.Gt(0)).
-			Where(o.query.Output.SpentBy.IsNull()).
-			Find(&changeOutputs).Error
-		if err != nil {
-			return fmt.Errorf("failed to find transaction outputs: %w", err)
+		transactionIDSubquery := o.db.Model(&models.Transaction{}).
+			Select("id").
+			Where("tx_id = ?", txID)
+
+		filterScope := func(db *gorm.DB) *gorm.DB {
+			return db.Where("transaction_id IN (?)", transactionIDSubquery).Where(o.query.Output.SpentBy.IsNull())
 		}
 
-		if len(changeOutputs) == 0 {
-			return nil
-		}
-
-		for _, output := range changeOutputs {
-			err = tx.Model(&models.Output{}).
-				Where("id = ?", output.ID).
-				Updates(map[string]any{
-					"spendable": true,
-				}).Error
-			if err != nil {
-				return fmt.Errorf("failed to update output %d to spendable: %w", output.ID, err)
-			}
-		}
-
-		newUTXOs := slices.Map(changeOutputs, func(output *models.Output) *models.UserUTXO {
-			return &models.UserUTXO{
-				UserID:             output.UserID,
-				OutputID:           output.ID,
-				BasketName:         *output.BasketName,
-				Satoshis:           must.ConvertToUInt64(output.Satoshis),
-				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-				UTXOStatus:         utxoStatus,
-			}
-		})
-
-		err = tx.
-			Clauses(clause.OnConflict{DoNothing: true}).
-			Create(newUTXOs).Error
-		if err != nil {
-			return fmt.Errorf("failed to create new UTXOs: %w", err)
-		}
-
-		return nil
+		return makeOutputsSpendable(o.query, tx, filterScope)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to make outputs spendable: %w", err)
+	}
+
+	return nil
+}
+
+func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error {
+	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+
+		filterScope := func(db *gorm.DB) *gorm.DB {
+			return db.Where(o.query.Output.SpentBy.Eq(spendingTransactionID))
+		}
+
+		return makeOutputsSpendable(o.query, tx, filterScope)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to restore spent outputs: %w", err)
+	}
+
+	return nil
+}
+
+type spendableOutputReadModel struct {
+	models.Output
+	TxStatus wdk.TxStatus `gorm:"column:tx_status"`
+}
+
+func makeOutputsSpendable(query *genquery.Query, tx *gorm.DB, filterScope func(db *gorm.DB) *gorm.DB) error {
+	txTableName := query.Transaction.TableName()
+	txTableStatusColumn := query.Transaction.Status.ColumnName().String()
+	outputTableName := query.Output.TableName()
+	outputTableTransactionIDColumn := query.Output.TransactionID.ColumnName().String()
+
+	query.Output.BasketName.ColumnName()
+
+	var changeOutputs []*spendableOutputReadModel
+	err := tx.Model(&models.Output{}).
+		Select(
+			fmt.Sprintf("%s.%s", outputTableName, query.Output.ID.ColumnName().String()),
+			query.Output.BasketName.ColumnName().String(),
+			fmt.Sprintf("%s.%s", outputTableName, query.Output.Satoshis.ColumnName().String()),
+			query.Output.Type.ColumnName().String(),
+			fmt.Sprintf("%s.%s", outputTableName, query.Output.UserID.ColumnName().String()),
+			fmt.Sprintf("trx.%s as tx_status", txTableStatusColumn),
+		).
+		Joins(fmt.Sprintf("INNER JOIN %s as trx ON trx.ID = %s.%s", txTableName, outputTableName, outputTableTransactionIDColumn)).
+		Scopes(filterScope).
+		Where(query.Output.BasketName.IsNotNull()).
+		Where(query.Output.Change.Is(true)).
+		Where(query.Output.Satoshis.Gt(0)).
+		Find(&changeOutputs).Error
+	if err != nil {
+		return fmt.Errorf("failed to find transaction outputs: %w", err)
+	}
+
+	err = tx.Model(&models.Output{}).
+		Scopes(filterScope).
+		Where(query.Output.BasketName.IsNotNull()).
+		Where(query.Output.Change.Is(true)).
+		Where(query.Output.Satoshis.Gt(0)).
+		Updates(map[string]any{
+			"spendable": true,
+			"spent_by":  nil,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to update outputs to spendable: %w", err)
+	}
+
+	if len(changeOutputs) == 0 {
+		return nil
+	}
+
+	newUTXOs := make([]*models.UserUTXO, 0, len(changeOutputs))
+	for _, output := range changeOutputs {
+		utxoStatus := output.TxStatus.ToUTXOStatus()
+		if utxoStatus == wdk.UTXOStatusUnknown {
+			continue
+		}
+
+		newUTXOs = append(newUTXOs, &models.UserUTXO{
+			UserID:             output.UserID,
+			OutputID:           output.ID,
+			BasketName:         *output.BasketName,
+			Satoshis:           must.ConvertToUInt64(output.Satoshis),
+			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+			UTXOStatus:         utxoStatus,
+		})
+	}
+
+	err = tx.
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(newUTXOs).Error
+	if err != nil {
+		return fmt.Errorf("failed to create new UTXOs: %w", err)
 	}
 
 	return nil
@@ -451,6 +496,7 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
 	}
 	if model.Transaction != nil && model.Transaction.TxID != nil {
 		output.TxID = model.Transaction.TxID
+		output.TxStatus = model.Transaction.Status
 	}
 	return output
 }
@@ -468,4 +514,21 @@ func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) f
 
 		return query.Where("id IN (?)", subQuery)
 	}
+}
+
+func (o *Outputs) IsAnyOutputOfTransactionSpent(ctx context.Context, transactionID uint) error {
+	var spentCount int64
+	err := o.db.WithContext(ctx).Model(&models.Output{}).
+		Where("transaction_id = ?", transactionID).
+		Where("spent_by IS NOT NULL").
+		Count(&spentCount).Error
+	if err != nil {
+		return fmt.Errorf("failed to count spent outputs: %w", err)
+	}
+
+	if spentCount > 0 {
+		return fmt.Errorf("transaction with ID %d has spent outputs", transactionID)
+	}
+
+	return nil
 }

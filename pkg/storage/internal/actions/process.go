@@ -278,12 +278,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				Status: currentStatus.SendWithResultStatus(),
 			})
 
-			utxoStatus := wdk.UTXOStatusUnproven
-			if currentStatus == wdk.ProvenTxStatusCompleted {
-				utxoStatus = wdk.UTXOStatusMined
-			}
-
-			err = p.outputRepo.MakeOutputsSpendable(ctx, txID, utxoStatus)
+			err = p.outputRepo.MakeOutputsSpendableForTxID(ctx, txID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
 			}
@@ -427,12 +422,12 @@ func (p *process) updateSingleTx(
 	err error,
 ) {
 	var (
-		newReqStatus  wdk.ProvenTxReqStatus
-		newTxStatus   wdk.TxStatus
-		newUtxoStatus wdk.UTXOStatus
+		newReqStatus wdk.ProvenTxReqStatus
+		newTxStatus  wdk.TxStatus
+		spendable    bool
 	)
 
-	newReqStatus, newTxStatus, newUtxoStatus, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID)
+	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID)
 	if err != nil {
 		return
 	}
@@ -451,8 +446,8 @@ func (p *process) updateSingleTx(
 		return
 	}
 
-	if newUtxoStatus != wdk.UTXOStatusUnknown {
-		err = p.outputRepo.MakeOutputsSpendable(ctx, txID, newUtxoStatus)
+	if spendable {
+		err = p.outputRepo.MakeOutputsSpendableForTxID(ctx, txID)
 		if err != nil {
 			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
 			return
@@ -540,7 +535,7 @@ func (p *process) getKnownTxStatuses(ctx context.Context, txIDs ...string) (map[
 func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
-	utxoStatus wdk.UTXOStatus,
+	spendable bool,
 	reviewActionResult wdk.ReviewActionResult,
 	sendWithResult wdk.SendWithResult,
 	err error,
@@ -557,13 +552,13 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	case wdk.AggregatedPostedTxIDSuccess:
 		reqStatus = wdk.ProvenTxStatusUnmined
 		txStatus = wdk.TxStatusUnproven
-		utxoStatus = wdk.UTXOStatusUnproven
+		spendable = true
 		sendWithResult.Status = wdk.SendWithResultStatusUnproven
 		reviewActionResult.Status = wdk.ReviewActionResultStatusSuccess
 	case wdk.AggregatedPostedTxIDDoubleSpend:
 		reqStatus = wdk.ProvenTxStatusDoubleSpend
 		txStatus = wdk.TxStatusFailed
-		utxoStatus = wdk.UTXOStatusUnknown
+		spendable = false
 		sendWithResult.Status = wdk.SendWithResultStatusFailed
 		reviewActionResult.Status = wdk.ReviewActionResultStatusDoubleSpend
 		reviewActionResult.CompetingTxs = seq.Collect(maps.Keys(aggBroadcastResult.CompetingTxs))
@@ -571,13 +566,13 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	case wdk.AggregatedPostedTxIDInvalidTx:
 		reqStatus = wdk.ProvenTxStatusInvalid
 		txStatus = wdk.TxStatusFailed
-		utxoStatus = wdk.UTXOStatusUnknown
+		spendable = false
 		sendWithResult.Status = wdk.SendWithResultStatusFailed
 		reviewActionResult.Status = wdk.ReviewActionResultStatusInvalidTx
 	case wdk.AggregatedPostedTxIDServiceError:
 		reqStatus = wdk.ProvenTxStatusSending
 		txStatus = wdk.TxStatusSending
-		utxoStatus = wdk.UTXOStatusSending
+		spendable = true
 		sendWithResult.Status = wdk.SendWithResultStatusSending
 		reviewActionResult.Status = wdk.ReviewActionResultStatusServiceError
 	default:
