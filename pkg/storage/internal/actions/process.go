@@ -319,7 +319,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
-		return nil, broadcastError.NewImmediateBroadcastError()
+		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
 	var (
