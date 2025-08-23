@@ -1,10 +1,6 @@
 package testabilities
 
 import (
-	"log/slog"
-	"testing"
-	"time"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
@@ -16,6 +12,8 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
+	"log/slog"
+	"testing"
 )
 
 type ServicesFixture interface {
@@ -34,7 +32,7 @@ type ProviderFixture interface {
 	WithCommission(commission defs.Commission) ProviderFixture
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
-	WithFailAbandonedMinTxAge(duration time.Duration) ProviderFixture
+	WithFailAbandonedMinTxAge(seconds uint) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -85,9 +83,9 @@ func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixt
 	return p
 }
 
-func (p *providerFixture) WithFailAbandonedMinTxAge(duration time.Duration) ProviderFixture {
+func (p *providerFixture) WithFailAbandonedMinTxAge(seconds uint) ProviderFixture {
 	p.failAbandoned = defs.FailAbandoned{
-		MinTransactionAgeSeconds: uint(duration.Seconds()),
+		MinTransactionAgeSeconds: seconds,
 	}
 	return p
 }

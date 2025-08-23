@@ -34,7 +34,7 @@ type Provider struct {
 
 	repo    *repo.Repositories
 	actions *actions.Actions
-	random  wdk.Randomizer
+	options *providerOptions
 	logger  *slog.Logger
 }
 
@@ -83,8 +83,8 @@ func NewGORMProvider(ctx context.Context, logger *slog.Logger, chain defs.BSVNet
 			options.synchronizeTxStatusesConfig,
 			options.beefVerifier,
 		),
-		random: options.randomizer,
-		logger: logger,
+		options: &options,
+		logger:  logger,
 	}, nil
 }
 
@@ -368,8 +368,14 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 }
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
-func (p *Provider) AbortAbandoned(ctx context.Context, minTransactionAge time.Duration) error {
-	err := p.actions.AbortAbandoned(ctx, minTransactionAge)
+func (p *Provider) AbortAbandoned(ctx context.Context) error {
+	seconds, err := to.Int(p.options.failAbandonedConfig.MinTransactionAgeSeconds)
+	if err != nil {
+		return fmt.Errorf("invalid failAbandonedConfig.MinTransactionAgeSeconds: %w", err)
+	}
+	minTransactionAge := time.Duration(seconds) * time.Second
+
+	err = p.actions.AbortAbandoned(ctx, minTransactionAge)
 	if err != nil {
 		return fmt.Errorf("failed to fail abandoned transactions: %w", err)
 	}
@@ -484,7 +490,7 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 		return nil, ErrAuthorization
 	}
 
-	action := sync.NewFindOrInsertSyncState(p.repo, p.random, *auth.UserID, storageIdentityKey, storageName)
+	action := sync.NewFindOrInsertSyncState(p.repo, p.options.randomizer, *auth.UserID, storageIdentityKey, storageName)
 	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
 
 	if err != nil {

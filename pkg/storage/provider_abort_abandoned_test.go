@@ -1,15 +1,13 @@
 package storage_test
 
 import (
-	"testing"
-	"time"
-
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func TestAbortAbandoned_AbortByStatus(t *testing.T) {
@@ -34,6 +32,7 @@ func TestAbortAbandoned_AbortByStatus(t *testing.T) {
 			defer cleanup()
 			activeStorage := given.Provider().
 				WithRandomizer(randomizer.NewTestRandomizer()).
+				WithFailAbandonedMinTxAge(0). // this way we can abort immediately
 				GORM()
 
 			// and:
@@ -49,7 +48,7 @@ func TestAbortAbandoned_AbortByStatus(t *testing.T) {
 			createActionResult, _ := test.setup(givenTxGenerator)
 
 			// when:
-			err := activeStorage.AbortAbandoned(t.Context(), -5*time.Minute)
+			err := activeStorage.AbortAbandoned(t.Context())
 
 			// then:
 			require.NoError(t, err)
@@ -79,6 +78,7 @@ func TestAbortAbandoned_HandleMultipleTransaction(t *testing.T) {
 	defer cleanup()
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
+		WithFailAbandonedMinTxAge(0). // this way we can abort immediately
 		GORM()
 
 	sendingTxReferences := make([]string, 0, sendingTxCount)
@@ -104,7 +104,7 @@ func TestAbortAbandoned_HandleMultipleTransaction(t *testing.T) {
 	}
 
 	// when:
-	err := activeStorage.AbortAbandoned(t.Context(), -5*time.Minute)
+	err := activeStorage.AbortAbandoned(t.Context())
 
 	// then:
 	require.NoError(t, err)
