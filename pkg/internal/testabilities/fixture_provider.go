@@ -3,6 +3,7 @@ package testabilities
 import (
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -33,6 +34,7 @@ type ProviderFixture interface {
 	WithCommission(commission defs.Commission) ProviderFixture
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
+	WithFailAbandonedMinTxAge(duration time.Duration) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -48,6 +50,7 @@ type providerFixture struct {
 	network        defs.BSVNetwork
 	commission     defs.Commission
 	feeModel       defs.FeeModel
+	failAbandoned  defs.FailAbandoned
 	randomizer     wdk.Randomizer
 	services       wdk.Services
 	beefVerifier   *beefVerifierFixture
@@ -79,6 +82,13 @@ func (p *providerFixture) WithFeeModel(feeModel defs.FeeModel) ProviderFixture {
 
 func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixture {
 	p.randomizer = randomizer
+	return p
+}
+
+func (p *providerFixture) WithFailAbandonedMinTxAge(duration time.Duration) ProviderFixture {
+	p.failAbandoned = defs.FailAbandoned{
+		MinTransactionAgeSeconds: uint(duration.Seconds()),
+	}
 	return p
 }
 
@@ -119,16 +129,15 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	activeStorage, err := storage.NewGORMProvider(
 		p.t.Context(),
 		p.logger,
-		storage.GORMProviderConfig{
-			Chain:                 p.network,
-			FeeModel:              p.feeModel,
-			Commission:            p.commission,
-			Services:              p.services,
-			SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
-		},
+		p.network,
+		defs.Database{}, // Database connection is provided via option
+		p.services,
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),
 		storage.WithBeefVerifier(p.beefVerifier),
+		storage.WithFeeModel(p.feeModel),
+		storage.WithCommission(p.commission),
+		storage.WithFailAbandoned(p.failAbandoned),
 	)
 	p.require.NoError(err)
 

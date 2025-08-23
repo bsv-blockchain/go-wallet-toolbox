@@ -167,6 +167,7 @@ func newStorageFixture(t testing.TB, identityKey string, name string, configModi
 		network:        network,
 		commission:     defs.Commission{},
 		feeModel:       defs.DefaultFeeModel(),
+		failAbandoned:  defs.DefaultFailAbandoned(),
 		randomizer:     randomizer.New(),
 		beefVerifier:   newBeefVerifier(),
 		storagePrivKey: s.storagePrivKey,

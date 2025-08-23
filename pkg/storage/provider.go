@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
@@ -41,25 +40,14 @@ type Provider struct {
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
-// GORMProviderConfig is a configuration for GORM storage provider.
-type GORMProviderConfig struct {
-	DB                    defs.Database
-	Chain                 defs.BSVNetwork
-	FeeModel              defs.FeeModel
-	Commission            defs.Commission
-	Services              wdk.Services
-	SynchronizeTxStatuses defs.SynchronizeTxStatuses
-}
-
 // NewGORMProvider creates a new storage provider with GORM repository.
-func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProviderConfig, opts ...ProviderOption) (*Provider, error) {
-	if err := config.FeeModel.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid fee model: %w", err)
+func NewGORMProvider(ctx context.Context, logger *slog.Logger, chain defs.BSVNetwork, dbConfig defs.Database, services wdk.Services, opts ...ProviderOption) (*Provider, error) {
+	options := to.OptionsWithDefault(defaultProviderOptions(), opts...)
+	if err := options.verify(); err != nil {
+		return nil, fmt.Errorf("invalid provider options: %w", err)
 	}
 
-	options := toOptions(opts)
-
-	db, err := configureDatabase(logger, config.DB, options)
+	db, err := configureDatabase(logger, dbConfig, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -72,35 +60,31 @@ func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProvid
 	if options.funder != nil {
 		transactionFunder = options.funder
 	} else {
-		transactionFunder = db.CreateFunder(config.FeeModel)
+		transactionFunder = db.CreateFunder(options.feeModel)
 	}
 
-	var random wdk.Randomizer
-	if options.randomizer != nil {
-		random = options.randomizer
-	} else {
-		random = randomizer.New()
-	}
-
-	var beefVerifier wdk.BeefVerifier
-	if options.beefVerifier != nil {
-		beefVerifier = options.beefVerifier
-	} else {
-		beefVerifier = &DefaultBeefVerifier{}
-	}
-
-	if config.Services == nil {
+	if services == nil {
 		logger.Warn("services is not set, some actions may not work")
 	}
 
 	return &Provider{
-		Chain:    config.Chain,
+		Chain:    chain,
 		Database: db,
 
-		repo:    repos,
-		actions: actions.New(ctx, logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses, beefVerifier),
-		random:  random,
-		logger:  logger,
+		repo: repos,
+		actions: actions.New(
+			ctx,
+			logger,
+			transactionFunder,
+			options.commission,
+			repos,
+			options.randomizer,
+			services,
+			options.synchronizeTxStatusesConfig,
+			options.beefVerifier,
+		),
+		random: options.randomizer,
+		logger: logger,
 	}, nil
 }
 
