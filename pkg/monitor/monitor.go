@@ -74,19 +74,6 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions .
 	}, nil
 }
 
-type taskFactoryFunc func() tasks.TaskInterface
-
-func (d *Daemon) allTasksFactories() map[defs.MonitorTask]taskFactoryFunc {
-	return map[defs.MonitorTask]taskFactoryFunc{
-		defs.CheckForProofsMonitorTask: func() tasks.TaskInterface {
-			return tasks.NewCheckForProofsTask(d.storage)
-		},
-		defs.SendWaitingMonitorTask: func() tasks.TaskInterface {
-			return tasks.NewSendWaitingTask(d.storage)
-		},
-	}
-}
-
 // Start initializes and begins running the configured monitor tasks according to their schedules.
 func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
 	d.startLock.Lock()
