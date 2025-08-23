@@ -26,7 +26,7 @@ type OutputRepo interface {
 	SaveOutputs(ctx context.Context, output []*entity.Output) error
 	MakeOutputsSpendableForTxID(ctx context.Context, txID string) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
-	IsAnyOutputOfTransactionSpent(ctx context.Context, transactionID uint) error
+	ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error
 }
 
 type TransactionsRepo interface {

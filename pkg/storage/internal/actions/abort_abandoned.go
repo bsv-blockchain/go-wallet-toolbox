@@ -68,7 +68,7 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 	log.InfoContext(ctx, "Found abandoned transactions to fail", slog.Int("count", len(idsToAbort)))
 
 	for _, id := range idsToAbort {
-		if err := a.outputsRepo.IsAnyOutputOfTransactionSpent(ctx, id); err != nil {
+		if err := a.outputsRepo.ShouldTxOutputsBeUnspent(ctx, id); err != nil {
 			log.ErrorContext(ctx, "Cannot abort transaction because some outputs are already spent", "transactionID", id, "error", err.Error())
 			continue
 		}

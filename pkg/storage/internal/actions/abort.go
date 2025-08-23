@@ -92,7 +92,7 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *entity.Transacti
 		return err
 	}
 
-	if err := a.outputsRepo.IsAnyOutputOfTransactionSpent(ctx, txEntity.ID); err != nil {
+	if err := a.outputsRepo.ShouldTxOutputsBeUnspent(ctx, txEntity.ID); err != nil {
 		return fmt.Errorf("cannot abort transaction with spent outputs: %w", err)
 	}
 

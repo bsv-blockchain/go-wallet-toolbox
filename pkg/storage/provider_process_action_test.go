@@ -509,7 +509,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
 
-	// then retry:
+	// when, retry:
 	given.Provider().BeefVerifier().DefaultBehavior()
 	args = wdk.ProcessActionArgs{
 		IsNewTx:   false,
@@ -518,6 +518,8 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		RawTx:     signedTx.Bytes(),
 	}
 	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
 	require.NoError(t, err)
 
 	thenDBState.HasKnownTX(txID).

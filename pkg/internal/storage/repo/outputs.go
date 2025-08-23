@@ -373,7 +373,7 @@ func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) 
 		return makeOutputsSpendable(o.query, tx, filterScope)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to make outputs spendable: %w", err)
+		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
 	}
 
 	return nil
@@ -514,19 +514,21 @@ func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) f
 	}
 }
 
-func (o *Outputs) IsAnyOutputOfTransactionSpent(ctx context.Context, transactionID uint) error {
-	var spentCount int64
+func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error {
+	var result int64
 	err := o.db.WithContext(ctx).Model(&models.Output{}).
-		Where("transaction_id = ?", transactionID).
-		Where("spent_by IS NOT NULL").
-		Count(&spentCount).Error
-	if err != nil {
-		return fmt.Errorf("failed to count spent outputs: %w", err)
-	}
+		Select("1").
+		Where(o.query.Output.TransactionID.Eq(transactionID)).
+		Where(o.query.Output.SpentBy.IsNotNull()).
+		Take(&result).Error
 
-	if spentCount > 0 {
+	if err == nil {
 		return fmt.Errorf("transaction with ID %d has spent outputs", transactionID)
 	}
 
-	return nil
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+
+	return fmt.Errorf("failed to check for spent outputs: %w", err)
 }
