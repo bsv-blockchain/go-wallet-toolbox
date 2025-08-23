@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -492,4 +493,23 @@ func (txs *Transactions) AlignTxStatusToKnownTxStatus(ctx context.Context, known
 		return 0, fmt.Errorf("failed to align transaction status: %w", result.Error)
 	}
 	return result.RowsAffected, nil
+}
+
+func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error) {
+	var rows []*models.Transaction
+	err := txs.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Select(
+			txs.query.Transaction.ID.ColumnName().String(),
+		).
+		Scopes(scopes.FromQueryOpts(opts)...).
+		Where("status IN ? ", txStatus).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transactions by statuses: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.Transaction) uint {
+		return row.ID
+	}), nil
 }

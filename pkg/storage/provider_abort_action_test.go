@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -11,7 +10,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
@@ -235,22 +233,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 		},
 		"unprocessed_transaction": {
 			setupTransaction: func(given testabilities.StorageFixture, activeStorage *storage.Provider) (string, wdk.AuthID) {
-				createResult, signedTx := given.Action(activeStorage).Created()
-				txID := signedTx.TxID().String()
-
-				beefVerifyMockError := fmt.Errorf("mock beef verifier error")
-				given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
-
-				// when:
-				args := wdk.ProcessActionArgs{
-					IsNewTx:   true,
-					Reference: to.Ptr(createResult.Reference),
-					TxID:      to.Ptr(primitives.TXIDHexString(txID)),
-					RawTx:     signedTx.Bytes(),
-				}
-				_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
-				require.Error(t, err)
-
+				createResult, _ := given.Action(activeStorage).Unprocessed()
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 		},
@@ -298,27 +281,10 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 	)
 
 	// and:
-	createActionResult, signedTx := given.Action(activeStorage).
+	createActionResult, _ := given.Action(activeStorage).
 		WithSatoshisToInternalize(satoshisToInternalize).
 		WithSatoshisToSend(satoshisToSend).
-		Created()
-	txID := signedTx.TxID().String()
-
-	// and:
-	beefVerifyMockError := fmt.Errorf("mock beef verifier error")
-	given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
-
-	// when:
-	args := wdk.ProcessActionArgs{
-		IsNewTx:   true,
-		Reference: to.Ptr(createActionResult.Reference),
-		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
-		RawTx:     signedTx.Bytes(),
-	}
-	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
-
-	// then:
-	require.Error(t, err)
+		Unprocessed()
 
 	// when:
 	abortResult, err := activeStorage.AbortAction(t.Context(), testusers.Alice.AuthID(), wdk.AbortActionArgs{
@@ -331,5 +297,5 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 
 	// and:
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-		ShouldBeAbleToReserveSatoshis(satoshisToInternalize - 10)
+		ShouldBeAbleToReserveSatoshis(satoshisToInternalize)
 }

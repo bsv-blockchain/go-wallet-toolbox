@@ -383,6 +383,15 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 	return nil
 }
 
+// AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
+func (p *Provider) AbortAbandoned(ctx context.Context, minTransactionAge time.Duration) error {
+	err := p.actions.AbortAbandoned(ctx, minTransactionAge)
+	if err != nil {
+		return fmt.Errorf("failed to fail abandoned transactions: %w", err)
+	}
+	return nil
+}
+
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	if auth.UserID == nil {

@@ -15,7 +15,6 @@ const (
 	InternalizeActionHistoryNote = "internalizeAction"
 	ProcessActionHistoryNote     = "processAction"
 	AggregateResultsHistoryNote  = "aggregateResults"
-	AbortActionHistoryNote       = "abortAction"
 	NotifyTxOfProofHistoryNote   = "notifyTxOfProof"
 
 	GetMerklePathSuccess  = "getMerklePathSuccess"
@@ -28,14 +27,12 @@ const (
 const (
 	statusNowAttr   = "status_now"
 	serviceNameAttr = "name"
-	referenceAttr   = "reference"
 )
 
 type EventTypesSelector interface {
 	InternalizeAction(userID int) Builder
 	ProcessAction(userID int) Builder
 	AggregateResults(result AggregatedBroadcastResult) Builder
-	AbortAction(reference string) Builder
 	NotifyTxOfProof(transactionID uint) Builder
 
 	GetMerklePathSuccess(serviceName string) Builder
@@ -119,10 +116,6 @@ func (b *builder) PostBeefSuccess(serviceName string, txIDs []string) Builder {
 	return b.WithWhat(PostBeefSuccess).
 		WithAttribute(serviceNameAttr, serviceName).
 		WithAttribute("txids", strings.Join(txIDs, ","))
-}
-func (b *builder) AbortAction(reference string) Builder {
-	return b.WithWhat(AbortActionHistoryNote).
-		WithAttribute(referenceAttr, reference)
 }
 
 func (b *builder) NotifyTxOfProof(transactionID uint) Builder {

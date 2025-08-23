@@ -40,6 +40,7 @@ type TransactionsRepo interface {
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
+	FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error)
 }
 
 type KnownTxRepo interface {
