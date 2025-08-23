@@ -1,8 +1,9 @@
 package defs
 
 import (
-	"github.com/go-softwarelab/common/pkg/must"
 	"time"
+
+	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // FailAbandoned represents a configuration for failing abandoned transactions after a specified minimum age in seconds.

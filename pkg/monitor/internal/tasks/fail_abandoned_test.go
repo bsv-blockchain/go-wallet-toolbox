@@ -1,11 +1,12 @@
 package tasks_test
 
 import (
+	"testing"
+	"time"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/testabilities"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestFailAbandoned(t *testing.T) {

@@ -9,9 +9,8 @@ type MockStorage struct {
 	SynchronizeTransactionStatusesCalled int
 	FailAbandonedCalled                  int
 
-	SendWaitingTransactionsCalled        int
-	SendWaitingLastMinTransactionAge     time.Duration
-
+	SendWaitingTransactionsCalled    int
+	SendWaitingLastMinTransactionAge time.Duration
 }
 
 func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) error {
