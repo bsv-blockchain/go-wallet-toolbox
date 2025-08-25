@@ -9,6 +9,7 @@ type KnownTxForStatusSync struct {
 	TxID     string
 	Attempts uint64
 	Status   wdk.ProvenTxReqStatus
+	Batch    *string
 }
 
 type KnownTxAsMined struct {

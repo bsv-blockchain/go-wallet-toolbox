@@ -39,6 +39,21 @@ func SinceForGen(getter genTableGetter, since *queryopts.Since) func(gen.Dao) ge
 	}
 }
 
+func UntilForGen(getter genTableGetter, until *queryopts.Until) func(gen.Dao) gen.Dao {
+	until.ApplyDefaults()
+	return func(dao gen.Dao) gen.Dao {
+		untilByExpr, ok := getter.GetFieldByName(until.Field)
+		if !ok {
+			_ = dao.AddError(fmt.Errorf("field %s not found", until.Field))
+			return dao
+		}
+
+		untilByField := field.NewTime(getter.TableName(), untilByExpr.ColumnName().String())
+
+		return dao.Where(untilByField.Lte(until.Time))
+	}
+}
+
 type genTableGetter interface {
 	GetFieldByName(fieldName string) (field.OrderExpr, bool)
 	TableName() string
@@ -53,6 +68,9 @@ func FromQueryOptsForGen(getter genTableGetter, opts []queryopts.Options) []func
 	}
 	if options.Since != nil {
 		sc = append(sc, SinceForGen(getter, options.Since))
+	}
+	if options.Until != nil {
+		sc = append(sc, UntilForGen(getter, options.Until))
 	}
 
 	return sc

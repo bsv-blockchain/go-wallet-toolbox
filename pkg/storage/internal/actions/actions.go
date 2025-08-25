@@ -62,6 +62,7 @@ func New(
 			repos.KnownTx,
 			repos.Commission,
 			services,
+			randomizer,
 		),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),

@@ -15,6 +15,7 @@ type KnownTx struct {
 	Status   wdk.ProvenTxReqStatus `gorm:"default:unknown"`
 	Attempts uint64
 	Notified bool
+	Batch    *string `gorm:"index"`
 
 	RawTx     []byte
 	InputBeef []byte

@@ -40,6 +40,7 @@ func TestSynchronizeTx(t *testing.T) {
 	thenDBState.
 		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusCompleted).
+		WithAttempts(0).
 		IsMined().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
@@ -51,6 +52,50 @@ func TestSynchronizeTx(t *testing.T) {
 
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, txSpec.ID().String()).
 		WithStatus(wdk.TxStatusCompleted)
+
+	// and:
+	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
+}
+
+func TestSynchronizeManyTxs(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	const count = 150
+
+	// and:
+	txIDs := make([]string, count)
+	for i := range count {
+		txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+		givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
+		txIDs[i] = txSpec.ID().String()
+	}
+
+	// and:
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+
+	// when:
+	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+
+	// and:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+
+	for _, txID := range txIDs {
+		thenDBState.
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusCompleted).
+			IsMined()
+
+		thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).
+			WithStatus(wdk.TxStatusCompleted)
+	}
 
 	// and:
 	require.Equal(t, 1, givenProvider.ServicesSniffer().CountCallsByRegex(wocEndpointRegex))
@@ -205,15 +250,19 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnTransactionWithoutMerklePath()
 
 	// when:
-	for range defs.DefaultSynchronizeTxStatuses().MaxAttempts + 1 {
+	for attempt := range defs.DefaultSynchronizeTxStatuses().MaxAttempts {
 		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).HasKnownTX(txSpec.ID().String()).WithAttempts(attempt + 1)
 	}
 
 	// and:
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(txSpec.ID().String()).
 		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithAttempts(defs.DefaultSynchronizeTxStatuses().MaxAttempts).
 		NotMined()
 }
 
