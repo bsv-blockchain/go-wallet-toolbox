@@ -286,16 +286,16 @@ func TestKnownTxStatusFilters(t *testing.T) {
 		expect int64
 	}{
 		"status == unmined": {
-			filter: func(r crud.KnownTxReader) { r.Status().Equals(string(wdk.ProvenTxStatusUnmined)) },
+			filter: func(r crud.KnownTxReader) { r.Status().Equals(wdk.ProvenTxStatusUnmined) },
 			expect: 1,
 		},
 		"status == completed": {
-			filter: func(r crud.KnownTxReader) { r.Status().Equals(string(wdk.ProvenTxStatusCompleted)) },
+			filter: func(r crud.KnownTxReader) { r.Status().Equals(wdk.ProvenTxStatusCompleted) },
 			expect: 1,
 		},
 		"status in (completed, unmined)": {
 			filter: func(r crud.KnownTxReader) {
-				r.Status().In(string(wdk.ProvenTxStatusCompleted), string(wdk.ProvenTxStatusUnmined))
+				r.Status().In(wdk.ProvenTxStatusCompleted, wdk.ProvenTxStatusUnmined)
 			},
 			expect: 2,
 		},
