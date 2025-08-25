@@ -47,12 +47,7 @@ func FundAddress(ctx context.Context, deps FaucetDeps, address string, amount ui
 		return "", "", fmt.Errorf("create wallet: %w", err)
 	}
 
-	faucetAddr, err := DeriveAddress(deps.FaucetKeyHex, deps.Network)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to derive faucet address: %w", err)
-	}
-
-	addr, err := script.NewAddressFromString(faucetAddr)
+	addr, err := script.NewAddressFromString(address)
 	if err != nil {
 		return "", "", fmt.Errorf("invalid faucet address: %w", err)
 	}

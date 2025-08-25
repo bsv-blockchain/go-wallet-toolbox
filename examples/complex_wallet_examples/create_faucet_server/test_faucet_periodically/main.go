@@ -28,7 +28,7 @@ func main() {
 	const server = "http://127.0.0.1:8080"               // e.g. "http://127.0.0.1:8080"
 	const address = "mhWi6fGQoPZZkqPBZZNHAQfDiS4hC378jT" // destination address to fund
 	const amount = 10                                    // satoshis
-	const intervalSeconds = 2                            // interval between faucet calls in seconds
+	const intervalSeconds = 5                            // interval between faucet calls in seconds
 
 	if server == "" || address == "" || amount == 0 {
 		fmt.Println("please set server, address and amount constants in this file")
