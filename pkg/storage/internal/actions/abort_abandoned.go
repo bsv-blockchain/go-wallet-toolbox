@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -69,14 +70,15 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 
 	for _, id := range idsToAbort {
 		if err := a.outputsRepo.ShouldTxOutputsBeUnspent(ctx, id); err != nil {
-			log.ErrorContext(ctx, "Cannot abort transaction because some outputs are already spent", "transactionID", id, "error", err.Error())
+			msg := "This might indicate a SERIOUS problem with the storage consistency! Cannot abort transaction because some outputs are already spent."
+			log.ErrorContext(ctx, msg, logging.Number("transactionID", id), logging.Error(err))
 			continue
 		}
 
 		if err := a.abortTx(ctx, id); err != nil {
-			log.ErrorContext(ctx, "Failed to abort transaction", "transactionID", id, "error", err.Error())
+			log.ErrorContext(ctx, "Failed to abort transaction", logging.Number("transactionID", id), logging.Error(err))
 		} else {
-			log.InfoContext(ctx, "Successfully aborted transaction", "transactionID", id)
+			log.InfoContext(ctx, "Successfully aborted transaction", logging.Number("transactionID", id))
 		}
 	}
 

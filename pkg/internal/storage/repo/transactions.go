@@ -318,11 +318,15 @@ func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID
 }
 
 func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error {
-	return txs.db.WithContext(ctx).Model(models.Transaction{}).
-		Where("id = ?", transactionID).
-		Updates(map[string]any{
-			"status": txStatus,
-		}).Error
+	table := txs.query.Transaction
+	_, err := table.WithContext(ctx).
+		Where(table.ID.Eq(transactionID)).
+		Update(table.Status, txStatus)
+
+	if err != nil {
+		return fmt.Errorf("update query for transaction status failed: %w", err)
+	}
+	return nil
 }
 
 func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {
@@ -471,17 +475,14 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 }
 
 func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error) {
-	var rows []*models.Transaction
-	err := txs.db.WithContext(ctx).
-		Model(&models.Transaction{}).
-		Select(
-			txs.query.Transaction.ID.ColumnName().String(),
-		).
-		Scopes(scopes.FromQueryOpts(opts)...).
-		Where("status IN ? ", txStatus).
-		Find(&rows).Error
+	table := &txs.query.Transaction
+	rows, err := table.WithContext(ctx).
+		Select(table.ID).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(table.Status.In(slices.Map(txStatus, func(txStatus wdk.TxStatus) string { return string(txStatus) })...)).
+		Find()
 	if err != nil {
-		return nil, fmt.Errorf("failed to find transactions by statuses: %w", err)
+		return nil, fmt.Errorf("query for finding transaction ids by statuses failed: %w", err)
 	}
 
 	return slices.Map(rows, func(row *models.Transaction) uint {

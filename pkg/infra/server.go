@@ -56,9 +56,13 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to create storage identity key: %w", err)
 	}
 
-	activeStorage, err := storage.NewGORMProvider(ctx, logger, cfg.BSVNetwork, cfg.DBConfig, activeServices,
-		GORMProviderOptionsFromConfig(&cfg)...,
+	providerOptions := append(
+		GORMProviderOptionsFromConfig(&cfg),
+		storage.WithLogger(logger),
+		storage.WithBackgroundBroadcasterContext(ctx),
 	)
+
+	activeStorage, err := storage.NewGORMProvider(cfg.BSVNetwork, activeServices, providerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage provider: %w", err)
 	}

@@ -36,10 +36,13 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 
 	activeServices := services.New(logger, cfg.Services)
 
-	activeStorage, err := storage.NewGORMProvider(ctx, logger, cfg.BSVNetwork, cfg.DBConfig, activeServices,
-		infra.GORMProviderOptionsFromConfig(&cfg)...,
+	options := append(
+		infra.GORMProviderOptionsFromConfig(&cfg),
+		storage.WithLogger(logger),
+		storage.WithBackgroundBroadcasterContext(ctx),
 	)
 
+	activeStorage, err := storage.NewGORMProvider(cfg.BSVNetwork, activeServices, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}

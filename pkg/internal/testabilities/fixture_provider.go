@@ -126,11 +126,10 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.require.NoError(err)
 
 	activeStorage, err := storage.NewGORMProvider(
-		p.t.Context(),
-		p.logger,
 		p.network,
-		defs.Database{}, // Database connection is provided via option
 		p.services,
+		storage.WithBackgroundBroadcasterContext(p.t.Context()),
+		storage.WithLogger(p.logger),
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),
 		storage.WithBeefVerifier(p.beefVerifier),

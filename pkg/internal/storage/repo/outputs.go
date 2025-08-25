@@ -16,6 +16,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -361,16 +362,16 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) err
 }
 
 func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) error {
-	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		transactionIDSubquery := o.db.Model(&models.Transaction{}).
-			Select("id").
-			Where("tx_id = ?", txID)
+	err := o.query.DBTransaction(func(query *genquery.Query) error {
+		filterScope := func(dao gen.Dao) gen.Dao {
+			subquery := query.Transaction.
+				Select(query.Transaction.ID).
+				Where(query.Transaction.TxID.Eq(txID))
 
-		filterScope := func(db *gorm.DB) *gorm.DB {
-			return db.Where("transaction_id IN (?)", transactionIDSubquery).Where(o.query.Output.SpentBy.IsNull())
+			return dao.Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB()))
 		}
 
-		return makeOutputsSpendable(o.query, tx, filterScope)
+		return makeOutputsSpendable(ctx, query, filterScope)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
@@ -380,13 +381,12 @@ func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) 
 }
 
 func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error {
-	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-
-		filterScope := func(db *gorm.DB) *gorm.DB {
-			return db.Where(o.query.Output.SpentBy.Eq(spendingTransactionID))
+	err := o.query.DBTransaction(func(query *genquery.Query) error {
+		filterScope := func(dao gen.Dao) gen.Dao {
+			return dao.Where(o.query.Output.SpentBy.Eq(spendingTransactionID))
 		}
 
-		return makeOutputsSpendable(o.query, tx, filterScope)
+		return makeOutputsSpendable(ctx, query, filterScope)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to restore spent outputs: %w", err)
@@ -400,40 +400,43 @@ type spendableOutputReadModel struct {
 	TxStatus wdk.TxStatus `gorm:"column:tx_status"`
 }
 
-func makeOutputsSpendable(query *genquery.Query, tx *gorm.DB, filterScope func(db *gorm.DB) *gorm.DB) error {
-	txTableName := query.Transaction.TableName()
-	outputTableName := query.Output.TableName()
-	outputTableTransactionIDColumn := query.Output.TransactionID.ColumnName().String()
+func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScope func(dao gen.Dao) gen.Dao) error {
+	outTable := &query.Output
+	txTable := &query.Transaction
+	utxoTable := &query.UserUTXO
+
+	isChangeScope := func(dao gen.Dao) gen.Dao {
+		return dao.
+			Where(outTable.BasketName.IsNotNull()).
+			Where(outTable.Change.Is(true)).
+			Where(outTable.Satoshis.Gt(0))
+	}
 
 	var changeOutputs []*spendableOutputReadModel
-	err := tx.Model(&models.Output{}).
+	err := outTable.WithContext(ctx).
 		Select(
-			query.Output.ID.BuildColumn(tx.Statement, field.WithTable).String(),
-			query.Output.BasketName.ColumnName().String(),
-			query.Output.Satoshis.BuildColumn(tx.Statement, field.WithTable).String(),
-			query.Output.Type.ColumnName().String(),
-			query.Output.UserID.BuildColumn(tx.Statement, field.WithTable).String(),
-			query.Transaction.As("trx").Status.As("tx_status").BuildColumn(tx.Statement, field.WithAll).String(),
+			outTable.ID,
+			outTable.BasketName,
+			outTable.Satoshis,
+			outTable.Type,
+			outTable.UserID,
+			txTable.Status.As("tx_status"),
 		).
-		Joins(fmt.Sprintf("INNER JOIN %s as trx ON trx.ID = %s.%s", txTableName, outputTableName, outputTableTransactionIDColumn)).
+		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
 		Scopes(filterScope).
-		Where(query.Output.BasketName.IsNotNull()).
-		Where(query.Output.Change.Is(true)).
-		Where(query.Output.Satoshis.Gt(0)).
-		Find(&changeOutputs).Error
+		Scopes(isChangeScope).
+		Scan(&changeOutputs)
 	if err != nil {
 		return fmt.Errorf("failed to find transaction outputs: %w", err)
 	}
 
-	err = tx.Model(&models.Output{}).
+	_, err = outTable.WithContext(ctx).
 		Scopes(filterScope).
-		Where(query.Output.BasketName.IsNotNull()).
-		Where(query.Output.Change.Is(true)).
-		Where(query.Output.Satoshis.Gt(0)).
-		Updates(map[string]any{
-			"spendable": true,
-			"spent_by":  nil,
-		}).Error
+		Scopes(isChangeScope).
+		UpdateSimple(
+			outTable.Spendable.Value(true),
+			outTable.SpentBy.Null(),
+		)
 	if err != nil {
 		return fmt.Errorf("failed to update outputs to spendable: %w", err)
 	}
@@ -459,9 +462,10 @@ func makeOutputsSpendable(query *genquery.Query, tx *gorm.DB, filterScope func(d
 		})
 	}
 
-	err = tx.
+	err = utxoTable.
+		WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
-		Create(newUTXOs).Error
+		Create(newUTXOs...)
 	if err != nil {
 		return fmt.Errorf("failed to create new UTXOs: %w", err)
 	}

@@ -34,37 +34,39 @@ type Provider struct {
 
 	repo    *repo.Repositories
 	actions *actions.Actions
-	options *providerOptions
+	options *ProviderConfig
 	logger  *slog.Logger
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
 // NewGORMProvider creates a new storage provider with GORM repository.
-func NewGORMProvider(ctx context.Context, logger *slog.Logger, chain defs.BSVNetwork, dbConfig defs.Database, services wdk.Services, opts ...ProviderOption) (*Provider, error) {
+func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...ProviderOption) (*Provider, error) {
 	options := to.OptionsWithDefault(defaultProviderOptions(), opts...)
 	if err := options.verify(); err != nil {
 		return nil, fmt.Errorf("invalid provider options: %w", err)
 	}
 
-	db, err := configureDatabase(logger, dbConfig, &options)
+	log := options.Logger
+
+	db, err := configureDatabase(log, options.DBConfig, &options)
 	if err != nil {
 		return nil, err
 	}
 
 	repos := db.CreateRepositories()
 
-	logger = logging.Child(logger, "GormStorageProvider")
+	log = logging.Child(log, "GormStorageProvider")
 
 	var transactionFunder funder.Funder
-	if options.funder != nil {
-		transactionFunder = options.funder
+	if options.Funder != nil {
+		transactionFunder = options.Funder
 	} else {
-		transactionFunder = db.CreateFunder(options.feeModel)
+		transactionFunder = db.CreateFunder(options.FeeModel)
 	}
 
 	if services == nil {
-		logger.Warn("services is not set, some actions may not work")
+		log.Warn("services is not set, some actions may not work")
 	}
 
 	return &Provider{
@@ -73,18 +75,18 @@ func NewGORMProvider(ctx context.Context, logger *slog.Logger, chain defs.BSVNet
 
 		repo: repos,
 		actions: actions.New(
-			ctx,
-			logger,
+			options.BackgroundBroadcasterContext,
+			log,
 			transactionFunder,
-			options.commission,
+			options.Commission,
 			repos,
-			options.randomizer,
+			options.Randomizer,
 			services,
-			options.synchronizeTxStatusesConfig,
-			options.beefVerifier,
+			options.SynchronizeTxStatusesConfig,
+			options.BeefVerifier,
 		),
 		options: &options,
-		logger:  logger,
+		logger:  log,
 	}, nil
 }
 
@@ -93,9 +95,9 @@ func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 }
 
-func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *providerOptions) (*database.Database, error) {
-	if options.gormDB != nil {
-		return database.NewWithGorm(options.gormDB, logger), nil
+func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *ProviderConfig) (*database.Database, error) {
+	if options.GormDB != nil {
+		return database.NewWithGorm(options.GormDB, logger), nil
 	}
 
 	db, err := database.NewDatabase(dbConfig, logger)
@@ -369,9 +371,9 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
 func (p *Provider) AbortAbandoned(ctx context.Context) error {
-	seconds, err := to.Int(p.options.failAbandonedConfig.MinTransactionAgeSeconds)
+	seconds, err := to.Int(p.options.FailAbandonedConfig.MinTransactionAgeSeconds)
 	if err != nil {
-		return fmt.Errorf("invalid failAbandonedConfig.MinTransactionAgeSeconds: %w", err)
+		return fmt.Errorf("invalid FailAbandonedConfig.MinTransactionAgeSeconds: %w", err)
 	}
 	minTransactionAge := time.Duration(seconds) * time.Second
 
@@ -490,7 +492,7 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 		return nil, ErrAuthorization
 	}
 
-	action := sync.NewFindOrInsertSyncState(p.repo, p.options.randomizer, *auth.UserID, storageIdentityKey, storageName)
+	action := sync.NewFindOrInsertSyncState(p.repo, p.options.Randomizer, *auth.UserID, storageIdentityKey, storageName)
 	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
 
 	if err != nil {
@@ -557,7 +559,7 @@ func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, optio
 	return beef, nil
 }
 
-// CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.
+// CommissionEntity returns a Commission interface for querying and filtering Commission records in the storage provider.
 func (p *Provider) CommissionEntity() crud.Commission {
 	return crud.NewCommission(p.repo.Commission)
 }

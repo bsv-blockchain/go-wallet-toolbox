@@ -512,10 +512,8 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	// when, retry:
 	given.Provider().BeefVerifier().DefaultBehavior()
 	args = wdk.ProcessActionArgs{
-		IsNewTx:   false,
-		Reference: to.Ptr(createActionResult.Reference),
-		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
-		RawTx:     signedTx.Bytes(),
+		IsNewTx: false,
+		TxID:    to.Ptr(primitives.TXIDHexString(txID)),
 	}
 	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
