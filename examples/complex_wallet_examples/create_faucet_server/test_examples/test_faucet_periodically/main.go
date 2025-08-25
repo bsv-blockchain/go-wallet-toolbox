@@ -9,11 +9,12 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/methods"
 )
 
 type faucetReq struct {
-	Address string `json:"address"`
-	Amount  uint64 `json:"amount"`
+	Outputs []methods.FaucetOutput `json:"outputs"`
 }
 
 type faucetResp struct {
@@ -27,7 +28,7 @@ func main() {
 	// Fill these values before running
 	const server = "http://127.0.0.1:8080"               // e.g. "http://127.0.0.1:8080"
 	const address = "mhWi6fGQoPZZkqPBZZNHAQfDiS4hC378jT" // destination address to fund
-	const amount = 10                                    // satoshis
+	const amount = 10                                    // satoshis per call
 	const intervalSeconds = 5                            // interval between faucet calls in seconds
 
 	if server == "" || address == "" || amount == 0 {
@@ -36,9 +37,8 @@ func main() {
 	}
 
 	fmt.Println("=== Periodic Faucet Funding ===")
-	fmt.Printf("Server:  %s\n", server)
-	fmt.Printf("Address: %s\n", address)
-	fmt.Printf("Amount:  %d satoshis\n", amount)
+	fmt.Printf("Server:   %s\n", server)
+	fmt.Printf("Address:  %s (Amount: %d satoshis)\n", address, amount)
 	fmt.Printf("Interval: %d seconds\n", intervalSeconds)
 	fmt.Println("Press 'x' and Enter to exit")
 	fmt.Println("================================")
@@ -67,7 +67,11 @@ func main() {
 			fmt.Printf("\n--- Faucet Call #%d ---\n", counter)
 			fmt.Printf("Time: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 
-			body, _ := json.Marshal(faucetReq{Address: address, Amount: amount})
+			body, _ := json.Marshal(faucetReq{
+				Outputs: []methods.FaucetOutput{
+					{Address: address, Amount: amount},
+				},
+			})
 			resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body))
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)

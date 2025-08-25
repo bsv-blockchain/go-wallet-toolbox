@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/methods"
 )
 
 type faucetReq struct {
-	Address string `json:"address"`
-	Amount  uint64 `json:"amount"`
+	Outputs []methods.FaucetOutput `json:"outputs"`
 }
 
 type faucetResp struct {
@@ -37,7 +38,11 @@ func main() {
 	fmt.Printf("Amount:  %d satoshis\n", amount)
 	fmt.Println("================================")
 
-	body, _ := json.Marshal(faucetReq{Address: address, Amount: amount})
+	body, _ := json.Marshal(faucetReq{
+		Outputs: []methods.FaucetOutput{
+			{Address: address, Amount: amount},
+		},
+	})
 	resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body))
 	if err != nil {
 		panic(err)

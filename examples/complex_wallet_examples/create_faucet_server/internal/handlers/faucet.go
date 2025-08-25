@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/methods"
@@ -9,8 +10,7 @@ import (
 )
 
 type FaucetRequest struct {
-	Address string `json:"address"`
-	Amount  uint64 `json:"amount"`
+	Outputs []methods.FaucetOutput `json:"outputs"`
 }
 
 type FaucetResponse struct {
@@ -25,11 +25,32 @@ type FaucetDeps = methods.FaucetDeps
 func NewFaucetHandler(deps FaucetDeps) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req FaucetRequest
-		if err := c.BodyParser(&req); err != nil || req.Address == "" || req.Amount == 0 {
-			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "invalid request"})
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "invalid request format"})
 		}
 
-		txid, beefHex, err := methods.FundAddress(context.Background(), deps, req.Address, req.Amount)
+		if len(req.Outputs) == 0 {
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "at least one output is required"})
+		}
+
+		// Validate each output
+		totalAmount := uint64(0)
+		for _, output := range req.Outputs {
+			if output.Address == "" {
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "address is required for all outputs"})
+			}
+			if output.Amount == 0 {
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "amount must be greater than 0 for all outputs"})
+			}
+			totalAmount += output.Amount
+		}
+
+		// Check total amount limit
+		if totalAmount > methods.MaxFaucetTotalAmount {
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("total amount must be less than %d satoshis", methods.MaxFaucetTotalAmount)})
+		}
+
+		txid, beefHex, err := methods.FundAddresses(context.Background(), deps, req.Outputs)
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(FaucetResponse{Status: "error", Message: err.Error()})
 		}

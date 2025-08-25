@@ -21,14 +21,19 @@ type FaucetDeps struct {
 	ServerURL    string
 }
 
-// FundAddress creates and broadcasts a faucet payment to the faucet's own BRC-29 address.
+type FaucetOutput struct {
+	Address string `json:"address"`
+	Amount  uint64 `json:"amount"`
+}
+
+// FundAddresses creates and broadcasts a faucet payment with multiple outputs.
 // Returns the txid string and full Atomic BEEF hex on success.
-func FundAddress(ctx context.Context, deps FaucetDeps, address string, amount uint64) (string, string, error) {
+func FundAddresses(ctx context.Context, deps FaucetDeps, outputs []FaucetOutput) (string, string, error) {
 	if deps.FaucetKeyHex == "" {
 		return "", "", fmt.Errorf("faucet key not configured")
 	}
-	if amount == 0 {
-		return "", "", fmt.Errorf("invalid amount")
+	if len(outputs) == 0 {
+		return "", "", fmt.Errorf("at least one output is required")
 	}
 
 	storageClient, cleanup, err := storage.NewClient(deps.ServerURL)
@@ -47,24 +52,30 @@ func FundAddress(ctx context.Context, deps FaucetDeps, address string, amount ui
 		return "", "", fmt.Errorf("create wallet: %w", err)
 	}
 
-	addr, err := script.NewAddressFromString(address)
-	if err != nil {
-		return "", "", fmt.Errorf("invalid faucet address: %w", err)
-	}
-	lockingScript, err := p2pkh.Lock(addr)
-	if err != nil {
-		return "", "", fmt.Errorf("p2pkh lock: %w", err)
+	// Create outputs for each address and amount
+	createOutputs := make([]sdk.CreateActionOutput, len(outputs))
+	for i, output := range outputs {
+		addr, err := script.NewAddressFromString(output.Address)
+		if err != nil {
+			return "", "", fmt.Errorf("invalid address %s: %w", output.Address, err)
+		}
+		lockingScript, err := p2pkh.Lock(addr)
+		if err != nil {
+			return "", "", fmt.Errorf("p2pkh lock for address %s: %w", output.Address, err)
+		}
+
+		createOutputs[i] = sdk.CreateActionOutput{
+			LockingScript:     lockingScript.Bytes(),
+			Satoshis:          output.Amount,
+			OutputDescription: fmt.Sprintf("Faucet funding to %s", output.Address),
+			Tags:              []string{"faucet"},
+		}
 	}
 
 	createArgs := sdk.CreateActionArgs{
-		Description: "Faucet payment",
-		Outputs: []sdk.CreateActionOutput{{
-			LockingScript:     lockingScript.Bytes(),
-			Satoshis:          amount,
-			OutputDescription: "Faucet funding",
-			Tags:              []string{"faucet"},
-		}},
-		Labels: []string{"faucet_funding"},
+		Description: "Faucet payment with multiple outputs",
+		Outputs:     createOutputs,
+		Labels:      []string{"faucet_funding"},
 		Options: &sdk.CreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr(false),
 		},
@@ -80,4 +91,11 @@ func FundAddress(ctx context.Context, deps FaucetDeps, address string, amount ui
 		beefHex = hex.EncodeToString(result.Tx)
 	}
 	return result.Txid.String(), beefHex, nil
+}
+
+// FundAddress creates and broadcasts a faucet payment to the faucet's own BRC-29 address.
+// Returns the txid string and full Atomic BEEF hex on success.
+func FundAddress(ctx context.Context, deps FaucetDeps, address string, amount uint64) (string, string, error) {
+	outputs := []FaucetOutput{{Address: address, Amount: amount}}
+	return FundAddresses(ctx, deps, outputs)
 }
