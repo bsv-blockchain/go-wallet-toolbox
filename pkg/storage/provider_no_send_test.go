@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNoSendSendWithScenario_SendWithoutNewTx_2(t *testing.T) {
+func TestNoSendSendWithScenario_SendWithoutNewTx(t *testing.T) {
 	// given:
 	const inputSatoshis = 99904
 
@@ -45,7 +45,7 @@ func TestNoSendSendWithScenario_SendWithoutNewTx_2(t *testing.T) {
 		HasUserTransactionsByTxIDsWithStatus(testusers.Alice, wdk.TxStatusUnproven, result.FirstTxID, result.SecondTxID)
 }
 
-func TestNoSendSendWithScenario_SendWithNewTx_2(t *testing.T) {
+func TestNoSendSendWithScenario_SendWithNewTx(t *testing.T) {
 	// given:
 	const inputSatoshis = 99904
 
@@ -108,7 +108,7 @@ func TestNoSendSendWithScenario_SendWithNewTx_2(t *testing.T) {
 		HasUserTransactionsByTxIDsWithStatus(testusers.Alice, wdk.TxStatusUnproven, result.FirstTxID, result.SecondTxID, thirdTxID)
 }
 
-func TestNoSendSendWithScenario_SendWithSeparatedNewTx_2(t *testing.T) {
+func TestNoSendSendWithScenario_SendWithSeparatedNewTx(t *testing.T) {
 	// given:
 	const inputSatoshis = 99904
 

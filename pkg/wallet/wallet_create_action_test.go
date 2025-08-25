@@ -710,9 +710,10 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 			walletargs.WithSatoshisAsFirstOutput(1),
 		)
 
-		_, err = aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
+		assert.Nil(t, result)
 		require.Error(t, err, "send action is not supported when noSendChange outputs are provided")
 	})
 
@@ -761,11 +762,24 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		// then:
 		require.NoError(t, err)
 
-		//// and:
+		// and:
 		assert.Equal(t, thirdResult.SendWithResults[0].Txid, firstResult.Txid, "Wallet result should have same txid as the one from first send with result")
 		assert.Equal(t, thirdResult.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
 		assert.Equal(t, thirdResult.SendWithResults[1].Txid, secondResult.Txid, "Wallet result should have same txid as the one from second send with result")
 		assert.Equal(t, thirdResult.SendWithResults[1].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2, fixtures.CreateActionTestLabel)
+
+		thenState.ActionAtIndex(1).
+			WithTxID(firstResult.Txid.String()).
+			WithStatus(sdk.ActionStatusUnproven)
+
+		thenState.ActionAtIndex(2).
+			WithTxID(secondResult.Txid.String()).
+			WithStatus(sdk.ActionStatusUnproven)
 	})
 }
 

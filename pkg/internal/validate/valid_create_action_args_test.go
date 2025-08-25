@@ -27,6 +27,13 @@ func TestWrongCreateActionArgs(t *testing.T) {
 	tests := map[string]struct {
 		modifier func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs
 	}{
+		"IsNewTx is set to false with empty options.SendWith elements": {
+			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
+				args.IsNewTx = false
+				args.Options.SendWith = nil
+				return args
+			},
+		},
 		"IsSendWith is set to false with all unique options.NoSendChange elements": {
 			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
 				args.IsSendWith = false
