@@ -1,6 +1,7 @@
 package errors_test
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"testing"
@@ -187,7 +188,7 @@ func TestNewCreateActionBroadcastError(t *testing.T) {
 		assert.Equal(t, underlyingErr, broadcastErr.Err)
 		assert.Equal(t, txID, broadcastErr.TxID)
 		assert.Equal(t, reference, broadcastErr.Reference)
-		assert.Equal(t, tx, broadcastErr.Tx)
+		assert.Equal(t, hex.EncodeToString(tx), broadcastErr.Tx)
 		assert.Equal(t, noSendChange, broadcastErr.NoSendChange)
 		assert.Equal(t, processResult.SendWithResults, broadcastErr.SendWithResults)
 		assert.Equal(t, processResult.NotDelayedResults, broadcastErr.ReviewResults)

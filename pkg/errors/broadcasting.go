@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,15 +33,55 @@ const (
 
 // BroadcastingError represents an error that occurred during transaction broadcasting
 type BroadcastingError struct {
-	Err             error
-	TxID            string
-	Reference       string
+	// Err holds the underlying error that caused the broadcasting failure.
+	// This could be network errors, validation errors, or service-specific failures.
+	Err error
+
+	// TxID is the hexadecimal string representation of the transaction ID that failed to broadcast.
+	// For batch operations, this typically represents the primary transaction or first failed transaction.
+	TxID string
+
+	// Reference is the unique identifier for the wallet action or operation that was being processed.
+	// This helps correlate broadcast failures back to specific user actions or internal operations.
+	Reference string
+
+	// SendWithResults contains the detailed broadcast results for each transaction involved in the operation.
+	// Each result includes:
+	// - TxID: The transaction identifier
+	// - Status: One of "unproven" (success), "sending" (in progress), or "failed"
 	SendWithResults []wdk.SendWithResult
-	ReviewResults   []wdk.ReviewActionResult
-	ServiceErrors   map[string]error
-	Operation       BroadcastOperation
-	Tx              []byte
-	NoSendChange    []wdk.OutPoint
+
+	// ReviewResults contains detailed information about transactions that require manual review.
+	// These are typically transactions that failed validation or encountered issues like double-spends.
+	// Each result includes:
+	// - TxID: The transaction identifier
+	// - Status: One of "success", "doubleSpend", "serviceError", or "invalidTx"
+	// - CompetingTxs: List of competing transaction IDs (for double-spend cases)
+	// - CompetingBeef: BEEF data for competing transactions (when available)
+	ReviewResults []wdk.ReviewActionResult
+
+	// ServiceErrors maps service names to their specific error responses.
+	// This helps identify which broadcast services failed and why, enabling
+	// targeted retry logic and service-specific error handling.
+	ServiceErrors map[string]error
+
+	// Operation indicates which broadcast operation was being performed when the error occurred.
+	// Values include: "backgroundBroadcast", "immediateBroadcast", "delayedBroadcast",
+	// "createAction", or "processAction". This helps categorize and handle errors appropriately.
+	Operation BroadcastOperation
+
+	// Tx contains the raw transaction bytes (BEEF format) that failed to broadcast.
+	// This enables retry attempts and detailed transaction analysis for debugging.
+	// Under normal circumstances, this contains hex-encoded transaction bytes.
+	// If transaction serialization fails, this field will contain an error message in the format:
+	// "<error when serializing transaction beef: %s>" where %s is the specific serialization error.
+	// May be empty if transaction data is not available or relevant to the error.
+	Tx string
+
+	// NoSendChange contains outpoints that should not be broadcast as part of the change handling.
+	// This is relevant for "noSend" operations where certain outputs are intentionally kept local.
+	// Each outpoint specifies a transaction ID and output index (vout) to exclude from broadcasting.
+	NoSendChange []wdk.OutPoint
 }
 
 // Error implements the error interface for BroadcastingError
@@ -141,13 +182,10 @@ func NewImmediateBroadcastError(
 
 	if beef != nil {
 		if beefBytes, beefErr := beef.Bytes(); beefErr != nil {
-			logger.Warn("Failed to serialize BEEF for error context",
-				slog.String("error", beefErr.Error()),
-				slog.String("txID", txID),
-				slog.String("operation", string(ImmediateBroadcast)),
-			)
+			broadcastErr.Tx = fmt.Sprintf("<error when serializing transaction beef: %s>", beefErr.Error())
+
 		} else {
-			broadcastErr.Tx = beefBytes
+			broadcastErr.Tx = hex.EncodeToString(beefBytes)
 		}
 	}
 
@@ -168,7 +206,7 @@ func NewCreateActionBroadcastError(
 		Operation:    CreateAction,
 		TxID:         txID,
 		Reference:    reference,
-		Tx:           tx,
+		Tx:           hex.EncodeToString(tx),
 		NoSendChange: noSendChange,
 	}
 

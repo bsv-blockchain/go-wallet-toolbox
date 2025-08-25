@@ -2,7 +2,6 @@ package actions
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -96,16 +95,9 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.
 			txID.String(), createActionResult.Reference, err)
 	}
 
-	err = a.validateProcessActionResult(processActionResult)
-	if err != nil {
-		var broadcastErr *broadcastError.BroadcastingError
-		if errors.As(err, &broadcastErr) {
-			broadcastErr.Operation = broadcastError.CreateAction
-			broadcastErr.Reference = createActionResult.Reference
-			broadcastErr.Tx = tx.Bytes()
-			broadcastErr.NoSendChange = a.wdkArgs.Options.NoSendChange
-		}
-		return nil, fmt.Errorf("validation failed for createAction: %w", err)
+	broadcastErr := a.validateProcessActionResult(processActionResult)
+	if broadcastErr != nil {
+		return nil, broadcastErr
 	}
 
 	result, err := mapping.MapCreateActionResultFromStorageResults(txID, tx, createActionResult, processActionResult, a.wdkArgs)
@@ -117,12 +109,9 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.
 	return result, nil
 }
 
-func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) error {
+func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) *broadcastError.BroadcastingError {
 	if a.requiresNotDelayedResult() {
-		err := validate.NotDelayedProcessActionResult(processActionResult)
-		if err != nil {
-			return fmt.Errorf("failed on create action not delayed processing, %w", err)
-		}
+		return validate.NotDelayedProcessActionResult(processActionResult)
 	}
 	return nil
 }

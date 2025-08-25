@@ -6,7 +6,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 
-func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) error {
+func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) *broadcastError.BroadcastingError {
 	if len(result.NotDelayedResults) == 0 || len(result.SendWithResults) == 0 {
 		return nil
 	}
