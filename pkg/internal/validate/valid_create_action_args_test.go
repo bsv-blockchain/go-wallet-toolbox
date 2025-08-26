@@ -225,7 +225,24 @@ func TestWrongCreateActionArgs(t *testing.T) {
 				return args
 			},
 		},
+		"Duplicated no-send change outpoints in options.NoSendChange": {
+			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
+				args.IsNoSend = true
+				args.Options.NoSendChange = []wdk.OutPoint{
+					{
+						TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+						Vout: 0,
+					},
+					{
+						TxID: "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+						Vout: 0,
+					},
+				}
+				return args
+			},
+		},
 	}
+
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// when:
