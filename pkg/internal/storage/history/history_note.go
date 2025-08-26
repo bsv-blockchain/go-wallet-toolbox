@@ -22,6 +22,8 @@ const (
 
 	PostBeefSuccess = "postBeefSuccess"
 	PostBeefError   = "postBeefError"
+
+	ServiceFetchedWhileGettingBeef = "serviceFetchedWhileGettingBeef"
 )
 
 const (
@@ -40,6 +42,8 @@ type EventTypesSelector interface {
 
 	PostBeefError(serviceName string, beef TxData, txIDs []string, msg string) Builder
 	PostBeefSuccess(serviceName string, txIDs []string) Builder
+
+	ServiceFetchedWhileGettingBeef(subjectTxID string) Builder
 }
 
 type AggregatedBroadcastResult struct {
@@ -96,6 +100,12 @@ func (b *builder) GetMerklePathSuccess(serviceName string) Builder {
 	return b.withHttpAttributes(http.StatusOK).
 		WithWhat(GetMerklePathSuccess).
 		WithAttribute(serviceNameAttr, serviceName)
+}
+
+func (b *builder) ServiceFetchedWhileGettingBeef(subjectTxID string) Builder {
+	return b.withHttpAttributes(http.StatusOK).
+		WithWhat(ServiceFetchedWhileGettingBeef).
+		WithAttribute("subject_txid", subjectTxID)
 }
 
 func (b *builder) GetMerklePathNotFound(serviceName string) Builder {

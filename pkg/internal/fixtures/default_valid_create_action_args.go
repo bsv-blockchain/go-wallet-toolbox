@@ -13,8 +13,40 @@ import (
 
 const DefaultCreateActionOutputSatoshis = 42000
 
-func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
-	return wdk.ValidCreateActionArgs{
+func DefaultWalletCreateActionArgs(t *testing.T, opts ...func(*sdk.CreateActionArgs)) sdk.CreateActionArgs {
+	t.Helper()
+
+	var lockingScript, err = script.NewFromHex("76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac")
+	require.NoError(t, err, "Failed to decode locking script: INVALID TEST SETUP")
+
+	args := to.OptionsWithDefault(sdk.CreateActionArgs{
+		Description: "test transaction",
+		InputBEEF:   nil,
+		Inputs:      nil,
+		Outputs: []sdk.CreateActionOutput{
+			{
+				LockingScript:      lockingScript.Bytes(),
+				Satoshis:           DefaultCreateActionOutputSatoshis,
+				OutputDescription:  "test output",
+				CustomInstructions: CreateActionTestCustomInstructions,
+				Tags:               []string{CreateActionTestTag},
+			},
+		},
+		LockTime: WalletLockTime,
+		Version:  WalletTxVersion,
+		Labels:   []string{CreateActionTestLabel},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(false),
+			SignAndProcess:         to.Ptr(true),
+			RandomizeOutputs:       to.Ptr(false),
+		},
+	}, opts...)
+
+	return args
+}
+
+func DefaultValidCreateActionArgs(opts ...func(*wdk.ValidCreateActionArgs)) wdk.ValidCreateActionArgs {
+	return to.OptionsWithDefault(wdk.ValidCreateActionArgs{
 		Description: "test transaction",
 		InputBEEF:   nil,
 		Inputs:      []wdk.ValidCreateActionInput{},
@@ -46,37 +78,5 @@ func DefaultValidCreateActionArgs() wdk.ValidCreateActionArgs {
 		IsRemixChange:                false,
 		IsSignAction:                 false,
 		IncludeAllSourceTransactions: true,
-	}
-}
-
-func DefaultWalletCreateActionArgs(t *testing.T, opts ...func(*sdk.CreateActionArgs)) sdk.CreateActionArgs {
-	t.Helper()
-
-	var lockingScript, err = script.NewFromHex("76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac")
-	require.NoError(t, err, "Failed to decode locking script: INVALID TEST SETUP")
-
-	args := to.OptionsWithDefault(sdk.CreateActionArgs{
-		Description: "test transaction",
-		InputBEEF:   nil,
-		Inputs:      nil,
-		Outputs: []sdk.CreateActionOutput{
-			{
-				LockingScript:      lockingScript.Bytes(),
-				Satoshis:           DefaultCreateActionOutputSatoshis,
-				OutputDescription:  "test output",
-				CustomInstructions: CreateActionTestCustomInstructions,
-				Tags:               []string{CreateActionTestTag},
-			},
-		},
-		LockTime: WalletLockTime,
-		Version:  WalletTxVersion,
-		Labels:   []string{CreateActionTestLabel},
-		Options: &sdk.CreateActionOptions{
-			AcceptDelayedBroadcast: to.Ptr(false),
-			SignAndProcess:         to.Ptr(true),
-			RandomizeOutputs:       to.Ptr(false),
-		},
 	}, opts...)
-
-	return args
 }

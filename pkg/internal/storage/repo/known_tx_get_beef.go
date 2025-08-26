@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -16,14 +17,9 @@ import (
 
 func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
-
-	// TODO: Handle knownTxIDs properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
-	// TODO: Handle TrustSelf
-	// TODO: Handle min Proof Level
-	_ = options.KnownTxIDs
-
 	beef := transaction.NewBeefV2()
-	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options.StatusesToFilterOut, options.TxGetterFcn)
+
+	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -35,15 +31,12 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], o
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 	beef := transaction.NewBeefV2()
 
-	// TODO: handle KnownTxids properly which works in a way that for provided KnownTxids beef will do `MergeTxIDOnly` instead of recursively fetching parent transactions
-	_ = options.KnownTxIDs
-
 	for txid := range txids {
 		if beef.FindTransaction(txid) != nil {
 			continue
 		}
-		err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, options.StatusesToFilterOut, options.TxGetterFcn)
-		if err != nil {
+
+		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, options); err != nil {
 			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
 		}
 	}
@@ -56,11 +49,19 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	depth int,
 	mergeToBeef *transaction.Beef,
 	txID string,
-	statusesToFilterOut []wdk.ProvenTxReqStatus,
-	transactionGetterService entity.TxGetterFcn,
+	options entity.GetBEEFOptions,
 ) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
+	}
+
+	if options.IsKnownTxID(txID) {
+		h, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return fmt.Errorf("failed to parse string txID Hex to chainhash %s: %w", txID, err)
+		}
+		mergeToBeef.MergeTxidOnly(h)
+		return nil
 	}
 
 	var model models.KnownTx
@@ -68,17 +69,17 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		Model(&model).
 		Select("raw_tx, input_beef, merkle_path")
 
-	if len(statusesToFilterOut) > 0 {
-		query = query.Where("status NOT IN ? ", statusesToFilterOut)
+	if len(options.StatusesToFilterOut) > 0 {
+		query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
 	}
 
 	err := query.First(&model, "tx_id = ? ", txID).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		if transactionGetterService == nil {
+		if options.TxGetterFcn == nil {
 			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.NotFoundError)
 		}
 
-		rawTx, merklePath, err := transactionGetterService(ctx, txID)
+		rawTx, merklePath, err := options.TxGetterFcn(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
 		}
@@ -93,6 +94,13 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 	} else if err != nil {
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
+	} else if options.TrustsSelfAsKnown() {
+		txIDHash, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
+		}
+		mergeToBeef.MergeTxidOnly(txIDHash)
+		return nil
 	}
 
 	if model.RawTx == nil || model.InputBeef == nil {
@@ -104,7 +112,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
 	}
 
-	if model.HasMerklePath() {
+	ignoreMerkleProof := options.MinProofLevel > 0 && depth < options.MinProofLevel // If enabled, we intentionally skip attaching the merkle proof at this depth
+	if model.HasMerklePath() && !ignoreMerkleProof {
 		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
 		if err != nil {
 			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
@@ -151,7 +160,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	for _, input := range tx.Inputs {
 		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
-			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), statusesToFilterOut, transactionGetterService)
+			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
 			}
