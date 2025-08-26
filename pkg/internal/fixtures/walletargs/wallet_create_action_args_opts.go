@@ -2,6 +2,7 @@ package walletargs
 
 import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -45,5 +46,17 @@ func WithSatoshisAsFirstOutput(satoshis uint64) func(args *wallet.CreateActionAr
 			panic("no provided outputs")
 		}
 		args.Outputs[0].Satoshis = satoshis
+	}
+}
+
+func WithNoSendChangeOutputs(changeOutputs ...transaction.Outpoint) func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Options.NoSendChange = changeOutputs
+	}
+}
+
+func WithoutProvidedOutputs() func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Outputs = nil
 	}
 }
