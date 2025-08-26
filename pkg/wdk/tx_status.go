@@ -21,6 +21,20 @@ func (s TxStatus) String() string {
 	return string(s)
 }
 
+// ToUTXOStatus converts a TxStatus value to its corresponding UTXOStatus based on predefined status mappings.
+func (s TxStatus) ToUTXOStatus() UTXOStatus {
+	switch s { //nolint:exhaustive
+	case TxStatusCompleted:
+		return UTXOStatusMined
+	case TxStatusSending:
+		return UTXOStatusSending
+	case TxStatusUnproven:
+		return UTXOStatusUnproven
+	default:
+		return UTXOStatusUnknown
+	}
+}
+
 // ProvenTxReqStatus represents the status of a proven transaction in a defined processing state as a string.
 type ProvenTxReqStatus string
 

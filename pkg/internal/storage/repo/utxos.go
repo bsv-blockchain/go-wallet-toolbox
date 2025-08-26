@@ -66,6 +66,18 @@ func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (
 	return count, err
 }
 
+func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error {
+	table := u.query.UserUTXO
+	_, err := table.WithContext(ctx).
+		Where(table.ReservedByID.Eq(transactionID)).
+		Update(table.ReservedByID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to unreserve UTXOs by transaction ID %d: %w", transactionID, err)
+	}
+
+	return nil
+}
+
 func notReserved() func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("reserved_by_id IS NULL")

@@ -30,6 +30,7 @@ func New(
 	randomizer wdk.Randomizer,
 	services wdk.Services,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+	beefVerifier wdk.BeefVerifier,
 ) *Actions {
 	return &Actions{
 		create: newCreateAction(
@@ -52,6 +53,7 @@ func New(
 			repos.Outputs,
 			randomizer,
 			services,
+			beefVerifier,
 		),
 		process: newProcessAction(
 			ctx,
@@ -63,11 +65,12 @@ func New(
 			repos.Commission,
 			services,
 			randomizer,
+			beefVerifier,
 		),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
-		abortAction:           newAbortAction(logger, repos.Transactions),
+		abortAction:           newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx),
 		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
 }

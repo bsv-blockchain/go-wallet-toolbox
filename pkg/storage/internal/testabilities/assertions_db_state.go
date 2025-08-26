@@ -35,6 +35,9 @@ type DBStateAssertion interface {
 	HasKnownTX(txID string) KnownTxAssertion
 	HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion
 	HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion
+
+	HasUserTransactionsByTxIDsWithStatus(user testusers.User, status wdk.TxStatus, txIDs ...string)
+
 	AllOutputs(user testusers.User) OutputsListAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
 	WaitForTxStatusByReference(
@@ -97,6 +100,12 @@ func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
 type dbStateAssertion struct {
 	testing.TB
 	storage StorageReader
+}
+
+func (d *dbStateAssertion) HasUserTransactionsByTxIDsWithStatus(user testusers.User, status wdk.TxStatus, txIDs ...string) {
+	for _, txID := range txIDs {
+		d.HasUserTransactionByTxID(user, txID).WithStatus(status)
+	}
 }
 
 func (d *dbStateAssertion) userIDByIdentityKey(identityKey string) int {

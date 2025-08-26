@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -11,18 +12,25 @@ import (
 )
 
 type abortAction struct {
-	logger           *slog.Logger
-	transactionsRepo TransactionsRepo
+	logger            *slog.Logger
+	transactionsRepo  TransactionsRepo
+	outputsRepo       OutputRepo
+	utxosRepo         UTXORepo
+	knownTxRepo       KnownTxRepo
+	failAbandonedLock sync.Mutex
 }
 
 const (
 	txIDLength = 64
 )
 
-func newAbortAction(logger *slog.Logger, transactions TransactionsRepo) *abortAction {
+func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo KnownTxRepo) *abortAction {
 	return &abortAction{
 		logger:           logging.Child(logger, "abortAction"),
 		transactionsRepo: transactions,
+		outputsRepo:      outputsRepo,
+		utxosRepo:        utxosRepo,
+		knownTxRepo:      knownTxRepo,
 	}
 }
 
@@ -45,23 +53,50 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("no transaction found with reference or txid %q", referenceStr)
 	}
 
-	if err := a.validateTx(txEntity); err != nil {
+	if err := a.validateTx(ctx, txEntity); err != nil {
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
 
-	if err := a.transactionsRepo.AbortTransactionAtomic(ctx, txEntity.ID, txEntity.TxID, referenceStr); err != nil {
+	if err := a.abortTx(ctx, txEntity.ID); err != nil {
 		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
 
 	return &wdk.AbortActionResult{Aborted: true}, nil
 }
 
-func (a *abortAction) validateTx(txEntity *entity.Transaction) error {
+func (a *abortAction) abortTx(ctx context.Context, id uint) error {
+	if err := a.utxosRepo.UnreserveUTXOsByTransactionID(ctx, id); err != nil {
+		return fmt.Errorf("failed to unreserve UTXOs for transaction: %w", err)
+	}
+
+	if err := a.outputsRepo.RecreateSpentOutputs(ctx, id); err != nil {
+		return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)
+	}
+
+	if err := a.transactionsRepo.UpdateTransactionStatusByID(ctx, id, wdk.TxStatusFailed); err != nil {
+		return fmt.Errorf("failed to update transaction status: %w", err)
+	}
+
+	// TODO: KnownTx is not touched here because the same transaction can be owend by another user and we don't want to affect their state.
+	// NOTE: The abandoned knownTx will be updated to failed by cron job
+
+	return nil
+}
+
+func (a *abortAction) validateTx(ctx context.Context, txEntity *entity.Transaction) error {
 	if !txEntity.IsOutgoing {
 		return fmt.Errorf("%w: must be an outgoing transaction", wdk.ErrNotAbortableAction)
 	}
 
-	return validateTxStatusForAbort(txEntity.Status)
+	if err := validateTxStatusForAbort(txEntity.Status); err != nil {
+		return err
+	}
+
+	if err := a.outputsRepo.ShouldTxOutputsBeUnspent(ctx, txEntity.ID); err != nil {
+		return fmt.Errorf("cannot abort transaction with spent outputs: %w", err)
+	}
+
+	return nil
 }
 
 func validateTxStatusForAbort(txStatus wdk.TxStatus) error {

@@ -23,6 +23,7 @@ type Config struct {
 	Services              defs.WalletServices        `mapstructure:"wallet_services"`
 	Monitor               defs.Monitor               `mapstructure:"monitor"`
 	SynchronizeTxStatuses defs.SynchronizeTxStatuses `mapstructure:"synchronize_tx_statuses"`
+	FailAbandoned         defs.FailAbandoned         `mapstructure:"fail_abandoned"`
 }
 
 // DBConfig is the configuration for the database
@@ -65,6 +66,7 @@ func Defaults() Config {
 		Services:              defs.DefaultServicesConfig(network),
 		Monitor:               defs.DefaultMonitorConfig(),
 		SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
+		FailAbandoned:         defs.DefaultFailAbandoned(),
 	}
 }
 
