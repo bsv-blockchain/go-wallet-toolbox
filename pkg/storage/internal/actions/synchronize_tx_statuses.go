@@ -115,6 +115,8 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 		return nil
 	}
 
+	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", currentHeight))
+
 	var failedAttempts []string
 	for _, txToSync := range txsToSync {
 		if err = ctx.Err(); err != nil {
