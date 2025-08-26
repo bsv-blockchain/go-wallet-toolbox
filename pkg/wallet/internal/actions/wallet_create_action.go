@@ -46,15 +46,14 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 
 func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateActionResult, error) {
 	processActionArgs := mapping.MapProcessActionArgsForSendWith(a.wdkArgs)
-
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process created action: %w", err)
 	}
 
-	err = a.validateProcessActionResult(processActionResult)
-	if err != nil {
-		return nil, err
+	broadcastErr := a.validateProcessActionResult(processActionResult)
+	if broadcastErr != nil {
+		return nil, broadcastErr
 	}
 
 	result, err := mapping.MapCreateActionResultFromStorageResultsForSendWith(processActionResult)
