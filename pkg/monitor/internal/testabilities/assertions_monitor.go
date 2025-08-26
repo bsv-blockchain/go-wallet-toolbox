@@ -11,6 +11,7 @@ import (
 type MonitorAssertions interface {
 	SynchronizeTransactionStatuses() ExecutedTaskAssertions
 	SendWaitingTransactions() ExecutedTaskAssertions
+	FailAbandoned() ExecutedTaskAssertions
 }
 
 type ExecutedTaskAssertions interface {
@@ -52,6 +53,16 @@ func (m *monitorAssertions) SendWaitingTransactions() ExecutedTaskAssertions {
 			return m.fixtures.mockStorage.SendWaitingTransactionsCalled
 		},
 		taskName: defs.SendWaitingMonitorTask,
+		parent:   m,
+	}
+}
+
+func (m *monitorAssertions) FailAbandoned() ExecutedTaskAssertions {
+	return &storageMethodAssertions{
+		called: func() int {
+			return m.fixtures.mockStorage.FailAbandonedCalled
+		},
+		taskName: defs.FailAbandonedMonitorTask,
 		parent:   m,
 	}
 }

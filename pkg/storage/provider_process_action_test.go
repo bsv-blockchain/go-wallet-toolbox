@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -454,6 +455,85 @@ func TestProcessActionARCReturnNoBody(t *testing.T) {
 	assert.Empty(t, reviewActionResult.CompetingTxs)
 }
 
+func TestProcessAction_ResendAfterError(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and:
+	const (
+		satoshisToInternalize = 5000
+		satoshisToSend        = 1000
+		ownedSatoshisAfterTx  = satoshisToInternalize - satoshisToSend - 1
+	)
+
+	// and:
+	createActionResult, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(satoshisToInternalize).
+		WithSatoshisToSend(satoshisToSend).
+		Created()
+	txID := signedTx.TxID().String()
+
+	// and:
+	beefVerifyMockError := fmt.Errorf("mock beef verifier error")
+	given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
+
+	// when:
+	args := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		Reference: to.Ptr(createActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+	}
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.Error(t, err)
+	require.ErrorIs(t, err, beefVerifyMockError)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnprocessed).
+		WithAttempts(0).
+		HasRawTx()
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnprocessed)
+
+	// and:
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+
+	// when, retry:
+	given.Provider().BeefVerifier().DefaultBehavior()
+	args = wdk.ProcessActionArgs{
+		IsNewTx: false,
+		TxID:    to.Ptr(primitives.TXIDHexString(txID)),
+	}
+	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then:
+	require.NoError(t, err)
+
+	thenDBState.HasKnownTX(txID).
+		NotMined().
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		WithAttempts(1).
+		HasRawTx()
+
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
+
+	// and:
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+}
+
 func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {
 	tests := map[string]struct {
 		setupService func(given testabilities.StorageFixture)
@@ -675,7 +755,6 @@ func TestProcessActionNLockTimeIsFinalThresholdBoundary(t *testing.T) {
 
 	createActionResult, originalTx := given.Action(activeStorage).Created()
 
-	const nLockTimeThreshold = nLockTimeThreshold
 	modifiedTx := *originalTx
 	modifiedTx.LockTime = nLockTimeThreshold
 	if len(modifiedTx.Inputs) > 0 {

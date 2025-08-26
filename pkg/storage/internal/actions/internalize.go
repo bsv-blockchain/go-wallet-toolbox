@@ -33,6 +33,7 @@ type internalize struct {
 	outputRepo   OutputRepo
 	random       wdk.Randomizer
 	chaintracker chaintracker.ChainTracker
+	beefVerifier wdk.BeefVerifier
 }
 
 func newInternalizeAction(
@@ -43,6 +44,7 @@ func newInternalizeAction(
 	outputRepo OutputRepo,
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
+	beefVerifier wdk.BeefVerifier,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
@@ -53,6 +55,7 @@ func newInternalizeAction(
 		outputRepo:   outputRepo,
 		random:       random,
 		chaintracker: chaintracker,
+		beefVerifier: beefVerifier,
 	}
 }
 
@@ -75,7 +78,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		slog.String("description", string(args.Description)),
 	)
 
-	if ok, err := beef.Verify(ctx, in.chaintracker, false); err != nil {
+	if ok, err := in.beefVerifier.VerifyBeef(ctx, beef, in.chaintracker, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")

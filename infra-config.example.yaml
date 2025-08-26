@@ -26,6 +26,8 @@ db:
         user: postgres
     sqlite:
         connection_string: ./storage.sqlite
+fail_abandoned:
+    min_transaction_age_seconds: 300
 fee_model:
     type: sat/kb
     value: 1
@@ -41,6 +43,10 @@ monitor:
         check_for_proofs:
             enabled: true
             interval_seconds: 60
+            start_immediately: false
+        fail_abandoned:
+            enabled: true
+            interval_seconds: 300
             start_immediately: false
         send_waiting:
             enabled: true

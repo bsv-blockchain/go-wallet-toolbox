@@ -31,6 +31,7 @@ type TxGeneratorFixture interface {
 	Internalized() (internalizeResult *wdk.InternalizeActionResult, internalizedTx *transaction.Transaction)
 	Created() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 	Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
+	Unprocessed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 }
 
 type txGeneratorFixture struct {
@@ -228,18 +229,41 @@ func (t *txGeneratorFixture) Processed() (createActionResult *wdk.StorageCreateA
 		t.parent.Provider().ARC().WhenQueryingTx(txID).WillReturnNoBody()
 	}
 
+	err := t.performProcess(signedTx, createActionResult.Reference)
+	require.NoError(t, err)
+
+	return createActionResult, signedTx
+}
+
+func (t *txGeneratorFixture) performProcess(signedTx *transaction.Transaction, reference string) error {
+	txID := signedTx.TxID().String()
 	args := wdk.ProcessActionArgs{
 		IsNewTx:    true,
 		IsSendWith: false,
 		IsNoSend:   false,
 		IsDelayed:  false,
-		Reference:  to.Ptr(createActionResult.Reference),
+		Reference:  to.Ptr(reference),
 		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
 		RawTx:      signedTx.Bytes(),
 		SendWith:   []primitives.TXIDHexString{},
 	}
 
 	_, err := t.activeStorage.ProcessAction(t.Context(), t.sender.AuthID(), args)
-	require.NoError(t, err)
+	return err
+}
+
+func (t *txGeneratorFixture) Unprocessed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction) {
+	t.Helper()
+
+	createActionResult, signedTx = t.Created()
+
+	t.parent.Provider().BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+	defer func() {
+		t.parent.Provider().BeefVerifier().DefaultBehavior()
+	}()
+
+	err := t.performProcess(signedTx, createActionResult.Reference)
+	require.Errorf(t, err, "expected process to fail due to beef verifier error")
+
 	return createActionResult, signedTx
 }

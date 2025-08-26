@@ -30,12 +30,12 @@ func TestNoSendSendWithScenario_SendWithoutNewTx(t *testing.T) {
 		IsSendWith: true,
 	})
 
-	testabilities.NotDelayedResultsAsserter(thirdProcessActionResult.NotDelayedResults).NotDelayedResultsContainTxsWithStatus(t, wdk.ReviewActionResultStatusSuccess,
+	testabilities.NotDelayedResultsAsserter(thirdProcessActionResult.NotDelayedResults).ContainsTxsWithStatus(t, wdk.ReviewActionResultStatusSuccess,
 		result.FirstTxID,
 		result.SecondTxID,
 	)
 
-	testabilities.SendWithResultsAsseter(thirdProcessActionResult.SendWithResults).SendWithResultsContainTxsWithStatus(t, wdk.SendWithResultStatusUnproven,
+	testabilities.SendWithResultsAsserter(thirdProcessActionResult.SendWithResults).ContainsTxsWithStatus(t, wdk.SendWithResultStatusUnproven,
 		result.FirstTxID,
 		result.SecondTxID,
 	)
@@ -91,13 +91,13 @@ func TestNoSendSendWithScenario_SendWithNewTx(t *testing.T) {
 		IsSendWith: true,
 	})
 
-	testabilities.NotDelayedResultsAsserter(thirdProcessActionResult.NotDelayedResults).NotDelayedResultsContainTxsWithStatus(t, wdk.ReviewActionResultStatusSuccess,
+	testabilities.NotDelayedResultsAsserter(thirdProcessActionResult.NotDelayedResults).ContainsTxsWithStatus(t, wdk.ReviewActionResultStatusSuccess,
 		result.FirstTxID,
 		result.SecondTxID,
 		thirdTxID,
 	)
 
-	testabilities.SendWithResultsAsseter(thirdProcessActionResult.SendWithResults).SendWithResultsContainTxsWithStatus(t, wdk.SendWithResultStatusUnproven,
+	testabilities.SendWithResultsAsserter(thirdProcessActionResult.SendWithResults).ContainsTxsWithStatus(t, wdk.SendWithResultStatusUnproven,
 		result.FirstTxID,
 		result.SecondTxID,
 		thirdTxID,
@@ -146,13 +146,13 @@ func TestNoSendSendWithScenario_SendWithSeparatedNewTx(t *testing.T) {
 	})
 
 	// NOTE: ServiceError is because only working broadcaster for unit tests is ARC which does not support sending BEEFs that have multiple subject transactions
-	testabilities.NotDelayedResultsAsserter(thirdProcessActionResult.NotDelayedResults).NotDelayedResultsContainTxsWithStatus(t, wdk.ReviewActionResultStatusServiceError,
+	testabilities.NotDelayedResultsAsserter(thirdProcessActionResult.NotDelayedResults).ContainsTxsWithStatus(t, wdk.ReviewActionResultStatusServiceError,
 		result.FirstTxID,
 		result.SecondTxID,
 		thirdTxID,
 	)
 
-	testabilities.SendWithResultsAsseter(thirdProcessActionResult.SendWithResults).SendWithResultsContainTxsWithStatus(t, wdk.SendWithResultStatusSending,
+	testabilities.SendWithResultsAsserter(thirdProcessActionResult.SendWithResults).ContainsTxsWithStatus(t, wdk.SendWithResultStatusSending,
 		result.FirstTxID,
 		result.SecondTxID,
 		thirdTxID,

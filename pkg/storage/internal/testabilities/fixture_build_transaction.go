@@ -20,7 +20,7 @@ import (
 
 type NotDelayedResultsAsserter []wdk.ReviewActionResult
 
-func (n NotDelayedResultsAsserter) NotDelayedResultsContainTxsWithStatus(t *testing.T, status wdk.ReviewActionResultStatus, txIDs ...string) {
+func (n NotDelayedResultsAsserter) ContainsTxsWithStatus(t *testing.T, status wdk.ReviewActionResultStatus, txIDs ...string) {
 	for _, txID := range txIDs {
 		idx := stdslices.IndexFunc(n, func(i wdk.ReviewActionResult) bool {
 			return i.TxID == primitives.TXIDHexString(txID)
@@ -31,9 +31,9 @@ func (n NotDelayedResultsAsserter) NotDelayedResultsContainTxsWithStatus(t *test
 	}
 }
 
-type SendWithResultsAsseter []wdk.SendWithResult
+type SendWithResultsAsserter []wdk.SendWithResult
 
-func (r SendWithResultsAsseter) SendWithResultsContainTxsWithStatus(t *testing.T, status wdk.SendWithResultStatus, txIDs ...string) {
+func (r SendWithResultsAsserter) ContainsTxsWithStatus(t *testing.T, status wdk.SendWithResultStatus, txIDs ...string) {
 	for _, txID := range txIDs {
 		idx := stdslices.IndexFunc(r, func(i wdk.SendWithResult) bool {
 			return i.TxID == primitives.TXIDHexString(txID)
