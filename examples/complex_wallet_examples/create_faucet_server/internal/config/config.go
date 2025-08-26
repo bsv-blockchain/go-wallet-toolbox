@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
@@ -24,6 +26,35 @@ func Defaults() Config {
 		Network:          defs.NetworkTestnet,
 		ServerURL:        "http://127.0.0.1:8100",
 	}
+}
+
+// Load loads configuration from environment variables with defaults
+func Load() (Config, error) {
+	cfg := Defaults()
+
+	if port := os.Getenv("PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			cfg.Port = p
+		}
+	}
+
+	if serverKey := os.Getenv("SERVER_PRIVATE_KEY"); serverKey != "" {
+		cfg.ServerPrivateKey = serverKey
+	}
+
+	if faucetKey := os.Getenv("FAUCET_PRIVATE_KEY"); faucetKey != "" {
+		cfg.FaucetPrivateKey = faucetKey
+	}
+
+	if network := os.Getenv("NETWORK"); network != "" {
+		cfg.Network = defs.BSVNetwork(network)
+	}
+
+	if serverURL := os.Getenv("SERVER_URL"); serverURL != "" {
+		cfg.ServerURL = serverURL
+	}
+
+	return cfg, nil
 }
 
 // Validate normalizes and validates loaded configuration values.

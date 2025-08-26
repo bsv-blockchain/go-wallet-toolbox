@@ -11,7 +11,8 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
@@ -62,12 +63,12 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 	}
 
 	// Decode derivation prefix/suffix from base64 (same as manual_tests/internal/internalize.go)
-	derivationPrefixBytes, err := utils.BytesFromBase64(DefaultBase64Prefix)
+	derivationPrefixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Prefix)
 	if err != nil {
 		return fmt.Errorf("failed to convert derivation prefix from base64: %w", err)
 	}
 
-	derivationSuffixBytes, err := utils.BytesFromBase64(DefaultBase64Suffix)
+	derivationSuffixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Suffix)
 	if err != nil {
 		return fmt.Errorf("failed to convert derivation suffix from base64: %w", err)
 	}

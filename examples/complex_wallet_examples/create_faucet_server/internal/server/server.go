@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/config"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/handlers"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/handlers"
 	"github.com/gofiber/fiber/v2"
 )
 

@@ -1,4 +1,4 @@
-package methods
+package constants
 
 const (
 	DefaultBase64Prefix = "SfKxPIJNgdI="

@@ -6,9 +6,8 @@ import (
 	"log"
 	"os"
 
-	exconfig "github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/config"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/server"
-	intconfig "github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/subosito/gotenv"
 )
@@ -18,9 +17,8 @@ func main() {
 	_ = gotenv.Load(".env")
 	_ = gotenv.Load("examples/complex_wallet_examples/create_faucet_server/.env")
 
-	// Use shared Loader with faucet defaults
-	loader := intconfig.NewLoader(exconfig.Defaults, "")
-	cfg, err := loader.Load()
+	// Load config from environment variables
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}

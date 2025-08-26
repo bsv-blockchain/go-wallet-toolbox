@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/methods"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/gofiber/fiber/v2"

@@ -5,7 +5,8 @@ import (
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/utils"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
@@ -19,11 +20,11 @@ func DeriveAddress(faucetKeyHex string, network defs.BSVNetwork) (string, error)
 
 	identityKey := priv.PubKey()
 
-	derivationPrefixBytes, err := utils.BytesFromBase64(DefaultBase64Prefix)
+	derivationPrefixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Prefix)
 	if err != nil {
 		return "", err
 	}
-	derivationSuffixBytes, err := utils.BytesFromBase64(DefaultBase64Suffix)
+	derivationSuffixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Suffix)
 	if err != nil {
 		return "", err
 	}

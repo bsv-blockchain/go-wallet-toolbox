@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/complex_wallet_examples/create_faucet_server/internal/methods"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 )
 
 type faucetReq struct {
