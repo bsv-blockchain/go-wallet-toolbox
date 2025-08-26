@@ -117,7 +117,13 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return fmt.Errorf("txID mismatch: provided %s, calculated from raw tx: %s", *args.TxID, txID)
 	}
 
-	// TODO: Services::nLockTimeIsFinal(tx)
+	isFinal, err := p.services.NLockTimeIsFinal(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("failed to check nLockTime finality: %w", err)
+	}
+	if !isFinal {
+		return fmt.Errorf("transaction nLockTime is not final")
+	}
 
 	txEntity, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
 	if err != nil {
