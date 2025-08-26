@@ -360,16 +360,8 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	if spec.Attempts != nil {
 		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
 	}
-
-	if spec.TxID != nil {
-		conditions = append(conditions, table.TxID.Eq(*spec.TxID))
-	}
-	if spec.Attempts != nil {
-		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
-	}
 	if spec.Status != nil {
-		converted := comparableProvenTxStatusToString(spec.Status)
-		conditions = append(conditions, cmpCondition(table.Status, converted))
+		conditions = append(conditions, cmpCondition(table.Status, spec.Status.ToStringComparable()))
 	}
 	if spec.Notified != nil {
 		conditions = append(conditions, cmpBoolCondition(table.Notified, spec.Notified))

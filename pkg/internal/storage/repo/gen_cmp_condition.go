@@ -2,7 +2,6 @@ package repo
 
 import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/types"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
@@ -93,26 +92,4 @@ func cmpBoolCondition(field field.Bool, cmp *entity.Comparable[bool]) gen.Condit
 	default:
 		panic("unknown comparison operator for bool: " + cmp.Cmp.String())
 	}
-}
-
-func comparableProvenTxStatusToString(src *entity.Comparable[wdk.ProvenTxReqStatus]) *entity.Comparable[string] {
-	if src == nil {
-		return nil
-	}
-	dst := &entity.Comparable[string]{
-		Cmp: src.Cmp,
-	}
-	if src.Value != "" {
-		dst.Value = string(src.Value)
-	}
-	if src.ValueRight != "" {
-		dst.ValueRight = string(src.ValueRight)
-	}
-	if len(src.InValues) > 0 {
-		dst.InValues = make([]string, len(src.InValues))
-		for i, v := range src.InValues {
-			dst.InValues[i] = string(v)
-		}
-	}
-	return dst
 }

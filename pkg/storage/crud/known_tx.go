@@ -30,7 +30,7 @@ type KnownTxReader interface {
 
 	TxID(txID string) KnownTxReadOperations
 	Attempts() NumericCondition[KnownTxReader, uint64]
-	Status() StringCondition[KnownTxReader]
+	Status() StringEnumCondition[KnownTxReader, wdk.ProvenTxReqStatus]
 	Notified() BoolCondition[KnownTxReader]
 	BlockHeight() NumericCondition[KnownTxReader, uint32]
 	MerkleRoot() StringCondition[KnownTxReader]
@@ -116,17 +116,11 @@ func (k *knownTx) Attempts() NumericCondition[KnownTxReader, uint64] {
 	}
 }
 
-func (k *knownTx) Status() StringCondition[KnownTxReader] {
-	return &stringCondition[KnownTxReader]{
+func (k *knownTx) Status() StringEnumCondition[KnownTxReader, wdk.ProvenTxReqStatus] {
+	return &stringEnumCondition[KnownTxReader, wdk.ProvenTxReqStatus]{
 		parent: k,
-		conditionSetter: func(spec *entity.Comparable[string]) {
-			converted := &entity.Comparable[wdk.ProvenTxReqStatus]{
-				Value:      wdk.ProvenTxReqStatus(spec.Value),
-				ValueRight: wdk.ProvenTxReqStatus(spec.ValueRight),
-				InValues:   mapStringsToProvenTxStatuses(spec.InValues),
-				Cmp:        spec.Cmp,
-			}
-			k.spec.Status = converted
+		conditionSetter: func(spec *entity.Comparable[wdk.ProvenTxReqStatus]) {
+			k.spec.Status = spec
 		},
 	}
 }
