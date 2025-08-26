@@ -8,9 +8,9 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-func MapProcessActionArgs(txid *chainhash.Hash, tx *transaction.Transaction, reference string, wdkArgs wdk.ValidCreateActionArgs) wdk.ProcessActionArgs {
+func MapProcessActionArgsForNewTx(txid *chainhash.Hash, tx *transaction.Transaction, reference string, wdkArgs wdk.ValidCreateActionArgs) wdk.ProcessActionArgs {
 	processActionArgs := wdk.ProcessActionArgs{
-		IsNewTx:    wdkArgs.IsNewTx,
+		IsNewTx:    true,
 		IsSendWith: wdkArgs.IsSendWith,
 		IsNoSend:   wdkArgs.IsNoSend,
 		IsDelayed:  wdkArgs.IsDelayed,
@@ -20,5 +20,15 @@ func MapProcessActionArgs(txid *chainhash.Hash, tx *transaction.Transaction, ref
 		Reference:  &reference,
 	}
 
+	return processActionArgs
+}
+
+func MapProcessActionArgsForSendWith(wdkArgs wdk.ValidCreateActionArgs) wdk.ProcessActionArgs {
+	processActionArgs := wdk.ProcessActionArgs{
+		IsNewTx:    false,
+		IsNoSend:   false,
+		SendWith:   wdkArgs.Options.SendWith,
+		IsSendWith: true,
+	}
 	return processActionArgs
 }
