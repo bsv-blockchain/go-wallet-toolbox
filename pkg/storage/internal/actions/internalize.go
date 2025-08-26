@@ -60,10 +60,23 @@ func newInternalizeAction(
 }
 
 func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	in.logger.DebugContext(ctx, "Starting internalize action",
+		logging.UserID(userID),
+		slog.Int("txBeefSize", len(args.Tx)),
+		slog.Int("outputsCount", len(args.Outputs)),
+		slog.String("description", string(args.Description)),
+	)
+
 	beef, txIDHash, err := transaction.NewBeefFromAtomicBytes(args.Tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create atomic beef from bytes: %w", err)
 	}
+
+	in.logger.DebugContext(ctx, "Verifying beef transaction",
+		logging.UserID(userID),
+		slog.String("txID", txIDHash.String()),
+		slog.String("description", string(args.Description)),
+	)
 
 	if ok, err := in.beefVerifier.VerifyBeef(ctx, beef, in.chaintracker, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
@@ -78,32 +91,114 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 
 	txID := txIDHash.String()
 
+	in.logger.DebugContext(ctx, "BEEF verification completed successfully",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.String("description", string(args.Description)),
+	)
+
+	in.logger.DebugContext(ctx, "Checking for existing transaction",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.String("description", string(args.Description)),
+	)
+
 	storedTx, err := in.txRepo.FindTransactionByUserIDAndTxID(ctx, userID, txID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find transaction by userID and txID: %w", err)
 	}
 
 	isMerge := storedTx != nil
+
+	if isMerge {
+		in.logger.DebugContext(ctx, "Transaction already exists - performing merge",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.String("existingStatus", string(storedTx.Status)),
+			slog.String("description", string(args.Description)),
+		)
+	} else {
+		in.logger.DebugContext(ctx, "New transaction - creating fresh entry",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.String("description", string(args.Description)),
+		)
+	}
+
 	if isMerge && !in.isAllowedMergeStatus(storedTx.Status) {
 		return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
 	}
+
+	in.logger.DebugContext(ctx, "Processing outputs",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.Int("outputsToProcess", len(args.Outputs)),
+		slog.Bool("isMerge", isMerge),
+		slog.String("description", string(args.Description)),
+	)
 
 	outputs, cumulativeSatoshis, err := in.makeOutputs(ctx, userID, tx, args.Outputs, isMerge)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new outputs: %w", err)
 	}
 
+	in.logger.DebugContext(ctx, "Outputs processed successfully",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.Int("processedOutputsCount", len(outputs)),
+		logging.Number("cumulativeSatoshis", cumulativeSatoshis),
+		slog.String("description", string(args.Description)),
+	)
+
 	if isMerge {
+		in.logger.DebugContext(ctx, "Upserting existing transaction",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.Int("labelsCount", len(args.Labels)),
+			slog.Int("outputsCount", len(outputs)),
+			slog.String("description", string(args.Description)),
+		)
+
 		err = in.upsertExistingTx(ctx, storedTx, outputs, args.Labels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upsert outputs (isMerge): %w", err)
 		}
+
+		in.logger.DebugContext(ctx, "Existing transaction upserted successfully",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.String("description", string(args.Description)),
+		)
 	} else {
+		in.logger.DebugContext(ctx, "Storing new transaction",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.Int("labelsCount", len(args.Labels)),
+			slog.Int("outputsCount", len(outputs)),
+			logging.Number("cumulativeSatoshis", cumulativeSatoshis),
+			slog.String("description", string(args.Description)),
+		)
+
 		err = in.storeNewTx(ctx, userID, args, txID, tx, cumulativeSatoshis, outputs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store new transaction: %w", err)
 		}
+
+		in.logger.DebugContext(ctx, "New transaction stored successfully",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.String("description", string(args.Description)),
+		)
 	}
+
+	in.logger.DebugContext(ctx, "InternalizeAction completed successfully",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.Bool("accepted", true),
+		slog.Bool("isMerge", isMerge),
+		logging.Number("satoshis", cumulativeSatoshis),
+		slog.String("description", string(args.Description)),
+	)
 
 	return &wdk.InternalizeActionResult{
 		Accepted: true,
