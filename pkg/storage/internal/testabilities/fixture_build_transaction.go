@@ -75,7 +75,6 @@ func (f *NoSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoi
 	createActionArgs := fixtures.DefaultValidCreateActionArgs(f.CreateActionNoSendArgsModifier(prevNoSendOutpoints, true))
 
 	createActionResult, signedTx := f.CreateAction(createActionArgs)
-	require.NotEmpty(f.t, createActionResult.NoSendChangeOutputVouts)
 
 	txID := signedTx.TxID().String()
 
