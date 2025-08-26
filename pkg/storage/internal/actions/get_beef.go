@@ -166,6 +166,7 @@ func (g *getBeef) persistNewProven(ctx context.Context, subjectTxID, txID string
 		Notes:       []history.Builder{history.NewBuilder().GetMerklePathSuccess("services")},
 	}); err != nil {
 		g.logger.Error("failed to update known tx as mined", slog.String("txID", txID), slog.Any("error", err))
+		return fmt.Errorf("failed to update known tx as mined %s: %w", txID, err)
 	}
 
 	return nil

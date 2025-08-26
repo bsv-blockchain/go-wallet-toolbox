@@ -35,7 +35,9 @@ func WithTxGetterFcn(txGetterFcn TxGetterFcn) GetBEEFOption {
 
 func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
-		opts.KnownTxIDsSet = make(map[string]struct{})
+		if opts.KnownTxIDsSet == nil {
+			opts.KnownTxIDsSet = make(map[string]struct{})
+		}
 		for _, txID := range knownTxIDs {
 			opts.KnownTxIDsSet[txID] = struct{}{}
 		}
