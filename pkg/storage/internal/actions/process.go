@@ -69,25 +69,73 @@ func newProcessAction(
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	p.logger.DebugContext(ctx, "Starting process action",
+		logging.UserID(userID),
+		slog.Bool("isNewTx", args.IsNewTx),
+		slog.Bool("isNoSend", args.IsNoSend),
+		slog.Bool("isDelayed", args.IsDelayed),
+		slog.Int("sendWithCount", len(args.SendWith)),
+	)
+
 	if args.IsNewTx {
+		p.logger.DebugContext(ctx, "Processing new transaction",
+			logging.UserID(userID),
+			slog.String("txID", string(to.Value(args.TxID))),
+			slog.String("reference", string(to.Value(args.Reference))),
+			slog.Int("rawTxSize", len(args.RawTx)),
+		)
 		if err := p.processNewTx(ctx, userID, args); err != nil {
 			return nil, err
 		}
 	}
 
 	if args.IsNoSend && len(args.SendWith) == 0 {
+		p.logger.DebugContext(ctx, "NoSend mode - skipping broadcast",
+			logging.UserID(userID),
+			slog.String("txID", string(to.Value(args.TxID))),
+		)
 		// NOTE: SendWith overrides IsNoSend, so if SendWith is NOT empty, we will broadcast txs anyway
 		return &wdk.ProcessActionResult{}, nil
 	}
 
 	txIDs := p.txIDsToBroadcast(args)
+
+	p.logger.DebugContext(ctx, "Preparing transactions for broadcast",
+		logging.UserID(userID),
+		slog.Int("txIDsCount", len(txIDs)),
+		slog.Bool("isDelayed", args.IsDelayed),
+	)
+
 	if len(txIDs) > 1 {
+		p.logger.DebugContext(ctx, "Setting batch for multiple transactions",
+			logging.UserID(userID),
+			slog.Int("batchSize", len(txIDs)),
+		)
+
 		if err := p.setBatchForTxs(ctx, txIDs); err != nil {
 			return nil, fmt.Errorf("failed to set batch for transactions: %w", err)
 		}
 	}
 
-	return p.broadcastTxs(ctx, txIDs, args.IsDelayed)
+	p.logger.DebugContext(ctx, "Broadcasting transactions",
+		logging.UserID(userID),
+		slog.Int("txIDsCount", len(txIDs)),
+		slog.Bool("isDelayed", args.IsDelayed),
+	)
+
+	result, err := p.broadcastTxs(ctx, txIDs, args.IsDelayed)
+	if err != nil {
+		return nil, err
+	}
+
+	p.logger.DebugContext(ctx, "ProcessAction completed successfully",
+		logging.UserID(userID),
+		slog.Int("sendWithResultsCount", len(result.SendWithResults)),
+		slog.Int("notDelayedResultsCount", len(result.NotDelayedResults)),
+		slog.Bool("isDelayed", args.IsDelayed),
+	)
+
+	return result, nil
 }
 
 func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
@@ -108,6 +156,12 @@ func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
 }
 
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
+	p.logger.DebugContext(ctx, "Building transaction from raw bytes",
+		logging.UserID(userID),
+		slog.String("reference", string(to.Value(args.Reference))),
+		slog.Int("rawTxSize", len(args.RawTx)),
+	)
+
 	tx, err := transaction.NewTransactionFromBytes(args.RawTx)
 	if err != nil {
 		return fmt.Errorf("failed to build transaction object from raw tx bytes: %w", err)
@@ -118,6 +172,12 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return fmt.Errorf("txID mismatch: provided %s, calculated from raw tx: %s", *args.TxID, txID)
 	}
 
+	p.logger.DebugContext(ctx, "Checking nLockTime finality",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.String("reference", string(to.Value(args.Reference))),
+	)
+
 	isFinal, err := p.services.NLockTimeIsFinal(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to check nLockTime finality: %w", err)
@@ -125,6 +185,11 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	if !isFinal {
 		return fmt.Errorf("transaction nLockTime is not final")
 	}
+
+	p.logger.DebugContext(ctx, "Finding transaction by reference",
+		logging.UserID(userID),
+		slog.String("reference", string(to.Value(args.Reference))),
+	)
 
 	txEntity, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
 	if err != nil {
@@ -136,10 +201,22 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return err
 	}
 
+	p.logger.DebugContext(ctx, "Finding outputs for transaction validation",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.Uint64("transactionID", uint64(txEntity.ID)),
+	)
+
 	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, txEntity.ID)
 	if err != nil {
 		return fmt.Errorf("failed to find inputs and outputs of transaction: %w", err)
 	}
+
+	p.logger.DebugContext(ctx, "Validating transaction outputs",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.Int("outputsCount", len(outputs)),
+	)
 
 	err = p.validateNewTxOutputs(tx, outputs)
 	if err != nil {
@@ -147,6 +224,13 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	}
 
 	if p.commissionCfg.Satoshis > 0 {
+		p.logger.DebugContext(ctx, "Validating commission",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+			slog.Uint64("transactionID", uint64(txEntity.ID)),
+			slog.Uint64("commissionSatoshis", p.commissionCfg.Satoshis),
+		)
+
 		if err := p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
 			return fmt.Errorf("commission validation failed: %w", err)
 		}
@@ -157,6 +241,14 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	// TODO: Remove too long locking scripts (len > storage.maxOutputScript)
 
 	newTxStatus, newReqStatus := p.newStatuses(args)
+
+	p.logger.DebugContext(ctx, "Updating transaction status and raw data",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+		slog.String("reference", string(to.Value(args.Reference))),
+		slog.String("newTxStatus", string(newTxStatus)),
+		slog.String("newReqStatus", string(newReqStatus)),
+	)
 
 	err = p.txRepo.SpendTransaction(ctx, entity.UpdatedTx{
 		UserID:        userID,
