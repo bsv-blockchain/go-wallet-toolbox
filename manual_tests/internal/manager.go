@@ -54,7 +54,7 @@ func (m *Manager) WalletForUser(user fixtures.UserConfig) (sdk.Interface, error)
 }
 
 func (m *Manager) Panic(err error, msg string) {
-	slog.Default().Error(msg, err.Error())
+	slog.Default().Error(msg, "error", err.Error())
 }
 
 func (m *Manager) GetWalletConfigs() []fixtures.UserConfig {
