@@ -81,7 +81,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		p.logger.DebugContext(ctx, "Processing new transaction",
 			logging.UserID(userID),
 			slog.String("txID", string(to.Value(args.TxID))),
-			slog.String("reference", string(to.Value(args.Reference))),
+			slog.String("reference", to.Value(args.Reference)),
 			slog.Int("rawTxSize", len(args.RawTx)),
 		)
 		if err := p.processNewTx(ctx, userID, args); err != nil {
@@ -158,7 +158,7 @@ func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
 func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.ProcessActionArgs) error {
 	p.logger.DebugContext(ctx, "Building transaction from raw bytes",
 		logging.UserID(userID),
-		slog.String("reference", string(to.Value(args.Reference))),
+		slog.String("reference", to.Value(args.Reference)),
 		slog.Int("rawTxSize", len(args.RawTx)),
 	)
 
@@ -175,7 +175,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	p.logger.DebugContext(ctx, "Checking nLockTime finality",
 		logging.UserID(userID),
 		slog.String("txID", txID),
-		slog.String("reference", string(to.Value(args.Reference))),
+		slog.String("reference", to.Value(args.Reference)),
 	)
 
 	isFinal, err := p.services.NLockTimeIsFinal(ctx, tx)
@@ -188,7 +188,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	p.logger.DebugContext(ctx, "Finding transaction by reference",
 		logging.UserID(userID),
-		slog.String("reference", string(to.Value(args.Reference))),
+		slog.String("reference", to.Value(args.Reference)),
 	)
 
 	txEntity, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
@@ -245,7 +245,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	p.logger.DebugContext(ctx, "Updating transaction status and raw data",
 		logging.UserID(userID),
 		slog.String("txID", txID),
-		slog.String("reference", string(to.Value(args.Reference))),
+		slog.String("reference", to.Value(args.Reference)),
 		slog.String("newTxStatus", string(newTxStatus)),
 		slog.String("newReqStatus", string(newReqStatus)),
 	)
