@@ -18,10 +18,10 @@ func FaucetAddress(wallet *Setup) {
 		DerivationSuffix: base64.StdEncoding.EncodeToString(parts.DerivationSuffix),
 	}
 
-	address, err := brc29.Address(
-		wallet.PrivateKey,
+	address, err := brc29.MyAddress(
+		parts.SenderIdentityKey,
 		keyID,
-		wallet.IdentityKey,
+		wallet.PrivateKey,
 		brc29.WithTestNet(),
 	)
 	if err != nil {
