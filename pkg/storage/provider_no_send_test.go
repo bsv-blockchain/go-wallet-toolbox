@@ -64,7 +64,6 @@ func TestNoSendPlusSendWithScenario_LongNoSendTxChain(t *testing.T) {
 
 	// and:
 	given.Faucet(activeStorage, testusers.Alice).TopUp(inputSatoshis) // Intentionally, create only one UTXO
-	//givenNoSend.FundWallet(inputSatoshis + 2)
 
 	// when:
 	var noSendChangeOutpoints []wdk.OutPoint
@@ -93,8 +92,8 @@ func TestNoSendPlusSendWithScenario_LongNoSendTxChain(t *testing.T) {
 		ThenDBState(t, activeStorage).
 		HasUserTransactionsByTxIDsWithStatus(testusers.Alice, wdk.TxStatusUnproven, givenNoSend.NoSendTxs()...)
 
-	//testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-	//	ShouldNotBeAbleToReserveSatoshis(1) // All funds are tied up in the long NoSend chain
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(1) // All funds are tied up in the long NoSend chain
 }
 
 func TestNoSendPlusSendWithScenario_SendWithNewTx(t *testing.T) {

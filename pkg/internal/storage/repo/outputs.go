@@ -368,10 +368,23 @@ func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) 
 				Select(query.Transaction.ID).
 				Where(query.Transaction.TxID.Eq(txID))
 
-			return dao.Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB()))
+			return dao.
+				Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
+				Where(query.Output.Spendable.Is(true)).
+				Scopes(isChangeDaoScope(query))
 		}
 
-		return makeOutputsSpendable(ctx, query, filterScope)
+		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+		if err != nil {
+			return err
+		}
+
+		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
@@ -383,10 +396,27 @@ func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) 
 func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error {
 	err := o.query.DBTransaction(func(query *genquery.Query) error {
 		filterScope := func(dao gen.Dao) gen.Dao {
-			return dao.Where(o.query.Output.SpentBy.Eq(spendingTransactionID))
+			return dao.
+				Where(query.Output.SpentBy.Eq(spendingTransactionID)).
+				Scopes(isChangeDaoScope(query))
 		}
 
-		return makeOutputsSpendable(ctx, query, filterScope)
+		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+		if err != nil {
+			return err
+		}
+
+		err = makeOutputsSpendable(ctx, query, filterScope)
+		if err != nil {
+			return err
+		}
+
+		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to restore spent outputs: %w", err)
@@ -395,24 +425,26 @@ func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionI
 	return nil
 }
 
-type spendableOutputReadModel struct {
-	models.Output
-	TxStatus wdk.TxStatus `gorm:"column:tx_status"`
-}
-
-func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScope func(dao gen.Dao) gen.Dao) error {
+func isChangeDaoScope(query *genquery.Query) func(dao gen.Dao) gen.Dao {
 	outTable := &query.Output
-	txTable := &query.Transaction
-	utxoTable := &query.UserUTXO
-
-	isChangeScope := func(dao gen.Dao) gen.Dao {
+	return func(dao gen.Dao) gen.Dao {
 		return dao.
 			Where(outTable.BasketName.IsNotNull()).
 			Where(outTable.Change.Is(true)).
 			Where(outTable.Satoshis.Gt(0))
 	}
+}
 
-	var changeOutputs []*spendableOutputReadModel
+type outputWithTxStatus struct {
+	models.Output
+	TxStatus wdk.TxStatus `gorm:"column:tx_status"`
+}
+
+func getOutputsWithTxStatus(ctx context.Context, query *genquery.Query, filterScope func(dao gen.Dao) gen.Dao) ([]*outputWithTxStatus, error) {
+	outTable := &query.Output
+	txTable := &query.Transaction
+
+	var changeOutputs []*outputWithTxStatus
 	err := outTable.WithContext(ctx).
 		Select(
 			outTable.ID,
@@ -424,22 +456,16 @@ func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScop
 		).
 		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
 		Scopes(filterScope).
-		Scopes(isChangeScope).
 		Scan(&changeOutputs)
 	if err != nil {
-		return fmt.Errorf("failed to find transaction outputs: %w", err)
+		return nil, fmt.Errorf("failed to find transaction outputs: %w", err)
 	}
 
-	_, err = outTable.WithContext(ctx).
-		Scopes(filterScope).
-		Scopes(isChangeScope).
-		UpdateSimple(
-			outTable.Spendable.Value(true),
-			outTable.SpentBy.Null(),
-		)
-	if err != nil {
-		return fmt.Errorf("failed to update outputs to spendable: %w", err)
-	}
+	return changeOutputs, nil
+}
+
+func createUTXOsFromOutputs(ctx context.Context, query *genquery.Query, changeOutputs []*outputWithTxStatus) error {
+	utxoTable := &query.UserUTXO
 
 	if len(changeOutputs) == 0 {
 		return nil
@@ -462,12 +488,28 @@ func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScop
 		})
 	}
 
-	err = utxoTable.
+	err := utxoTable.
 		WithContext(ctx).
-		Clauses(clause.OnConflict{DoNothing: true}).
+		Clauses(clause.OnConflict{UpdateAll: true}).
 		Create(newUTXOs...)
 	if err != nil {
 		return fmt.Errorf("failed to create new UTXOs: %w", err)
+	}
+
+	return nil
+}
+
+func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScope func(dao gen.Dao) gen.Dao) error {
+	outTable := &query.Output
+
+	_, err := outTable.WithContext(ctx).
+		Scopes(filterScope).
+		UpdateSimple(
+			outTable.Spendable.Value(true),
+			outTable.SpentBy.Null(),
+		)
+	if err != nil {
+		return fmt.Errorf("failed to update outputs to spendable: %w", err)
 	}
 
 	return nil
