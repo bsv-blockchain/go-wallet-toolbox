@@ -1,17 +1,18 @@
 package storage_test
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNoSendPlusSendWithScenario_SendWithoutNewTx(t *testing.T) {
 	// given:
 	const inputSatoshis = 99904
+	const noSendChainCount = 2
 
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -23,12 +24,11 @@ func TestNoSendPlusSendWithScenario_SendWithoutNewTx(t *testing.T) {
 	givenNoSend.FundWallet(inputSatoshis) // This makes the wallet not-empty with several UTXOs
 
 	// when:
-	noSendChangeOutpoints := givenNoSend.CreateAndProcessNoSendAction(nil)
-	require.NotEmpty(t, noSendChangeOutpoints)
-
-	// and:
-	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
-	require.NotEmpty(t, noSendChangeOutpoints)
+	var noSendChangeOutpoints []wdk.OutPoint
+	for i := range noSendChainCount {
+		t.Logf("Creating NoSend tx #%d", i+1)
+		noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
+	}
 
 	// and:
 	// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
@@ -49,12 +49,15 @@ func TestNoSendPlusSendWithScenario_SendWithoutNewTx(t *testing.T) {
 	testabilities.
 		ThenDBState(t, activeStorage).
 		HasUserTransactionsByTxIDsWithStatus(testusers.Alice, wdk.TxStatusUnproven, givenNoSend.NoSendTxs()...)
+
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBeAbleToReserveSatoshis(inputSatoshis - 4 - 7) // 4 sats in NoSend chain + 7 additional sats fee
 }
 
-func TestNoSendPlusSendWithScenario_LongNoSendTxChain(t *testing.T) {
+func TestNoSendPlusSendWithScenario_NoSendTxChainOnOneInitialUTXO(t *testing.T) {
 	// given:
-	const inputSatoshis = 4
-	const noSendChainCount = 2
+	const inputSatoshis = 6
+	const noSendChainCount = 3
 
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -94,6 +97,99 @@ func TestNoSendPlusSendWithScenario_LongNoSendTxChain(t *testing.T) {
 
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldNotBeAbleToReserveSatoshis(1) // All funds are tied up in the long NoSend chain
+}
+
+func TestNoSendPlusSendWithScenario_NoSendTxChain_NotAllChangeUsed(t *testing.T) {
+	// given:
+	const initialUTXOSats = 10000
+	const noSendChainCount = 2
+
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	givenNoSend := testabilities.GivenNoSend(t, given, activeStorage, testusers.Alice)
+
+	// and:
+	faucet := given.Faucet(activeStorage, testusers.Alice)
+	faucet.TopUp(initialUTXOSats)
+	faucet.TopUp(initialUTXOSats)
+
+	// when:
+	var noSendChangeOutpoints []wdk.OutPoint
+	for i := range noSendChainCount {
+		t.Logf("Creating NoSend tx #%d", i+1)
+		noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
+	}
+
+	// and:
+	// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
+	sendWithProcessAction := givenNoSend.ProcessAction(wdk.ProcessActionArgs{
+		IsNewTx:    false,
+		IsNoSend:   false,
+		SendWith:   givenNoSend.NoSendTxsHexStrings(),
+		IsSendWith: true,
+	})
+
+	// then:
+	testabilities.NotDelayedResultsAsserter(sendWithProcessAction.NotDelayedResults).
+		ContainsTxsWithStatus(t, wdk.ReviewActionResultStatusSuccess, givenNoSend.NoSendTxs()...)
+
+	testabilities.SendWithResultsAsserter(sendWithProcessAction.SendWithResults).
+		ContainsTxsWithStatus(t, wdk.SendWithResultStatusUnproven, givenNoSend.NoSendTxs()...)
+
+	testabilities.
+		ThenDBState(t, activeStorage).
+		HasUserTransactionsByTxIDsWithStatus(testusers.Alice, wdk.TxStatusUnproven, givenNoSend.NoSendTxs()...)
+
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBeAbleToReserveSatoshis(initialUTXOSats - 4)
+}
+
+func TestNoSendPlusSendWithScenario_FunderSelectsAdditionalUTXOs(t *testing.T) {
+	// given:
+	const inputSatoshis = 99904
+	const largerUTXOToSend = 50_000
+
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	givenNoSend := testabilities.GivenNoSend(t, given, activeStorage, testusers.Alice)
+
+	// and:
+	givenNoSend.FundWallet(inputSatoshis) // This makes the wallet not-empty with several UTXOs
+
+	// when:
+	var noSendChangeOutpoints []wdk.OutPoint
+	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
+
+	// and:
+	givenNoSend.WillSendSats(largerUTXOToSend)
+	_ = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
+
+	// and:
+	// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
+	sendWithProcessAction := givenNoSend.ProcessAction(wdk.ProcessActionArgs{
+		IsNewTx:    false,
+		IsNoSend:   false,
+		SendWith:   givenNoSend.NoSendTxsHexStrings(),
+		IsSendWith: true,
+	})
+
+	// then:
+	testabilities.NotDelayedResultsAsserter(sendWithProcessAction.NotDelayedResults).
+		ContainsTxsWithStatus(t, wdk.ReviewActionResultStatusSuccess, givenNoSend.NoSendTxs()...)
+
+	testabilities.SendWithResultsAsserter(sendWithProcessAction.SendWithResults).
+		ContainsTxsWithStatus(t, wdk.SendWithResultStatusUnproven, givenNoSend.NoSendTxs()...)
+
+	testabilities.
+		ThenDBState(t, activeStorage).
+		HasUserTransactionsByTxIDsWithStatus(testusers.Alice, wdk.TxStatusUnproven, givenNoSend.NoSendTxs()...)
+
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBeAbleToReserveSatoshis(inputSatoshis - 2 - largerUTXOToSend - 1 - 7)
 }
 
 func TestNoSendPlusSendWithScenario_SendWithNewTx(t *testing.T) {

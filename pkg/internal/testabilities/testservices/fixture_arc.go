@@ -312,7 +312,7 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePat
 }
 
 func (a *arcQueryFixture) WillReturnWithMindedTx() ARCQueryFixture {
-	merklePath := testutils.MockValidMerklePath(a.TB, a.txID)
+	merklePath := testutils.MockValidMerklePath(a.TB, a.txID, 2000)
 	return a.WillReturnTransactionWithMerklePath(merklePath)
 }
 

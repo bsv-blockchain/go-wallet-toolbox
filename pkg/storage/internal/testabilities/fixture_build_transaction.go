@@ -1,13 +1,13 @@
 package testabilities
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -21,6 +21,7 @@ type NoSendTransactionFixture struct {
 	user           testusers.User
 	activeProvider *storage.Provider
 	noSendTxsChain []string
+	satsToSend     primitives.SatoshiValue
 }
 
 func GivenNoSend(t *testing.T, storageFixture StorageFixture, activeProvider *storage.Provider, user testusers.User) *NoSendTransactionFixture {
@@ -29,6 +30,7 @@ func GivenNoSend(t *testing.T, storageFixture StorageFixture, activeProvider *st
 		user:           user,
 		storageFixture: storageFixture,
 		activeProvider: activeProvider,
+		satsToSend:     1,
 	}
 }
 
@@ -61,6 +63,11 @@ func (f *NoSendTransactionFixture) CreateAction(args wdk.ValidCreateActionArgs) 
 	require.NoError(f.t, tx.Sign()) // <-- This is important
 
 	return result, tx
+}
+
+func (f *NoSendTransactionFixture) WillSendSats(sats uint64) *NoSendTransactionFixture {
+	f.satsToSend = primitives.SatoshiValue(sats)
+	return f
 }
 
 func (f *NoSendTransactionFixture) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult {
@@ -118,7 +125,7 @@ func (f *NoSendTransactionFixture) CreateAndProcessSendWithAction(sendWithHexStr
 func (f *NoSendTransactionFixture) CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.OutPoint, isNoSend bool) func(args *wdk.ValidCreateActionArgs) {
 	return func(args *wdk.ValidCreateActionArgs) {
 		args.IsNewTx = true
-		args.Outputs[0].Satoshis = 1
+		args.Outputs[0].Satoshis = f.satsToSend
 		args.IsNoSend = isNoSend
 		args.Options.NoSend = to.Ptr(primitives.BooleanDefaultFalse(isNoSend))
 		args.Options.NoSendChange = prevNoSendOutpoints

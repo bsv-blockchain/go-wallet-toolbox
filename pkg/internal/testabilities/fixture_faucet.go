@@ -2,17 +2,17 @@ package testabilities
 
 import (
 	"fmt"
-	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
 	"testing"
 
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -62,7 +62,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 
 	txObj := spec.TX()
 	if options.Mined {
-		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String()))
+		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String(), 1000+uint32(f.index)))
 	}
 
 	beef, err := txObj.BEEF()

@@ -1,11 +1,12 @@
 package testabilities
 
 import (
+	stdslices "slices"
+	"testing"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/stretchr/testify/assert"
-	stdslices "slices"
-	"testing"
 )
 
 type NotDelayedResultsAsserter []wdk.ReviewActionResult
