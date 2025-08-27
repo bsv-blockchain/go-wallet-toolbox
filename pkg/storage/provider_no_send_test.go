@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -161,10 +162,12 @@ func TestNoSendPlusSendWithScenario_FunderSelectsAdditionalUTXOs(t *testing.T) {
 	givenNoSend.FundWallet(inputSatoshis) // This makes the wallet not-empty with several UTXOs
 
 	// when:
+	// step 1:
 	var noSendChangeOutpoints []wdk.OutPoint
 	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 
 	// and:
+	// step 2:
 	givenNoSend.WillSendSats(largerUTXOToSend)
 	_ = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 
@@ -200,7 +203,7 @@ func TestNoSendPlusSendWithScenario_Funder(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	activeStorage := given.Provider().GORM()
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
 	givenNoSend := testabilities.GivenNoSend(t, given, activeStorage, testusers.Alice)
 
 	// and:
@@ -214,18 +217,25 @@ func TestNoSendPlusSendWithScenario_Funder(t *testing.T) {
 	require.NoError(t, err)
 
 	// when:
+	// step 1:
 	noSendChangeOutpoints := givenNoSend.CreateAndProcessNoSendAction(nil)
 	require.Greater(t, len(noSendChangeOutpoints), 1, "there should be multiple nosend change outpoints")
 
 	// and:
-	_ = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
+	// step 2:
+	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
+	require.Equal(t, 1, len(noSendChangeOutpoints), "only one change output should be produced")
 	require.Equal(t, 1, givenNoSend.LastUsedChangeOutputsCounter(), "only one change output should be used")
-	require.Greater(t, len(givenNoSend.AllRemainedNoSendChange()), 0, "there should be remained no-send change outputs")
+	allRemainedNoSendChangeBeforeStep3 := len(givenNoSend.AllRemainedNoSendChange())
+	require.Equal(t, 3, allRemainedNoSendChangeBeforeStep3, "three no-send change outputs should remain")
 
 	// and:
+	// step 3:
 	givenNoSend.WillSendSats(largerUTXOToSend)
-	_ = givenNoSend.CreateAndProcessNoSendAction(givenNoSend.AllRemainedNoSendChange())
-	require.Len(t, givenNoSend.AllRemainedNoSendChange(), 1, "only one no-send change output should be the output of the last tx")
+	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(givenNoSend.AllRemainedNoSendChange())
+	require.Equal(t, 2, len(noSendChangeOutpoints), "two change outputs should be produced")
+	require.Len(t, givenNoSend.AllRemainedNoSendChange(), len(noSendChangeOutpoints), "only one no-send change outputs should be the output of the last tx")
+	require.Equal(t, allRemainedNoSendChangeBeforeStep3, givenNoSend.LastUsedChangeOutputsCounter(), "all previous no-send change outputs should be used")
 	funderSelectedExtraUtxoOutOfNosendPool := len(givenNoSend.LastCreateActionResult().Inputs) > givenNoSend.LastUsedChangeOutputsCounter()
 	require.True(t, funderSelectedExtraUtxoOutOfNosendPool, "funder should select at least one extra UTXO outside of no-send change outputs")
 
@@ -267,10 +277,12 @@ func TestNoSendPlusSendWithScenario_SendWithNewTx(t *testing.T) {
 	givenNoSend.FundWallet(inputSatoshis) // This makes the wallet not-empty with several UTXOs
 
 	// when:
+	// step 1:
 	noSendChangeOutpoints := givenNoSend.CreateAndProcessNoSendAction(nil)
 	require.NotEmpty(t, noSendChangeOutpoints)
 
 	// and:
+	// step 2:
 	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 	require.NotEmpty(t, noSendChangeOutpoints)
 
@@ -310,9 +322,12 @@ func TestNoSendSendWithScenario_SendWithSeparatedNewTx(t *testing.T) {
 	givenNoSend.FundWallet(inputSatoshis) // This makes the wallet not-empty with several UTXOs
 
 	// when:
+	// step 1:
 	noSendChangeOutpoints := givenNoSend.CreateAndProcessNoSendAction(nil)
 	require.NotEmpty(t, noSendChangeOutpoints)
 
+	// and:
+	// step 2:
 	noSendChangeOutpoints = givenNoSend.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 	require.NotEmpty(t, noSendChangeOutpoints)
 
