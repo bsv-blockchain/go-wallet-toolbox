@@ -1,6 +1,8 @@
 package testabilities
 
 import (
+	"maps"
+	stdslices "slices"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -19,6 +21,9 @@ type NoSendTransactionFixture interface {
 	FundWallet(satoshis uint64)
 	NoSendTxsHexStrings() []primitives.HexString
 	NoSendTxs() []string
+	LastCreateActionResult() *wdk.StorageCreateActionResult
+	LastUsedChangeOutputsCounter() int
+	AllRemainedNoSendChange() []wdk.OutPoint
 	CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction)
 	WillSendSats(sats uint64) NoSendTransactionFixture
 	ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult
@@ -29,21 +34,25 @@ type NoSendTransactionFixture interface {
 }
 
 type noSendTransactionFixture struct {
-	t              *testing.T
-	storageFixture StorageFixture
-	user           testusers.User
-	activeProvider *storage.Provider
-	noSendTxsChain []string
-	satsToSend     primitives.SatoshiValue
+	t                            *testing.T
+	storageFixture               StorageFixture
+	user                         testusers.User
+	activeProvider               *storage.Provider
+	noSendTxsChain               []string
+	satsToSend                   primitives.SatoshiValue
+	lastCreateActionResult       *wdk.StorageCreateActionResult
+	lastUsedChangeOutputsCounter int
+	allRemainedNoSendChange      map[wdk.OutPoint]struct{}
 }
 
 func GivenNoSend(t *testing.T, storageFixture StorageFixture, activeProvider *storage.Provider, user testusers.User) NoSendTransactionFixture {
 	return &noSendTransactionFixture{
-		t:              t,
-		user:           user,
-		storageFixture: storageFixture,
-		activeProvider: activeProvider,
-		satsToSend:     1,
+		t:                       t,
+		user:                    user,
+		storageFixture:          storageFixture,
+		activeProvider:          activeProvider,
+		satsToSend:              1,
+		allRemainedNoSendChange: make(map[wdk.OutPoint]struct{}),
 	}
 }
 
@@ -65,6 +74,18 @@ func (f *noSendTransactionFixture) NoSendTxs() []string {
 	return f.noSendTxsChain
 }
 
+func (f *noSendTransactionFixture) LastCreateActionResult() *wdk.StorageCreateActionResult {
+	return f.lastCreateActionResult
+}
+
+func (f *noSendTransactionFixture) LastUsedChangeOutputsCounter() int {
+	return f.lastUsedChangeOutputsCounter
+}
+
+func (f *noSendTransactionFixture) AllRemainedNoSendChange() []wdk.OutPoint {
+	return stdslices.Collect(maps.Keys(f.allRemainedNoSendChange))
+}
+
 func (f *noSendTransactionFixture) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction) {
 	result, err := f.activeProvider.CreateAction(f.t.Context(), f.user.AuthID(), args)
 	require.NoError(f.t, err)
@@ -74,6 +95,8 @@ func (f *noSendTransactionFixture) CreateAction(args wdk.ValidCreateActionArgs) 
 	require.NoError(f.t, err)
 	require.NotNil(f.t, tx)
 	require.NoError(f.t, tx.Sign()) // <-- This is important
+
+	f.lastCreateActionResult = result
 
 	return result, tx
 }
@@ -112,6 +135,20 @@ func (f *noSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoi
 			Vout: uint32(vout),
 		}
 	})
+
+	// update allRemainedNoSendChange
+	f.lastUsedChangeOutputsCounter = 0
+	for _, op := range noSendOutpoints {
+		f.allRemainedNoSendChange[op] = struct{}{}
+	}
+	for _, input := range createActionResult.Inputs {
+		outpoint := wdk.OutPoint{TxID: input.SourceTxID, Vout: input.SourceVout}
+
+		if _, ok := f.allRemainedNoSendChange[outpoint]; ok {
+			f.lastUsedChangeOutputsCounter++
+			delete(f.allRemainedNoSendChange, outpoint)
+		}
+	}
 
 	f.noSendTxsChain = append(f.noSendTxsChain, txID)
 
