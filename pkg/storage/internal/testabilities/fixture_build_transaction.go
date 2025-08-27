@@ -15,7 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type NoSendTransactionFixture struct {
+type NoSendTransactionFixture interface {
+	FundWallet(satoshis uint64)
+	NoSendTxsHexStrings() []primitives.HexString
+	NoSendTxs() []string
+	CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction)
+	WillSendSats(sats uint64) NoSendTransactionFixture
+	ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult
+	CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPoint) []wdk.OutPoint
+	CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string)
+	CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.OutPoint, isNoSend bool) func(args *wdk.ValidCreateActionArgs)
+	CreateActionSendWithArgsModifier(sendWithHexStrings ...primitives.HexString) func(args *wdk.ValidCreateActionArgs)
+}
+
+type noSendTransactionFixture struct {
 	t              *testing.T
 	storageFixture StorageFixture
 	user           testusers.User
@@ -24,8 +37,8 @@ type NoSendTransactionFixture struct {
 	satsToSend     primitives.SatoshiValue
 }
 
-func GivenNoSend(t *testing.T, storageFixture StorageFixture, activeProvider *storage.Provider, user testusers.User) *NoSendTransactionFixture {
-	return &NoSendTransactionFixture{
+func GivenNoSend(t *testing.T, storageFixture StorageFixture, activeProvider *storage.Provider, user testusers.User) NoSendTransactionFixture {
+	return &noSendTransactionFixture{
 		t:              t,
 		user:           user,
 		storageFixture: storageFixture,
@@ -34,7 +47,7 @@ func GivenNoSend(t *testing.T, storageFixture StorageFixture, activeProvider *st
 	}
 }
 
-func (f *NoSendTransactionFixture) FundWallet(satoshis uint64) {
+func (f *noSendTransactionFixture) FundWallet(satoshis uint64) {
 	f.storageFixture.
 		Action(f.activeProvider).
 		WithSender(f.user).
@@ -44,15 +57,15 @@ func (f *NoSendTransactionFixture) FundWallet(satoshis uint64) {
 		Processed()
 }
 
-func (f *NoSendTransactionFixture) NoSendTxsHexStrings() []primitives.HexString {
+func (f *noSendTransactionFixture) NoSendTxsHexStrings() []primitives.HexString {
 	return slices.Map(f.noSendTxsChain, func(s string) primitives.HexString { return primitives.HexString(s) })
 }
 
-func (f *NoSendTransactionFixture) NoSendTxs() []string {
+func (f *noSendTransactionFixture) NoSendTxs() []string {
 	return f.noSendTxsChain
 }
 
-func (f *NoSendTransactionFixture) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction) {
+func (f *noSendTransactionFixture) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction) {
 	result, err := f.activeProvider.CreateAction(f.t.Context(), f.user.AuthID(), args)
 	require.NoError(f.t, err)
 	require.NotNil(f.t, result)
@@ -65,12 +78,12 @@ func (f *NoSendTransactionFixture) CreateAction(args wdk.ValidCreateActionArgs) 
 	return result, tx
 }
 
-func (f *NoSendTransactionFixture) WillSendSats(sats uint64) *NoSendTransactionFixture {
+func (f *noSendTransactionFixture) WillSendSats(sats uint64) NoSendTransactionFixture {
 	f.satsToSend = primitives.SatoshiValue(sats)
 	return f
 }
 
-func (f *NoSendTransactionFixture) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult {
+func (f *noSendTransactionFixture) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult {
 	result, err := f.activeProvider.ProcessAction(f.t.Context(), f.user.AuthID(), args)
 	require.NoError(f.t, err)
 	require.NotNil(f.t, result)
@@ -78,7 +91,7 @@ func (f *NoSendTransactionFixture) ProcessAction(args wdk.ProcessActionArgs) *wd
 	return result
 }
 
-func (f *NoSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPoint) []wdk.OutPoint {
+func (f *noSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPoint) []wdk.OutPoint {
 	createActionArgs := fixtures.DefaultValidCreateActionArgs(f.CreateActionNoSendArgsModifier(prevNoSendOutpoints, true))
 
 	createActionResult, signedTx := f.CreateAction(createActionArgs)
@@ -105,7 +118,7 @@ func (f *NoSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoi
 	return noSendOutpoints
 }
 
-func (f *NoSendTransactionFixture) CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string) {
+func (f *noSendTransactionFixture) CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string) {
 	createActionArgs := fixtures.DefaultValidCreateActionArgs(opts...)
 	createActionResult, tx := f.CreateAction(createActionArgs)
 	txID := tx.TxID().String()
@@ -122,7 +135,7 @@ func (f *NoSendTransactionFixture) CreateAndProcessSendWithAction(sendWithHexStr
 	return processActionResult, txID
 }
 
-func (f *NoSendTransactionFixture) CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.OutPoint, isNoSend bool) func(args *wdk.ValidCreateActionArgs) {
+func (f *noSendTransactionFixture) CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.OutPoint, isNoSend bool) func(args *wdk.ValidCreateActionArgs) {
 	return func(args *wdk.ValidCreateActionArgs) {
 		args.IsNewTx = true
 		args.Outputs[0].Satoshis = f.satsToSend
@@ -132,7 +145,7 @@ func (f *NoSendTransactionFixture) CreateActionNoSendArgsModifier(prevNoSendOutp
 	}
 }
 
-func (f *NoSendTransactionFixture) CreateActionSendWithArgsModifier(sendWithHexStrings ...primitives.HexString) func(args *wdk.ValidCreateActionArgs) {
+func (f *noSendTransactionFixture) CreateActionSendWithArgsModifier(sendWithHexStrings ...primitives.HexString) func(args *wdk.ValidCreateActionArgs) {
 	return func(args *wdk.ValidCreateActionArgs) {
 		args.IsSendWith = true
 		args.Options.SendWith = sendWithHexStrings
