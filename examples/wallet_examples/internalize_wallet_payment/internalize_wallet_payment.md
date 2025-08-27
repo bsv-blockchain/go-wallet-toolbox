@@ -14,8 +14,6 @@ The process involves several steps:
 
 Atomic BEEF transactions start with the prefix `01010101` followed by the subject transaction ID, ensuring that all included transaction data relates to validating a single transaction and its dependencies.
 
-The transaction outputs that match the address derivation provided by the payment remittance values will be internalized to the wallet-tool box database.
-
 ## Code Walkthrough
 
 ### Configuration Parameters
@@ -27,6 +25,7 @@ The example uses the following required configurable constants:
 - **`Suffix`**: Base64-encoded derivation suffix for payment remittance (required)
 - **`IdentityKey`**: Hex-encoded sender identity key for payment remittance (required)
 - **`Originator`**: Domain identifier for the requesting application (default: `"example.com"`)
+- **`OutputIndex`**: The output index of the transaction that will be used to internalize the transaction (required)
 
 ### Request Parameters
 
@@ -71,7 +70,6 @@ go run examples/wallet_examples/internalize_wallet_payment/internalize_wallet_pa
 Alice is performing: Creating wallet and setting up environment
 --------------------------------------------------
 CreateWallet: 03d397c0f79268471ab7c582b939f70e8ea06f63a3861f23425102f89c9ed043d0
-Outputs matching to the derived address based on the payment remittance: [0]
 
 === STEP ===
 Alice is performing: Internalizing transaction

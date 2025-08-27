@@ -56,7 +56,7 @@ func main() {
 	show.Step("Alice", "Internalizing transaction from faucet")
 
 	// This method will internalize the transaction from the faucet into the wallet database
-	err = example_setup.InternalizeFromFaucet(ctx, atomicBeef, aliceWallet)
+	err = example_setup.InternalizeFromFaucet(ctx, atomicBeef, aliceWallet, alice)
 	if err != nil {
 		panic(fmt.Errorf("failed to internalize tx: %w", err))
 	}

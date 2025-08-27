@@ -7,15 +7,9 @@ import (
 	"fmt"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
-	"github.com/bsv-blockchain/go-sdk/script"
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 var (
@@ -34,6 +28,9 @@ var (
 
 	// IdentityKey is the sender identity key for the payment remittance
 	IdentityKey = "" // example: 0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
+
+	//OutputIndex is the index of the output to internalize
+	OutputIndex = uint32(0) // example: 0
 )
 
 // This example demonstrates how to internalize a transaction into Alice's wallet.
@@ -43,7 +40,7 @@ func main() {
 	ctx := context.Background()
 
 	if Prefix == "" || Suffix == "" || AtomicBeefHex == "" || IdentityKey == "" {
-		panic("Prefix, Suffix, AtomicBeefHex, and IdentityKey are required")
+		panic("Prefix, Suffix, AtomicBeefHex and IdentityKey are required")
 	}
 
 	show.Step("Alice", "Creating wallet and setting up environment")
@@ -52,8 +49,6 @@ func main() {
 
 	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
-
-	isBsvNetworkMain := alice.Environment.BSVNetwork == defs.NetworkMainnet
 
 	derivationPrefix, err := base64.StdEncoding.DecodeString(Prefix)
 	if err != nil {
@@ -70,72 +65,24 @@ func main() {
 		panic(fmt.Errorf("failed to get sender identity key: %w", err))
 	}
 
-	keyID := brc29.KeyID{
-		DerivationPrefix: Prefix,
-		DerivationSuffix: Suffix,
-	}
-
-	aliceKeyDeriver := sdk.NewKeyDeriver(alice.PrivateKey)
-	derivedPrivateKey, err := aliceKeyDeriver.DerivePrivateKey(brc29.Protocol, keyID.String(), sdk.Counterparty{
-		Type:         sdk.CounterpartyTypeOther,
-		Counterparty: senderIdentityKey,
-	})
-	if err != nil {
-		panic(fmt.Errorf("failed to derive private key for Alice: %w", err))
-	}
-
-	derivedAddress, err := script.NewAddressFromPublicKey(derivedPrivateKey.PubKey(), isBsvNetworkMain)
-	if err != nil {
-		panic(fmt.Errorf("failed to create address from derived private key: %w", err))
-	}
-
-	addressObj, err := script.NewAddressFromString(derivedAddress.AddressString)
-	if err != nil {
-		panic(fmt.Errorf("failed to parse address %q: %w", derivedAddress, err))
-	}
-
-	lockingScript, err := p2pkh.Lock(addressObj)
-	if err != nil {
-		panic(fmt.Errorf("failed to create locking script for address %q: %w", derivedAddress, err))
-	}
-
 	decodedBeef, err := hex.DecodeString(AtomicBeefHex)
 	if err != nil {
 		panic(fmt.Errorf("failed to decode beef: %w", err))
 	}
 
-	tx, err := transaction.NewTransactionFromBEEF(decodedBeef)
-	if err != nil {
-		panic(fmt.Errorf("failed to create transaction from atomic beef: %w", err))
-	}
-
-	var vouts []int
-	for vout, output := range tx.Outputs {
-		if output.LockingScript.Equals(lockingScript) {
-			vouts = append(vouts, vout)
-		}
-	}
-
-	if len(vouts) == 0 {
-		panic(fmt.Errorf("no outputs found for address %q in transaction %q", derivedAddress.AddressString, tx.TxID().String()))
-	}
-
-	show.Info("Outputs matching to the derived address based on the payment remittance", vouts)
-
 	internalizeArgs := sdk.InternalizeActionArgs{
 		Tx: decodedBeef,
-		Outputs: slices.Map(vouts, func(vout int) sdk.InternalizeOutput {
-			return sdk.InternalizeOutput{
-				OutputIndex: uint32(vout),
+		Outputs: []sdk.InternalizeOutput{
+			{
+				OutputIndex: OutputIndex,
 				Protocol:    "wallet payment",
 				PaymentRemittance: &sdk.Payment{
 					DerivationPrefix:  derivationPrefix,
 					DerivationSuffix:  derivationSuffix,
 					SenderIdentityKey: senderIdentityKey,
 				},
-			}
-		}),
-		Labels:      []string{"internalize", tx.TxID().String()},
+			},
+		},
 		Description: "internalize transaction",
 	}
 
