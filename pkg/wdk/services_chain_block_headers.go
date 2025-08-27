@@ -39,6 +39,10 @@ type ChainBaseBlockHeader struct {
 	// Nonce is the 32-bit nonce used in the mining process to vary the block hash.
 	// Serialized as 4 bytes.
 	Nonce uint32
+
+	// Hash is the double SHA-256 hash of the serialized block header.
+	// Represented as a 32-byte hex string with reversed byte order.
+	Hash string
 }
 
 // ChainBlockHeader extends ChainBaseBlockHeader with metadata about the block's

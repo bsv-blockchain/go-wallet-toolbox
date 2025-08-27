@@ -54,6 +54,7 @@ func New(
 			randomizer,
 			services,
 			beefVerifier,
+			services,
 		),
 		process: newProcessAction(
 			ctx,
