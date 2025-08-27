@@ -55,11 +55,15 @@ type DBStateAssertion interface {
 
 type KnownTxAssertion interface {
 	WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion
+	WithAttempts(attempts uint64) KnownTxAssertion
 	IsMined() KnownTxAssertion
 	NotMined() KnownTxAssertion
 	HasRawTx() KnownTxAssertion
+	IsNotified(expected bool) KnownTxAssertion
+	WithBlockHeight(expected *uint32) KnownTxAssertion
+	WithMerkleRoot(expected *string) KnownTxAssertion
+	WithBlockHash(expected *string) KnownTxAssertion
 	TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion
-	WithAttempts(attempts uint64) KnownTxAssertion
 }
 
 type UserTransactionAssertion interface {
@@ -211,6 +215,30 @@ func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAsse
 func (d *knownTxAssertion) WithAttempts(expected uint64) KnownTxAssertion {
 	d.Helper()
 	assert.Equal(d, expected, d.knownTx.Attempts, "Expected known transaction to have %d Attempts", expected)
+	return d
+}
+
+func (d *knownTxAssertion) WithBlockHeight(expected *uint32) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.BlockHeight, "Expected known tx to have BlockHeight = %v", expected)
+	return d
+}
+
+func (d *knownTxAssertion) WithMerkleRoot(expected *string) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.MerkleRoot, "Expected MerkleRoot = %v", expected)
+	return d
+}
+
+func (d *knownTxAssertion) WithBlockHash(expected *string) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.BlockHash, "Expected BlockHash = %v", expected)
+	return d
+}
+
+func (d *knownTxAssertion) IsNotified(expected bool) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.Notified, "Expected known transaction to have Notified = %v", expected)
 	return d
 }
 

@@ -40,5 +40,10 @@ type KnownTxReadSpecification struct {
 	TxID *string
 
 	IncludeHistoryNotes bool
+	Status              *Comparable[wdk.ProvenTxReqStatus]
 	Attempts            *Comparable[uint64]
+	Notified            *Comparable[bool]
+	BlockHeight         *Comparable[uint32]
+	MerkleRoot          *Comparable[string]
+	BlockHash           *Comparable[string]
 }
