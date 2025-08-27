@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
@@ -18,8 +19,9 @@ func FaucetAddress(wallet *Setup) {
 		DerivationSuffix: base64.StdEncoding.EncodeToString(parts.DerivationSuffix),
 	}
 
+	anyonePriv, _ := sdk.AnyoneKey()
 	address, err := brc29.Address(
-		wallet.PrivateKey,
+		anyonePriv,
 		keyID,
 		wallet.IdentityKey,
 		brc29.WithTestNet(),

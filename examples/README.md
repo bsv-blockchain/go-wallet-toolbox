@@ -18,6 +18,13 @@ First, generate a new infra-config file that provides the parameters for a fresh
 go run ./cmd/infra_config_gen/main.go -k
 ```
 
+Upon generating the `infra-config` file, the default value for the `bsv_network` field is set to `main`.
+To use the wallet-tool box on testnet with the examples please change this value to `test`.
+
+```go
+bsv_network: test
+```
+
 ### Start the server
 ```bash
 go run ./cmd/infra/main.go
