@@ -144,9 +144,9 @@ func (m *ListOutputsForm) View() string {
 		}
 	}
 
-	continueButton := &BlurredButton
+	continueButton := &fixtures.BlurredButton
 	if m.continueIsFocused() {
-		continueButton = &FocusedButton
+		continueButton = &fixtures.FocusedButton
 	}
 	b.WriteString("\n\n" + continueButton.Render("Continue"))
 

@@ -8,8 +8,8 @@ import (
 
 func NewSelectNetwork(manager ManagerInterface) tea.Model {
 	networkTypes := []defs.BSVNetwork{
-		defs.NetworkMainnet,
 		defs.NetworkTestnet,
+		defs.NetworkMainnet,
 	}
 
 	onSelect := func(networkTypes defs.BSVNetwork) (tea.Model, tea.Cmd) {
