@@ -37,7 +37,8 @@ func main() {
 }
 
 func setupSlog() (cleanup func()) {
-	const logFilePath = "manual_tests.log"
+	startTime := time.Now().Format("2006-01-02_15-04-05")
+	var logFilePath = "manual_tests_" + startTime + ".log"
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(fmt.Sprintf("failed to open log file: %v", err))
