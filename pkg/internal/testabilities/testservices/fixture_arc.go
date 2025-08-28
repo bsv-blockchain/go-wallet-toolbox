@@ -58,6 +58,7 @@ type ARCQueryFixture interface {
 	WillReturnWithMindedTx() ARCQueryFixture
 	WillReturnTransactionOnHeight(i int)
 	WillReturnTransactionWithBlockHash(hash *chainhash.Hash)
+	WillReturnTransactionWithBlockHeight(height uint32)
 }
 
 type ArcBroadcastFixture interface {
@@ -415,4 +416,10 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 		"txid":      nil,
 		"type":      "https://bitcoin-sv.github.io/arc/#/errors?id=_" + to.StringFromInteger(httpStatus),
 	}
+}
+
+func (a *arcQueryFixture) WillReturnTransactionWithBlockHeight(height uint32) {
+	mp := testutils.MockValidMerklePath(a.TB, a.txID)
+	mp.BlockHeight = height
+	a.WillReturnTransactionWithMerklePath(mp)
 }
