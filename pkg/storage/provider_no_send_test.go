@@ -1,10 +1,10 @@
 package storage_test
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
