@@ -29,6 +29,7 @@ type BlockHeaderByHeight struct {
 	MerkleRoot        string `json:"merkleroot"`
 	Time              uint32 `json:"time"`
 	Bits              string `json:"bits"`
+	Hash              string `json:"hash"`
 	Nonce             uint32 `json:"nonce"`
 }
 
@@ -47,5 +48,6 @@ func (b *BlockHeaderByHeight) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlo
 		Time:         b.Time,
 		Bits:         uint32(bits),
 		Nonce:        b.Nonce,
+		Hash:         b.Hash,
 	}, nil
 }
