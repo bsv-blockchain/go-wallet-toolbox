@@ -419,7 +419,6 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithBlockHeight(height uint32) {
-	mp := testutils.MockValidMerklePath(a.TB, a.txID)
-	mp.BlockHeight = height
+	mp := testutils.MockValidMerklePath(a.TB, a.txID, height)
 	a.WillReturnTransactionWithMerklePath(mp)
 }

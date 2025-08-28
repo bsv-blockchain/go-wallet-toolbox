@@ -380,7 +380,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				Status: currentStatus.SendWithResultStatus(),
 			})
 
-			logger.DebugContext(ctx, "Making outputs spendable",
+			logger.DebugContext(ctx, "Creating spendable UTXOs",
 				slog.String("txID", txID),
 			)
 
