@@ -6,6 +6,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -43,8 +44,24 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 	// TODO: merge BEEF Party ??
 }
 
-func (a *CreateAction) handleNotNewTX(context.Context) (*wallet.CreateActionResult, error) {
-	return nil, fmt.Errorf("CreateAction is not yet fully implemented")
+func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateActionResult, error) {
+	processActionArgs := mapping.MapProcessActionArgsForSendWith(a.wdkArgs)
+	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process created action: %w", err)
+	}
+
+	broadcastErr := a.validateProcessActionResult(processActionResult)
+	if broadcastErr != nil {
+		return nil, broadcastErr
+	}
+
+	result, err := mapping.MapCreateActionResultFromStorageResultsForSendWith(processActionResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
+	}
+
+	return result, nil
 }
 
 func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateActionArgs) (*wallet.CreateActionResult, error) {
@@ -87,32 +104,31 @@ func (a *CreateAction) handleSignAction(tx *transaction.Transaction, createActio
 func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
 	txID := tx.TxID()
 
-	processActionArgs := mapping.MapProcessActionArgs(txID, tx, createActionResult.Reference, a.wdkArgs)
+	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, createActionResult.Reference, a.wdkArgs)
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process created action: %w", err)
+		return nil, fmt.Errorf("failed to process created action (txID: %s, reference: %s): %w",
+			txID.String(), createActionResult.Reference, err)
 	}
 
-	err = a.validateProcessActionResult(processActionResult)
-	if err != nil {
-		return nil, err
+	broadcastErr := a.validateProcessActionResult(processActionResult)
+	if broadcastErr != nil {
+		return nil, broadcastErr
 	}
 
-	result, err := mapping.MapCreateActionResultFromStorageResults(txID, tx, createActionResult, processActionResult, a.wdkArgs)
+	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(txID, tx, createActionResult, processActionResult, a.wdkArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
+		return nil, fmt.Errorf("failed to build result after processing created action (txID: %s, reference: %s): %w",
+			txID.String(), createActionResult.Reference, err)
 	}
 
 	return result, nil
 }
 
-func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) error {
+func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) *broadcastError.BroadcastingError {
 	if a.requiresNotDelayedResult() {
-		err := validate.NotDelayedProcessActionResult(processActionResult)
-		if err != nil {
-			return fmt.Errorf("failed on create action not delayed processing, %w", err)
-		}
+		return validate.NotDelayedProcessActionResult(processActionResult)
 	}
 	return nil
 }

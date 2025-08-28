@@ -33,11 +33,14 @@ type ProviderFixture interface {
 	WithCommission(commission defs.Commission) ProviderFixture
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
+	WithFailAbandonedMinTxAge(seconds uint) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
 
 	StorageIdentityKey() string
+
+	BeefVerifier() BeefVerifierFixture
 }
 
 type providerFixture struct {
@@ -46,8 +49,10 @@ type providerFixture struct {
 	network        defs.BSVNetwork
 	commission     defs.Commission
 	feeModel       defs.FeeModel
+	failAbandoned  defs.FailAbandoned
 	randomizer     wdk.Randomizer
 	services       wdk.Services
+	beefVerifier   *beefVerifierFixture
 	storagePrivKey string
 	storageName    string
 	providers      []*storage.Provider
@@ -76,6 +81,13 @@ func (p *providerFixture) WithFeeModel(feeModel defs.FeeModel) ProviderFixture {
 
 func (p *providerFixture) WithRandomizer(randomizer wdk.Randomizer) ProviderFixture {
 	p.randomizer = randomizer
+	return p
+}
+
+func (p *providerFixture) WithFailAbandonedMinTxAge(seconds uint) ProviderFixture {
+	p.failAbandoned = defs.FailAbandoned{
+		MinTransactionAgeSeconds: seconds,
+	}
 	return p
 }
 
@@ -114,17 +126,16 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 	p.require.NoError(err)
 
 	activeStorage, err := storage.NewGORMProvider(
-		p.t.Context(),
-		p.logger,
-		storage.GORMProviderConfig{
-			Chain:                 p.network,
-			FeeModel:              p.feeModel,
-			Commission:            p.commission,
-			Services:              p.services,
-			SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
-		},
+		p.network,
+		p.services,
+		storage.WithBackgroundBroadcasterContext(p.t.Context()),
+		storage.WithLogger(p.logger),
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),
+		storage.WithBeefVerifier(p.beefVerifier),
+		storage.WithFeeModel(p.feeModel),
+		storage.WithCommission(p.commission),
+		storage.WithFailAbandoned(p.failAbandoned),
 	)
 	p.require.NoError(err)
 
@@ -158,4 +169,9 @@ func (p *providerFixture) Cleanup() {
 	for _, provider := range p.providers {
 		provider.Stop()
 	}
+}
+
+func (p *providerFixture) BeefVerifier() BeefVerifierFixture {
+	p.t.Helper()
+	return p.beefVerifier
 }

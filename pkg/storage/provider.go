@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
@@ -35,65 +34,59 @@ type Provider struct {
 
 	repo    *repo.Repositories
 	actions *actions.Actions
-	random  wdk.Randomizer
+	options *ProviderConfig
 	logger  *slog.Logger
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
-// GORMProviderConfig is a configuration for GORM storage provider.
-type GORMProviderConfig struct {
-	DB                    defs.Database
-	Chain                 defs.BSVNetwork
-	FeeModel              defs.FeeModel
-	Commission            defs.Commission
-	Services              wdk.Services
-	SynchronizeTxStatuses defs.SynchronizeTxStatuses
-}
-
 // NewGORMProvider creates a new storage provider with GORM repository.
-func NewGORMProvider(ctx context.Context, logger *slog.Logger, config GORMProviderConfig, opts ...ProviderOption) (*Provider, error) {
-	if err := config.FeeModel.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid fee model: %w", err)
+func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...ProviderOption) (*Provider, error) {
+	options := to.OptionsWithDefault(defaultProviderOptions(), opts...)
+	if err := options.verify(); err != nil {
+		return nil, fmt.Errorf("invalid provider options: %w", err)
 	}
 
-	options := toOptions(opts)
+	log := options.Logger
 
-	db, err := configureDatabase(logger, config.DB, options)
+	db, err := configureDatabase(log, options.DBConfig, &options)
 	if err != nil {
 		return nil, err
 	}
 
 	repos := db.CreateRepositories()
 
-	logger = logging.Child(logger, "GormStorageProvider")
+	log = logging.Child(log, "GormStorageProvider")
 
 	var transactionFunder funder.Funder
-	if options.funder != nil {
-		transactionFunder = options.funder
+	if options.Funder != nil {
+		transactionFunder = options.Funder
 	} else {
-		transactionFunder = db.CreateFunder(config.FeeModel)
+		transactionFunder = db.CreateFunder(options.FeeModel)
 	}
 
-	var random wdk.Randomizer
-	if options.randomizer != nil {
-		random = options.randomizer
-	} else {
-		random = randomizer.New()
-	}
-
-	if config.Services == nil {
-		logger.Warn("services is not set, some actions may not work")
+	if services == nil {
+		log.Warn("services is not set, some actions may not work")
 	}
 
 	return &Provider{
-		Chain:    config.Chain,
+		Chain:    chain,
 		Database: db,
 
-		repo:    repos,
-		actions: actions.New(ctx, logger, transactionFunder, config.Commission, repos, random, config.Services, config.SynchronizeTxStatuses),
-		random:  random,
-		logger:  logger,
+		repo: repos,
+		actions: actions.New(
+			options.BackgroundBroadcasterContext,
+			log,
+			transactionFunder,
+			options.Commission,
+			repos,
+			options.Randomizer,
+			services,
+			options.SynchronizeTxStatusesConfig,
+			options.BeefVerifier,
+		),
+		options: &options,
+		logger:  log,
 	}, nil
 }
 
@@ -102,9 +95,9 @@ func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 }
 
-func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *providerOptions) (*database.Database, error) {
-	if options.gormDB != nil {
-		return database.NewWithGorm(options.gormDB, logger), nil
+func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *ProviderConfig) (*database.Database, error) {
+	if options.GormDB != nil {
+		return database.NewWithGorm(options.GormDB, logger), nil
 	}
 
 	db, err := database.NewDatabase(dbConfig, logger)
@@ -376,6 +369,21 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 	return nil
 }
 
+// AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
+func (p *Provider) AbortAbandoned(ctx context.Context) error {
+	seconds, err := to.Int(p.options.FailAbandonedConfig.MinTransactionAgeSeconds)
+	if err != nil {
+		return fmt.Errorf("invalid FailAbandonedConfig.MinTransactionAgeSeconds: %w", err)
+	}
+	minTransactionAge := time.Duration(seconds) * time.Second
+
+	err = p.actions.AbortAbandoned(ctx, minTransactionAge)
+	if err != nil {
+		return fmt.Errorf("failed to fail abandoned transactions: %w", err)
+	}
+	return nil
+}
+
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	if auth.UserID == nil {
@@ -484,7 +492,7 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 		return nil, ErrAuthorization
 	}
 
-	action := sync.NewFindOrInsertSyncState(p.repo, p.random, *auth.UserID, storageIdentityKey, storageName)
+	action := sync.NewFindOrInsertSyncState(p.repo, p.options.Randomizer, *auth.UserID, storageIdentityKey, storageName)
 	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
 
 	if err != nil {
@@ -551,7 +559,7 @@ func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, optio
 	return beef, nil
 }
 
-// CommissionEntity returns a Commission interface for querying and filtering commission records in the storage provider.
+// CommissionEntity returns a Commission interface for querying and filtering Commission records in the storage provider.
 func (p *Provider) CommissionEntity() crud.Commission {
 	return crud.NewCommission(p.repo.Commission)
 }

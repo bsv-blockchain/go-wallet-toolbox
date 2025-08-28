@@ -2,6 +2,8 @@ package entity
 
 import (
 	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type Output struct {
@@ -14,8 +16,9 @@ type Output struct {
 	SpentBy       *uint
 	Satoshis      int64
 
-	TxID *string //NOTE: TxID can be nil if the owning transaction is not yet processed.
-	Vout uint32
+	TxID     *string //NOTE: TxID can be nil if the owning transaction is not yet processed.
+	TxStatus wdk.TxStatus
+	Vout     uint32
 
 	LockingScript      []byte
 	CustomInstructions *string

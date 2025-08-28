@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -19,21 +20,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 )
-
-type abortStep struct {
-	name string
-	fn   func(*Transactions, *gorm.DB, uint) error
-}
-
-var abortTransactionSteps = []abortStep{
-	{"release_reserved_utxos", (*Transactions).releaseReservedUTXOs},
-	{"check_if_any_output_is_spent", (*Transactions).checkIfAnyOutputIsSpent},
-	{"release_outputs_reserved", (*Transactions).releaseOutputsReservedByTransaction},
-	{"delete_outputs", (*Transactions).deleteOutputsByTransactionID},
-	{"update_transaction_status", func(txs *Transactions, tx *gorm.DB, transactionID uint) error {
-		return txs.updateTransactionStatusByID(tx, transactionID, wdk.TxStatusFailed)
-	}},
-}
 
 type Transactions struct {
 	query *genquery.Query
@@ -331,48 +317,16 @@ func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID
 		}).Error
 }
 
-func (txs *Transactions) checkIfAnyOutputIsSpent(tx *gorm.DB, transactionID uint) error {
-	var spentCount int64
-	err := tx.Model(&models.Output{}).
-		Where("transaction_id = ?", transactionID).
-		Where("spent_by IS NOT NULL").
-		Count(&spentCount).Error
+func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error {
+	table := txs.query.Transaction
+	_, err := table.WithContext(ctx).
+		Where(table.ID.Eq(transactionID)).
+		Update(table.Status, txStatus)
+
 	if err != nil {
-		return fmt.Errorf("failed to count spent outputs: %w", err)
+		return fmt.Errorf("update query for transaction status failed: %w", err)
 	}
-
-	if spentCount > 0 {
-		return fmt.Errorf("transaction with ID %d has spent outputs", transactionID)
-	}
-
 	return nil
-}
-
-func (txs *Transactions) updateTransactionStatusByID(tx *gorm.DB, transactionID uint, newStatus wdk.TxStatus) error {
-	return tx.Model(&models.Transaction{}).
-		Where("id = ?", transactionID).
-		Updates(map[string]any{
-			"status": newStatus,
-		}).Error
-}
-
-func (txs *Transactions) deleteOutputsByTransactionID(tx *gorm.DB, transactionID uint) error {
-	return tx.Delete(&models.Output{}, "transaction_id = ?", transactionID).Error
-}
-
-func (txs *Transactions) releaseOutputsReservedByTransaction(tx *gorm.DB, transactionID uint) error {
-	return tx.Model(&models.Output{}).
-		Where("spent_by = ?", transactionID).
-		Updates(map[string]any{
-			"spent_by":  nil,
-			"spendable": true,
-		}).Error
-}
-
-func (txs *Transactions) releaseReservedUTXOs(tx *gorm.DB, transactionID uint) error {
-	return tx.Model(&models.UserUTXO{}).
-		Where("reserved_by_id = ?", transactionID).
-		Update("reserved_by_id", nil).Error
 }
 
 func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {
@@ -520,29 +474,18 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 	}
 }
 
-func (txs *Transactions) AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error {
-	if err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		historyBuilders := []history.Builder{history.NewBuilder().AbortAction(reference)}
-
-		for _, step := range abortTransactionSteps {
-			if err := step.fn(txs, tx, transactionID); err != nil {
-				return fmt.Errorf("AbortTransactionAtomic: step '%s' failed: %w", step.name, err)
-			}
-		}
-
-		if txID == nil || *txID == "" {
-			return nil
-		}
-
-		if err := updateKnownTxStatus(tx, *txID, wdk.ProvenTxStatusInvalid, nil, historyBuilders); err != nil {
-			return fmt.Errorf("AbortTransactionAtomic: updateKnownTxStatus failed: %w", err)
-
-		}
-
-		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to abort transaction: %w", err)
+func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error) {
+	table := &txs.query.Transaction
+	rows, err := table.WithContext(ctx).
+		Select(table.ID).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(table.Status.In(slices.Map(txStatus, func(txStatus wdk.TxStatus) string { return string(txStatus) })...)).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("query for finding transaction ids by statuses failed: %w", err)
 	}
 
-	return nil
+	return slices.Map(rows, func(row *models.Transaction) uint {
+		return row.ID
+	}), nil
 }
