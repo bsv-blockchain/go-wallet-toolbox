@@ -17,7 +17,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gen"
-	"gorm.io/gen/field"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -356,38 +355,6 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) err
 
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
-	}
-
-	return nil
-}
-
-func (o *Outputs) MakeOutputsSpendableForTxID(ctx context.Context, txID string) error {
-	err := o.query.DBTransaction(func(query *genquery.Query) error {
-		filterScope := func(dao gen.Dao) gen.Dao {
-			subquery := query.Transaction.
-				Select(query.Transaction.ID).
-				Where(query.Transaction.TxID.Eq(txID))
-
-			return dao.
-				Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
-				Where(query.Output.Spendable.Is(true)).
-				Scopes(isChangeDaoScope(query))
-		}
-
-		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
-		if err != nil {
-			return err
-		}
-
-		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
 	}
 
 	return nil

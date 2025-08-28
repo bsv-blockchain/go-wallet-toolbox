@@ -136,7 +136,13 @@ func (f *noSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoi
 		}
 	})
 
-	// update allRemainedNoSendChange
+	f.updateAllRemainedNoSendChange(createActionResult, noSendOutpoints)
+	f.noSendTxsChain = append(f.noSendTxsChain, txID)
+
+	return noSendOutpoints
+}
+
+func (f *noSendTransactionFixture) updateAllRemainedNoSendChange(createActionResult *wdk.StorageCreateActionResult, noSendOutpoints []wdk.OutPoint) {
 	f.lastUsedChangeOutputsCounter = 0
 	for _, op := range noSendOutpoints {
 		f.allRemainedNoSendChange[op] = struct{}{}
@@ -149,10 +155,6 @@ func (f *noSendTransactionFixture) CreateAndProcessNoSendAction(prevNoSendOutpoi
 			delete(f.allRemainedNoSendChange, outpoint)
 		}
 	}
-
-	f.noSendTxsChain = append(f.noSendTxsChain, txID)
-
-	return noSendOutpoints
 }
 
 func (f *noSendTransactionFixture) CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string) {
