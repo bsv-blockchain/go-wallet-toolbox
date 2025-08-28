@@ -3,8 +3,10 @@ package testusers
 import (
 	"testing"
 
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,14 @@ func (u User) AuthID() wdk.AuthID {
 		UserID:      &u.ID,
 		IsActive:    to.Ptr(true),
 	}
+}
+
+func (u User) KeyDeriver(t *testing.T) *sdk.KeyDeriver {
+	t.Helper()
+	key, err := ec.PrivateKeyFromHex(u.PrivKey)
+	require.NoError(t, err)
+
+	return sdk.NewKeyDeriver(key)
 }
 
 func (u User) IdentityKey(t testing.TB) string {

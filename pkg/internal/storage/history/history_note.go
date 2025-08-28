@@ -15,7 +15,6 @@ const (
 	InternalizeActionHistoryNote = "internalizeAction"
 	ProcessActionHistoryNote     = "processAction"
 	AggregateResultsHistoryNote  = "aggregateResults"
-	AbortActionHistoryNote       = "abortAction"
 	NotifyTxOfProofHistoryNote   = "notifyTxOfProof"
 
 	GetMerklePathSuccess  = "getMerklePathSuccess"
@@ -23,19 +22,19 @@ const (
 
 	PostBeefSuccess = "postBeefSuccess"
 	PostBeefError   = "postBeefError"
+
+	ServiceFetchedWhileGettingBeef = "serviceFetchedWhileGettingBeef"
 )
 
 const (
 	statusNowAttr   = "status_now"
 	serviceNameAttr = "name"
-	referenceAttr   = "reference"
 )
 
 type EventTypesSelector interface {
 	InternalizeAction(userID int) Builder
 	ProcessAction(userID int) Builder
 	AggregateResults(result AggregatedBroadcastResult) Builder
-	AbortAction(reference string) Builder
 	NotifyTxOfProof(transactionID uint) Builder
 
 	GetMerklePathSuccess(serviceName string) Builder
@@ -43,6 +42,8 @@ type EventTypesSelector interface {
 
 	PostBeefError(serviceName string, beef TxData, txIDs []string, msg string) Builder
 	PostBeefSuccess(serviceName string, txIDs []string) Builder
+
+	ServiceFetchedWhileGettingBeef(subjectTxID string) Builder
 }
 
 type AggregatedBroadcastResult struct {
@@ -101,6 +102,12 @@ func (b *builder) GetMerklePathSuccess(serviceName string) Builder {
 		WithAttribute(serviceNameAttr, serviceName)
 }
 
+func (b *builder) ServiceFetchedWhileGettingBeef(subjectTxID string) Builder {
+	return b.withHttpAttributes(http.StatusOK).
+		WithWhat(ServiceFetchedWhileGettingBeef).
+		WithAttribute("subject_txid", subjectTxID)
+}
+
 func (b *builder) GetMerklePathNotFound(serviceName string) Builder {
 	return b.withHttpAttributes(http.StatusNotFound).
 		WithWhat(GetMerklePathNotFound).
@@ -119,10 +126,6 @@ func (b *builder) PostBeefSuccess(serviceName string, txIDs []string) Builder {
 	return b.WithWhat(PostBeefSuccess).
 		WithAttribute(serviceNameAttr, serviceName).
 		WithAttribute("txids", strings.Join(txIDs, ","))
-}
-func (b *builder) AbortAction(reference string) Builder {
-	return b.WithWhat(AbortActionHistoryNote).
-		WithAttribute(referenceAttr, reference)
 }
 
 func (b *builder) NotifyTxOfProof(transactionID uint) Builder {

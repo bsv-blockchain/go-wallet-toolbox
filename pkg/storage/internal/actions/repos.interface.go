@@ -24,7 +24,9 @@ type OutputRepo interface {
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
 	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error)
 	SaveOutputs(ctx context.Context, output []*entity.Output) error
-	MakeOutputsSpendable(ctx context.Context, xID string, utxoStatus wdk.UTXOStatus) error
+	MakeOutputsSpendableForTxID(ctx context.Context, txID string) error
+	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
+	ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error
 }
 
 type TransactionsRepo interface {
@@ -33,11 +35,12 @@ type TransactionsRepo interface {
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
 	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
 	UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error
+	UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
-	AbortTransactionAtomic(ctx context.Context, transactionID uint, txID *string, reference string) error
 	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
+	FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error)
 }
 
 type KnownTxRepo interface {
@@ -64,4 +67,8 @@ type KeyValueRepo interface {
 type CommissionRepo interface {
 	AddCommission(ctx context.Context, commission *pkgentity.Commission) error
 	FindCommission(ctx context.Context, userID int, transactionID uint) (*pkgentity.Commission, error)
+}
+
+type UTXORepo interface {
+	UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error
 }
