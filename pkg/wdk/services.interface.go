@@ -9,6 +9,7 @@ import (
 
 // Services defines an interface for handling 3rd party services
 type Services interface {
+	BlockHeaderLoader
 	chaintracker.ChainTracker
 	GetChainHeaderByHeight(ctx context.Context, height uint32) (*ChainBaseBlockHeader, error)
 	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (PostBeefResult, error)
@@ -22,4 +23,9 @@ type Services interface {
 // HeightProvider is an interface that provides the current blockchain height.
 type HeightProvider interface {
 	CurrentHeight(ctx context.Context) (uint32, error)
+}
+
+// BlockHeaderLoader is an interface that provides the block chain block header with given height.
+type BlockHeaderLoader interface {
+	GetChainHeaderByHeight(ctx context.Context, height uint32) (*ChainBaseBlockHeader, error)
 }

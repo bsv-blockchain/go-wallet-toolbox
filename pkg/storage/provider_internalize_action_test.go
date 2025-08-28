@@ -61,6 +61,10 @@ func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
 	// then:
 	require.Nil(t, err)
 	require.Equal(t, expectedResult, actualResult)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID.String()).WithBlockHash(to.Ptr(pkgtestabilities.TestBlockHash))
 }
 
 func TestInternalizeActionNilAuth(t *testing.T) {

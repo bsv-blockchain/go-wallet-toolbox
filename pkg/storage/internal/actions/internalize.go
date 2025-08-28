@@ -20,10 +20,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-type blockHeaderLoader interface {
-	GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error)
-}
-
 type OutputToInternalize struct {
 	*entity.NewOutput
 	existingOutputID *uint
@@ -38,7 +34,7 @@ type internalize struct {
 	random             wdk.Randomizer
 	chaintracker       chaintracker.ChainTracker
 	beefVerifier       wdk.BeefVerifier
-	blockHeaderService blockHeaderLoader
+	blockHeaderService wdk.BlockHeaderLoader
 }
 
 func newInternalizeAction(
@@ -50,7 +46,7 @@ func newInternalizeAction(
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
 	beefVerifier wdk.BeefVerifier,
-	blockHeader blockHeaderLoader,
+	blockHeader wdk.BlockHeaderLoader,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
