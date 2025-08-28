@@ -26,9 +26,9 @@ type FaucetOutput struct {
 	Amount  uint64 `json:"amount"`
 }
 
-// FundAddresses creates and broadcasts a faucet payment with multiple outputs.
+// FundAddress creates and broadcasts a faucet payment with one or more outputs.
 // Returns the txid string and full Atomic BEEF hex on success.
-func FundAddresses(ctx context.Context, deps FaucetDeps, outputs []FaucetOutput) (string, string, error) {
+func FundAddress(ctx context.Context, deps FaucetDeps, outputs ...FaucetOutput) (string, string, error) {
 	if deps.FaucetKeyHex == "" {
 		return "", "", fmt.Errorf("faucet key not configured")
 	}
@@ -90,12 +90,6 @@ func FundAddresses(ctx context.Context, deps FaucetDeps, outputs []FaucetOutput)
 	if len(result.Tx) > 0 {
 		beefHex = hex.EncodeToString(result.Tx)
 	}
+	
 	return result.Txid.String(), beefHex, nil
-}
-
-// FundAddress creates and broadcasts a faucet payment to the faucet's own BRC-29 address.
-// Returns the txid string and full Atomic BEEF hex on success.
-func FundAddress(ctx context.Context, deps FaucetDeps, address string, amount uint64) (string, string, error) {
-	outputs := []FaucetOutput{{Address: address, Amount: amount}}
-	return FundAddresses(ctx, deps, outputs)
 }

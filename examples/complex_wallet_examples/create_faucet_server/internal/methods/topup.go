@@ -23,7 +23,6 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 		return fmt.Errorf("txid is required")
 	}
 
-	// Fetch BEEF for txid
 	srv := services.New(slog.Default(), defs.DefaultServicesConfig(deps.Network))
 	beef, err := srv.GetBEEF(ctx, txid, nil)
 	if err != nil {
@@ -39,7 +38,6 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 		return fmt.Errorf("failed to get atomic bytes: %w", err)
 	}
 
-	// Build expected locking script for faucet BRC-29 address (P2PKH)
 	addrStr, err := DeriveAddress(deps.FaucetKeyHex, deps.Network)
 	if err != nil {
 		return fmt.Errorf("failed to derive faucet address: %w", err)
@@ -53,16 +51,15 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 		return fmt.Errorf("failed to create locking script: %w", err)
 	}
 
-	// Parse tx and validate the specified output matches faucet locking script
 	tx, err := transaction.NewTransactionFromBEEF(atomic)
 	if err != nil {
 		return fmt.Errorf("failed to parse tx: %w", err)
 	}
-	if int(outputIndex) >= len(tx.Outputs) || !tx.Outputs[outputIndex].LockingScript.Equals(expectedLock) {
+
+	if outputIndex >= uint32(len(tx.Outputs)) || !tx.Outputs[outputIndex].LockingScript.Equals(expectedLock) {
 		return fmt.Errorf("tx output[%d] does not match faucet address", outputIndex)
 	}
 
-	// Decode derivation prefix/suffix from base64 (same as manual_tests/internal/internalize.go)
 	derivationPrefixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Prefix)
 	if err != nil {
 		return fmt.Errorf("failed to convert derivation prefix from base64: %w", err)
@@ -95,5 +92,6 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 	if _, err := w.InternalizeAction(ctx, internalizeArgs, ""); err != nil {
 		return fmt.Errorf("internalize failed: %w", err)
 	}
+	
 	return nil
 }

@@ -51,7 +51,7 @@ func NewFaucetHandler(deps FaucetDeps) fiber.Handler {
 			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("total amount must be less than %d satoshis", constants.MaxFaucetTotalAmount)})
 		}
 
-		txid, beefHex, err := methods.FundAddresses(context.Background(), deps, req.Outputs)
+		txid, beefHex, err := methods.FundAddress(context.Background(), deps, req.Outputs...)
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(FaucetResponse{Status: "error", Message: err.Error()})
 		}
