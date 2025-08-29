@@ -8,13 +8,12 @@ import (
 )
 
 func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Model {
-	const backOption = "<- Back"
 	actionsTypes := []fixtures.ActionType{
 		fixtures.ActionInternalize,
 		fixtures.ActionBalance,
 		fixtures.ActionListOutputs,
 		fixtures.ActionSend,
-		backOption,
+		fixtures.ButtonBack,
 	}
 
 	title := fmt.Sprintf("Select action for %s:", user.Name)
@@ -33,7 +32,7 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		case fixtures.ActionSend:
 			sendForm := NewSendForm(manager, user)
 			return sendForm, sendForm.Init()
-		case backOption:
+		case fixtures.ButtonBack:
 			// Return to wallet selection view when Back is selected
 			selectWalletModel := NewSelectWallet(manager)
 			return selectWalletModel, selectWalletModel.Init()

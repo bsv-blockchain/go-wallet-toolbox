@@ -73,8 +73,8 @@ func NewInternalizeActionForm(manager ManagerInterface, user *fixtures.UserConfi
 		{Type: ElementInput, Index: 0, Label: "Derivation Prefix"},
 		{Type: ElementInput, Index: 1, Label: "Derivation Suffix"},
 		{Type: ElementButton, Index: ButtonRegenerate, Label: "Regenerate"},
-		{Type: ElementButton, Index: ButtonContinue, Label: "Continue"},
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 	})
 
 	form.updateInputFocus()
@@ -108,23 +108,16 @@ func (m *InternalizeForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if current.Type == ElementButton {
 				return m.handleEnter()
 			} else {
-				// For inputs, Enter moves to next field
 				m.focus.Next()
 				m.updateInputFocus()
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case tea.KeyShiftTab, tea.KeyCtrlP:
+		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
 			m.focus.Previous()
 			m.updateInputFocus()
-		case tea.KeyTab, tea.KeyCtrlN:
+		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
 			m.focus.Next()
-			m.updateInputFocus()
-		case tea.KeyDown:
-			m.focus.Next()
-			m.updateInputFocus()
-		case tea.KeyUp:
-			m.focus.Previous()
 			m.updateInputFocus()
 		}
 	}
@@ -147,7 +140,6 @@ func (m *InternalizeForm) handleEnter() (tea.Model, tea.Cmd) {
 			internalizeWaiting := NewInternalizeWaiting(m.manager, m.user, m.selected)
 			return internalizeWaiting, internalizeWaiting.Init()
 		case ButtonRegenerate:
-			// Regenerate random derivation prefix and suffix
 			m.regenerateRandomDerivation()
 			return m, nil
 		}
@@ -199,14 +191,14 @@ func (m *InternalizeForm) View() string {
 			if m.focus.IsButtonFocused(ButtonContinue) {
 				style = navStyleFocused
 			}
-			return style.Render("Continue ->")
+			return style.Render(fixtures.ButtonContinue)
 		}(),
 		func() string {
 			style := navStyle
 			if m.focus.IsButtonFocused(ButtonBack) {
 				style = navStyleFocused
 			}
-			return style.Render("<- Back")
+			return style.Render(fixtures.ButtonBack)
 		}(),
 	)
 }

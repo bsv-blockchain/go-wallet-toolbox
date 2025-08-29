@@ -26,7 +26,7 @@ func (s *TransactionTypeStep) Init() tea.Cmd {
 	s.form.focus.SetItems([]FocusItem{
 		{Type: ElementButton, Index: ButtonData, Label: "Send Data"},
 		{Type: ElementButton, Index: ButtonP2PKH, Label: "Send P2PKH"},
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 	})
 	return textinput.Blink
 }
@@ -128,7 +128,7 @@ func (s *TransactionDetailsStep) Init() tea.Cmd {
 	}
 
 	items := []FocusItem{
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 	}
 	for i := range s.form.inputs {
 		items = append(items, FocusItem{
@@ -137,7 +137,7 @@ func (s *TransactionDetailsStep) Init() tea.Cmd {
 			Label: fmt.Sprintf("Input %d", i),
 		})
 	}
-	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: "Continue"})
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue})
 	s.form.focus.SetItems(items)
 
 	s.form.focus.current = 1
@@ -193,7 +193,7 @@ func (s *TransactionDetailsStep) View() string {
 	if s.form.focus.IsButtonFocused(ButtonContinue) {
 		continueStyle = &fixtures.FocusedButton
 	}
-	b.WriteString(continueStyle.Render("Continue →"))
+	b.WriteString(continueStyle.Render(fixtures.ButtonContinue))
 
 	return b.String()
 }
@@ -258,7 +258,7 @@ func (s *PeriodicChoiceStep) Init() tea.Cmd {
 	s.form.focus.SetItems([]FocusItem{
 		{Type: ElementButton, Index: ButtonSendOnce, Label: "Send Once"},
 		{Type: ElementButton, Index: ButtonSendPeriodic, Label: "Send Periodically"},
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 	})
 	return nil
 }
@@ -350,9 +350,9 @@ func (s *PeriodConfigStep) Init() tea.Cmd {
 	s.form.inputs[0].Prompt = ""
 
 	s.form.focus.SetItems([]FocusItem{
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 		{Type: ElementInput, Index: 0, Label: "Period Input"},
-		{Type: ElementButton, Index: ButtonContinue, Label: "Continue"},
+		{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue},
 	})
 
 	s.form.focus.current = 1

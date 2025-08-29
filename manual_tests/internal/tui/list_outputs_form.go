@@ -58,7 +58,7 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 
 	// Set up focus items: Back, all inputs, Continue
 	items := []FocusItem{
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 	}
 	for i := range inputs {
 		items = append(items, FocusItem{
@@ -67,7 +67,7 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 			Label: inputs[i].Prompt,
 		})
 	}
-	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: "Continue"})
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue})
 
 	form.focus.SetItems(items)
 	// Start with first input focused
@@ -206,7 +206,7 @@ func (m *ListOutputsForm) View() string {
 	if m.focus.IsButtonFocused(ButtonContinue) {
 		continueStyle = &fixtures.FocusedButton
 	}
-	b.WriteString(continueStyle.Render("Continue →"))
+	b.WriteString(continueStyle.Render(fixtures.ButtonContinue))
 
 	if m.errorMsg != "" {
 		b.WriteString("\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.errorMsg))

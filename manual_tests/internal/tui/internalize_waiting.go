@@ -37,8 +37,8 @@ func NewInternalizeWaiting(manager ManagerInterface, user *fixtures.UserConfig, 
 
 	form.focus.SetItems([]FocusItem{
 		{Type: ElementInput, Index: 0, Label: "Transaction ID"},
-		{Type: ElementButton, Index: ButtonContinue, Label: "Continue"},
-		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+		{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
 	})
 
 	form.updateInputFocus()
@@ -124,14 +124,14 @@ func (m *InternalizeWaiting) View() string {
 			if m.focus.IsButtonFocused(ButtonContinue) {
 				style = navStyleFocused
 			}
-			return style.Render("Continue ->")
+			return style.Render(fixtures.ButtonContinue)
 		}(),
 		func() string {
 			style := navStyle
 			if m.focus.IsButtonFocused(ButtonBack) {
 				style = navStyleFocused
 			}
-			return style.Render("<- Back")
+			return style.Render(fixtures.ButtonBack)
 		}(),
 	)
 }
