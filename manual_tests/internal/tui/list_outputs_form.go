@@ -194,7 +194,7 @@ func (m *ListOutputsForm) View() string {
 	if m.focus.IsButtonFocused(ButtonBack) {
 		backStyle = &fixtures.FocusedButton
 	}
-	b.WriteString(backStyle.Render("← Back") + "\n")
+	b.WriteString(backStyle.Render(fixtures.ButtonBack) + "\n")
 
 	// Input fields
 	for i := range m.inputs {

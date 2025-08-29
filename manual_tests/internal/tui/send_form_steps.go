@@ -60,7 +60,7 @@ func (s *TransactionTypeStep) View() string {
 	}{
 		{ButtonData, "Send Data"},
 		{ButtonP2PKH, "Send Payment (P2PKH)"},
-		{ButtonBack, "← Back to Menu"},
+		{ButtonBack, fixtures.ButtonBack},
 	}
 
 	for _, btn := range buttons {
@@ -183,7 +183,7 @@ func (s *TransactionDetailsStep) View() string {
 	if s.form.focus.IsButtonFocused(ButtonBack) {
 		backStyle = &fixtures.FocusedButton
 	}
-	b.WriteString(backStyle.Render("← Back") + "\n")
+	b.WriteString(backStyle.Render(fixtures.ButtonBack) + "\n")
 
 	for i := range s.form.inputs {
 		b.WriteString(fmt.Sprintf("%s\n", s.form.inputs[i].View()))
@@ -200,48 +200,78 @@ func (s *TransactionDetailsStep) View() string {
 
 func (s *TransactionDetailsStep) HandleEnter() (tea.Model, tea.Cmd) {
 	current := s.form.focus.CurrentItem()
-	if current.Type == ElementButton {
-		switch current.Index {
-		case ButtonBack:
-			s.form.setState(NewTransactionTypeStep(s.form))
-			return s.form, s.form.state.Init()
-		case ButtonContinue:
-			if s.form.config.transactionType == TransactionTypeData {
-				data := strings.TrimSpace(s.form.inputs[0].Value())
-				if data == "" {
-					s.form.errorMsg = "Data is required"
-					return s.form, nil
-				}
-				s.form.config.data = data
-			} else {
-				addr := strings.TrimSpace(s.form.inputs[0].Value())
-				if addr == "" {
-					s.form.errorMsg = "Recipient address is required"
-					return s.form, nil
-				}
-
-				amountStr := strings.TrimSpace(s.form.inputs[1].Value())
-				if amountStr == "" {
-					s.form.errorMsg = "Satoshis amount is required"
-					return s.form, nil
-				}
-
-				amt, err := strconv.ParseUint(amountStr, 10, 64)
-				if err != nil || amt == 0 {
-					s.form.errorMsg = "Invalid satoshis amount"
-					return s.form, nil
-				}
-
-				s.form.config.address = addr
-				s.form.config.amount = amt
-			}
-
-			s.form.setState(NewPeriodicChoiceStep(s.form))
-			s.form.errorMsg = ""
-			return s.form, s.form.state.Init()
-		}
+	if current.Type != ElementButton {
+		return s.form, nil
 	}
+
+	switch current.Index {
+	case ButtonBack:
+		return s.handleBackButton()
+	case ButtonContinue:
+		return s.handleContinueButton()
+	}
+
 	return s.form, nil
+}
+
+func (s *TransactionDetailsStep) handleBackButton() (tea.Model, tea.Cmd) {
+	s.form.setState(NewTransactionTypeStep(s.form))
+	return s.form, s.form.state.Init()
+}
+
+func (s *TransactionDetailsStep) handleContinueButton() (tea.Model, tea.Cmd) {
+	if s.form.config.transactionType == TransactionTypeData {
+		return s.validateAndProceedWithData()
+	}
+	return s.validateAndProceedWithP2PKH()
+}
+
+func (s *TransactionDetailsStep) validateAndProceedWithData() (tea.Model, tea.Cmd) {
+	data := strings.TrimSpace(s.form.inputs[0].Value())
+	if data == "" {
+		s.form.errorMsg = "Data is required"
+		return s.form, nil
+	}
+
+	s.form.config.data = data
+	return s.proceedToNextStep()
+}
+
+func (s *TransactionDetailsStep) validateAndProceedWithP2PKH() (tea.Model, tea.Cmd) {
+	if err := s.validateP2PKHInputs(); err != nil {
+		s.form.errorMsg = err.Error()
+		return s.form, nil
+	}
+
+	return s.proceedToNextStep()
+}
+
+func (s *TransactionDetailsStep) validateP2PKHInputs() error {
+	addr := strings.TrimSpace(s.form.inputs[0].Value())
+	if addr == "" {
+		return fmt.Errorf("Recipient address is required")
+	}
+
+	amountStr := strings.TrimSpace(s.form.inputs[1].Value())
+	if amountStr == "" {
+		return fmt.Errorf("Satoshis amount is required")
+	}
+
+	amt, err := strconv.ParseUint(amountStr, 10, 64)
+	if err != nil || amt == 0 {
+		return fmt.Errorf("Invalid satoshis amount")
+	}
+
+	// Store validated values
+	s.form.config.address = addr
+	s.form.config.amount = amt
+	return nil
+}
+
+func (s *TransactionDetailsStep) proceedToNextStep() (tea.Model, tea.Cmd) {
+	s.form.setState(NewPeriodicChoiceStep(s.form))
+	s.form.errorMsg = ""
+	return s.form, s.form.state.Init()
 }
 
 // PeriodicChoiceStep handles periodic choice selection
@@ -299,7 +329,7 @@ func (s *PeriodicChoiceStep) View() string {
 	}{
 		{ButtonSendOnce, "Send Once"},
 		{ButtonSendPeriodic, "Send Periodically"},
-		{ButtonBack, "← Back"},
+		{ButtonBack, fixtures.ButtonBack},
 	}
 
 	for _, btn := range buttons {
@@ -400,7 +430,7 @@ func (s *PeriodConfigStep) View() string {
 	if s.form.focus.IsButtonFocused(ButtonBack) {
 		backStyle = &fixtures.FocusedButton
 	}
-	b.WriteString(backStyle.Render("← Back") + "\n")
+	b.WriteString(backStyle.Render(fixtures.ButtonBack) + "\n")
 
 	for i := range s.form.inputs {
 		b.WriteString(s.form.inputs[i].View())

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -109,7 +110,7 @@ func (m *ItemSelector[T]) moveUp() {
 func (m ItemSelector[T]) getMaxCursorPosition() int {
 	maxCursor := len(m.items) - 1
 	if m.showBack {
-		maxCursor = len(m.items) 
+		maxCursor = len(m.items)
 	}
 	return maxCursor
 }
@@ -134,7 +135,7 @@ func (m ItemSelector[T]) View() string {
 		} else {
 			s.WriteString("( ) ")
 		}
-		s.WriteString("← Back")
+		s.WriteString(fixtures.ButtonBack)
 		s.WriteString("\n")
 	}
 
