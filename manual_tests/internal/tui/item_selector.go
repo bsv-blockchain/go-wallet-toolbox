@@ -42,49 +42,76 @@ func (m ItemSelector[T]) Init() tea.Cmd {
 }
 
 func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
-			return m, tea.Quit
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
 
-		case "enter":
-			if m.showBack && m.cursor == len(m.items) {
-				if m.onBack != nil {
-					newModel, newCmd := m.onBack()
-					if newModel != nil {
-						return newModel, newCmd
-					}
-				}
-			} else {
-				newModel, newCmd := m.onSelect(m.items[m.cursor])
-				if newModel != nil {
-					return newModel, newCmd
-				}
-			}
-		case "down", "j":
-			m.cursor++
-			maxCursor := len(m.items) - 1
-			if m.showBack {
-				maxCursor = len(m.items)
-			}
-			if m.cursor > maxCursor {
-				m.cursor = 0
-			}
-
-		case "up", "k":
-			m.cursor--
-			if m.cursor < 0 {
-				if m.showBack {
-					m.cursor = len(m.items)
-				} else {
-					m.cursor = len(m.items) - 1
-				}
-			}
-		}
+	switch keyMsg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		return m, tea.Quit
+	case tea.KeyEnter:
+		return m.handleEnterKey()
+	case tea.KeyDown, tea.KeyTab, tea.KeyCtrlN:
+		m.moveDown()
+	case tea.KeyUp, tea.KeyShiftTab, tea.KeyCtrlP:
+		m.moveUp()
 	}
 
 	return m, nil
+}
+
+func (m ItemSelector[T]) handleEnterKey() (tea.Model, tea.Cmd) {
+	if m.isBackOptionSelected() {
+		return m.handleBackSelection()
+	}
+	return m.handleItemSelection()
+}
+
+func (m ItemSelector[T]) isBackOptionSelected() bool {
+	return m.showBack && m.cursor == len(m.items)
+}
+
+func (m ItemSelector[T]) handleBackSelection() (tea.Model, tea.Cmd) {
+	if m.onBack != nil {
+		newModel, newCmd := m.onBack()
+		if newModel != nil {
+			return newModel, newCmd
+		}
+	}
+	return m, nil
+}
+
+func (m ItemSelector[T]) handleItemSelection() (tea.Model, tea.Cmd) {
+	newModel, newCmd := m.onSelect(m.items[m.cursor])
+	if newModel != nil {
+		return newModel, newCmd
+	}
+	return m, nil
+}
+
+func (m *ItemSelector[T]) moveDown() {
+	maxCursor := m.getMaxCursorPosition()
+	m.cursor++
+	if m.cursor > maxCursor {
+		m.cursor = 0
+	}
+}
+
+func (m *ItemSelector[T]) moveUp() {
+	maxCursor := m.getMaxCursorPosition()
+	m.cursor--
+	if m.cursor < 0 {
+		m.cursor = maxCursor
+	}
+}
+
+func (m ItemSelector[T]) getMaxCursorPosition() int {
+	maxCursor := len(m.items) - 1
+	if m.showBack {
+		maxCursor = len(m.items) 
+	}
+	return maxCursor
 }
 
 func (m ItemSelector[T]) View() string {
