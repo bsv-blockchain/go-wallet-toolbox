@@ -27,7 +27,7 @@ func New(t testing.TB, user testusers.User, storageFixture testabilities.Storage
 	}
 
 	then := &nosendAssertion{
-		TB:   t,
+		TB:  t,
 		act: when,
 	}
 
