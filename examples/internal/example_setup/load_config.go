@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -11,14 +13,25 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
-const configFile = "examples/examples-config.yaml"
+// getConfigFilePath returns the absolute path to the config file
+func getConfigFilePath() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get current file path")
+	}
 
+	examplesDir := filepath.Dir(filepath.Dir(filepath.Dir(filename)))
+	return filepath.Join(examplesDir, "examples-config.yaml")
+}
+
+// defaultSetupConfig returns a default setup configuration
 func defaultSetupConfig() SetupConfig {
 	return SetupConfig{
-		Network:   defs.NetworkTestnet,
-		ServerURL: "",
-		Alice:     UserConfig{},
-		Bob:       UserConfig{},
+		Network:          defs.NetworkTestnet,
+		ServerURL:        "",
+		ServerPrivateKey: "",
+		Alice:            UserConfig{},
+		Bob:              UserConfig{},
 	}
 }
 
@@ -47,24 +60,32 @@ func generateConfig() (*SetupConfig, error) {
 		return nil, fmt.Errorf("error generating Bob config: %w", err)
 	}
 
-	cfg := &SetupConfig{
-		Network:   defs.NetworkTestnet,
-		ServerURL: "http://localhost:8100",
-		Alice:     alice,
-		Bob:       bob,
+	serverPrivKey, err := ec.NewPrivateKey()
+	if err != nil {
+		return nil, fmt.Errorf("error generating server private key: %w", err)
 	}
 
-	err = config.ToYAMLFile(cfg, configFile)
+	cfg := &SetupConfig{
+		Network:          defs.NetworkTestnet,
+		ServerURL:        "", // Empty by default - will use local storage
+		ServerPrivateKey: hex.EncodeToString(serverPrivKey.Serialize()),
+		Alice:            alice,
+		Bob:              bob,
+	}
+
+	err = config.ToYAMLFile(cfg, getConfigFilePath())
 	if err != nil {
-		return nil, fmt.Errorf("failed to save generated config to %s: %w", configFile, err)
+		return nil, fmt.Errorf("failed to save generated config to %s: %w", getConfigFilePath(), err)
 	}
 
 	return cfg, nil
 }
 
-// loadConfig loads the configuration from the examples-config.yaml file
+// LoadConfig loads the configuration from the examples-config.yaml file
 // if the file does not exist, it generates a new configuration and saves it to the file
-func loadConfig() (*SetupConfig, error) {
+func LoadConfig() (*SetupConfig, error) {
+	configFile := getConfigFilePath()
+
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		show.Info("Config file not found, generating new configuration", configFile)
 
