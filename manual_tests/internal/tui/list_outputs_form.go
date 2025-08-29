@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -70,7 +71,6 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue})
 
 	form.focus.SetItems(items)
-	// Start with first input focused
 	form.focus.current = 1
 	form.updateInputFocus()
 
@@ -78,12 +78,10 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 }
 
 func (m *ListOutputsForm) updateInputFocus() {
-	// Clear all input focus
 	for i := range m.inputs {
 		m.inputs[i].Blur()
 	}
 
-	// Set focus on current input if applicable
 	current := m.focus.CurrentItem()
 	if current.Type == ElementInput && current.Index < len(m.inputs) {
 		m.inputs[current.Index].Focus()
@@ -103,7 +101,6 @@ func (m *ListOutputsForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if current.Type == ElementButton {
 				return m.handleEnter()
 			} else {
-				// For inputs, Enter moves to next field
 				m.focus.Next()
 				m.updateInputFocus()
 			}
@@ -131,7 +128,6 @@ func (m *ListOutputsForm) handleEnter() (tea.Model, tea.Cmd) {
 	if current.Type == ElementButton {
 		switch current.Index {
 		case ButtonBack:
-			// Go back to action selection
 			selectAction := NewSelectAction(m.manager, m.user)
 			return selectAction, selectAction.Init()
 		case ButtonContinue:
@@ -142,46 +138,101 @@ func (m *ListOutputsForm) handleEnter() (tea.Model, tea.Cmd) {
 }
 
 func (m *ListOutputsForm) processContinue() (tea.Model, tea.Cmd) {
-	limit := uint32(100)
-	offset := uint32(0)
-	basket := "default"
-	includeLabels := true
-
-	if v := strings.TrimSpace(m.inputs[0].Value()); v != "" {
-		if n, err := strconv.ParseUint(v, 10, 32); err == nil {
-			limit = uint32(n)
-		} else {
-			m.errorMsg = "Invalid limit"
-			return m, nil
-		}
+	config, err := m.validateAndParseInputs()
+	if err != nil {
+		m.errorMsg = err.Error()
+		return m, nil
 	}
 
-	if v := strings.TrimSpace(m.inputs[1].Value()); v != "" {
-		if n, err := strconv.ParseUint(v, 10, 32); err == nil {
-			offset = uint32(n)
-		} else {
-			m.errorMsg = "Invalid offset"
-			return m, nil
-		}
-	}
-
-	if v := strings.TrimSpace(m.inputs[2].Value()); v != "" {
-		basket = v
-	}
-
-	if v := strings.TrimSpace(strings.ToLower(m.inputs[3].Value())); v != "" {
-		if v == "true" || v == "t" || v == "y" || v == "yes" {
-			includeLabels = true
-		} else if v == "false" || v == "f" || v == "n" || v == "no" {
-			includeLabels = false
-		} else {
-			m.errorMsg = "Invalid include labels (true/false)"
-			return m, nil
-		}
-	}
-
-	waiting := NewListOutputsWaiting(m.manager, m.user, limit, offset, includeLabels, basket)
+	waiting := NewListOutputsWaiting(m.manager, m.user, config.limit, config.offset, config.includeLabels, config.basket)
 	return waiting, waiting.Init()
+}
+
+type outputsConfig struct {
+	limit         uint32
+	offset        uint32
+	basket        string
+	includeLabels bool
+}
+
+func (m *ListOutputsForm) validateAndParseInputs() (*outputsConfig, error) {
+	config := &outputsConfig{
+		limit:         100,
+		offset:        0,
+		basket:        "default",
+		includeLabels: true,
+	}
+
+	if err := m.parseLimit(config); err != nil {
+		return nil, err
+	}
+
+	if err := m.parseOffset(config); err != nil {
+		return nil, err
+	}
+
+	m.parseBasket(config)
+
+	if err := m.parseIncludeLabels(config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+func (m *ListOutputsForm) parseLimit(config *outputsConfig) error {
+	v := strings.TrimSpace(m.inputs[0].Value())
+	if v == "" {
+		return nil // Use default
+	}
+
+	n, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		return fmt.Errorf("Invalid limit")
+	}
+
+	config.limit = uint32(n)
+	return nil
+}
+
+func (m *ListOutputsForm) parseOffset(config *outputsConfig) error {
+	v := strings.TrimSpace(m.inputs[1].Value())
+	if v == "" {
+		return nil // Use default
+	}
+
+	n, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		return fmt.Errorf("Invalid offset")
+	}
+
+	config.offset = uint32(n)
+	return nil
+}
+
+func (m *ListOutputsForm) parseBasket(config *outputsConfig) {
+	v := strings.TrimSpace(m.inputs[2].Value())
+	if v != "" {
+		config.basket = v
+	}
+}
+
+func (m *ListOutputsForm) parseIncludeLabels(config *outputsConfig) error {
+	v := strings.TrimSpace(strings.ToLower(m.inputs[3].Value()))
+	if v == "" {
+		return nil
+	}
+
+	switch v {
+	case "true", "t", "y", "yes":
+		config.includeLabels = true
+	case "false", "f", "n", "no":
+		config.includeLabels = false
+	default:
+		return fmt.Errorf("Invalid include labels (true/false)")
+	}
+
+	return nil
 }
 
 func (m *ListOutputsForm) View() string {
