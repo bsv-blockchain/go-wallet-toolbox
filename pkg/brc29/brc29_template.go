@@ -6,18 +6,39 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
-	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 // Lock generates a locking script for a BRC29 address derived from the sender, key ID, and recipient public key.
 //
 // Arguments:
-//   - sender: the sender key. Can be a private key hex string or a key deriver or ec.PrivateKey.
+//   - sender: the sender key. Can be a private key hex or wif or a key deriver or ec.PrivateKey.
 //   - keyID: the key ID.
 //   - recipient: the recipient key. This is the public key from private key that will be able to unlock it later. Can be a public key hex or a key deriver or ec.PublicKey.
 //   - opts: additional options.
+//
+// Example:
+// 1. Lock with hexes
+// ```go
+// lockingScript, err := Lock(PrivHex("ab..."), keyID, PubHex("cd..."))
+// ```
+//
+// 2. Lock with key derivers
+// ```go
+// var senderKeyDeriver *sdk.KeyDeriver = ...
+// var recipientKeyDeriver *sdk.KeyDeriver = ...
+//
+// lockingScript, err := Lock(senderKeyDeriver, keyID, recipientKeyDeriver)
+// ```
+//
+// 3. Lock with ec private and public keys
+// ```go
+// var priv ec.PrivateKey = ...
+// var pub ec.PublicKey = ...
+//
+// lockingScript, err := Lock(priv, keyID, pub)
+// ```
 func Lock[SenderKey CounterpartyPrivateKey, RecipientKey CounterpartyPublicKey](senderPrivateKeySource SenderKey, keyID KeyID, recipientPublicKeySource RecipientKey, opts ...func(*lockOptions)) (*script.Script, error) {
-	address, err := Address(senderPrivateKeySource, keyID, recipientPublicKeySource, opts...)
+	address, err := AddressForCounterparty(senderPrivateKeySource, keyID, recipientPublicKeySource, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate BRC29 address to lock the output: %w", err)
 	}
@@ -39,13 +60,37 @@ type UnlockingScriptTemplate struct {
 // Unlock generates an unlocking script for a BRC29 address derived from the sender, key ID, and recipient private key.
 //
 // Arguments:
-//   - senderPublicKeySource: the sender key. Can be a private key hex string or a key deriver or ec.PrivateKey.
+//   - senderPublicKeySource: the sender key. Can be a public key hex or a key deriver or ec.PublicKey.
 //   - keyID: the key ID.
-//   - recipientPrivateKeySource: the recipient key. This is the private key for which the output was locked for. Can be a private key hex string or a key deriver or ec.PrivateKey.
+//   - recipientPrivateKeySource: the recipient key. This is the private key for which the output was locked for. Can be a private key hex or wif or a key deriver or ec.PrivateKey.
 //   - opts: additional options.
 //
 // Additional options:
 //   - WithSigHash: the sighash type to use for signing.
+//
+// Example:
+// 1. Unlock with hexes
+// ```go
+// unlockingScriptTemplate, err := Unlock(PubHex("ab..."), keyID, PrivHex("cd..."))
+// ```
+// 2. Unlock with key derivers
+// ```go
+// var senderKeyDeriver *sdk.KeyDeriver = ...
+// var recipientKeyDeriver *sdk.KeyDeriver = ...
+//
+// unlockingScriptTemplate, err := Unlock(senderKeyDeriver, keyID, recipientKeyDeriver)
+// ```
+// 3. Unlock with ec private and public keys
+// ```go
+// var priv ec.PrivateKey = ...
+// var pub ec.PublicKey = ...
+//
+// unlockingScriptTemplate, err := Unlock(pub, keyID, priv)
+// ```
+// 4. Unlock with sig hash
+// ```go
+// unlockingScriptTemplate, err := Unlock(PubHex("ab..."), keyID, PrivHex("cd..."), WithSigHash(SigHashAll))
+// ```
 func Unlock[SenderKey CounterpartyPublicKey, RecipientKey CounterpartyPrivateKey](senderPublicKeySource SenderKey, keyID KeyID, recipientPrivateKeySource RecipientKey, opts ...func(*unlockOptions)) (*UnlockingScriptTemplate, error) {
 	options := &unlockOptions{}
 
@@ -53,27 +98,9 @@ func Unlock[SenderKey CounterpartyPublicKey, RecipientKey CounterpartyPrivateKey
 		opt(options)
 	}
 
-	senderIdentityKey, err := toIdentityKey(senderPublicKeySource)
+	key, err := deriveRecipientPrivateKey(senderPublicKeySource, keyID, recipientPrivateKeySource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create sender identity key from %T: %w", senderIdentityKey, err)
-	}
-
-	recipientKeyDeriver, err := toKeyDeriver(recipientPrivateKeySource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create recipient key deriver from %T: %w", recipientPrivateKeySource, err)
-	}
-
-	err = keyID.Validate()
-	if err != nil {
-		return nil, fmt.Errorf("invalid key ID: %w", err)
-	}
-
-	key, err := recipientKeyDeriver.DerivePrivateKey(Protocol, keyID.String(), sdk.Counterparty{
-		Type:         sdk.CounterpartyTypeOther,
-		Counterparty: senderIdentityKey,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive BRC29 private key for unlocking: %w", err)
+		return nil, fmt.Errorf("failed to derive recipient private key to unlock the input: %w", err)
 	}
 
 	unlocker, err := p2pkh.Unlock(key, options.sigHash)

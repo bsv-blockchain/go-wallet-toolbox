@@ -59,7 +59,7 @@ func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExp
 	case entity.NotIn:
 		return fieldExpr.NotIn(cmpExpr.GetInValues()...)
 	default:
-		panic("unsupported comparison operator")
+		panic("unsupported comparison operator " + cmp.String())
 	}
 }
 
@@ -68,4 +68,28 @@ func ordered[T types.Ordered](a, b T) (T, T) {
 		return b, a
 	}
 	return a, b
+}
+
+func cmpBoolCondition(field field.Bool, cmp *entity.Comparable[bool]) gen.Condition {
+	switch cmp.Cmp {
+	case entity.Equal:
+		return field.Is(cmp.Value)
+	case entity.NotEqual:
+		return field.Is(!cmp.Value)
+
+	case entity.GreaterThan,
+		entity.LessThan,
+		entity.GreaterThanOrEqual,
+		entity.LessThanOrEqual,
+		entity.Between,
+		entity.NotBetween,
+		entity.Like,
+		entity.NotLike,
+		entity.In,
+		entity.NotIn:
+		panic("unsupported comparison operator for bool: " + cmp.Cmp.String())
+
+	default:
+		panic("unknown comparison operator for bool: " + cmp.Cmp.String())
+	}
 }

@@ -1,6 +1,11 @@
 package entity
 
-import "github.com/go-softwarelab/common/pkg/types"
+import (
+	"fmt"
+
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/types"
+)
 
 // CmpOperator defines an integer-based enumeration representing various comparison operators
 type CmpOperator int
@@ -48,4 +53,45 @@ func (c *Comparable[T]) GetValueRight() T {
 // GetInValues returns a slice of values used for In/NotIn comparisons, allowing for multiple values to be checked against.
 func (c *Comparable[T]) GetInValues() []T {
 	return c.InValues
+}
+
+// ToStringComparable converts a Comparable of any comparable type to a Comparable of string type using fmt.Sprint for values.
+func (c *Comparable[T]) ToStringComparable() *Comparable[string] {
+	return &Comparable[string]{
+		Value:      fmt.Sprint(c.Value),
+		ValueRight: fmt.Sprint(c.ValueRight),
+		InValues:   slices.Map(c.InValues, func(v T) string { return fmt.Sprint(v) }),
+		Cmp:        c.Cmp,
+	}
+}
+
+func (op CmpOperator) String() string {
+	switch op {
+	case GreaterThan:
+		return "gt"
+	case LessThan:
+		return "lt"
+	case Equal:
+		return "eq"
+	case NotEqual:
+		return "neq"
+	case GreaterThanOrEqual:
+		return "gte"
+	case LessThanOrEqual:
+		return "lte"
+	case Between:
+		return "between"
+	case NotBetween:
+		return "not_between"
+	case Like:
+		return "like"
+	case NotLike:
+		return "not_like"
+	case In:
+		return "in"
+	case NotIn:
+		return "not_in"
+	default:
+		return "unknown"
+	}
 }
