@@ -33,7 +33,7 @@ import (
 // var pub *ec.PublicKey = ...
 // var priv *ec.PrivateKey = ...
 //
-// address, err := brc29.AddressForSelf(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."))
+// address, err := brc29.AddressForSelf(pub, keyID, priv)
 // ```
 // 4. Use WIF string to generate an address
 // ```go
@@ -43,7 +43,7 @@ import (
 // ```go
 // address, err := brc29.AddressForSelf(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."), brc29.WithTestNet())
 // ```
-func AddressForSelf[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPublicKey S, keyID KeyID, myPrivateKey R, opts ...func(*lockOptions)) (*script.Address, error) {
+func AddressForSelf[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPublicKey S, keyID KeyID, selfPrivateKey R, opts ...func(*lockOptions)) (*script.Address, error) {
 	options := &lockOptions{
 		mainNet: true,
 	}
@@ -52,7 +52,7 @@ func AddressForSelf[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPub
 		opt(options)
 	}
 
-	key, err := deriveRecipientPrivateKey(senderPublicKey, keyID, myPrivateKey)
+	key, err := deriveRecipientPrivateKey(senderPublicKey, keyID, selfPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive key for BRC29 address: %w", err)
 	}
@@ -90,7 +90,7 @@ func AddressForSelf[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPub
 // var priv *ec.PrivateKey = ...
 // var pub *ec.PublicKey = ...
 //
-// address, err := brc29.AddressForCounterparty(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."))
+// address, err := brc29.AddressForCounterparty(priv, keyID, pub)
 // ```
 // 4. Use WIF string to generate an address
 // ```go
@@ -100,7 +100,7 @@ func AddressForSelf[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPub
 // ```go
 // address, err := brc29.AddressForCounterparty(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."), brc29.WithTestNet())
 // ```
-func AddressForCounterparty[S CounterpartyPrivateKey, R CounterpartyPublicKey](senderPrivateKey S, keyID KeyID, yourPublicKey R, opts ...func(*lockOptions)) (*script.Address, error) {
+func AddressForCounterparty[S CounterpartyPrivateKey, R CounterpartyPublicKey](senderPrivateKey S, keyID KeyID, counterpartyPublicKey R, opts ...func(*lockOptions)) (*script.Address, error) {
 	options := &lockOptions{
 		mainNet: true,
 	}
@@ -118,9 +118,9 @@ func AddressForCounterparty[S CounterpartyPrivateKey, R CounterpartyPublicKey](s
 		return nil, fmt.Errorf("failed to create sender key deriver from %T: %w", senderPrivateKey, err)
 	}
 
-	recipientIdentityKey, err := toIdentityKey(yourPublicKey)
+	recipientIdentityKey, err := toIdentityKey(counterpartyPublicKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create recipient identity key from %T: %w", yourPublicKey, err)
+		return nil, fmt.Errorf("failed to create recipient identity key from %T: %w", counterpartyPublicKey, err)
 	}
 
 	key, err := senderKeyDeriver.DerivePublicKey(Protocol, keyID.String(), sdk.Counterparty{

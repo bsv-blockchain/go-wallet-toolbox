@@ -27,7 +27,7 @@ import (
 // var senderKeyDeriver *sdk.KeyDeriver = ...
 // var recipientKeyDeriver *sdk.KeyDeriver = ...
 //
-// lockingScript, err := Lock(keyDeriver, keyID, keyDeriver)
+// lockingScript, err := Lock(senderKeyDeriver, keyID, recipientKeyDeriver)
 // ```
 //
 // 3. Lock with ec private and public keys
@@ -71,25 +71,25 @@ type UnlockingScriptTemplate struct {
 // Example:
 // 1. Unlock with hexes
 // ```go
-// unlockingScriptTemplate, err := Unlock(PrivHex("ab..."), keyID, PrivHex("cd..."))
+// unlockingScriptTemplate, err := Unlock(PubHex("ab..."), keyID, PrivHex("cd..."))
 // ```
 // 2. Unlock with key derivers
 // ```go
 // var senderKeyDeriver *sdk.KeyDeriver = ...
 // var recipientKeyDeriver *sdk.KeyDeriver = ...
 //
-// unlockingScriptTemplate, err := Unlock(keyDeriver, keyID, keyDeriver)
+// unlockingScriptTemplate, err := Unlock(senderKeyDeriver, keyID, recipientKeyDeriver)
 // ```
 // 3. Unlock with ec private and public keys
 // ```go
 // var priv ec.PrivateKey = ...
 // var pub ec.PublicKey = ...
 //
-// unlockingScriptTemplate, err := Unlock(priv, keyID, pub)
+// unlockingScriptTemplate, err := Unlock(pub, keyID, priv)
 // ```
 // 4. Unlock with sig hash
 // ```go
-// unlockingScriptTemplate, err := Unlock(PrivHex("ab..."), keyID, PrivHex("cd..."), WithSigHash(SigHashAll))
+// unlockingScriptTemplate, err := Unlock(PubHex("ab..."), keyID, PrivHex("cd..."), WithSigHash(SigHashAll))
 // ```
 func Unlock[SenderKey CounterpartyPublicKey, RecipientKey CounterpartyPrivateKey](senderPublicKeySource SenderKey, keyID KeyID, recipientPrivateKeySource RecipientKey, opts ...func(*unlockOptions)) (*UnlockingScriptTemplate, error) {
 	options := &unlockOptions{}

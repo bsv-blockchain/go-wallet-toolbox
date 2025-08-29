@@ -62,7 +62,7 @@ func toKeyDeriver[KeySource CounterpartyPrivateKey](keySource KeySource) (*sdk.K
 func deriveRecipientPrivateKey[SenderKey CounterpartyPublicKey, RecipientKey CounterpartyPrivateKey](senderPublicKeySource SenderKey, keyID KeyID, recipientPrivateKeySource RecipientKey) (*ec.PrivateKey, error) {
 	senderIdentityKey, err := toIdentityKey(senderPublicKeySource)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create sender identity key from %T: %w", senderIdentityKey, err)
+		return nil, fmt.Errorf("failed to create sender identity key from %T: %w", senderPublicKeySource, err)
 	}
 
 	recipientKeyDeriver, err := toKeyDeriver(recipientPrivateKeySource)
