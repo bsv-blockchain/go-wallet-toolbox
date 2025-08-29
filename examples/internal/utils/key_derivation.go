@@ -25,22 +25,20 @@ type DerivationBytesResult struct {
 }
 
 // DerivationParts creates derivation parts with default prefix and suffix
-func DerivationParts() PaymentRemittance {
+func DerivationParts() *sdk.Payment {
 	prefix := "" // empty string will use default base64 prefix
 	suffix := "" // empty string will use default base64 suffix
 	bytes := derivationBytes(prefix, suffix)
 
-	var identityKey string
 	_, publicKey := sdk.AnyoneKey()
-	identityKey = publicKey.ToDERHex()
 
-	paymentRemittance := &PaymentRemittance{
+	paymentRemittance := &sdk.Payment{
 		DerivationPrefix:  bytes.DerivationPrefix,
 		DerivationSuffix:  bytes.DerivationSuffix,
-		SenderIdentityKey: identityKey,
+		SenderIdentityKey: publicKey,
 	}
 
-	return *paymentRemittance
+	return paymentRemittance
 }
 
 func derivationBytes(prefix string, suffix string) DerivationBytesResult {

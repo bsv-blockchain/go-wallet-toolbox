@@ -16,7 +16,7 @@ import (
 func TestBRC29TemplateLock(t *testing.T) {
 	t.Run("should lock with P2PKH and BRC29 calculated address", func(t *testing.T) {
 		// when:
-		lockingScript, err := brc29.Lock(senderPrivateKeyHex, keyID, recipientPublicKeyHex)
+		lockingScript, err := brc29.Lock(brc29.PrivHex(senderPrivateKeyHex), keyID, brc29.PubHex(recipientPublicKeyHex))
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, lockingScript)
@@ -34,7 +34,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		var keyDeriver *sdk.KeyDeriver
 
 		// when:
-		lockingScript, err := brc29.Lock(keyDeriver, keyID, recipientPublicKeyHex)
+		lockingScript, err := brc29.Lock(keyDeriver, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
 		assert.Error(t, err)
@@ -46,7 +46,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		var priv *ec.PrivateKey
 
 		// when:
-		lockingScript, err := brc29.Lock(priv, keyID, recipientPublicKeyHex)
+		lockingScript, err := brc29.Lock(priv, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
 		assert.Error(t, err)
@@ -58,7 +58,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		var keyDeriver *sdk.KeyDeriver
 
 		// when:
-		lockingScript, err := brc29.Lock(senderPrivateKeyHex, keyID, keyDeriver)
+		lockingScript, err := brc29.Lock(brc29.PrivHex(senderPrivateKeyHex), keyID, keyDeriver)
 
 		// then:
 		assert.Error(t, err)
@@ -70,7 +70,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		var pub *ec.PublicKey
 
 		// when:
-		lockingScript, err := brc29.Lock(senderPrivateKeyHex, keyID, pub)
+		lockingScript, err := brc29.Lock(brc29.PrivHex(senderPrivateKeyHex), keyID, pub)
 
 		// then:
 		assert.Error(t, err)
@@ -111,7 +111,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 	for name, test := range errorTestCases {
 		t.Run(name, func(t *testing.T) {
 			// when:
-			lockingScript, err := brc29.Lock(test.sender, test.keyID, test.recipient)
+			lockingScript, err := brc29.Lock(brc29.PrivHex(test.sender), test.keyID, brc29.PubHex(test.recipient))
 
 			// then:
 			require.Nil(t, lockingScript)
@@ -132,11 +132,11 @@ func TestBRC29TemplateUnlock(t *testing.T) {
 		require.NoError(t, err)
 
 		// and:
-		lockingScript, err := brc29.Lock(senderPrivateKeyHex, keyID, recipientPublicKeyHex)
+		lockingScript, err := brc29.Lock(brc29.PrivHex(senderPrivateKeyHex), keyID, brc29.PubHex(recipientPublicKeyHex))
 		require.NoError(t, err)
 
 		// when:
-		unlocker, err := brc29.Unlock(senderPublicKeyHex, keyID, recipientPrivateKeyHex)
+		unlocker, err := brc29.Unlock(brc29.PubHex(senderPublicKeyHex), keyID, brc29.PrivHex(recipientPrivateKeyHex))
 		require.NoError(t, err)
 
 		// and:
@@ -164,7 +164,7 @@ func TestBRC29TemplateUnlock(t *testing.T) {
 	})
 
 	t.Run("estimate unlocking script length", func(t *testing.T) {
-		unlocker, err := brc29.Unlock(senderPublicKeyHex, keyID, recipientPrivateKeyHex)
+		unlocker, err := brc29.Unlock(brc29.PubHex(senderPublicKeyHex), keyID, brc29.PrivHex(recipientPrivateKeyHex))
 		require.NoError(t, err)
 
 		length := unlocker.EstimateLength(transaction.NewTransaction(), 0)
@@ -206,7 +206,7 @@ func TestBRC29TemplateUnlock(t *testing.T) {
 	for name, test := range errorTestCases {
 		t.Run(name, func(t *testing.T) {
 			// when:
-			unlocker, err := brc29.Unlock(test.sender, test.keyID, test.recipient)
+			unlocker, err := brc29.Unlock(brc29.PubHex(test.sender), test.keyID, brc29.PrivHex(test.recipient))
 
 			// then:
 			require.Nil(t, unlocker)

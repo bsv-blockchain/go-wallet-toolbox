@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -42,10 +41,8 @@ func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
 		DerivationPrefix: fixtures.DerivationPrefix,
 		DerivationSuffix: fixtures.DerivationSuffix,
 	}
-	address, err := brc29.Address(t.sender.PrivateKey(t), keyID, t.sender.IdentityKey(t), brc29.WithTestNet())
-	require.NoError(t.TB, err)
 
-	lockingScript, err := p2pkh.Lock(address)
+	lockingScript, err := brc29.Lock(t.sender.PrivateKey(t), keyID, t.sender.PublicKey(t))
 	require.NoError(t.TB, err)
 
 	args := wdk.ValidCreateActionArgs{

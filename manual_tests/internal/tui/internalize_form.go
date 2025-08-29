@@ -240,7 +240,7 @@ func calculateAddressForInternalize(derivationPrefix, derivationSuffix string, u
 	}
 
 	networkOption := to.IfThen(bsvNetwork == defs.NetworkMainnet, brc29.WithMainNet()).ElseThen(brc29.WithTestNet())
-	address, err := brc29.Address(anyonePriv, keyID, user.PublicKey(), networkOption)
+	address, err := brc29.AddressForCounterparty(anyonePriv, keyID, user.PublicKey(), networkOption)
 	if err != nil {
 		return "", fmt.Errorf("failed to calculate address: %w", err)
 	}
