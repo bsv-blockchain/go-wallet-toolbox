@@ -3,6 +3,7 @@ package example_setup
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -123,15 +124,17 @@ func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
 		cleanup = clientCleanup
 	} else {
 		// Use local storage when no URL is provided
-		storage, err := CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
+		storage, err := CreateLocalStorage(ctx, slog.Default(), s.Environment.BSVNetwork, s.ServerPrivateKey, "./storage.sqlite")
 		if err != nil {
 			panic(fmt.Errorf("failed to create local storage: %w", err))
 		}
 		s.storageInfra = storage
 		storageClient = storage.Provider
 		cleanup = func() {
-			if s.storageInfra != nil && s.storageInfra.Monitor != nil {
-				s.storageInfra.Monitor.Stop()
+			if s.storageInfra != nil {
+				if err := s.storageInfra.Close(ctx); err != nil {
+					slog.Default().Error("Failed to close storage infrastructure", "error", err)
+				}
 			}
 		}
 	}

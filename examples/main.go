@@ -41,13 +41,13 @@ func main() {
 	} else {
 		// Use local storage when no URL is provided
 		fmt.Printf("Setting up local storage infrastructure\n")
-		storage, err := example_setup.CreateLocalStorage(ctx, cfg.Network, cfg.ServerPrivateKey)
+		storage, err := example_setup.CreateLocalStorage(ctx, slog.Default(), cfg.Network, cfg.ServerPrivateKey, "./storage.sqlite")
 		if err != nil {
 			panic(fmt.Errorf("failed to create local storage: %w", err))
 		}
 		storageCleanup = func() {
-			if storage.Monitor != nil {
-				storage.Monitor.Stop()
+			if err := storage.Close(ctx); err != nil {
+				slog.Default().Error("Failed to close storage infrastructure", "error", err)
 			}
 		}
 		fmt.Printf("Local storage will be created in: ./storage.sqlite\n")
