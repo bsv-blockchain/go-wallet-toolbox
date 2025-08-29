@@ -55,13 +55,23 @@ func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleEnterKey()
 	case tea.KeyDown, tea.KeyTab, tea.KeyCtrlN:
 		m.moveDown()
+		return m, nil
 	case tea.KeyUp, tea.KeyShiftTab, tea.KeyCtrlP:
+		m.moveUp()
+		return m, nil
+	}
+
+	switch keyMsg.String() {
+	case "q":
+		return m, tea.Quit
+	case "j":
+		m.moveDown()
+	case "k":
 		m.moveUp()
 	}
 
 	return m, nil
 }
-
 func (m ItemSelector[T]) handleEnterKey() (tea.Model, tea.Cmd) {
 	if m.isBackOptionSelected() {
 		return m.handleBackSelection()
