@@ -38,7 +38,7 @@ import (
 // lockingScript, err := Lock(priv, keyID, pub)
 // ```
 func Lock[SenderKey CounterpartyPrivateKey, RecipientKey CounterpartyPublicKey](senderPrivateKeySource SenderKey, keyID KeyID, recipientPublicKeySource RecipientKey, opts ...func(*lockOptions)) (*script.Script, error) {
-	address, err := YourAddress(senderPrivateKeySource, keyID, recipientPublicKeySource, opts...)
+	address, err := AddressForCounterparty(senderPrivateKeySource, keyID, recipientPublicKeySource, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate BRC29 address to lock the output: %w", err)
 	}

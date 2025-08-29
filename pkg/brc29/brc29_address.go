@@ -7,9 +7,9 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
-// MyAddress generates a blockchain address according to BRC29 specification.
+// AddressForSelf generates a blockchain address according to BRC29 specification.
 // It is meant to be used by the recipient to generate a BRC29 address for himself.
-// If you are a sender, and you want to generate an address to send funds for a recipient, use brc29.YourAddress instead.
+// If you are a sender, and you want to generate an address to send funds for a recipient, use brc29.AddressForCounterparty instead.
 //
 // The sender key can be a public key hex or a key deriver or ec.PublicKey.
 // The recipient key can be a private key hex string or a key deriver or ec.PrivateKey.
@@ -19,31 +19,31 @@ import (
 // Examples:
 // 1. Use key hexes to generate an address
 // ```go
-// address, err := brc29.MyAddress(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."))
+// address, err := brc29.AddressForSelf(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."))
 // ```
 // 2. Use key derivers to generate an address
 // ```go
 // var senderDeriver *sdk.KeyDeriver = ...
 // var recipientDeriver *sdk.KeyDeriver = ...
 //
-// address, err := brc29.MyAddress(senderDeriver, keyID, recipientDeriver)
+// address, err := brc29.AddressForSelf(senderDeriver, keyID, recipientDeriver)
 // ```
 // 3. Use ec.PublicKey and ec.PrivateKey to generate an address
 // ```go
 // var pub *ec.PublicKey = ...
 // var priv *ec.PrivateKey = ...
 //
-// address, err := brc29.MyAddress(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."))
+// address, err := brc29.AddressForSelf(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."))
 // ```
 // 4. Use WIF string to generate an address
 // ```go
-// address, err := brc29.MyAddress(pub, keyID, brc29.WIF("ab..."))
+// address, err := brc29.AddressForSelf(pub, keyID, brc29.WIF("ab..."))
 // ```
 // 5. Testnet address
 // ```go
-// address, err := brc29.MyAddress(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."), brc29.WithTestNet())
+// address, err := brc29.AddressForSelf(brc29.PubHex("ab..."), keyID, brc29.PrivHex("cd..."), brc29.WithTestNet())
 // ```
-func MyAddress[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPublicKey S, keyID KeyID, myPrivateKey R, opts ...func(*lockOptions)) (*script.Address, error) {
+func AddressForSelf[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPublicKey S, keyID KeyID, myPrivateKey R, opts ...func(*lockOptions)) (*script.Address, error) {
 	options := &lockOptions{
 		mainNet: true,
 	}
@@ -64,9 +64,9 @@ func MyAddress[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPublicKe
 	return address, nil
 }
 
-// YourAddress generates a blockchain address according to BRC29 specification.
+// AddressForCounterparty generates a blockchain address according to BRC29 specification.
 // It is meant to be used by the sender to generate a BRC29 address for a recipient.
-// If you are a recipient, and you want to generate an address to pass it to a sender, use brc29.MyAddress instead.
+// If you are a recipient, and you want to generate an address to pass it to a sender, use brc29.AddressForSelf instead.
 //
 // The sender key can be a private key hex string or a key deriver or ec.PrivateKey.
 // The recipient key can be a public key hex or a key deriver or ec.PublicKey.
@@ -76,31 +76,31 @@ func MyAddress[S CounterpartyPublicKey, R CounterpartyPrivateKey](senderPublicKe
 // Examples:
 // 1. Use key hexes to generate an address
 // ```go
-// address, err := brc29.YourAddress(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."))
+// address, err := brc29.AddressForCounterparty(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."))
 // ```
 // 2. Use key derivers to generate an address
 // ```go
 // var senderDeriver *sdk.KeyDeriver = ...
 // var recipientDeriver *sdk.KeyDeriver = ...
 //
-// address, err := brc29.YourAddress(senderDeriver, keyID, recipientDeriver)
+// address, err := brc29.AddressForCounterparty(senderDeriver, keyID, recipientDeriver)
 // ```
 // 3. Use ec.PrivateKey and ec.PublicKey to generate an address
 // ```go
 // var priv *ec.PrivateKey = ...
 // var pub *ec.PublicKey = ...
 //
-// address, err := brc29.YourAddress(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."))
+// address, err := brc29.AddressForCounterparty(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."))
 // ```
 // 4. Use WIF string to generate an address
 // ```go
-// address, err := brc29.YourAddress(brc29.WIF("ab..."), keyID, pub)
+// address, err := brc29.AddressForCounterparty(brc29.WIF("ab..."), keyID, pub)
 // ```
 // 5. Testnet address
 // ```go
-// address, err := brc29.YourAddress(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."), brc29.WithTestNet())
+// address, err := brc29.AddressForCounterparty(brc29.PrivHex("ab..."), keyID, brc29.PubHex("cd..."), brc29.WithTestNet())
 // ```
-func YourAddress[S CounterpartyPrivateKey, R CounterpartyPublicKey](senderPrivateKey S, keyID KeyID, yourPublicKey R, opts ...func(*lockOptions)) (*script.Address, error) {
+func AddressForCounterparty[S CounterpartyPrivateKey, R CounterpartyPublicKey](senderPrivateKey S, keyID KeyID, yourPublicKey R, opts ...func(*lockOptions)) (*script.Address, error) {
 	options := &lockOptions{
 		mainNet: true,
 	}

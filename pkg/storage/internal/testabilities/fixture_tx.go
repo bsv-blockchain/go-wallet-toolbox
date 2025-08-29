@@ -85,7 +85,7 @@ func (t *txGeneratorFixture) PreInternalized() (internalizeArgs *wdk.Internalize
 
 	anyonePriv, anyonePub := sdk.AnyoneKey()
 
-	address, err := brc29.YourAddress(anyonePriv, keyID, t.sender.PublicKey(t), brc29.WithTestNet())
+	address, err := brc29.AddressForCounterparty(anyonePriv, keyID, t.sender.PublicKey(t), brc29.WithTestNet())
 	require.NoError(t.TB, err)
 
 	lockingScript, err := p2pkh.Lock(address)
@@ -146,7 +146,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 		DerivationPrefix: fixtures.DerivationPrefix,
 		DerivationSuffix: fixtures.DerivationSuffix,
 	}
-	address, err := brc29.YourAddress(t.sender.PrivateKey(t), keyID, t.recipient.PublicKey(t), brc29.WithTestNet())
+	address, err := brc29.AddressForCounterparty(t.sender.PrivateKey(t), keyID, t.recipient.PublicKey(t), brc29.WithTestNet())
 	require.NoError(t.TB, err)
 
 	lockingScript, err := p2pkh.Lock(address)
