@@ -2,20 +2,20 @@ package tui
 
 import (
 	"fmt"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type InternalizeWaiting struct {
 	manager  ManagerInterface
 	user     *fixtures.UserConfig
 	txInput  textinput.Model
-	focused  int
+	focus    *FocusManager
 	selected internalizeData
 }
 
@@ -26,16 +26,34 @@ func NewInternalizeWaiting(manager ManagerInterface, user *fixtures.UserConfig, 
 	txInput.Width = 70
 	txInput.Prompt = ""
 	txInput.Validate = validateTxID
-	txInput.Focus()
 
-	model := &InternalizeWaiting{
+	form := &InternalizeWaiting{
 		manager:  manager,
 		user:     user,
 		txInput:  txInput,
 		selected: selected,
+		focus:    NewFocusManager(),
 	}
 
-	return model
+	form.focus.SetItems([]FocusItem{
+		{Type: ElementInput, Index: 0, Label: "Transaction ID"},
+		{Type: ElementButton, Index: ButtonContinue, Label: "Continue"},
+		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+	})
+
+	form.updateInputFocus()
+	return form
+}
+
+func (m *InternalizeWaiting) updateInputFocus() {
+	// Clear input focus
+	m.txInput.Blur()
+
+	// Set focus on input if applicable
+	current := m.focus.CurrentItem()
+	if current.Type == ElementInput {
+		m.txInput.Focus()
+	}
 }
 
 func (m *InternalizeWaiting) Init() tea.Cmd {
@@ -47,37 +65,41 @@ func (m *InternalizeWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			switch {
-			case m.continueIsFocused():
-				return m.submit()
-			case m.backIsFocused():
-				selectAction := NewSelectAction(m.manager, m.user)
-				return selectAction, selectAction.Init()
-			default:
-				m.nextFocus()
+			current := m.focus.CurrentItem()
+			if current.Type == ElementButton {
+				return m.handleEnter()
+			} else {
+				m.focus.Next()
+				m.updateInputFocus()
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case tea.KeyShiftTab, tea.KeyCtrlP:
-			m.prevFocus()
-		case tea.KeyTab, tea.KeyCtrlN:
-			m.nextFocus()
-		case tea.KeyDown:
-			m.nextFocus()
-		case tea.KeyUp:
-			m.prevFocus()
-		}
-
-		if m.focused == 0 {
-			m.txInput.Focus()
-		} else {
-			m.txInput.Blur()
+		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
+			m.focus.Previous()
+			m.updateInputFocus()
+		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
+			m.focus.Next()
+			m.updateInputFocus()
 		}
 	}
 
 	var inputCmd tea.Cmd
 	m.txInput, inputCmd = m.txInput.Update(msg)
 	return m, inputCmd
+}
+
+func (m *InternalizeWaiting) handleEnter() (tea.Model, tea.Cmd) {
+	current := m.focus.CurrentItem()
+	if current.Type == ElementButton {
+		switch current.Index {
+		case ButtonContinue:
+			return m.submit()
+		case ButtonBack:
+			selectAction := NewSelectAction(m.manager, m.user)
+			return selectAction, selectAction.Init()
+		}
+	}
+	return m, nil
 }
 
 func (m *InternalizeWaiting) View() string {
@@ -97,10 +119,20 @@ func (m *InternalizeWaiting) View() string {
 		instructions,
 		inputStyle.Width(30).Render("New Transaction ID"),
 		m.txInput.View(),
-		to.IfThen(m.continueIsFocused(), navStyleFocused).ElseThen(navStyle).
-			Render("Continue ->"),
-		to.IfThen(m.backIsFocused(), navStyleFocused).ElseThen(navStyle).
-			Render("<- Back"),
+		func() string {
+			style := navStyle
+			if m.focus.IsButtonFocused(ButtonContinue) {
+				style = navStyleFocused
+			}
+			return style.Render("Continue ->")
+		}(),
+		func() string {
+			style := navStyle
+			if m.focus.IsButtonFocused(ButtonBack) {
+				style = navStyleFocused
+			}
+			return style.Render("<- Back")
+		}(),
 	)
 }
 
@@ -137,32 +169,10 @@ func (m *InternalizeWaiting) submit() (tea.Model, tea.Cmd) {
 	return spinner, spinner.Init()
 }
 
-// nextFocus focuses the next input field
-func (m *InternalizeWaiting) nextFocus() {
-	m.focused = (m.focused + 1) % 3
-}
-
-// prevFocus focuses the previous input field
-func (m *InternalizeWaiting) prevFocus() {
-	m.focused--
-	if m.focused < 0 {
-		m.focused = 2
-	}
-}
-
-func (m *InternalizeWaiting) continueIsFocused() bool {
-	return m.focused == 1
-}
-
-func (m *InternalizeWaiting) backIsFocused() bool {
-	return m.focused == 2
-}
-
 func validateTxID(input string) error {
 	err := primitives.TXIDHexString(input).Validate()
 	if err != nil {
 		return fmt.Errorf("invalid transaction ID: %w", err)
 	}
-
 	return nil
 }

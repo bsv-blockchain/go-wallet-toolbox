@@ -164,33 +164,21 @@ func (b *BaseStep) handleCommonKeys(msg tea.Msg) (handled bool, model tea.Model,
 		switch msg.Type {
 		case tea.KeyEnter:
 			current := b.form.focus.CurrentItem()
-			// Only handle Enter for buttons, not inputs
 			if current.Type == ElementButton {
-				// We can't call HandleEnter here because BaseStep doesn't have it
-				// Return false so the concrete step can handle it
 				return false, b.form, nil
 			} else {
-				// For inputs, Enter moves to next field
 				b.form.focus.Next()
 				b.updateInputFocus()
 				return true, b.form, nil
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return true, b.form, tea.Quit
-		case tea.KeyShiftTab, tea.KeyCtrlP:
+		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
 			b.form.focus.Previous()
 			b.updateInputFocus()
 			return true, b.form, nil
-		case tea.KeyTab, tea.KeyCtrlN:
+		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
 			b.form.focus.Next()
-			b.updateInputFocus()
-			return true, b.form, nil
-		case tea.KeyDown:
-			b.form.focus.Next()
-			b.updateInputFocus()
-			return true, b.form, nil
-		case tea.KeyUp:
-			b.form.focus.Previous()
 			b.updateInputFocus()
 			return true, b.form, nil
 		}
@@ -212,7 +200,6 @@ type SendForm struct {
 func (m *SendForm) setState(state FormStepState) {
 	m.state = state
 	m.errorMsg = ""
-	// Don't reset inputs here - let the state's Init() method handle it
 }
 
 func (m *SendForm) Init() tea.Cmd {

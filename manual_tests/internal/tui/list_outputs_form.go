@@ -14,7 +14,7 @@ type ListOutputsForm struct {
 	manager  ManagerInterface
 	user     *fixtures.UserConfig
 	inputs   []textinput.Model
-	focused  int
+	focus    *FocusManager
 	errorMsg string
 }
 
@@ -23,7 +23,6 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 
 	inputs[0] = textinput.New()
 	inputs[0].Placeholder = ""
-	inputs[0].Focus()
 	inputs[0].CharLimit = 10
 	inputs[0].Width = 30
 	inputs[0].Prompt = "Limit: "
@@ -50,11 +49,44 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 	inputs[3].Prompt = "Include labels: "
 	inputs[3].SetValue("true")
 
-	return &ListOutputsForm{
+	form := &ListOutputsForm{
 		manager: manager,
 		user:    user,
 		inputs:  inputs,
-		focused: 0,
+		focus:   NewFocusManager(),
+	}
+
+	// Set up focus items: Back, all inputs, Continue
+	items := []FocusItem{
+		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
+	}
+	for i := range inputs {
+		items = append(items, FocusItem{
+			Type:  ElementInput,
+			Index: i,
+			Label: inputs[i].Prompt,
+		})
+	}
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: "Continue"})
+
+	form.focus.SetItems(items)
+	// Start with first input focused
+	form.focus.current = 1
+	form.updateInputFocus()
+
+	return form
+}
+
+func (m *ListOutputsForm) updateInputFocus() {
+	// Clear all input focus
+	for i := range m.inputs {
+		m.inputs[i].Blur()
+	}
+
+	// Set focus on current input if applicable
+	current := m.focus.CurrentItem()
+	if current.Type == ElementInput && current.Index < len(m.inputs) {
+		m.inputs[current.Index].Focus()
 	}
 }
 
@@ -67,60 +99,22 @@ func (m *ListOutputsForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			if m.continueIsFocused() {
-				limit := uint32(100)
-				offset := uint32(0)
-				basket := "default"
-				includeLabels := true
-
-				if v := strings.TrimSpace(m.inputs[0].Value()); v != "" {
-					if n, err := strconv.ParseUint(v, 10, 32); err == nil {
-						limit = uint32(n)
-					} else {
-						m.errorMsg = "Invalid limit"
-						return m, nil
-					}
-				}
-
-				if v := strings.TrimSpace(m.inputs[1].Value()); v != "" {
-					if n, err := strconv.ParseUint(v, 10, 32); err == nil {
-						offset = uint32(n)
-					} else {
-						m.errorMsg = "Invalid offset"
-						return m, nil
-					}
-				}
-
-				if v := strings.TrimSpace(m.inputs[2].Value()); v != "" {
-					basket = v
-				}
-
-				if v := strings.TrimSpace(strings.ToLower(m.inputs[3].Value())); v != "" {
-					if v == "true" || v == "t" || v == "y" || v == "yes" {
-						includeLabels = true
-					} else if v == "false" || v == "f" || v == "n" || v == "no" {
-						includeLabels = false
-					} else {
-						m.errorMsg = "Invalid include labels (true/false)"
-						return m, nil
-					}
-				}
-
-				waiting := NewListOutputsWaiting(m.manager, m.user, limit, offset, includeLabels, basket)
-				return waiting, waiting.Init()
+			current := m.focus.CurrentItem()
+			if current.Type == ElementButton {
+				return m.handleEnter()
 			} else {
-				m.nextInput()
+				// For inputs, Enter moves to next field
+				m.focus.Next()
+				m.updateInputFocus()
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case tea.KeyShiftTab, tea.KeyCtrlP:
-			m.prevInput()
-		case tea.KeyTab, tea.KeyCtrlN:
-			m.nextInput()
-		case tea.KeyDown:
-			m.nextInput()
-		case tea.KeyUp:
-			m.prevInput()
+		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
+			m.focus.Previous()
+			m.updateInputFocus()
+		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
+			m.focus.Next()
+			m.updateInputFocus()
 		}
 	}
 
@@ -132,79 +126,91 @@ func (m *ListOutputsForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *ListOutputsForm) View() string {
-	var b strings.Builder
+func (m *ListOutputsForm) handleEnter() (tea.Model, tea.Cmd) {
+	current := m.focus.CurrentItem()
+	if current.Type == ElementButton {
+		switch current.Index {
+		case ButtonBack:
+			// Go back to action selection
+			selectAction := NewSelectAction(m.manager, m.user)
+			return selectAction, selectAction.Init()
+		case ButtonContinue:
+			return m.processContinue()
+		}
+	}
+	return m, nil
+}
 
-	// Input prompts include labels and defaults inline
+func (m *ListOutputsForm) processContinue() (tea.Model, tea.Cmd) {
+	limit := uint32(100)
+	offset := uint32(0)
+	basket := "default"
+	includeLabels := true
 
-	for i := range m.inputs {
-		b.WriteString(m.inputs[i].View())
-		if i < len(m.inputs)-1 {
-			b.WriteRune('\n')
+	if v := strings.TrimSpace(m.inputs[0].Value()); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 32); err == nil {
+			limit = uint32(n)
+		} else {
+			m.errorMsg = "Invalid limit"
+			return m, nil
 		}
 	}
 
-	continueButton := &fixtures.BlurredButton
-	if m.continueIsFocused() {
-		continueButton = &fixtures.FocusedButton
+	if v := strings.TrimSpace(m.inputs[1].Value()); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 32); err == nil {
+			offset = uint32(n)
+		} else {
+			m.errorMsg = "Invalid offset"
+			return m, nil
+		}
 	}
-	b.WriteString("\n\n" + continueButton.Render("Continue"))
+
+	if v := strings.TrimSpace(m.inputs[2].Value()); v != "" {
+		basket = v
+	}
+
+	if v := strings.TrimSpace(strings.ToLower(m.inputs[3].Value())); v != "" {
+		if v == "true" || v == "t" || v == "y" || v == "yes" {
+			includeLabels = true
+		} else if v == "false" || v == "f" || v == "n" || v == "no" {
+			includeLabels = false
+		} else {
+			m.errorMsg = "Invalid include labels (true/false)"
+			return m, nil
+		}
+	}
+
+	waiting := NewListOutputsWaiting(m.manager, m.user, limit, offset, includeLabels, basket)
+	return waiting, waiting.Init()
+}
+
+func (m *ListOutputsForm) View() string {
+	var b strings.Builder
+
+	b.WriteString("Configure output listing:\n")
+
+	// Back button
+	backStyle := &fixtures.BlurredButton
+	if m.focus.IsButtonFocused(ButtonBack) {
+		backStyle = &fixtures.FocusedButton
+	}
+	b.WriteString(backStyle.Render("← Back") + "\n")
+
+	// Input fields
+	for i := range m.inputs {
+		b.WriteString(m.inputs[i].View() + "\n")
+	}
+
+	// Continue button
+	continueStyle := &fixtures.BlurredButton
+	if m.focus.IsButtonFocused(ButtonContinue) {
+		continueStyle = &fixtures.FocusedButton
+	}
+	b.WriteString(continueStyle.Render("Continue →"))
 
 	if m.errorMsg != "" {
 		b.WriteString("\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.errorMsg))
 	}
 
 	return b.String()
-}
-
-func (m *ListOutputsForm) nextInput() {
-	currentFocus := -1
-	for i, input := range m.inputs {
-		if input.Focused() {
-			currentFocus = i
-			break
-		}
-	}
-
-	if currentFocus != -1 {
-		m.inputs[currentFocus].Blur()
-	}
-
-	nextFocus := currentFocus + 1
-	if nextFocus > len(m.inputs) {
-		nextFocus = 0
-	}
-
-	if nextFocus < len(m.inputs) {
-		m.inputs[nextFocus].Focus()
-	}
-	m.focused = nextFocus
-}
-
-func (m *ListOutputsForm) prevInput() {
-	currentFocus := -1
-	for i, input := range m.inputs {
-		if input.Focused() {
-			currentFocus = i
-			break
-		}
-	}
-
-	if currentFocus != -1 {
-		m.inputs[currentFocus].Blur()
-	}
-
-	nextFocus := currentFocus - 1
-	if nextFocus < 0 {
-		nextFocus = len(m.inputs)
-	}
-
-	if nextFocus < len(m.inputs) {
-		m.inputs[nextFocus].Focus()
-	}
-	m.focused = nextFocus
-}
-
-func (m *ListOutputsForm) continueIsFocused() bool {
-	return m.focused == len(m.inputs)
 }

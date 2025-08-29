@@ -36,7 +36,6 @@ func (s *TransactionTypeStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return model, cmd
 	}
 
-	// Handle Enter for buttons specifically
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -59,8 +58,8 @@ func (s *TransactionTypeStep) View() string {
 		buttonType int
 		text       string
 	}{
-		{ButtonData, "📄 Send Data"},
-		{ButtonP2PKH, "💰 Send Payment (P2PKH)"},
+		{ButtonData, "Send Data"},
+		{ButtonP2PKH, "Send Payment (P2PKH)"},
 		{ButtonBack, "← Back to Menu"},
 	}
 
@@ -82,11 +81,11 @@ func (s *TransactionTypeStep) HandleEnter() (tea.Model, tea.Cmd) {
 		case ButtonData:
 			s.form.config.transactionType = TransactionTypeData
 			s.form.setState(NewTransactionDetailsStep(s.form))
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		case ButtonP2PKH:
 			s.form.config.transactionType = TransactionTypeP2PKH
 			s.form.setState(NewTransactionDetailsStep(s.form))
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		case ButtonBack:
 			selectAction := NewSelectAction(s.form.manager, s.form.user)
 			return selectAction, selectAction.Init()
@@ -105,20 +104,14 @@ func NewTransactionDetailsStep(form *SendForm) *TransactionDetailsStep {
 }
 
 func (s *TransactionDetailsStep) Init() tea.Cmd {
-	// Debug: Print what transaction type we have
-	fmt.Printf("DEBUG: TransactionDetailsStep.Init() - Transaction type: %d\n", s.form.config.transactionType)
-
 	if s.form.config.transactionType == TransactionTypeData {
-		// Data transaction: just one field
 		s.form.inputs = make([]textinput.Model, 1)
 		s.form.inputs[0] = textinput.New()
 		s.form.inputs[0].Placeholder = "Data to send"
 		s.form.inputs[0].CharLimit = 256
 		s.form.inputs[0].Width = 50
 		s.form.inputs[0].Prompt = ""
-		fmt.Printf("DEBUG: Created 1 input for data\n")
 	} else {
-		// P2PKH transaction: address and amount
 		s.form.inputs = make([]textinput.Model, 2)
 
 		s.form.inputs[0] = textinput.New()
@@ -132,12 +125,8 @@ func (s *TransactionDetailsStep) Init() tea.Cmd {
 		s.form.inputs[1].CharLimit = 20
 		s.form.inputs[1].Width = 50
 		s.form.inputs[1].Prompt = ""
-		fmt.Printf("DEBUG: Created 2 inputs for P2PKH\n")
 	}
 
-	fmt.Printf("DEBUG: Total inputs created: %d\n", len(s.form.inputs))
-
-	// Build focus items: Back, Inputs, Continue
 	items := []FocusItem{
 		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
 	}
@@ -151,13 +140,8 @@ func (s *TransactionDetailsStep) Init() tea.Cmd {
 	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: "Continue"})
 	s.form.focus.SetItems(items)
 
-	fmt.Printf("DEBUG: Focus items count: %d\n", len(items))
-
-	// Start with first input focused
-	s.form.focus.current = 1 // Skip back button, go to first input
+	s.form.focus.current = 1
 	s.updateInputFocus()
-
-	fmt.Printf("DEBUG: Set focus to index 1\n")
 
 	return textinput.Blink
 }
@@ -167,7 +151,6 @@ func (s *TransactionDetailsStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return model, cmd
 	}
 
-	// Handle Enter for buttons specifically
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -196,26 +179,16 @@ func (s *TransactionDetailsStep) View() string {
 		b.WriteString("Enter payment details:\n")
 	}
 
-	// Debug info - let's see what's happening
-	b.WriteString(fmt.Sprintf("DEBUG: Transaction type: %d, Input count: %d\n", s.form.config.transactionType, len(s.form.inputs)))
-
-	// Back button
 	backStyle := &fixtures.BlurredButton
 	if s.form.focus.IsButtonFocused(ButtonBack) {
 		backStyle = &fixtures.FocusedButton
 	}
 	b.WriteString(backStyle.Render("← Back") + "\n")
 
-	// Input fields - make sure they're displayed with debug info
 	for i := range s.form.inputs {
-		focused := ""
-		if s.form.focus.IsInputFocused(i) {
-			focused = " [FOCUSED]"
-		}
-		b.WriteString(fmt.Sprintf("Input %d%s: %s\n", i, focused, s.form.inputs[i].View()))
+		b.WriteString(fmt.Sprintf("%s\n", s.form.inputs[i].View()))
 	}
 
-	// Continue button
 	continueStyle := &fixtures.BlurredButton
 	if s.form.focus.IsButtonFocused(ButtonContinue) {
 		continueStyle = &fixtures.FocusedButton
@@ -231,10 +204,9 @@ func (s *TransactionDetailsStep) HandleEnter() (tea.Model, tea.Cmd) {
 		switch current.Index {
 		case ButtonBack:
 			s.form.setState(NewTransactionTypeStep(s.form))
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		case ButtonContinue:
 			if s.form.config.transactionType == TransactionTypeData {
-				// Validate data
 				data := strings.TrimSpace(s.form.inputs[0].Value())
 				if data == "" {
 					s.form.errorMsg = "Data is required"
@@ -242,7 +214,6 @@ func (s *TransactionDetailsStep) HandleEnter() (tea.Model, tea.Cmd) {
 				}
 				s.form.config.data = data
 			} else {
-				// Validate P2PKH details
 				addr := strings.TrimSpace(s.form.inputs[0].Value())
 				if addr == "" {
 					s.form.errorMsg = "Recipient address is required"
@@ -267,7 +238,7 @@ func (s *TransactionDetailsStep) HandleEnter() (tea.Model, tea.Cmd) {
 
 			s.form.setState(NewPeriodicChoiceStep(s.form))
 			s.form.errorMsg = ""
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		}
 	}
 	return s.form, nil
@@ -297,7 +268,6 @@ func (s *PeriodicChoiceStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return model, cmd
 	}
 
-	// Handle Enter for buttons specifically
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -316,7 +286,6 @@ func (s *PeriodicChoiceStep) View() string {
 	var b strings.Builder
 	b.WriteString("Choose sending method:\n\n")
 
-	// Show transaction details
 	if s.form.config.transactionType == TransactionTypeData {
 		b.WriteString(fmt.Sprintf("Data: %s\n\n", s.form.config.data))
 	} else {
@@ -328,8 +297,8 @@ func (s *PeriodicChoiceStep) View() string {
 		buttonType int
 		text       string
 	}{
-		{ButtonSendOnce, "🎯 Send Once"},
-		{ButtonSendPeriodic, "🔄 Send Periodically"},
+		{ButtonSendOnce, "Send Once"},
+		{ButtonSendPeriodic, "Send Periodically"},
 		{ButtonBack, "← Back"},
 	}
 
@@ -350,14 +319,14 @@ func (s *PeriodicChoiceStep) HandleEnter() (tea.Model, tea.Cmd) {
 		switch current.Index {
 		case ButtonBack:
 			s.form.setState(NewTransactionDetailsStep(s.form))
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		case ButtonSendOnce:
 			s.form.config.isPeriodic = false
 			return s.form.executeAction()
 		case ButtonSendPeriodic:
 			s.form.config.isPeriodic = true
 			s.form.setState(NewPeriodConfigStep(s.form))
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		}
 	}
 	return s.form, nil
@@ -380,7 +349,6 @@ func (s *PeriodConfigStep) Init() tea.Cmd {
 	s.form.inputs[0].Width = 50
 	s.form.inputs[0].Prompt = ""
 
-	// Build focus items: Back, Input, Continue
 	s.form.focus.SetItems([]FocusItem{
 		{Type: ElementButton, Index: ButtonBack, Label: "Back"},
 		{Type: ElementInput, Index: 0, Label: "Period Input"},
@@ -398,7 +366,6 @@ func (s *PeriodConfigStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return model, cmd
 	}
 
-	// Handle Enter for buttons specifically
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -422,7 +389,6 @@ func (s *PeriodConfigStep) View() string {
 	var b strings.Builder
 	b.WriteString("Configure periodic sending:\n")
 
-	// Show transaction details
 	if s.form.config.transactionType == TransactionTypeData {
 		b.WriteString(fmt.Sprintf("Data: %s\n", s.form.config.data))
 	} else {
@@ -430,14 +396,12 @@ func (s *PeriodConfigStep) View() string {
 		b.WriteString(fmt.Sprintf("Amount: %d satoshis\n", s.form.config.amount))
 	}
 
-	// Back button
 	backStyle := &fixtures.BlurredButton
 	if s.form.focus.IsButtonFocused(ButtonBack) {
 		backStyle = &fixtures.FocusedButton
 	}
 	b.WriteString(backStyle.Render("← Back") + "\n")
 
-	// Input field
 	for i := range s.form.inputs {
 		b.WriteString(s.form.inputs[i].View())
 		if i < len(s.form.inputs)-1 {
@@ -445,12 +409,11 @@ func (s *PeriodConfigStep) View() string {
 		}
 	}
 
-	// Continue button
 	continueStyle := &fixtures.BlurredButton
 	if s.form.focus.IsButtonFocused(ButtonContinue) {
 		continueStyle = &fixtures.FocusedButton
 	}
-	b.WriteString("\n" + continueStyle.Render("🚀 Start Periodic Sending"))
+	b.WriteString("\n" + continueStyle.Render("Start Periodic Sending"))
 
 	return b.String()
 }
@@ -461,7 +424,7 @@ func (s *PeriodConfigStep) HandleEnter() (tea.Model, tea.Cmd) {
 		switch current.Index {
 		case ButtonBack:
 			s.form.setState(NewPeriodicChoiceStep(s.form))
-			return s.form, s.form.state.Init() // Call Init() after setState
+			return s.form, s.form.state.Init()
 		case ButtonContinue:
 			periodStr := strings.TrimSpace(s.form.inputs[0].Value())
 			periodMs, err := strconv.Atoi(periodStr)
