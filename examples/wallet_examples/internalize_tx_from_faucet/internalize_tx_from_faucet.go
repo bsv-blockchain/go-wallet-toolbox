@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
-	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -14,7 +15,7 @@ import (
 
 // The txID is the transaction ID of the transaction to internalize
 // Pass in your txID from the faucet_address example
-var txID = "" //example: 15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8
+var txID = "" // example: 15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8
 
 // To internalize a transaction from the faucet, you need to pass the txid of the transaction to internalize
 // Use the faucet_address example to get the user address and follow the instructions to fund the address from the faucet
@@ -57,7 +58,7 @@ func main() {
 	show.Step("Alice", "Internalizing transaction from faucet")
 
 	// This method will internalize the transaction from the faucet into the wallet database
-	err = example_setup.InternalizeFromFaucet(ctx, atomicBeef, aliceWallet, alice.IdentityKey)
+	err = example_setup.InternalizeFromFaucet(ctx, atomicBeef, aliceWallet)
 	if err != nil {
 		panic(fmt.Errorf("failed to internalize tx: %w", err))
 	}
