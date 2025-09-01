@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,25 +11,16 @@ import (
 func main() {
 	setupConsoleLogging()
 
-	ctx := context.Background()
-
 	cfg, err := example_setup.LoadConfig()
 	if err != nil {
 		panic(fmt.Errorf("failed to load config: %w", err))
 	}
 
-	// Create storage as a Go object (not a server)
-	fmt.Printf("Setting up local storage infrastructure\n")
-	storage, err := example_setup.CreateLocalStorage(ctx, cfg.Network, cfg.ServerPrivateKey)
-	if err != nil {
-		panic(fmt.Errorf("failed to create local storage: %w", err))
-	}
-
-	// Set global storage so wallet examples can access it
-	example_setup.SetGlobalStorage(storage)
-
-	fmt.Printf("Local storage created successfully\n")
-	fmt.Printf("Storage infrastructure ready. You can now run wallet examples.\n")
+	fmt.Printf("Configuration loaded successfully\n")
+	fmt.Printf("Network: %s\n", cfg.Network)
+	fmt.Printf("Server URL: %s\n", cfg.ServerURL)
+	fmt.Printf("Examples are ready to run!\n")
+	fmt.Printf("Each example will create its own local storage.\n")
 	fmt.Printf("Press Ctrl+C to exit.\n")
 
 	// Keep the program running

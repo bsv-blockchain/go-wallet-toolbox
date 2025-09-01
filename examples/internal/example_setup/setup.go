@@ -3,6 +3,7 @@ package example_setup
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -11,19 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
-
-// Global storage infrastructure - set by main.go
-var globalStorageInfra *StorageInfra
-
-// SetGlobalStorage sets the global storage infrastructure
-func SetGlobalStorage(storage *StorageInfra) {
-	globalStorageInfra = storage
-}
-
-// GetGlobalStorage returns the global storage infrastructure
-func GetGlobalStorage() *StorageInfra {
-	return globalStorageInfra
-}
 
 type Setup struct {
 	Environment      Environment
@@ -119,7 +107,7 @@ func CreateAlice() *Setup {
 }
 
 // CreateWallet creates a new wallet for the user
-// It uses either the global storage infrastructure (for local) or connects to remote server
+// It uses either local storage or connects to remote server
 // It returns the wallet and a cleanup function, panicking if wallet creation fails
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
 	var storageClient wdk.WalletStorageProvider
@@ -134,13 +122,20 @@ func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
 		storageClient = client
 		cleanup = clientCleanup
 	} else {
-		// Use local storage - use the global storage infrastructure
-		if globalStorageInfra == nil {
-			panic(fmt.Errorf("global storage infrastructure not initialized - run main.go first"))
+		// Create local storage infrastructure
+		storage, err := CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
+		if err != nil {
+			panic(fmt.Errorf("failed to create local storage: %w", err))
 		}
-		storageClient = globalStorageInfra.Provider
+		storageClient = storage.Provider
 		cleanup = func() {
-			// No cleanup needed - storage is managed by main.go
+			// Cleanup local storage
+			if storage.Monitor != nil {
+				if err := storage.Monitor.Stop(); err != nil {
+					slog.Default().Error("Failed to stop monitor", "error", err)
+				}
+			}
+			storage.Provider.Stop()
 		}
 	}
 
