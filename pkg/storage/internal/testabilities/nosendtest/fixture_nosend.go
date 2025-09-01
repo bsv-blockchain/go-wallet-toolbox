@@ -9,21 +9,24 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 )
 
-type NosendFixture interface {
+type NoSendFixture interface {
+	testabilities.StorageFixture
+
+	ActiveProvider() *storage.Provider
 	UserOwnsMultipleUTXOsToSpend(satoshis uint64)
 	UserOwnsGivenUTXOsToSpend(satoshis ...uint64)
 }
 
-type nosendFixture struct {
+type noSendFixture struct {
 	testing.TB
-	storageFixture testabilities.StorageFixture
+	testabilities.StorageFixture
+
 	user           testusers.User
 	activeProvider *storage.Provider
 }
 
-func (f *nosendFixture) UserOwnsMultipleUTXOsToSpend(satoshis uint64) {
-	f.storageFixture.
-		Action(f.activeProvider).
+func (f *noSendFixture) UserOwnsMultipleUTXOsToSpend(satoshis uint64) {
+	f.Action(f.activeProvider).
 		WithSender(f.user).
 		WithRecipient(f.user).
 		WithSatoshisToInternalize(satoshis).
@@ -31,9 +34,13 @@ func (f *nosendFixture) UserOwnsMultipleUTXOsToSpend(satoshis uint64) {
 		Processed()
 }
 
-func (f *nosendFixture) UserOwnsGivenUTXOsToSpend(satoshis ...uint64) {
-	faucet := f.storageFixture.Faucet(f.activeProvider, f.user)
+func (f *noSendFixture) UserOwnsGivenUTXOsToSpend(satoshis ...uint64) {
+	faucet := f.Faucet(f.activeProvider, f.user)
 	for _, s := range satoshis {
 		faucet.TopUp(satoshi.MustFrom(s))
 	}
+}
+
+func (f *noSendFixture) ActiveProvider() *storage.Provider {
+	return f.activeProvider
 }

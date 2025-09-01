@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
@@ -17,11 +15,8 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// given:
 		const inputSatoshis = 99904
 
-		givenStorage, cleanup := testabilities.Given(t)
+		given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 		defer cleanup()
-
-		activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-		given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 		// and:
 		given.UserOwnsMultipleUTXOsToSpend(inputSatoshis)
@@ -61,11 +56,8 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// given:
 		const inputSatoshis = 6
 
-		givenStorage, cleanup := testabilities.Given(t)
+		given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 		defer cleanup()
-
-		activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-		given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 		// and:
 		given.UserOwnsGivenUTXOsToSpend(inputSatoshis)
@@ -109,11 +101,8 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		const initialUTXOSats = 10000
 		const noSendChainCount = 2
 
-		givenStorage, cleanup := testabilities.Given(t)
+		given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 		defer cleanup()
-
-		activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-		given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 		// and:
 		given.UserOwnsGivenUTXOsToSpend(initialUTXOSats, initialUTXOSats)
@@ -150,11 +139,8 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		const inputSatoshis = 99904
 		const largerUTXOToSend = 50_000
 
-		givenStorage, cleanup := testabilities.Given(t)
+		given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 		defer cleanup()
-
-		activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-		given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 		// and:
 		given.UserOwnsMultipleUTXOsToSpend(inputSatoshis)
@@ -204,18 +190,15 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		const inputSatoshis = 100_000
 		const largerUTXOToSend = 50_000
 
-		givenStorage, cleanup := testabilities.Given(t)
+		given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 		defer cleanup()
-
-		activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-		given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 		// and:
 		given.UserOwnsMultipleUTXOsToSpend(inputSatoshis)
 
 		// NOTE: We need to reconfigure the basket to increase the number of UTXOs in the wallet
 		// This way, createAction will produce more-than-one change outputs
-		err := activeStorage.ConfigureBasket(t.Context(), testusers.Alice.AuthID(), wdk.BasketConfiguration{
+		err := given.ActiveProvider().ConfigureBasket(t.Context(), testusers.Alice.AuthID(), wdk.BasketConfiguration{
 			Name:                    wdk.BasketNameForChange,
 			NumberOfDesiredUTXOs:    100,
 			MinimumDesiredUTXOValue: 1000,
@@ -272,11 +255,8 @@ func TestNoSendPlusSendWithScenario_SendWithNewTx(t *testing.T) {
 	// given:
 	const inputSatoshis = 99904
 
-	givenStorage, cleanup := testabilities.Given(t)
+	given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 	defer cleanup()
-
-	activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-	given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 	// and:
 	given.UserOwnsMultipleUTXOsToSpend(inputSatoshis)
@@ -308,11 +288,8 @@ func TestNoSendPlusSendWithScenario_SendWithNewTx(t *testing.T) {
 func TestNoSendSendWithScenario_SendWithSeparatedNewTx(t *testing.T) {
 	const inputSatoshis = 99904
 
-	givenStorage, cleanup := testabilities.Given(t)
+	given, when, then, cleanup := nosendtest.New(t, testusers.Alice)
 	defer cleanup()
-
-	activeStorage := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
-	given, when, then := nosendtest.New(t, testusers.Alice, givenStorage, activeStorage)
 
 	// and:
 	given.UserOwnsMultipleUTXOsToSpend(inputSatoshis)

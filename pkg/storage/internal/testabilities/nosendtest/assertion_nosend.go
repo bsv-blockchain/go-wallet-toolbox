@@ -15,7 +15,7 @@ type NosendAssertion interface {
 
 type nosendAssertion struct {
 	testing.TB
-	act *nosendAct
+	act *noSendAct
 }
 
 func (a *nosendAssertion) ProcessedSuccessfully(processActionResult *wdk.ProcessActionResult, additionalTxIDs ...string) NosendAssertion {

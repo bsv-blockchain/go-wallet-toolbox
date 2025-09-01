@@ -4,21 +4,24 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-func New(t testing.TB, user testusers.User, storageFixture testabilities.StorageFixture, activeProvider *storage.Provider) (NosendFixture, NosendAct, NosendAssertion) {
+func New(t testing.TB, user testusers.User) (NoSendFixture, NoSendAct, NosendAssertion, func()) {
 	t.Helper()
-	given := &nosendFixture{
+	givenStorage, cleanup := testabilities.Given(t)
+	activeProvider := givenStorage.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	given := &noSendFixture{
 		TB:             t,
-		storageFixture: storageFixture,
+		StorageFixture: givenStorage,
 		user:           user,
 		activeProvider: activeProvider,
 	}
 
-	when := &nosendAct{
+	when := &noSendAct{
 		TB:                      t,
 		user:                    user,
 		activeProvider:          activeProvider,
@@ -31,5 +34,5 @@ func New(t testing.TB, user testusers.User, storageFixture testabilities.Storage
 		act: when,
 	}
 
-	return given, when, then
+	return given, when, then, cleanup
 }

@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type NosendAct interface {
-	WillSendSats(sats uint64) NosendAct
+type NoSendAct interface {
+	WillSendSats(sats uint64) NoSendAct
 	NoSendTxsHexStrings() []primitives.HexString
 	NoSendTxs() []string
 	AllRemainedNoSendChange() []wdk.OutPoint
@@ -32,7 +32,7 @@ type NosendAct interface {
 	CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string)
 }
 
-type nosendAct struct {
+type noSendAct struct {
 	testing.TB
 	user                    testusers.User
 	activeProvider          *storage.Provider
@@ -42,28 +42,28 @@ type nosendAct struct {
 	noSendTxsChain          []string
 }
 
-func (f *nosendAct) WillSendSats(sats uint64) NosendAct {
+func (f *noSendAct) WillSendSats(sats uint64) NoSendAct {
 	f.satsToSend = primitives.SatoshiValue(sats)
 	return f
 }
 
-func (f *nosendAct) NoSendTxsHexStrings() []primitives.HexString {
+func (f *noSendAct) NoSendTxsHexStrings() []primitives.HexString {
 	return slices.Map(f.noSendTxsChain, func(s string) primitives.HexString { return primitives.HexString(s) })
 }
 
-func (f *nosendAct) NoSendTxs() []string {
+func (f *noSendAct) NoSendTxs() []string {
 	return f.noSendTxsChain
 }
 
-func (f *nosendAct) AllRemainedNoSendChange() []wdk.OutPoint {
+func (f *noSendAct) AllRemainedNoSendChange() []wdk.OutPoint {
 	return stdslices.Collect(maps.Keys(f.allRemainedNoSendChange))
 }
 
-func (f *nosendAct) LastCreateActionResult() *wdk.StorageCreateActionResult {
+func (f *noSendAct) LastCreateActionResult() *wdk.StorageCreateActionResult {
 	return f.lastCreateActionResult
 }
 
-func (f *nosendAct) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction) {
+func (f *noSendAct) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, *transaction.Transaction) {
 	result, err := f.activeProvider.CreateAction(f.Context(), f.user.AuthID(), args)
 	require.NoError(f, err)
 	require.NotNil(f, result)
@@ -78,7 +78,7 @@ func (f *nosendAct) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCr
 	return result, tx
 }
 
-func (f *nosendAct) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult {
+func (f *noSendAct) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult {
 	result, err := f.activeProvider.ProcessAction(f.Context(), f.user.AuthID(), args)
 	require.NoError(f, err)
 	require.NotNil(f, result)
@@ -86,7 +86,7 @@ func (f *nosendAct) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessAction
 	return result
 }
 
-func (f *nosendAct) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPoint) (createdNoSendChange, allocatedNoSendChangeAsInputs []wdk.OutPoint) {
+func (f *noSendAct) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPoint) (createdNoSendChange, allocatedNoSendChangeAsInputs []wdk.OutPoint) {
 	createActionArgs := fixtures.DefaultValidCreateActionArgs(f.CreateActionNoSendArgsModifier(prevNoSendOutpoints, true))
 
 	createActionResult, signedTx := f.CreateAction(createActionArgs)
@@ -114,7 +114,7 @@ func (f *nosendAct) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPo
 	return
 }
 
-func (f *nosendAct) updateAllRemainedNoSendChange(createActionResult *wdk.StorageCreateActionResult, createdNoSendChange []wdk.OutPoint) []wdk.OutPoint {
+func (f *noSendAct) updateAllRemainedNoSendChange(createActionResult *wdk.StorageCreateActionResult, createdNoSendChange []wdk.OutPoint) []wdk.OutPoint {
 	var allocatedNoSendChangeAsInputs []wdk.OutPoint
 	for _, op := range createdNoSendChange {
 		f.allRemainedNoSendChange[op] = struct{}{}
@@ -131,7 +131,7 @@ func (f *nosendAct) updateAllRemainedNoSendChange(createActionResult *wdk.Storag
 	return allocatedNoSendChangeAsInputs
 }
 
-func (f *nosendAct) CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string) {
+func (f *noSendAct) CreateAndProcessSendWithAction(sendWithHexStrings []primitives.HexString, opts ...func(*wdk.ValidCreateActionArgs)) (*wdk.ProcessActionResult, string) {
 	createActionArgs := fixtures.DefaultValidCreateActionArgs(opts...)
 	createActionResult, tx := f.CreateAction(createActionArgs)
 	txID := tx.TxID().String()
@@ -148,7 +148,7 @@ func (f *nosendAct) CreateAndProcessSendWithAction(sendWithHexStrings []primitiv
 	return processActionResult, txID
 }
 
-func (f *nosendAct) CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.OutPoint, isNoSend bool) func(args *wdk.ValidCreateActionArgs) {
+func (f *noSendAct) CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.OutPoint, isNoSend bool) func(args *wdk.ValidCreateActionArgs) {
 	return func(args *wdk.ValidCreateActionArgs) {
 		args.IsNewTx = true
 		args.Outputs[0].Satoshis = f.satsToSend
@@ -158,7 +158,7 @@ func (f *nosendAct) CreateActionNoSendArgsModifier(prevNoSendOutpoints []wdk.Out
 	}
 }
 
-func (f *nosendAct) CreateActionSendWithArgsModifier(sendWithHexStrings ...primitives.HexString) func(args *wdk.ValidCreateActionArgs) {
+func (f *noSendAct) CreateActionSendWithArgsModifier(sendWithHexStrings ...primitives.HexString) func(args *wdk.ValidCreateActionArgs) {
 	return func(args *wdk.ValidCreateActionArgs) {
 		args.IsSendWith = true
 		args.Options.SendWith = sendWithHexStrings
