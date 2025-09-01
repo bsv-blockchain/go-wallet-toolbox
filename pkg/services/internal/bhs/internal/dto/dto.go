@@ -28,6 +28,7 @@ func (b *BlockHeaderByHeightResponse) ConvertChainBaseBlockHeader() *wdk.ChainBa
 		Time:         b.Timestamp,
 		Bits:         b.DifficultyTarget,
 		Nonce:        b.Nonce,
+		Hash:         b.Hash,
 	}
 }
 
@@ -59,6 +60,7 @@ func (t *TipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
 			MerkleRoot:   t.Header.MerkleRoot,
 			Time:         t.Header.Timestamp,
 			Nonce:        t.Header.Nonce,
+			Hash:         t.Header.Hash,
 		},
 		Height: t.Height,
 		Hash:   t.Header.Hash,
