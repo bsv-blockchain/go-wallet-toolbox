@@ -63,6 +63,7 @@ func New(
 			repos.Outputs,
 			repos.KnownTx,
 			repos.Commission,
+			repos.UTXOs,
 			services,
 			randomizer,
 			beefVerifier,

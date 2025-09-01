@@ -321,6 +321,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Labels:            params.Labels,
 		InputBeef:         inputBeef,
 		Commission:        c.createCommissionEntity(userID, commOut),
+		UTXOStatus:        wdk.UTXOStatusUnknown,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -549,7 +550,7 @@ func (c *create) newOutputs(
 		all = append(all, &entity.NewOutput{
 			Satoshis:         satoshis,
 			BasketName:       to.Ptr(wdk.BasketNameForChange),
-			Spendable:        false,
+			Spendable:        true,
 			Change:           true,
 			ProvidedBy:       wdk.ProvidedByStorage,
 			Type:             wdk.OutputTypeP2PKH,

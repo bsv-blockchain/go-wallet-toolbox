@@ -34,6 +34,7 @@ type process struct {
 	outputRepo            OutputRepo
 	knownTxRepo           KnownTxRepo
 	commissionRepo        CommissionRepo
+	utxoRepo              UTXORepo
 	services              wdk.Services
 	backgroundBroadcaster *service.BackgroundBroadcaster
 	randomizer            wdk.Randomizer
@@ -49,6 +50,7 @@ func newProcessAction(
 	outputRepo OutputRepo,
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
+	utxoRepo UTXORepo,
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
@@ -61,6 +63,7 @@ func newProcessAction(
 		outputRepo:     outputRepo,
 		knownTxRepo:    knownTxRepo,
 		commissionRepo: commissionRepo,
+		utxoRepo:       utxoRepo,
 		services:       services,
 		randomizer:     randomizer,
 		beefVerifier:   beefVerifier,
@@ -377,11 +380,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				Status: currentStatus.SendWithResultStatus(),
 			})
 
-			logger.DebugContext(ctx, "Making outputs spendable",
+			logger.DebugContext(ctx, "Creating spendable UTXOs",
 				slog.String("txID", txID),
 			)
 
-			err = p.outputRepo.MakeOutputsSpendableForTxID(ctx, txID)
+			err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
 			}
@@ -605,7 +608,7 @@ func (p *process) updateSingleTx(
 	}
 
 	if spendable {
-		err = p.outputRepo.MakeOutputsSpendableForTxID(ctx, txID)
+		err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 		if err != nil {
 			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
 			return
