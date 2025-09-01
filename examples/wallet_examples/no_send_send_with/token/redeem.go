@@ -1,4 +1,4 @@
-package main
+package token
 
 import (
 	"context"
@@ -11,7 +11,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-func redeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, token Token, noSendChange []transaction.Outpoint) ([]transaction.Outpoint, chainhash.Hash) {
+// RedeemPushDropToken creates a transaction to redeem a PushDrop token using aliceWallet and associated token data.
+func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, token Token, noSendChange []transaction.Outpoint) (chainhash.Hash, []transaction.Outpoint) {
 	t := pushdrop.PushDrop{
 		Wallet: aliceWallet,
 	}
@@ -80,6 +81,5 @@ func redeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 		panic(err)
 	}
 
-	return createActionResult.NoSendChange, *txID
-
+	return *txID, createActionResult.NoSendChange
 }

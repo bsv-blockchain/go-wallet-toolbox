@@ -15,7 +15,7 @@ import (
 
 // The txID is the transaction ID of the transaction to internalize
 // Pass in your txID from the faucet_address example
-var txID = "" // example: 15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8
+var txID = "fde78577090b12ceab795d1cdefadc235e4f883b52d876468f837091849158e5" // example: 15f47f2db5f26469c081e8d80d91a4b0f06e4a97abcc022b0b5163ac5f6cc0c8
 
 // To internalize a transaction from the faucet, you need to pass the txid of the transaction to internalize
 // Use the faucet_address example to get the user address and follow the instructions to fund the address from the faucet

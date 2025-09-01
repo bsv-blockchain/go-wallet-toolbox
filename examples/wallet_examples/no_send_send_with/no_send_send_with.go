@@ -2,22 +2,26 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/wallet_examples/no_send_send_with/token"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 )
 
 const (
 	tokensCount = 3
+	dataPrefix  = "exampletoken"
 )
 
 var rand = randomizer.NewTestRandomizer()
 
 func main() {
-	show.ProcessStart("List Outputs")
+	show.ProcessStart("NoSend and SendWith Example based on PushDrop Tokens")
 	ctx := context.Background()
 
 	// Create Alice's wallet instance
@@ -27,40 +31,61 @@ func main() {
 	aliceWallet, cleanup := alice.CreateWallet(ctx)
 	defer cleanup()
 
-	dataPrefix := randomDataPrefix()
 	keyID := randomKeyID()
 
-	var prevNoSentChange []transaction.Outpoint
-	var tokens Tokens
+	tokens := mint(ctx, alice, aliceWallet, keyID)
 
+	_ = tokens
+	// TODO: Uncomment to enable redeeming the tokens when SignAction is implemented
+	//redeem(ctx, tokens, aliceWallet)
+}
+
+func mint(ctx context.Context, alice *example_setup.Setup, aliceWallet wallet.Interface, keyID string) token.Tokens {
+	var prevNoSentChange []transaction.Outpoint
+	var tokens token.Tokens
+
+	show.Step("Mint multiple tokens", "all mints are done with noSend = true, so they are not broadcasted immediately")
 	// Mint multiple tokens with noSend = true, each time passing the change from the previous mint as noSendChange to the next mint
 	// This way we ensure that all mints will be broadcasted in a single batch
 	for counter := range tokensCount {
-		token := mintPushDropToken(
+		dataField := []byte(fmt.Sprintf("%s-%d", dataPrefix, counter))
+
+		tok, noSendChangeOutpoints := token.MintPushDropToken(
 			ctx,
 			alice.IdentityKey,
 			aliceWallet,
-			dataPrefix,
+			dataField,
 			keyID,
-			counter,
 			prevNoSentChange,
 		)
 
-		tokens = append(tokens, token)
-		prevNoSentChange = token.NoSendChange
+		tokens = append(tokens, tok)
+		prevNoSentChange = noSendChangeOutpoints
+
+		show.Info("Minted Token", tok.TxID.String())
 	}
 
+	show.Step("Broadcast all mints in a single batch using sendWith", "all mints are now broadcasted in a single batch using sendWith")
 	// Now send all the mints in a single batch using sendWith
 	sendWith(ctx, aliceWallet, tokens.TxIDs())
 
-	// redeem the tokens
-	prevNoSentChange = nil
+	show.Success("All tokens minted and broadcasted")
+
+	return tokens
+}
+
+func redeem(ctx context.Context, tokens token.Tokens, aliceWallet wallet.Interface) {
+	show.Step("Redeem multiple tokens", "all redeems are done with noSend = true, so they are not broadcasted immediately")
+	// Redeem multiple tokens with noSend = true, each time passing the change from the previous redeem as noSendChange to the next redeem
+	// This way we ensure that all redeems will be broadcasted in a single batch
+	// We also collect the txIDs of all redeems to use them in sendWith later
+	var prevNoSentChange []transaction.Outpoint
 	redeemed := make([]chainhash.Hash, 0, len(tokens))
-	for _, token := range tokens {
-		noSendChange, redeemedTxID := redeemPushDropToken(
+	for _, tok := range tokens {
+		redeemedTxID, noSendChange := token.RedeemPushDropToken(
 			ctx,
 			aliceWallet,
-			token,
+			tok,
 			prevNoSentChange,
 		)
 
@@ -68,6 +93,31 @@ func main() {
 		prevNoSentChange = noSendChange
 	}
 
+	show.Step("Broadcast all redeems in a single batch using sendWith", "all redeems are now broadcasted in a single batch using sendWith")
 	// Now send all the redeems in a single batch using sendWith
 	sendWith(ctx, aliceWallet, redeemed)
+
+	show.Success("All tokens redeemed and broadcasted")
+}
+
+func sendWith(ctx context.Context, aliceWallet wallet.Interface, txIDs []chainhash.Hash) {
+	_, err := aliceWallet.CreateAction(ctx, wallet.CreateActionArgs{
+		Options: &wallet.CreateActionOptions{
+			SendWith: txIDs,
+		},
+		Description: "sendWith",
+	}, "")
+	if err != nil {
+		panic(err)
+	}
+}
+
+func randomKeyID() string {
+	const keyIDLength = 8
+	keyID, err := rand.Base64(keyIDLength)
+	if err != nil {
+		panic(err)
+	}
+
+	return keyID
 }

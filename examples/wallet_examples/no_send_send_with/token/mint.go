@@ -1,8 +1,7 @@
-package main
+package token
 
 import (
 	"context"
-	"fmt"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -12,13 +11,22 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-func mintPushDropToken(ctx context.Context, aliceIdentityKey *ec.PublicKey, aliceWallet wallet.Interface, dataPrefix []byte, keyID string, counter int, noSendChange []transaction.Outpoint) Token {
+// MintPushDropToken mints a PushDrop token using the provided context, identity key, wallet, and other parameters.
+// It generates the token's locking script with associated data by invoking the pushdrop protocol.
+// The function constructs an action in the wallet with specific outputs, disabling immediate broadcasting. It returns a Token.
+func MintPushDropToken(
+	ctx context.Context,
+	aliceIdentityKey *ec.PublicKey,
+	aliceWallet wallet.Interface,
+	dataField []byte,
+	keyID string,
+	noSendChange []transaction.Outpoint,
+) (Token, []transaction.Outpoint) {
 	t := pushdrop.PushDrop{
 		Wallet:     aliceWallet,
 		Originator: "",
 	}
 
-	dataField := append(dataPrefix, []byte(fmt.Sprintf("%d", counter))...)
 	fields := [][]byte{dataField}
 
 	counterparty := wallet.Counterparty{
@@ -59,9 +67,9 @@ func mintPushDropToken(ctx context.Context, aliceIdentityKey *ec.PublicKey, alic
 	}
 
 	return Token{
-		CreateActionResult: *createActionResult,
-		KeyID:              keyID,
-		FromIdentityKey:    aliceIdentityKey,
-		Satoshis:           satoshis,
-	}
+		TxID:            createActionResult.Txid,
+		KeyID:           keyID,
+		FromIdentityKey: aliceIdentityKey,
+		Satoshis:        satoshis,
+	}, createActionResult.NoSendChange
 }
