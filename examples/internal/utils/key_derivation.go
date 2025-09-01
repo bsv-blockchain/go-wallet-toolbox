@@ -25,22 +25,20 @@ type DerivationBytesResult struct {
 }
 
 // DerivationParts creates derivation parts with default prefix and suffix
-func DerivationParts() PaymentRemittance {
+func DerivationParts() *sdk.Payment {
 	prefix := "" // empty string will use default base64 prefix
 	suffix := "" // empty string will use default base64 suffix
 	bytes := derivationBytes(prefix, suffix)
 
-	var identityKey string
 	_, publicKey := sdk.AnyoneKey()
-	identityKey = publicKey.ToDERHex()
 
-	paymentRemittance := &PaymentRemittance{
+	paymentRemittance := &sdk.Payment{
 		DerivationPrefix:  bytes.DerivationPrefix,
 		DerivationSuffix:  bytes.DerivationSuffix,
-		SenderIdentityKey: identityKey,
+		SenderIdentityKey: publicKey,
 	}
 
-	return *paymentRemittance
+	return paymentRemittance
 }
 
 func derivationBytes(prefix string, suffix string) DerivationBytesResult {
@@ -49,21 +47,21 @@ func derivationBytes(prefix string, suffix string) DerivationBytesResult {
 	var err error
 
 	if prefix == "" {
-		derivationPrefix, err = base64.StdEncoding.DecodeString(defaultBase64Prefix)
-		if err != nil {
-			panic(fmt.Errorf("failed to decode default base64 prefix: %w", err))
-		}
-	} else {
-		derivationPrefix = []byte(prefix)
+		prefix = defaultBase64Prefix
+	}
+
+	derivationPrefix, err = base64.StdEncoding.DecodeString(prefix)
+	if err != nil {
+		panic(fmt.Errorf("failed to decode default base64 prefix: %w", err))
 	}
 
 	if suffix == "" {
-		derivationSuffix, err = base64.StdEncoding.DecodeString(defaultBase64Suffix)
-		if err != nil {
-			panic(fmt.Errorf("failed to decode default base64 suffix: %w", err))
-		}
-	} else {
-		derivationSuffix = []byte(suffix)
+		suffix = defaultBase64Suffix
+	}
+
+	derivationSuffix, err = base64.StdEncoding.DecodeString(suffix)
+	if err != nil {
+		panic(fmt.Errorf("failed to decode default base64 suffix: %w", err))
 	}
 
 	return DerivationBytesResult{
