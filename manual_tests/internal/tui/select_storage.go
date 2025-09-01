@@ -27,10 +27,5 @@ func NewSelectStorage(manager ManagerInterface) tea.Model {
 		return spinner, spinner.Init()
 	}
 
-	onBack := func() (tea.Model, tea.Cmd) {
-		networkSelector := NewSelectNetwork(manager)
-		return networkSelector, networkSelector.Init()
-	}
-
-	return NewItemSelectorWithBack(storageTypes, "Select storage type:", onSelect, onBack)
+	return NewItemSelector(storageTypes, "Select storage type:", onSelect)
 }

@@ -25,7 +25,7 @@ func main() {
 
 	manager := internal.NewManager(ctx, &config)
 
-	p := tea.NewProgram(tui.NewSelectNetwork(manager))
+	p := tea.NewProgram(tui.NewSelectStorage(manager))
 
 	_, err := p.Run()
 	if err != nil {
