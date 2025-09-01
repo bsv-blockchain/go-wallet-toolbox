@@ -32,10 +32,11 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo    *repo.Repositories
-	actions *actions.Actions
-	options *ProviderConfig
-	logger  *slog.Logger
+	repo     *repo.Repositories
+	actions  *actions.Actions
+	options  *ProviderConfig
+	logger   *slog.Logger
+	services wdk.Services
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -85,8 +86,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			options.SynchronizeTxStatusesConfig,
 			options.BeefVerifier,
 		),
-		options: &options,
-		logger:  log,
+		options:  &options,
+		logger:   log,
+		services: services,
 	}, nil
 }
 
@@ -307,7 +309,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
+	if err := validate.ValidInternalizeActionArgsWithServices(ctx, &args, p.services); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
 	}
 
