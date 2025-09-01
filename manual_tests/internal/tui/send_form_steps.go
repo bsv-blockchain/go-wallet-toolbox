@@ -58,7 +58,7 @@ func (s *TransactionTypeStep) View() string {
 		buttonType int
 		text       string
 	}{
-		{ButtonData, "Send Data"},
+		{ButtonData, "Send Data (OP_RETURN)"},
 		{ButtonP2PKH, "Send Payment (P2PKH)"},
 		{ButtonBack, fixtures.ButtonBack},
 	}
