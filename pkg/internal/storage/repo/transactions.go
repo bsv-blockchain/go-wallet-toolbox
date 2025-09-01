@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
@@ -18,6 +19,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gen"
 	"gorm.io/gorm"
 )
 
@@ -199,7 +201,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	return nil
 }
 
-func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
+func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*pkgentity.Transaction, error) {
 	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
 	if err != nil {
@@ -227,7 +229,7 @@ func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID stri
 	}), nil
 }
 
-func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
+func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error) {
 	var transaction models.Transaction
 	err := txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
@@ -329,8 +331,8 @@ func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transa
 	return nil
 }
 
-func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *entity.Transaction {
-	return &entity.Transaction{
+func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *pkgentity.Transaction {
+	return &pkgentity.Transaction{
 		ID:          model.ID,
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,
@@ -350,7 +352,7 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 	}
 }
 
-func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error) {
+func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*pkgentity.Transaction, int64, error) {
 	var actions []*models.Transaction
 	var total int64
 
@@ -488,4 +490,118 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 	return slices.Map(rows, func(row *models.Transaction) uint {
 		return row.ID
 	}), nil
+}
+
+func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Transaction) error {
+	if tx == nil {
+		return fmt.Errorf("transaction cannot be nil")
+	}
+
+	labels := make([]primitives.StringUnder300, len(tx.Labels))
+	for i, label := range tx.Labels {
+		labels[i] = primitives.StringUnder300(label)
+	}
+
+	newTx := &entity.NewTx{
+		UserID:      tx.UserID,
+		Status:      tx.Status,
+		Reference:   tx.Reference,
+		IsOutgoing:  tx.IsOutgoing,
+		Satoshis:    tx.Satoshis,
+		Description: tx.Description,
+		Version:     tx.Version,
+		LockTime:    tx.LockTime,
+		TxID:        tx.TxID,
+		Labels:      labels,
+	}
+
+	return txs.CreateTransaction(ctx, newTx)
+}
+
+func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.TransactionUpdateSpecification) error {
+	table := &txs.query.Transaction
+
+	updates := map[string]any{}
+	if spec.Status != nil {
+		updates[table.Status.ColumnName().String()] = *spec.Status
+	}
+	if spec.Description != nil {
+		updates[table.Description.ColumnName().String()] = *spec.Description
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	_, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	if err != nil {
+		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (txs *Transactions) FindTransactions(ctx context.Context, spec *pkgentity.TransactionReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Transaction, error) {
+	table := &txs.query.Transaction
+
+	rows, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(txs.conditionsBySpec(spec)...).
+		Preload(table.Labels).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transactions: %w", err)
+	}
+
+	return slices.Map(rows, txs.mapModelToTransactionEntity), nil
+}
+
+func (txs *Transactions) CountTransactions(ctx context.Context, spec *pkgentity.TransactionReadSpecification, opts ...queryopts.Options) (int64, error) {
+	table := &txs.query.Transaction
+
+	count, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(txs.conditionsBySpec(spec)...).
+		Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count transactions: %w", err)
+	}
+
+	return count, nil
+}
+
+func (txs *Transactions) conditionsBySpec(spec *pkgentity.TransactionReadSpecification) []gen.Condition {
+	if spec == nil {
+		return nil
+	}
+
+	table := &txs.query.Transaction
+	if spec.ID != nil {
+		return []gen.Condition{table.ID.Eq(*spec.ID)}
+	}
+
+	var conditions []gen.Condition
+	if spec.UserID != nil {
+		conditions = append(conditions, cmpCondition(table.UserID, spec.UserID))
+	}
+	if spec.Status != nil {
+		conditions = append(conditions, cmpCondition(table.Status, spec.Status.ToStringComparable()))
+	}
+	if spec.Reference != nil {
+		conditions = append(conditions, cmpCondition(table.Reference, spec.Reference))
+	}
+	if spec.IsOutgoing != nil {
+		conditions = append(conditions, cmpBoolCondition(table.IsOutgoing, spec.IsOutgoing))
+	}
+	if spec.Satoshis != nil {
+		conditions = append(conditions, cmpCondition(table.Satoshis, spec.Satoshis))
+	}
+	if spec.TxID != nil {
+		conditions = append(conditions, cmpCondition(table.TxID, spec.TxID))
+	}
+	if spec.DescriptionContains != nil {
+		conditions = append(conditions, cmpCondition(table.Description, spec.DescriptionContains))
+	}
+
+	return conditions
 }
