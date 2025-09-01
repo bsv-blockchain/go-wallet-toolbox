@@ -26,8 +26,8 @@ type DerivationBytesResult struct {
 
 // DerivationParts creates derivation parts with default prefix and suffix
 func DerivationParts() *sdk.Payment {
-	prefix := "Pg==" // empty string will use default base64 prefix
-	suffix := "Sg==" // empty string will use default base64 suffix
+	prefix := "" // empty string will use default base64 prefix
+	suffix := "" // empty string will use default base64 suffix
 	bytes := derivationBytes(prefix, suffix)
 
 	_, publicKey := sdk.AnyoneKey()
