@@ -3,7 +3,6 @@ package example_setup
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -13,12 +12,24 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+// Global storage infrastructure - set by main.go
+var globalStorageInfra *StorageInfra
+
+// SetGlobalStorage sets the global storage infrastructure
+func SetGlobalStorage(storage *StorageInfra) {
+	globalStorageInfra = storage
+}
+
+// GetGlobalStorage returns the global storage infrastructure
+func GetGlobalStorage() *StorageInfra {
+	return globalStorageInfra
+}
+
 type Setup struct {
 	Environment      Environment
 	IdentityKey      *ec.PublicKey
 	PrivateKey       *ec.PrivateKey
 	ServerPrivateKey string
-	storageInfra     *StorageInfra
 }
 
 type Environment struct {
@@ -108,7 +119,7 @@ func CreateAlice() *Setup {
 }
 
 // CreateWallet creates a new wallet for the user
-// It connects to the server and creates a new wallet
+// It uses either the global storage infrastructure (for local) or connects to remote server
 // It returns the wallet and a cleanup function, panicking if wallet creation fails
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
 	var storageClient wdk.WalletStorageProvider
@@ -123,19 +134,13 @@ func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
 		storageClient = client
 		cleanup = clientCleanup
 	} else {
-		// Use local storage when no URL is provided
-		storage, err := CreateLocalStorage(ctx, slog.Default(), s.Environment.BSVNetwork, s.ServerPrivateKey, "./storage.sqlite")
-		if err != nil {
-			panic(fmt.Errorf("failed to create local storage: %w", err))
+		// Use local storage - use the global storage infrastructure
+		if globalStorageInfra == nil {
+			panic(fmt.Errorf("global storage infrastructure not initialized - run main.go first"))
 		}
-		s.storageInfra = storage
-		storageClient = storage.Provider
+		storageClient = globalStorageInfra.Provider
 		cleanup = func() {
-			if s.storageInfra != nil {
-				if err := s.storageInfra.Close(ctx); err != nil {
-					slog.Default().Error("Failed to close storage infrastructure", "error", err)
-				}
-			}
+			// No cleanup needed - storage is managed by main.go
 		}
 	}
 

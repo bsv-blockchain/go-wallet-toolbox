@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 )
 
 func main() {
@@ -20,42 +19,22 @@ func main() {
 		panic(fmt.Errorf("failed to load config: %w", err))
 	}
 
-	var storageCleanup func()
-
-	if cfg.ServerURL != "" {
-		// Use remote server when URL is provided
-		fmt.Printf("Connecting to remote server: %s\n", cfg.ServerURL)
-		client, clientCleanup, err := storage.NewClient(cfg.ServerURL)
-		if err != nil {
-			panic(fmt.Errorf("failed to connect to server: %w", err))
-		}
-
-		fmt.Printf("Testing connection to remote server...\n")
-		_, err = client.MakeAvailable(ctx)
-		if err != nil {
-			panic(fmt.Errorf("failed to ping server: %w", err))
-		}
-		fmt.Printf("✓ Successfully connected to remote storage server\n")
-
-		storageCleanup = clientCleanup
-	} else {
-		// Use local storage when no URL is provided
-		fmt.Printf("Setting up local storage infrastructure\n")
-		storage, err := example_setup.CreateLocalStorage(ctx, slog.Default(), cfg.Network, cfg.ServerPrivateKey, "./storage.sqlite")
-		if err != nil {
-			panic(fmt.Errorf("failed to create local storage: %w", err))
-		}
-		storageCleanup = func() {
-			if err := storage.Close(ctx); err != nil {
-				slog.Default().Error("Failed to close storage infrastructure", "error", err)
-			}
-		}
-		fmt.Printf("Local storage will be created in: ./storage.sqlite\n")
+	// Create storage as a Go object (not a server)
+	fmt.Printf("Setting up local storage infrastructure\n")
+	storage, err := example_setup.CreateLocalStorage(ctx, cfg.Network, cfg.ServerPrivateKey)
+	if err != nil {
+		panic(fmt.Errorf("failed to create local storage: %w", err))
 	}
 
-	defer storageCleanup()
+	// Set global storage so wallet examples can access it
+	example_setup.SetGlobalStorage(storage)
 
-	select {} // keep the program running indefinitely
+	fmt.Printf("Local storage created successfully\n")
+	fmt.Printf("Storage infrastructure ready. You can now run wallet examples.\n")
+	fmt.Printf("Press Ctrl+C to exit.\n")
+
+	// Keep the program running
+	select {}
 }
 
 func setupConsoleLogging() {
