@@ -16,7 +16,7 @@ func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet s
 		Tx: atomicBeefBytes,
 		Outputs: []sdk.InternalizeOutput{
 			{
-				OutputIndex:       1,
+				OutputIndex:       0,
 				Protocol:          "wallet payment",
 				PaymentRemittance: paymentRemittance,
 			},
