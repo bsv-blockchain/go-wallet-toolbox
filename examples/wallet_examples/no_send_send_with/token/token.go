@@ -9,7 +9,6 @@ import (
 
 // Token represents a digital asset including transaction details, keys, and the amount in Satoshis.
 type Token struct {
-	//wallet.CreateActionResult
 	TxID            chainhash.Hash
 	Beef            *transaction.Beef
 	KeyID           string
