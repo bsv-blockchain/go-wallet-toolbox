@@ -313,7 +313,7 @@ func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePat
 }
 
 func (a *arcQueryFixture) WillReturnWithMindedTx() ARCQueryFixture {
-	merklePath := testutils.MockValidMerklePath(a.TB, a.txID)
+	merklePath := testutils.MockValidMerklePath(a.TB, a.txID, 2000)
 	return a.WillReturnTransactionWithMerklePath(merklePath)
 }
 
@@ -419,7 +419,6 @@ func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int,
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithBlockHeight(height uint32) {
-	mp := testutils.MockValidMerklePath(a.TB, a.txID)
-	mp.BlockHeight = height
+	mp := testutils.MockValidMerklePath(a.TB, a.txID, height)
 	a.WillReturnTransactionWithMerklePath(mp)
 }

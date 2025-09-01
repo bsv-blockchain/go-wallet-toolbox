@@ -9,6 +9,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"gorm.io/gen"
+	"gorm.io/gen/field"
 	"gorm.io/gorm"
 )
 
@@ -73,6 +75,38 @@ func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID
 		Update(table.ReservedByID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to unreserve UTXOs by transaction ID %d: %w", transactionID, err)
+	}
+
+	return nil
+}
+
+func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error {
+	err := u.query.DBTransaction(func(query *genquery.Query) error {
+		filterScope := func(dao gen.Dao) gen.Dao {
+			subquery := query.Transaction.
+				Select(query.Transaction.ID).
+				Where(query.Transaction.TxID.Eq(txID))
+
+			return dao.
+				Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
+				Where(query.Output.Spendable.Is(true)).
+				Scopes(isChangeDaoScope(query))
+		}
+
+		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+		if err != nil {
+			return err
+		}
+
+		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
 	}
 
 	return nil
