@@ -11,6 +11,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -261,7 +262,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	return nil
 }
 
-func (p *process) validateStateOfTableTx(reference string, tableTx *entity.Transaction) error {
+func (p *process) validateStateOfTableTx(reference string, tableTx *pkgentity.Transaction) error {
 	if tableTx == nil {
 		return fmt.Errorf("transaction with reference (%s) not found in the database", reference)
 	}
