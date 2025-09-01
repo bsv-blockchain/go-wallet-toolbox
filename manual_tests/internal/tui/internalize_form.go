@@ -44,22 +44,22 @@ type InternalizeForm struct {
 
 func NewInternalizeActionForm(manager ManagerInterface, user *fixtures.UserConfig) *InternalizeForm {
 	inputs := make([]textinput.Model, 2)
-
-	inputs[0] = textinput.New()
-	inputs[0].Placeholder = "Base64 DerivationPrefix string"
-	inputs[0].CharLimit = 40
-	inputs[0].Width = 40
-	inputs[0].Prompt = ""
-	inputs[0].Validate = validateCanonicalBase64
-	inputs[0].SetValue(fixtures.DefaultDerivationPrefix)
-
-	inputs[1] = textinput.New()
-	inputs[1].Placeholder = "Base64 DerivationSuffix string"
-	inputs[1].CharLimit = 40
-	inputs[1].Width = 40
-	inputs[1].Prompt = ""
-	inputs[1].Validate = validateCanonicalBase64
-	inputs[1].SetValue(fixtures.DefaultDerivationSuffix)
+	i := derivationPrefixIndex
+	inputs[i] = textinput.New()
+	inputs[i].Placeholder = "Base64 DerivationPrefix string"
+	inputs[i].CharLimit = 40
+	inputs[i].Width = 40
+	inputs[i].Prompt = ""
+	inputs[i].Validate = validateCanonicalBase64
+	inputs[i].SetValue(fixtures.DefaultDerivationPrefix)
+	i = derivationSuffixIndex
+	inputs[i] = textinput.New()
+	inputs[i].Placeholder = "Base64 DerivationSuffix string"
+	inputs[i].CharLimit = 40
+	inputs[i].Width = 40
+	inputs[i].Prompt = ""
+	inputs[i].Validate = validateCanonicalBase64
+	inputs[i].SetValue(fixtures.DefaultDerivationSuffix)
 
 	form := &InternalizeForm{
 		manager: manager,
