@@ -152,7 +152,7 @@ func TestKnownTxBlockHashFilters(t *testing.T) {
 
 	tx1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
-	mp := testutils.MockValidMerklePath(t, tx1.ID().String())
+	mp := testutils.MockValidMerklePath(t, tx1.ID().String(), 2000)
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 
@@ -207,7 +207,7 @@ func TestKnownTxMerkleRootFilters(t *testing.T) {
 
 	tx1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
-	mp := testutils.MockValidMerklePath(t, tx1.ID().String())
+	mp := testutils.MockValidMerklePath(t, tx1.ID().String(), 2000)
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
@@ -268,7 +268,7 @@ func TestKnownTxStatusFilters(t *testing.T) {
 		WillReturnTransactionWithoutMerklePath()
 
 	txMined, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(75_000)
-	mp := testutils.MockValidMerklePath(t, txMined.ID().String())
+	mp := testutils.MockValidMerklePath(t, txMined.ID().String(), 2000)
 	provider.ARC().WhenQueryingTx(txMined.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 
@@ -356,7 +356,7 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 	})
 
 	// when:
-	mp := testutils.MockValidMerklePath(t, tx1.ID().String())
+	mp := testutils.MockValidMerklePath(t, tx1.ID().String(), 2000)
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
