@@ -52,7 +52,7 @@ func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 
 	signableTx := createActionResult.SignableTransaction
 	if signableTx == nil {
-		panic("signableTx is nil")
+		panic("createAction returned nil SignableTransaction")
 	}
 
 	beef, txID, err := transaction.NewBeefFromAtomicBytes(signableTx.Tx)
@@ -62,7 +62,7 @@ func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 
 	tx := beef.FindAtomicTransactionByHash(txID)
 	if tx == nil {
-		panic("tx is nil")
+		panic(fmt.Sprintf("failed to find transaction with hash %s in BEEF data", txID.String()))
 	}
 
 	unlockingScript, err := unlocker.Sign(tx, 0)
