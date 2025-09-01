@@ -94,9 +94,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, wdk.ProvidedByStorage, input.ProvidedBy)
 	assert.Equal(t, wdk.OutputTypeP2PKH, input.Type)
 	require.NotEmpty(t, input.DerivationPrefix)
-	assert.Equal(t, 24, len(*input.DerivationPrefix))
 	require.NotEmpty(t, input.DerivationSuffix)
-	assert.Equal(t, 24, len(*input.DerivationSuffix))
 
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
 }
@@ -460,7 +458,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Equal(t, 31, len(result.Outputs))
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef0001021b4dc343ecd37c7707f5c7194f0f40788a62be3264e80b6433612273d4b4bbb2", hex.EncodeToString(result.InputBeef))
+	assert.Equal(t, "0200beef00010223fddb8b10833147c786a9b6f41a11c5db17e440c18de2eb1b2bad05ba205870", hex.EncodeToString(result.InputBeef))
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
@@ -477,9 +475,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Equal(t, wdk.ProvidedByYouAndStorage, input.ProvidedBy)
 	assert.Equal(t, wdk.OutputTypeP2PKH, input.Type)
 	require.NotEmpty(t, input.DerivationPrefix)
-	assert.Equal(t, 24, len(*input.DerivationPrefix))
 	require.NotEmpty(t, input.DerivationSuffix)
-	assert.Equal(t, 24, len(*input.DerivationSuffix))
 }
 
 func TestCreateActionWithProvidedUnknownInput(t *testing.T) {

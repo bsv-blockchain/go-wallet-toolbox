@@ -24,7 +24,6 @@ type OutputRepo interface {
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
 	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error)
 	SaveOutputs(ctx context.Context, output []*entity.Output) error
-	MakeOutputsSpendableForTxID(ctx context.Context, txID string) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
 	ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error
 }
@@ -71,4 +70,5 @@ type CommissionRepo interface {
 
 type UTXORepo interface {
 	UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error
+	CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error
 }
