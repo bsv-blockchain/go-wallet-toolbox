@@ -26,7 +26,7 @@ func TestTransactionCountFilters(t *testing.T) {
 			count: 10,
 		},
 		"user Alice only": {
-			filter: func(r crud.TransactionReader) { r.UserID(testusers.Alice.ID).Equals(testusers.Alice.ID) },
+			filter: func(r crud.TransactionReader) { r.UserID().Equals(testusers.Alice.ID) },
 			count:  5,
 		},
 		"filter by status": {
@@ -48,8 +48,11 @@ func TestTransactionCountFilters(t *testing.T) {
 			count:  5,
 		},
 		"since now": {
-			filter: func(r crud.TransactionReader) { r.Since(time.Now(), pkgentity.SinceFieldCreatedAt) },
-			count:  0,
+			filter: func(r crud.TransactionReader) {
+				since := time.Now().Add(time.Minute) // delta time makes sure no "timing flakiness" happens during test execution
+				r.Since(since, pkgentity.SinceFieldCreatedAt)
+			},
+			count: 0,
 		},
 	}
 
