@@ -6,6 +6,7 @@ import (
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -101,7 +102,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
-		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
 		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
 		require.NoError(t, err, "Failed to internalize action for test setup")
 
@@ -130,7 +131,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
-		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
 		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
 		require.NoError(t, err, "Failed to internalize action for test setup")
 
@@ -159,7 +160,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
-		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
 		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
 		require.NoError(t, err, "Failed to internalize action for test setup")
 
@@ -189,7 +190,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
-		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
 		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
 		require.NoError(t, err, "Failed to internalize action for test setup")
 
