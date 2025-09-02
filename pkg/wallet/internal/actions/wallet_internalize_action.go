@@ -38,9 +38,9 @@ func validateOutput(keyDeriver *sdk.KeyDeriver, output wdk.InternalizeOutput, tx
 	txOutput := tx.Outputs[output.OutputIndex]
 
 	switch output.Protocol {
-	case "wallet payment":
+	case wdk.WalletPaymentProtocol:
 		return validateWalletPaymentOutput(keyDeriver, output, txOutput)
-	case "basket insertion":
+	case wdk.BasketInsertionProtocol:
 		return validateBasketInsertionOutput()
 	default:
 		return fmt.Errorf("unexpected protocol: %s", output.Protocol)
