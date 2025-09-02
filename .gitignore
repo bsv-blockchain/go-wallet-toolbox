@@ -49,4 +49,5 @@ examples/examples-config.yaml
 
 # Manual tests
 manual_tests/*.sqlite
-manual_tests/manual_tests.log
+manual_tests/*.log
+manual_tests/*.sqlite-journal

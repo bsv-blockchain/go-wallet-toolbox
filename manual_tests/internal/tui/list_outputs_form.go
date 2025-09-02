@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -14,7 +15,7 @@ type ListOutputsForm struct {
 	manager  ManagerInterface
 	user     *fixtures.UserConfig
 	inputs   []textinput.Model
-	focused  int
+	focus    *FocusManager
 	errorMsg string
 }
 
@@ -23,7 +24,6 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 
 	inputs[0] = textinput.New()
 	inputs[0].Placeholder = ""
-	inputs[0].Focus()
 	inputs[0].CharLimit = 10
 	inputs[0].Width = 30
 	inputs[0].Prompt = "Limit: "
@@ -50,11 +50,41 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 	inputs[3].Prompt = "Include labels: "
 	inputs[3].SetValue("true")
 
-	return &ListOutputsForm{
+	form := &ListOutputsForm{
 		manager: manager,
 		user:    user,
 		inputs:  inputs,
-		focused: 0,
+		focus:   NewFocusManager(),
+	}
+
+	// Set up focus items: Back, all inputs, Continue
+	items := []FocusItem{
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
+	}
+	for i := range inputs {
+		items = append(items, FocusItem{
+			Type:  ElementInput,
+			Index: i,
+			Label: inputs[i].Prompt,
+		})
+	}
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue})
+
+	form.focus.SetItems(items)
+	form.focus.current = 1
+	form.updateInputFocus()
+
+	return form
+}
+
+func (m *ListOutputsForm) updateInputFocus() {
+	for i := range m.inputs {
+		m.inputs[i].Blur()
+	}
+
+	current := m.focus.CurrentItem()
+	if current.Type == ElementInput && current.Index < len(m.inputs) {
+		m.inputs[current.Index].Focus()
 	}
 }
 
@@ -67,60 +97,21 @@ func (m *ListOutputsForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			if m.continueIsFocused() {
-				limit := uint32(100)
-				offset := uint32(0)
-				basket := "default"
-				includeLabels := true
-
-				if v := strings.TrimSpace(m.inputs[0].Value()); v != "" {
-					if n, err := strconv.ParseUint(v, 10, 32); err == nil {
-						limit = uint32(n)
-					} else {
-						m.errorMsg = "Invalid limit"
-						return m, nil
-					}
-				}
-
-				if v := strings.TrimSpace(m.inputs[1].Value()); v != "" {
-					if n, err := strconv.ParseUint(v, 10, 32); err == nil {
-						offset = uint32(n)
-					} else {
-						m.errorMsg = "Invalid offset"
-						return m, nil
-					}
-				}
-
-				if v := strings.TrimSpace(m.inputs[2].Value()); v != "" {
-					basket = v
-				}
-
-				if v := strings.TrimSpace(strings.ToLower(m.inputs[3].Value())); v != "" {
-					if v == "true" || v == "t" || v == "y" || v == "yes" {
-						includeLabels = true
-					} else if v == "false" || v == "f" || v == "n" || v == "no" {
-						includeLabels = false
-					} else {
-						m.errorMsg = "Invalid include labels (true/false)"
-						return m, nil
-					}
-				}
-
-				waiting := NewListOutputsWaiting(m.manager, m.user, limit, offset, includeLabels, basket)
-				return waiting, waiting.Init()
+			current := m.focus.CurrentItem()
+			if current.Type == ElementButton {
+				return m.handleEnter()
 			} else {
-				m.nextInput()
+				m.focus.Next()
+				m.updateInputFocus()
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case tea.KeyShiftTab, tea.KeyCtrlP:
-			m.prevInput()
-		case tea.KeyTab, tea.KeyCtrlN:
-			m.nextInput()
-		case tea.KeyDown:
-			m.nextInput()
-		case tea.KeyUp:
-			m.prevInput()
+		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
+			m.focus.Previous()
+			m.updateInputFocus()
+		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
+			m.focus.Next()
+			m.updateInputFocus()
 		}
 	}
 
@@ -132,79 +123,145 @@ func (m *ListOutputsForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *ListOutputsForm) handleEnter() (tea.Model, tea.Cmd) {
+	current := m.focus.CurrentItem()
+	if current.Type == ElementButton {
+		switch current.Index {
+		case ButtonBack:
+			selectAction := NewSelectAction(m.manager, m.user)
+			return selectAction, selectAction.Init()
+		case ButtonContinue:
+			return m.processContinue()
+		}
+	}
+	return m, nil
+}
+
+func (m *ListOutputsForm) processContinue() (tea.Model, tea.Cmd) {
+	config, err := m.validateAndParseInputs()
+	if err != nil {
+		m.errorMsg = err.Error()
+		return m, nil
+	}
+
+	waiting := NewListOutputsWaiting(m.manager, m.user, config.limit, config.offset, config.includeLabels, config.basket)
+	return waiting, waiting.Init()
+}
+
+type outputsConfig struct {
+	limit         uint32
+	offset        uint32
+	basket        string
+	includeLabels bool
+}
+
+func (m *ListOutputsForm) validateAndParseInputs() (*outputsConfig, error) {
+	config := &outputsConfig{
+		limit:         100,
+		offset:        0,
+		basket:        "default",
+		includeLabels: true,
+	}
+
+	if err := m.parseLimit(config); err != nil {
+		return nil, err
+	}
+
+	if err := m.parseOffset(config); err != nil {
+		return nil, err
+	}
+
+	m.parseBasket(config)
+
+	if err := m.parseIncludeLabels(config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+func (m *ListOutputsForm) parseLimit(config *outputsConfig) error {
+	v := strings.TrimSpace(m.inputs[0].Value())
+	if v == "" {
+		return nil // Use default
+	}
+
+	n, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		return fmt.Errorf("Invalid limit")
+	}
+
+	config.limit = uint32(n)
+	return nil
+}
+
+func (m *ListOutputsForm) parseOffset(config *outputsConfig) error {
+	v := strings.TrimSpace(m.inputs[1].Value())
+	if v == "" {
+		return nil // Use default
+	}
+
+	n, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		return fmt.Errorf("Invalid offset")
+	}
+
+	config.offset = uint32(n)
+	return nil
+}
+
+func (m *ListOutputsForm) parseBasket(config *outputsConfig) {
+	v := strings.TrimSpace(m.inputs[2].Value())
+	if v != "" {
+		config.basket = v
+	}
+}
+
+func (m *ListOutputsForm) parseIncludeLabels(config *outputsConfig) error {
+	v := strings.TrimSpace(strings.ToLower(m.inputs[3].Value()))
+	if v == "" {
+		return nil
+	}
+
+	switch v {
+	case "true", "t", "y", "yes":
+		config.includeLabels = true
+	case "false", "f", "n", "no":
+		config.includeLabels = false
+	default:
+		return fmt.Errorf("Invalid include labels (true/false)")
+	}
+
+	return nil
+}
+
 func (m *ListOutputsForm) View() string {
 	var b strings.Builder
 
-	// Input prompts include labels and defaults inline
+	b.WriteString("Configure output listing:\n")
 
+	// Back button
+	backStyle := &fixtures.BlurredButton
+	if m.focus.IsButtonFocused(ButtonBack) {
+		backStyle = &fixtures.FocusedButton
+	}
+	b.WriteString(backStyle.Render(fixtures.ButtonBack) + "\n")
+
+	// Input fields
 	for i := range m.inputs {
-		b.WriteString(m.inputs[i].View())
-		if i < len(m.inputs)-1 {
-			b.WriteRune('\n')
-		}
+		b.WriteString(m.inputs[i].View() + "\n")
 	}
 
-	continueButton := &BlurredButton
-	if m.continueIsFocused() {
-		continueButton = &FocusedButton
+	// Continue button
+	continueStyle := &fixtures.BlurredButton
+	if m.focus.IsButtonFocused(ButtonContinue) {
+		continueStyle = &fixtures.FocusedButton
 	}
-	b.WriteString("\n\n" + continueButton.Render("Continue"))
+	b.WriteString(continueStyle.Render(fixtures.ButtonContinue))
 
 	if m.errorMsg != "" {
 		b.WriteString("\n\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.errorMsg))
 	}
 
 	return b.String()
-}
-
-func (m *ListOutputsForm) nextInput() {
-	currentFocus := -1
-	for i, input := range m.inputs {
-		if input.Focused() {
-			currentFocus = i
-			break
-		}
-	}
-
-	if currentFocus != -1 {
-		m.inputs[currentFocus].Blur()
-	}
-
-	nextFocus := currentFocus + 1
-	if nextFocus > len(m.inputs) {
-		nextFocus = 0
-	}
-
-	if nextFocus < len(m.inputs) {
-		m.inputs[nextFocus].Focus()
-	}
-	m.focused = nextFocus
-}
-
-func (m *ListOutputsForm) prevInput() {
-	currentFocus := -1
-	for i, input := range m.inputs {
-		if input.Focused() {
-			currentFocus = i
-			break
-		}
-	}
-
-	if currentFocus != -1 {
-		m.inputs[currentFocus].Blur()
-	}
-
-	nextFocus := currentFocus - 1
-	if nextFocus < 0 {
-		nextFocus = len(m.inputs)
-	}
-
-	if nextFocus < len(m.inputs) {
-		m.inputs[nextFocus].Focus()
-	}
-	m.focused = nextFocus
-}
-
-func (m *ListOutputsForm) continueIsFocused() bool {
-	return m.focused == len(m.inputs)
 }

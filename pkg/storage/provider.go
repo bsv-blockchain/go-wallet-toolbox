@@ -8,7 +8,6 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -526,28 +525,6 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 	}
 
 	return result, nil
-}
-
-// FindUserTransactionByReference retrieves a user transaction by userID and its reference.
-// NOTE: It returns nil if the transaction is not found.
-func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error) {
-	txEntity, err := p.repo.Transactions.FindTransactionByReference(ctx, userID, reference)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by ID: %w", err)
-	}
-
-	return txEntity, nil
-}
-
-// FindUserTransactionByTxID retrieves a user transaction by userID and its transaction ID.
-// NOTE: It returns nil if the transaction is not found.
-func (p *Provider) FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*pkgentity.Transaction, error) {
-	txEntity, err := p.repo.Transactions.FindTransactionByUserIDAndTxID(ctx, userID, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by txid: %w", err)
-	}
-
-	return txEntity, nil
 }
 
 // GetBeefForTransaction retrieves beef data for a transaction by txID, considering the given context and options.
