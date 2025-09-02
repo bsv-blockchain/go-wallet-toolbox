@@ -26,8 +26,26 @@ type RestyClientFactory struct {
 }
 
 func (r *RestyClientFactory) New() *resty.Client {
-	t := r.base.GetClient().Transport
-	return resty.New().SetTransport(t)
+	base := r.base
+	clone := resty.New()
+	clone.SetTransport(base.GetClient().Transport)
+
+	clone.SetDebug(base.Debug)
+	clone.SetDisableWarn(base.DisableWarn)
+
+	clone.SetRetryCount(base.RetryCount)
+	clone.SetRetryWaitTime(base.RetryWaitTime)
+	clone.SetRetryMaxWaitTime(base.RetryMaxWaitTime)
+	clone.SetRetryAfter(base.RetryAfter)
+	clone.SetRetryResetReaders(base.RetryResetReaders)
+	for _, cond := range base.RetryConditions {
+		clone.AddRetryCondition(cond)
+	}
+	for _, hook := range base.RetryHooks {
+		clone.AddRetryHook(hook)
+	}
+
+	return clone
 }
 
 func NewRestyClientFactoryWithBase(base *resty.Client) *RestyClientFactory {
