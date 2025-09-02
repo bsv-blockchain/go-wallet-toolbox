@@ -49,7 +49,7 @@ func MintPushDropToken(
 				LockingScript:      lockingScript.Bytes(),
 				Satoshis:           satoshis,
 				OutputDescription:  label,
-				Tags:               []string{"relinquish"},
+				Tags:               []string{"mint"},
 				CustomInstructions: pushDropCustomInstructions(keyID).JSON(),
 			},
 		},

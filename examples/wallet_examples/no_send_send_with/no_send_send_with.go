@@ -20,6 +20,9 @@ const (
 
 var rand = randomizer.NewTestRandomizer()
 
+// This example shows how to construct multiple transactions without broadcasting them immediately (NoSend),
+// chain their internal change across steps (NoSendChange), and then broadcast them together in a single batch using SendWith.
+// The demo uses simple PushDrop "tokens" to make the flow concrete.
 func main() {
 	show.ProcessStart("NoSend and SendWith Example based on PushDrop Tokens")
 	ctx := context.Background()
