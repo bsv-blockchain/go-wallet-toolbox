@@ -17,8 +17,9 @@ type User struct {
 
 // UserReadSpecification defines the criteria for reading users.
 type UserReadSpecification struct {
-	ID          *int
-	IdentityKey *Comparable[string]
+	ID            *int
+	IdentityKey   *Comparable[string]
+	ActiveStorage *Comparable[string]
 }
 
 // UserUpdateSpecification defines the criteria for updating users.
@@ -26,7 +27,6 @@ type UserUpdateSpecification struct {
 	ID            int
 	IdentityKey   *string
 	ActiveStorage *string
-	UpdatedAt     *time.Time
 }
 
 // ToWDK converts the User entity to a WDK TableUser.

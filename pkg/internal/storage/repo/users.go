@@ -61,7 +61,7 @@ func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage strin
 	return mapUserModelToEntity(&user), nil
 }
 
-func (u *Users) UpdateUserByValues(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error {
+func (u *Users) UpdateUserForSync(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error {
 	err := u.db.WithContext(ctx).
 		Model(&models.User{}).
 		Scopes(scopes.UserID(userID)).
@@ -92,7 +92,6 @@ func (u *Users) AddUser(ctx context.Context, user *entity.User) error {
 	}
 
 	model := &models.User{
-		UserID:        user.ID,
 		IdentityKey:   user.IdentityKey,
 		ActiveStorage: user.ActiveStorage,
 	}
@@ -109,10 +108,6 @@ func (u *Users) UpdateUser(ctx context.Context, spec *entity.UserUpdateSpecifica
 	}
 	if spec.IdentityKey != nil {
 		updates[table.IdentityKey.ColumnName().String()] = *spec.IdentityKey
-	}
-
-	if spec.UpdatedAt != nil {
-		updates[table.UpdatedAt.ColumnName().String()] = *spec.UpdatedAt
 	}
 
 	if len(updates) == 0 {
@@ -167,6 +162,9 @@ func (u *Users) conditionsBySpec(spec *entity.UserReadSpecification) []gen.Condi
 	var conditions []gen.Condition
 	if spec.IdentityKey != nil {
 		conditions = append(conditions, cmpCondition(table.IdentityKey, spec.IdentityKey))
+	}
+	if spec.ActiveStorage != nil {
+		conditions = append(conditions, cmpCondition(table.ActiveStorage, spec.ActiveStorage))
 	}
 
 	return conditions

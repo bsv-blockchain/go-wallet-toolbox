@@ -29,6 +29,7 @@ type UserReader interface {
 
 	ID(id int) UserReadOperations
 	IdentityKey() StringCondition[UserReader]
+	ActiveStorage() StringCondition[UserReader]
 	Since(value time.Time, column entity.SinceField) UserReader
 	Paged(limit, offset int, desc bool) UserReader
 }
@@ -101,6 +102,15 @@ func (u *user) IdentityKey() StringCondition[UserReader] {
 		parent: u,
 		conditionSetter: func(spec *entity.Comparable[string]) {
 			u.spec.IdentityKey = spec
+		},
+	}
+}
+
+func (u *user) ActiveStorage() StringCondition[UserReader] {
+	return &stringCondition[UserReader]{
+		parent: u,
+		conditionSetter: func(spec *entity.Comparable[string]) {
+			u.spec.ActiveStorage = spec
 		},
 	}
 }

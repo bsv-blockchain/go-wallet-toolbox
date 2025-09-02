@@ -146,7 +146,7 @@ func (p *ChunkProcessor) mergeUser() error {
 		return nil // No update needed
 	}
 
-	err := p.repo.UpdateUserByValues(p.ctx, p.user.ID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
+	err := p.repo.UpdateUserForSync(p.ctx, p.user.ID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update user %d: %w", p.chunk.User.UserID, err)
 	}

@@ -12,7 +12,7 @@ import (
 
 type Repository interface {
 	FindUser(ctx context.Context, identityKey string) (*pkgentity.User, error)
-	UpdateUserByValues(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error
+	UpdateUserForSync(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error
 
 	FindSyncState(ctx context.Context, userID int, storageIdentityKey string) (*entity.SyncState, error)
 	CreateSyncState(ctx context.Context, syncState *entity.SyncState) (*entity.SyncState, error)
