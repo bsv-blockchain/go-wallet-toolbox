@@ -21,5 +21,10 @@ func NewSelectWallet(manager ManagerInterface) tea.Model {
 		return actionSelector, actionSelector.Init()
 	}
 
-	return NewItemSelector(items, "Select wallet:", onSelect)
+	onBack := func() (tea.Model, tea.Cmd) {
+		storageSelector := NewSelectStorage(manager)
+		return storageSelector, storageSelector.Init()
+	}
+
+	return NewItemSelectorWithBack(items, "Select wallet:", onSelect, onBack)
 }
