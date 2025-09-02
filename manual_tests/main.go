@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal"
@@ -37,7 +40,11 @@ func main() {
 }
 
 func setupSlog() (cleanup func()) {
-	const logFilePath = "manual_tests.log"
+	startTime := time.Now().Format("2006-01-02_15-04-05")
+	var logFilePath = "manual_tests_" + startTime + ".log"
+
+	cleanupOldLogs("manual_tests_", 3)
+
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(fmt.Sprintf("failed to open log file: %v", err))
@@ -57,4 +64,47 @@ func setupSlog() (cleanup func()) {
 		logFile.Close()
 	}
 	return
+}
+
+func cleanupOldLogs(prefix string, maxFiles int) {
+	files, err := filepath.Glob(prefix + "*.log")
+	if err != nil {
+		slog.Error("Failed to list log files", "error", err)
+		return
+	}
+
+	if len(files) < maxFiles {
+		return
+	}
+
+	// Extract timestamps from filenames and sort
+	type logFileInfo struct {
+		path      string
+		timestamp string
+	}
+
+	var fileInfos []logFileInfo
+	for _, file := range files {
+		filename := filepath.Base(file)
+		if strings.HasPrefix(filename, prefix) {
+			timestamp := strings.TrimSuffix(strings.TrimPrefix(filename, prefix), ".log")
+			fileInfos = append(fileInfos, logFileInfo{path: file, timestamp: timestamp})
+		}
+	}
+
+	// Sort by timestamp (oldest first)
+	sort.Slice(fileInfos, func(i, j int) bool {
+		return fileInfos[i].timestamp < fileInfos[j].timestamp
+	})
+
+	// Remove oldest files
+	filesToRemove := len(fileInfos) - maxFiles + 1
+	for i := 0; i < filesToRemove; i++ {
+		err := os.Remove(fileInfos[i].path)
+		if err != nil {
+			slog.Error("Failed to remove old log file", "file", fileInfos[i].path, "error", err)
+		} else {
+			slog.Info("Removed old log file", "file", fileInfos[i].path)
+		}
+	}
 }

@@ -134,6 +134,7 @@ func (b *bhsFixture) IsUpAndRunning() BHSFixture {
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
 			"header":    b.longestChainTip,
 			"height":    b.longestChainTip.Height,
+			"hash":      b.longestChainTip.Hash,
 			"state":     "ACTIVE",
 			"chainWork": 0,
 		}),

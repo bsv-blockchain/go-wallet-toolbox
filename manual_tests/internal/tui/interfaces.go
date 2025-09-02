@@ -9,6 +9,7 @@ import (
 )
 
 type ManagerInterface interface {
+	SelectNetwork(network defs.BSVNetwork)
 	SelectStorageType(storageType fixtures.StorageType) error
 	Panic(err error, msg string)
 	Ctx() context.Context

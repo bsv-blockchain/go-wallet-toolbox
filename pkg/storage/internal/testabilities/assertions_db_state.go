@@ -10,7 +10,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -22,8 +21,7 @@ import (
 
 type StorageReader interface {
 	KnownTxEntity() crud.KnownTx
-	FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
-	FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
+	TransactionEntity() crud.Transaction
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
@@ -287,14 +285,18 @@ func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) 
 	return d
 }
 
-func (d *dbStateAssertion) getUserTransactionByReference(user testusers.User, reference string) *entity.Transaction {
+func (d *dbStateAssertion) getUserTransactionByReference(user testusers.User, reference string) *pkgentity.Transaction {
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
-	tx, err := d.storage.FindUserTransactionByReference(d.Context(), userID, reference) // UserID is not used here, so we pass 0
-	require.NoError(d.TB, err)
-	require.NotNil(d.TB, tx)
+	txs, err := d.storage.TransactionEntity().Read().
+		UserID().Equals(userID).
+		Reference().Equals(reference).
+		Find(d.Context())
+	require.NoError(d, err)
+	require.Len(d, txs, 1)
 
+	tx := txs[0]
 	assert.Equal(d, reference, tx.Reference, "Expected user transaction to have the same Reference as the one requested")
 
 	return tx
@@ -335,10 +337,14 @@ func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID st
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
-	tx, err := d.storage.FindUserTransactionByTxID(d.Context(), userID, txID)
-	require.NoError(d.TB, err)
-	require.NotNil(d.TB, tx)
+	txs, err := d.storage.TransactionEntity().Read().
+		UserID().Equals(userID).
+		TxID().Equals(txID).
+		Find(d.Context())
+	require.NoError(d, err)
+	require.Len(d, txs, 1)
 
+	tx := txs[0]
 	assert.Equal(d, txID, *tx.TxID, "Expected user transaction to have the same TxID as the one requested")
 
 	return &userTransactionAssertion{
@@ -349,7 +355,7 @@ func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID st
 
 type userTransactionAssertion struct {
 	testing.TB
-	transaction *entity.Transaction
+	transaction *pkgentity.Transaction
 }
 
 func (d *userTransactionAssertion) WithStatus(status wdk.TxStatus) UserTransactionAssertion {

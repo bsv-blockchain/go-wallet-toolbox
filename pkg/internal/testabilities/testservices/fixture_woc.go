@@ -25,6 +25,7 @@ type WhatsOnChainFixture interface {
 	OnTipBlockHeaderWillRespondWithEmptyList()
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
+	WillRespondWithMerkleRoot(root string)
 	WillRespondWithMerklePath(status int, txID string, responseBody string)
 	WillRespondWithBlockHeader(status int, blockHash string, responseBody string)
 	WillRespondWithBlockHeaderByHeight(status int, height uint32, merkleRoot string)
@@ -53,6 +54,23 @@ type wocFixture struct {
 	getBeefFixture *minedTransactionFixture
 	transport      *httpmock.MockTransport
 	network        defs.BSVNetwork
+}
+
+func (f *wocFixture) WillRespondWithMerkleRoot(root string) {
+	f.TB.Helper()
+	f.transport.RegisterRegexpResponder(
+		http.MethodGet,
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/.*/header`, f.network)),
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, blockHeaderDTO{
+			Version:           TestBlockVersion,
+			PreviousBlockHash: TestBlockPreviousBlockHash,
+			MerkleRoot:        root,
+			Time:              uint32(TestBlockTime),
+			Bits:              TestBlockBits,
+			Nonce:             TestBlockNonce,
+			Hash:              TestBlockHash,
+		}),
+	)
 }
 
 func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
