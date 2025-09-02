@@ -59,6 +59,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
+	// TODO(knownTxIDs): assert that InputBeef contains transaction from faucet (all elements are RawTx (or RawTx+BUMP) format)
 	assert.Equal(t, 24, len(result.DerivationPrefix))
 	assert.Equal(t, 16, len(result.Reference))
 	assert.Equal(t, args.Version, result.Version)
@@ -97,6 +98,37 @@ func TestCreateActionHappyPath(t *testing.T) {
 	require.NotEmpty(t, input.DerivationSuffix)
 
 	// TODO: Test DB state: but after we make actual getter methods, like ListActions
+}
+
+func TestCreateActionWithKnownTxIDs(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	faucetTx, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Options.KnownTxids = []primitives.TXIDHexString{
+			primitives.TXIDHexString(faucetTx.ID().String()),
+		}
+	})
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	// TODO(knownTxIDs): assert that InputBeef contains transaction from faucet and it is in TxIDOnly format
+	_ = result
+
 }
 
 func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {

@@ -91,7 +91,13 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 }
 
 func (w *walletBuilder) storage() (storage wdk.WalletStorageProvider, cleanup func()) {
+	// TODO(knownTxIDs): add support for custom file in sqlite storage (so Bob can have different storage then Alice)
+	// 	You can use this:
+	// 		customStorageFixture, cleanupFromCustomStorage := testabilities.GivenCustomStorage(nil, user.IdentityKey, user.IdentityKey)
+	// 		customStorageFixture.Provider().GORM()
+
 	sqliteStorage := w.givenStorage.Provider().GORM()
+
 	switch w.storageType {
 	case StorageTypeSQLite:
 		return sqliteStorage, nil

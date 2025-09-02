@@ -50,6 +50,7 @@ type CreateActionParams struct {
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
+	// TODO(knownTxIDs): add known tx ids
 	return CreateActionParams{
 		Version:                  args.Version,
 		LockTime:                 args.LockTime,
@@ -319,9 +320,10 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Outputs:           newOutputs,
 		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
 		Labels:            params.Labels,
-		InputBeef:         inputBeef,
-		Commission:        c.createCommissionEntity(userID, commOut),
-		UTXOStatus:        wdk.UTXOStatusUnknown,
+		// TODO(knownTxIDs): check in typescript what input beef is stored in the database
+		InputBeef:  inputBeef,
+		Commission: c.createCommissionEntity(userID, commOut),
+		UTXOStatus: wdk.UTXOStatusUnknown,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -344,6 +346,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
+	// TODO(knownTxIDs): merge funding.AllocatedUTXOs into processedInputs.Beef
+	//   - if params.knownTxIDs is not empty, then each funding.AllocatedUTXO that is in params.knownTxIDs should be added to processedInputs.Beef as TxIDOnly
+	//   - otherwise we need to build and merge whole beef for the allocated UTXO
+
+	// TODO(knownTxIDs): check if we could use here storage.GetBeef method (and extend it to also support KnownTxIDs)
+
 	c.logger.DebugContext(ctx, "CreateAction process completed",
 		logging.UserID(userID),
 		logging.Reference(reference),
@@ -355,12 +363,13 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	)
 
 	return &wdk.StorageCreateActionResult{
-		Reference:               reference,
-		Version:                 params.Version,
-		LockTime:                params.LockTime,
-		DerivationPrefix:        derivationPrefix,
-		Outputs:                 c.resultOutputs(newOutputs),
-		Inputs:                  resultInputs,
+		Reference:        reference,
+		Version:          params.Version,
+		LockTime:         params.LockTime,
+		DerivationPrefix: derivationPrefix,
+		Outputs:          c.resultOutputs(newOutputs),
+		Inputs:           resultInputs,
+		// TODO(knownTxIDs): serialize processedInputs.Beef again, after merge with funding.AllocatedUTXOs
 		InputBeef:               inputBeef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil

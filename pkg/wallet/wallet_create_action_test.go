@@ -318,6 +318,42 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithSpendable(false).
 			WithBasket("")
 	})
+
+	s.Run("alice sends 1000 satoshi to bob", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// and:
+		// TODO(knownTxIDs): add opts to create storage with own file (clean/dedicated sqlite database)
+		bobsWallet := given.BobWalletWithStorage(s.StorageType)
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+
+		// and:
+		bobArgs := sdk.CreateActionArgs{
+			Description: "test transaction",
+			InputBEEF:   result.Tx,
+			// TODO(knownTxIDs): fill rest of required args.
+			//   suggestion: check in https://github.com/4chain-ag/wallet-toolbox-examples/blob/c73be39b43e340477f6793de5c750605596436ab/src/brc29.ts#L294
+		}
+		bobResult, err := bobsWallet.CreateAction(t.Context(), bobArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.NotEqual(t, bobResult.Txid, result.Txid)
+	})
 }
 
 func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
