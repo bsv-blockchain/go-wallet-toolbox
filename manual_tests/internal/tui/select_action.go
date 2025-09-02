@@ -8,16 +8,12 @@ import (
 )
 
 func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Model {
-	const backOption = "<- Back"
 	actionsTypes := []fixtures.ActionType{
 		fixtures.ActionInternalize,
 		fixtures.ActionBalance,
 		fixtures.ActionListOutputs,
-		fixtures.ActionSendData,
-		fixtures.ActionSendDataPeriodically,
-		fixtures.ActionSendP2PKH,
-		fixtures.ActionSendP2PKHPeriodically,
-		backOption,
+		fixtures.ActionSend,
+		fixtures.ButtonBack,
 	}
 
 	title := fmt.Sprintf("Select action for %s:", user.Name)
@@ -33,19 +29,10 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		case fixtures.ActionListOutputs:
 			listOutputsForm := NewListOutputsForm(manager, user)
 			return listOutputsForm, listOutputsForm.Init()
-		case fixtures.ActionSendData:
-			sendDataModel := NewSendDataForm(manager, user)
-			return sendDataModel, sendDataModel.Init()
-		case fixtures.ActionSendDataPeriodically:
-			sendDataModel := NewSendDataPeriodicallyForm(manager, user)
-			return sendDataModel, sendDataModel.Init()
-		case fixtures.ActionSendP2PKH:
-			p2pkhForm := NewSendP2pkhForm(manager, user)
-			return p2pkhForm, p2pkhForm.Init()
-		case fixtures.ActionSendP2PKHPeriodically:
-			p2pkhPeriodicForm := NewSendP2pkhPeriodicallyForm(manager, user)
-			return p2pkhPeriodicForm, p2pkhPeriodicForm.Init()
-		case backOption:
+		case fixtures.ActionSend:
+			sendForm := NewSendForm(manager, user)
+			return sendForm, sendForm.Init()
+		case fixtures.ButtonBack:
 			// Return to wallet selection view when Back is selected
 			selectWalletModel := NewSelectWallet(manager)
 			return selectWalletModel, selectWalletModel.Init()

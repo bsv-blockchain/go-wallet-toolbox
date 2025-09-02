@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -99,7 +100,7 @@ func (m *SummaryView) View() string {
 	continueButton := ""
 	if m.showContinue {
 		continueButton = to.IfThen(m.continueIsFocused, navStyleFocused).ElseThen(navStyle).
-			Render("Continue ->")
+			Render(fixtures.ButtonContinue)
 	}
 
 	return summaryStyle.Render(b.String()) + "\n" + continueButton

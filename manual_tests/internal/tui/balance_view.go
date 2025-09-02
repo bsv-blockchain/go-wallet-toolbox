@@ -139,9 +139,9 @@ func (m balanceView) View() string {
 
 	var buttons string
 	if m.focus {
-		buttons = navStyleFocused.Render("Back")
+		buttons = navStyleFocused.Render(fixtures.ButtonBack)
 	} else {
-		buttons = navStyle.Render("Back")
+		buttons = navStyle.Render(fixtures.ButtonBack)
 	}
 
 	if statsSection != "" {
