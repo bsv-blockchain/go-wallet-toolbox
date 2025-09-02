@@ -29,7 +29,7 @@ type TransactionReader interface {
 	TransactionReadOperations
 
 	ID(id uint) TransactionReadOperations
-	UserID(userID int) NumericCondition[TransactionReader, int]
+	UserID() NumericCondition[TransactionReader, int]
 	Status() StringEnumCondition[TransactionReader, wdk.TxStatus]
 	Reference() StringCondition[TransactionReader]
 	IsOutgoing() BoolCondition[TransactionReader]
@@ -107,7 +107,7 @@ func (t *transaction) ID(id uint) TransactionReadOperations {
 	return t
 }
 
-func (t *transaction) UserID(userID int) NumericCondition[TransactionReader, int] {
+func (t *transaction) UserID() NumericCondition[TransactionReader, int] {
 	return &numericCondition[TransactionReader, int]{
 		parent: t,
 		conditionSetter: func(c *entity.Comparable[int]) {
