@@ -57,13 +57,13 @@ server_private_key: 2b32d442b25d6e7447a1f9ca41a2a15de5004498dc4ffc43b7b009a96724
 server_url: ""
 ```
 
-**Note**: When auto-generated, `server_url` is set to an empty string. For local development, this will automatically connect to a local server. For remote usage, you'll need to set the appropriate server URL.
+**Note**: When auto-generated, `server_url` is set to an empty string. For local development, this will automatically initialize a local storage `storage.sqlite` file. For remote usage, you'll need to set the appropriate server URL.
 
 ### Remote Storage Setup
 To use a remote wallet-toolbox server instead of local storage, update the `server_url` in your `examples-config.yaml`:
 
 ```yaml
-server_url: https://your-remote-server.com:8100
+server_url: https://your-remote-server.com
 ```
 
 ## Server Setup (Local Development)
