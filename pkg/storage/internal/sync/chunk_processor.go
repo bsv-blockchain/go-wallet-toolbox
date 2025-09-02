@@ -271,7 +271,7 @@ func (p *ChunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 		return fmt.Errorf("chunk transaction user ID %d does not match chunk user ID %d", chunkTransaction.UserID, p.chunk.User.UserID)
 	}
 
-	isNew, transactionID, err := p.repo.UpsertTransactionForSync(p.ctx, &entity.Transaction{
+	isNew, transactionID, err := p.repo.UpsertTransactionForSync(p.ctx, &pkgentity.Transaction{
 		CreatedAt:   chunkTransaction.CreatedAt,
 		UpdatedAt:   chunkTransaction.UpdatedAt,
 		UserID:      p.user.ID,

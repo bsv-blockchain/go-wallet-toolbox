@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func MockValidMerklePath(t testing.TB, txID string) sdk.MerklePath {
+func MockValidMerklePath(t testing.TB, txID string, blockHeight uint32) sdk.MerklePath {
 	t.Helper()
 
 	hash, err := chainhash.NewHashFromHex(txID)
@@ -19,7 +19,7 @@ func MockValidMerklePath(t testing.TB, txID string) sdk.MerklePath {
 	require.NoError(t, errHash)
 
 	return sdk.MerklePath{
-		BlockHeight: 2000,
+		BlockHeight: blockHeight,
 		Path: [][]*sdk.PathElement{
 			{
 				{

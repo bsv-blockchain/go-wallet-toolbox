@@ -24,19 +24,18 @@ type OutputRepo interface {
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
 	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error)
 	SaveOutputs(ctx context.Context, output []*entity.Output) error
-	MakeOutputsSpendableForTxID(ctx context.Context, txID string) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
 	ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error
 }
 
 type TransactionsRepo interface {
 	CreateTransaction(ctx context.Context, transaction *entity.NewTx) error
-	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error)
-	FindTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error)
+	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*pkgentity.Transaction, error)
+	FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error)
 	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
 	UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error
 	UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error
-	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*entity.Transaction, int64, error)
+	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*pkgentity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
@@ -71,4 +70,5 @@ type CommissionRepo interface {
 
 type UTXORepo interface {
 	UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error
+	CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error
 }

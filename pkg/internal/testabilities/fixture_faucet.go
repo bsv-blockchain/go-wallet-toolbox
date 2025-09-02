@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"testing"
 
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -19,10 +22,7 @@ import (
 )
 
 const (
-	MockReference        = "mock-reference"
-	MockDerivationPrefix = "mock-derivation-prefix"
-	MockDerivationSuffix = "mock-derivation-suffix"
-	TestBlockHash        = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
+	TestBlockHash = "0000000014209ae688e547a58db514ac75e3a10a81ac25b3d357fa92a8ce5128"
 )
 
 type faucetFixture struct {
@@ -40,14 +40,29 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		Purpose: "test-faucet-purpose",
 	}, opts...)
 
+	senderPriv, senderPub := sdk.AnyoneKey()
+
+	_, derivationPrefixBase64 := testhelper.DerivationByNumber(int64(f.index))
+	_, derivationSuffixBase64 := testhelper.DerivationByNumber(int64(f.index))
+
+	keyID := brc29.KeyID{
+		DerivationPrefix: derivationPrefixBase64,
+		DerivationSuffix: derivationSuffixBase64,
+	}
+
+	recipientPubKey := f.user.PubKey(f.t)
+
+	lockingScript, err := brc29.Lock(senderPriv, keyID, brc29.PubHex(recipientPubKey))
+	require.NoError(f.t, err, "Failed to create locking script for top up")
+
 	spec := txtestabilities.GivenTX().
 		WithInput(satoshi.MustAdd(satoshis, 1).MustUInt64()).
-		WithP2PKHOutput(satoshis.MustUInt64()).
+		WithOutputScript(satoshis.MustUInt64(), lockingScript).
 		WithOPReturn(fmt.Sprintf("faucet index %d", f.index))
 
 	txObj := spec.TX()
 	if options.Mined {
-		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String()))
+		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String(), 1000+uint32(f.index)))
 	}
 
 	beef, err := txObj.BEEF()
@@ -83,19 +98,20 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	}
 
 	output := &models.Output{
-		Vout:             0,
-		UserID:           f.user.ID,
-		Satoshis:         satoshis.Int64(),
-		Spendable:        true,
-		Change:           true,
-		ProvidedBy:       string(wdk.ProvidedByStorage),
-		Description:      "test-faucet-output",
-		Purpose:          options.Purpose,
-		Type:             string(wdk.OutputTypeP2PKH),
-		DerivationPrefix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationPrefix, f.index)),
-		DerivationSuffix: to.Ptr(fmt.Sprintf("%s/%d", MockDerivationSuffix, f.index)),
-		LockingScript:    spec.TX().Outputs[0].LockingScript.Bytes(),
-		BasketName:       &f.basketName,
+		Vout:              0,
+		UserID:            f.user.ID,
+		Satoshis:          satoshis.Int64(),
+		Spendable:         true,
+		Change:            true,
+		ProvidedBy:        string(wdk.ProvidedByStorage),
+		Description:       "test-faucet-output",
+		Purpose:           options.Purpose,
+		Type:              string(wdk.OutputTypeP2PKH),
+		DerivationPrefix:  to.Ptr(derivationPrefixBase64),
+		DerivationSuffix:  to.Ptr(derivationSuffixBase64),
+		LockingScript:     spec.TX().Outputs[0].LockingScript.Bytes(),
+		BasketName:        &f.basketName,
+		SenderIdentityKey: to.Ptr(senderPub.ToDERHex()),
 
 		Transaction: transaction,
 

@@ -222,7 +222,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 0)
+	require.Len(t, actualResult.Outputs, 31)
 
 	// and:
 	beef := testutils.BEEFFromHex(t, *actualResult.BEEF)

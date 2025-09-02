@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -26,14 +27,15 @@ type OutputToInternalize struct {
 }
 
 type internalize struct {
-	logger       *slog.Logger
-	txRepo       TransactionsRepo
-	basketRepo   BasketRepo
-	knownTxRepo  KnownTxRepo
-	outputRepo   OutputRepo
-	random       wdk.Randomizer
-	chaintracker chaintracker.ChainTracker
-	beefVerifier wdk.BeefVerifier
+	logger             *slog.Logger
+	txRepo             TransactionsRepo
+	basketRepo         BasketRepo
+	knownTxRepo        KnownTxRepo
+	outputRepo         OutputRepo
+	random             wdk.Randomizer
+	chaintracker       chaintracker.ChainTracker
+	beefVerifier       wdk.BeefVerifier
+	blockHeaderService wdk.BlockHeaderLoader
 }
 
 func newInternalizeAction(
@@ -45,17 +47,19 @@ func newInternalizeAction(
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
 	beefVerifier wdk.BeefVerifier,
+	blockHeader wdk.BlockHeaderLoader,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:       logger,
-		txRepo:       txRepo,
-		basketRepo:   basketRepo,
-		knownTxRepo:  knownTxRepo,
-		outputRepo:   outputRepo,
-		random:       random,
-		chaintracker: chaintracker,
-		beefVerifier: beefVerifier,
+		logger:             logger,
+		txRepo:             txRepo,
+		basketRepo:         basketRepo,
+		knownTxRepo:        knownTxRepo,
+		outputRepo:         outputRepo,
+		random:             random,
+		chaintracker:       chaintracker,
+		beefVerifier:       beefVerifier,
+		blockHeaderService: blockHeader,
 	}
 }
 
@@ -191,6 +195,16 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		)
 	}
 
+	if tx.MerklePath != nil {
+		if err := in.updateKnownTxAsMined(ctx, userID, txID, tx); err != nil {
+			in.logger.Warn("updateKnownTxAsMined was not completed successfully",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+
 	in.logger.DebugContext(ctx, "InternalizeAction completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
@@ -208,11 +222,42 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}, nil
 }
 
+func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txID string, tx *transaction.Transaction) error {
+	block, err := in.blockHeaderService.GetChainHeaderByHeight(ctx, tx.MerklePath.BlockHeight)
+	if err != nil {
+		return fmt.Errorf("failed to get chain header by height: %w", err)
+	}
+
+	root, err := tx.MerklePath.ComputeRootHex(to.Ptr(txID))
+	if err != nil {
+		return fmt.Errorf("failed to compute root hex: %w", err)
+	}
+
+	err = in.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+		TxID:        txID,
+		BlockHeight: tx.MerklePath.BlockHeight,
+		MerklePath:  tx.MerklePath.Bytes(),
+		BlockHash:   block.Hash,
+		MerkleRoot:  root,
+		Notes:       []history.Builder{history.NewBuilder().GetMerklePathSuccess("internalize-storage")},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update known tx as mined: %w", err)
+	}
+
+	in.logger.DebugContext(ctx, "UpdateKnownTxAsMined completed successfully",
+		logging.UserID(userID),
+		slog.String("txID", txID),
+	)
+
+	return nil
+}
+
 func convertStringLikeSlice[ResultType, ArgType ~string](input []ArgType) []ResultType {
 	return slices.Map(input, func(s ArgType) ResultType { return ResultType(s) })
 }
 
-func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *entity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
+func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgentity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
 	err := in.txRepo.AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
 	if err != nil {
 		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)

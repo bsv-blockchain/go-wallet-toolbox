@@ -16,6 +16,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	provider := given.Provider()
+	activeStorage := provider.GORM()
+	whatsOnChain := provider.WhatsOnChain()
+
+	// and:
+	tx := whatsOnChain.MinedTransaction().Tx()
+	txID := tx.TxID()
+
+	root, err := tx.MerklePath.ComputeRoot(txID)
+	require.Nil(t, err)
+	require.NotNil(t, root)
+
+	atomicBEEF, err := tx.AtomicBEEF(false)
+	require.Nil(t, err)
+	require.NotNil(t, atomicBEEF)
+
+	// and:
+	whatsOnChain.WillRespondWithMerkleRoot(root.String())
+
+	args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
+	args.Tx = atomicBEEF
+
+	// and:
+	expectedResult := &wdk.InternalizeActionResult{
+		Accepted: true,
+		IsMerge:  false,
+		TxID:     txID.String(),
+		Satoshis: 2324,
+	}
+
+	// when:
+	actualResult, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.Nil(t, err)
+	require.Equal(t, expectedResult, actualResult)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID.String()).WithBlockHash(to.Ptr(pkgtestabilities.TestBlockHash))
+}
+
 func TestInternalizeActionNilAuth(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
