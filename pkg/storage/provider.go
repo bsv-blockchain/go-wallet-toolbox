@@ -308,7 +308,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidInternalizeActionArgsWithServices(ctx, &args, p.services); err != nil {
+	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
 	}
 

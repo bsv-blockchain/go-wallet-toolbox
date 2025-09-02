@@ -1,4 +1,4 @@
-package actions
+package validate
 
 import (
 	"context"
@@ -57,20 +57,14 @@ func validateWalletPaymentOutput(keyDeriver *sdk.KeyDeriver, output wdk.Internal
 		DerivationSuffix: string(payment.DerivationSuffix),
 	}
 
-	if keyDeriver == nil {
-		return fmt.Errorf("wallet keyDeriver is not available")
+	address, err := brc29.AddressForSelf(brc29.PubHex(payment.SenderIdentityKey), keyID, keyDeriver)
+	if err != nil {
+		return fmt.Errorf("failed to create expected address: %w", err)
 	}
 
-	senderPubKey := brc29.PubHex(payment.SenderIdentityKey)
-
-	expectedAddress, err := brc29.AddressForSelf(senderPubKey, keyID, keyDeriver)
+	expectedLockScript, err := p2pkh.Lock(address)
 	if err != nil {
-		return fmt.Errorf("failed to generate expected BRC-29 address: %w", err)
-	}
-
-	expectedLockScript, err := p2pkh.Lock(expectedAddress)
-	if err != nil {
-		return fmt.Errorf("failed to create expected P2PKH locking script: %w", err)
+		return fmt.Errorf("failed to create expected locking script: %w", err)
 	}
 
 	if txOutput.LockingScript.String() != expectedLockScript.String() {

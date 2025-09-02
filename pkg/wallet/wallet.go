@@ -259,7 +259,7 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 		return nil, fmt.Errorf("invalid internalize action args: %w", err)
 	}
 
-	if err := actions.ValidateWalletInternalizeAction(ctx, w.keyDeriver, &wdkArgs); err != nil {
+	if err := validate.ValidateWalletInternalizeAction(ctx, w.keyDeriver, &wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid internalize action args: %w", err)
 	}
 
