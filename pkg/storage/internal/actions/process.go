@@ -11,6 +11,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -34,6 +35,7 @@ type process struct {
 	outputRepo            OutputRepo
 	knownTxRepo           KnownTxRepo
 	commissionRepo        CommissionRepo
+	utxoRepo              UTXORepo
 	services              wdk.Services
 	backgroundBroadcaster *service.BackgroundBroadcaster
 	randomizer            wdk.Randomizer
@@ -49,6 +51,7 @@ func newProcessAction(
 	outputRepo OutputRepo,
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
+	utxoRepo UTXORepo,
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
@@ -61,6 +64,7 @@ func newProcessAction(
 		outputRepo:     outputRepo,
 		knownTxRepo:    knownTxRepo,
 		commissionRepo: commissionRepo,
+		utxoRepo:       utxoRepo,
 		services:       services,
 		randomizer:     randomizer,
 		beefVerifier:   beefVerifier,
@@ -258,7 +262,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	return nil
 }
 
-func (p *process) validateStateOfTableTx(reference string, tableTx *entity.Transaction) error {
+func (p *process) validateStateOfTableTx(reference string, tableTx *pkgentity.Transaction) error {
 	if tableTx == nil {
 		return fmt.Errorf("transaction with reference (%s) not found in the database", reference)
 	}
@@ -377,11 +381,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				Status: currentStatus.SendWithResultStatus(),
 			})
 
-			logger.DebugContext(ctx, "Making outputs spendable",
+			logger.DebugContext(ctx, "Creating spendable UTXOs",
 				slog.String("txID", txID),
 			)
 
-			err = p.outputRepo.MakeOutputsSpendableForTxID(ctx, txID)
+			err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
 			}
@@ -605,7 +609,7 @@ func (p *process) updateSingleTx(
 	}
 
 	if spendable {
-		err = p.outputRepo.MakeOutputsSpendableForTxID(ctx, txID)
+		err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 		if err != nil {
 			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
 			return

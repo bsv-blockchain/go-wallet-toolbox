@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"sync"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -83,7 +83,7 @@ func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (a *abortAction) validateTx(ctx context.Context, txEntity *entity.Transaction) error {
+func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transaction) error {
 	if !txEntity.IsOutgoing {
 		return fmt.Errorf("%w: must be an outgoing transaction", wdk.ErrNotAbortableAction)
 	}

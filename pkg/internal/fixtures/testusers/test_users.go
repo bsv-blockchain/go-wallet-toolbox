@@ -41,7 +41,7 @@ func (u User) AuthID() wdk.AuthID {
 	}
 }
 
-func (u User) KeyDeriver(t *testing.T) *sdk.KeyDeriver {
+func (u User) KeyDeriver(t testing.TB) *sdk.KeyDeriver {
 	t.Helper()
 	key, err := ec.PrivateKeyFromHex(u.PrivKey)
 	require.NoError(t, err)

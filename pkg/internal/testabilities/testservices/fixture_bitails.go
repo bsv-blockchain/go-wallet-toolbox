@@ -275,6 +275,7 @@ func (b *bitailsFixture) WillRespondWithBlockByHeight() {
 			"bits":              TestBlockBits,
 			"nonce":             TestBlockNonce,
 			"merkleRoot":        TestBlockMerkleRoot,
+			"hash":              TestBlockHash,
 		}),
 	)
 }

@@ -19,3 +19,14 @@ type headerByHeightDTO struct {
 	NTx               int     `json:"nTx"`
 	NumTx             int     `json:"num_tx"`
 }
+
+type blockHeaderDTO struct {
+	Hash              string `json:"hash"`
+	Height            uint   `json:"height"`
+	Version           uint32 `json:"version"`
+	MerkleRoot        string `json:"merkleroot"`
+	Time              uint32 `json:"time"`
+	Nonce             uint32 `json:"nonce"`
+	Bits              string `json:"bits"`
+	PreviousBlockHash string `json:"previousblockhash"`
+}
