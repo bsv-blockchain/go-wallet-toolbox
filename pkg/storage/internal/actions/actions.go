@@ -44,6 +44,7 @@ func New(
 			repos.Commission,
 			randomizer,
 			services,
+			beefVerifier,
 		),
 		internalize: newInternalizeAction(
 			logger,

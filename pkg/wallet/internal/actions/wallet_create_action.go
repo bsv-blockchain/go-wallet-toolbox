@@ -13,15 +13,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-type WalletStorageCreateAction interface {
-	CreateAction(ctx context.Context, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)
-	ProcessAction(ctx context.Context, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error)
-}
-
 type CreateAction struct {
-	KeyDeriver *wallet.KeyDeriver
-	Storage    WalletStorageCreateAction
-	WalletOpts *wallet_opts.Flags
+	KeyDeriver              *wallet.KeyDeriver
+	Storage                 WalletStorageCreateAndProcessAction
+	WalletOpts              *wallet_opts.Flags
+	PendingSignActionsCache wdk.PendingSignActionsCache
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string
@@ -89,14 +85,19 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 }
 
 func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
-	// TODO: store createActionResult and args by reference in some "cache" or "map" to enable signAction reusing it
-	//  unfortunately there is no possibility to restore changes unlocking script from storage, because listAction and listOutputs doesn't return derivation pre/su-fixes
-	//  Consider storing only transaction and args by reference as this looks like enough data for process action
-
 	result, err := mapping.SignableTransactionResult(tx, a.wdkArgs, createActionResult)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build signable transaction: %w", err)
 	}
+
+	err = a.PendingSignActionsCache.Set(createActionResult.Reference, &wdk.PendingSignAction{
+		Tx:               *tx,
+		CreateActionArgs: a.wdkArgs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to cache pending sign action (reference: %s): %w", createActionResult.Reference, err)
+	}
+
 	return result, nil
 }
 

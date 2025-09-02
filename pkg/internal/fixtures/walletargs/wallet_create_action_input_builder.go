@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	testTx "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -16,6 +17,8 @@ import (
 type CreateActionInputSource interface {
 	InputBEEFBytes() []byte
 	CreateActionInput() sdk.CreateActionInput
+	MerklePath() *transaction.MerklePath
+	BlockHeight() uint32
 }
 
 type CreateActionInputBuilder interface {
@@ -30,6 +33,7 @@ func NewCreateActionInputBuilder(t testing.TB, user testusers.User) CreateAction
 		description: "self provided input from tests",
 		satoshis:    1,
 		user:        user,
+		blockHeight: 3000,
 	}
 }
 
@@ -38,6 +42,7 @@ type createActionInputBuilder struct {
 	user        testusers.User
 	description string
 	satoshis    uint64
+	blockHeight uint32
 }
 
 func (b *createActionInputBuilder) WithDescription(description string) CreateActionInputBuilder {
@@ -55,6 +60,15 @@ func (b *createActionInputBuilder) InputBEEFBytes() []byte {
 	beef, err := inputTx.BEEF()
 	require.NoError(b, err, "Input TX should serialize to BEEF, invalid test setup")
 	return beef
+}
+
+func (b *createActionInputBuilder) MerklePath() *transaction.MerklePath {
+	inputTx := b.createInputTx()
+	return inputTx.MerklePath
+}
+
+func (b *createActionInputBuilder) BlockHeight() uint32 {
+	return b.blockHeight
 }
 
 func (b *createActionInputBuilder) CreateActionInput() sdk.CreateActionInput {
@@ -86,5 +100,6 @@ func (b *createActionInputBuilder) createInputTx() *transaction.Transaction {
 	require.NoError(b, err, "invalid test setup, cannot create custom locking script")
 
 	inputTx := testTx.GivenTX().WithInput(b.satoshis+1).WithOutputScript(b.satoshis, lockingScript).TX()
+	inputTx.MerklePath = to.Ptr(testutils.MockValidMerklePath(b.TB, inputTx.TxID().String(), b.blockHeight))
 	return inputTx
 }

@@ -3,9 +3,11 @@ package wallet
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -20,12 +22,14 @@ var _ sdk.Interface = (*Wallet)(nil)
 
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
-	proto      *sdk.ProtoWallet
-	storage    wdk.WalletStorage
-	keyDeriver *sdk.KeyDeriver
-	flags      *wallet_opts.Flags
-	services   *services.WalletServices
-	chain      defs.BSVNetwork
+	proto                   *sdk.ProtoWallet
+	storage                 wdk.WalletStorage
+	keyDeriver              *sdk.KeyDeriver
+	flags                   *wallet_opts.Flags
+	services                *services.WalletServices
+	chain                   defs.BSVNetwork
+	pendingSignActionsCache wdk.PendingSignActionsCache
+	logger                  *slog.Logger
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -66,6 +70,20 @@ func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
 	}
 }
 
+func WithPendingSignActionsCache(cache wdk.PendingSignActionsCache) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.PendingSignActionsCache = cache
+	}
+}
+
+func WithLogger(logger *slog.Logger) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		if logger != nil {
+			opts.Logger = logger
+		}
+	}
+}
+
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
 // TODO: add support for optional parameters (like services, wallet storage manager, etc.) as it is in the Typescript version.
@@ -77,6 +95,23 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 
 	if activeStorage == nil {
 		return nil, fmt.Errorf("active storage must be provided")
+	}
+
+	options := to.OptionsWithDefault(wallet_opts.Opts{
+		Flags: wallet_opts.Flags{
+			IncludeAllSourceTransactions: true,
+			AutoKnownTxids:               false,
+			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
+		},
+		Logger:                  slog.Default(),
+		Services:                nil,
+		PendingSignActionsCache: nil,
+	}, opts...)
+
+	logger := logging.Child(options.Logger, "wallet")
+
+	if options.PendingSignActionsCache == nil {
+		options.PendingSignActionsCache = NewLocalPendingSignActionsCache(logger, wdk.DefaultPendingSignActionTTL)
 	}
 
 	keyDeriver, err := toKeyDeriver(keySource)
@@ -91,22 +126,15 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 
 	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
 
-	options := to.OptionsWithDefault(wallet_opts.Opts{
-		Flags: wallet_opts.Flags{
-			IncludeAllSourceTransactions: true,
-			AutoKnownTxids:               false,
-			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
-		},
-		Services: nil,
-	}, opts...)
-
 	return &Wallet{
-		proto:      proto,
-		storage:    storageManager,
-		keyDeriver: keyDeriver,
-		flags:      &options.Flags,
-		services:   options.Services,
-		chain:      chain,
+		proto:                   proto,
+		storage:                 storageManager,
+		keyDeriver:              keyDeriver,
+		flags:                   &options.Flags,
+		services:                options.Services,
+		chain:                   chain,
+		pendingSignActionsCache: options.PendingSignActionsCache,
+		logger:                  logger,
 	}, nil
 }
 
@@ -183,9 +211,10 @@ func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureAr
 // CreateAction creates a new Bitcoin transaction based on the provided inputs, outputs, labels, locks, and other options.
 func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
 	action := &actions.CreateAction{
-		KeyDeriver: w.keyDeriver,
-		Storage:    w.storage,
-		WalletOpts: w.flags,
+		KeyDeriver:              w.keyDeriver,
+		Storage:                 w.storage,
+		WalletOpts:              w.flags,
+		PendingSignActionsCache: w.pendingSignActionsCache,
 	}
 
 	result, err := action.CreateAction(ctx, args, originator)
@@ -197,8 +226,16 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 
 // SignAction signs a transaction previously created using CreateAction.
 func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, originator string) (*sdk.SignActionResult, error) {
-	// TODO implement me
-	panic("implement me")
+	action := &actions.SignAction{
+		PendingSignActionsCache: w.pendingSignActionsCache,
+		Storage:                 w.storage,
+	}
+
+	result, err := action.SignAction(ctx, args, originator)
+	if err != nil {
+		return nil, fmt.Errorf("sign action failed: %w", err)
+	}
+	return result, nil
 }
 
 // AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.

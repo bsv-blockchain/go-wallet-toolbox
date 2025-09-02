@@ -1,13 +1,18 @@
 package wallet_opts
 
 import (
+	"log/slog"
+
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type Opts struct {
 	Flags
-	Services *services.WalletServices
+	Services                *services.WalletServices
+	Logger                  *slog.Logger
+	PendingSignActionsCache wdk.PendingSignActionsCache
 }
 
 type Flags struct {
