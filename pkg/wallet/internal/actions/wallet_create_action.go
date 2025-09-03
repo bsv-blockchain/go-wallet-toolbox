@@ -92,7 +92,7 @@ func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.Creat
 
 	createActionResult, err := a.handleProcessAction(ctx, tx, storageCreateActionResult)
 	if err != nil {
-		return nil, pkgerrors.NewTransactionError(tx.TxID().String()).Wrap(err)
+		return nil, pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err)
 	}
 
 	return createActionResult, err

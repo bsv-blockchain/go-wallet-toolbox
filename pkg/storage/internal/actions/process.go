@@ -510,7 +510,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				return nil, fmt.Errorf(
 					"cannot update single tx after broadcast: %w",
 					pkgerrors.NewProcessActionError(sendWithResults, notDelayedResults).
-						Wrap(pkgerrors.NewTransactionError(broadcastedTxID)),
+						Wrap(pkgerrors.NewTransactionErrorFromTxIDHex(broadcastedTxID)),
 				)
 			}
 		}

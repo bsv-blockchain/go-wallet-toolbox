@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
@@ -12,9 +13,9 @@ import (
 
 func TestTransactionError_Success(t *testing.T) {
 	rootCause := errors.New("root cause")
-	err := pkgerrors.NewTransactionError("abc123").Wrap(rootCause)
+	err := pkgerrors.NewTransactionError(chainhash.Hash{}).Wrap(rootCause)
 	require.NotNil(t, err)
-	assert.Equal(t, "transaction error (txID: abc123)", err.Error())
+	assert.Equal(t, "transaction error (txID: 0000000000000000000000000000000000000000000000000000000000000000)", err.Error())
 	assert.EqualError(t, err.Unwrap(), "root cause")
 	assert.True(t, err.Is(err))
 	assert.ErrorIs(t, err, err)
@@ -23,7 +24,7 @@ func TestTransactionError_Success(t *testing.T) {
 
 func TestTransactionError_ErrorCases(t *testing.T) {
 	t.Run("error without cause", func(t *testing.T) {
-		err := pkgerrors.NewTransactionError("xyz789")
+		err := pkgerrors.NewTransactionError(chainhash.Hash{})
 		require.NotNil(t, err)
 		assert.NoError(t, err.Unwrap())
 		assert.False(t, err.Is(nil))

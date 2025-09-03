@@ -2,10 +2,12 @@ package wallet_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
@@ -831,6 +833,78 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorF
 
 		// then:
 		require.Error(t, err)
+	})
+}
+
+func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction() {
+	s.Run("sendWith create action as retry of broadcasting when process action failed with unprocessed status", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// and:
+		given.BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+
+		createActionResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		txError := &pkgerrors.TransactionError{}
+		require.ErrorAs(t, err, &txError)
+		assert.False(t, txError.WrongHash)
+		assert.Nil(t, createActionResult)
+
+		// when:
+		txIDToRetry := txError.TxID
+		given.BeefVerifier().DefaultBehavior()
+		createActionResult, err = aliceWallet.CreateAction(t.Context(), sdk.CreateActionArgs{
+			Options: &sdk.CreateActionOptions{
+				SendWith: []chainhash.Hash{txIDToRetry},
+			},
+			Description: "retry using sendWith",
+		}, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, createActionResult)
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID().String()).
+			WithSatoshis(topUpValue)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithTxID(txIDToRetry.String()).
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
+
+		thenCreatedAction.OutputAtIndex(0).
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(false).
+			WithBasket("")
 	})
 }
 
