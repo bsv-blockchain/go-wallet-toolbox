@@ -255,11 +255,7 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 
 	wdkArgs := mapping.MapInternalizeActionArgs(args)
 
-	if err := validate.ValidInternalizeActionArgs(&wdkArgs); err != nil {
-		return nil, fmt.Errorf("invalid internalize action args: %w", err)
-	}
-
-	if err := validate.ValidateWalletInternalizeAction(ctx, w.keyDeriver, &wdkArgs); err != nil {
+	if err := validate.WalletInternalizeAction(ctx, w.keyDeriver, &wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid internalize action args: %w", err)
 	}
 
