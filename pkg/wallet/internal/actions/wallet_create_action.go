@@ -142,7 +142,10 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 
 func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) error {
 	if a.requiresNotDelayedResult() {
-		return validate.NotDelayedProcessActionResult(processActionResult)
+		err := validate.NotDelayedProcessActionResult(processActionResult)
+		if err != nil {
+			return fmt.Errorf("not delayed result required but missing: %w", err)
+		}
 	}
 	return nil
 }

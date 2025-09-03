@@ -11,6 +11,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
+// LocalPendingSignActionsCache is a cache for storing pending sign actions with a configurable time-to-live (TTL).
 type LocalPendingSignActionsCache struct {
 	actions sync.Map
 	logger  *slog.Logger
@@ -19,6 +20,7 @@ type LocalPendingSignActionsCache struct {
 	ttl         time.Duration
 }
 
+// NewLocalPendingSignActionsCache initializes a new LocalPendingSignActionsCache with the given logger and TTL.
 func NewLocalPendingSignActionsCache(logger *slog.Logger, ttl time.Duration) *LocalPendingSignActionsCache {
 	logger = logging.Child(logger, "LocalPendingSignActionsCache")
 
@@ -34,6 +36,7 @@ type pendingSignActionItem struct {
 	timestamp time.Time
 }
 
+// Set stores a pending sign action in the cache using the provided reference as a key. If TTL is set, it checks for cleanup.
 func (l *LocalPendingSignActionsCache) Set(reference string, action *wdk.PendingSignAction) error {
 	if l.ttl > 0 {
 		l.checkForCleanup()
@@ -46,6 +49,8 @@ func (l *LocalPendingSignActionsCache) Set(reference string, action *wdk.Pending
 	return nil
 }
 
+// Get retrieves a pending sign action from the cache using the provided reference as a key.
+// Returns the pending sign action if found, or an error if not found.
 func (l *LocalPendingSignActionsCache) Get(reference string) (*wdk.PendingSignAction, error) {
 	item, ok := l.actions.Load(reference)
 	if !ok {
@@ -57,6 +62,7 @@ func (l *LocalPendingSignActionsCache) Get(reference string) (*wdk.PendingSignAc
 	return &action, nil
 }
 
+// Delete removes the pending sign action from the cache that corresponds to the given reference. Returns an error if any occurs.
 func (l *LocalPendingSignActionsCache) Delete(reference string) error {
 	l.actions.Delete(reference)
 	return nil

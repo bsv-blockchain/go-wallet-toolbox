@@ -70,12 +70,14 @@ func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
 	}
 }
 
+// WithPendingSignActionsCache sets the PendingSignActionsCache for wallet options, allowing management of cached actions.
 func WithPendingSignActionsCache(cache wdk.PendingSignActionsCache) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.PendingSignActionsCache = cache
 	}
 }
 
+// WithLogger sets the provided slog.Logger to the Logger field in wallet_opts.Opts if the logger is not nil.
 func WithLogger(logger *slog.Logger) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		if logger != nil {
