@@ -1,12 +1,13 @@
 package validate
 
 import (
-	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	"fmt"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 
-func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) *broadcastError.BroadcastingError {
+func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) error {
 	if len(result.NotDelayedResults) == 0 || len(result.SendWithResults) == 0 {
 		return nil
 	}
@@ -19,5 +20,5 @@ func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) *broadcastEr
 		return nil
 	}
 
-	return broadcastError.NewValidationBroadcastError(result)
+	return fmt.Errorf("unexpected not delayed results when send with results are not all unproven")
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
@@ -202,10 +203,12 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			walletargs.WithSignAndProcess(false),
 		)
 
+		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
+
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -541,6 +544,9 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
+		// and:
+		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
+
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithInput(input))
 
@@ -631,6 +637,9 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		input := given.InputForUser(testusers.Alice).WithSatoshis(testValueForFunding)
 
 		// and:
+		given.BeefVerifier().WillReturnBool(true) // because all services are down, we cannot verify beef, so we assume it's valid
+
+		// and:
 		given.Services().AllDown()
 
 		// when:
@@ -642,8 +651,7 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		require.Error(t, err, "Wallet should return error when not delayed broadcast failed")
 
 		// and:
-		// TODO: replace with better assertions for error - when we will have custom type for it
-		assert.ErrorContains(t, err, "undelayed result require review")
+		assert.ErrorIs(t, err, &pkgerrors.CreateActionError{})
 	})
 
 	s.Run("return signable transaction when all services are down, but sign and process is false", func() {
@@ -657,6 +665,8 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 
 		// and:
 		input := given.InputForUser(testusers.Alice).WithSatoshis(testValueForFunding)
+
+		given.BeefVerifier().WillReturnBool(true) // because all services are down, we cannot verify beef, so we assume it's valid
 
 		// and:
 		given.Services().AllDown()

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -48,7 +48,7 @@ func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateAction
 
 	broadcastErr := a.validateProcessActionResult(processActionResult)
 	if broadcastErr != nil {
-		return nil, broadcastErr
+		return nil, pkgerrors.NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).Wrap(broadcastErr)
 	}
 
 	result, err := mapping.MapCreateActionResultFromStorageResultsForSendWith(processActionResult)
@@ -60,12 +60,21 @@ func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateAction
 }
 
 func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateActionArgs) (*wallet.CreateActionResult, error) {
-	createActionResult, err := a.Storage.CreateAction(ctx, a.wdkArgs)
+	storageCreateActionResult, err := a.Storage.CreateAction(ctx, a.wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action: %w", err)
 	}
 
-	txAssembler := assembler.NewCreateActionTransactionAssembler(a.KeyDeriver, args.Inputs, createActionResult)
+	createActionResult, err := a.handleCreatedNewTx(ctx, args, storageCreateActionResult)
+	if err != nil {
+		return nil, pkgerrors.NewCreateActionError(storageCreateActionResult.Reference).Wrap(err)
+	}
+
+	return createActionResult, nil
+}
+
+func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.CreateActionArgs, storageCreateActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
+	txAssembler := assembler.NewCreateActionTransactionAssembler(a.KeyDeriver, args.Inputs, storageCreateActionResult)
 
 	tx, err := txAssembler.Assemble()
 	if err != nil {
@@ -73,7 +82,7 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 	}
 
 	if a.isSignAction() {
-		return a.handleSignAction(tx, createActionResult)
+		return a.handleSignAction(tx, storageCreateActionResult)
 	}
 
 	err = tx.Sign()
@@ -81,21 +90,26 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 		return nil, fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
-	return a.handleProcessAction(ctx, tx, createActionResult)
+	createActionResult, err := a.handleProcessAction(ctx, tx, storageCreateActionResult)
+	if err != nil {
+		return nil, pkgerrors.NewTransactionError(tx.TxID().String()).Wrap(err)
+	}
+
+	return createActionResult, err
 }
 
-func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
-	result, err := mapping.SignableTransactionResult(tx, a.wdkArgs, createActionResult)
+func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, storageCreateActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
+	result, err := mapping.SignableTransactionResult(tx, a.wdkArgs, storageCreateActionResult)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build signable transaction: %w", err)
 	}
 
-	err = a.PendingSignActionsCache.Set(createActionResult.Reference, &wdk.PendingSignAction{
+	err = a.PendingSignActionsCache.Set(storageCreateActionResult.Reference, &wdk.PendingSignAction{
 		Tx:               *tx,
 		CreateActionArgs: a.wdkArgs,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to cache pending sign action (reference: %s): %w", createActionResult.Reference, err)
+		return nil, fmt.Errorf("failed to cache pending sign action (reference: %s): %w", storageCreateActionResult.Reference, err)
 	}
 
 	return result, nil
@@ -108,25 +122,25 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process created action (txID: %s, reference: %s): %w",
-			txID.String(), createActionResult.Reference, err)
+		return nil, fmt.Errorf("failed to process created action: %w", err)
 	}
 
 	broadcastErr := a.validateProcessActionResult(processActionResult)
 	if broadcastErr != nil {
-		return nil, broadcastErr
+		return nil, pkgerrors.
+			NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).
+			Wrap(broadcastErr)
 	}
 
 	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(txID, tx, createActionResult, processActionResult, a.wdkArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build result after processing created action (txID: %s, reference: %s): %w",
-			txID.String(), createActionResult.Reference, err)
+		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
 	}
 
 	return result, nil
 }
 
-func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) *broadcastError.BroadcastingError {
+func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) error {
 	if a.requiresNotDelayedResult() {
 		return validate.NotDelayedProcessActionResult(processActionResult)
 	}

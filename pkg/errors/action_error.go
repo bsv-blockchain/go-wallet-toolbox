@@ -4,35 +4,198 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// BroadcastOperation defines the type for various operations in the wallet system.
-type BroadcastOperation string
+type TransactionError struct {
+	TxID  string
+	Cause error
+}
+
+func NewTransactionError(txID string) *TransactionError {
+	return &TransactionError{
+		TxID: txID,
+	}
+}
+
+func (t *TransactionError) Error() string {
+	return fmt.Sprintf("transaction error (txID: %s)", t.TxID)
+}
+
+func (t *TransactionError) Wrap(err error) *TransactionError {
+	t.Cause = err
+	return t
+}
+
+func (t *TransactionError) Unwrap() error {
+	return t.Cause
+}
+
+func (t *TransactionError) Is(target error) bool {
+	if target == nil {
+		return false
+	}
+
+	if _, ok := target.(*TransactionError); ok {
+		return true
+	}
+
+	if t.Cause != nil {
+		return errors.Is(t.Cause, target)
+	}
+
+	return false
+}
+
+type CreateActionError struct {
+	Reference string
+	Cause     error
+}
+
+func NewCreateActionError(reference string) *CreateActionError {
+	return &CreateActionError{
+		Reference: reference,
+	}
+}
+
+func (c *CreateActionError) Error() string {
+	return fmt.Sprintf("create action failed (reference: %s)", c.Reference)
+}
+
+func (c *CreateActionError) Wrap(err error) *CreateActionError {
+	c.Cause = err
+	return c
+}
+
+func (c *CreateActionError) Unwrap() error {
+	return c.Cause
+}
+
+func (c *CreateActionError) Is(target error) bool {
+	if target == nil {
+		return false
+	}
+
+	if _, ok := target.(*CreateActionError); ok {
+		return true
+	}
+
+	if c.Cause != nil {
+		return errors.Is(c.Cause, target)
+	}
+
+	return false
+}
+
+type ProcessActionError struct {
+	SendWithResults []wdk.SendWithResult
+	ReviewResults   []wdk.ReviewActionResult
+	Cause           error
+}
+
+func NewProcessActionError(sendWithResults []wdk.SendWithResult, reviewResults []wdk.ReviewActionResult) *ProcessActionError {
+	return &ProcessActionError{
+		SendWithResults: sendWithResults,
+		ReviewResults:   reviewResults,
+	}
+}
+
+func (p *ProcessActionError) Error() string {
+	var parts []string
+
+	baseMsg := "process action failed"
+	parts = append(parts, baseMsg)
+
+	if len(p.SendWithResults) > 0 {
+		successCount := 0
+		failedCount := 0
+		sendingCount := 0
+		for _, result := range p.SendWithResults {
+			switch result.Status {
+			case wdk.SendWithResultStatusUnproven:
+				successCount++
+			case wdk.SendWithResultStatusFailed:
+				failedCount++
+			case wdk.SendWithResultStatusSending:
+				sendingCount++
+			}
+		}
+
+		statusParts := []string{fmt.Sprintf("%d total", len(p.SendWithResults))}
+		if successCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d succeeded", successCount))
+		}
+		if sendingCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d sending", sendingCount))
+		}
+		if failedCount > 0 {
+			statusParts = append(statusParts, fmt.Sprintf("%d failed", failedCount))
+		}
+
+		parts = append(parts, fmt.Sprintf("transactions: %s", strings.Join(statusParts, ", ")))
+	}
+
+	if len(p.ReviewResults) > 0 {
+		reviewCount := len(p.ReviewResults)
+		parts = append(parts, fmt.Sprintf("review results: %d require review", reviewCount))
+	}
+
+	if p.Cause != nil {
+		parts = append(parts, fmt.Sprintf("underlying error: %v", p.Cause))
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+func (p *ProcessActionError) Wrap(err error) *ProcessActionError {
+	p.Cause = err
+	return p
+}
+
+func (p *ProcessActionError) Unwrap() error {
+	return p.Cause
+}
+
+func (p *ProcessActionError) Is(target error) bool {
+	if target == nil {
+		return false
+	}
+
+	if _, ok := target.(*ProcessActionError); ok {
+		return true
+	}
+
+	if p.Cause != nil {
+		return errors.Is(p.Cause, target)
+	}
+
+	return false
+}
+
+////////// OLD
+
+// ActionErrorType defines the type for various operations in the wallet system.
+type ActionErrorType string
 
 const (
 	// BackgroundBroadcast represents a background broadcasting operation.
-	BackgroundBroadcast BroadcastOperation = "backgroundBroadcast"
+	BackgroundBroadcast ActionErrorType = "backgroundBroadcast"
 
 	// ImmediateBroadcast represents an immediate broadcasting operation.
-	ImmediateBroadcast BroadcastOperation = "immediateBroadcast"
-
-	// DelayedBroadcast represents a delayed broadcasting operation.
-	DelayedBroadcast BroadcastOperation = "delayedBroadcast"
+	ImmediateBroadcast ActionErrorType = "immediateBroadcast"
 
 	// CreateAction represents an action to create a new wallet action.
-	CreateAction BroadcastOperation = "createAction"
+	CreateAction ActionErrorType = "createAction"
 
 	// ProcessAction represents an action to process an existing wallet action.
-	ProcessAction BroadcastOperation = "processAction"
+	ProcessAction ActionErrorType = "processAction"
 )
 
-// BroadcastingError represents an error that occurred during transaction broadcasting
-type BroadcastingError struct {
+// ActionError represents an error that occurred during transaction broadcasting
+type ActionError struct {
 	// Err holds the underlying error that caused the broadcasting failure.
 	// This could be network errors, validation errors, or service-specific failures.
 	Err error
@@ -68,7 +231,7 @@ type BroadcastingError struct {
 	// Operation indicates which broadcast operation was being performed when the error occurred.
 	// Values include: "backgroundBroadcast", "immediateBroadcast", "delayedBroadcast",
 	// "createAction", or "processAction". This helps categorize and handle errors appropriately.
-	Operation BroadcastOperation
+	Operation ActionErrorType
 
 	// Tx contains the raw transaction bytes (BEEF format) that failed to broadcast.
 	// This enables retry attempts and detailed transaction analysis for debugging.
@@ -84,8 +247,8 @@ type BroadcastingError struct {
 	NoSendChange []wdk.OutPoint
 }
 
-// Error implements the error interface for BroadcastingError
-func (e *BroadcastingError) Error() string {
+// Error implements the error interface for ActionError
+func (e *ActionError) Error() string {
 	var parts []string
 
 	baseMsg := fmt.Sprintf("broadcasting failed during %s", e.Operation)
@@ -137,18 +300,18 @@ func (e *BroadcastingError) Error() string {
 	return strings.Join(parts, "; ")
 }
 
-// Unwrap implements the errors.Unwrap interface for BroadcastingError
-func (e *BroadcastingError) Unwrap() error {
+// Unwrap implements the errors.Unwrap interface for ActionError
+func (e *ActionError) Unwrap() error {
 	return e.Err
 }
 
-// Is implements the errors.Is interface for BroadcastingError
-func (e *BroadcastingError) Is(target error) bool {
+// Is implements the errors.Is interface for ActionError
+func (e *ActionError) Is(target error) bool {
 	if target == nil {
 		return false
 	}
 
-	if _, ok := target.(*BroadcastingError); ok {
+	if _, ok := target.(*ActionError); ok {
 		return true
 	}
 
@@ -166,9 +329,8 @@ func NewImmediateBroadcastError(
 	beef *transaction.Beef,
 	processResult *wdk.ProcessActionResult,
 	serviceErrors map[string]error,
-	logger *slog.Logger,
-) *BroadcastingError {
-	broadcastErr := &BroadcastingError{
+) *ActionError {
+	broadcastErr := &ActionError{
 		Err:           err,
 		Operation:     ImmediateBroadcast,
 		TxID:          txID,
@@ -187,51 +349,6 @@ func NewImmediateBroadcastError(
 		} else {
 			broadcastErr.Tx = hex.EncodeToString(beefBytes)
 		}
-	}
-
-	return broadcastErr
-}
-
-// NewCreateActionBroadcastError creates an error for createAction broadcasting failures
-func NewCreateActionBroadcastError(
-	err error,
-	txID string,
-	reference string,
-	tx []byte,
-	noSendChange []wdk.OutPoint,
-	processResult *wdk.ProcessActionResult,
-) *BroadcastingError {
-	broadcastErr := &BroadcastingError{
-		Err:          err,
-		Operation:    CreateAction,
-		TxID:         txID,
-		Reference:    reference,
-		Tx:           hex.EncodeToString(tx),
-		NoSendChange: noSendChange,
-	}
-
-	if processResult != nil {
-		broadcastErr.SendWithResults = processResult.SendWithResults
-		broadcastErr.ReviewResults = processResult.NotDelayedResults
-	}
-
-	return broadcastErr
-}
-
-// NewValidationBroadcastError creates an error for validation failures with ProcessActionResult context
-func NewValidationBroadcastError(processResult *wdk.ProcessActionResult) *BroadcastingError {
-	broadcastErr := &BroadcastingError{
-		Err:       fmt.Errorf("undelayed result require review"),
-		Operation: ProcessAction,
-	}
-
-	if len(processResult.SendWithResults) > 0 {
-		broadcastErr.TxID = string(processResult.SendWithResults[0].TxID)
-		broadcastErr.SendWithResults = processResult.SendWithResults
-	}
-
-	if len(processResult.NotDelayedResults) > 0 {
-		broadcastErr.ReviewResults = processResult.NotDelayedResults
 	}
 
 	return broadcastErr

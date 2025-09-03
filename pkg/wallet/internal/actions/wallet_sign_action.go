@@ -7,7 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -53,9 +53,11 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 			txID.String(), reference, err)
 	}
 
-	broadcastErr := s.validateProcessActionResult(processActionResult)
-	if broadcastErr != nil {
-		return nil, broadcastErr
+	if s.requiresNotDelayedResult() {
+		err = validate.NotDelayedProcessActionResult(processActionResult)
+		if err != nil {
+			return nil, pkgerrors.NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).Wrap(err)
+		}
 	}
 
 	result, err := mapping.MapSignActionResultFromStorageResultsForNewTx(txID, tx, processActionResult, s.wdkArgs)
@@ -77,13 +79,6 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 func (s *SignAction) requiresNotDelayedResult() bool {
 	return !s.wdkArgs.IsDelayed
-}
-
-func (s *SignAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) *broadcastError.BroadcastingError {
-	if s.requiresNotDelayedResult() {
-		return validate.NotDelayedProcessActionResult(processActionResult)
-	}
-	return nil
 }
 
 func (s *SignAction) mergeArgs(createActionArgs wdk.ValidCreateActionArgs, args wallet.SignActionArgs) {
