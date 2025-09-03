@@ -1,13 +1,11 @@
 package whatsonchain
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 	"net/url"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
@@ -17,15 +15,6 @@ import (
 const (
 	wocRoot = "https://api.whatsonchain.com/v1/bsv"
 )
-
-func waitOrCancel(ctx context.Context, delay time.Duration, txid string) error {
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("context canceled while waiting for tx %s: %w", txid, ctx.Err())
-	case <-time.After(delay):
-		return nil
-	}
-}
 
 func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) (shouldReturnError bool) {
 	switch status {
