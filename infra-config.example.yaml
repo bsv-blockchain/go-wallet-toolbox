@@ -85,7 +85,6 @@ wallet_services:
     get_beef_max_depth: 100
     whats_on_chain:
         api_key: ""
-        broadcast_delay: 3s
         bsv_exchange_rate:
             base: USD
             rates: 47.52

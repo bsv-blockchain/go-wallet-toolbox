@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	defaultRetryCount    = 2
-	defaultRetryInterval = 2 * time.Second
+	defaultRetryCount    = 3
+	defaultRetryInterval = 1 * time.Second
 )
 
 // RetryOnErrOr5xx is a retry condition that retries on any error or if the response status code is 5xx.
