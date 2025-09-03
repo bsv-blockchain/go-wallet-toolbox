@@ -100,7 +100,6 @@ func (p *providerFixture) withServices() ProviderFixture {
 	client.SetTransport(p.servicesSniffer)
 
 	config := defs.DefaultServicesConfig(p.network)
-	config.WhatsOnChain.BroadcastDelay = 0 // speed up tests
 
 	p.services = services.New(p.logger, config, services.WithRestyClient(client))
 	return p

@@ -63,7 +63,6 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 	client.SetTransport(transport)
 
 	servicesConfig := defs.DefaultServicesConfig(network)
-	servicesConfig.WhatsOnChain.BroadcastDelay = 0
 	servicesConfig.WhatsOnChain.RootForHeightRetries = 1
 	servicesConfig.WhatsOnChain.RootForHeightRetryInterval = 0
 
