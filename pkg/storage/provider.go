@@ -552,3 +552,8 @@ func (p *Provider) KnownTxEntity() crud.KnownTx {
 func (p *Provider) TransactionEntity() crud.Transaction {
 	return crud.NewTransaction(p.repo.Transactions)
 }
+
+// UserEntity returns a User interface for querying and filtering user records in the storage provider.
+func (p *Provider) UserEntity() crud.User {
+	return crud.NewUser(p.repo.Users)
+}
