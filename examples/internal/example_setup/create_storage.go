@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -16,11 +17,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
 
-type StorageInfra struct {
-	Provider *storage.Provider
-	Monitor  *monitor.Daemon
-	Services *services.WalletServices
-}
+const (
+	SQLiteStorageFile = "storage.sqlite"
+)
 
 // getExamplesDir returns the absolute path to the examples directory
 func getExamplesDir() string {
@@ -29,10 +28,14 @@ func getExamplesDir() string {
 		panic("failed to get current file path")
 	}
 
-	return filepath.Dir(filepath.Dir(filepath.Dir(filename)))
+	const parentLevels = 3
+	for range parentLevels {
+		filename = filepath.Dir(filename)
+	}
+	return filename
 }
 
-func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPrivateKey string) (*StorageInfra, error) {
+func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPrivateKey string) (*storage.Provider, func(), error) {
 	logger := slog.Default()
 
 	cfg := infra.Defaults()
@@ -42,11 +45,11 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 		cfg.Services = defs.DefaultServicesConfig(network)
 	}
 
-	cfg.DBConfig.SQLite.ConnectionString = filepath.Join(getExamplesDir(), "storage.sqlite")
+	cfg.DBConfig.SQLite.ConnectionString = filepath.Join(getExamplesDir(), SQLiteStorageFile)
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create storage identity key: %w", err)
+		return nil, nil, fmt.Errorf("failed to create storage identity key: %w", err)
 	}
 
 	activeServices := services.New(logger, cfg.Services)
@@ -59,29 +62,34 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 
 	activeStorage, err := storage.NewGORMProvider(cfg.BSVNetwork, activeServices, options...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create storage: %w", err)
+		return nil, nil, fmt.Errorf("failed to create storage: %w", err)
 	}
 
 	_, err = activeStorage.Migrate(ctx, cfg.Name, storageIdentityKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to migrate storage: %w", err)
+		return nil, nil, fmt.Errorf("failed to migrate storage: %w", err)
 	}
 
 	var daemon *monitor.Daemon
 	if cfg.Monitor.Enabled {
 		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create daemon: %w", err)
+			return nil, nil, fmt.Errorf("failed to create daemon: %w", err)
 		}
 
 		if err = daemon.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
-			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
+			return nil, nil, fmt.Errorf("failed to start storage monitor: %w", err)
 		}
 	}
 
-	return &StorageInfra{
-		Provider: activeStorage,
-		Monitor:  daemon,
-		Services: activeServices,
-	}, nil
+	cleanup := func() {
+		if daemon != nil {
+			if err := daemon.Stop(); err != nil {
+				show.Error(fmt.Sprintf("failed to stop storage monitor: %v", err))
+			}
+		}
+		activeStorage.Stop()
+	}
+
+	return activeStorage, cleanup, nil
 }
