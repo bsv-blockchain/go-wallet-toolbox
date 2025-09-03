@@ -67,6 +67,7 @@ Provided below are two methods to get started with using the wallet toolbox.
 - [List Outputs](./wallet_examples/list_outputs/list_outputs.md) - Get list of transaction outputs of a specified user.
 - [Internalize Wallet Payment](./wallet_examples/internalize_wallet_payment/internalize_wallet_payment.md) - Record an external wallet payment of a specified user wallet.
 - [Create P2pkh Transaction](./wallet_examples/create_p2pkh_tx/create_p2pkh_tx.md) - Create a new p2pkh payment from a specified user wallet.
+- [NoSend + SendWith (Batch Broadcast)](./wallet_examples/no_send_send_with/no_send_send_with.md) - Construct multiple actions with NoSend and broadcast them together with SendWith.
 
 ## Services Examples
 - [Get Block Header form Block Hash](./services_examples/get_block_header_from_block_hash/get_block_header_from_block_hash.md) - Get a complete block header using a specific block hash.

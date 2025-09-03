@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -35,15 +36,20 @@ func (m *SendP2pkhWaiting) Init() tea.Cmd {
 }
 
 type sendP2pkhResultMsg struct {
-	err     error
-	summary fixtures.Summary
+	err      error
+	summary  fixtures.Summary
+	duration time.Duration
 }
 
 func (m *SendP2pkhWaiting) sendPayment() tea.Msg {
+	start := time.Now()
 	_, summary, err := m.manager.CreateActionWithP2pkh(*m.user, m.address, m.amount)
+	dur := time.Since(start)
+
 	return sendP2pkhResultMsg{
-		err:     err,
-		summary: summary,
+		err:      err,
+		summary:  summary,
+		duration: dur,
 	}
 }
 
@@ -61,12 +67,15 @@ func (m *SendP2pkhWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return NewSelectAction(m.manager, m.user)
 		}
 
-		mode := ResultViewSuccess
-		resultMsg := "Transaction created successfully!"
+		var mode ResultViewMode
+		var resultMsg string
 
 		if msg.err != nil {
 			mode = ResultViewError
 			resultMsg = "Failed to create transaction: " + msg.err.Error()
+		} else {
+			mode = ResultViewSuccess
+			resultMsg = fmt.Sprintf("Transaction created successfully in %d ms!", msg.duration.Milliseconds())
 		}
 
 		resultView := NewResultView(m.manager, resultMsg, mode, goToSelectAction, msg.summary)

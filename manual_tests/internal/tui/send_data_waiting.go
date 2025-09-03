@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -33,15 +34,19 @@ func (m *SendDataWaiting) Init() tea.Cmd {
 }
 
 type sendDataResultMsg struct {
-	err     error
-	summary fixtures.Summary
+	err      error
+	summary  fixtures.Summary
+	duration time.Duration
 }
 
 func (m *SendDataWaiting) sendData() tea.Msg {
+	startTime := time.Now()
 	_, summary, err := m.manager.CreateActionWithData(*m.user, m.data)
+	duration := time.Since(startTime)
 	return sendDataResultMsg{
-		err:     err,
-		summary: summary,
+		err:      err,
+		summary:  summary,
+		duration: duration,
 	}
 }
 
@@ -59,12 +64,15 @@ func (m *SendDataWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return NewSelectAction(m.manager, m.user)
 		}
 
-		mode := ResultViewSuccess
-		resultMsg := "Transaction created successfully!"
+		var mode ResultViewMode
+		var resultMsg string
 
 		if msg.err != nil {
 			mode = ResultViewError
 			resultMsg = "Failed to create transaction: " + msg.err.Error()
+		} else {
+			mode = ResultViewSuccess
+			resultMsg = fmt.Sprintf("Transaction created successfully in %d ms!", msg.duration.Milliseconds())
 		}
 
 		resultView := NewResultView(m.manager, resultMsg, mode, goToSelectAction, msg.summary)
