@@ -28,6 +28,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		Tag:              newTag(db, opts...),
 		Transaction:      newTransaction(db, opts...),
 		TransactionLabel: newTransactionLabel(db, opts...),
+		User:             newUser(db, opts...),
 		UserUTXO:         newUserUTXO(db, opts...),
 	}
 }
@@ -45,6 +46,7 @@ type Query struct {
 	Tag              tag
 	Transaction      transaction
 	TransactionLabel transactionLabel
+	User             user
 	UserUTXO         userUTXO
 }
 
@@ -63,6 +65,7 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		Tag:              q.Tag.clone(db),
 		Transaction:      q.Transaction.clone(db),
 		TransactionLabel: q.TransactionLabel.clone(db),
+		User:             q.User.clone(db),
 		UserUTXO:         q.UserUTXO.clone(db),
 	}
 }
@@ -88,6 +91,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		Tag:              q.Tag.replaceDB(db),
 		Transaction:      q.Transaction.replaceDB(db),
 		TransactionLabel: q.TransactionLabel.replaceDB(db),
+		User:             q.User.replaceDB(db),
 		UserUTXO:         q.UserUTXO.replaceDB(db),
 	}
 }
@@ -103,6 +107,7 @@ type queryCtx struct {
 	Tag              ITagDo
 	Transaction      ITransactionDo
 	TransactionLabel ITransactionLabelDo
+	User             IUserDo
 	UserUTXO         IUserUTXODo
 }
 
@@ -118,6 +123,7 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		Tag:              q.Tag.WithContext(ctx),
 		Transaction:      q.Transaction.WithContext(ctx),
 		TransactionLabel: q.TransactionLabel.WithContext(ctx),
+		User:             q.User.WithContext(ctx),
 		UserUTXO:         q.UserUTXO.WithContext(ctx),
 	}
 }

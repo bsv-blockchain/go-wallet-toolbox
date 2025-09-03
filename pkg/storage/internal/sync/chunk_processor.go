@@ -21,7 +21,7 @@ type ChunkProcessor struct {
 	chunk           *wdk.SyncChunk
 	result          wdk.ProcessSyncChunkResult
 	ctx             context.Context
-	user            *entity.User
+	user            *pkgentity.User
 	args            *wdk.RequestSyncChunkArgs
 	syncState       *entity.SyncState
 	basketNameCache map[uint]string
@@ -29,7 +29,7 @@ type ChunkProcessor struct {
 	tagCache        map[uint]*entity.Tag
 }
 
-func NewChunkProcessor(ctx context.Context, repo Repository, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *entity.User) *ChunkProcessor {
+func NewChunkProcessor(ctx context.Context, repo Repository, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *pkgentity.User) *ChunkProcessor {
 	return &ChunkProcessor{
 		ctx:             ctx,
 		repo:            repo,
@@ -146,7 +146,7 @@ func (p *ChunkProcessor) mergeUser() error {
 		return nil // No update needed
 	}
 
-	err := p.repo.UpdateUser(p.ctx, p.user.ID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
+	err := p.repo.UpdateUserForSync(p.ctx, p.user.ID, p.chunk.User.ActiveStorage, p.chunk.User.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update user %d: %w", p.chunk.User.UserID, err)
 	}
