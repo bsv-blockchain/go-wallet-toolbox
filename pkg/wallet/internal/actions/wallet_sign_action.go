@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -35,6 +36,10 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	}
 
 	tx := &pendingSignAction.Tx
+
+	if err := s.allInputsCanBeUnlocked(tx); err != nil {
+		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
+	}
 
 	err = tx.Sign()
 	if err != nil {
@@ -102,4 +107,23 @@ func (s *SignAction) mergeArgs(createActionArgs wdk.ValidCreateActionArgs, args 
 		s.wdkArgs.Options.SendWith = slices.Map(args.Options.SendWith, func(s chainhash.Hash) primitives.TXIDHexString { return primitives.TXIDHexString(s.String()) })
 		s.wdkArgs.IsSendWith = len(args.Options.SendWith) > 0
 	}
+}
+
+func (s *SignAction) allInputsCanBeUnlocked(tx *transaction.Transaction) error {
+	var missingInputVin []int
+	for vin, input := range tx.Inputs {
+		switch {
+		case input.UnlockingScript != nil && len(*input.UnlockingScript) != 0:
+			continue
+		case input.UnlockingScriptTemplate != nil:
+			continue
+		default:
+			missingInputVin = append(missingInputVin, vin)
+		}
+	}
+
+	if len(missingInputVin) > 0 {
+		return fmt.Errorf("the following inputs cannot be unlocked (missing unlocking script and unlocking script template) input indexes: %v", missingInputVin)
+	}
+	return nil
 }
