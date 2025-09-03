@@ -46,8 +46,7 @@ func (s *Server) Start() error {
 		Handler:           s.Handler(),
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       30 * time.Second,
+		WriteTimeout:      2 * time.Minute,
 	}
 
 	s.logger.Info("Listening...", slog.Any("port", port))

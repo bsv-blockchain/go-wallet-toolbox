@@ -29,6 +29,7 @@ Explore more wallet functionality:
 - [List Actions](./wallet_examples/list_actions/list_actions.md) - Get list of wallet actions of a specified user.
 - [List Outputs](./wallet_examples/list_outputs/list_outputs.md) - Get list of transaction outputs of a specified user.
 - [Internalize Wallet Payment](./wallet_examples/internalize_wallet_payment/internalize_wallet_payment.md) - Record an external wallet payment of a specified user wallet.
+- [NoSend + SendWith (Batch Broadcast)](./wallet_examples/no_send_send_with/no_send_send_with.md) - Construct multiple actions with NoSend and broadcast them together with SendWith.
 
 ## Configuration
 

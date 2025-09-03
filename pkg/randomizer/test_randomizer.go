@@ -25,14 +25,24 @@ func NewTestRandomizer() *TestRandomizer {
 	}
 }
 
+// Bytes returns a deterministic slice of bytes of the specified length for testing purposes.
+// Returns an error if length is zero.
+func (t *TestRandomizer) Bytes(length uint64) ([]byte, error) {
+	if length == 0 {
+		return nil, fmt.Errorf("length cannot be zero")
+	}
+
+	return t.nextBytes(length), nil
+}
+
 // Base64 generates a deterministic base64-encoded string of the specified length.
 // The content of the string is a repeated sequence of the character 'a'.
 func (t *TestRandomizer) Base64(length uint64) (string, error) {
-	if length == 0 {
-		return "", fmt.Errorf("length cannot be zero")
+	randomBytes, err := t.Bytes(length)
+	if err != nil {
+		return "", err
 	}
 
-	randomBytes := t.nextBytes(length)
 	return base64.StdEncoding.EncodeToString(randomBytes), nil
 }
 
