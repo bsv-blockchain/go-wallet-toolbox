@@ -33,7 +33,6 @@ func (f *wocServiceFixture) NewWoCService(opts ...func(*whatsonchain.WhatsOnChai
 	network := f.Network()
 
 	config := defs.WhatsOnChain{
-		BroadcastDelay:             0,
 		BSVExchangeRate:            defs.BSVExchangeRate{},
 		RootForHeightRetryInterval: 0,
 		RootForHeightRetries:       1,
