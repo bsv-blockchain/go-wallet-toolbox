@@ -26,8 +26,8 @@ func DeriveAddress(faucetKeyHex string, network defs.BSVNetwork) (string, error)
 	identityKey := priv.PubKey()
 
 	keyID := brc29.KeyID{
-		DerivationPrefix: constants.DefaultBase64Prefix,
-		DerivationSuffix: constants.DefaultBase64Suffix,
+		DerivationPrefix: constants.FaucetAddressKeyIDPrefix,
+		DerivationSuffix: constants.FaucetAddressKeyIDSuffix,
 	}
 
 	var addr *script.Address
