@@ -227,6 +227,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 // SignAction signs a transaction previously created using CreateAction.
 func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, originator string) (*sdk.SignActionResult, error) {
 	action := &actions.SignAction{
+		Logger:                  w.logger,
 		PendingSignActionsCache: w.pendingSignActionsCache,
 		Storage:                 w.storage,
 	}
