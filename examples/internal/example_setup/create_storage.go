@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"runtime"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
@@ -20,6 +22,16 @@ type StorageInfra struct {
 	Services *services.WalletServices
 }
 
+// getExamplesDir returns the absolute path to the examples directory
+func getExamplesDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("failed to get current file path")
+	}
+
+	return filepath.Dir(filepath.Dir(filepath.Dir(filename)))
+}
+
 func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPrivateKey string) (*StorageInfra, error) {
 	logger := slog.Default()
 
@@ -29,6 +41,8 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 		cfg.BSVNetwork = network
 		cfg.Services = defs.DefaultServicesConfig(network)
 	}
+
+	cfg.DBConfig.SQLite.ConnectionString = filepath.Join(getExamplesDir(), "storage.sqlite")
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
