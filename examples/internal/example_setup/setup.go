@@ -3,7 +3,6 @@ package example_setup
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -11,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Setup struct {
@@ -110,36 +110,26 @@ func CreateAlice() *Setup {
 // It uses either local storage or connects to remote server
 // It returns the wallet and a cleanup function, panicking if wallet creation fails
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
-	var storageClient wdk.WalletStorageProvider
+	var storageProvider wdk.WalletStorageProvider
 	var cleanup func()
+	var err error
 
-	if s.Environment.ServerURL != "" {
-		// Use remote server when URL is provided
-		client, clientCleanup, err := storage.NewClient(s.Environment.ServerURL)
-		if err != nil {
-			panic(fmt.Errorf("failed to connect to server: %w", err))
-		}
-		storageClient = client
-		cleanup = clientCleanup
+	remoteStorage := s.Environment.ServerURL != ""
+
+	if remoteStorage {
+		show.Info("Using remote storage", s.Environment.ServerURL)
+		storageProvider, cleanup, err = storage.NewClient(s.Environment.ServerURL)
 	} else {
-		// Create local storage infrastructure
-		storage, err := CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
-		if err != nil {
-			panic(fmt.Errorf("failed to create local storage: %w", err))
-		}
-		storageClient = storage.Provider
-		cleanup = func() {
-			// Cleanup local storage
-			if storage.Monitor != nil {
-				if err := storage.Monitor.Stop(); err != nil {
-					slog.Default().Error("Failed to stop monitor", "error", err)
-				}
-			}
-			storage.Provider.Stop()
-		}
+		show.Info("Using local storage", SQLiteStorageFile)
+		storageProvider, cleanup, err = CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
 	}
 
-	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageClient)
+	if err != nil {
+		name := to.IfThen(remoteStorage, "remote").ElseThen("local")
+		panic(fmt.Errorf("failed to create %s storage provider: %w", name, err))
+	}
+
+	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageProvider)
 	if err != nil {
 		cleanup()
 		panic(fmt.Errorf("failed to create wallet: %w", err))
