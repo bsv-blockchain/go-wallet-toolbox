@@ -2,13 +2,11 @@ package methods
 
 import (
 	"context"
-	"encoding/base64"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
-	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -27,18 +25,9 @@ func DeriveAddress(faucetKeyHex string, network defs.BSVNetwork) (string, error)
 
 	identityKey := priv.PubKey()
 
-	derivationPrefixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Prefix)
-	if err != nil {
-		return "", err
-	}
-	derivationSuffixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Suffix)
-	if err != nil {
-		return "", err
-	}
-
 	keyID := brc29.KeyID{
-		DerivationPrefix: base64.StdEncoding.EncodeToString(derivationPrefixBytes),
-		DerivationSuffix: base64.StdEncoding.EncodeToString(derivationSuffixBytes),
+		DerivationPrefix: constants.DefaultBase64Prefix,
+		DerivationSuffix: constants.DefaultBase64Suffix,
 	}
 
 	var addr *script.Address

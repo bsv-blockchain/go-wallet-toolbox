@@ -8,23 +8,28 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
+const (
+	EnvPort                 = "PORT"
+	EnvFaucetPrivateKey     = "FAUCET_PRIVATE_KEY"
+	EnvNetwork              = "NETWORK"
+	EnvMaxFaucetTotalAmount = "MAX_FAUCET_TOTAL_AMOUNT"
+)
+
 type Config struct {
 	Port int `mapstructure:"port"`
 
 	// Faucet configuration
-	ServerPrivateKey string          `mapstructure:"server_private_key"`
-	FaucetPrivateKey string          `mapstructure:"faucet_private_key"`
-	Network          defs.BSVNetwork `mapstructure:"network"`
-	ServerURL        string          `mapstructure:"server_url"` // URL of wallet toolbox storage server
+	FaucetPrivateKey     string          `mapstructure:"faucet_private_key"`
+	Network              defs.BSVNetwork `mapstructure:"network"`
+	MaxFaucetTotalAmount uint64          `mapstructure:"max_faucet_total_amount"` // 0 means unlimited
 }
 
 func Defaults() Config {
 	return Config{
-		Port:             8080,
-		ServerPrivateKey: "",
-		FaucetPrivateKey: "",
-		Network:          defs.NetworkTestnet,
-		ServerURL:        "http://127.0.0.1:8100",
+		Port:                 8080,
+		FaucetPrivateKey:     "",
+		Network:              defs.NetworkTestnet,
+		MaxFaucetTotalAmount: 0,
 	}
 }
 
@@ -32,26 +37,24 @@ func Defaults() Config {
 func Load() (Config, error) {
 	cfg := Defaults()
 
-	if port := os.Getenv("PORT"); port != "" {
+	if port := os.Getenv(EnvPort); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
 			cfg.Port = p
 		}
 	}
 
-	if serverKey := os.Getenv("SERVER_PRIVATE_KEY"); serverKey != "" {
-		cfg.ServerPrivateKey = serverKey
-	}
-
-	if faucetKey := os.Getenv("FAUCET_PRIVATE_KEY"); faucetKey != "" {
+	if faucetKey := os.Getenv(EnvFaucetPrivateKey); faucetKey != "" {
 		cfg.FaucetPrivateKey = faucetKey
 	}
 
-	if network := os.Getenv("NETWORK"); network != "" {
+	if network := os.Getenv(EnvNetwork); network != "" {
 		cfg.Network = defs.BSVNetwork(network)
 	}
 
-	if serverURL := os.Getenv("SERVER_URL"); serverURL != "" {
-		cfg.ServerURL = serverURL
+	if v := os.Getenv(EnvMaxFaucetTotalAmount); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 64); err == nil {
+			cfg.MaxFaucetTotalAmount = n
+		}
 	}
 
 	return cfg, nil
@@ -61,24 +64,16 @@ func Load() (Config, error) {
 func (c *Config) Validate() error {
 	var err error
 
-	if c.ServerPrivateKey == "" {
-		return fmt.Errorf("server_private_key is required")
-	}
-
 	if c.FaucetPrivateKey == "" {
-		return fmt.Errorf("faucet_private_key is required")
+		return fmt.Errorf("faucet_private_key is required (set %s)", EnvFaucetPrivateKey)
 	}
 
 	if c.Port <= 0 || c.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535")
-	}
-
-	if c.ServerURL == "" {
-		return fmt.Errorf("server_url is required")
+		return fmt.Errorf("port must be between 1 and 65535 (set %s)", EnvPort)
 	}
 
 	if c.Network, err = defs.ParseBSVNetworkStr(string(c.Network)); err != nil {
-		return fmt.Errorf("invalid network: %w", err)
+		return fmt.Errorf("invalid network (set %s): %w", EnvNetwork, err)
 	}
 
 	return nil

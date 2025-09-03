@@ -21,30 +21,31 @@ docker-compose up -d --build
 
 ### 3. Verify
 ```bash
-curl http://localhost:8080/address
+curl http://localhost:8080/info
 ```
 
 ## 📋 Environment Variables
 
 Edit `.env` file:
 ```bash
-SERVER_PRIVATE_KEY=your_server_private_key_here
 FAUCET_PRIVATE_KEY=your_faucet_private_key_here
 NETWORK=test  # or main
 PORT=8080
-SERVER_URL=http://127.0.0.1:8100
+# Optional: set a cap on the total faucet amount per request (satoshis)
+MAX_FAUCET_TOTAL_AMOUNT=20000
 ```
 
 ## 📊 API Endpoints
 
-### `GET /address`
+### `GET /info` (alias: `GET /address`)
 Get faucet address and balance.
 
 **Response:**
 ```json
 {
   "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
-  "balance": 1000000
+  "balance": 1000000,
+  "network": "test"
 }
 ```
 
@@ -55,55 +56,28 @@ Send funds to one or more addresses.
 ```json
 {
   "outputs": [
-    {
-      "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
-      "amount": 1000
-    },
-    {
-      "address": "1B2M2Y8AsgTpgAmY7PhCfgQggdL41VXaC",
-      "amount": 2000
-    }
+    { "address": "...", "amount": 1000 },
+    { "address": "...", "amount": 2000 }
   ]
 }
 ```
 
 **Response:**
 ```json
-{
-  "status": "ok",
-  "message": "funded",
-  "txid": "abc123...",
-  "beef_hex": "01000000..."
-}
+{ "status": "ok", "message": "funded", "txid": "abc123...", "beef_hex": "0100..." }
 ```
-
-**Limits:**
-- Maximum total amount: **20,000 satoshis** per request (configurable)
-- At least one output required
-- Amount must be > 0 for each output
 
 ### `POST /topup`
 Add funds to faucet by internalizing a UTXO.
 
 **Request:**
 ```json
-{
-  "outpoint": "txid:outputIndex"
-}
-```
-
-**Example:**
-```json
-{
-  "outpoint": "abc123def456789:0"
-}
+{ "outpoint": "txid:outputIndex" }
 ```
 
 **Response:**
 ```json
-{
-  "status": "ok"
-}
+{ "status": "ok" }
 ```
 
 ## 🔧 Useful Commands

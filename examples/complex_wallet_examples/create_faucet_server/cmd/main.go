@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
-	"os"
 
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/localinfra"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/server"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/subosito/gotenv"
 )
 
@@ -26,25 +27,20 @@ func main() {
 		log.Fatalf("invalid config: %v", err)
 	}
 
-	// Start Wallet Toolbox infra (GORM local storage + JSON-RPC server)
-	go func() {
-		_ = os.Setenv("SERVER_PRIVATE_KEY", cfg.ServerPrivateKey)
-		_ = os.Setenv("BSV_NETWORK", string(cfg.Network))
+	privKey, err := ec.NewPrivateKey()
+	if err != nil {
+		log.Fatalf("failed to generate ephemeral server key: %v", err)
+	}
+	_ = hex.EncodeToString(privKey.Serialize())
 
-		srv, err := infra.NewServer(
-			context.Background(),
-			infra.WithEnvPrefix(""),
-		)
-		if err != nil {
-			log.Fatalf("infra init failed: %v", err)
-		}
-		if err := srv.ListenAndServe(); err != nil {
-			log.Fatalf("infra server exited: %v", err)
-		}
-	}()
+	// Initialize local GORM storage provider (no extra server)
+	storageInfra, err := localinfra.CreateLocalStorage(context.Background(), cfg.Network)
+	if err != nil {
+		log.Fatalf("failed to init local storage: %v", err)
+	}
 
 	// Start Fiber HTTP server
-	app := server.New(cfg)
+	app := server.New(cfg, storageInfra.Provider)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	if err := app.Start(addr); err != nil {
 		log.Fatalf("fiber server exited: %v", err)

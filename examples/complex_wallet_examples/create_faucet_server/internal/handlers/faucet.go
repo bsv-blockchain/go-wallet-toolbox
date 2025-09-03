@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 	"github.com/gofiber/fiber/v2"
 )
@@ -46,9 +45,8 @@ func NewFaucetHandler(deps FaucetDeps) fiber.Handler {
 			totalAmount += output.Amount
 		}
 
-		// Check total amount limit
-		if totalAmount > constants.MaxFaucetTotalAmount {
-			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("total amount must be less than %d satoshis", constants.MaxFaucetTotalAmount)})
+		if deps.MaxFaucetTotalAmount > 0 && totalAmount > deps.MaxFaucetTotalAmount {
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("total amount must be <= %d satoshis", deps.MaxFaucetTotalAmount)})
 		}
 
 		txid, beefHex, err := methods.FundAddress(context.Background(), deps, req.Outputs...)

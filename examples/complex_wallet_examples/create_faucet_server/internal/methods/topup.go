@@ -2,23 +2,22 @@ package methods
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
-	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
 // TopUpInternalize validates tx belongs to faucet and internalizes it.
-func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w sdk.Interface, txid string, outputIndex uint32) error {
+func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txid string, outputIndex uint32) error {
 	if txid == "" {
 		return fmt.Errorf("txid is required")
 	}
@@ -60,21 +59,18 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 		return fmt.Errorf("tx output[%d] does not match faucet address", outputIndex)
 	}
 
-	derivationPrefixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Prefix)
+	// Derivation key ID constants
+	derivationPrefixBytes, err := base64.StdEncoding.DecodeString(constants.FaucetAddressKeyIDPrefix)
 	if err != nil {
-		return fmt.Errorf("failed to convert derivation prefix from base64: %w", err)
+		return fmt.Errorf("failed to decode derivation prefix: %w", err)
+	}
+	derivationSuffixBytes, err := base64.StdEncoding.DecodeString(constants.FaucetAddressKeyIDSuffix)
+	if err != nil {
+		return fmt.Errorf("failed to decode derivation suffix: %w", err)
 	}
 
-	derivationSuffixBytes, err := utils.BytesFromBase64(constants.DefaultBase64Suffix)
-	if err != nil {
-		return fmt.Errorf("failed to convert derivation suffix from base64: %w", err)
-	}
-
-	faucetPriv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
-	if err != nil {
-		return fmt.Errorf("failed to parse faucet private key: %w", err)
-	}
-	faucetPub := faucetPriv.PubKey()
+	// Sender: AnyoneKey to align with BA practices
+	_, senderPub := sdk.AnyoneKey()
 	internalizeArgs := sdk.InternalizeActionArgs{
 		Tx: atomic,
 		Outputs: []sdk.InternalizeOutput{{
@@ -83,7 +79,7 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 			PaymentRemittance: &sdk.Payment{
 				DerivationPrefix:  derivationPrefixBytes,
 				DerivationSuffix:  derivationSuffixBytes,
-				SenderIdentityKey: faucetPub,
+				SenderIdentityKey: senderPub,
 			},
 		}},
 		Description: "internalize from faucet",
@@ -92,6 +88,6 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, _ *ec.PublicKey, w s
 	if _, err := w.InternalizeAction(ctx, internalizeArgs, ""); err != nil {
 		return fmt.Errorf("internalize failed: %w", err)
 	}
-	
+
 	return nil
 }

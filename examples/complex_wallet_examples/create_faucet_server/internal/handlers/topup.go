@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/gofiber/fiber/v2"
 )
@@ -32,42 +31,38 @@ func NewTopUpHandler(deps TopUpDeps) fiber.Handler {
 			return c.Status(http.StatusBadRequest).JSON(TopUpResponse{Status: "error", Message: "outpoint required (format: txid:outputIndex)"})
 		}
 
-		// Parse outpoint into txid and output index
-		parts := strings.Split(req.Outpoint, ":")
-		if len(parts) != 2 {
-			return c.Status(http.StatusBadRequest).JSON(TopUpResponse{Status: "error", Message: "invalid outpoint format, expected txid:outputIndex"})
-		}
-
-		txid := parts[0]
-		outputIndexStr := parts[1]
-		outputIndex, err := strconv.ParseUint(outputIndexStr, 10, 32)
+		// Parse outpoint using transaction helper
+		op, err := transaction.OutpointFromString(req.Outpoint)
 		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(TopUpResponse{Status: "error", Message: fmt.Sprintf("invalid output index: %s", outputIndexStr)})
+			return c.Status(http.StatusBadRequest).JSON(TopUpResponse{Status: "error", Message: fmt.Sprintf("invalid outpoint: %v", err)})
 		}
 
-		// Prepare wallet and identity for internalization
-		ctx := context.Background()
-		priv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
-		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(TopUpResponse{Status: "error", Message: err.Error()})
-		}
-		identity := priv.PubKey()
-
-		storageClient, cleanup, err := storage.NewClient(deps.ServerURL)
-		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(TopUpResponse{Status: "error", Message: err.Error()})
-		}
-		defer cleanup()
-
-		w, err := wallet.New(deps.Network, priv, storageClient)
-		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(TopUpResponse{Status: "error", Message: err.Error()})
+		// Use injected wallet if available
+		w := deps.Wallet
+		if w == nil {
+			priv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
+			if err != nil {
+				return c.Status(http.StatusBadRequest).JSON(TopUpResponse{Status: "error", Message: err.Error()})
+			}
+			w, err = wallet.New(deps.Network, priv, deps.Storage)
+			if err != nil {
+				return c.Status(http.StatusInternalServerError).JSON(TopUpResponse{Status: "error", Message: err.Error()})
+			}
 		}
 
-		if err := methods.TopUpInternalize(ctx, deps, identity, w, txid, uint32(outputIndex)); err != nil {
+		if err := methods.TopUpInternalize(context.Background(), deps, w, op.Txid.String(), uint32(op.Index)); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(TopUpResponse{Status: "error", Message: err.Error()})
 		}
 
 		return c.JSON(TopUpResponse{Status: "ok"})
 	}
+}
+
+// walletForDeps creates a wallet instance bound to injected storage and faucet key
+func walletForDeps(deps methods.FaucetDeps) (sdk.Interface, error) {
+	priv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("invalid faucet key: %w", err)
+	}
+	return wallet.New(deps.Network, priv, deps.Storage)
 }

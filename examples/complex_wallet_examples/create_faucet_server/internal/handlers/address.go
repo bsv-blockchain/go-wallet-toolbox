@@ -1,12 +1,10 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/gofiber/fiber/v2"
 )
@@ -29,24 +27,19 @@ func NewGetAddressHandler(deps AddressDeps) fiber.Handler {
 			return c.Status(http.StatusBadRequest).JSON(AddressResponse{Status: "error", Message: err.Error()})
 		}
 
-		ctx := context.Background()
-		priv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
-		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(AddressResponse{Status: "error", Message: err.Error()})
+		w := deps.Wallet
+		if w == nil {
+			priv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
+			if err != nil {
+				return c.Status(http.StatusBadRequest).JSON(AddressResponse{Status: "error", Message: err.Error()})
+			}
+			w, err = wallet.New(deps.Network, priv, deps.Storage)
+			if err != nil {
+				return c.Status(http.StatusInternalServerError).JSON(AddressResponse{Status: "error", Message: err.Error()})
+			}
 		}
 
-		storageClient, cleanup, err := storage.NewClient(deps.ServerURL)
-		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(AddressResponse{Status: "error", Message: err.Error()})
-		}
-		defer cleanup()
-
-		w, err := wallet.New(deps.Network, priv, storageClient)
-		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(AddressResponse{Status: "error", Message: err.Error()})
-		}
-
-		balance, err := methods.ComputeBalance(ctx, w, "default")
+		balance, err := methods.ComputeBalance(c.Context(), w, "default")
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(AddressResponse{Status: "error", Message: err.Error()})
 		}

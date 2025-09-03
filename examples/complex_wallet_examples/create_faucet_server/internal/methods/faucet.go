@@ -10,15 +10,17 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type FaucetDeps struct {
-	FaucetKeyHex string
-	Network      defs.BSVNetwork
-	ServerURL    string
+	FaucetKeyHex         string
+	Network              defs.BSVNetwork
+	Storage              wdk.WalletStorageProvider
+	MaxFaucetTotalAmount uint64 // 0 means unlimited
+	Wallet               sdk.Interface
 }
 
 type FaucetOutput struct {
@@ -36,20 +38,21 @@ func FundAddress(ctx context.Context, deps FaucetDeps, outputs ...FaucetOutput) 
 		return "", "", fmt.Errorf("at least one output is required")
 	}
 
-	storageClient, cleanup, err := storage.NewClient(deps.ServerURL)
-	if err != nil {
-		return "", "", fmt.Errorf("connect storage: %w", err)
+	if deps.Storage == nil {
+		return "", "", fmt.Errorf("storage provider not configured")
 	}
-	defer cleanup()
 
 	faucetPriv, err := ec.PrivateKeyFromHex(deps.FaucetKeyHex)
 	if err != nil {
 		return "", "", fmt.Errorf("invalid faucet key: %w", err)
 	}
 
-	faucetWallet, err := wallet.New(deps.Network, faucetPriv, storageClient)
-	if err != nil {
-		return "", "", fmt.Errorf("create wallet: %w", err)
+	faucetWallet := deps.Wallet
+	if faucetWallet == nil {
+		faucetWallet, err = wallet.New(deps.Network, faucetPriv, deps.Storage)
+		if err != nil {
+			return "", "", fmt.Errorf("create wallet: %w", err)
+		}
 	}
 
 	// Create outputs for each address and amount
@@ -57,11 +60,11 @@ func FundAddress(ctx context.Context, deps FaucetDeps, outputs ...FaucetOutput) 
 	for i, output := range outputs {
 		addr, err := script.NewAddressFromString(output.Address)
 		if err != nil {
-			return "", "", fmt.Errorf("invalid address %s: %w", output.Address, err)
+			return "", "", fmt.Errorf("invalid address[%d] %s: %w", i, output.Address, err)
 		}
 		lockingScript, err := p2pkh.Lock(addr)
 		if err != nil {
-			return "", "", fmt.Errorf("p2pkh lock for address %s: %w", output.Address, err)
+			return "", "", fmt.Errorf("p2pkh lock for address[%d] %s: %w", i, output.Address, err)
 		}
 
 		createOutputs[i] = sdk.CreateActionOutput{
@@ -90,6 +93,6 @@ func FundAddress(ctx context.Context, deps FaucetDeps, outputs ...FaucetOutput) 
 	if len(result.Tx) > 0 {
 		beefHex = hex.EncodeToString(result.Tx)
 	}
-	
+
 	return result.Txid.String(), beefHex, nil
 }

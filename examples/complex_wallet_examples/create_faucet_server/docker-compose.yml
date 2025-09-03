@@ -8,7 +8,6 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      - SERVER_PRIVATE_KEY=${SERVER_PRIVATE_KEY}
       - FAUCET_PRIVATE_KEY=${FAUCET_PRIVATE_KEY}
       - NETWORK=${NETWORK}
       - PORT=${PORT}
@@ -20,7 +19,7 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/address"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/info"]
       interval: 30s
       timeout: 10s
       retries: 3
