@@ -19,6 +19,7 @@ type CreateActionInputSource interface {
 	CreateActionInput() sdk.CreateActionInput
 	MerklePath() *transaction.MerklePath
 	BlockHeight() uint32
+	UnlockingScript() *script.Script
 }
 
 type CreateActionInputBuilder interface {
@@ -82,7 +83,7 @@ func (b *createActionInputBuilder) BlockHeight() uint32 {
 func (b *createActionInputBuilder) CreateActionInput() sdk.CreateActionInput {
 	inputTx := b.createInputTx()
 
-	inputUnlockingScript := b.createUnlockingScript(inputTx)
+	inputUnlockingScript := b.UnlockingScript()
 
 	actionInput := sdk.CreateActionInput{
 		Outpoint: transaction.Outpoint{
@@ -102,7 +103,7 @@ func (b *createActionInputBuilder) CreateActionInput() sdk.CreateActionInput {
 	return actionInput
 }
 
-func (b *createActionInputBuilder) createUnlockingScript(_ *transaction.Transaction) *script.Script {
+func (b *createActionInputBuilder) UnlockingScript() *script.Script {
 	unlockingScript := &script.Script{}
 	err := unlockingScript.AppendOpcodes(script.Op3)
 	require.NoError(b, err, "invalid test setup, cannot create custom unlocking script")

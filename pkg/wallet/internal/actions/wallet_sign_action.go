@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
@@ -36,6 +37,15 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	}
 
 	tx := &pendingSignAction.Tx
+
+	for vin, spends := range args.Spends {
+		unlockingScript := script.NewFromBytes(spends.UnlockingScript)
+		tx.Inputs[vin].UnlockingScript = unlockingScript
+
+		if spends.SequenceNumber != nil {
+			tx.Inputs[vin].SequenceNumber = *spends.SequenceNumber
+		}
+	}
 
 	if err := s.allInputsCanBeUnlocked(tx); err != nil {
 		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
