@@ -72,18 +72,18 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 }
 
 type create struct {
-	logger           *slog.Logger
-	funder           funder.Funder
-	basketRepo       BasketRepo
-	txRepo           TransactionsRepo
-	outputRepo       OutputRepo
-	knownTxRepo      KnownTxRepo
-	commissionRepo   CommissionRepo
-	commission       *commission.ScriptGenerator
-	commissionCfg    defs.Commission
-	random           wdk.Randomizer
-	chaintracker     chaintracker.ChainTracker
-	beefMergeService *beefMergeService
+	logger         *slog.Logger
+	funder         funder.Funder
+	basketRepo     BasketRepo
+	txRepo         TransactionsRepo
+	outputRepo     OutputRepo
+	knownTxRepo    KnownTxRepo
+	commissionRepo CommissionRepo
+	commission     *commission.ScriptGenerator
+	commissionCfg  defs.Commission
+	random         wdk.Randomizer
+	chaintracker   chaintracker.ChainTracker
+	beefProvider   BeefProvider
 }
 
 func newCreateAction(
@@ -111,10 +111,7 @@ func newCreateAction(
 		commissionRepo: commissionRepo,
 		random:         random,
 		chaintracker:   chaintracker,
-		beefMergeService: &beefMergeService{
-			beef:    beefProvider,
-			outputs: outputRepo,
-		},
+		beefProvider:   beefProvider,
 	}
 
 	if commissionCfg.Enabled() {
@@ -364,7 +361,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
-	beef, err := c.beefMergeService.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxids)
+	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
 	}
@@ -730,13 +727,8 @@ func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsI
 	return ids
 }
 
-type beefMergeService struct {
-	beef    BeefProvider
-	outputs OutputRepo
-}
-
-func (b *beefMergeService) findOutputs(ctx context.Context, allocatedUTXOs []*funder.UTXO) ([]*entity.Output, error) {
-	utxos, err := b.outputs.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+func (c *create) findOutputs(ctx context.Context, allocatedUTXOs []*funder.UTXO) ([]*entity.Output, error) {
+	utxos, err := c.outputRepo.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
 	if err != nil {
@@ -749,14 +741,14 @@ func (b *beefMergeService) findOutputs(ctx context.Context, allocatedUTXOs []*fu
 	return utxos, nil
 }
 
-func (b *beefMergeService) mergeAllocatedUTXOs(
+func (c *create) mergeAllocatedUTXOs(
 	ctx context.Context,
 	beefTx *transaction.Beef,
 	allocatedUTXOs []*funder.UTXO,
 	knownTxIDs primitives.TXIDHexStrings,
 ) (primitives.ExplicitByteArray, error) {
 
-	utxos, err := b.findOutputs(ctx, allocatedUTXOs)
+	utxos, err := c.findOutputs(ctx, allocatedUTXOs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs for allocated UTXOs: %w", err)
 	}
@@ -781,7 +773,7 @@ func (b *beefMergeService) mergeAllocatedUTXOs(
 			continue
 		}
 
-		fetchedBeef, err := b.beef.GetBeef(ctx, txID, storageGetBeefOptions)
+		fetchedBeef, err := c.beefProvider.GetBeef(ctx, txID, storageGetBeefOptions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get beef: %w", err)
 		}
