@@ -1,16 +1,16 @@
 module github.com/bsv-blockchain/go-wallet-toolbox-faucet-server
 
-go 1.24.4
+go 1.24.3
+
+toolchain go1.24.4
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.8
-	github.com/bsv-blockchain/go-wallet-toolbox v0.119.0
+	github.com/bsv-blockchain/go-wallet-toolbox v0.124.0
 	github.com/go-softwarelab/common v1.7.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/subosito/gotenv v1.6.0
 )
-
-replace github.com/bsv-blockchain/go-wallet-toolbox => ../../../
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect

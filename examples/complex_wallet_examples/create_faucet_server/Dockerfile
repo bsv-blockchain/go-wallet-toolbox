@@ -11,10 +11,15 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # Download dependencies
+# Remove local replace to parent repo (not available in container context)
+RUN sed -i '/^replace github.com\/bsv-blockchain\/go-wallet-toolbox/d' go.mod
 RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Ensure any re-copied go.mod is also cleaned (COPY overwrites the prior file)
+RUN sed -i '/^replace github.com\/bsv-blockchain\/go-wallet-toolbox/d' go.mod && go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
@@ -35,8 +40,7 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/faucet-server .
 
-# Copy example environment file
-COPY --from=builder /app/.env.example .env.example
+# No example env file to copy in this context
 
 # Change ownership to non-root user
 RUN chown -R faucet:faucet /app
