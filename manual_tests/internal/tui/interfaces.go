@@ -21,4 +21,5 @@ type ManagerInterface interface {
 	CreateActionWithP2pkh(user fixtures.UserConfig, recipientAddress string, satoshis uint64) (string, fixtures.Summary, error)
 	ListOutputs(user fixtures.UserConfig, limit uint32, offset uint32, includeLabels bool, basket string) (fixtures.Summary, error)
 	ActionsStats(user fixtures.UserConfig) (map[string]int, error)
+	ExecuteNoSendSendWith(user fixtures.UserConfig, txCount int, dataPrefix string) (*NoSendSendWithResult, error)
 }
