@@ -90,12 +90,17 @@ func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.Creat
 		return nil, fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
-	createActionResult, err := a.handleProcessAction(ctx, tx, storageCreateActionResult)
+	processActionResult, err := a.handleProcessAction(ctx, tx, storageCreateActionResult)
 	if err != nil {
 		return nil, pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err)
 	}
 
-	return createActionResult, err
+	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(tx.TxID(), tx, storageCreateActionResult, processActionResult, a.wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build result after processing created action: %w", pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err))
+	}
+
+	return result, nil
 }
 
 func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, storageCreateActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
@@ -115,7 +120,7 @@ func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, stor
 	return result, nil
 }
 
-func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
+func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult) (*wdk.ProcessActionResult, error) {
 	txID := tx.TxID()
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, createActionResult.Reference, a.wdkArgs)
@@ -132,12 +137,7 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 			Wrap(broadcastErr)
 	}
 
-	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(txID, tx, createActionResult, processActionResult, a.wdkArgs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build result after processing created action: %w", err)
-	}
-
-	return result, nil
+	return processActionResult, nil
 }
 
 func (a *CreateAction) validateProcessActionResult(processActionResult *wdk.ProcessActionResult) error {
