@@ -12,11 +12,11 @@ func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) error {
 		return nil
 	}
 
-	allSend := seq.Every(seq.FromSlice(result.SendWithResults), func(it wdk.SendWithResult) bool {
+	allSent := seq.Every(seq.FromSlice(result.SendWithResults), func(it wdk.SendWithResult) bool {
 		return it.Status == wdk.SendWithResultStatusUnproven
 	})
 
-	if allSend {
+	if allSent {
 		return nil
 	}
 

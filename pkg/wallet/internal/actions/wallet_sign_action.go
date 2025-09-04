@@ -24,15 +24,22 @@ type SignAction struct {
 	PendingSignActionsCache wdk.PendingSignActionsCache
 	Storage                 WalletStorageProcessAction
 
-	wdkArgs   wdk.ValidCreateActionArgs
-	reference string
-	tx        *transaction.Transaction
-	txID      *chainhash.Hash
+	wdkArgs    wdk.ValidCreateActionArgs
+	reference  string
+	tx         *transaction.Transaction
+	txID       *chainhash.Hash
+	originator string
 }
 
 func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string) (*wallet.SignActionResult, error) {
 	s.Logger = logging.Child(s.Logger, "SignAction")
+	s.originator = originator
 	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
+
+	err := s.validate()
+	if err != nil {
+		return nil, err
+	}
 
 	pendingSignAction, err := s.PendingSignActionsCache.Get(s.reference)
 	if err != nil {
@@ -119,6 +126,7 @@ func (s *SignAction) mergeArgs(createActionArgs wdk.ValidCreateActionArgs, args 
 
 	if args.Options.AcceptDelayedBroadcast != nil {
 		s.wdkArgs.Options.AcceptDelayedBroadcast = to.Ptr(primitives.BooleanDefaultTrue(*args.Options.AcceptDelayedBroadcast))
+		s.wdkArgs.IsDelayed = *args.Options.AcceptDelayedBroadcast
 	}
 	if args.Options.ReturnTXIDOnly != nil {
 		s.wdkArgs.Options.ReturnTXIDOnly = to.Ptr(primitives.BooleanDefaultFalse(*args.Options.ReturnTXIDOnly))
@@ -149,5 +157,17 @@ func (s *SignAction) allInputsCanBeUnlocked() error {
 	if len(missingInputVin) > 0 {
 		return fmt.Errorf("the following inputs cannot be unlocked (missing unlocking script and unlocking script template) input indexes: %v", missingInputVin)
 	}
+	return nil
+}
+
+func (s *SignAction) validate() error {
+	if err := validate.Originator(s.originator); err != nil {
+		return fmt.Errorf("invalid originator: %w", err)
+	}
+
+	if len(s.reference) == 0 {
+		return fmt.Errorf("missing reference argument for sign action")
+	}
+
 	return nil
 }
