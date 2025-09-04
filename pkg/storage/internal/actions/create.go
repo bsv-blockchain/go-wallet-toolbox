@@ -7,6 +7,8 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -37,6 +39,7 @@ type CreateActionParams struct {
 	Version                  uint32
 	LockTime                 uint32
 	Description              string
+	KnownTxids               []primitives.TXIDHexString
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
@@ -64,21 +67,23 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		IsNoSend:                 args.IsNoSend,
 		NoSendChange:             args.Options.NoSendChange,
 		IsDelayed:                args.IsDelayed,
+		KnownTxids:               args.Options.KnownTxids,
 	}
 }
 
 type create struct {
-	logger         *slog.Logger
-	funder         funder.Funder
-	basketRepo     BasketRepo
-	txRepo         TransactionsRepo
-	outputRepo     OutputRepo
-	knownTxRepo    KnownTxRepo
-	commissionRepo CommissionRepo
-	commission     *commission.ScriptGenerator
-	commissionCfg  defs.Commission
-	random         wdk.Randomizer
-	chaintracker   chaintracker.ChainTracker
+	logger           *slog.Logger
+	funder           funder.Funder
+	basketRepo       BasketRepo
+	txRepo           TransactionsRepo
+	outputRepo       OutputRepo
+	knownTxRepo      KnownTxRepo
+	commissionRepo   CommissionRepo
+	commission       *commission.ScriptGenerator
+	commissionCfg    defs.Commission
+	random           wdk.Randomizer
+	chaintracker     chaintracker.ChainTracker
+	beefMergeService *beefMergeService
 }
 
 func newCreateAction(
@@ -92,6 +97,7 @@ func newCreateAction(
 	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
+	beefProvider BeefProvider,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -105,6 +111,10 @@ func newCreateAction(
 		commissionRepo: commissionRepo,
 		random:         random,
 		chaintracker:   chaintracker,
+		beefMergeService: &beefMergeService{
+			beef:    beefProvider,
+			outputs: outputRepo,
+		},
 	}
 
 	if commissionCfg.Enabled() {
@@ -354,6 +364,11 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
+	beef, err := c.beefMergeService.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
+	}
+
 	return &wdk.StorageCreateActionResult{
 		Reference:               reference,
 		Version:                 params.Version,
@@ -361,7 +376,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		DerivationPrefix:        derivationPrefix,
 		Outputs:                 c.resultOutputs(newOutputs),
 		Inputs:                  resultInputs,
-		InputBeef:               inputBeef,
+		InputBeef:               beef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
 }
@@ -713,4 +728,73 @@ func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsI
 		ids = append(ids, utxo.OutputID)
 	}
 	return ids
+}
+
+type beefMergeService struct {
+	beef    BeefProvider
+	outputs OutputRepo
+}
+
+func (b *beefMergeService) findOutputs(ctx context.Context, allocatedUTXOs []*funder.UTXO) ([]*entity.Output, error) {
+	utxos, err := b.outputs.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+		return utxo.OutputID
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
+	}
+	if len(utxos) != len(allocatedUTXOs) {
+		return nil, fmt.Errorf("expected %d outputs, got %d", len(allocatedUTXOs), len(utxos))
+	}
+
+	return utxos, nil
+}
+
+func (b *beefMergeService) mergeAllocatedUTXOs(
+	ctx context.Context,
+	beefTx *transaction.Beef,
+	allocatedUTXOs []*funder.UTXO,
+	knownTxIDs primitives.TXIDHexStrings,
+) (primitives.ExplicitByteArray, error) {
+
+	utxos, err := b.findOutputs(ctx, allocatedUTXOs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs for allocated UTXOs: %w", err)
+	}
+
+	knownTxIDsHashSet := knownTxIDs.ToHashSet()
+	knownTxIDsStringSlice := knownTxIDs.ToStringSlice()
+	storageGetBeefOptions := wdk.StorageGetBeefOptions{KnownTxIDs: knownTxIDsStringSlice}
+
+	for _, utxo := range utxos {
+		if utxo.TxID == nil {
+			return nil, fmt.Errorf("UTXO TxID should not be nil")
+		}
+
+		txID := to.Value(utxo.TxID)
+
+		if !knownTxIDs.IsEmpty() && knownTxIDsHashSet.Contains(txID) {
+			hash, err := chainhash.NewHashFromHex(txID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create hash from str (%s): %w", txID, err)
+			}
+			beefTx.MergeTxidOnly(hash)
+			continue
+		}
+
+		fetchedBeef, err := b.beef.GetBeef(ctx, txID, storageGetBeefOptions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get beef: %w", err)
+		}
+
+		if err := beefTx.MergeBeef(fetchedBeef); err != nil {
+			return nil, fmt.Errorf("failed to merge BEEF: %w", err)
+		}
+	}
+
+	beefBytes, err := beefTx.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to return the BEEF BRC-96 as a byte slice: %w", err)
+	}
+
+	return beefBytes, nil
 }

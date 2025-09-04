@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -709,4 +710,43 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
+}
+
+func TestCreateActionWithKnownTxIDs(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	faucetTx1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Options.KnownTxids = []primitives.TXIDHexString{
+			primitives.TXIDHexString(faucetTx1.ID().String()),
+		}
+	})
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+
+	beef, err := transaction.NewBeefFromBytes(result.InputBeef)
+	require.NoError(t, err)
+	require.NotNil(t, beef)
+
+	expectedTransactionFromFaucet := primitives.TXIDHexStrings{primitives.TXIDHexString(faucetTx1.ID().String())}.ToHashSet()
+
+	for _, tx := range beef.Transactions {
+		require.Equal(t, transaction.TxIDOnly, tx.DataFormat)
+		require.True(t, expectedTransactionFromFaucet.Contains(tx.KnownTxID.String()))
+	}
 }

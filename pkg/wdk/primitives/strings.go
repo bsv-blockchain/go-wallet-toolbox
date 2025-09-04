@@ -138,3 +138,24 @@ func (pkh PubKeyHex) Validate() error {
 
 // TXIDHexString is a hexadecimal transaction ID
 type TXIDHexString = HexString
+
+// TXIDHexStrings is a collection of hexadecimal transaction IDs.
+type TXIDHexStrings []TXIDHexString
+
+// IsEmpty returns true when TXIDHexStrings has no elements.
+func (tt TXIDHexStrings) IsEmpty() bool { return len(tt) == 0 }
+
+// ToHashSet converts the TXIDHexStrings slice into a HashSet,
+// where each TXIDHexString becomes a key in the set.
+func (tt TXIDHexStrings) ToHashSet() HashSet {
+	return NewHashSet(tt.ToStringSlice()...)
+}
+
+// ToStringSlice converts the TXIDHexStrings slice into a slice of strings.
+func (tt TXIDHexStrings) ToStringSlice() []string {
+	slice := make([]string, len(tt))
+	for i, t := range tt {
+		slice[i] = string(t)
+	}
+	return slice
+}
