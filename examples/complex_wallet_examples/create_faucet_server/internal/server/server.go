@@ -23,13 +23,14 @@ func New(cfg config.Config, storage wdk.WalletStorageProvider) *Server {
 	if err != nil {
 		panic(fmt.Errorf("invalid faucet private key: %w", err))
 	}
+
 	w, err := wallet.New(cfg.Network, priv, storage)
 	if err != nil {
 		panic(fmt.Errorf("failed to create faucet wallet: %w", err))
 	}
 
 	deps := methods.FaucetDeps{
-		FaucetKeyHex:         cfg.FaucetPrivateKey,
+		FaucetPrivateKey:     priv,
 		Network:              cfg.Network,
 		Storage:              storage,
 		MaxFaucetTotalAmount: cfg.MaxFaucetTotalAmount,

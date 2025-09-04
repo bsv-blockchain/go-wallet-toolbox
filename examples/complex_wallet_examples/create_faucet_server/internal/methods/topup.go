@@ -37,14 +37,16 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txi
 		return fmt.Errorf("failed to get atomic bytes: %w", err)
 	}
 
-	addrStr, err := DeriveAddress(deps.FaucetKeyHex, deps.Network)
+	addrStr, err := DeriveAddress(deps.FaucetPrivateKey, deps.Network)
 	if err != nil {
 		return fmt.Errorf("failed to derive faucet address: %w", err)
 	}
+	
 	addr, err := script.NewAddressFromString(addrStr)
 	if err != nil {
 		return fmt.Errorf("failed to parse faucet address: %w", err)
 	}
+
 	expectedLock, err := p2pkh.Lock(addr)
 	if err != nil {
 		return fmt.Errorf("failed to create locking script: %w", err)
@@ -59,18 +61,17 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txi
 		return fmt.Errorf("tx output[%d] does not match faucet address", outputIndex)
 	}
 
-	// Derivation key ID constants
 	derivationPrefixBytes, err := base64.StdEncoding.DecodeString(constants.FaucetAddressKeyIDPrefix)
 	if err != nil {
 		return fmt.Errorf("failed to decode derivation prefix: %w", err)
 	}
+	
 	derivationSuffixBytes, err := base64.StdEncoding.DecodeString(constants.FaucetAddressKeyIDSuffix)
 	if err != nil {
 		return fmt.Errorf("failed to decode derivation suffix: %w", err)
 	}
 
-	// Sender: AnyoneKey to align with BA practices
-	_, senderPub := sdk.AnyoneKey()
+	_, identityKey := sdk.AnyoneKey()
 	internalizeArgs := sdk.InternalizeActionArgs{
 		Tx: atomic,
 		Outputs: []sdk.InternalizeOutput{{
@@ -79,7 +80,7 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txi
 			PaymentRemittance: &sdk.Payment{
 				DerivationPrefix:  derivationPrefixBytes,
 				DerivationSuffix:  derivationSuffixBytes,
-				SenderIdentityKey: senderPub,
+				SenderIdentityKey: identityKey,
 			},
 		}},
 		Description: "internalize from faucet",

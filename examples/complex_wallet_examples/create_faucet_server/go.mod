@@ -5,7 +5,7 @@ go 1.24.4
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.8
 	github.com/bsv-blockchain/go-wallet-toolbox v0.119.0
-	github.com/go-softwarelab/common v1.6.0
+	github.com/go-softwarelab/common v1.7.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/subosito/gotenv v1.6.0
 )
@@ -19,7 +19,7 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.8.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2 // indirect
-	github.com/go-co-op/gocron/v2 v2.16.3 // indirect
+	github.com/go-co-op/gocron/v2 v2.16.4 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
@@ -50,7 +50,7 @@ require (
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/spf13/viper v1.20.1 // indirect
-	github.com/stretchr/testify v1.11.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
@@ -71,7 +71,7 @@ require (
 	gorm.io/driver/postgres v1.6.0 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect
 	gorm.io/gen v0.3.27 // indirect
-	gorm.io/gorm v1.30.1 // indirect
+	gorm.io/gorm v1.30.2 // indirect
 	gorm.io/hints v1.1.2 // indirect
 	gorm.io/plugin/dbresolver v1.6.2 // indirect
 )

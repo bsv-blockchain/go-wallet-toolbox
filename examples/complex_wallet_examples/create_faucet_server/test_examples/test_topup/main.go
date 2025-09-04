@@ -20,7 +20,7 @@ type topupResp struct {
 func main() {
 	// Fill these values before running
 	const server = "http://127.0.0.1:8080"                                                // e.g. "http://127.0.0.1:8080"
-	const outpoint = "d4603eed60fbc162bd982e2e22c80a55163b22aaec1773e152cd41030efbc388:0" // Format: "txid:outputIndex"
+	const outpoint = "bb524b2f3880bd987b7739ed1bad48d6d801a42758777cd8f6425c442d1a9fb1:0" // Format: "txid:outputIndex"
 
 	if server == "" || outpoint == "" {
 		fmt.Println("please set server and outpoint constants in this file")

@@ -1,3 +1,4 @@
+//TODO: Test quick start on server then update this file accordingly if any issues or inconsistencies.
 # BSV Faucet Server - Quick Start
 
 ## 🚀 Deploy in 3 Steps
@@ -37,8 +38,8 @@ MAX_FAUCET_TOTAL_AMOUNT=20000
 
 ## 📊 API Endpoints
 
-### `GET /info` (alias: `GET /address`)
-Get faucet address and balance.
+### `GET /info`
+Get faucet address, balance and network.
 
 **Response:**
 ```json

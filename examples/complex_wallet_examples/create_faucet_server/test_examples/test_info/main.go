@@ -23,7 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	resp, err := http.Get(server + "/address")
+	resp, err := http.Get(server + "/info")
 	if err != nil {
 		panic(err)
 	}

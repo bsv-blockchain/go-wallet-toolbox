@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"log"
 
-	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/config"
-	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/localinfra"
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/create_storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/server"
 	"github.com/subosito/gotenv"
 )
@@ -27,20 +25,15 @@ func main() {
 		log.Fatalf("invalid config: %v", err)
 	}
 
-	privKey, err := ec.NewPrivateKey()
-	if err != nil {
-		log.Fatalf("failed to generate ephemeral server key: %v", err)
-	}
-	_ = hex.EncodeToString(privKey.Serialize())
-
-	// Initialize local GORM storage provider (no extra server)
-	storageInfra, err := localinfra.CreateLocalStorage(context.Background(), cfg.Network)
+	// Initialize local GORM storage provider
+	provider, cleanup, err := create_storage.CreateLocalStorage(context.Background(), cfg.Network, cfg.FaucetPrivateKey)
 	if err != nil {
 		log.Fatalf("failed to init local storage: %v", err)
 	}
+	defer cleanup()
 
 	// Start Fiber HTTP server
-	app := server.New(cfg, storageInfra.Provider)
+	app := server.New(cfg, provider)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	if err := app.Start(addr); err != nil {
 		log.Fatalf("fiber server exited: %v", err)

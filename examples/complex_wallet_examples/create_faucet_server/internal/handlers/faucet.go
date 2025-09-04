@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -20,9 +20,7 @@ type FaucetResponse struct {
 	BEEFHex string `json:"beef_hex,omitempty"`
 }
 
-type FaucetDeps = methods.FaucetDeps
-
-func NewFaucetHandler(deps FaucetDeps) fiber.Handler {
+func NewFaucetHandler(deps methods.FaucetDeps) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req FaucetRequest
 		if err := c.BodyParser(&req); err != nil {
@@ -35,12 +33,12 @@ func NewFaucetHandler(deps FaucetDeps) fiber.Handler {
 
 		// Validate each output
 		totalAmount := uint64(0)
-		for _, output := range req.Outputs {
+		for i, output := range req.Outputs {
 			if output.Address == "" {
-				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "address is required for all outputs"})
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "address is missing in output " + to.StringFromInteger(i)})
 			}
 			if output.Amount == 0 {
-				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "amount must be greater than 0 for all outputs"})
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "amount equal to zero is not allowed in output " + to.StringFromInteger(i)})
 			}
 			totalAmount += output.Amount
 		}
@@ -49,7 +47,7 @@ func NewFaucetHandler(deps FaucetDeps) fiber.Handler {
 			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("total amount must be <= %d satoshis", deps.MaxFaucetTotalAmount)})
 		}
 
-		txid, beefHex, err := methods.FundAddress(context.Background(), deps, req.Outputs...)
+		txid, beefHex, err := methods.FundAddress(c.Context(), deps, req.Outputs...)
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(FaucetResponse{Status: "error", Message: err.Error()})
 		}

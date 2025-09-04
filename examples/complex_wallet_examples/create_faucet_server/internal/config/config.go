@@ -16,9 +16,7 @@ const (
 )
 
 type Config struct {
-	Port int `mapstructure:"port"`
-
-	// Faucet configuration
+	Port                 int             `mapstructure:"port"`
 	FaucetPrivateKey     string          `mapstructure:"faucet_private_key"`
 	Network              defs.BSVNetwork `mapstructure:"network"`
 	MaxFaucetTotalAmount uint64          `mapstructure:"max_faucet_total_amount"` // 0 means unlimited

@@ -17,13 +17,8 @@ const (
 )
 
 // DeriveAddress returns a faucet BRC-29 address
-func DeriveAddress(faucetKeyHex string, network defs.BSVNetwork) (string, error) {
-	priv, err := ec.PrivateKeyFromHex(faucetKeyHex)
-	if err != nil {
-		return "", err
-	}
-
-	identityKey := priv.PubKey()
+func DeriveAddress(faucetPrivateKey *ec.PrivateKey, network defs.BSVNetwork) (string, error) {
+	_, identityKey := sdk.AnyoneKey()
 
 	keyID := brc29.KeyID{
 		DerivationPrefix: constants.FaucetAddressKeyIDPrefix,
@@ -31,10 +26,11 @@ func DeriveAddress(faucetKeyHex string, network defs.BSVNetwork) (string, error)
 	}
 
 	var addr *script.Address
+	var err error
 	if network == defs.NetworkMainnet {
-		addr, err = brc29.Address(priv, keyID, identityKey, brc29.WithMainNet())
+		addr, err = brc29.AddressForSelf(identityKey, keyID, faucetPrivateKey, brc29.WithMainNet())
 	} else {
-		addr, err = brc29.Address(priv, keyID, identityKey, brc29.WithTestNet())
+		addr, err = brc29.AddressForSelf(identityKey, keyID, faucetPrivateKey, brc29.WithTestNet())
 	}
 	if err != nil {
 		return "", err
