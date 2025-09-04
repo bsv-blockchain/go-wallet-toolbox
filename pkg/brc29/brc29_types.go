@@ -31,23 +31,41 @@ func (w WIF) PrivateKey() (*ec.PrivateKey, error) {
 	return ec.PrivateKeyFromWif(string(w)) //nolint:wrapcheck
 }
 
-// CounterpartyPublicKey represents a source of counterparty identity (public) key.
-// Can be used with different types of sources:
-//   - string: a public key in DER HEX format
-//   - *sdk.KeyDeriver: a key deriver that can be used to derive the public key
-//   - *ec.PublicKey: a public key object
-type CounterpartyPublicKey interface {
-	string | *sdk.KeyDeriver | *ec.PublicKey
+// PrivHex represents a string holding private key in HEX format.
+// To pass a string as PrivHex simply wrap it with PrivHex type, like brc29.PrivHex("ab...").
+type PrivHex string
+
+// PrivateKey returns the private key from the PrivHex string.
+func (k PrivHex) PrivateKey() (*ec.PrivateKey, error) {
+	return ec.PrivateKeyFromHex(string(k)) //nolint:wrapcheck
 }
 
 // CounterpartyPrivateKey represents a source of counterparty private key.
 // Can be used with different types of sources:
-//   - string: a private key in DER HEX format
-//   - WIF: a WIF string
-//   - *sdk.KeyDeriver: a key deriver that can be used to derive the private key
+//   - PrivHex: a private key in HEX format - to pass it, you simply wrap string with PrivHex type, like PrivHex("ab...")
+//   - WIF: a private key in WIF format string - to pass it, you simply wrap string with WIF type, like WIF("L1...")
 //   - *ec.PrivateKey: a private key object
+//   - *sdk.KeyDeriver: a key deriver that can be used to derive the private key
 type CounterpartyPrivateKey interface {
-	string | WIF | *sdk.KeyDeriver | *ec.PrivateKey
+	PrivHex | WIF | *ec.PrivateKey | *sdk.KeyDeriver
+}
+
+// PubHex represents a string holding a public key in DER HEX format.
+// To pass a string as PubHex simply wrap it with PubHex type, like PubHex("ab...").
+type PubHex string
+
+// PublicKey returns the public key from the PubHex string.
+func (k PubHex) PublicKey() (*ec.PublicKey, error) {
+	return ec.PublicKeyFromString(string(k)) //nolint:wrapcheck
+}
+
+// CounterpartyPublicKey represents a source of counterparty identity (public) key.
+// Can be used with different types of sources:
+//   - PubHex: a public key in HEX format - to pass it, you simply wrap string with PubHex type, like PubHex("ab...")
+//   - *sdk.KeyDeriver: a key deriver that can be used to derive the public key
+//   - *ec.PublicKey: a public key object
+type CounterpartyPublicKey interface {
+	PubHex | *sdk.KeyDeriver | *ec.PublicKey
 }
 
 // KeyID represents a key ID for BRC29.

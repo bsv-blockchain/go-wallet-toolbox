@@ -3,11 +3,12 @@ package internal
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
-	"log/slog"
 )
 
 type Manager struct {
@@ -26,6 +27,11 @@ func NewManager(ctx context.Context, config *fixtures.Config) *Manager {
 
 func (m *Manager) Ctx() context.Context {
 	return m.ctx
+}
+
+func (m *Manager) SelectNetwork(network defs.BSVNetwork) {
+	m.config.BSVNetwork = network
+	return
 }
 
 func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {

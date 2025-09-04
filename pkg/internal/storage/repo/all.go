@@ -37,7 +37,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		KeyValue:      NewKeyValue(db),
 		Commission:    NewCommission(db, query),
 	}
-	repositories.Users = NewUsers(db, repositories.Settings, repositories.OutputBaskets)
+	repositories.Users = NewUsers(db, query, repositories.Settings, repositories.OutputBaskets)
 
 	return repositories
 }

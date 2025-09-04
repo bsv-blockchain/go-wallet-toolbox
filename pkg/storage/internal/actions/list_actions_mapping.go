@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -35,7 +36,7 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 	}, nil
 }
 
-func (l *listActions) mapTransactionsToActions(txs []*entity.Transaction) ([]uint, []string, []wdk.WalletAction) {
+func (l *listActions) mapTransactionsToActions(txs []*pkgentity.Transaction) ([]uint, []string, []wdk.WalletAction) {
 	transactionIDs := make([]uint, len(txs))
 	var txIDs []string
 	actions := make([]wdk.WalletAction, len(txs))
@@ -97,7 +98,7 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*entity.Transaction, inputMap, outputMap map[uint][]*entity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*pkgentity.Transaction, inputMap, outputMap map[uint][]*entity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
@@ -149,7 +150,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.W
 	return result
 }
 
-func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *entity.Transaction, inputMap map[uint][]*entity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *pkgentity.Transaction, inputMap map[uint][]*entity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	rawTx := rawTxMap[*tx.TxID]
 	if rawTx == nil {
 		return nil

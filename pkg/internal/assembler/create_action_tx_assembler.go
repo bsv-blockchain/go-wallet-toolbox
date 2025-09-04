@@ -144,7 +144,7 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 	//  or need to query for those inputs the storage
 	//  for now (until SignAction is implemented) we create unlocking script template here.
 	input.UnlockingScriptTemplate, err = brc29.Unlock(
-		senderIdentityKey,
+		brc29.PubHex(senderIdentityKey),
 		brc29.KeyID{
 			DerivationPrefix: to.Value(it.DerivationPrefix),
 			DerivationSuffix: to.Value(it.DerivationSuffix),

@@ -33,6 +33,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 			Time:         uint32(testservices.TestBlockTime),
 			Bits:         uint32(bits),
 			Nonce:        testservices.TestBlockNonce,
+			Hash:         testservices.TestBlockHash,
 		}
 
 		// when:
@@ -63,6 +64,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 			Time:         uint32(testservices.TestBlockTime),
 			Bits:         uint32(bits),
 			Nonce:        testservices.TestBlockNonce,
+			Hash:         testservices.TestBlockHash,
 		}
 
 		// when:
@@ -90,6 +92,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 			Time:         first.Timestamp,
 			Bits:         first.DifficultyTarget,
 			Nonce:        first.Nonce,
+			Hash:         first.Hash,
 		}
 
 		// when:

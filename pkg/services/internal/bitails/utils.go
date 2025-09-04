@@ -55,6 +55,7 @@ func ConvertHeader(raw []byte, height uint32) (*wdk.ChainBlockHeader, error) {
 			Time:         timestamp,
 			Bits:         bits,
 			Nonce:        nonce,
+			Hash:         blockHash,
 		},
 		Height: uint(height),
 		Hash:   blockHash,

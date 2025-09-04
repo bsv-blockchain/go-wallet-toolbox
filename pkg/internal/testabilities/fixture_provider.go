@@ -99,7 +99,9 @@ func (p *providerFixture) withServices() ProviderFixture {
 	client := resty.New()
 	client.SetTransport(p.servicesSniffer)
 
-	p.services = services.New(p.logger, defs.DefaultServicesConfig(p.network), services.WithRestyClient(client))
+	config := defs.DefaultServicesConfig(p.network)
+
+	p.services = services.New(p.logger, config, services.WithRestyClient(client))
 	return p
 }
 

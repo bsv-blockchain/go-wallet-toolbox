@@ -20,17 +20,28 @@ func New() *DefaultRandomizer {
 	return &DefaultRandomizer{}
 }
 
-// Base64 generates a random byte sequence of specified length and returns it as a base64 encoded string.
-// Returns an error if random bytes cannot be generated or if length is zero.
-func (s *DefaultRandomizer) Base64(length uint64) (string, error) {
+// Bytes generates a slice of cryptographically secure random bytes of the specified length.
+// Returns an error if length is zero or if the random byte generation fails.
+func (s *DefaultRandomizer) Bytes(length uint64) ([]byte, error) {
 	if length == 0 {
-		return "", fmt.Errorf("length cannot be zero")
+		return nil, fmt.Errorf("length cannot be zero")
 	}
 
 	randomBytes := make([]byte, length)
 	_, err := cryptorand.Read(randomBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to read random bytes: %w", err)
+		return nil, fmt.Errorf("failed to read random bytes: %w", err)
+	}
+
+	return randomBytes, nil
+}
+
+// Base64 generates a random byte sequence of specified length and returns it as a base64 encoded string.
+// Returns an error if random bytes cannot be generated or if length is zero.
+func (s *DefaultRandomizer) Base64(length uint64) (string, error) {
+	randomBytes, err := s.Bytes(length)
+	if err != nil {
+		return "", err
 	}
 
 	return base64.StdEncoding.EncodeToString(randomBytes), nil

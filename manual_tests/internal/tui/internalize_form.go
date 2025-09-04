@@ -16,6 +16,10 @@ import (
 )
 
 const (
+	ButtonRegenerate = 10
+)
+
+const (
 	derivationPrefixIndex = iota
 	derivationSuffixIndex
 	regenerateButtonIndex = 2
@@ -33,7 +37,7 @@ type InternalizeForm struct {
 	manager  ManagerInterface
 	user     *fixtures.UserConfig
 	inputs   []textinput.Model
-	focused  int
+	focus    *FocusManager
 	selected internalizeData
 	errorMsg string
 }
@@ -43,13 +47,11 @@ func NewInternalizeActionForm(manager ManagerInterface, user *fixtures.UserConfi
 	i := derivationPrefixIndex
 	inputs[i] = textinput.New()
 	inputs[i].Placeholder = "Base64 DerivationPrefix string"
-	inputs[i].Focus()
 	inputs[i].CharLimit = 40
 	inputs[i].Width = 40
 	inputs[i].Prompt = ""
 	inputs[i].Validate = validateCanonicalBase64
 	inputs[i].SetValue(fixtures.DefaultDerivationPrefix)
-
 	i = derivationSuffixIndex
 	inputs[i] = textinput.New()
 	inputs[i].Placeholder = "Base64 DerivationSuffix string"
@@ -59,15 +61,38 @@ func NewInternalizeActionForm(manager ManagerInterface, user *fixtures.UserConfi
 	inputs[i].Validate = validateCanonicalBase64
 	inputs[i].SetValue(fixtures.DefaultDerivationSuffix)
 
-	model := &InternalizeForm{
+	form := &InternalizeForm{
 		manager: manager,
 		user:    user,
 		inputs:  inputs,
-		focused: 0,
+		focus:   NewFocusManager(),
 	}
 
-	model.recalculateAddress()
-	return model
+	// Set up focus items: DerivationPrefix, DerivationSuffix, Regenerate, Continue, Back
+	form.focus.SetItems([]FocusItem{
+		{Type: ElementInput, Index: 0, Label: "Derivation Prefix"},
+		{Type: ElementInput, Index: 1, Label: "Derivation Suffix"},
+		{Type: ElementButton, Index: ButtonRegenerate, Label: "Regenerate"},
+		{Type: ElementButton, Index: ButtonContinue, Label: fixtures.ButtonContinue},
+		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
+	})
+
+	form.updateInputFocus()
+	form.recalculateAddress()
+	return form
+}
+
+func (m *InternalizeForm) updateInputFocus() {
+	// Clear all input focus
+	for i := range m.inputs {
+		m.inputs[i].Blur()
+	}
+
+	// Set focus on current input if applicable
+	current := m.focus.CurrentItem()
+	if current.Type == ElementInput && current.Index < len(m.inputs) {
+		m.inputs[current.Index].Focus()
+	}
 }
 
 func (m *InternalizeForm) Init() tea.Cmd {
@@ -79,34 +104,22 @@ func (m *InternalizeForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			switch {
-			case m.backIsFocused():
-				selectAction := NewSelectAction(m.manager, m.user)
-				return selectAction, selectAction.Init()
-			case m.continueIsFocused():
-				internalizeWaiting := NewInternalizeWaiting(m.manager, m.user, m.selected)
-				return internalizeWaiting, internalizeWaiting.Init()
-			case m.regenerateIsFocused():
-				// Regenerate random derivation prefix and suffix
-				m.regenerateRandomDerivation()
-				return m, nil
-			default:
-				m.nextInput()
-
+			current := m.focus.CurrentItem()
+			if current.Type == ElementButton {
+				return m.handleEnter()
+			} else {
+				m.focus.Next()
+				m.updateInputFocus()
 			}
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case tea.KeyShiftTab, tea.KeyCtrlP:
-			m.prevInput()
-		case tea.KeyTab, tea.KeyCtrlN:
-			m.nextInput()
-		case tea.KeyDown:
-			m.nextInput()
-		case tea.KeyUp:
-			m.prevInput()
+		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
+			m.focus.Previous()
+			m.updateInputFocus()
+		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
+			m.focus.Next()
+			m.updateInputFocus()
 		}
-
-		m.controlInputsFocus()
 	}
 
 	cmds := make([]tea.Cmd, len(m.inputs))
@@ -114,6 +127,24 @@ func (m *InternalizeForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
 	}
 	return m, tea.Batch(cmds...)
+}
+
+func (m *InternalizeForm) handleEnter() (tea.Model, tea.Cmd) {
+	current := m.focus.CurrentItem()
+	if current.Type == ElementButton {
+		switch current.Index {
+		case ButtonBack:
+			selectAction := NewSelectAction(m.manager, m.user)
+			return selectAction, selectAction.Init()
+		case ButtonContinue:
+			internalizeWaiting := NewInternalizeWaiting(m.manager, m.user, m.selected)
+			return internalizeWaiting, internalizeWaiting.Init()
+		case ButtonRegenerate:
+			m.regenerateRandomDerivation()
+			return m, nil
+		}
+	}
+	return m, nil
 }
 
 func (m *InternalizeForm) View() string {
@@ -137,66 +168,49 @@ func (m *InternalizeForm) View() string {
  %s
 `,
 		inputStyle.Width(30).Render("Derivation Prefix"),
-		m.inputs[derivationPrefixIndex].View(),
+		m.inputs[0].View(),
 		inputStyle.Width(30).Render("Derivation Suffix"),
-		m.inputs[derivationSuffixIndex].View(),
+		m.inputs[1].View(),
 		calculatedAddressStyle.Width(30).Render("Calculated Address"),
 		lipgloss.NewStyle().Foreground(hotBlue).Render(m.selected.address),
-		to.If(m.errorMsg != "", func() string {
-			return errorStyle.Render("Error: " + m.errorMsg + "\n")
-		}).ElseThen(""),
-		to.IfThen(m.regenerateIsFocused(), navStyleFocused).ElseThen(navStyle).
-			Render("[ Regenerate Random Values ]"),
-		to.IfThen(m.continueIsFocused(), navStyleFocused).ElseThen(navStyle).
-			Render("Continue ->"),
-		to.IfThen(m.backIsFocused(), navStyleFocused).ElseThen(navStyle).
-			Render("<- Back"),
+		func() string {
+			if m.errorMsg != "" {
+				return errorStyle.Render("Error: " + m.errorMsg + "\n")
+			}
+			return ""
+		}(),
+		func() string {
+			style := navStyle
+			if m.focus.IsButtonFocused(ButtonRegenerate) {
+				style = navStyleFocused
+			}
+			return style.Render("[ Regenerate Random Values ]")
+		}(),
+		func() string {
+			style := navStyle
+			if m.focus.IsButtonFocused(ButtonContinue) {
+				style = navStyleFocused
+			}
+			return style.Render(fixtures.ButtonContinue)
+		}(),
+		func() string {
+			style := navStyle
+			if m.focus.IsButtonFocused(ButtonBack) {
+				style = navStyleFocused
+			}
+			return style.Render(fixtures.ButtonBack)
+		}(),
 	)
-}
-
-func (m *InternalizeForm) nextInput() {
-	m.focused = (m.focused + 1) % (len(m.inputs) + 3)
-}
-
-// prevInput focuses the previous input field
-func (m *InternalizeForm) prevInput() {
-	m.focused--
-	if m.focused < 0 {
-		m.focused = len(m.inputs) + 2
-	}
-}
-
-func (m *InternalizeForm) controlInputsFocus() {
-	for i := range m.inputs {
-		m.inputs[i].Blur()
-	}
-	if m.focused < len(m.inputs) {
-		m.inputs[m.focused].Focus()
-	}
-}
-
-func (m *InternalizeForm) continueIsFocused() bool {
-	return m.focused == continueButtonIndex
-}
-
-func (m *InternalizeForm) backIsFocused() bool {
-	return m.focused == backButtonIndex
-}
-
-// regenerateIsFocused checks if the regenerate button is focused
-func (m *InternalizeForm) regenerateIsFocused() bool {
-	return m.focused == regenerateButtonIndex
 }
 
 func (m *InternalizeForm) recalculateAddress() {
 	errorMsg := ""
-	if err := m.inputs[derivationPrefixIndex].Err; err != nil {
+	if err := m.inputs[0].Err; err != nil {
 		errorMsg = fmt.Sprintf("Error in Derivation Prefix: %v", err)
 	}
-	if err := m.inputs[derivationSuffixIndex].Err; err != nil {
-		errorMsg = fmt.Sprintf("%s Error in Derivation Suffix: %v", errorMsg, err)
+	if err := m.inputs[1].Err; err != nil {
+		errorMsg = fmt.Sprintf("Error in Derivation Suffix: %v", err)
 	}
-
 	m.selected.derivationPrefix = m.inputs[derivationPrefixIndex].Value()
 	m.selected.derivationSuffix = m.inputs[derivationSuffixIndex].Value()
 
@@ -218,36 +232,6 @@ func (m *InternalizeForm) recalculateAddress() {
 	m.errorMsg = errorMsg
 }
 
-func validateCanonicalBase64(input string) error {
-	bin, err := base64.StdEncoding.DecodeString(input)
-	if err != nil {
-		return fmt.Errorf("invalid base64 string: %w", err)
-	}
-
-	backToBase64Str := base64.StdEncoding.EncodeToString(bin)
-	if backToBase64Str != input {
-		return fmt.Errorf("input is not canonical base64: %s", input)
-	}
-
-	return nil
-}
-
-func calculateAddressForInternalize(derivationPrefix, derivationSuffix string, user *fixtures.UserConfig, bsvNetwork defs.BSVNetwork) (string, error) {
-	anyonePriv, _ := sdk.AnyoneKey()
-	keyID := brc29.KeyID{
-		DerivationPrefix: derivationPrefix,
-		DerivationSuffix: derivationSuffix,
-	}
-
-	networkOption := to.IfThen(bsvNetwork == defs.NetworkMainnet, brc29.WithMainNet()).ElseThen(brc29.WithTestNet())
-	address, err := brc29.Address(anyonePriv, keyID, user.PublicKey(), networkOption)
-	if err != nil {
-		return "", fmt.Errorf("failed to calculate address: %w", err)
-	}
-
-	return address.AddressString, nil
-}
-
 func (m *InternalizeForm) regenerateRandomDerivation() {
 	r := randomizer.New()
 	const length = 10
@@ -262,9 +246,36 @@ func (m *InternalizeForm) regenerateRandomDerivation() {
 		m.errorMsg = fmt.Sprintf("Failed to generate random suffix: %v", err)
 		return
 	}
+	m.inputs[0].SetValue(prefixValue)
+	m.inputs[1].SetValue(suffixValue)
+}
 
-	m.inputs[derivationPrefixIndex].SetValue(prefixValue)
-	m.inputs[derivationSuffixIndex].SetValue(suffixValue)
+func calculateAddressForInternalize(derivationPrefix, derivationSuffix string, user *fixtures.UserConfig, bsvNetwork defs.BSVNetwork) (string, error) {
+	anyonePriv, _ := sdk.AnyoneKey()
+	keyID := brc29.KeyID{
+		DerivationPrefix: derivationPrefix,
+		DerivationSuffix: derivationSuffix,
+	}
 
-	m.recalculateAddress()
+	networkOption := to.IfThen(bsvNetwork == defs.NetworkMainnet, brc29.WithMainNet()).ElseThen(brc29.WithTestNet())
+	address, err := brc29.AddressForCounterparty(anyonePriv, keyID, user.PublicKey(), networkOption)
+	if err != nil {
+		return "", fmt.Errorf("failed to calculate address: %w", err)
+	}
+
+	return address.AddressString, nil
+}
+
+func validateCanonicalBase64(input string) error {
+	bin, err := base64.StdEncoding.DecodeString(input)
+	if err != nil {
+		return fmt.Errorf("invalid base64 string: %w", err)
+	}
+
+	backToBase64Str := base64.StdEncoding.EncodeToString(bin)
+	if backToBase64Str != input {
+		return fmt.Errorf("input is not canonical base64: %s", input)
+	}
+
+	return nil
 }

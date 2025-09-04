@@ -11,7 +11,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -526,28 +525,6 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 	return result, nil
 }
 
-// FindUserTransactionByReference retrieves a user transaction by userID and its reference.
-// NOTE: It returns nil if the transaction is not found.
-func (p *Provider) FindUserTransactionByReference(ctx context.Context, userID int, reference string) (*entity.Transaction, error) {
-	txEntity, err := p.repo.Transactions.FindTransactionByReference(ctx, userID, reference)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by ID: %w", err)
-	}
-
-	return txEntity, nil
-}
-
-// FindUserTransactionByTxID retrieves a user transaction by userID and its transaction ID.
-// NOTE: It returns nil if the transaction is not found.
-func (p *Provider) FindUserTransactionByTxID(ctx context.Context, userID int, txID string) (*entity.Transaction, error) {
-	txEntity, err := p.repo.Transactions.FindTransactionByUserIDAndTxID(ctx, userID, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by txid: %w", err)
-	}
-
-	return txEntity, nil
-}
-
 // GetBeefForTransaction retrieves beef data for a transaction by txID, considering the given context and options.
 // Returns the transaction beef structure or an error if retrieval fails.
 func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
@@ -567,4 +544,14 @@ func (p *Provider) CommissionEntity() crud.Commission {
 // KnownTxEntity returns an accessor to perform read operations on known transactions in the underlying repository.
 func (p *Provider) KnownTxEntity() crud.KnownTx {
 	return crud.NewKnownTx(p.repo.KnownTx)
+}
+
+// TransactionEntity returns an accessor to perform read and update operations on transactions in the underlying repository.
+func (p *Provider) TransactionEntity() crud.Transaction {
+	return crud.NewTransaction(p.repo.Transactions)
+}
+
+// UserEntity returns a User interface for querying and filtering user records in the storage provider.
+func (p *Provider) UserEntity() crud.User {
+	return crud.NewUser(p.repo.Users)
 }
