@@ -20,6 +20,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gen"
+	"gorm.io/gen/field"
 	"gorm.io/gorm"
 )
 
@@ -570,6 +571,19 @@ func (txs *Transactions) CountTransactions(ctx context.Context, spec *pkgentity.
 	return count, nil
 }
 
+func (txs *Transactions) labelsAssociationExpr(spec *pkgentity.TransactionReadSpecification) []field.Expr {
+	if spec == nil {
+		return nil
+	}
+
+	var exprs []field.Expr
+	if spec.Labels != nil {
+		exprs = append(exprs, cmpCondition(txs.query.Label.Name, spec.Labels))
+	}
+
+	return exprs
+}
+
 func (txs *Transactions) conditionsBySpec(spec *pkgentity.TransactionReadSpecification) []gen.Condition {
 	if spec == nil {
 		return nil
@@ -601,6 +615,15 @@ func (txs *Transactions) conditionsBySpec(spec *pkgentity.TransactionReadSpecifi
 	}
 	if spec.DescriptionContains != nil {
 		conditions = append(conditions, cmpCondition(table.Description, spec.DescriptionContains))
+	}
+	if spec.Labels != nil {
+		associationTable := txs.query.TransactionLabel
+		subquery := associationTable.
+			Select(associationTable.TransactionID).
+			Where(cmpCondition(associationTable.LabelName, spec.Labels)).
+			Where(associationTable.TransactionID.EqCol(table.ID))
+
+		conditions = append(conditions, gen.Exists(subquery))
 	}
 
 	return conditions

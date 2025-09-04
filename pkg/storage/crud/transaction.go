@@ -38,6 +38,7 @@ type TransactionReader interface {
 	DescriptionContains() StringCondition[TransactionReader]
 	Since(value time.Time, column entity.SinceField) TransactionReader
 	Paged(limit, offset int, desc bool) TransactionReader
+	Labels() StringSetCondition[TransactionReader]
 }
 
 type transactionRepo interface {
@@ -186,4 +187,13 @@ func (t *transaction) Paged(limit, offset int, desc bool) TransactionReader {
 		Sort:   to.IfThen(desc, "DESC").ElseThen("ASC"),
 	}
 	return t
+}
+
+func (t *transaction) Labels() StringSetCondition[TransactionReader] {
+	return &stringSetCondition[TransactionReader]{
+		parent: t,
+		conditionSetter: func(c *entity.Comparable[string]) {
+			t.spec.Labels = c
+		},
+	}
 }

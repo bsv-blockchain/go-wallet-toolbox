@@ -35,6 +35,7 @@ type TransactionReadSpecification struct {
 	Satoshis            *Comparable[int64]
 	TxID                *Comparable[string]
 	DescriptionContains *Comparable[string]
+	Labels              *Comparable[string]
 }
 
 // TransactionUpdateSpecification defines fields that can be updated.

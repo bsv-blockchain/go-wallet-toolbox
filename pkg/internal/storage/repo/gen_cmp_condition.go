@@ -29,7 +29,7 @@ type comparableExpr[T types.Ordered] interface {
 	GetInValues() []T
 }
 
-func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExpr[T]) gen.Condition {
+func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExpr[T]) field.Expr {
 	value := cmpExpr.GetValue()
 	cmp := cmpExpr.Comparator()
 

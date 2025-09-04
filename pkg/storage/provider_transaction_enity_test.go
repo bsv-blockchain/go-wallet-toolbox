@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -73,6 +74,16 @@ func TestTransactionCountFilters(t *testing.T) {
 			assert.Equal(t, test.count, count)
 		})
 	}
+}
+
+func TestTransactionByLabels(t *testing.T) {
+	activeStorage := seedDbWithTransactions(t)
+
+	txs, err := activeStorage.TransactionEntity().Read().
+		Labels().ContainAny("a").
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txs, 9)
 }
 
 func TestTransactionUpdateStatus(t *testing.T) {
@@ -173,6 +184,9 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 
 	activeStorage := given.Provider().GORM()
 
+	var labels []string
+	nextLabel := byte('a')
+
 	for i := range 5 {
 		tx := &pkgentity.Transaction{
 			UserID:      testusers.Alice.ID,
@@ -184,9 +198,12 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 			Version:     1,
 			LockTime:    0,
 			TxID:        to.Ptr(fmt.Sprintf("txid_alice_%d", i)),
-			Labels:      []string{"alpha"},
+			Labels:      slices.Clone(labels),
 		}
 		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+
+		labels = append(labels, fmt.Sprintf("%c", nextLabel))
+		nextLabel += 1
 	}
 
 	for i := range 5 {
@@ -200,9 +217,12 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 			Version:     1,
 			LockTime:    0,
 			TxID:        to.Ptr(fmt.Sprintf("txid_bob_%d", i)),
-			Labels:      []string{"beta"},
+			Labels:      slices.Clone(labels),
 		}
 		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+
+		labels = append(labels, fmt.Sprintf("%c", nextLabel))
+		nextLabel += 1
 	}
 
 	return activeStorage
