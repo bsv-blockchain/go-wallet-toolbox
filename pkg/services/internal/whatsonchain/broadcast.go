@@ -26,10 +26,6 @@ type broadcastRequest struct {
 	TxHex string `json:"txhex"`
 }
 
-type txBroadcastResponse struct {
-	TxID string `json:"txid"`
-}
-
 type txInfoResult struct {
 	BlockHash   string
 	BlockHeight uint32
@@ -41,12 +37,9 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 
 	url := fmt.Sprintf("%s/tx/raw", woc.url)
 
-	var resp txBroadcastResponse
-
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
-		SetResult(&resp).
 		SetBody(broadcastRequest{TxHex: rawTxHex})
 
 	res, err := req.Post(url)
@@ -61,7 +54,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		responseText := res.String()
 
 		switch {
-		case containsI(responseText, "already in mempool", "txn-already-known"):
+		case containsI(responseText, "already in mempool", "already in the mempool", "txn-already-known"):
 			return StatusAlreadyBroadcasted, txid, nil
 		case containsI(responseText, "txn-mempool-conflict"):
 			return StatusDoubleSpend, txid, nil
@@ -70,10 +63,6 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		default:
 			return StatusError, "", fmt.Errorf("woc returned unexpected error %d: %s", res.StatusCode(), responseText)
 		}
-	}
-
-	if resp.TxID != txid {
-		return StatusError, "", fmt.Errorf("txid mismatch: expected %s, got %s", txid, resp.TxID)
 	}
 
 	return StatusSuccess, txid, nil
