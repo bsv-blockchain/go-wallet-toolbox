@@ -14,9 +14,6 @@ const (
 	// DefaultFiatExchangeUpdateInterval is a duration after which the Fiat Exchange Rate should be updated
 	DefaultFiatExchangeUpdateInterval = 24 * time.Hour
 
-	// DefaultWoCBroadcastDelay is the delay after which the WhatsOnChain service will broadcast a transaction
-	DefaultWoCBroadcastDelay = 3 * time.Second
-
 	// DefaultRootForHeightRetryInterval is the timeout for fetching the root for height validation
 	DefaultRootForHeightRetryInterval = 1 * time.Second
 
@@ -106,7 +103,6 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 				Base:      USD,
 				Rate:      47.52,
 			},
-			BroadcastDelay:             DefaultWoCBroadcastDelay,
 			RootForHeightRetryInterval: DefaultRootForHeightRetryInterval,
 			RootForHeightRetries:       DefaultRootForHeightRetries,
 		},
