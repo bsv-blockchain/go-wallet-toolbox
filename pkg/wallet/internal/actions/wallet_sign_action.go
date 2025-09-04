@@ -24,48 +24,76 @@ type SignAction struct {
 	PendingSignActionsCache wdk.PendingSignActionsCache
 	Storage                 WalletStorageProcessAction
 
-	wdkArgs wdk.ValidCreateActionArgs
+	wdkArgs   wdk.ValidCreateActionArgs
+	reference string
+	tx        *transaction.Transaction
+	txID      *chainhash.Hash
 }
 
 func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string) (*wallet.SignActionResult, error) {
 	s.Logger = logging.Child(s.Logger, "SignAction")
-	reference := string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
+	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
 
-	pendingSignAction, err := s.PendingSignActionsCache.Get(reference)
+	pendingSignAction, err := s.PendingSignActionsCache.Get(s.reference)
 	if err != nil {
 		return nil, fmt.Errorf("get pending sign action failed: %w", err)
 	}
 
-	tx := &pendingSignAction.Tx
+	s.mergeArgs(pendingSignAction.CreateActionArgs, args)
 
-	for vin, spends := range args.Spends {
-		unlockingScript := script.NewFromBytes(spends.UnlockingScript)
-		tx.Inputs[vin].UnlockingScript = unlockingScript
+	s.tx = &pendingSignAction.Tx
 
-		if spends.SequenceNumber != nil {
-			tx.Inputs[vin].SequenceNumber = *spends.SequenceNumber
-		}
-	}
-
-	if err := s.allInputsCanBeUnlocked(tx); err != nil {
+	s.attachUnlockingScripts(args)
+	if err := s.allInputsCanBeUnlocked(); err != nil {
 		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
 	}
 
-	err = tx.Sign()
+	err = s.tx.Sign()
 	if err != nil {
 		return nil, fmt.Errorf("sign transaction failed: %w", err)
 	}
 
-	s.mergeArgs(pendingSignAction.CreateActionArgs, args)
+	s.txID = s.tx.TxID()
+	processActionResult, err := s.handleProcessAction(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	txID := tx.TxID()
+	result, err := mapping.MapSignActionResultFromStorageResultsForNewTx(s.txID, s.tx, processActionResult, s.wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build result after processing signed action (txID: %s, reference: %s): %w",
+			s.txID.String(), s.reference, err)
+	}
 
-	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, reference, s.wdkArgs)
+	err = s.PendingSignActionsCache.Delete(s.reference)
+	if err != nil {
+		s.Logger.Warn("failed to delete pending sign action from cache",
+			slog.String("reference", s.reference),
+			slog.String("txID", s.txID.String()),
+			logging.Error(err))
+	}
+
+	return result, nil
+}
+
+func (s *SignAction) attachUnlockingScripts(args wallet.SignActionArgs) {
+	for vin, spends := range args.Spends {
+		unlockingScript := script.NewFromBytes(spends.UnlockingScript)
+		s.tx.Inputs[vin].UnlockingScript = unlockingScript
+
+		if spends.SequenceNumber != nil {
+			s.tx.Inputs[vin].SequenceNumber = *spends.SequenceNumber
+		}
+	}
+}
+
+func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActionResult, error) {
+	processActionArgs := mapping.MapProcessActionArgsForNewTx(s.txID, s.tx, s.reference, s.wdkArgs)
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process signed action (txID: %s, reference: %s): %w",
-			txID.String(), reference, err)
+			s.txID.String(), s.reference, err)
 	}
 
 	if s.requiresNotDelayedResult() {
@@ -75,21 +103,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 		}
 	}
 
-	result, err := mapping.MapSignActionResultFromStorageResultsForNewTx(txID, tx, processActionResult, s.wdkArgs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build result after processing signed action (txID: %s, reference: %s): %w",
-			txID.String(), reference, err)
-	}
-
-	err = s.PendingSignActionsCache.Delete(reference)
-	if err != nil {
-		s.Logger.Warn("failed to delete pending sign action from cache",
-			slog.String("reference", reference),
-			slog.String("txID", txID.String()),
-			logging.Error(err))
-	}
-
-	return result, nil
+	return processActionResult, nil
 }
 
 func (s *SignAction) requiresNotDelayedResult() bool {
@@ -119,9 +133,9 @@ func (s *SignAction) mergeArgs(createActionArgs wdk.ValidCreateActionArgs, args 
 	}
 }
 
-func (s *SignAction) allInputsCanBeUnlocked(tx *transaction.Transaction) error {
+func (s *SignAction) allInputsCanBeUnlocked() error {
 	var missingInputVin []int
-	for vin, input := range tx.Inputs {
+	for vin, input := range s.tx.Inputs {
 		switch {
 		case input.UnlockingScript != nil && len(*input.UnlockingScript) != 0:
 			continue
