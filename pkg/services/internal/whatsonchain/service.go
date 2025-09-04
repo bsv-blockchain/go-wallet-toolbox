@@ -33,7 +33,6 @@ type WhatsOnChain struct {
 
 	bsvExchangeRate            defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
 	bsvUpdateInterval          time.Duration
-	broadcastDelay             time.Duration
 	rootForHeightRetryInterval time.Duration
 	rootForHeightRetries       int
 	rootCache                  map[uint32]*chainhash.Hash // TODO: possibly handle by some caching structure/redis
@@ -70,7 +69,6 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		logger:                     logger,
 		bsvExchangeRate:            config.BSVExchangeRate,
 		bsvUpdateInterval:          to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
-		broadcastDelay:             config.BroadcastDelay,
 		rootForHeightRetryInterval: config.RootForHeightRetryInterval,
 		rootForHeightRetries:       config.RootForHeightRetries,
 		rootCache:                  make(map[uint32]*chainhash.Hash),
@@ -234,11 +232,6 @@ func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, t
 	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
 
 	for i, txid := range txIDs {
-		if i != 0 {
-			if err := waitOrCancel(ctx, woc.broadcastDelay, txid); err != nil {
-				return nil, err
-			}
-		}
 		result := woc.processSingleTx(ctx, txid, rawTxs[i])
 		txResults = append(txResults, result)
 	}
