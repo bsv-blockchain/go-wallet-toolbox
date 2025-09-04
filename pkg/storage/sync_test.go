@@ -16,8 +16,6 @@ import (
 )
 
 func TestSyncProcess(t *testing.T) {
-	t.Skip()
-
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
 	defer cleanup()

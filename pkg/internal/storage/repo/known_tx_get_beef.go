@@ -103,7 +103,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return nil
 	}
 
-	if model.RawTx == nil || model.InputBeef == nil {
+	if model.RawTx == nil {
 		return fmt.Errorf("raw tx or input beef is nil in transaction %s", txID)
 	}
 
@@ -142,9 +142,11 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
 	}
 
-	err = mergeToBeef.MergeBeefBytes(model.InputBeef)
-	if err != nil {
-		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+	if len(model.InputBeef) > 0 {
+		err = mergeToBeef.MergeBeefBytes(model.InputBeef)
+		if err != nil {
+			return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+		}
 	}
 
 	subjectTx := mergeToBeef.FindTransaction(txID)
