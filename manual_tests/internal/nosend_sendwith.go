@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -61,10 +62,10 @@ func (m *Manager) executeNoSendTransactions(user fixtures.UserConfig, txCount in
 	var txHashes []chainhash.Hash
 	var noSendChange []transaction.Outpoint
 
-	for i := 0; i < txCount; i++ {
+	for i := range txCount {
 		startTime := time.Now()
 
-		opReturnData := fmt.Sprintf("%s%d", dataPrefix, time.Now().Unix())
+		opReturnData := fmt.Sprintf("%s_%d", dataPrefix, i+1)
 
 		dataOutput, err := transaction.CreateOpReturnOutput([][]byte{[]byte(opReturnData)})
 		if err != nil {
@@ -111,20 +112,13 @@ func (m *Manager) executeNoSendTransactions(user fixtures.UserConfig, txCount in
 	}
 
 	if len(noSendTimes) > 0 {
-		result.MinNoSendTime = noSendTimes[0]
-		result.MaxNoSendTime = noSendTimes[0]
 		var total time.Duration
-
 		for _, t := range noSendTimes {
 			total += t
-			if t < result.MinNoSendTime {
-				result.MinNoSendTime = t
-			}
-			if t > result.MaxNoSendTime {
-				result.MaxNoSendTime = t
-			}
 		}
 
+		result.MinNoSendTime = slices.Min(noSendTimes)
+		result.MaxNoSendTime = slices.Max(noSendTimes)
 		result.AvgNoSendTime = total / time.Duration(len(noSendTimes))
 	}
 
