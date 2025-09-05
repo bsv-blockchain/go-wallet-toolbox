@@ -75,7 +75,7 @@ func (f *noSendAct) CreateAction(args wdk.ValidCreateActionArgs) (*wdk.StorageCr
 
 	f.lastCreateActionResult = result
 
-	return result, tx
+	return result, tx.Transaction
 }
 
 func (f *noSendAct) ProcessAction(args wdk.ProcessActionArgs) *wdk.ProcessActionResult {
