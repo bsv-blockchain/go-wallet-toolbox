@@ -4,18 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type Manager struct {
 	ctx    context.Context
 	config *fixtures.Config
 
-	storageInfra *StorageInfra
+	storageInfra  *StorageInfra
+	remoteStorage wdk.WalletStorageProvider
+	remoteCleanup func()
 }
 
 func NewManager(ctx context.Context, config *fixtures.Config) *Manager {
@@ -43,6 +49,8 @@ func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {
 		}
 
 		m.storageInfra = storage
+	case fixtures.StorageTypeRemoteSQLite:
+		return nil
 	default:
 		return fmt.Errorf("unsupported storage type: %s", storageType)
 	}
@@ -51,7 +59,17 @@ func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {
 }
 
 func (m *Manager) WalletForUser(user fixtures.UserConfig) (sdk.Interface, error) {
-	userWallet, err := wallet.New(m.config.BSVNetwork, user.PrivKey, m.storageInfra.Provider)
+	var storageProvider wdk.WalletStorageProvider
+
+	if m.remoteStorage != nil {
+		storageProvider = m.remoteStorage
+	} else if m.storageInfra != nil {
+		storageProvider = m.storageInfra.Provider
+	} else {
+		return nil, fmt.Errorf("no storage provider configured")
+	}
+
+	userWallet, err := wallet.New(m.config.BSVNetwork, user.PrivateKey(), storageProvider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create wallet for user %s: %w", user.Name, err)
 	}
@@ -72,4 +90,44 @@ func (m *Manager) GetWalletConfigs() []fixtures.UserConfig {
 
 func (m *Manager) GetBSVNetwork() defs.BSVNetwork {
 	return m.config.BSVNetwork
+}
+
+func (m *Manager) Cleanup() {
+	if m.remoteCleanup != nil {
+		m.remoteCleanup()
+	}
+}
+
+func (m *Manager) SetRemoteStorageURL(serverURL string) error {
+	if m.remoteCleanup != nil {
+		m.remoteCleanup()
+	}
+
+	client, cleanup, err := storage.NewClient(serverURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to remote storage at %s: %w", serverURL, err)
+	}
+
+	ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
+	defer cancel()
+	_, err = client.MakeAvailable(ctx)
+	if err != nil {
+		cleanup()
+		return fmt.Errorf("failed to make remote storage available: %w", err)
+	}
+
+	m.remoteStorage = client
+	m.remoteCleanup = cleanup
+	return nil
+}
+
+func (m *Manager) getServices() (*services.WalletServices, error) {
+	if m.storageInfra != nil {
+		return m.storageInfra.Services, nil
+	}
+	if m.remoteStorage != nil {
+		serviceCfg := defs.DefaultServicesConfig(m.config.BSVNetwork)
+		return services.New(slog.Default(), serviceCfg), nil
+	}
+	return nil, fmt.Errorf("no storage provider configured")
 }
