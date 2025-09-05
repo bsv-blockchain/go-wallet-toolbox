@@ -5,19 +5,23 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"gorm.io/gen"
 	"gorm.io/gorm"
 )
 
 type OutputBaskets struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
-func NewOutputBaskets(db *gorm.DB) *OutputBaskets {
-	return &OutputBaskets{db: db}
+func NewOutputBaskets(db *gorm.DB, query *genquery.Query) *OutputBaskets {
+	return &OutputBaskets{db: db, query: query}
 }
 
 func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*entity.OutputBasket, error) {
@@ -85,4 +89,86 @@ func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBask
 		NumberOfDesiredUTXOs:    model.NumberOfDesiredUTXOs,
 		MinimumDesiredUTXOValue: model.MinimumDesiredUTXOValue,
 	}
+}
+
+func (o *OutputBaskets) AddOutputBasket(ctx context.Context, basket *entity.OutputBasket) error {
+	if basket == nil {
+		return fmt.Errorf("output basket is nil")
+	}
+	model := &models.OutputBasket{
+		UserID:                  basket.UserID,
+		Name:                    basket.Name,
+		NumberOfDesiredUTXOs:    basket.NumberOfDesiredUTXOs,
+		MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,
+	}
+	if err := o.db.WithContext(ctx).Create(model).Error; err != nil {
+		return fmt.Errorf("failed to add output basket: %w", err)
+	}
+	return nil
+}
+
+func (o *OutputBaskets) UpdateOutputBasket(ctx context.Context, spec *entity.OutputBasketUpdateSpecification) error {
+	err := o.db.WithContext(ctx).
+		Model(&models.OutputBasket{}).
+		Scopes(scopes.UserID(spec.UserID)).
+		Where("name = ?", spec.Name).
+		Updates(map[string]interface{}{
+			"number_of_desired_utxos":    spec.NumberOfDesiredUTXOs,
+			"minimum_desired_utxo_value": spec.MinimumDesiredUTXOValue,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to update output basket: %w", err)
+	}
+	return nil
+}
+
+func (o *OutputBaskets) FindOutputBaskets(ctx context.Context, spec *entity.OutputBasketReadSpecification, opts ...queryopts.Options) ([]*entity.OutputBasket, error) {
+	table := &o.query.OutputBasket
+	modelsList, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(o.conditionsBySpec(spec)...).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find output baskets: %w", err)
+	}
+	// map to entities
+	result := make([]*entity.OutputBasket, len(modelsList))
+	for i, m := range modelsList {
+		result[i] = mapModelToEntityOutputBasket(m)
+	}
+	return result, nil
+}
+
+func (o *OutputBaskets) CountOutputBaskets(ctx context.Context, spec *entity.OutputBasketReadSpecification, opts ...queryopts.Options) (int64, error) {
+	table := &o.query.OutputBasket
+	count, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(o.conditionsBySpec(spec)...).
+		Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count output baskets: %w", err)
+	}
+	return count, nil
+}
+
+func (o *OutputBaskets) conditionsBySpec(spec *entity.OutputBasketReadSpecification) []gen.Condition {
+	if spec == nil {
+		return nil
+	}
+	table := &o.query.OutputBasket
+	var conditions []gen.Condition
+	if spec.UserID != nil {
+		conditions = append(conditions, cmpCondition(table.UserID, spec.UserID))
+	}
+	if spec.Name != nil {
+		conditions = append(conditions, cmpCondition(table.Name, spec.Name))
+	}
+	if spec.NumberOfDesiredUTXOs != nil {
+		conditions = append(conditions, cmpCondition(table.NumberOfDesiredUTXOs, spec.NumberOfDesiredUTXOs))
+	}
+	if spec.MinimumDesiredUTXOValue != nil {
+		conditions = append(conditions, cmpCondition(table.MinimumDesiredUTXOValue, spec.MinimumDesiredUTXOValue))
+	}
+
+	return conditions
 }
