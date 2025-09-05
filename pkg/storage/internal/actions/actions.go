@@ -32,8 +32,6 @@ func New(
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
 	beefVerifier wdk.BeefVerifier,
 ) *Actions {
-	beefAction := newGetBeef(logger, repos.KnownTx, services)
-
 	return &Actions{
 		create: newCreateAction(
 			logger,
@@ -46,7 +44,6 @@ func New(
 			repos.Commission,
 			randomizer,
 			services,
-			beefAction,
 		),
 		internalize: newInternalizeAction(
 			logger,
@@ -76,6 +73,6 @@ func New(
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
 		abortAction:           newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx),
-		getBeef:               beefAction,
+		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
 }

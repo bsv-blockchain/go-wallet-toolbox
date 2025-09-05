@@ -82,7 +82,6 @@ type create struct {
 	commissionCfg  defs.Commission
 	random         wdk.Randomizer
 	chaintracker   chaintracker.ChainTracker
-	beefProvider   BeefProvider
 }
 
 func newCreateAction(
@@ -96,7 +95,6 @@ func newCreateAction(
 	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
-	beefProvider BeefProvider,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -110,7 +108,6 @@ func newCreateAction(
 		commissionRepo: commissionRepo,
 		random:         random,
 		chaintracker:   chaintracker,
-		beefProvider:   beefProvider,
 	}
 
 	if commissionCfg.Enabled() {
