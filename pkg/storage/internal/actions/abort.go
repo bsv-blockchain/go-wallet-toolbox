@@ -114,7 +114,8 @@ func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 }
 
 func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transaction) error {
-	logger := a.logger.With(logging.Number("transactionID", txEntity.ID),
+	logger := a.logger.With(
+		logging.Number("transactionID", txEntity.ID),
 		slog.Bool("isOutgoing", txEntity.IsOutgoing),
 		slog.String("status", string(txEntity.Status)),
 	)
@@ -134,9 +135,7 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transa
 		return fmt.Errorf("cannot abort transaction with spent outputs: %w", err)
 	}
 
-	logger.DebugContext(ctx, "Transaction validation passed",
-		logging.Number("transactionID", txEntity.ID),
-	)
+	logger.DebugContext(ctx, "Transaction validation passed")
 	return nil
 }
 
