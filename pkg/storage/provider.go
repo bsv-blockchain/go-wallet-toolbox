@@ -431,7 +431,6 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 	)
 	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {
-		logger.DebugContext(ctx, "RelinquishOutput completed with error")
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
 
