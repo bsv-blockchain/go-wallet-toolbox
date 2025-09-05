@@ -3,17 +3,16 @@ package mapping
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/beefutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-func SignableTransactionResult(tx *transaction.Transaction, wdkArgs wdk.ValidCreateActionArgs, storageResult *wdk.StorageCreateActionResult) (*sdk.CreateActionResult, error) {
+func SignableTransactionResult(tx *assembler.AssembledTransaction, wdkArgs wdk.ValidCreateActionArgs, storageResult *wdk.StorageCreateActionResult) (*sdk.CreateActionResult, error) {
 	txID := tx.TxID()
 
-	atomicBytes, err := beefutils.ToAtomicBEEFBytes(tx)
+	atomicBytes, err := tx.AtomicBEEF(false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create atomic tx bytes: %w", err)
 	}
