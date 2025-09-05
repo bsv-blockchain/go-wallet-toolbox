@@ -217,7 +217,7 @@ func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *
 	err = signed.Sign()
 	require.NoError(t, err)
 
-	return signed
+	return signed.Transaction
 }
 
 func (t *txGeneratorFixture) Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction) {

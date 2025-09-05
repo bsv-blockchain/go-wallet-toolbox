@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
@@ -25,10 +26,11 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 
 	cfg := infra.Defaults()
 	cfg.ServerPrivateKey = serverPrivateKey
-	if network == defs.NetworkTestnet {
-		cfg.BSVNetwork = network
-		cfg.Services = defs.DefaultServicesConfig(network)
-	}
+	cfg.BSVNetwork = network
+	cfg.Services = defs.DefaultServicesConfig(network)
+
+	networkSuffix := strings.ToLower(string(network))
+	cfg.DBConfig.SQLite.ConnectionString = fmt.Sprintf("./storage_%s.sqlite", networkSuffix)
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {

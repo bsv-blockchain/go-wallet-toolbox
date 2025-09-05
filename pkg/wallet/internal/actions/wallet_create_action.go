@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
@@ -89,7 +88,7 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 	return a.handleProcessAction(ctx, tx, createActionResult)
 }
 
-func (a *CreateAction) handleSignAction(tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
+func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
 	// TODO: store createActionResult and args by reference in some "cache" or "map" to enable signAction reusing it
 	//  unfortunately there is no possibility to restore changes unlocking script from storage, because listAction and listOutputs doesn't return derivation pre/su-fixes
 	//  Consider storing only transaction and args by reference as this looks like enough data for process action
@@ -101,7 +100,7 @@ func (a *CreateAction) handleSignAction(tx *transaction.Transaction, createActio
 	return result, nil
 }
 
-func (a *CreateAction) handleProcessAction(ctx context.Context, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
+func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
 	txID := tx.TxID()
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, createActionResult.Reference, a.wdkArgs)

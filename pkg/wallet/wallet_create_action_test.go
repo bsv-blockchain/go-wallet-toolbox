@@ -823,3 +823,51 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorF
 		require.Error(t, err)
 	})
 }
+
+func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() {
+	s.Run("alice and bob uses the same storage", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		bobWallet := given.BobWalletWithStorage(s.StorageType)
+
+		// and:
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t)
+
+		firstResult, err := aliceWallet.CreateAction(t.Context(), aliceArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotEmpty(t, firstResult.Tx, "Alice wallet should return transaction BEEF bytes")
+		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
+
+		// when:
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t, func(args *sdk.CreateActionArgs) {
+			args.Outputs = nil
+			args.Inputs = []sdk.CreateActionInput{
+				{
+					Outpoint:              transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
+					InputDescription:      "got from alice",
+					UnlockingScriptLength: 106,
+				},
+			}
+			args.InputBEEF = firstResult.Tx
+		})
+
+		_, err = bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+	})
+}
