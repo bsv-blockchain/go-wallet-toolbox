@@ -33,7 +33,6 @@ func NewRemoteStorageURLForm(manager ManagerInterface) *RemoteStorageURLForm {
 		err:       nil,
 	}
 
-	// Set up focus items: URL input, Continue, Back
 	form.focus.SetItems([]FocusItem{
 		{Type: ElementInput, Index: 0, Label: "Server URL"},
 		{Type: ElementButton, Index: ButtonContinue, Label: "Connect"},
@@ -76,48 +75,62 @@ func (m *RemoteStorageURLForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	current := m.focus.CurrentItem()
-	var cmd tea.Cmd
 	if current.Type == ElementInput {
+		var cmd tea.Cmd
 		m.textInput, cmd = m.textInput.Update(msg)
-	} else {
-		cmd = nil
+		return m, cmd
 	}
 
-	return m, cmd
+	return m, nil
 }
 
 func (m *RemoteStorageURLForm) handleEnter() (tea.Model, tea.Cmd) {
 	current := m.focus.CurrentItem()
-	if current.Type == ElementButton {
-		switch current.Index {
-		case ButtonContinue:
-			return m.connectToRemote()
-		case ButtonBack:
-			selectAction := NewSelectStorage(m.manager)
-			return selectAction, selectAction.Init()
-		}
-	} else {
-		url := m.textInput.Value()
-		if url == "" {
-			url = Placeholder
-			m.textInput.SetValue(url)
-			return m, nil
-		}
-		m.focus.Next()
-		m.updateInputFocus()
+
+	switch current.Type {
+	case ElementButton:
+		return m.handleButtonPress(current.Index)
+	case ElementInput:
+		return m.handleInputEnter()
+	default:
+		return m, nil
 	}
+}
+
+func (m *RemoteStorageURLForm) handleButtonPress(index int) (tea.Model, tea.Cmd) {
+	switch index {
+	case ButtonContinue:
+		return m.connectToRemote()
+	case ButtonBack:
+		selectAction := NewSelectStorage(m.manager)
+		return selectAction, selectAction.Init()
+	default:
+		return m, nil
+	}
+}
+
+func (m *RemoteStorageURLForm) handleInputEnter() (tea.Model, tea.Cmd) {
+	url := m.textInput.Value()
+	if url == "" {
+		m.textInput.SetValue(Placeholder)
+		return m, nil
+	}
+	m.focus.Next()
+	m.updateInputFocus()
 	return m, nil
 }
 
 func (m *RemoteStorageURLForm) connectToRemote() (tea.Model, tea.Cmd) {
 	url := m.textInput.Value()
-	if managerWithURL, ok := m.manager.(interface{ SetRemoteStorageURL(string) error }); ok {
-		if err := managerWithURL.SetRemoteStorageURL(url); err != nil {
-			m.err = err
-			return m, nil
-		}
-	} else {
+	setter, ok := m.manager.(interface {
+		SetRemoteStorageURL(string) error
+	})
+	if !ok {
 		m.err = fmt.Errorf("manager doesn't support remote storage URL setting")
+		return m, nil
+	}
+	if err := setter.SetRemoteStorageURL(url); err != nil {
+		m.err = err
 		return m, nil
 	}
 

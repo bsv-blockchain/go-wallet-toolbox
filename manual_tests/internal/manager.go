@@ -61,11 +61,12 @@ func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {
 func (m *Manager) WalletForUser(user fixtures.UserConfig) (sdk.Interface, error) {
 	var storageProvider wdk.WalletStorageProvider
 
-	if m.remoteStorage != nil {
+	switch {
+	case m.remoteStorage != nil:
 		storageProvider = m.remoteStorage
-	} else if m.storageInfra != nil {
+	case m.storageInfra != nil:
 		storageProvider = m.storageInfra.Provider
-	} else {
+	default:
 		return nil, fmt.Errorf("no storage provider configured")
 	}
 
