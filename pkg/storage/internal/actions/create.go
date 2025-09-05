@@ -723,41 +723,20 @@ func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsI
 	return ids
 }
 
-func (c *create) findOutputsAsTxMap(ctx context.Context, allocatedUTXOs []*funder.UTXO) ([]*entity.Output, error) {
-	outputTxMap, err := c.outputRepo.FindOutputsAsTxMap(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
-		return utxo.OutputID
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
-	}
-	if len(outputTxMap) != len(allocatedUTXOs) {
-		return nil, fmt.Errorf("expected %d outputs, got %d", len(allocatedUTXOs), len(outputTxMap))
-	}
-
-	utxos := make([]*entity.Output, 0, len(outputTxMap))
-	for outputID, txID := range outputTxMap {
-		utxos = append(utxos, &entity.Output{ID: outputID, TxID: to.Ptr(txID)})
-	}
-
-	return utxos, nil
-}
-
 func (c *create) mergeAllocatedUTXOs(
 	ctx context.Context,
 	inputBeef *transaction.Beef,
 	allocatedUTXOs []*funder.UTXO,
 	knownTxIDs primitives.TXIDHexStrings,
 ) (primitives.ExplicitByteArray, error) {
-	utxos, err := c.findOutputsAsTxMap(ctx, allocatedUTXOs)
+	txIDs, err := c.outputRepo.FindTxIDsByOutputIDs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+		return utxo.OutputID
+	}))
 	if err != nil {
-		return nil, fmt.Errorf("failed to find outputs for allocated UTXOs: %w", err)
+		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
 	}
 
-	txIDs := seq.Map(seq.FromSlice(utxos), func(o *entity.Output) string {
-		return to.Value(o.TxID)
-	})
-
-	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, txIDs, entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
+	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get BEEF for allocated UTXOs: %w", err)
 	}
