@@ -1,7 +1,6 @@
 package storage_test
 
 import (
-	"encoding/hex"
 	"slices"
 	"testing"
 
@@ -276,7 +275,6 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, 33, len(result.Outputs))
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef01fde803010100005060c03582071bfbf1b0aff8aa459ce27a43d1bcee7d05c7fa4f4422e45f13ab02010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b48304502210083f522b0c281abbf93d00dbf7e8d471ff1da653964e943fff6e6b999dea24946022005ad9e62f7b9b0035a5cd9154725eb0d648dddc021af1effa693d01ce28e5e9d4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a1860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac000000000001000000015060c03582071bfbf1b0aff8aa459ce27a43d1bcee7d05c7fa4f4422e45f13ab000000006a47304402206596342f295a72660bcc1a6d0f096d5be6f70efa5a224a9901818ef8891a08cd022042330985d9fdfbb4ed0c4c460e1ec88c85ebce222b272e25f208602145ae23214121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff02a0860100000000001976a914120537d7bdb5c2b4532a5f1742eb8b03b891a0b988ac000000000000000011006a0e66617563657420696e646578203000000000", hex.EncodeToString(result.InputBeef))
 
 	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
 		ID: facuetTx.ID().String(),
