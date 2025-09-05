@@ -160,7 +160,7 @@ func (p *ChunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 		return fmt.Errorf("chunk basket user ID %d does not match chunk user ID %d", chunkBasket.UserID, p.chunk.User.UserID)
 	}
 
-	isNew, basketNumID, err := p.repo.UpsertOutputBasketForSync(p.ctx, entity.OutputBasket{
+	isNew, basketNumID, err := p.repo.UpsertOutputBasketForSync(p.ctx, pkgentity.OutputBasket{
 		Name:                    string(chunkBasket.Name),
 		UserID:                  p.user.ID,
 		CreatedAt:               chunkBasket.CreatedAt,
