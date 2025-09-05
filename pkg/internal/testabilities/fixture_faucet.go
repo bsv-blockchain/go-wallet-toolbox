@@ -52,7 +52,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 
 	recipientPubKey := f.user.PubKey(f.t)
 
-	lockingScript, err := brc29.Lock(senderPriv, keyID, brc29.PubHex(recipientPubKey))
+	lockingScript, err := brc29.LockForCounterparty(senderPriv, keyID, brc29.PubHex(recipientPubKey))
 	require.NoError(f.t, err, "Failed to create locking script for top up")
 
 	spec := txtestabilities.GivenTX().
