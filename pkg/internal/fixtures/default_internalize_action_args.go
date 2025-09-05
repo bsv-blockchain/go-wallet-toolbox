@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -87,4 +88,23 @@ func DefaultWalletInternalizeActionArgs(t *testing.T, protocol sdk.InternalizePr
 		Description:    "description",
 		SeekPermission: nil,
 	}
+}
+
+// DefaultWalletInternalizeActionArgsMatchingBRC29 builds args where Tx's output locking script
+// matches a BRC-29-derived address for the provided keyDeriver (wallet owner).
+func DefaultWalletInternalizeActionArgsMatchingBRC29(t *testing.T, protocol sdk.InternalizeProtocol, keyDeriver *sdk.KeyDeriver) sdk.InternalizeActionArgs {
+	t.Helper()
+
+	args := DefaultWalletInternalizeActionArgs(t, protocol)
+
+	if protocol == sdk.InternalizeProtocolWalletPayment {
+		keyID := brc29.KeyID{DerivationPrefix: DerivationPrefix, DerivationSuffix: DerivationSuffix}
+		lock, err := brc29.LockForSelf(brc29.PubHex(UserIdentityKeyHex), keyID, keyDeriver)
+		require.NoError(t, err)
+
+		spec := testabilities.GivenTX().WithInput(1000).WithOutputScript(ExpectedValueToInternalize, lock)
+		args.Tx = spec.AtomicBEEF().Bytes()
+	}
+
+	return args
 }

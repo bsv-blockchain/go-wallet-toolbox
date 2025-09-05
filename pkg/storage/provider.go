@@ -31,10 +31,11 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo    *repo.Repositories
-	actions *actions.Actions
-	options *ProviderConfig
-	logger  *slog.Logger
+	repo     *repo.Repositories
+	actions  *actions.Actions
+	options  *ProviderConfig
+	logger   *slog.Logger
+	services wdk.Services
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -84,8 +85,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			options.SynchronizeTxStatusesConfig,
 			options.BeefVerifier,
 		),
-		options: &options,
-		logger:  log,
+		options:  &options,
+		logger:   log,
+		services: services,
 	}, nil
 }
 
@@ -554,4 +556,9 @@ func (p *Provider) TransactionEntity() crud.Transaction {
 // UserEntity returns a User interface for querying and filtering user records in the storage provider.
 func (p *Provider) UserEntity() crud.User {
 	return crud.NewUser(p.repo.Users)
+}
+
+// OutputBasketsEntity returns an accessor to perform read and write operations on output baskets in the underlying repository.
+func (p *Provider) OutputBasketsEntity() crud.OutputBasket {
+	return crud.NewOutputBasket(p.repo.OutputBaskets)
 }

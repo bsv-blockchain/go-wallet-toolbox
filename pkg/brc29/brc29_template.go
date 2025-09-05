@@ -8,7 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 )
 
-// Lock generates a locking script for a BRC29 address derived from the sender, key ID, and recipient public key.
+// LockForCounterparty generates a locking script for a BRC29 address derived from the sender, key ID, and recipient public key.
 //
 // Arguments:
 //   - sender: the sender key. Can be a private key hex or wif or a key deriver or ec.PrivateKey.
@@ -17,28 +17,73 @@ import (
 //   - opts: additional options.
 //
 // Example:
-// 1. Lock with hexes
+// 1. LockForCounterparty with hexes
 // ```go
-// lockingScript, err := Lock(PrivHex("ab..."), keyID, PubHex("cd..."))
+// lockingScript, err := LockForCounterparty(PrivHex("ab..."), keyID, PubHex("cd..."))
 // ```
 //
-// 2. Lock with key derivers
+// 2. LockForCounterparty with key derivers
 // ```go
 // var senderKeyDeriver *sdk.KeyDeriver = ...
 // var recipientKeyDeriver *sdk.KeyDeriver = ...
 //
-// lockingScript, err := Lock(senderKeyDeriver, keyID, recipientKeyDeriver)
+// lockingScript, err := LockForCounterparty(senderKeyDeriver, keyID, recipientKeyDeriver)
 // ```
 //
-// 3. Lock with ec private and public keys
+// 3. LockForCounterparty with ec private and public keys
 // ```go
 // var priv ec.PrivateKey = ...
 // var pub ec.PublicKey = ...
 //
-// lockingScript, err := Lock(priv, keyID, pub)
+// lockingScript, err := LockForCounterparty(priv, keyID, pub)
 // ```
-func Lock[SenderKey CounterpartyPrivateKey, RecipientKey CounterpartyPublicKey](senderPrivateKeySource SenderKey, keyID KeyID, recipientPublicKeySource RecipientKey, opts ...func(*lockOptions)) (*script.Script, error) {
+func LockForCounterparty[SenderKey CounterpartyPrivateKey, RecipientKey CounterpartyPublicKey](senderPrivateKeySource SenderKey, keyID KeyID, recipientPublicKeySource RecipientKey, opts ...func(*lockOptions)) (*script.Script, error) {
 	address, err := AddressForCounterparty(senderPrivateKeySource, keyID, recipientPublicKeySource, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate BRC29 address to lock the output: %w", err)
+	}
+
+	lockingScript, err := p2pkh.Lock(address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock the output with BRC29: %w", err)
+	}
+	return lockingScript, nil
+}
+
+// LockForSelf generates a locking script for a BRC29 address derived from the sender's public key, key ID, and the recipient's (self) private key.
+//
+// This is the self-locking variant and uses AddressForSelf under the hood. If you need to
+// lock for a counterparty using your private key and their public key, use LockForCounterparty instead.
+//
+// Arguments:
+//   - sender: the sender key. Can be a public key hex or a key deriver or ec.PublicKey.
+//   - keyID: the key ID.
+//   - self: the recipient private key. This is the private key for which the output will be locked. Can be a private key hex or wif or a key deriver or ec.PrivateKey.
+//   - opts: additional options.
+//
+// Example:
+// 1. LockForSelf with hexes
+// ```go
+// lockingScript, err := LockForSelf(PubHex("ab..."), keyID, PrivHex("cd..."))
+// ```
+//
+// 2. LockForSelf with key derivers
+// ```go
+// var senderKeyDeriver *sdk.KeyDeriver = ...
+// var selfKeyDeriver *sdk.KeyDeriver = ...
+//
+// lockingScript, err := LockForSelf(senderKeyDeriver, keyID, selfKeyDeriver)
+// ```
+//
+// 3. LockForSelf with ec private and public keys
+// ```go
+// var priv ec.PrivateKey = ...
+// var pub ec.PublicKey = ...
+//
+// lockingScript, err := LockForSelf(pub, keyID, priv)
+// ```
+func LockForSelf[SenderKey CounterpartyPublicKey, SelfKey CounterpartyPrivateKey](senderPublicKeySource SenderKey, keyID KeyID, selfPrivateKeySource SelfKey, opts ...func(*lockOptions)) (*script.Script, error) {
+	address, err := AddressForSelf(senderPublicKeySource, keyID, selfPrivateKeySource, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate BRC29 address to lock the output: %w", err)
 	}

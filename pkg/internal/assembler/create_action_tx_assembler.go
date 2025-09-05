@@ -32,7 +32,7 @@ func NewCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, provided
 	}
 }
 
-func (a *CreateActionTransactionAssembler) Assemble() (*transaction.Transaction, error) {
+func (a *CreateActionTransactionAssembler) Assemble() (*AssembledTransaction, error) {
 	err := a.parseInputBEEF()
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (a *CreateActionTransactionAssembler) Assemble() (*transaction.Transaction,
 		return nil, err
 	}
 
-	return a.tx, nil
+	return &AssembledTransaction{Transaction: a.tx, inputBEEF: a.inputBEEF}, nil
 }
 
 func (a *CreateActionTransactionAssembler) fillTransactionHeader() {
@@ -227,7 +227,7 @@ func (a *CreateActionTransactionAssembler) changeLockingScript(it *wdk.StorageCr
 		return nil, fmt.Errorf("cannot create change locking script for output %d: %w", it.Vout, err)
 	}
 
-	lockingScript, err := brc29.Lock(a.keyDeriver, keyID, a.keyDeriver)
+	lockingScript, err := brc29.LockForCounterparty(a.keyDeriver, keyID, a.keyDeriver)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create change locking script for output %d: %w", it.Vout, err)
 	}

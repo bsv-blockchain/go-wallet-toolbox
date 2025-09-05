@@ -26,7 +26,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 	repositories := &Repositories{
 		Migrator:      NewMigrator(db),
 		Settings:      NewSettings(db),
-		OutputBaskets: NewOutputBaskets(db),
+		OutputBaskets: NewOutputBaskets(db, query),
 		Certificates:  NewCertificates(db),
 		UTXOs:         NewUTXOs(db, query),
 		Transactions:  NewTransactions(db, query),
