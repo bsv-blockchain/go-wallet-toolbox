@@ -29,7 +29,7 @@ type Repository interface {
 	UpsertTransactionForSync(ctx context.Context, entity *pkgentity.Transaction) (isNew bool, transactionID uint, err error)
 
 	FindOutputsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutput, error)
-	UpsertOutputForSync(ctx context.Context, entity *entity.Output) (isNew bool, outputID uint, err error)
+	UpsertOutputForSync(ctx context.Context, entity *pkgentity.Output) (isNew bool, outputID uint, err error)
 
 	FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabel, error)
 	UpsertLabelForSync(ctx context.Context, entity *entity.Label) (isNew bool, labelNumID uint, err error)

@@ -3,9 +3,8 @@ package funder
 import (
 	"context"
 
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 )
 
 type Funder interface {
@@ -22,7 +21,7 @@ type Funder interface {
 		ctx context.Context,
 		targetSat satoshi.Value,
 		currentTxSize uint64,
-		basket *pkgentity.OutputBasket,
+		basket *entity.OutputBasket,
 		userID int,
 		forbiddenOutputIDs []uint,
 		priorityOutputs []*entity.Output,

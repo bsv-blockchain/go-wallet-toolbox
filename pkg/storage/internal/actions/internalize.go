@@ -263,7 +263,7 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)
 	}
 
-	outputsToInternalize := make([]*entity.Output, 0, len(outputs))
+	outputsToInternalize := make([]*pkgentity.Output, 0, len(outputs))
 	for _, toInternalize := range outputs {
 		outputID := optional.OfPtr(toInternalize.existingOutputID).OrZeroValue() // Zero means it's a new output
 
@@ -290,7 +290,7 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 				return fmt.Errorf("failed to get UTXO status by transaction status: %w", err)
 			}
 
-			output.UserUTXO = &entity.UserUTXO{
+			output.UserUTXO = &pkgentity.UserUTXO{
 				UserID:             output.UserID,
 				Satoshis:           sats,
 				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
@@ -379,7 +379,7 @@ func (in *internalize) makeOutputs(
 
 		output := tx.Outputs[outputSpec.OutputIndex]
 
-		var existingOutput *entity.Output
+		var existingOutput *pkgentity.Output
 		if isMerge {
 			existingOutput, err = in.outputRepo.FindOutput(ctx, userID, wdk.OutPoint{
 				TxID: tx.TxID().String(),

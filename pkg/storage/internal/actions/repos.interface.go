@@ -17,13 +17,13 @@ type BasketRepo interface {
 }
 
 type OutputRepo interface {
-	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error)
-	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error)
-	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
-	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)
-	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error)
-	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error)
-	SaveOutputs(ctx context.Context, output []*entity.Output) error
+	FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error)
+	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*pkgentity.Output, error)
+	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error)
+	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*pkgentity.Output, int64, error)
+	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error)
+	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*pkgentity.Output, error)
+	SaveOutputs(ctx context.Context, output []*pkgentity.Output) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
 	ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error
 }

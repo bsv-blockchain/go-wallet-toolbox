@@ -7,10 +7,12 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -30,7 +32,7 @@ func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
 	return &Outputs{db: db, query: query}
 }
 
-func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
+func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error) {
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
 	}
@@ -53,7 +55,21 @@ func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]
 	return slices.Map(outputs, o.mapModelToOutputEntity), nil
 }
 
-func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error) {
+func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Output, error) {
+	table := &o.query.Output
+
+	rows, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(o.conditionsBySpec(spec)...).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs: %w", err)
+	}
+
+	return slices.Map(rows, o.mapModelToOutputEntity), nil
+}
+
+func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error) {
 	session := o.db.WithContext(ctx)
 
 	var outputRows []*models.Output
@@ -68,7 +84,7 @@ func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID 
 	return slices.Map(outputRows, o.mapModelToOutputEntity), nil
 }
 
-func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error) {
+func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*pkgentity.Output, int64, error) {
 	var outputs []*models.Output
 	var total int64
 
@@ -178,7 +194,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 	return nil
 }
 
-func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*entity.Output, error) {
+func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*pkgentity.Output, error) {
 	if len(outpoints) == 0 {
 		return nil, nil
 	}
@@ -210,7 +226,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 		return nil, fmt.Errorf("failed to fetch outputs: %w", err)
 	}
 
-	return slices.Map(readModels, func(readModel *outputWithTxID) *entity.Output {
+	return slices.Map(readModels, func(readModel *outputWithTxID) *pkgentity.Output {
 		readModel.Output.Transaction = &models.Transaction{
 			TxID: readModel.TxID,
 		}
@@ -218,7 +234,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	}), nil
 }
 
-func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error) {
+func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*pkgentity.Output, error) {
 	var output models.Output
 	err := o.db.WithContext(ctx).
 		Model(&models.Output{}).
@@ -247,7 +263,7 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 // FindInputsAndOutputsWithBaskets retrieves inputs and outputs for given transaction IDs, including basket information.
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
-func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*entity.Output, outputs map[uint][]*entity.Output, err error) {
+func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error) {
 	if len(txIDs) == 0 {
 		return
 	}
@@ -270,8 +286,8 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
 	}
 
-	inputMap := make(map[uint][]*entity.Output)
-	outputMap := make(map[uint][]*entity.Output)
+	inputMap := make(map[uint][]*pkgentity.Output)
+	outputMap := make(map[uint][]*pkgentity.Output)
 
 	for _, out := range allOutputs {
 		tableOut := o.mapModelToOutputEntity(out)
@@ -284,13 +300,13 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	return inputMap, outputMap, nil
 }
 
-func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*entity.Output) error {
+func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) error {
 	type outputWithTags struct {
 		Output models.Output
 		Tags   []any
 	}
 
-	modelsToStore := slices.Map(outputs, func(output *entity.Output) *outputWithTags {
+	modelsToStore := slices.Map(outputs, func(output *pkgentity.Output) *outputWithTags {
 		res := &outputWithTags{
 			Output: models.Output{
 				Model: gorm.Model{
@@ -482,8 +498,8 @@ func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScop
 	return nil
 }
 
-func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
-	output := &entity.Output{
+func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output {
+	output := &pkgentity.Output{
 		CreatedAt:          model.CreatedAt,
 		UpdatedAt:          model.UpdatedAt,
 		ID:                 model.ID,
@@ -508,6 +524,9 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *entity.Output {
 	if model.Transaction != nil && model.Transaction.TxID != nil {
 		output.TxID = model.Transaction.TxID
 		output.TxStatus = model.Transaction.Status
+	}
+	if model.UserUTXO != nil {
+		output.UserUTXO = mapModelToEntityUserUTXO(model.UserUTXO)
 	}
 	return output
 }
@@ -544,4 +563,174 @@ func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID ui
 	}
 
 	return fmt.Errorf("failed to check for spent outputs: %w", err)
+}
+
+// AddOutput inserts a new output.
+func (o *Outputs) AddOutput(ctx context.Context, out *pkgentity.Output) error {
+	if out == nil {
+		return fmt.Errorf("output cannot be nil")
+	}
+
+	model := mapEntityToModelOutput(out)
+	if err := o.db.WithContext(ctx).Create(model).Error; err != nil {
+		return fmt.Errorf("failed to insert output: %w", err)
+	}
+	return nil
+}
+
+// UpdateOutput updates an existing output by spec.
+func (o *Outputs) UpdateOutput(ctx context.Context, spec *pkgentity.OutputUpdateSpecification) error {
+	if spec == nil {
+		return fmt.Errorf("update specification cannot be nil")
+	}
+
+	table := &o.query.Output
+	updates := map[string]any{}
+
+	if spec.Spendable != nil {
+		updates[table.Spendable.ColumnName().String()] = spec.Spendable
+	}
+	if spec.Description != nil {
+		updates[table.Description.ColumnName().String()] = spec.Description
+	}
+	if spec.LockingScript != nil {
+		updates[table.LockingScript.ColumnName().String()] = spec.LockingScript
+	}
+	if spec.CustomInstr != nil {
+		updates[table.CustomInstructions.ColumnName().String()] = spec.CustomInstr
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	fmt.Printf("Updates to apply: %+v\n", updates)
+	res, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	if err != nil {
+		return fmt.Errorf("failed to update output: %w", err)
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("no rows updated for ID=%d", spec.ID)
+	}
+
+	return nil
+}
+
+// CountOutputs counts outputs matching spec + options.
+func (o *Outputs) CountOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) (int64, error) {
+	table := &o.query.Output
+
+	count, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(o.conditionsBySpec(spec)...).
+		Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count outputs: %w", err)
+	}
+
+	return count, nil
+}
+
+// conditionsBySpec builds query conditions based on the read spec.
+func (o *Outputs) conditionsBySpec(spec *pkgentity.OutputReadSpecification) []gen.Condition {
+	if spec == nil {
+		return nil
+	}
+
+	table := &o.query.Output
+	if spec.ID != nil {
+		return []gen.Condition{table.ID.Eq(*spec.ID)}
+	}
+
+	var conditions []gen.Condition
+	if spec.UserID != nil {
+		conditions = append(conditions, cmpCondition(table.UserID, spec.UserID))
+	}
+	if spec.TransactionID != nil {
+		conditions = append(conditions, cmpCondition(table.TransactionID, spec.TransactionID))
+	}
+	if spec.SpentBy != nil {
+		conditions = append(conditions, cmpCondition(table.SpentBy, spec.SpentBy))
+	}
+	if spec.BasketName != nil {
+		conditions = append(conditions, cmpCondition(table.BasketName, spec.BasketName))
+	}
+	if spec.Spendable != nil {
+		conditions = append(conditions, cmpBoolCondition(table.Spendable, spec.Spendable))
+	}
+	if spec.Change != nil {
+		conditions = append(conditions, cmpBoolCondition(table.Change, spec.Change))
+	}
+
+	return conditions
+}
+
+func mapEntityToModelOutput(e *pkgentity.Output) *models.Output {
+	m := &models.Output{
+		Model: gorm.Model{
+			ID:        e.ID,
+			CreatedAt: e.CreatedAt,
+			UpdatedAt: e.UpdatedAt,
+		},
+		UserID:             e.UserID,
+		TransactionID:      e.TransactionID,
+		SpentBy:            e.SpentBy,
+		Vout:               e.Vout,
+		Satoshis:           e.Satoshis,
+		LockingScript:      e.LockingScript,
+		CustomInstructions: e.CustomInstructions,
+		DerivationPrefix:   e.DerivationPrefix,
+		DerivationSuffix:   e.DerivationSuffix,
+		BasketName:         e.BasketName,
+		Spendable:          e.Spendable,
+		Change:             e.Change,
+		Description:        e.Description,
+		ProvidedBy:         e.ProvidedBy,
+		Purpose:            e.Purpose,
+		Type:               e.Type,
+		SenderIdentityKey:  e.SenderIdentityKey,
+	}
+
+	for _, tag := range e.Tags {
+		m.Tags = append(m.Tags, &models.Tag{
+			Name:   tag,
+			UserID: e.UserID,
+		})
+	}
+
+	m.UserUTXO = mapEntityToModelUserUTXO(e.UserUTXO)
+
+	return m
+}
+
+func mapEntityToModelUserUTXO(e *pkgentity.UserUTXO) *models.UserUTXO {
+	if e == nil {
+		return nil
+	}
+	return &models.UserUTXO{
+		UserID:             e.UserID,
+		OutputID:           e.OutputID,
+		BasketName:         e.BasketName,
+		Satoshis:           e.Satoshis,
+		EstimatedInputSize: e.EstimatedInputSize,
+		CreatedAt:          e.CreatedAt,
+		ReservedByID:       e.ReservedByID,
+		UTXOStatus:         e.Status,
+	}
+}
+
+func mapModelToEntityUserUTXO(m *models.UserUTXO) *pkgentity.UserUTXO {
+	if m == nil {
+		return nil
+	}
+	return &pkgentity.UserUTXO{
+		UserID:             m.UserID,
+		OutputID:           m.OutputID,
+		BasketName:         m.BasketName,
+		Satoshis:           m.Satoshis,
+		EstimatedInputSize: m.EstimatedInputSize,
+		CreatedAt:          m.CreatedAt,
+		ReservedByID:       m.ReservedByID,
+		Status:             m.UTXOStatus,
+	}
 }

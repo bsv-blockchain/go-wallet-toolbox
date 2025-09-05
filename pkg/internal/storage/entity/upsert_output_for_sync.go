@@ -1,6 +1,10 @@
 package entity
 
+import (
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+)
+
 type UpsertOutputForSync struct {
-	Output
+	pkgentity.Output
 	BasketNumID *uint
 }

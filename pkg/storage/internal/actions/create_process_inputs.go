@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -35,7 +36,7 @@ type xinputDefinition struct {
 	Satoshis      satoshi.Value
 	LockingScript []byte
 
-	knownOutput *entity.Output // This is used only for known UTXOs, can be nil for unknown UTXOs
+	knownOutput *pkgentity.Output // This is used only for known UTXOs, can be nil for unknown UTXOs
 }
 
 type xinputDefinitions []*xinputDefinition
@@ -44,9 +45,9 @@ func (inputs xinputDefinitions) iter() iter.Seq[*xinputDefinition] {
 	return seq.FromSlice(inputs)
 }
 
-func (inputs xinputDefinitions) knownOutputs() iter.Seq[*entity.Output] {
+func (inputs xinputDefinitions) knownOutputs() iter.Seq[*pkgentity.Output] {
 	knownOutputs := func(input *xinputDefinition) bool { return input.knownOutput != nil }
-	toTableOutput := func(input *xinputDefinition) *entity.Output { return input.knownOutput }
+	toTableOutput := func(input *xinputDefinition) *pkgentity.Output { return input.knownOutput }
 
 	return seq.Map(seq.Filter(inputs.iter(), knownOutputs), toTableOutput)
 }
@@ -251,7 +252,7 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 	return nil
 }
 
-func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionInput, output *entity.Output) (*xinputDefinition, error) {
+func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionInput, output *pkgentity.Output) (*xinputDefinition, error) {
 	if len(output.LockingScript) == 0 || output.Satoshis <= 0 {
 		return nil, fmt.Errorf("output %s has no locking script or positive satoshis", xinput.Outpoint)
 	}
