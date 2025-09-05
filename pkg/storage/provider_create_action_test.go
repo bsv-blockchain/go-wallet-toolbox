@@ -45,7 +45,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	activeStorage := given.Provider().GORM()
 
 	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	faucetTx, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs()
@@ -67,7 +67,11 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, 32, len(result.Outputs))
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef01fde803010100005060c03582071bfbf1b0aff8aa459ce27a43d1bcee7d05c7fa4f4422e45f13ab02010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b48304502210083f522b0c281abbf93d00dbf7e8d471ff1da653964e943fff6e6b999dea24946022005ad9e62f7b9b0035a5cd9154725eb0d648dddc021af1effa693d01ce28e5e9d4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a1860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac000000000001000000015060c03582071bfbf1b0aff8aa459ce27a43d1bcee7d05c7fa4f4422e45f13ab000000006a47304402206596342f295a72660bcc1a6d0f096d5be6f70efa5a224a9901818ef8891a08cd022042330985d9fdfbb4ed0c4c460e1ec88c85ebce222b272e25f208602145ae23214121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff02a0860100000000001976a914120537d7bdb5c2b4532a5f1742eb8b03b891a0b988ac000000000000000011006a0e66617563657420696e646578203000000000", hex.EncodeToString(result.InputBeef))
+
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID: faucetTx.ID().String(),
+	})
+
 	assert.Empty(t, result.NoSendChangeOutputVouts)
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
@@ -255,7 +259,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 		GORM()
 
 	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	facuetTx, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs()
@@ -273,6 +277,10 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, "0200beef01fde803010100005060c03582071bfbf1b0aff8aa459ce27a43d1bcee7d05c7fa4f4422e45f13ab02010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b48304502210083f522b0c281abbf93d00dbf7e8d471ff1da653964e943fff6e6b999dea24946022005ad9e62f7b9b0035a5cd9154725eb0d648dddc021af1effa693d01ce28e5e9d4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a1860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac000000000001000000015060c03582071bfbf1b0aff8aa459ce27a43d1bcee7d05c7fa4f4422e45f13ab000000006a47304402206596342f295a72660bcc1a6d0f096d5be6f70efa5a224a9901818ef8891a08cd022042330985d9fdfbb4ed0c4c460e1ec88c85ebce222b272e25f208602145ae23214121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff02a0860100000000001976a914120537d7bdb5c2b4532a5f1742eb8b03b891a0b988ac000000000000000011006a0e66617563657420696e646578203000000000", hex.EncodeToString(result.InputBeef))
+
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID: facuetTx.ID().String(),
+	})
 
 	commissionOutput, _ := testutils.FindOutput(t, result.Outputs, testutils.CommissionOutputCondition)
 	assert.Equal(t, primitives.SatoshiValue(10), commissionOutput.Satoshis)
@@ -459,7 +467,10 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Equal(t, 31, len(result.Outputs))
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef00010223fddb8b10833147c786a9b6f41a11c5db17e440c18de2eb1b2bad05ba205870", hex.EncodeToString(result.InputBeef))
+
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID: ownedTxSpec.ID().String(),
+	})
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
@@ -521,7 +532,10 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Equal(t, 32, len(result.Outputs))
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef01fde80301010000f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d102010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100c7ddc5159fc630d28f4beeeafa73bc8d32f25b01909732d8d44b9cdbbc85888502206a0a6269bc47c633441a7b5aff120fd0760024badd660f24f713889c0ee70ecb4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a2860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d1000000006a4730440220291e6769c2383c82fd3c06de833589d9401dbb55838bdc02a76d8d7a98d3cac302207ad2de40877eab59981f2d46dba1cdefd40846db840ae24094eb07688b3e4ee64121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a0860100000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
+
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID: unknownParentTx.ID().String(),
+	})
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
@@ -582,7 +596,10 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Equal(t, 33, len(result.Outputs))
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef01fde80301010000f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d102010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100c7ddc5159fc630d28f4beeeafa73bc8d32f25b01909732d8d44b9cdbbc85888502206a0a6269bc47c633441a7b5aff120fd0760024badd660f24f713889c0ee70ecb4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a2860100000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001f6282a580ebf0cebd3edbb4ac129d2d7f8a1b337ab642f70377f3d9040eca1d1000000006a4730440220291e6769c2383c82fd3c06de833589d9401dbb55838bdc02a76d8d7a98d3cac302207ad2de40877eab59981f2d46dba1cdefd40846db840ae24094eb07688b3e4ee64121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a0860100000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000", hex.EncodeToString(result.InputBeef))
+
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID: unknownParentTx.ID().String(),
+	})
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
@@ -646,7 +663,10 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	assert.Equal(t, 9, len(result.Outputs))
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(7999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, "0200beef02fde80301010000afc74b81ac854adcf0d8f6c00dc0a472091a849ab6a6eba05e56a2081cfad85dfde80301010000c03a03ce300658133ef937e7605e80ba8e968c53ad429739e3039b581565f19004010001000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100960e5206bd3bad3df969139151f80c22a1d95bba33b4fa2624bee729a2270ad802207f97598bbe1bd6957190064eefbee29cb71400b708d8e3583b0e6284cc189ebf4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01aa610000000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001afc74b81ac854adcf0d8f6c00dc0a472091a849ab6a6eba05e56a2081cfad85d000000006a47304402207988fdfa676f7be346e97aab0a646445efcc8ace7ebca9ff56d6177cddfde6af02201aa2a53b255aab78d270237cc8585783f783382831b7573dc29f982e53ca1b404121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a8610000000000001976a9143cf53c49c322d9d811728182939aee2dca087f9888ac00000000010101000000012e3f4683e173b40a20527fe5719633ba070df649983614886e90e45aecf2ac56000000006b483045022100e2fc5d36ed54357a33c47a4de33644cdcf322dfff59b77444dfe42605e830fa302203afd714567658d971c27bacd31e983848ab651620dedfce0d2d8735d289bc6664121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff01a9610000000000001976a91494677c56fa2968644c90a517214338b4139899ce88ac00000000000100000001c03a03ce300658133ef937e7605e80ba8e968c53ad429739e3039b581565f190000000006b483045022100ba4e713e2d06c9bdb2d82c5cb2c6cee7940a25cb1a593bb11f3bbe0ea94d24e202207426b381c711407d9095ff7f9b90a4c14290ea1d94d8cd2b254245fc4299798f4121034d2d6d23fbcb6eefe3e80c47044e36797dcb80d0ac5e96e732ef03c3c550a116ffffffff02a8610000000000001976a914120537d7bdb5c2b4532a5f1742eb8b03b891a0b988ac000000000000000011006a0e66617563657420696e646578203000000000", hex.EncodeToString(result.InputBeef))
+
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID: ownedTxSpec.ID().String(),
+	})
 
 	testutils.ForEveryOutput(t, result.Outputs, testutils.ProvidedByStorageCondition, func(p *wdk.StorageCreateTransactionSdkOutput) {
 		assert.Equal(t, "change", p.Purpose)
@@ -738,15 +758,8 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-
-	beef, err := transaction.NewBeefFromBytes(result.InputBeef)
-	require.NoError(t, err)
-	require.NotNil(t, beef)
-
-	expectedTransactionFromFaucet := primitives.TXIDHexStrings{primitives.TXIDHexString(faucetTx.ID().String())}.ToStringSlice()
-
-	for _, tx := range beef.Transactions {
-		require.Equal(t, transaction.TxIDOnly, tx.DataFormat)
-		require.Contains(t, expectedTransactionFromFaucet, tx.KnownTxID.String())
-	}
+	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+		ID:         faucetTx.ID().String(),
+		DataFormat: to.Ptr(transaction.TxIDOnly),
+	})
 }
