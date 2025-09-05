@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-func MapCreateActionResultFromStorageResultsForNewTx(txID *chainhash.Hash, tx *transaction.Transaction, createActionResult *wdk.StorageCreateActionResult, processActionResult *wdk.ProcessActionResult, wdkArgs wdk.ValidCreateActionArgs) (*wallet.CreateActionResult, error) {
+func MapCreateActionResultFromStorageResultsForNewTx(txID *chainhash.Hash, tx *assembler.AssembledTransaction, createActionResult *wdk.StorageCreateActionResult, processActionResult *wdk.ProcessActionResult, wdkArgs wdk.ValidCreateActionArgs) (*wallet.CreateActionResult, error) {
 	noSendChange, err := MapIndexesToOutpoints(txID, createActionResult.NoSendChangeOutputVouts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare no send change outpoints, %w", err)
