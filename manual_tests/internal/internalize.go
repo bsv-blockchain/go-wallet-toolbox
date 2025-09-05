@@ -24,7 +24,12 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 
 	summary = append(summary, fmt.Sprintf("Fetching atomic beef for txID %q on network %q", txID, m.GetBSVNetwork()))
 
-	beef, err := m.storageInfra.Services.GetBEEF(m.ctx, txID, nil)
+	services, err := m.getServices()
+	if err != nil {
+		return summary, fmt.Errorf("failed to get services: %w", err)
+	}
+
+	beef, err := services.GetBEEF(m.ctx, txID, nil)
 	if err != nil {
 		return summary, fmt.Errorf("failed to get beef for txID %q, network %q: %w", txID, m.GetBSVNetwork(), err)
 	}
