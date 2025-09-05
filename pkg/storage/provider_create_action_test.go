@@ -743,10 +743,10 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, beef)
 
-	expectedTransactionFromFaucet := primitives.TXIDHexStrings{primitives.TXIDHexString(faucetTx.ID().String())}.ToHashSet()
+	expectedTransactionFromFaucet := primitives.TXIDHexStrings{primitives.TXIDHexString(faucetTx.ID().String())}.ToStringSlice()
 
 	for _, tx := range beef.Transactions {
 		require.Equal(t, transaction.TxIDOnly, tx.DataFormat)
-		require.True(t, expectedTransactionFromFaucet.Contains(tx.KnownTxID.String()))
+		require.Contains(t, expectedTransactionFromFaucet, tx.KnownTxID.String())
 	}
 }
