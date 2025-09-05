@@ -13,6 +13,7 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		fixtures.ActionBalance,
 		fixtures.ActionListOutputs,
 		fixtures.ActionSend,
+		fixtures.ActionNoSendSendWith,
 		fixtures.ButtonBack,
 	}
 
@@ -32,8 +33,10 @@ func NewSelectAction(manager ManagerInterface, user *fixtures.UserConfig) tea.Mo
 		case fixtures.ActionSend:
 			sendForm := NewSendForm(manager, user)
 			return sendForm, sendForm.Init()
+		case fixtures.ActionNoSendSendWith:
+			noSendSendWithForm := NewNoSendSendWithForm(manager, user)
+			return noSendSendWithForm, noSendSendWithForm.Init()
 		case fixtures.ButtonBack:
-			// Return to wallet selection view when Back is selected
 			selectWalletModel := NewSelectWallet(manager)
 			return selectWalletModel, selectWalletModel.Init()
 		default:
