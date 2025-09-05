@@ -9,12 +9,15 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Setup struct {
-	Environment Environment
-	IdentityKey *ec.PublicKey
-	PrivateKey  *ec.PrivateKey
+	Environment      Environment
+	IdentityKey      *ec.PublicKey
+	PrivateKey       *ec.PrivateKey
+	ServerPrivateKey string
 }
 
 type Environment struct {
@@ -23,10 +26,11 @@ type Environment struct {
 }
 
 type SetupConfig struct {
-	Network   defs.BSVNetwork `mapstructure:"network"`
-	ServerURL string          `mapstructure:"server_url"`
-	Alice     UserConfig      `mapstructure:"alice"`
-	Bob       UserConfig      `mapstructure:"bob"`
+	Network          defs.BSVNetwork `mapstructure:"network"`
+	ServerURL        string          `mapstructure:"server_url"`
+	ServerPrivateKey string          `mapstructure:"server_private_key"`
+	Alice            UserConfig      `mapstructure:"alice"`
+	Bob              UserConfig      `mapstructure:"bob"`
 }
 
 type UserConfig struct {
@@ -51,8 +55,8 @@ func (c *SetupConfig) Validate() error {
 		return fmt.Errorf("invalid BSV network: %w", err)
 	}
 
-	if c.ServerURL == "" {
-		return fmt.Errorf("server_url is required")
+	if c.ServerPrivateKey == "" {
+		return fmt.Errorf("server_private_key is required")
 	}
 
 	if err := c.Alice.Verify(); err != nil {
@@ -70,7 +74,7 @@ func (c *SetupConfig) Validate() error {
 // It loads the configuration from the examples-config.yaml file and validates the config
 // It then creates a new wallet for Alice and returns the Setup struct
 func CreateAlice() *Setup {
-	cfg, err := loadConfig()
+	cfg, err := LoadConfig()
 	if err != nil {
 		panic(fmt.Errorf("failed to load config: %w", err))
 	}
@@ -96,21 +100,36 @@ func CreateAlice() *Setup {
 			BSVNetwork: cfg.Network,
 			ServerURL:  cfg.ServerURL,
 		},
-		IdentityKey: identityKey,
-		PrivateKey:  privateKey,
+		IdentityKey:      identityKey,
+		PrivateKey:       privateKey,
+		ServerPrivateKey: cfg.ServerPrivateKey,
 	}
 }
 
 // CreateWallet creates a new wallet for the user
-// It connects to the server and creates a new wallet
+// It uses either local storage or connects to remote server
 // It returns the wallet and a cleanup function, panicking if wallet creation fails
 func (s *Setup) CreateWallet(ctx context.Context) (*wallet.Wallet, func()) {
-	storageClient, cleanup, err := storage.NewClient(s.Environment.ServerURL)
-	if err != nil {
-		panic(fmt.Errorf("failed to connect to server: %w", err))
+	var storageProvider wdk.WalletStorageProvider
+	var cleanup func()
+	var err error
+
+	remoteStorage := s.Environment.ServerURL != ""
+
+	if remoteStorage {
+		show.Info("Using remote storage", s.Environment.ServerURL)
+		storageProvider, cleanup, err = storage.NewClient(s.Environment.ServerURL)
+	} else {
+		show.Info("Using local storage", SQLiteStorageFile)
+		storageProvider, cleanup, err = CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
 	}
 
-	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageClient)
+	if err != nil {
+		name := to.IfThen(remoteStorage, "remote").ElseThen("local")
+		panic(fmt.Errorf("failed to create %s storage provider: %w", name, err))
+	}
+
+	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageProvider)
 	if err != nil {
 		cleanup()
 		panic(fmt.Errorf("failed to create wallet: %w", err))
