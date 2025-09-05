@@ -7,9 +7,9 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
@@ -26,7 +26,7 @@ type SignAction struct {
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	reference  string
-	tx         *transaction.Transaction
+	tx         *assembler.AssembledTransaction
 	txID       *chainhash.Hash
 	originator string
 }
@@ -48,7 +48,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	s.mergeArgs(pendingSignAction.CreateActionArgs, args)
 
-	s.tx = &pendingSignAction.Tx
+	s.tx = assembler.NewAssembledTxFromPendingSignAction(pendingSignAction)
 
 	s.attachUnlockingScripts(args)
 	if err := s.allInputsCanBeUnlocked(); err != nil {

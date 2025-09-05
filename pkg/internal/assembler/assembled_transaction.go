@@ -5,16 +5,30 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 )
 
 type AssembledTransaction struct {
 	*transaction.Transaction
 	inputBEEF *transaction.Beef
+
+	cachedAtomicBeef      *transaction.Beef
+	cachedAtomicBeefBytes []byte
+}
+
+func NewAssembledTxFromPendingSignAction(pendingSignAction *wdk.PendingSignAction) *AssembledTransaction {
+	return &AssembledTransaction{
+		Transaction: &pendingSignAction.Tx,
+		inputBEEF:   pendingSignAction.InputBEEF,
+	}
 }
 
 func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
-	beef, err := a.toAtomicBEEF(allowPartials)
+	if a.cachedAtomicBeefBytes != nil {
+		return a.cachedAtomicBeefBytes, nil
+	}
+	beef, err := a.ToAtomicBEEF(allowPartials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build beef from assembled tx: %w", err)
 	}
@@ -22,10 +36,15 @@ func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize assembled transaction to atomic beef bytes: %w", err)
 	}
+
+	a.cachedAtomicBeefBytes = bytes
 	return bytes, nil
 }
 
-func (a *AssembledTransaction) toAtomicBEEF(allowPartials bool) (*transaction.Beef, error) {
+func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Beef, error) {
+	if a.cachedAtomicBeef != nil {
+		return a.cachedAtomicBeef, nil
+	}
 	beef := transaction.NewBeef()
 
 	err := beef.MergeBeef(a.inputBEEF)
@@ -53,6 +72,7 @@ func (a *AssembledTransaction) toAtomicBEEF(allowPartials bool) (*transaction.Be
 		return nil, fmt.Errorf("failed to build beef from tx, %w", err)
 	}
 
+	a.cachedAtomicBeef = beef
 	return beef, nil
 }
 

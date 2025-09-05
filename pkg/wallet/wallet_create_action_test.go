@@ -175,7 +175,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
 	})
 }
@@ -257,7 +257,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
 	})
 }
@@ -320,7 +320,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
 	})
 }
@@ -903,7 +903,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
 	})
 }

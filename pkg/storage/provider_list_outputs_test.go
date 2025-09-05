@@ -38,8 +38,8 @@ func TestListOutputs_MinimalFilter(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Len(t, result.Outputs, 31)
-	require.Equal(t, primitives.PositiveInteger(31), result.TotalOutputs)
+	require.Len(t, result.Outputs, 32)
+	require.Equal(t, primitives.PositiveInteger(32), result.TotalOutputs)
 
 	// and:
 	require.Nil(t, result.BEEF)
@@ -183,7 +183,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 31)
+	require.Len(t, actualResult.Outputs, 32)
 
 	// and:
 	require.NotNil(t, actualResult.BEEF)
@@ -222,7 +222,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 31)
+	require.Len(t, actualResult.Outputs, 32)
 
 	// and:
 	beef := testutils.BEEFFromHex(t, *actualResult.BEEF)
@@ -392,7 +392,7 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Len(t, result.Outputs, changeOutputsCount)
+	require.Len(t, result.Outputs, changeOutputsCount+1) // +1 for the faucet output
 
 	// when:
 	createActionArgs := fixtures.DefaultValidCreateActionArgs()

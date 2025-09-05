@@ -95,7 +95,7 @@ func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.Creat
 		return nil, pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err)
 	}
 
-	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(tx.TxID(), tx, storageCreateActionResult, processActionResult, a.wdkArgs, txAssembler.InputBEEF())
+	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(tx.TxID(), tx, storageCreateActionResult, processActionResult, a.wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build result after processing created action: %w", pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err))
 	}
@@ -104,14 +104,20 @@ func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.Creat
 }
 
 func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, storageCreateActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
-	result, err := mapping.SignableTransactionResult(tx, a.wdkArgs, storageCreateActionResult)
+	txAtomic, err := tx.ToAtomicBEEF(false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build atomic beef from assembled transaction: %w", err)
+	}
+
+	result, err := mapping.SignableTransactionResult(tx.TxID(), txAtomic, a.wdkArgs, storageCreateActionResult)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build signable transaction: %w", err)
 	}
 
 	err = a.PendingSignActionsCache.Set(storageCreateActionResult.Reference, &wdk.PendingSignAction{
-		Tx:               *tx,
+		Tx:               *tx.Transaction,
 		CreateActionArgs: a.wdkArgs,
+		InputBEEF:        txAtomic,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to cache pending sign action (reference: %s): %w", storageCreateActionResult.Reference, err)

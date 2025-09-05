@@ -14,6 +14,7 @@ const (
 // PendingSignAction represents a structure to hold a transaction and its associated creation arguments before signature.
 type PendingSignAction struct {
 	Tx               transaction.Transaction
+	InputBEEF        *transaction.Beef
 	CreateActionArgs ValidCreateActionArgs
 }
 
