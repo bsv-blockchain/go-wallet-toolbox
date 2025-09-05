@@ -38,9 +38,7 @@ func main() {
 
 	tokens := mint(ctx, alice, aliceWallet, keyID)
 
-	_ = tokens
-	// TODO: Uncomment to enable redeeming the tokens when SignAction is implemented
-	//redeem(ctx, tokens, aliceWallet)
+	redeem(ctx, tokens, aliceWallet)
 }
 
 func mint(ctx context.Context, alice *example_setup.Setup, aliceWallet wallet.Interface, keyID string) token.Tokens {

@@ -95,7 +95,7 @@ func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.Creat
 		return nil, pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err)
 	}
 
-	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(tx.TxID(), tx, storageCreateActionResult, processActionResult, a.wdkArgs)
+	result, err := mapping.MapCreateActionResultFromStorageResultsForNewTx(tx.TxID(), tx, storageCreateActionResult, processActionResult, a.wdkArgs, txAssembler.InputBEEF())
 	if err != nil {
 		return nil, fmt.Errorf("failed to build result after processing created action: %w", pkgerrors.NewTransactionError(*tx.TxID()).Wrap(err))
 	}

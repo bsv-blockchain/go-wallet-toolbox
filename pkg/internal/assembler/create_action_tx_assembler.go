@@ -53,6 +53,10 @@ func (a *CreateActionTransactionAssembler) Assemble() (*AssembledTransaction, er
 	return &AssembledTransaction{Transaction: a.tx, inputBEEF: a.inputBEEF}, nil
 }
 
+func (a *CreateActionTransactionAssembler) InputBEEF() *transaction.Beef {
+	return a.inputBEEF
+}
+
 func (a *CreateActionTransactionAssembler) fillTransactionHeader() {
 	a.tx.Version = a.createActionResult.Version
 	a.tx.LockTime = a.createActionResult.LockTime

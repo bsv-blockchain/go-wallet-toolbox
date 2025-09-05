@@ -18,6 +18,9 @@ import (
 func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 	beef := transaction.NewBeefV2()
+	if options.MergeToBEEF != nil {
+		beef = options.MergeToBEEF
+	}
 
 	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options)
 	if err != nil {
