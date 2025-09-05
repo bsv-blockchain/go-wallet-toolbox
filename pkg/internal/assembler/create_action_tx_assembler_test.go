@@ -21,17 +21,17 @@ func TestTxAssemblerAlignsTsGenerated(t *testing.T) {
 	createActionResult := givenTsGeneratedStorageCreateActionResult(t)
 
 	// when:
-	signed, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, createActionResult).Assemble()
+	assembled, err := assembler.NewCreateActionTransactionAssembler(keyDeriver, nil, createActionResult).Assemble()
 
 	// then:
 	require.NoError(t, err)
 
 	// when:
-	err = signed.Sign()
+	err = assembled.Sign()
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, tsgenerated.SignedTransaction(t).Hex(), signed.Hex())
+	require.Equal(t, tsgenerated.SignedTransaction(t).Hex(), assembled.Hex())
 }
 
 func givenKeyDeriver(t *testing.T, user testusers.User) *sdk.KeyDeriver {
