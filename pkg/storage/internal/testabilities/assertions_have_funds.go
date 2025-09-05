@@ -42,7 +42,7 @@ func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
 		DerivationSuffix: fixtures.DerivationSuffix,
 	}
 
-	lockingScript, err := brc29.Lock(t.sender.PrivateKey(t), keyID, t.sender.PublicKey(t))
+	lockingScript, err := brc29.LockForCounterparty(t.sender.PrivateKey(t), keyID, t.sender.PublicKey(t))
 	require.NoError(t.TB, err)
 
 	args := wdk.ValidCreateActionArgs{
