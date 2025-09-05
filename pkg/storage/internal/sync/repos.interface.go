@@ -19,7 +19,7 @@ type Repository interface {
 	UpdateSyncState(ctx context.Context, syncState *entity.SyncState) error
 
 	FindBasketsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputBasket, error)
-	UpsertOutputBasketForSync(ctx context.Context, entity entity.OutputBasket) (isNew bool, basketNumID uint, err error)
+	UpsertOutputBasketForSync(ctx context.Context, entity pkgentity.OutputBasket) (isNew bool, basketNumID uint, err error)
 	FindBasketNameByNumIDForSync(ctx context.Context, basketNumID uint) (string, error)
 
 	FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error)

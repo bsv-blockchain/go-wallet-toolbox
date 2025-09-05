@@ -13,7 +13,7 @@ import (
 )
 
 type BasketRepo interface {
-	FindBasketByName(ctx context.Context, userID int, name string) (*entity.OutputBasket, error)
+	FindBasketByName(ctx context.Context, userID int, name string) (*pkgentity.OutputBasket, error)
 }
 
 type OutputRepo interface {
