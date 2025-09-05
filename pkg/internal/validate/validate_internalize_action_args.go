@@ -1,7 +1,6 @@
 package validate
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -36,7 +35,7 @@ func ValidInternalizeActionArgs(args *wdk.InternalizeActionArgs) error {
 }
 
 // WalletInternalizeAction performs wallet-specific validation for internalize actions
-func WalletInternalizeAction(ctx context.Context, keyDeriver *sdk.KeyDeriver, args *wdk.InternalizeActionArgs) error {
+func WalletInternalizeAction(keyDeriver *sdk.KeyDeriver, args *wdk.InternalizeActionArgs) error {
 	if err := ValidInternalizeActionArgs(args); err != nil {
 		return fmt.Errorf("invalid internalize action args: %w", err)
 	}
@@ -62,7 +61,6 @@ func WalletInternalizeAction(ctx context.Context, keyDeriver *sdk.KeyDeriver, ar
 
 // validateOutput validates a single output based on its protocol
 func validateOutput(keyDeriver *sdk.KeyDeriver, output wdk.InternalizeOutput, tx *transaction.Transaction) error {
-
 	txOutput := tx.Outputs[output.OutputIndex]
 
 	switch output.Protocol {
@@ -77,7 +75,6 @@ func validateOutput(keyDeriver *sdk.KeyDeriver, output wdk.InternalizeOutput, tx
 
 // validateWalletPaymentOutput validates a wallet payment output using BRC-29
 func validateWalletPaymentOutput(keyDeriver *sdk.KeyDeriver, output wdk.InternalizeOutput, txOutput *transaction.TransactionOutput) error {
-
 	payment := output.PaymentRemittance
 
 	keyID := brc29.KeyID{
