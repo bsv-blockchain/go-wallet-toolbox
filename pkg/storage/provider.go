@@ -555,3 +555,8 @@ func (p *Provider) TransactionEntity() crud.Transaction {
 func (p *Provider) UserEntity() crud.User {
 	return crud.NewUser(p.repo.Users)
 }
+
+// OutputBasketsEntity returns an accessor to perform read and write operations on output baskets in the underlying repository.
+func (p *Provider) OutputBasketsEntity() crud.OutputBasket {
+	return crud.NewOutputBasket(p.repo.OutputBaskets)
+}
