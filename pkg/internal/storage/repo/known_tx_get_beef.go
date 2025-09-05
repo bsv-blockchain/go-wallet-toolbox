@@ -30,6 +30,9 @@ func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entit
 func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 	beef := transaction.NewBeefV2()
+	if options.MergeToBEEF != nil {
+		beef = options.MergeToBEEF
+	}
 
 	for txid := range txids {
 		if beef.FindTransaction(txid) != nil {

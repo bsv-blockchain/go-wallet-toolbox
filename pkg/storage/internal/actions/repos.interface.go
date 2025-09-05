@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -22,6 +23,7 @@ type BasketRepo interface {
 
 type OutputRepo interface {
 	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error)
+	FindOutputsAsTxMap(ctx context.Context, outputIDs iter.Seq[uint]) (repo.OutputTxMap, error)
 	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error)
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)

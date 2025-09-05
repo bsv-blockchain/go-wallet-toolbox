@@ -30,6 +30,42 @@ func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
 	return &Outputs{db: db, query: query}
 }
 
+type OutputTxMap map[uint]string
+
+func (o *Outputs) FindOutputsAsTxMap(ctx context.Context, outputIDs iter.Seq[uint]) (OutputTxMap, error) {
+	if seq.IsEmpty(outputIDs) {
+		return nil, nil
+	}
+
+	var outputs []struct {
+		ID            uint   `gorm:"column:id"`
+		TransactionID string `gorm:"column:tx_id"`
+	}
+
+	outTable := &o.query.Output
+	txTable := &o.query.Transaction
+	idsClause := seq.Collect(outputIDs)
+
+	err := outTable.
+		WithContext(ctx).
+		Select(
+			outTable.ID,
+			txTable.TxID).
+		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
+		Where(outTable.ID.In(idsClause...)).
+		Scan(&outputs)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs: %w", err)
+	}
+
+	out := make(OutputTxMap)
+	for _, output := range outputs {
+		out[output.ID] = output.TransactionID
+	}
+	return out, nil
+}
+
 func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil

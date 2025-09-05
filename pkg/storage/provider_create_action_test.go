@@ -720,12 +720,12 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 	activeStorage := given.Provider().GORM()
 
 	// and:
-	faucetTx1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	faucetTx, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
 		args.Options.KnownTxids = []primitives.TXIDHexString{
-			primitives.TXIDHexString(faucetTx1.ID().String()),
+			primitives.TXIDHexString(faucetTx.ID().String()),
 		}
 	})
 
@@ -743,7 +743,7 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, beef)
 
-	expectedTransactionFromFaucet := primitives.TXIDHexStrings{primitives.TXIDHexString(faucetTx1.ID().String())}.ToHashSet()
+	expectedTransactionFromFaucet := primitives.TXIDHexStrings{primitives.TXIDHexString(faucetTx.ID().String())}.ToHashSet()
 
 	for _, tx := range beef.Transactions {
 		require.Equal(t, transaction.TxIDOnly, tx.DataFormat)

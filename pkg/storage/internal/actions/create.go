@@ -7,7 +7,6 @@ import (
 	"iter"
 	"log/slog"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -727,15 +726,20 @@ func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsI
 	return ids
 }
 
-func (c *create) findOutputs(ctx context.Context, allocatedUTXOs []*funder.UTXO) ([]*entity.Output, error) {
-	utxos, err := c.outputRepo.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+func (c *create) findOutputsAsTxMap(ctx context.Context, allocatedUTXOs []*funder.UTXO) ([]*entity.Output, error) {
+	outputTxMap, err := c.outputRepo.FindOutputsAsTxMap(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
 	if err != nil {
 		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
 	}
-	if len(utxos) != len(allocatedUTXOs) {
-		return nil, fmt.Errorf("expected %d outputs, got %d", len(allocatedUTXOs), len(utxos))
+	if len(outputTxMap) != len(allocatedUTXOs) {
+		return nil, fmt.Errorf("expected %d outputs, got %d", len(allocatedUTXOs), len(outputTxMap))
+	}
+
+	utxos := make([]*entity.Output, 0, len(outputTxMap))
+	for outputID, txID := range outputTxMap {
+		utxos = append(utxos, &entity.Output{ID: outputID, TxID: to.Ptr(txID)})
 	}
 
 	return utxos, nil
@@ -743,44 +747,22 @@ func (c *create) findOutputs(ctx context.Context, allocatedUTXOs []*funder.UTXO)
 
 func (c *create) mergeAllocatedUTXOs(
 	ctx context.Context,
-	beefTx *transaction.Beef,
+	inputBeef *transaction.Beef,
 	allocatedUTXOs []*funder.UTXO,
 	knownTxIDs primitives.TXIDHexStrings,
 ) (primitives.ExplicitByteArray, error) {
-
-	utxos, err := c.findOutputs(ctx, allocatedUTXOs)
+	utxos, err := c.findOutputsAsTxMap(ctx, allocatedUTXOs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs for allocated UTXOs: %w", err)
 	}
 
-	knownTxIDsHashSet := knownTxIDs.ToHashSet()
-	knownTxIDsStringSlice := knownTxIDs.ToStringSlice()
-	storageGetBeefOptions := wdk.StorageGetBeefOptions{KnownTxIDs: knownTxIDsStringSlice}
+	txIDs := seq.Map(seq.FromSlice(utxos), func(o *entity.Output) string {
+		return to.Value(o.TxID)
+	})
 
-	for _, utxo := range utxos {
-		if utxo.TxID == nil {
-			return nil, fmt.Errorf("UTXO TxID should not be nil")
-		}
-
-		txID := to.Value(utxo.TxID)
-
-		if !knownTxIDs.IsEmpty() && knownTxIDsHashSet.Contains(txID) {
-			hash, err := chainhash.NewHashFromHex(txID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create hash from str (%s): %w", txID, err)
-			}
-			beefTx.MergeTxidOnly(hash)
-			continue
-		}
-
-		fetchedBeef, err := c.beefProvider.GetBeef(ctx, txID, storageGetBeefOptions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get beef: %w", err)
-		}
-
-		if err := beefTx.MergeBeef(fetchedBeef); err != nil {
-			return nil, fmt.Errorf("failed to merge BEEF: %w", err)
-		}
+	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, txIDs, entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get BEEF for allocated UTXOs: %w", err)
 	}
 
 	beefBytes, err := beefTx.Bytes()
