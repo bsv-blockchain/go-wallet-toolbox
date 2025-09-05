@@ -31,10 +31,11 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo    *repo.Repositories
-	actions *actions.Actions
-	options *ProviderConfig
-	logger  *slog.Logger
+	repo     *repo.Repositories
+	actions  *actions.Actions
+	options  *ProviderConfig
+	logger   *slog.Logger
+	services wdk.Services
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -84,8 +85,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			options.SynchronizeTxStatusesConfig,
 			options.BeefVerifier,
 		),
-		options: &options,
-		logger:  log,
+		options:  &options,
+		logger:   log,
+		services: services,
 	}, nil
 }
 
