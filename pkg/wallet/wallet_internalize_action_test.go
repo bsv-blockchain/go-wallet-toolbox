@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -114,8 +115,8 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
-		// and:
-		args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+		// and: use fixtures helper to craft Tx with BRC-29-matching locking script
+		args := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
 		internalizedTx, err := transaction.NewTransactionFromBEEF(args.Tx)
 		require.NoError(t, err)
 
@@ -187,4 +188,48 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 			WithBasket(fixtures.CustomBasket).
 			WithSpendable(true)
 	})
+}
+
+func TestWalletInternalizeAction_WalletPayment_LockingScriptMatch(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// and:
+	aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeSQLite)
+
+	// and: use fixtures helper to craft Tx with BRC-29-matching locking script
+	args := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
+
+	// when:
+	result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Accepted)
+}
+
+func TestWalletInternalizeAction_WalletPayment_LockingScriptMismatch(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// and:
+	aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
+
+	// and:
+	args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
+
+	// mutate derivation so derived address won't match tx output locking script
+	if len(args.Outputs) > 0 && args.Outputs[0].PaymentRemittance != nil {
+		args.Outputs[0].PaymentRemittance.DerivationSuffix = []byte("mismatch")
+	}
+
+	// when:
+	_, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
+
+	// then:
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "locking script mismatch")
 }
