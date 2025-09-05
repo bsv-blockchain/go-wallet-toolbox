@@ -83,9 +83,7 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 	}
 
 	logger.InfoContext(ctx, "AbortAction completed successfully",
-		logging.UserID(userID),
 		logging.Number("transactionID", txEntity.ID),
-		slog.String("reference", referenceStr),
 	)
 
 	return &wdk.AbortActionResult{Aborted: true}, nil
