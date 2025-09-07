@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,18 @@ func TestOutputCountFilters(t *testing.T) {
 				r.Since(since, entity.SinceFieldCreatedAt)
 			},
 			count: 0,
+		},
+		"filter by Satoshis (>= 1005)": {
+			filter: func(r crud.OutputReader) { r.Satoshis().GreaterThanOrEqual(1005) },
+			count:  5,
+		},
+		"filter by TransactionID = 1": {
+			filter: func(r crud.OutputReader) { r.TransactionID().Equals(1) },
+			count:  1,
+		},
+		"filter by SpentBy": {
+			filter: func(r crud.OutputReader) { r.SpentBy().Equals(3) },
+			count:  1,
 		},
 	}
 
@@ -128,6 +141,100 @@ func TestOutputPagedFind(t *testing.T) {
 	assert.Equal(t, uint(10), paged[4].ID)
 }
 
+func TestOutputFindByID_WithTransactionJoin(t *testing.T) {
+	activeStorage := seedDbWithOutputs(t)
+
+	tx := &entity.Transaction{
+		ID:     222,
+		TxID:   to.Ptr("abc123"),
+		Status: wdk.TxStatusCompleted,
+	}
+	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+
+	// when:
+	outs, err := activeStorage.OutputsEntity().Read().ID(1).Find(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Len(t, outs, 1)
+
+	assert.NotNil(t, outs[0].TxID)
+	assert.Equal(t, "abc123", *outs[0].TxID)
+	assert.Equal(t, wdk.TxStatusCompleted, outs[0].TxStatus)
+}
+
+func TestOutputCountByTxID(t *testing.T) {
+	// given:
+	activeStorage := seedDbWithOutputs(t)
+
+	tx := &entity.Transaction{
+		ID:     999,
+		TxID:   to.Ptr("txid-unique"),
+		Status: wdk.TxStatusUnprocessed,
+	}
+	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+
+	out := &entity.Output{
+		UserID:        outputTestUser.ID,
+		TransactionID: tx.ID,
+		Vout:          0,
+		Satoshis:      1234,
+		Spendable:     true,
+		Change:        false,
+		Description:   "test output with specific txid",
+		ProvidedBy:    "test-case",
+		Purpose:       "unit test",
+		Type:          "p2pkh",
+		BasketName:    to.Ptr("special"),
+	}
+	require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
+
+	// when:
+	count, err := activeStorage.OutputsEntity().Read().
+		TxID().Equals("txid-unique").
+		Count(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+}
+
+func TestOutputCountByTxStatus(t *testing.T) {
+	// given:
+	activeStorage := seedDbWithOutputs(t)
+
+	tx := &entity.Transaction{
+		ID:     1000,
+		TxID:   to.Ptr("txid-1"),
+		Status: wdk.TxStatusUnproven,
+	}
+	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+
+	out := &entity.Output{
+		UserID:        outputTestUser.ID,
+		TransactionID: tx.ID,
+		Vout:          0,
+		Satoshis:      1234,
+		Spendable:     true,
+		Change:        false,
+		Description:   "test output with specific txid",
+		ProvidedBy:    "test-case",
+		Purpose:       "unit test",
+		Type:          "p2pkh",
+		BasketName:    to.Ptr("special"),
+	}
+	require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
+
+	// when:
+	count, err := activeStorage.OutputsEntity().Read().
+		TxStatus().Equals(wdk.TxStatusUnproven).
+		Count(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+}
+
 // seedDbWithOutputs inserts test outputs
 func seedDbWithOutputs(t testing.TB) *storage.Provider {
 	given, cleanup := testabilities.Given(t)
@@ -138,7 +245,7 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 	for i := range 10 {
 		out := &entity.Output{
 			UserID:        outputTestUser.ID,
-			TransactionID: 1,
+			TransactionID: uint(i + 1),
 			Vout:          uint32(i),
 			Satoshis:      1000 + int64(i),
 			Spendable:     i != 2,
@@ -148,7 +255,7 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 			Purpose:       "unit test",
 			Type:          "p2pkh",
 			BasketName:    to.Ptr("default"),
-			SpentBy:       nil,
+			SpentBy:       to.Ptr(uint(3 * i)),
 		}
 		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
 	}

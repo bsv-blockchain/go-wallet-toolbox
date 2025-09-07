@@ -55,13 +55,31 @@ func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]
 	return slices.Map(outputs, o.mapModelToOutputEntity), nil
 }
 
-func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Output, error) {
-	table := &o.query.Output
+func needsTransactionJoin(spec *pkgentity.OutputReadSpecification) bool {
+	return spec != nil && (spec.TxID != nil || spec.TxStatus != nil)
+}
 
-	rows, err := table.WithContext(ctx).
-		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
-		Where(o.conditionsBySpec(spec)...).
-		Find()
+func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Output, error) {
+	output := o.query.Output
+	tx := o.query.Transaction
+	outputPtr := &output
+
+	dao := output.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(outputPtr, opts)...).
+		Preload(output.Transaction).
+		Where(o.conditionsBySpec(spec)...)
+
+	if needsTransactionJoin(spec) {
+		dao = dao.
+			Select(
+				output.ALL,
+				tx.TxID.As("Transaction.TxID"),
+				tx.Status.As("Transaction.Status"),
+			).
+			Join(tx, tx.ID.EqCol(output.TransactionID))
+	}
+
+	rows, err := dao.Find()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
 	}
@@ -604,7 +622,6 @@ func (o *Outputs) UpdateOutput(ctx context.Context, spec *pkgentity.OutputUpdate
 		return nil
 	}
 
-	fmt.Printf("Updates to apply: %+v\n", updates)
 	res, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update output: %w", err)
@@ -619,11 +636,18 @@ func (o *Outputs) UpdateOutput(ctx context.Context, spec *pkgentity.OutputUpdate
 // CountOutputs counts outputs matching spec + options.
 func (o *Outputs) CountOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) (int64, error) {
 	table := &o.query.Output
+	tx := &o.query.Transaction
 
-	count, err := table.WithContext(ctx).
+	dao := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
-		Where(o.conditionsBySpec(spec)...).
-		Count()
+		Where(o.conditionsBySpec(spec)...)
+
+	if needsTransactionJoin(spec) {
+		dao = dao.
+			Join(tx, tx.ID.EqCol(table.TransactionID))
+	}
+
+	count, err := dao.Count()
 	if err != nil {
 		return 0, fmt.Errorf("failed to count outputs: %w", err)
 	}
@@ -660,6 +684,15 @@ func (o *Outputs) conditionsBySpec(spec *pkgentity.OutputReadSpecification) []ge
 	}
 	if spec.Change != nil {
 		conditions = append(conditions, cmpBoolCondition(table.Change, spec.Change))
+	}
+	if spec.TxStatus != nil {
+		conditions = append(conditions, cmpCondition(o.query.Transaction.Status, spec.TxStatus.ToStringComparable()))
+	}
+	if spec.Satoshis != nil {
+		conditions = append(conditions, cmpCondition(table.Satoshis, spec.Satoshis))
+	}
+	if spec.TxID != nil {
+		conditions = append(conditions, cmpCondition(o.query.Transaction.TxID, spec.TxID))
 	}
 
 	return conditions

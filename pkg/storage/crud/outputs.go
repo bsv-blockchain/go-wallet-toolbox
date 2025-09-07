@@ -102,8 +102,6 @@ func (o *output) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-// ----- Builder methods -----
-
 func (o *output) ID(id uint) OutputReadOperations {
 	o.spec.ID = to.Ptr(id)
 	return o
