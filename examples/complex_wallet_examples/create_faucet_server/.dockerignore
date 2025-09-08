@@ -1,0 +1,36 @@
+# VCS
+.git
+.gitignore
+
+# Env and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+id_rsa*
+id_dsa*
+
+# Local data, logs, and DBs
+*.sqlite
+*.db
+*.log
+
+# Binaries and archives
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.tar
+*.gz
+*.zip
+
+# Tests and example clients (not needed in the image)
+test_examples/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
