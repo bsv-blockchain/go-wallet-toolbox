@@ -23,15 +23,19 @@ func TestTransactionCountFilters(t *testing.T) {
 		count  int64
 	}{
 		"all transactions": {
-			count: 10,
+			count: 12,
 		},
 		"user Alice only": {
 			filter: func(r crud.TransactionReader) { r.UserID().Equals(testusers.Alice.ID) },
 			count:  5,
 		},
-		"filter by status": {
+		"filter by status unprocessed": {
 			filter: func(r crud.TransactionReader) { r.Status().Equals(wdk.TxStatusUnprocessed) },
 			count:  10,
+		},
+		"filter by status failed": {
+			filter: func(r crud.TransactionReader) { r.Status().Equals(wdk.TxStatusFailed) },
+			count:  2,
 		},
 		"satoshis greater than": {
 			filter: func(r crud.TransactionReader) { r.Satoshis().GreaterThan(1005) },
@@ -43,6 +47,12 @@ func TestTransactionCountFilters(t *testing.T) {
 			},
 			count: 10,
 		},
+		"description contains jerry": {
+			filter: func(r crud.TransactionReader) {
+				r.DescriptionContains().In([]string{"test transaction from jerry"}...)
+			},
+			count: 2,
+		},
 		"description contains bob": {
 			filter: func(r crud.TransactionReader) { r.DescriptionContains().Like("%bob%") },
 			count:  5,
@@ -51,6 +61,80 @@ func TestTransactionCountFilters(t *testing.T) {
 			filter: func(r crud.TransactionReader) {
 				since := time.Now().Add(time.Minute) // delta time makes sure no "timing flakiness" happens during test execution
 				r.Since(since, pkgentity.SinceFieldCreatedAt)
+			},
+			count: 0,
+		},
+		"label contains alpha": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAny("alpha")
+			},
+			count: 5,
+		},
+		"label contains beta": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAny("beta")
+			},
+			count: 5,
+		},
+		"label contains gamma": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAny("gamma")
+			},
+			count: 5,
+		},
+		"label contains alpha AND beta (contain any)": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAny("alpha", "beta")
+			},
+			count: 10,
+		},
+		"label contains alpha AND gamma (contain any)": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAny("alpha", "gamma")
+			},
+			count: 10,
+		},
+		"label contains nothing (empty filter) for any": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAny()
+			},
+			count: 12,
+		},
+		"label must contain both alpha AND beta (contain all)": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAll("alpha", "beta")
+			},
+			count: 0,
+		},
+		"label must contain both beta AND gamma (contain all)": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAll("beta", "gamma")
+			},
+			count: 5,
+		},
+		"label contains nothing (empty filter) for all": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().ContainAll()
+			},
+			count: 12,
+		},
+		"label is empty": {
+			filter: func(r crud.TransactionReader) {
+				r.Labels().Empty()
+			},
+			count: 2,
+		},
+		"user Alice with empty labels": {
+			filter: func(r crud.TransactionReader) {
+				r.UserID().Equals(testusers.Alice.ID)
+				r.Labels().Empty()
+			},
+			count: 0,
+		},
+		"user Bob with empty labels": {
+			filter: func(r crud.TransactionReader) {
+				r.UserID().Equals(testusers.Bob.ID)
+				r.Labels().Empty()
 			},
 			count: 0,
 		},
@@ -119,7 +203,7 @@ func TestTransactionUpdateDescription(t *testing.T) {
 func TestTransactionUpdateStatusAndDescription(t *testing.T) {
 	activeStorage := seedDbWithTransactions(t)
 	// given:
-	newStatus := wdk.TxStatusFailed
+	newStatus := wdk.TxStatusNoSend
 	newDescription := "failed due to timeout"
 	err := activeStorage.TransactionEntity().Update(t.Context(), &entity.TransactionUpdateSpecification{
 		ID:          3,
@@ -200,7 +284,22 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 			Version:     1,
 			LockTime:    0,
 			TxID:        to.Ptr(fmt.Sprintf("txid_bob_%d", i)),
-			Labels:      []string{"beta"},
+			Labels:      []string{"beta", "gamma"},
+		}
+		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+	}
+
+	for i := range 2 {
+		tx := &pkgentity.Transaction{
+			UserID:      777,
+			Status:      wdk.TxStatusFailed,
+			Reference:   fmt.Sprintf("ref_jerry_%d", i),
+			IsOutgoing:  false,
+			Satoshis:    1 + int64(i),
+			Description: "test transaction from jerry",
+			Version:     1,
+			LockTime:    0,
+			TxID:        to.Ptr(fmt.Sprintf("txid_jerry_%d", i)),
 		}
 		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
 	}

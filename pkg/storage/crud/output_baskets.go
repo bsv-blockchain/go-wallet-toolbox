@@ -129,7 +129,6 @@ func (o *outputBasket) MinimumDesiredUTXOValue() NumericCondition[OutputBasketRe
 	return &numericCondition[OutputBasketReader, uint64]{
 		parent: o,
 		conditionSetter: func(spec *entity.Comparable[uint64]) {
-			fmt.Printf("Setting MinimumDesiredUTXOValue to %d\n", spec.GetValue())
 			o.spec.MinimumDesiredUTXOValue = spec
 		},
 	}
