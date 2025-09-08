@@ -258,7 +258,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 		GORM()
 
 	// and:
-	facuetTx, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	faucetTx, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	// and:
 	args := fixtures.DefaultValidCreateActionArgs()
@@ -277,7 +277,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
 	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
-		ID: facuetTx.ID().String(),
+		ID: faucetTx.ID().String(),
 	})
 
 	commissionOutput, _ := testutils.FindOutput(t, result.Outputs, testutils.CommissionOutputCondition)
