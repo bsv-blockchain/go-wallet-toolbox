@@ -38,7 +38,7 @@ type CreateActionParams struct {
 	Version                  uint32
 	LockTime                 uint32
 	Description              string
-	KnownTxids               []primitives.TXIDHexString
+	KnownTxIDs               []primitives.TXIDHexString
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
@@ -66,7 +66,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		IsNoSend:                 args.IsNoSend,
 		NoSendChange:             args.Options.NoSendChange,
 		IsDelayed:                args.IsDelayed,
-		KnownTxids:               args.Options.KnownTxids,
+		KnownTxIDs:               args.Options.KnownTxids,
 	}
 }
 
@@ -357,7 +357,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
-	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxids)
+	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
 	}

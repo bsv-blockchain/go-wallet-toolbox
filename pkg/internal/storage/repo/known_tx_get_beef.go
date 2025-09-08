@@ -107,7 +107,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	}
 
 	if model.RawTx == nil {
-		return fmt.Errorf("raw tx or input beef is nil in transaction %s", txID)
+		return fmt.Errorf("raw tx is nil in transaction %s", txID)
 	}
 
 	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
