@@ -23,7 +23,7 @@ var Protocol = sdk.Protocol{
 //
 //		wif := brc29.WIF("<KEY>")
 //	 ...
-//	 brc29.Lock(wif,...)
+//	 brc29.LockForCounterparty(wif,...)
 type WIF string
 
 // PrivateKey returns the private key from the WIF string.

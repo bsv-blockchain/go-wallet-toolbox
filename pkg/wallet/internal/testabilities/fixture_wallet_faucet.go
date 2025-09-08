@@ -42,7 +42,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 	recipientPubKey, err := f.userWallet.GetPublicKey(f.Context(), sdk.GetPublicKeyArgs{IdentityKey: true}, "")
 	require.NoError(f, err, "Failed to derive public key for top up")
 
-	lockingScript, err := brc29.Lock(senderPriv, keyID, recipientPubKey.PublicKey)
+	lockingScript, err := brc29.LockForCounterparty(senderPriv, keyID, recipientPubKey.PublicKey)
 	require.NoError(f, err, "Failed to create locking script for top up")
 
 	spec := txtestabilities.GivenTX().
