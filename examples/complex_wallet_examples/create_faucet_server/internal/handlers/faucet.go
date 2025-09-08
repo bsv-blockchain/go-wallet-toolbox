@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
-	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -35,10 +34,10 @@ func NewFaucetHandler(deps methods.FaucetDeps) fiber.Handler {
 		totalAmount := uint64(0)
 		for i, output := range req.Outputs {
 			if output.Address == "" {
-				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "address is missing in output " + to.StringFromInteger(i)})
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("address is missing in output %d", i)})
 			}
 			if output.Amount == 0 {
-				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "amount equal to zero is not allowed in output " + to.StringFromInteger(i)})
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("amount equal to zero is not allowed in output %d", i)})
 			}
 			totalAmount += output.Amount
 		}

@@ -1,4 +1,3 @@
-//TODO: Test quick start on server then update this file accordingly if any issues or inconsistencies.
 # BSV Faucet Server - Quick Start
 
 ## 🚀 Deploy in 3 Steps
