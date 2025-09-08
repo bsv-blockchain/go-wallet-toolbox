@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -82,14 +81,9 @@ func validateWalletPaymentOutput(keyDeriver *sdk.KeyDeriver, output wdk.Internal
 		DerivationSuffix: string(payment.DerivationSuffix),
 	}
 
-	address, err := brc29.AddressForSelf(brc29.PubHex(payment.SenderIdentityKey), keyID, keyDeriver)
+	expectedLockScript, err := brc29.LockForSelf(brc29.PubHex(payment.SenderIdentityKey), keyID, keyDeriver)
 	if err != nil {
 		return fmt.Errorf("failed to create expected address: %w", err)
-	}
-
-	expectedLockScript, err := p2pkh.Lock(address)
-	if err != nil {
-		return fmt.Errorf("failed to create expected locking script: %w", err)
 	}
 
 	if txOutput.LockingScript.String() != expectedLockScript.String() {

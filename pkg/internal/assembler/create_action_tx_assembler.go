@@ -227,7 +227,7 @@ func (a *CreateActionTransactionAssembler) changeLockingScript(it *wdk.StorageCr
 		return nil, fmt.Errorf("cannot create change locking script for output %d: %w", it.Vout, err)
 	}
 
-	lockingScript, err := brc29.Lock(a.keyDeriver, keyID, a.keyDeriver)
+	lockingScript, err := brc29.LockForCounterparty(a.keyDeriver, keyID, a.keyDeriver)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create change locking script for output %d: %w", it.Vout, err)
 	}

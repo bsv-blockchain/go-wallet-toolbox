@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"fmt"
+
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 )

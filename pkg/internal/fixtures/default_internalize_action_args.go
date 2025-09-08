@@ -3,7 +3,6 @@ package fixtures
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -100,9 +99,7 @@ func DefaultWalletInternalizeActionArgsMatchingBRC29(t *testing.T, protocol sdk.
 
 	if protocol == sdk.InternalizeProtocolWalletPayment {
 		keyID := brc29.KeyID{DerivationPrefix: DerivationPrefix, DerivationSuffix: DerivationSuffix}
-		addr, err := brc29.AddressForSelf(brc29.PubHex(UserIdentityKeyHex), keyID, keyDeriver)
-		require.NoError(t, err)
-		lock, err := p2pkh.Lock(addr)
+		lock, err := brc29.LockForSelf(brc29.PubHex(UserIdentityKeyHex), keyID, keyDeriver)
 		require.NoError(t, err)
 
 		spec := testabilities.GivenTX().WithInput(1000).WithOutputScript(ExpectedValueToInternalize, lock)
