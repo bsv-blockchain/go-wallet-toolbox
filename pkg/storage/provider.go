@@ -404,6 +404,11 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 
 // RelinquishOutput removes a specified output from a basket
 func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+	logger := p.logger.With(logging.UserID(auth.UserID),
+		slog.String("output", args.Output),
+		slog.String("basket", args.Basket),
+	)
+	logger.DebugContext(ctx, "Validating relinquishOutput args")
 	if auth.UserID == nil {
 		return ErrAuthorization
 	}
@@ -412,6 +417,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return fmt.Errorf("invalid relinquishOutput args: %w", err)
 	}
 
+	logger.DebugContext(ctx, "Extracting txID and vout from output")
 	txID, vout := primitives.OutpointString(args.Output).MustGet()
 
 	var basketName *string
@@ -419,10 +425,19 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		basketName = &args.Basket
 	}
 
+	logger.InfoContext(ctx, "Starting RelinquishOutput process",
+		slog.String("txID", txID),
+		slog.Int("vout", int(vout)),
+	)
 	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
+
+	logger.InfoContext(ctx, "RelinquishOutput completed successfully",
+		slog.String("txID", txID),
+		slog.Int("vout", int(vout)),
+	)
 	return nil
 }
 
