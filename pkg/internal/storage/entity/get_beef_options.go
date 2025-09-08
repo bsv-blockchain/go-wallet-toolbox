@@ -18,7 +18,6 @@ type GetBEEFOptions struct {
 	KnownTxIDsSet       map[string]struct{}
 	TrustSelf           wallet.TrustSelf
 	MinProofLevel       int
-	MergeToBEEF         *transaction.Beef
 }
 
 type GetBEEFOption = func(*GetBEEFOptions)
@@ -61,12 +60,6 @@ func WithTrustSelf(trust wallet.TrustSelf) GetBEEFOption {
 func WithMinProofLevel(level int) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.MinProofLevel = level
-	}
-}
-
-func WithMergeToBEEF(beef *transaction.Beef) GetBEEFOption {
-	return func(opts *GetBEEFOptions) {
-		opts.MergeToBEEF = beef
 	}
 }
 

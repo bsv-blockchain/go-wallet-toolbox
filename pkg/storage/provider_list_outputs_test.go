@@ -382,7 +382,7 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 	changeOutputsCount := seq.Count(changeOutputs)
 
 	args := wdk.ListOutputsArgs{
-		Basket: "",
+		Basket: wdk.BasketNameForChange,
 		Limit:  1000,
 		Offset: 0,
 	}
@@ -392,7 +392,7 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Len(t, result.Outputs, changeOutputsCount+1) // +1 for the faucet output
+	require.Len(t, result.Outputs, changeOutputsCount)
 
 	// when:
 	createActionArgs := fixtures.DefaultValidCreateActionArgs()
