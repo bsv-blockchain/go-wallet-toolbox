@@ -30,17 +30,16 @@ func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
 	return &Outputs{db: db, query: query}
 }
 
-type OutputTxMap map[uint]string
+type txIDsReadModel struct {
+	TransactionID string `gorm:"column:tx_id"`
+}
 
-func (o *Outputs) FindOutputsAsTxMap(ctx context.Context, outputIDs iter.Seq[uint]) (OutputTxMap, error) {
+func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]string, error) {
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
 	}
 
-	var outputs []struct {
-		ID            uint   `gorm:"column:id"`
-		TransactionID string `gorm:"column:tx_id"`
-	}
+	var txIDsModel []*txIDsReadModel
 
 	outTable := &o.query.Output
 	txTable := &o.query.Transaction
@@ -48,22 +47,19 @@ func (o *Outputs) FindOutputsAsTxMap(ctx context.Context, outputIDs iter.Seq[uin
 
 	err := outTable.
 		WithContext(ctx).
-		Select(
-			outTable.ID,
-			txTable.TxID).
+		Distinct(txTable.TxID).
 		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
 		Where(outTable.ID.In(idsClause...)).
-		Scan(&outputs)
+		Scan(&txIDsModel)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
 	}
 
-	out := make(OutputTxMap)
-	for _, output := range outputs {
-		out[output.ID] = output.TransactionID
-	}
-	return out, nil
+	txIDs := slices.Map(txIDsModel, func(rm *txIDsReadModel) string {
+		return rm.TransactionID
+	})
+	return txIDs, nil
 }
 
 func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
