@@ -12,10 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-type BeefProvider interface {
-	GetBeef(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error)
-}
-
 type BasketRepo interface {
 	FindBasketByName(ctx context.Context, userID int, name string) (*pkgentity.OutputBasket, error)
 }
