@@ -18,6 +18,7 @@ type BasketRepo interface {
 
 type OutputRepo interface {
 	FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error)
+	FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]string, error)
 	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*entity.Output, error)
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*entity.Output, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*entity.Output, int64, error)

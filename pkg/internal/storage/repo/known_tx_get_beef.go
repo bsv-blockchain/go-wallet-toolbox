@@ -30,6 +30,9 @@ func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entit
 func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 	beef := transaction.NewBeefV2()
+	if options.MergeToBEEF != nil {
+		beef = options.MergeToBEEF
+	}
 
 	for txid := range txids {
 		if beef.FindTransaction(txid) != nil {
@@ -103,8 +106,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return nil
 	}
 
-	if model.RawTx == nil || model.InputBeef == nil {
-		return fmt.Errorf("raw tx or input beef is nil in transaction %s", txID)
+	if model.RawTx == nil {
+		return fmt.Errorf("raw tx is nil in transaction %s", txID)
 	}
 
 	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
@@ -142,9 +145,11 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
 	}
 
-	err = mergeToBeef.MergeBeefBytes(model.InputBeef)
-	if err != nil {
-		return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+	if len(model.InputBeef) > 0 {
+		err = mergeToBeef.MergeBeefBytes(model.InputBeef)
+		if err != nil {
+			return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+		}
 	}
 
 	subjectTx := mergeToBeef.FindTransaction(txID)

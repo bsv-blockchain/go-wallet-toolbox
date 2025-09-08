@@ -30,6 +30,38 @@ func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
 	return &Outputs{db: db, query: query}
 }
 
+type txIDsReadModel struct {
+	TransactionID string `gorm:"column:tx_id"`
+}
+
+func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]string, error) {
+	if seq.IsEmpty(outputIDs) {
+		return nil, nil
+	}
+
+	var txIDsModel []*txIDsReadModel
+
+	outTable := &o.query.Output
+	txTable := &o.query.Transaction
+	idsClause := seq.Collect(outputIDs)
+
+	err := outTable.
+		WithContext(ctx).
+		Distinct(txTable.TxID).
+		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
+		Where(outTable.ID.In(idsClause...)).
+		Scan(&txIDsModel)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs: %w", err)
+	}
+
+	txIDs := slices.Map(txIDsModel, func(rm *txIDsReadModel) string {
+		return rm.TransactionID
+	})
+	return txIDs, nil
+}
+
 func (o *Outputs) FindOutputs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*entity.Output, error) {
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
