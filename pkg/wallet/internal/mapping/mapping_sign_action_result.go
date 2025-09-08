@@ -18,6 +18,7 @@ func MapSignActionResultFromStorageResultsForNewTx(txID *chainhash.Hash, tx *ass
 
 	result := &wallet.SignActionResult{
 		Txid:            to.Value(txID),
+		Tx:              nil,
 		SendWithResults: sendWithResults,
 	}
 

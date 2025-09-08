@@ -12,9 +12,6 @@ import (
 type AssembledTransaction struct {
 	*transaction.Transaction
 	inputBEEF *transaction.Beef
-
-	cachedAtomicBeef      *transaction.Beef
-	cachedAtomicBeefBytes []byte
 }
 
 func NewAssembledTxFromPendingSignAction(pendingSignAction *wdk.PendingSignAction) *AssembledTransaction {
@@ -25,9 +22,6 @@ func NewAssembledTxFromPendingSignAction(pendingSignAction *wdk.PendingSignActio
 }
 
 func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
-	if a.cachedAtomicBeefBytes != nil {
-		return a.cachedAtomicBeefBytes, nil
-	}
 	beef, err := a.ToAtomicBEEF(allowPartials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build beef from assembled tx: %w", err)
@@ -37,14 +31,10 @@ func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
 		return nil, fmt.Errorf("failed to serialize assembled transaction to atomic beef bytes: %w", err)
 	}
 
-	a.cachedAtomicBeefBytes = bytes
 	return bytes, nil
 }
 
 func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Beef, error) {
-	if a.cachedAtomicBeef != nil {
-		return a.cachedAtomicBeef, nil
-	}
 	beef := transaction.NewBeef()
 
 	err := beef.MergeBeef(a.inputBEEF)
@@ -72,7 +62,6 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 		return nil, fmt.Errorf("failed to build beef from tx, %w", err)
 	}
 
-	a.cachedAtomicBeef = beef
 	return beef, nil
 }
 

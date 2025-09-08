@@ -68,8 +68,10 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	result, err := mapping.MapSignActionResultFromStorageResultsForNewTx(s.txID, s.tx, processActionResult, s.wdkArgs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build result after processing signed action (txID: %s, reference: %s): %w",
-			s.txID.String(), s.reference, err)
+		return nil, fmt.Errorf("failed to build result after processing signed action: %w",
+			pkgerrors.NewTransactionError(*s.txID).
+				Wrap(pkgerrors.NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).
+					Wrap(err)))
 	}
 
 	err = s.PendingSignActionsCache.Delete(s.reference)
