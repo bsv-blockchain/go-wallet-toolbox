@@ -53,6 +53,7 @@ func FundAddress(ctx context.Context, deps FaucetDeps, outputs ...FaucetOutput) 
 		Labels:      []string{"faucet_funding"},
 		Options: &sdk.CreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr(false),
+			RandomizeOutputs:       to.Ptr(false),
 		},
 	}
 

@@ -15,11 +15,12 @@ COPY go.mod go.sum ./
 RUN sed -i '/^replace github.com\/bsv-blockchain\/go-wallet-toolbox/d' go.mod
 RUN go mod download
 
-# Copy source code
-COPY . .
+# Copy only required source code
+COPY cmd/ ./cmd
+COPY internal/ ./internal
 
-# Ensure any re-copied go.mod is also cleaned (COPY overwrites the prior file)
-RUN sed -i '/^replace github.com\/bsv-blockchain\/go-wallet-toolbox/d' go.mod && go mod tidy
+# Tidy modules after adding source
+RUN go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
