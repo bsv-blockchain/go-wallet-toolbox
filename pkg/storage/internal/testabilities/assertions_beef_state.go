@@ -27,7 +27,7 @@ func AssertBEEFState(t *testing.T, inputBEEF primitives.ExplicitByteArray, expec
 		require.NotNil(t, hash)
 
 		actualTx, ok := beef.Transactions[to.Value(hash)]
-		require.True(t, ok, "tx with known tx id: %s was exepcted to be a part of BEEF Transactions tree", expectedTx.ID)
+		require.True(t, ok, "tx with known tx id: %s was expected to be a part of BEEF Transactions tree", expectedTx.ID)
 
 		if expectedTx.DataFormat != nil {
 			assert.Equal(t, actualTx.DataFormat, to.Value(expectedTx.DataFormat))
