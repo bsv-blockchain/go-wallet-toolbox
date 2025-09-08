@@ -43,4 +43,3 @@ func (m *MockPendingSignActionCache) Delete(reference string) error {
 
 	return m.base.Delete(reference)
 }
-
