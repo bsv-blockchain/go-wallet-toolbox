@@ -13,6 +13,7 @@ type TxGetterFcn func(ctx context.Context, txID string) (rawTx []byte, merklePat
 type GetBEEFOptions struct {
 	StatusesToFilterOut []wdk.ProvenTxReqStatus
 	TxGetterFcn         TxGetterFcn
+	MergeToBEEF         *transaction.Beef
 	KnownTxIDs          []string
 	KnownTxIDsSet       map[string]struct{}
 	TrustSelf           wallet.TrustSelf
@@ -24,6 +25,12 @@ type GetBEEFOption = func(*GetBEEFOptions)
 func WithStatusesToFilterOut(statuses ...wdk.ProvenTxReqStatus) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.StatusesToFilterOut = statuses
+	}
+}
+
+func WithMergeToBEEF(beef *transaction.Beef) GetBEEFOption {
+	return func(opts *GetBEEFOptions) {
+		opts.MergeToBEEF = beef
 	}
 }
 

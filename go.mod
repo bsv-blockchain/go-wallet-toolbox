@@ -3,13 +3,13 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.24.3
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.8
+	github.com/bsv-blockchain/go-sdk v1.2.9
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.8.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
-	github.com/go-co-op/gocron/v2 v2.16.4
+	github.com/go-co-op/gocron/v2 v2.16.5
 	github.com/go-resty/resty/v2 v2.16.5
-	github.com/go-softwarelab/common v1.7.1
+	github.com/go-softwarelab/common v1.7.2
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/uuid v1.6.0
 	github.com/jarcoal/httpmock v1.4.1
@@ -23,7 +23,7 @@ require (
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gen v0.3.27
-	gorm.io/gorm v1.30.2
+	gorm.io/gorm v1.30.3
 	gorm.io/plugin/dbresolver v1.6.2
 )
 
