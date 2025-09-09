@@ -1,0 +1,32 @@
+services:
+  faucet-server:
+    build: .
+    container_name: bsv-faucet-server
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - FAUCET_PRIVATE_KEY=${FAUCET_PRIVATE_KEY}
+      - NETWORK=${NETWORK}
+      - PORT=${PORT}
+      - SERVER_URL=${SERVER_URL}
+    volumes:
+      # Persist SQLite database
+      - ./storage.sqlite:/app/storage.sqlite
+      # Mount logs directory
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - faucet-network
+
+networks:
+  faucet-network:
+    driver: bridge

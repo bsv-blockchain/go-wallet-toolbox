@@ -1,0 +1,53 @@
+# Binary files
+faucet-server
+faucet-server.exe
+*.exe
+*.bin
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Log files
+logs/
+*.log
+
+# Environment files (optional - remove if you want to track .env.example)
+.env
+
+# Docker volumes
+storage.sqlite
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+backup/
+*.backup
+
+# SSL certificates
+ssl/
+*.pem
+*.key
+*.crt
+
+# Nginx config (if using external nginx)
+nginx.conf

@@ -7,6 +7,7 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -37,6 +38,7 @@ type CreateActionParams struct {
 	Version                  uint32
 	LockTime                 uint32
 	Description              string
+	KnownTxIDs               []primitives.TXIDHexString
 	Labels                   []primitives.StringUnder300
 	Outputs                  []wdk.ValidCreateActionOutput
 	Inputs                   []wdk.ValidCreateActionInput
@@ -64,6 +66,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		IsNoSend:                 args.IsNoSend,
 		NoSendChange:             args.Options.NoSendChange,
 		IsDelayed:                args.IsDelayed,
+		KnownTxIDs:               args.Options.KnownTxids,
 	}
 }
 
@@ -354,6 +357,11 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
+	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
+	}
+
 	return &wdk.StorageCreateActionResult{
 		Reference:               reference,
 		Version:                 params.Version,
@@ -361,7 +369,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		DerivationPrefix:        derivationPrefix,
 		Outputs:                 c.resultOutputs(newOutputs),
 		Inputs:                  resultInputs,
-		InputBeef:               inputBeef,
+		InputBeef:               beef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
 }
@@ -599,7 +607,7 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 }
 
 func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO, includeRawTxs bool, xinputs xinputDefinitions) ([]*wdk.StorageCreateTransactionSdkInput, error) {
-	utxos, err := c.outputRepo.FindOutputsByIDs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+	utxos, err := c.outputRepo.FindOutputsForActions(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
 	if err != nil {
@@ -713,4 +721,30 @@ func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsI
 		ids = append(ids, utxo.OutputID)
 	}
 	return ids
+}
+
+func (c *create) mergeAllocatedUTXOs(
+	ctx context.Context,
+	inputBeef *transaction.Beef,
+	allocatedUTXOs []*funder.UTXO,
+	knownTxIDs primitives.TXIDHexStrings,
+) (primitives.ExplicitByteArray, error) {
+	txIDs, err := c.outputRepo.FindTxIDsByOutputIDs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+		return utxo.OutputID
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
+	}
+
+	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get BEEF for allocated UTXOs: %w", err)
+	}
+
+	beefBytes, err := beefTx.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to return the BEEF BRC-96 as a byte slice: %w", err)
+	}
+
+	return beefBytes, nil
 }
