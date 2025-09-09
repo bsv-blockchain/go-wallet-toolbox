@@ -8,7 +8,6 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
@@ -41,11 +40,6 @@ type WalletServices struct {
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
-
-	// getRawTxServices: ServiceCollection<sdk.GetRawTxService>
-	// postBeefServices: ServiceCollection<sdk.PostBeefService>
-	// getUtxoStatusServices: ServiceCollection<sdk.GetUtxoStatusService>
-	// updateFiatExchangeRateServices: ServiceCollection<sdk.UpdateFiatExchangeRateService>
 }
 
 // New will return a new WalletServices
@@ -171,8 +165,8 @@ func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 }
 
 // RawTx attempts to obtain the raw transaction bytes associated with a 32 byte transaction hash (txid).
-func (s *WalletServices) RawTx(txID string) (wdk.RawTxResult, error) {
-	result, err := s.rawTxServices.OneByOne(context.TODO(), txID)
+func (s *WalletServices) RawTx(ctx context.Context, txID string) (wdk.RawTxResult, error) {
+	result, err := s.rawTxServices.OneByOne(ctx, txID)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
 			return wdk.RawTxResult{}, fmt.Errorf("transaction with txID: %s not found", txID)
@@ -180,11 +174,6 @@ func (s *WalletServices) RawTx(txID string) (wdk.RawTxResult, error) {
 		return wdk.RawTxResult{}, fmt.Errorf("couldn't get rawtx for id %s: %w", txID, err)
 	}
 	return *result, nil
-}
-
-// ChainTracker returns service, which requires `options.chaintracks` be valid.
-func (s *WalletServices) ChainTracker() chaintracker.ChainTracker {
-	panic("Not implemented yet")
 }
 
 // GetChainHeaderByHeight returns serialized block header for given height on active chain.
@@ -367,7 +356,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 		if depth > s.config.GetBeefMaxDepth {
 			return fmt.Errorf("max depth of recursion reached: %d", s.config.GetBeefMaxDepth)
 		}
-		rawTxResult, err := s.RawTx(txID)
+		rawTxResult, err := s.RawTx(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("failed to get raw transaction for txID %q: %w", txID, err)
 		}

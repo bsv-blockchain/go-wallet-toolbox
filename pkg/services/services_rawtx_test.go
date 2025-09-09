@@ -34,7 +34,7 @@ func TestRawTxSuccess(t *testing.T) {
 		}
 
 		// when:
-		result, err := services.RawTx(txID)
+		result, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.NoError(t, err)
@@ -59,7 +59,7 @@ func TestRawTxSuccess(t *testing.T) {
 		}
 
 		// when:
-		result, err := services.RawTx(txID)
+		result, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.NoError(t, err)
@@ -78,7 +78,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -96,7 +96,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -114,7 +114,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -131,7 +131,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -148,7 +148,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -167,7 +167,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -186,7 +186,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -201,7 +201,7 @@ func TestRawTxFailure(t *testing.T) {
 		services := given.Services().WithDefaultConfig()
 
 		// when:
-		_, err := services.RawTx(txID)
+		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
 		assert.Error(t, err)
@@ -279,7 +279,7 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 			svc := given.Services().WithDefaultConfig()
 
 			// when:
-			_, err := svc.RawTx(txID)
+			_, err := svc.RawTx(t.Context(), txID)
 
 			// then:
 			require.Error(t, err)

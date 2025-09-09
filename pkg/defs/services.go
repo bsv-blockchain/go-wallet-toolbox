@@ -44,14 +44,11 @@ const (
 
 // WalletServices is a struct that has options for wallet services
 type WalletServices struct {
-	Chain                           BSVNetwork        `mapstructure:"-"`
-	FiatExchangeRates               FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
-	FiatUpdateInterval              *time.Duration    `mapstructure:"fiat_update_interval"`
-	DisableMapiCallback             bool              `mapstructure:"disable_mapi_callback"`
-	ExchangeratesApiKey             string            `mapstructure:"exchangerates_api_key"`
-	ChaintracksFiatExchangeRatesUrl string            `mapstructure:"chaintracks_fiat_exchange_rates_url"`
-	Chaintracks                     any               `mapstructure:"chaintracks"` // TODO: create *ChaintracksServiceClient
-	GetBeefMaxDepth                 uint              `mapstructure:"get_beef_max_depth"`
+	Chain               BSVNetwork        `mapstructure:"-"`
+	FiatExchangeRates   FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
+	FiatUpdateInterval  *time.Duration    `mapstructure:"fiat_update_interval"`
+	ExchangeratesApiKey string            `mapstructure:"exchangerates_api_key"`
+	GetBeefMaxDepth     uint              `mapstructure:"get_beef_max_depth"`
 
 	ArcConfig    ARC          `mapstructure:"arc"`
 	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
@@ -92,11 +89,18 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 
 	cfg := WalletServices{
 		Chain: chain,
+		ArcConfig: ARC{
+			Enabled: true,
+			URL: to.IfThen(chain == NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
+			Token: to.IfThen(chain == NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
+		},
 		BHS: BHS{
-			URL:    BHSTestURL,
-			APIKey: BHSApiKey,
+			Enabled: true,
+			URL:     BHSTestURL,
+			APIKey:  BHSApiKey,
 		},
 		WhatsOnChain: WhatsOnChain{
+			Enabled:           true,
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
 			BSVExchangeRate: BSVExchangeRate{
 				Timestamp: ratesTimestamp,
@@ -107,6 +111,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			RootForHeightRetries:       DefaultRootForHeightRetries,
 		},
 		Bitails: Bitails{
+			Enabled:                    false, // NOTE: Bitails is disabled by default
 			ScriptHashHistoryPageLimit: defaultScriptHashHistoryPageLimit,
 		},
 		FiatExchangeRates: FiatExchangeRates{
@@ -118,23 +123,9 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 				EUR: 0.93,
 			},
 		},
-		FiatUpdateInterval:              to.Ptr(DefaultFiatExchangeUpdateInterval),
-		DisableMapiCallback:             true, // rely on WalletMonitor by default
-		ExchangeratesApiKey:             "bd539d2ff492bcb5619d5f27726a766f",
-		ChaintracksFiatExchangeRatesUrl: "",  // TODO: implement me
-		Chaintracks:                     nil, // TODO: implement me
-		GetBeefMaxDepth:                 DefaultGetBeefMaxDepth,
-	}
-
-	switch chain {
-	case NetworkMainnet:
-		cfg.ArcConfig.URL = ArcURL
-		cfg.ArcConfig.Token = ArcToken
-	case NetworkTestnet:
-		cfg.ArcConfig.URL = ArcTestURL
-		cfg.ArcConfig.Token = ArcTestToken
-	default:
-		panic("Unsupported chain type: " + string(chain))
+		FiatUpdateInterval:  to.Ptr(DefaultFiatExchangeUpdateInterval),
+		ExchangeratesApiKey: "bd539d2ff492bcb5619d5f27726a766f",
+		GetBeefMaxDepth:     DefaultGetBeefMaxDepth,
 	}
 
 	return cfg
