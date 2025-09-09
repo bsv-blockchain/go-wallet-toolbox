@@ -282,7 +282,7 @@ func (p *process) validateStateOfTableTx(reference string, tableTx *pkgentity.Tr
 	return nil
 }
 
-func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*entity.Output) error {
+func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*pkgentity.Output) error {
 	for _, output := range outputs {
 		if output.Change {
 			continue
@@ -306,7 +306,7 @@ func (p *process) validateNewTxOutputs(tx *transaction.Transaction, outputs []*e
 	return nil
 }
 
-func (p *process) validateCommission(ctx context.Context, userID int, transactionID uint, outputs []*entity.Output) error {
+func (p *process) validateCommission(ctx context.Context, userID int, transactionID uint, outputs []*pkgentity.Output) error {
 	commissionEntity, err := p.commissionRepo.FindCommission(ctx, userID, transactionID)
 	if err != nil {
 		return fmt.Errorf("failed to find commission for user %d and transaction %d: %w", userID, transactionID, err)
@@ -322,7 +322,7 @@ func (p *process) validateCommission(ctx context.Context, userID int, transactio
 
 	includesCommissionOutput := seq.Exists(
 		seq.FromSlice(outputs),
-		func(output *entity.Output) bool {
+		func(output *pkgentity.Output) bool {
 			return satoshi.MustEqual(output.Satoshis, commissionEntity.Satoshis) &&
 				output.LockingScript != nil &&
 				bytes.Equal(output.LockingScript, commissionEntity.LockingScript)

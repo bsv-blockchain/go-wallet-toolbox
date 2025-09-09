@@ -6,6 +6,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+// UserUTXO represents a UTXO owned by a user in the wallet.
 type UserUTXO struct {
 	UserID             int
 	OutputID           uint

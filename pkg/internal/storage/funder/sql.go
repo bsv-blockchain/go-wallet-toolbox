@@ -7,11 +7,10 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -58,7 +57,7 @@ func (f *SQL) Fund(
 	ctx context.Context,
 	targetSat satoshi.Value,
 	currentTxSize uint64,
-	basket *pkgentity.OutputBasket,
+	basket *entity.OutputBasket,
 	userID int,
 	forbiddenOutputIDs []uint,
 	priorityOutputs []*entity.Output,

@@ -7,6 +7,7 @@ import (
 	"iter"
 	"log/slog"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -77,11 +78,11 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	return result, nil
 }
 
-func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*entity.Output) iter.Seq[string] {
-	transactionsWithTxIDs := seq.Filter(seq.FromSlice(outputModels), func(m *entity.Output) bool {
+func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*pkgentity.Output) iter.Seq[string] {
+	transactionsWithTxIDs := seq.Filter(seq.FromSlice(outputModels), func(m *pkgentity.Output) bool {
 		return m.TxID != nil && *m.TxID != ""
 	})
-	allTxIDs := seq.Map(transactionsWithTxIDs, func(m *entity.Output) string {
+	allTxIDs := seq.Map(transactionsWithTxIDs, func(m *pkgentity.Output) string {
 		return *m.TxID
 	})
 	return seq.Uniq(allTxIDs)
@@ -105,7 +106,7 @@ func (l *listOutputs) toFilterParams(userID int, args *wdk.ListOutputsArgs) enti
 	}
 }
 
-func (l *listOutputs) outputModelToResult(m *entity.Output) *wdk.WalletOutput {
+func (l *listOutputs) outputModelToResult(m *pkgentity.Output) *wdk.WalletOutput {
 	result := &wdk.WalletOutput{
 		Satoshis:           primitives.SatoshiValue(must.ConvertToUInt64(m.Satoshis)),
 		Spendable:          m.Spendable,
