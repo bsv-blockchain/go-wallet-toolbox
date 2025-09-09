@@ -340,7 +340,7 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		spentByTransactionIDOnWriterSide = &spentByTransactionID
 	}
 
-	output := &entity.Output{
+	output := &pkgentity.Output{
 		CreatedAt:          chunkOutput.CreatedAt,
 		UpdatedAt:          chunkOutput.UpdatedAt,
 		UserID:             p.user.ID,
@@ -370,7 +370,7 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 			return fmt.Errorf("failed to convert change-basket's satoshis %d to uint64: %w", chunkOutput.Satoshis, err)
 		}
 
-		output.UserUTXO = &entity.UserUTXO{
+		output.UserUTXO = &pkgentity.UserUTXO{
 			UserID:             p.user.ID,
 			BasketName:         wdk.BasketNameForChange,
 			Satoshis:           satoshis,

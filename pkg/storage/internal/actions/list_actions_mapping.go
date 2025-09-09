@@ -61,7 +61,7 @@ func (l *listActions) mapTransactionsToActions(txs []*pkgentity.Transaction) ([]
 	return transactionIDs, txIDs, actions
 }
 
-func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args *wdk.ListActionsArgs) (map[uint][]*entity.Output, map[uint][]*entity.Output, error) {
+func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args *wdk.ListActionsArgs) (map[uint][]*pkgentity.Output, map[uint][]*pkgentity.Output, error) {
 	if args.IncludeInputs.Value() || args.IncludeOutputs.Value() {
 		inputs, outputs, err := l.outputsRepo.FindInputsAndOutputsWithBaskets(ctx, txIDs, args.IncludeOutputLockingScripts.Value())
 		if err != nil {
@@ -69,7 +69,7 @@ func (l *listActions) fetchInputsOutputs(ctx context.Context, txIDs []uint, args
 		}
 		return inputs, outputs, nil
 	}
-	return map[uint][]*entity.Output{}, map[uint][]*entity.Output{}, nil
+	return map[uint][]*pkgentity.Output{}, map[uint][]*pkgentity.Output{}, nil
 }
 
 func (l *listActions) loadLabelsIfNeeded(ctx context.Context, txIDs []uint, include *primitives.BooleanDefaultFalse) (map[uint][]string, error) {
@@ -98,7 +98,7 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*pkgentity.Transaction, inputMap, outputMap map[uint][]*entity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*pkgentity.Transaction, inputMap, outputMap map[uint][]*pkgentity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
@@ -127,12 +127,12 @@ func (l *listActions) mapLabelsToAction(action *wdk.WalletAction, txID uint, lab
 	}
 }
 
-func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, outputMap map[uint][]*entity.Output) {
+func (l *listActions) mapOutputsToAction(action *wdk.WalletAction, txID uint, outputMap map[uint][]*pkgentity.Output) {
 	outputs := outputMap[txID]
 	action.Outputs = l.mapToWalletActionOutputs(outputs)
 }
 
-func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.WalletActionOutput {
+func (l *listActions) mapToWalletActionOutputs(outputs []*pkgentity.Output) []wdk.WalletActionOutput {
 	result := make([]wdk.WalletActionOutput, 0, len(outputs))
 	for _, o := range outputs {
 		result = append(result, wdk.WalletActionOutput{
@@ -150,7 +150,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*entity.Output) []wdk.W
 	return result
 }
 
-func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *pkgentity.Transaction, inputMap map[uint][]*entity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *pkgentity.Transaction, inputMap map[uint][]*pkgentity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	rawTx := rawTxMap[*tx.TxID]
 	if rawTx == nil {
 		return nil
@@ -169,7 +169,7 @@ func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *pkgentity.
 	return nil
 }
 
-func (l *listActions) mapToWalletActionInputs(inputs []*entity.Output, rawTx []byte, includeSourceLockingScripts, includeUnlockingScripts *primitives.BooleanDefaultFalse) ([]wdk.WalletActionInput, error) {
+func (l *listActions) mapToWalletActionInputs(inputs []*pkgentity.Output, rawTx []byte, includeSourceLockingScripts, includeUnlockingScripts *primitives.BooleanDefaultFalse) ([]wdk.WalletActionInput, error) {
 	result := make([]wdk.WalletActionInput, 0, len(inputs))
 
 	var tx *transaction.Transaction

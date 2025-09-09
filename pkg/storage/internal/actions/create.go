@@ -374,7 +374,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}, nil
 }
 
-func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint, ref string) ([]*entity.Output, error) {
+func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint, ref string) ([]*pkgentity.Output, error) {
 	logger := c.logger.With(
 		logging.Reference(ref),
 		slog.Bool("isNoSendParam", isNoSend),
@@ -384,7 +384,7 @@ func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool
 
 	if isNoSend && len(noSendChange) == 0 {
 		logger.DebugContext(ctx, "NoSendOutputs not provided")
-		return []*entity.Output{}, nil
+		return []*pkgentity.Output{}, nil
 	}
 
 	outputs, err := c.outputRepo.FindOutputsByOutpoints(ctx, userID, noSendChange)
@@ -607,7 +607,7 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 }
 
 func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO, includeRawTxs bool, xinputs xinputDefinitions) ([]*wdk.StorageCreateTransactionSdkInput, error) {
-	utxos, err := c.outputRepo.FindOutputs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+	utxos, err := c.outputRepo.FindOutputsForActions(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
 	if err != nil {
@@ -659,7 +659,7 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 	return resultInputs, nil
 }
 
-func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *entity.Output, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
+func (c *create) resultInputForKnownUTXO(ctx context.Context, vin int, utxo *pkgentity.Output, includeRawTxs bool, providedBy wdk.ProvidedBy) (*wdk.StorageCreateTransactionSdkInput, error) {
 	if utxo.TxID == nil {
 		return nil, fmt.Errorf("missing txid for outputID %d", utxo.ID)
 	}

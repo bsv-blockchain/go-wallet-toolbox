@@ -59,7 +59,7 @@ func (no *NewOutput) IsChangeOutputVout() bool {
 		is.Equal(no.ProvidedBy, wdk.ProvidedByStorage)
 }
 
-func (no *NewOutput) ToOutput(id uint, userID int, transactionID uint) (*Output, error) {
+func (no *NewOutput) ToOutput(id uint, userID int, transactionID uint) (*entity.Output, error) {
 	var lockingScript []byte
 	if no.LockingScript != nil {
 		var err error
@@ -69,7 +69,7 @@ func (no *NewOutput) ToOutput(id uint, userID int, transactionID uint) (*Output,
 		}
 	}
 
-	return &Output{
+	return &entity.Output{
 		ID:                 id,
 		UserID:             userID,
 		TransactionID:      transactionID,
