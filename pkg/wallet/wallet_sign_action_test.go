@@ -462,24 +462,24 @@ func (s *WalletTestSuite) TestWalletSignAction_PendingSignActions_CacheErrors() 
 	mockErr := fmt.Errorf("some error")
 
 	tests := map[string]struct {
-		setup             func(cache *testabilities.MockPendingSignActionCache)
+		setup             func(cache *testabilities.MockPendingSignActionRepo)
 		errOnCreateAction bool
 		errOnSignAction   bool
 	}{
 		"error on set": {
-			setup: func(cache *testabilities.MockPendingSignActionCache) {
+			setup: func(cache *testabilities.MockPendingSignActionRepo) {
 				cache.ErrOnSet = mockErr
 			},
 			errOnCreateAction: true,
 		},
 		"error on get": {
-			setup: func(cache *testabilities.MockPendingSignActionCache) {
+			setup: func(cache *testabilities.MockPendingSignActionRepo) {
 				cache.ErrOnGet = mockErr
 			},
 			errOnSignAction: true,
 		},
 		"error on delete": {
-			setup: func(cache *testabilities.MockPendingSignActionCache) {
+			setup: func(cache *testabilities.MockPendingSignActionRepo) {
 				cache.ErrOnDelete = mockErr
 			},
 			errOnSignAction: false, //NOTE: delete error is only logged, not returned

@@ -22,7 +22,7 @@ type SignAction struct {
 // SignActionsRepository defines an interface for managing pending sign actions.
 // It allows setting, getting, and deleting actions based on a string reference.
 type SignActionsRepository interface {
-	Set(reference string, action *SignAction) error
+	Save(reference string, action *SignAction) error
 	Get(reference string) (*SignAction, error)
 	Delete(reference string) error
 }

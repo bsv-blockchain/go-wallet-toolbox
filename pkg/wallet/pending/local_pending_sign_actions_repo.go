@@ -36,8 +36,8 @@ type pendingSignActionItem struct {
 	timestamp time.Time
 }
 
-// Set stores a pending sign action in the cache using the provided reference as a key. If TTL is set, it checks for cleanup.
-func (l *SignActionLocalRepository) Set(reference string, action *SignAction) error {
+// Save stores a pending sign action in the cache using the provided reference as a key. If TTL is set, it checks for cleanup.
+func (l *SignActionLocalRepository) Save(reference string, action *SignAction) error {
 	if l.ttl > 0 {
 		l.checkForCleanup()
 	}

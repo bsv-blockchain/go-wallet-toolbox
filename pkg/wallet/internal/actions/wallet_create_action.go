@@ -115,7 +115,7 @@ func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, stor
 		return nil, fmt.Errorf("failed to build signable transaction: %w", err)
 	}
 
-	err = a.PendingSignActionsCache.Set(storageCreateActionResult.Reference, &pending.SignAction{
+	err = a.PendingSignActionsCache.Save(storageCreateActionResult.Reference, &pending.SignAction{
 		Tx:               *tx.Transaction,
 		CreateActionArgs: a.wdkArgs,
 		InputBEEF:        txAtomic,

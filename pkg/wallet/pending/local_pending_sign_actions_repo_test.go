@@ -20,7 +20,7 @@ func TestLocalPendingSignActionsCache_SetGetDelete_Success(t *testing.T) {
 	action := &pending.SignAction{}
 
 	// when:
-	err := cache.Set(ref, action)
+	err := cache.Save(ref, action)
 
 	// then:
 	require.NoError(t, err)
@@ -76,14 +76,14 @@ func TestLocalPendingSignActionsCache_TTL_Cleanup_KeepsFresh_Success(t *testing.
 	action := &pending.SignAction{}
 
 	// when:
-	err := cache.Set(oldRef, action)
+	err := cache.Save(oldRef, action)
 
 	// then:
 	require.NoError(t, err)
 
 	// when:
 	time.Sleep(ttl + time.Second + 50*time.Millisecond)
-	err = cache.Set(newRef, action)
+	err = cache.Save(newRef, action)
 
 	// then:
 	require.NoError(t, err)
