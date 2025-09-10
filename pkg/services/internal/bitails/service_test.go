@@ -253,12 +253,20 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 		doubleSpend   bool
 		additionalErr bool
 	}{
-		"double spend - missing inputs": {
+		"double spend": {
 			setup: func(given testabilities.BitailsServiceFixture) {
-				given.Bitails().OnBroadcast().WillReturnDoubleSpend(givenTxID, bitails.ErrMissingInputs)
+				given.Bitails().OnBroadcast().WillReturnDoubleSpend(givenTxID, bitails.ErrDoubleSpend)
 				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
 			},
 			resultStatus: wdk.PostedTxIDResultDoubleSpend,
+			doubleSpend:  true,
+		},
+		"missing inputs": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnMissingInputs(givenTxID, bitails.ErrMissingInputs)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus: wdk.PostedTxIDResultMissingInputs,
 			doubleSpend:  true,
 		},
 		"mismatched txid": {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -105,13 +106,27 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 	case ErrorCodeAlreadyInMempool:
 		result.Result = wdk.PostedTxIDResultAlreadyKnown
 		result.AlreadyKnown = true
-	case ErrorCodeMissingInputs:
+	case ErrorCodeDoubleSpend:
 		result.Result = wdk.PostedTxIDResultDoubleSpend
+		result.DoubleSpend = true
+		shouldReturnError = true
+	case ErrorCodeMissingInputs:
+		result.Result = wdk.PostedTxIDResultMissingInputs
 		result.DoubleSpend = true
 		shouldReturnError = true
 	default:
 		result.Result = wdk.PostedTxIDResultError
 		result.Error = fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
+		upperMsg := strings.ToUpper(msg)
+		if strings.Contains(upperMsg, ErrorTokenECONNRESET) || strings.Contains(upperMsg, ErrorTokenECONNREFUSED) {
+			if strings.Contains(upperMsg, ErrorTokenECONNREFUSED) {
+				result.Error = fmt.Errorf("broadcast error %s: %s", ErrorTokenECONNREFUSED, msg)
+			} else {
+				result.Error = fmt.Errorf("broadcast error %s: %s", ErrorTokenECONNRESET, msg)
+			}
+		} else {
+			result.Error = fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
+		}
 		shouldReturnError = true
 	}
 

@@ -48,6 +48,7 @@ type BitailsBroadcastFixture interface {
 	WillReturnSuccess(string)
 	WillReturnAlreadyInMempool(string, error)
 	WillReturnDoubleSpend(string, error)
+	WillReturnMissingInputs(string, error)
 	WillReturnMalformedResponse()
 	WillReturnHttpError(int)
 }
@@ -165,6 +166,18 @@ func (b *bitailsBroadcastFixture) WillReturnAlreadyInMempool(txid string, err er
 }
 
 func (b *bitailsBroadcastFixture) WillReturnDoubleSpend(txid string, err error) {
+	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+		{
+			"txid": txid,
+			"error": map[string]any{
+				"code":    -26,
+				"message": err.Error(),
+			},
+		},
+	})
+}
+
+func (b *bitailsBroadcastFixture) WillReturnMissingInputs(txid string, err error) {
 	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
 		{
 			"txid": txid,
