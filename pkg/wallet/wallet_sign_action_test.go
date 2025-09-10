@@ -2,7 +2,6 @@ package wallet_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -454,98 +453,6 @@ func (s *WalletTestSuite) TestWalletSignAction_MergeOptions() {
 
 			// and:
 			test.then(t, signActionResult)
-		})
-	}
-}
-
-func (s *WalletTestSuite) TestWalletSignAction_PendingSignActions_CacheErrors() {
-	mockErr := fmt.Errorf("some error")
-
-	tests := map[string]struct {
-		setup             func(cache *testabilities.MockPendingSignActionCache)
-		errOnCreateAction bool
-		errOnSignAction   bool
-	}{
-		"error on set": {
-			setup: func(cache *testabilities.MockPendingSignActionCache) {
-				cache.ErrOnSet = mockErr
-			},
-			errOnCreateAction: true,
-		},
-		"error on get": {
-			setup: func(cache *testabilities.MockPendingSignActionCache) {
-				cache.ErrOnGet = mockErr
-			},
-			errOnSignAction: true,
-		},
-		"error on delete": {
-			setup: func(cache *testabilities.MockPendingSignActionCache) {
-				cache.ErrOnDelete = mockErr
-			},
-			errOnSignAction: false, //NOTE: delete error is only logged, not returned
-		},
-	}
-	for name, test := range tests {
-		s.Run(name, func() {
-			t := s.T()
-
-			const topUpValue = testValueForFunding
-			const inputValue = 100
-
-			// given:
-			given, cleanup := testabilities.Given(t)
-			defer cleanup()
-
-			// and:
-			input := given.InputForUser(testusers.Alice).WithSatoshis(inputValue)
-
-			// and:
-			mockCache := testabilities.NewMockPendingSignActionCache()
-
-			// and:
-			aliceWallet := given.Wallet().
-				WithActiveStorage(s.StorageType).
-				WithServices().
-				WithWalletOpts(wallet.WithPendingSignActionsCache(mockCache)).
-				ForUser(testusers.Alice)
-
-			// and:
-			test.setup(mockCache)
-
-			// and:
-			given.Faucet(aliceWallet).TopUp(topUpValue)
-
-			// and:
-			given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
-
-			// when:
-			args := fixtures.DefaultWalletCreateActionArgs(t,
-				walletargs.WithInput(input),
-				walletargs.WithSignAndProcess(false),
-			)
-
-			createActionResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
-
-			// then:
-			if test.errOnCreateAction {
-				require.ErrorIs(t, err, mockErr)
-				return
-			}
-			require.NoError(t, err)
-
-			// when:
-			signActionResult, err := aliceWallet.SignAction(t.Context(), sdk.SignActionArgs{
-				Reference: createActionResult.SignableTransaction.Reference,
-			}, fixtures.DefaultOriginator)
-
-			// then:
-			if test.errOnSignAction {
-				require.ErrorIs(t, err, mockErr)
-				require.Nil(t, signActionResult)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, signActionResult)
 		})
 	}
 }

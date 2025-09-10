@@ -1,4 +1,4 @@
-package wallet
+package pending
 
 import (
 	"fmt"
@@ -32,12 +32,12 @@ func NewLocalPendingSignActionsCache(logger *slog.Logger, ttl time.Duration) *Lo
 }
 
 type pendingSignActionItem struct {
-	action    wdk.PendingSignAction
+	action    SignAction
 	timestamp time.Time
 }
 
 // Set stores a pending sign action in the cache using the provided reference as a key. If TTL is set, it checks for cleanup.
-func (l *LocalPendingSignActionsCache) Set(reference string, action *wdk.PendingSignAction) error {
+func (l *LocalPendingSignActionsCache) Set(reference string, action *SignAction) error {
 	if l.ttl > 0 {
 		l.checkForCleanup()
 	}
@@ -51,7 +51,7 @@ func (l *LocalPendingSignActionsCache) Set(reference string, action *wdk.Pending
 
 // Get retrieves a pending sign action from the cache using the provided reference as a key.
 // Returns the pending sign action if found, or an error if not found.
-func (l *LocalPendingSignActionsCache) Get(reference string) (*wdk.PendingSignAction, error) {
+func (l *LocalPendingSignActionsCache) Get(reference string) (*SignAction, error) {
 	item, ok := l.actions.Load(reference)
 	if !ok {
 		return nil, fmt.Errorf("no action found for reference %s: %w", reference, wdk.NotFoundError)

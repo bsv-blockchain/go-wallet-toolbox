@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -21,7 +22,7 @@ import (
 
 type SignAction struct {
 	Logger                  *slog.Logger
-	PendingSignActionsCache wdk.PendingSignActionsCache
+	PendingSignActionsCache pending.SignActionsCache
 	Storage                 WalletStorageProcessAction
 
 	wdkArgs    wdk.ValidCreateActionArgs
@@ -48,7 +49,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	s.mergeArgs(pendingSignAction.CreateActionArgs, args)
 
-	s.tx = assembler.NewAssembledTxFromPendingSignAction(pendingSignAction)
+	s.tx = pendingSignAction.Tx
 
 	s.attachUnlockingScripts(args)
 	if err := s.allInputsCanBeUnlocked(); err != nil {

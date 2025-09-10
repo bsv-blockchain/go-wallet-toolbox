@@ -5,20 +5,12 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 )
 
 type AssembledTransaction struct {
 	*transaction.Transaction
 	inputBEEF *transaction.Beef
-}
-
-func NewAssembledTxFromPendingSignAction(pendingSignAction *wdk.PendingSignAction) *AssembledTransaction {
-	return &AssembledTransaction{
-		Transaction: &pendingSignAction.Tx,
-		inputBEEF:   pendingSignAction.InputBEEF,
-	}
 }
 
 func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
