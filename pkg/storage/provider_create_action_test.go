@@ -730,6 +730,72 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCreateActionWithCrossWalletTxIDsUsingInputBeef(t *testing.T) {
+	// given:
+	firstDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	activeStorage := firstDB.Provider().GORM()
+
+	// and:
+	firstFaucetTx, _ := firstDB.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Options.KnownTxids = []primitives.TXIDHexString{
+			primitives.TXIDHexString(firstFaucetTx.ID().String()),
+		}
+	})
+
+	// and:
+	firstCreateActionResult, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, firstCreateActionResult)
+	require.NotNil(t, firstCreateActionResult.InputBeef)
+
+	// and:
+	secondDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+
+	// and:
+	activeStorage = secondDB.Provider().GORM()
+
+	// and:
+	secondFaucetTx, _ := secondDB.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// when:
+	args = fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Options.KnownTxids = []primitives.TXIDHexString{
+			primitives.TXIDHexString(secondFaucetTx.ID().String()),
+		}
+		args.InputBEEF = primitives.BEEF(firstCreateActionResult.InputBeef)
+	})
+
+	secondCreateActionResult, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	testabilities.AssertBEEFState(t, secondCreateActionResult.InputBeef,
+		testabilities.ExpectedBeefTransactionState{
+			ID:         firstFaucetTx.ID().String(),
+			DataFormat: to.Ptr(transaction.TxIDOnly),
+		},
+		testabilities.ExpectedBeefTransactionState{
+			ID:         secondFaucetTx.ID().String(),
+			DataFormat: to.Ptr(transaction.TxIDOnly),
+		},
+	)
+}
+
 func TestCreateActionWithKnownTxIDs(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
