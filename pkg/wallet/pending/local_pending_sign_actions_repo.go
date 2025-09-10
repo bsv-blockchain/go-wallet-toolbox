@@ -1,4 +1,4 @@
-package wallet
+package pending
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-// LocalPendingSignActionsCache is a cache for storing pending sign actions with a configurable time-to-live (TTL).
-type LocalPendingSignActionsCache struct {
+// SignActionLocalRepository is a cache for storing pending sign actions with a configurable time-to-live (TTL).
+type SignActionLocalRepository struct {
 	actions sync.Map
 	logger  *slog.Logger
 
@@ -20,11 +20,11 @@ type LocalPendingSignActionsCache struct {
 	ttl         time.Duration
 }
 
-// NewLocalPendingSignActionsCache initializes a new LocalPendingSignActionsCache with the given logger and TTL.
-func NewLocalPendingSignActionsCache(logger *slog.Logger, ttl time.Duration) *LocalPendingSignActionsCache {
-	logger = logging.Child(logger, "LocalPendingSignActionsCache")
+// NewSignActionLocalRepository initializes a new SignActionLocalRepository with the given logger and TTL.
+func NewSignActionLocalRepository(logger *slog.Logger, ttl time.Duration) *SignActionLocalRepository {
+	logger = logging.Child(logger, "SignActionLocalRepository")
 
-	return &LocalPendingSignActionsCache{
+	return &SignActionLocalRepository{
 		actions: sync.Map{},
 		logger:  logger,
 		ttl:     ttl,
@@ -32,12 +32,12 @@ func NewLocalPendingSignActionsCache(logger *slog.Logger, ttl time.Duration) *Lo
 }
 
 type pendingSignActionItem struct {
-	action    wdk.PendingSignAction
+	action    SignAction
 	timestamp time.Time
 }
 
 // Set stores a pending sign action in the cache using the provided reference as a key. If TTL is set, it checks for cleanup.
-func (l *LocalPendingSignActionsCache) Set(reference string, action *wdk.PendingSignAction) error {
+func (l *SignActionLocalRepository) Set(reference string, action *SignAction) error {
 	if l.ttl > 0 {
 		l.checkForCleanup()
 	}
@@ -51,7 +51,7 @@ func (l *LocalPendingSignActionsCache) Set(reference string, action *wdk.Pending
 
 // Get retrieves a pending sign action from the cache using the provided reference as a key.
 // Returns the pending sign action if found, or an error if not found.
-func (l *LocalPendingSignActionsCache) Get(reference string) (*wdk.PendingSignAction, error) {
+func (l *SignActionLocalRepository) Get(reference string) (*SignAction, error) {
 	item, ok := l.actions.Load(reference)
 	if !ok {
 		return nil, fmt.Errorf("no action found for reference %s: %w", reference, wdk.NotFoundError)
@@ -63,12 +63,12 @@ func (l *LocalPendingSignActionsCache) Get(reference string) (*wdk.PendingSignAc
 }
 
 // Delete removes the pending sign action from the cache that corresponds to the given reference. Returns an error if any occurs.
-func (l *LocalPendingSignActionsCache) Delete(reference string) error {
+func (l *SignActionLocalRepository) Delete(reference string) error {
 	l.actions.Delete(reference)
 	return nil
 }
 
-func (l *LocalPendingSignActionsCache) checkForCleanup() {
+func (l *SignActionLocalRepository) checkForCleanup() {
 	if l.nextCleanup == nil {
 		l.nextCleanup = to.Ptr(time.Now().Add(l.ttl).Add(time.Second))
 		return
@@ -80,7 +80,7 @@ func (l *LocalPendingSignActionsCache) checkForCleanup() {
 	}
 }
 
-func (l *LocalPendingSignActionsCache) cleanup() {
+func (l *SignActionLocalRepository) cleanup() {
 	l.logger.Info("cleaning up old pending sign actions cache")
 
 	cutoff := time.Now().Add(-l.ttl)

@@ -1,11 +1,11 @@
-package wallet_test
+package pending_test
 
 import (
 	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,11 +13,11 @@ import (
 
 func TestLocalPendingSignActionsCache_SetGetDelete_Success(t *testing.T) {
 	// given:
-	cache := wallet.NewLocalPendingSignActionsCache(slog.Default(), -1)
+	cache := pending.NewSignActionLocalRepository(slog.Default(), -1)
 
 	// and:
 	ref := "ref1"
-	action := &wdk.PendingSignAction{}
+	action := &pending.SignAction{}
 
 	// when:
 	err := cache.Set(ref, action)
@@ -51,7 +51,7 @@ func TestLocalPendingSignActionsCache_Get_Error_NotFound(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			cache := wallet.NewLocalPendingSignActionsCache(slog.Default(), -1)
+			cache := pending.NewSignActionLocalRepository(slog.Default(), -1)
 
 			// when:
 			_, err := cache.Get(test.ref)
@@ -68,12 +68,12 @@ func TestLocalPendingSignActionsCache_TTL_Cleanup_KeepsFresh_Success(t *testing.
 
 	// given:
 	ttl := 10 * time.Millisecond
-	cache := wallet.NewLocalPendingSignActionsCache(slog.Default(), ttl)
+	cache := pending.NewSignActionLocalRepository(slog.Default(), ttl)
 
 	// and:
 	oldRef := "old"
 	newRef := "new"
-	action := &wdk.PendingSignAction{}
+	action := &pending.SignAction{}
 
 	// when:
 	err := cache.Set(oldRef, action)

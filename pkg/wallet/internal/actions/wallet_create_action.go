@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -17,7 +18,7 @@ type CreateAction struct {
 	KeyDeriver              *wallet.KeyDeriver
 	Storage                 WalletStorageCreateAndProcessAction
 	WalletOpts              *wallet_opts.Flags
-	PendingSignActionsCache wdk.PendingSignActionsCache
+	PendingSignActionsCache pending.SignActionsRepository
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string
@@ -114,7 +115,7 @@ func (a *CreateAction) handleSignAction(tx *assembler.AssembledTransaction, stor
 		return nil, fmt.Errorf("failed to build signable transaction: %w", err)
 	}
 
-	err = a.PendingSignActionsCache.Set(storageCreateActionResult.Reference, &wdk.PendingSignAction{
+	err = a.PendingSignActionsCache.Set(storageCreateActionResult.Reference, &pending.SignAction{
 		Tx:               *tx.Transaction,
 		CreateActionArgs: a.wdkArgs,
 		InputBEEF:        txAtomic,

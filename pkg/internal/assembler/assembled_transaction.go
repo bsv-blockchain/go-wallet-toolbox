@@ -5,7 +5,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 )
 
@@ -14,7 +14,7 @@ type AssembledTransaction struct {
 	inputBEEF *transaction.Beef
 }
 
-func NewAssembledTxFromPendingSignAction(pendingSignAction *wdk.PendingSignAction) *AssembledTransaction {
+func NewAssembledTxFromPendingSignAction(pendingSignAction *pending.SignAction) *AssembledTransaction {
 	return &AssembledTransaction{
 		Transaction: &pendingSignAction.Tx,
 		inputBEEF:   pendingSignAction.InputBEEF,

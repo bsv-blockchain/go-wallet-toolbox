@@ -3,12 +3,11 @@ package testabilities
 import (
 	"log/slog"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 )
 
 type MockPendingSignActionCache struct {
-	base        *wallet.LocalPendingSignActionsCache
+	base        *pending.SignActionLocalRepository
 	ErrOnSet    error
 	ErrOnGet    error
 	ErrOnDelete error
@@ -16,11 +15,11 @@ type MockPendingSignActionCache struct {
 
 func NewMockPendingSignActionCache() *MockPendingSignActionCache {
 	return &MockPendingSignActionCache{
-		base: wallet.NewLocalPendingSignActionsCache(slog.Default(), -1),
+		base: pending.NewSignActionLocalRepository(slog.Default(), -1),
 	}
 }
 
-func (m *MockPendingSignActionCache) Set(reference string, action *wdk.PendingSignAction) error {
+func (m *MockPendingSignActionCache) Set(reference string, action *pending.SignAction) error {
 	if m.ErrOnSet != nil {
 		return m.ErrOnSet
 	}
@@ -28,7 +27,7 @@ func (m *MockPendingSignActionCache) Set(reference string, action *wdk.PendingSi
 	return m.base.Set(reference, action)
 }
 
-func (m *MockPendingSignActionCache) Get(reference string) (*wdk.PendingSignAction, error) {
+func (m *MockPendingSignActionCache) Get(reference string) (*pending.SignAction, error) {
 	if m.ErrOnGet != nil {
 		return nil, m.ErrOnGet
 	}

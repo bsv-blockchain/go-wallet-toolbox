@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -28,7 +29,7 @@ type Wallet struct {
 	flags                   *wallet_opts.Flags
 	services                *services.WalletServices
 	chain                   defs.BSVNetwork
-	pendingSignActionsCache wdk.PendingSignActionsCache
+	pendingSignActionsCache pending.SignActionsRepository
 	logger                  *slog.Logger
 }
 
@@ -70,10 +71,10 @@ func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
 	}
 }
 
-// WithPendingSignActionsCache sets the PendingSignActionsCache for wallet options, allowing management of cached actions.
-func WithPendingSignActionsCache(cache wdk.PendingSignActionsCache) func(*wallet_opts.Opts) {
+// WithPendingSignActionsRepository sets the SignActionsRepository for wallet options, allowing management of cached actions.
+func WithPendingSignActionsRepository(cache pending.SignActionsRepository) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
-		opts.PendingSignActionsCache = cache
+		opts.PendingSignActionsRepo = cache
 	}
 }
 
@@ -105,15 +106,15 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 			AutoKnownTxids:               false,
 			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
 		},
-		Logger:                  slog.Default(),
-		Services:                nil,
-		PendingSignActionsCache: nil,
+		Logger:                 slog.Default(),
+		Services:               nil,
+		PendingSignActionsRepo: nil,
 	}, opts...)
 
 	logger := logging.Child(options.Logger, "wallet")
 
-	if options.PendingSignActionsCache == nil {
-		options.PendingSignActionsCache = NewLocalPendingSignActionsCache(logger, wdk.DefaultPendingSignActionTTL)
+	if options.PendingSignActionsRepo == nil {
+		options.PendingSignActionsRepo = pending.NewSignActionLocalRepository(logger, pending.DefaultPendingSignActionsTTL)
 	}
 
 	keyDeriver, err := toKeyDeriver(keySource)
@@ -135,7 +136,7 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 		flags:                   &options.Flags,
 		services:                options.Services,
 		chain:                   chain,
-		pendingSignActionsCache: options.PendingSignActionsCache,
+		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
 	}, nil
 }

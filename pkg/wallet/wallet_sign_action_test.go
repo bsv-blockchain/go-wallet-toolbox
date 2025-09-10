@@ -506,7 +506,7 @@ func (s *WalletTestSuite) TestWalletSignAction_PendingSignActions_CacheErrors() 
 			aliceWallet := given.Wallet().
 				WithActiveStorage(s.StorageType).
 				WithServices().
-				WithWalletOpts(wallet.WithPendingSignActionsCache(mockCache)).
+				WithWalletOpts(wallet.WithPendingSignActionsRepository(mockCache)).
 				ForUser(testusers.Alice)
 
 			// and:
