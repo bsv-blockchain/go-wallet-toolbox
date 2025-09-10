@@ -56,6 +56,7 @@ type OutputReadSpecification struct {
 	TxStatus      *Comparable[wdk.TxStatus]
 	Satoshis      *Comparable[int64]
 	TxID          *Comparable[string]
+	Tags          *ComparableSet[string]
 }
 
 // OutputUpdateSpecification defines fields that can be updated.
