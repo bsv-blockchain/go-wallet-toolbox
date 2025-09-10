@@ -5,6 +5,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 )
 
@@ -13,8 +14,15 @@ type AssembledTransaction struct {
 	inputBEEF *transaction.Beef
 }
 
+func NewAssembledTxFromPendingSignAction(pendingSignAction *pending.SignAction) *AssembledTransaction {
+	return &AssembledTransaction{
+		Transaction: &pendingSignAction.Tx,
+		inputBEEF:   pendingSignAction.InputBEEF,
+	}
+}
+
 func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
-	beef, err := a.toAtomicBEEF(allowPartials)
+	beef, err := a.ToAtomicBEEF(allowPartials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build beef from assembled tx: %w", err)
 	}
@@ -22,10 +30,11 @@ func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize assembled transaction to atomic beef bytes: %w", err)
 	}
+
 	return bytes, nil
 }
 
-func (a *AssembledTransaction) toAtomicBEEF(allowPartials bool) (*transaction.Beef, error) {
+func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Beef, error) {
 	beef := transaction.NewBeef()
 
 	err := beef.MergeBeef(a.inputBEEF)

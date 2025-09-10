@@ -10,7 +10,7 @@ import (
 // Token represents a digital asset including transaction details, keys, and the amount in Satoshis.
 type Token struct {
 	TxID            chainhash.Hash
-	Beef            *transaction.Beef
+	Beef            []byte
 	KeyID           string
 	FromIdentityKey *ec.PublicKey
 	Satoshis        uint64
