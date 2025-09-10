@@ -549,3 +549,30 @@ func (s *WalletTestSuite) TestWalletSignAction_PendingSignActions_CacheErrors() 
 		})
 	}
 }
+
+func (s *WalletTestSuite) TestWalletSignAction_SigningNotExistingAction() {
+	s.Run("attempt to sign an action that doesn't exist", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		const nonExistingReference = "non-existing-reference"
+		signActionResult, err := aliceWallet.SignAction(t.Context(), sdk.SignActionArgs{
+			Reference: []byte(nonExistingReference),
+		}, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+		require.Nil(t, signActionResult)
+	})
+}
