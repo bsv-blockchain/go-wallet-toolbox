@@ -54,7 +54,7 @@ func TestWalletServices_CurrentHeight(t *testing.T) {
 			fix := ts.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().WithDefaultConfig()
+			svc := fix.Services().New()
 
 			// when:
 			got, err := svc.CurrentHeight(t.Context())
@@ -90,7 +90,7 @@ func TestWalletServices_CurrentHeight_ErrorCases(t *testing.T) {
 			fix := ts.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().WithDefaultConfig()
+			svc := fix.Services().New()
 
 			// when:
 			got, err := svc.CurrentHeight(t.Context())

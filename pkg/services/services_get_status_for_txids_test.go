@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -15,15 +15,15 @@ import (
 
 func TestWalletServices_GetStatusForTxIDs_Success_Single(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	txid := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, ts.TxStatusExpectation{
+	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
 		ExpectBlockHash:   "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 		ExpectBlockHeight: 777777,
 	})
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{txid})
@@ -44,19 +44,19 @@ func TestWalletServices_GetStatusForTxIDs_Success_Single(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Success_Multiple(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	txIDs := []string{
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 		"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 	}
 
-	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, ts.TxStatusExpectation{
+	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
 		ExpectBlockHash:   "feedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface",
 		ExpectBlockHeight: 123456,
 	})
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
@@ -78,8 +78,8 @@ func TestWalletServices_GetStatusForTxIDs_Success_Multiple(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Error_NoTxids(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
-	svc := fix.Services().WithDefaultConfig()
+	fix := testservices.GivenServices(t)
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), nil)
@@ -92,9 +92,9 @@ func TestWalletServices_GetStatusForTxIDs_Error_NoTxids(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Error_HTTP500(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
-	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusInternalServerError, ts.TxStatusExpectation{})
-	svc := fix.Services().WithDefaultConfig()
+	fix := testservices.GivenServices(t)
+	fix.WhatsOnChain().WillRespondOnTxStatus(http.StatusInternalServerError, testservices.TxStatusExpectation{})
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
@@ -107,9 +107,9 @@ func TestWalletServices_GetStatusForTxIDs_Error_HTTP500(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Error_Unreachable(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	_ = fix.WhatsOnChain().WillBeUnreachable()
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
@@ -122,7 +122,7 @@ func TestWalletServices_GetStatusForTxIDs_Error_Unreachable(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_ContextCancelled(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	ctx, cancel := context.WithCancelCause(t.Context())
 
 	// Cancel the context when WoC endpoint is hit
@@ -133,7 +133,7 @@ func TestWalletServices_GetStatusForTxIDs_ContextCancelled(t *testing.T) {
 			return nil, context.Canceled
 		})
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(ctx, []string{
@@ -148,7 +148,7 @@ func TestWalletServices_GetStatusForTxIDs_ContextCancelled(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Success_Single_Bitails(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	txid := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 	// Make WoC fail so Bitails is used
@@ -158,7 +158,7 @@ func TestWalletServices_GetStatusForTxIDs_Success_Single_Bitails(t *testing.T) {
 	fix.Bitails().WillReturnNetworkInfo(http.StatusOK, 1000)
 	fix.Bitails().WillReturnTxStatusMined(txid, 991)
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{txid})
@@ -179,7 +179,7 @@ func TestWalletServices_GetStatusForTxIDs_Success_Single_Bitails(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Success_Multiple_Bitails(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	txIDs := []string{
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
@@ -195,7 +195,7 @@ func TestWalletServices_GetStatusForTxIDs_Success_Multiple_Bitails(t *testing.T)
 		fix.Bitails().WillReturnTxStatusMined(txid, 100)
 	}
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New(testservices.WithEnabledBitails(true))
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
@@ -217,7 +217,7 @@ func TestWalletServices_GetStatusForTxIDs_Success_Multiple_Bitails(t *testing.T)
 
 func TestWalletServices_GetStatusForTxIDs_Bitails_Mixed(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	_ = fix.WhatsOnChain().WillBeUnreachable()
 
 	minedTx := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -229,7 +229,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_Mixed(t *testing.T) {
 	fix.Bitails().WillReturnTxStatusUnconfirmed(unconfTx)
 	fix.Bitails().WillReturnTxStatusNotFound(notFoundTx)
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New(testservices.WithEnabledBitails(true))
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{minedTx, unconfTx, notFoundTx})
@@ -261,7 +261,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_Mixed(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Bitails_NoStatusFound(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	txIDs := []string{
 		"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
@@ -275,7 +275,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_NoStatusFound(t *testing.T) {
 		fix.Bitails().WillReturnTxStatusNotFound(tx)
 	}
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New(testservices.WithEnabledBitails(true))
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
@@ -288,13 +288,13 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_NoStatusFound(t *testing.T) {
 
 func TestWalletServices_GetStatusForTxIDs_Bitails_AllProvidersFail(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 
 	err := fix.WhatsOnChain().WillBeUnreachable()
 	require.Error(t, err)
 	fix.Bitails().WillReturnNetworkInfo(http.StatusInternalServerError, 0)
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New(testservices.WithEnabledBitails(true))
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{
@@ -309,7 +309,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_AllProvidersFail(t *testing.T)
 
 func TestWalletServices_GetStatusForTxIDs_Bitails_ContextCancelled(t *testing.T) {
 	// given:
-	fix := ts.GivenServices(t)
+	fix := testservices.GivenServices(t)
 	err := fix.WhatsOnChain().WillBeUnreachable()
 	require.Error(t, err)
 
@@ -321,7 +321,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_ContextCancelled(t *testing.T)
 			return nil, context.Canceled
 		})
 
-	svc := fix.Services().WithDefaultConfig()
+	svc := fix.Services().New(testservices.WithEnabledBitails(true))
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(ctx, []string{

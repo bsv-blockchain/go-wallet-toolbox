@@ -17,7 +17,7 @@ func (b *BHS) Validate() error {
 	if !b.Enabled {
 		return nil
 	}
-	
+
 	if len(b.URL) == 0 {
 		return fmt.Errorf("validation failed: URL must not be empty")
 	}

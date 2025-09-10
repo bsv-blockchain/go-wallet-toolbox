@@ -16,12 +16,12 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const ServiceName = "BlockHeadersService"
-
 type BlockHeadersService struct {
 	httpClient *resty.Client
 	cfg        *defs.BHS
 }
+
+const ServiceName = defs.BHSServiceName
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
 	err := network.Validate()

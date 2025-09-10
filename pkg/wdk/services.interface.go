@@ -14,7 +14,7 @@ type Services interface {
 	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (PostBeefResult, error)
 	MerklePath(ctx context.Context, txid string) (*MerklePathResult, error)
 	FindChainTipHeader(ctx context.Context) (*ChainBlockHeader, error)
-	RawTx(txID string) (RawTxResult, error)
+	RawTx(ctx context.Context, txID string) (RawTxResult, error)
 	GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error)
 	NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error)
 }

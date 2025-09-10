@@ -33,7 +33,7 @@ const (
 
 type Config = defs.ARC
 
-const ServiceName = "ARC"
+const ServiceName = defs.ArcServiceName
 
 type Service struct {
 	logger           *slog.Logger

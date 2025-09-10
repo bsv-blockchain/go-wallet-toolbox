@@ -31,7 +31,7 @@ func TestGetMerklePath(t *testing.T) {
 		given := testservices.GivenServices(t)
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		response, err := services.MerklePath(t.Context(), txID)
@@ -51,7 +51,7 @@ func TestGetMerklePath(t *testing.T) {
 		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		response, err := services.MerklePath(t.Context(), txID)
@@ -95,7 +95,7 @@ func TestGetMerklePath(t *testing.T) {
 		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithMerklePath(merklePath)
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		response, err := services.MerklePath(t.Context(), txID)
@@ -154,7 +154,7 @@ func TestGetMerklePath(t *testing.T) {
 		}`, tst.TestTargetHash, tst.TestBlockHeight, merkleRoot)
 
 		given.WhatsOnChain().WhenQueryingBlockHeader(tst.TestTargetHash).WillReturnBlockHeaderJSON(200, blockHeaderJSON)
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		response, err := services.MerklePath(t.Context(), tst.TestTxID)
@@ -214,7 +214,7 @@ func TestGetMerklePath(t *testing.T) {
 		})
 		given.Bitails().WillReturnTxStatus(txID, btst.TestBlockHeight)
 
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New(testservices.WithEnabledBitails(true))
 
 		// when:
 		response, err := services.MerklePath(t.Context(), txID)

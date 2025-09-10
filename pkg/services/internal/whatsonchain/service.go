@@ -23,7 +23,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const ServiceName = "WhatsOnChain"
+const ServiceName = defs.WhatsOnChainServiceName
 
 type WhatsOnChain struct {
 	httpClient *resty.Client

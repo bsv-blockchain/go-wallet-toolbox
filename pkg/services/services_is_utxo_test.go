@@ -49,7 +49,7 @@ func TestWalletServices_IsUtxo_SuccessCases(t *testing.T) {
 			fixture := ts.GivenServices(t)
 			fixture.WhatsOnChain().WillRespondWithUtxoStatus(http.StatusOK, scriptHash, tc.jsonBody)
 
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().New()
 			isUtxo, err := svc.IsUtxo(t.Context(), scriptHash, outpoint)
 
 			require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestWalletServices_IsUtxo_ErrorCases(t *testing.T) {
 			fixture := ts.GivenServices(t)
 			tc.setup(fixture)
 
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().New()
 			isUtxo, err := svc.IsUtxo(t.Context(), tc.script, outpoint)
 
 			require.Error(t, err)

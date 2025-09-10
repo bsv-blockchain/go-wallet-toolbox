@@ -31,7 +31,7 @@ func TestPostBEEF(t *testing.T) {
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 		given.Bitails().WillReturnSuccessAndTxInfo(txID, "mocked-block-hash", 99999)
 
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New(testservices.WithEnabledBitails(true))
 
 		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
@@ -75,7 +75,7 @@ func TestPostBEEF(t *testing.T) {
 		given.Bitails().WillReturnSuccessAndTxInfo(parentTxID, "mocked-block-hash", 99999)
 		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
 
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New(testservices.WithEnabledBitails(true))
 
 		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
@@ -125,7 +125,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 			given.Bitails().WillReturnSuccessAndTxInfo(txid, "mocked-block-hash", 99999)
 		}
 
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New(testservices.WithEnabledBitails(true))
 
 		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
@@ -156,7 +156,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 			given.Bitails().WillReturnSuccessAndTxInfo(txid, "mocked-block-hash", 99999)
 		}
 
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New(testservices.WithEnabledBitails(true))
 
 		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)
@@ -186,7 +186,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 		given.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
 
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New(testservices.WithEnabledBitails(true))
 
 		// when:
 		response, err := services.PostBEEF(t.Context(), beef, txids)

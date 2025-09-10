@@ -42,6 +42,14 @@ const (
 	DefaultGetBeefMaxDepth = 100
 )
 
+// Service names
+const (
+	WhatsOnChainServiceName = "WhatsOnChain"
+	BitailsServiceName      = "Bitails"
+	ArcServiceName          = "ARC"
+	BHSServiceName          = "BHS"
+)
+
 // WalletServices is a struct that has options for wallet services
 type WalletServices struct {
 	Chain               BSVNetwork        `mapstructure:"-"`
@@ -91,11 +99,11 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 		Chain: chain,
 		ArcConfig: ARC{
 			Enabled: true,
-			URL: to.IfThen(chain == NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
-			Token: to.IfThen(chain == NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
+			URL:     to.IfThen(chain == NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
+			Token:   to.IfThen(chain == NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
 		},
 		BHS: BHS{
-			Enabled: true,
+			Enabled: false,
 			URL:     BHSTestURL,
 			APIKey:  BHSApiKey,
 		},
