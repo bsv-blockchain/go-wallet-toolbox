@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/pushdrop"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -26,13 +27,8 @@ func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 
 	label := redeemPushDropTokenLabel
 
-	beefBytes, err := token.Beef.Bytes()
-	if err != nil {
-		panic(err)
-	}
-
 	createActionResult, err := aliceWallet.CreateAction(ctx, wallet.CreateActionArgs{
-		InputBEEF: beefBytes,
+		InputBEEF: token.Beef,
 		Inputs: []wallet.CreateActionInput{{
 			Outpoint:              token.DataOutpoint(),
 			UnlockingScriptLength: 73,
@@ -42,6 +38,7 @@ func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 			NoSend:           to.Ptr(true),
 			NoSendChange:     noSendChange,
 			RandomizeOutputs: to.Ptr(false),
+			SignAndProcess:   to.Ptr(false),
 		},
 		Labels:      []string{label},
 		Description: label,
@@ -50,28 +47,22 @@ func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 		panic(err)
 	}
 
-	signableTx := createActionResult.SignableTransaction
-	if signableTx == nil {
+	if createActionResult.SignableTransaction == nil {
 		panic("createAction returned nil SignableTransaction")
 	}
 
-	beef, txID, err := transaction.NewBeefFromAtomicBytes(signableTx.Tx)
+	signableTx, err := transaction.NewTransactionFromBEEF(createActionResult.SignableTransaction.Tx)
 	if err != nil {
 		panic(err)
 	}
 
-	tx := beef.FindAtomicTransactionByHash(txID)
-	if tx == nil {
-		panic(fmt.Sprintf("failed to find transaction with hash %s in BEEF data", txID.String()))
-	}
-
-	unlockingScript, err := unlocker.Sign(tx, 0)
+	unlockingScript, err := unlocker.Sign(signableTx, 0)
 	if err != nil {
 		panic(fmt.Errorf("unable to sign tx: %w", err))
 	}
 
-	_, err = aliceWallet.SignAction(ctx, wallet.SignActionArgs{
-		Reference: signableTx.Reference,
+	signActionResult, err := aliceWallet.SignAction(ctx, wallet.SignActionArgs{
+		Reference: createActionResult.SignableTransaction.Reference,
 		Spends:    map[uint32]wallet.SignActionSpend{0: {UnlockingScript: unlockingScript.Bytes()}},
 		Options: &wallet.SignActionOptions{
 			AcceptDelayedBroadcast: to.Ptr(false),
@@ -81,5 +72,26 @@ func RedeemPushDropToken(ctx context.Context, aliceWallet wallet.Interface, toke
 		panic(err)
 	}
 
-	return *txID, createActionResult.NoSendChange
+	signedTxID := signActionResult.Txid
+	// Because txid changes after signing, we need to adjust noSendChange outpoints to use the new txid
+	nextNoSendChange := replaceTxIDInOutpoints(to.Value(signableTx.TxID()), signedTxID, createActionResult.NoSendChange)
+
+	show.Info("Redeemed Token", signedTxID.String())
+
+	return signedTxID, nextNoSendChange
+}
+
+func replaceTxIDInOutpoints(old, new chainhash.Hash, outpoints []transaction.Outpoint) []transaction.Outpoint {
+	adjusted := make([]transaction.Outpoint, len(outpoints))
+	for i, op := range outpoints {
+		if op.Txid.Equal(old) {
+			adjusted[i] = transaction.Outpoint{
+				Txid:  new,
+				Index: op.Index,
+			}
+		} else {
+			adjusted[i] = op
+		}
+	}
+	return adjusted
 }

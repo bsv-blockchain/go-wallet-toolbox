@@ -66,7 +66,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 	}
 
 	if services == nil {
-		log.Warn("services is not set, some actions may not work")
+		return nil, fmt.Errorf("no services provided")
 	}
 
 	return &Provider{

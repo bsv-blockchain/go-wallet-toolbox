@@ -68,6 +68,7 @@ func MintPushDropToken(
 
 	return Token{
 		TxID:            createActionResult.Txid,
+		Beef:            createActionResult.Tx,
 		KeyID:           keyID,
 		FromIdentityKey: aliceIdentityKey,
 		Satoshis:        satoshis,

@@ -82,6 +82,7 @@ type create struct {
 	commissionCfg  defs.Commission
 	random         wdk.Randomizer
 	chaintracker   chaintracker.ChainTracker
+	beefVerifier   wdk.BeefVerifier
 }
 
 func newCreateAction(
@@ -95,6 +96,7 @@ func newCreateAction(
 	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
+	beefVerifier wdk.BeefVerifier,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -108,6 +110,7 @@ func newCreateAction(
 		commissionRepo: commissionRepo,
 		random:         random,
 		chaintracker:   chaintracker,
+		beefVerifier:   beefVerifier,
 	}
 
 	if commissionCfg.Enabled() {
@@ -150,7 +153,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputBEEFSize", len(params.InputBEEF)),
 	)
 
-	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.chaintracker)
+	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.chaintracker, c.beefVerifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inputs processor: %w", err)
 	}
@@ -525,7 +528,7 @@ func (c *create) newOutputs(
 		all = append(all, &entity.NewOutput{
 			Satoshis:           satoshi.MustFrom(output.Satoshis),
 			BasketName:         (*string)(output.Basket),
-			Spendable:          false,
+			Spendable:          true,
 			Change:             false,
 			ProvidedBy:         wdk.ProvidedByYou,
 			Type:               wdk.OutputTypeCustom,

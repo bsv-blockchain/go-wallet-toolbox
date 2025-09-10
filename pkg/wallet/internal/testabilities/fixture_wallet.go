@@ -22,6 +22,7 @@ type WalletFixture interface {
 	Faucet(userWallet *wallet.Wallet) FaucetFixture
 	InputForUser(user testusers.User) CreateActionInputBuilder
 	Services() ServicesFixture
+	BeefVerifier() testabilities.BeefVerifierFixture
 }
 
 type walletFixture struct {
@@ -70,6 +71,10 @@ func (w *walletFixture) Wallet() WalletBuilder {
 		givenStorage:  w.storageFixture,
 		walletFixture: w,
 	}
+}
+
+func (w *walletFixture) BeefVerifier() testabilities.BeefVerifierFixture {
+	return w.storageFixture.Provider().BeefVerifier()
 }
 
 func (w *walletFixture) Faucet(userWallet *wallet.Wallet) FaucetFixture {

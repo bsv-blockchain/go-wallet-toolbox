@@ -12,7 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -507,12 +507,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				readyToSendTxIDs,
 			)
 			if err != nil {
-				processResult := &wdk.ProcessActionResult{
-					SendWithResults:   sendWithResults,
-					NotDelayedResults: notDelayedResults,
-				}
-				return nil, broadcastError.NewImmediateBroadcastError(err, broadcastedTxID,
-					beef, processResult, results.ServiceErrors(), p.logger)
+				return nil, fmt.Errorf(
+					"cannot update single tx after broadcast: %w",
+					pkgerrors.NewProcessActionError(sendWithResults, notDelayedResults).
+						Wrap(pkgerrors.NewTransactionErrorFromTxIDHex(broadcastedTxID)),
+				)
 			}
 		}
 
