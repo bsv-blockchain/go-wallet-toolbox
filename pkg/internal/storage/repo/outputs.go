@@ -64,7 +64,7 @@ func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[u
 	return txIDs, nil
 }
 
-func (o *Outputs) FindOutputsForActions(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error) {
+func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error) {
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
 	}

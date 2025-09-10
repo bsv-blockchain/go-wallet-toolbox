@@ -610,7 +610,7 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 }
 
 func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO, includeRawTxs bool, xinputs xinputDefinitions) ([]*wdk.StorageCreateTransactionSdkInput, error) {
-	utxos, err := c.outputRepo.FindOutputsForActions(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
+	utxos, err := c.outputRepo.FindOutputsByIDs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
 	}))
 	if err != nil {
