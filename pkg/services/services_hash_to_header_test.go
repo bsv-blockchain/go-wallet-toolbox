@@ -51,7 +51,7 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 			fix := testservices.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().New(testservices.WithEnabledBitails(true))
+			svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			header, err := svc.HashToHeader(t.Context(), blockHash)
@@ -118,7 +118,7 @@ func TestWalletServices_HashToHeader_ErrorCases(t *testing.T) {
 			fix := testservices.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().New(testservices.WithEnabledBitails(true))
+			svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			res, err := svc.HashToHeader(t.Context(), testabilities.TestTargetHash)

@@ -29,7 +29,9 @@ type ServicesFixture interface {
 }
 
 type WalletServicesFixture interface {
-	New(modifiers ...func(*defs.WalletServices)) *services.WalletServices
+	Config(modifiers ...func(*defs.WalletServices)) WalletServicesFixture
+	Opts(options ...func(option *services.Options)) WalletServicesFixture
+	New() *services.WalletServices
 }
 
 type servicesFixture struct {
@@ -40,6 +42,7 @@ type servicesFixture struct {
 	httpClient           *resty.Client
 	transport            *httpmock.MockTransport
 	walletServicesConfig *defs.WalletServices
+	walletServicesOpts   []func(option *services.Options)
 	woc                  WhatsOnChainFixture
 	arc                  ARCFixture
 	bitails              BitailsFixture
@@ -101,14 +104,28 @@ func (f *servicesFixture) BHS() BHSFixture {
 	return f.bhs
 }
 
-func (f *servicesFixture) New(modifiers ...func(*defs.WalletServices)) *services.WalletServices {
+func (f *servicesFixture) Config(modifiers ...func(*defs.WalletServices)) WalletServicesFixture {
 	f.t.Helper()
 
 	for _, modify := range modifiers {
 		modify(f.walletServicesConfig)
 	}
 
-	walletServices := services.New(f.logger, *f.walletServicesConfig, services.WithRestyClient(f.httpClient))
+	return f
+}
+
+func (f *servicesFixture) Opts(options ...func(option *services.Options)) WalletServicesFixture {
+	f.t.Helper()
+	f.walletServicesOpts = append(f.walletServicesOpts, options...)
+	return f
+}
+
+func (f *servicesFixture) New() *services.WalletServices {
+	f.t.Helper()
+
+	options := append(f.walletServicesOpts, services.WithRestyClient(f.httpClient))
+
+	walletServices := services.New(f.logger, *f.walletServicesConfig, options...)
 	f.services = walletServices
 
 	return f.services

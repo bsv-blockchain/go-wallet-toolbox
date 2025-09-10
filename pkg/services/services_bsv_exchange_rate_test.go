@@ -23,7 +23,9 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		}
 
 		// and:
-		services := given.Services().New(testservices.WithBsvExchangeRate(cachedRate))
+		services := given.Services().
+			Config(testservices.WithBsvExchangeRate(cachedRate)).
+			New()
 
 		// when:
 		result, err := services.BsvExchangeRate()
@@ -43,11 +45,13 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		}`, nil)
 
 		// and:
-		services := given.Services().New(testservices.WithBsvExchangeRate(defs.BSVExchangeRate{
-			Timestamp: time.Now().Add(-16 * time.Minute),
-			Base:      "USD",
-			Rate:      100.0,
-		}))
+		services := given.Services().
+			Config(testservices.WithBsvExchangeRate(defs.BSVExchangeRate{
+				Timestamp: time.Now().Add(-16 * time.Minute),
+				Base:      "USD",
+				Rate:      100.0,
+			})).
+			New()
 
 		// when:
 		result, err := services.BsvExchangeRate()

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
-	stdslices "slices"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -44,36 +43,35 @@ type WalletServices struct {
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
 }
 
-func applyModifierIfExists[F any](modifier func([]NamedFunc[F]) []NamedFunc[F], predefined []NamedFunc[F]) []NamedFunc[F] {
+func applyModifierIfExists[F any](modifier func([]Named[F]) []Named[F], predefined []Named[F]) []Named[F] {
 	funcs := predefined
 	if modifier != nil {
 		funcs = modifier(funcs)
 	}
-
 	return funcs
 }
 
-func namedFuncsToServices1[A, R any](namedFuncs []NamedFunc[func(context.Context, A) (R, error)]) []*servicequeue.Service1[A, R] {
-	return slices.Map(namedFuncs, func(it NamedFunc[func(context.Context, A) (R, error)]) *servicequeue.Service1[A, R] {
-		return servicequeue.NewService1(it.Name, it.Func)
+func namedFuncsToServices1[A, R any](namedFuncs []Named[func(context.Context, A) (R, error)]) []*servicequeue.Service1[A, R] {
+	return slices.Map(namedFuncs, func(it Named[func(context.Context, A) (R, error)]) *servicequeue.Service1[A, R] {
+		return servicequeue.NewService1(it.Name, it.Item)
 	})
 }
 
-func namedFuncsToServices2[A, B, R any](namedFuncs []NamedFunc[func(context.Context, A, B) (R, error)]) []*servicequeue.Service2[A, B, R] {
-	return slices.Map(namedFuncs, func(it NamedFunc[func(context.Context, A, B) (R, error)]) *servicequeue.Service2[A, B, R] {
-		return servicequeue.NewService2(it.Name, it.Func)
+func namedFuncsToServices2[A, B, R any](namedFuncs []Named[func(context.Context, A, B) (R, error)]) []*servicequeue.Service2[A, B, R] {
+	return slices.Map(namedFuncs, func(it Named[func(context.Context, A, B) (R, error)]) *servicequeue.Service2[A, B, R] {
+		return servicequeue.NewService2(it.Name, it.Item)
 	})
 }
 
-func toNamedFuncs[F any](servicesDefinitions []allServicesDefinitionItem, selector func(it AllServicesDefinition) F) []NamedFunc[F] {
-	var funcs []NamedFunc[F]
+func toNamedFuncs[F any](servicesDefinitions []allServicesDefinitionItem, selector func(it AllServicesDefinition) F) []Named[F] {
+	var funcs []Named[F]
 	for _, it := range servicesDefinitions {
-		f := selector(it.AllServicesDefinition)
-		if reflect.ValueOf(f).IsNil() {
+		theFunc := selector(it.Item)
+		if reflect.ValueOf(theFunc).IsNil() {
 			continue
 		}
 
-		funcs = append(funcs, NamedFunc[F]{Name: it.Name, Func: f})
+		funcs = append(funcs, Named[F]{Name: it.Name, Item: theFunc})
 	}
 	return funcs
 }
@@ -93,36 +91,29 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 	bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
 	bhsService := bhs.New(options.RestyClientFactory.New(), logger, config.Chain, config.BHS)
 
-	var servicesDefinition []allServicesDefinitionItem
+	var predefined []allServicesDefinitionItem
 
 	if config.WhatsOnChain.Enabled {
-		servicesDefinition = append(servicesDefinition, allServicesDefinitionItem{
-			Name:     whatsonchain.ServiceName,
-			Priority: 4,
-			AllServicesDefinition: AllServicesDefinition{
+		predefined = append(predefined, allServicesDefinitionItem{
+			Name: whatsonchain.ServiceName,
+			Item: AllServicesDefinition{
 				RawTx: wocService.RawTx,
 			},
 		})
 	}
 
 	if config.Bitails.Enabled {
-		servicesDefinition = append(servicesDefinition, allServicesDefinitionItem{
-			Name:     bitails.ServiceName,
-			Priority: 2,
-			AllServicesDefinition: AllServicesDefinition{
+		predefined = append(predefined, allServicesDefinitionItem{
+			Name: bitails.ServiceName,
+			Item: AllServicesDefinition{
 				RawTx: bitailsService.RawTx,
 			},
 		})
 	}
 
-	for _, item := range options.servicesDefinitionItems {
-		// TODO: Check if names collide
-		servicesDefinition = append(servicesDefinition, item)
-	}
-	// Sort by priority descending
-	stdslices.SortFunc(servicesDefinition, func(a, b allServicesDefinitionItem) int {
-		return b.Priority - a.Priority
-	})
+	servicesDefinition := append(options.servicesDefinitionItems, predefined...)
+	// TODO: Check for duplicate names in servicesDefinition
+	// TODO Log what services are enabled
 
 	return &WalletServices{
 		chain:        config.Chain,
@@ -143,7 +134,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		postBEEFServices: servicequeue.NewQueue2(
 			logger,
 			"PostBEEF",
-			namedFuncsToServices2(applyModifierIfExists(options.PostBEEFMethodsModifier, []NamedFunc[PostBEEFFunc]{
+			namedFuncsToServices2(applyModifierIfExists(options.PostBEEFMethodsModifier, []Named[PostBEEFFunc]{
 				{arc.ServiceName, arcService.PostBEEF},
 				{whatsonchain.ServiceName, wocService.PostBEEF},
 				{bitails.ServiceName, bitailsService.PostBEEF},

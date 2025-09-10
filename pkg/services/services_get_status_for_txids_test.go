@@ -195,7 +195,7 @@ func TestWalletServices_GetStatusForTxIDs_Success_Multiple_Bitails(t *testing.T)
 		fix.Bitails().WillReturnTxStatusMined(txid, 100)
 	}
 
-	svc := fix.Services().New(testservices.WithEnabledBitails(true))
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
@@ -229,7 +229,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_Mixed(t *testing.T) {
 	fix.Bitails().WillReturnTxStatusUnconfirmed(unconfTx)
 	fix.Bitails().WillReturnTxStatusNotFound(notFoundTx)
 
-	svc := fix.Services().New(testservices.WithEnabledBitails(true))
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{minedTx, unconfTx, notFoundTx})
@@ -275,7 +275,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_NoStatusFound(t *testing.T) {
 		fix.Bitails().WillReturnTxStatusNotFound(tx)
 	}
 
-	svc := fix.Services().New(testservices.WithEnabledBitails(true))
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), txIDs)
@@ -294,7 +294,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_AllProvidersFail(t *testing.T)
 	require.Error(t, err)
 	fix.Bitails().WillReturnNetworkInfo(http.StatusInternalServerError, 0)
 
-	svc := fix.Services().New(testservices.WithEnabledBitails(true))
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{
@@ -321,7 +321,7 @@ func TestWalletServices_GetStatusForTxIDs_Bitails_ContextCancelled(t *testing.T)
 			return nil, context.Canceled
 		})
 
-	svc := fix.Services().New(testservices.WithEnabledBitails(true))
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(ctx, []string{

@@ -66,7 +66,7 @@ func TestWalletServices_NLockTimeIsFinal_Fallbacks(t *testing.T) {
 		require.Error(t, err)
 		given.Bitails().WillReturnNetworkInfo(http.StatusOK, bitTip)
 
-		svc := given.Services().New(testservices.WithEnabledBitails(true))
+		svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		got, err := svc.NLockTimeIsFinal(t.Context(), bitTip-1)
@@ -86,7 +86,7 @@ func TestWalletServices_NLockTimeIsFinal_Fallbacks(t *testing.T) {
 		given.BHS().OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(uint(bhsTip)))
 		given.BHS().IsUpAndRunning()
 
-		svc := given.Services().New(testservices.WithEnabledBitails(true))
+		svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		got, err := svc.NLockTimeIsFinal(t.Context(), bhsTip-1)
@@ -107,7 +107,7 @@ func TestWalletServices_NLockTimeIsFinal_AllProvidersFail(t *testing.T) {
 	err = given.BHS().WillBeUnreachable()
 	require.Error(t, err)
 
-	svc := given.Services().New(testservices.WithEnabledBitails(true))
+	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	_, err = svc.NLockTimeIsFinal(t.Context(), uint32(400_000_000))
@@ -149,7 +149,7 @@ func TestWalletServices_NLockTimeIsFinal_TimestampPath(t *testing.T) {
 			now := uint32(time.Now().Unix())
 
 			given := testservices.GivenServices(t)
-			svc := given.Services().New(testservices.WithEnabledBitails(true))
+			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			lt := c.lockTime(now)
 			want := c.expect(now)

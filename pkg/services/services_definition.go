@@ -7,9 +7,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-type NamedFunc[F any] struct {
+type Named[T any] struct {
 	Name string
-	Func F
+	Item T
 }
 
 type RawTxFunc = func(ctx context.Context, txID string) (*wdk.RawTxResult, error)
@@ -19,8 +19,4 @@ type AllServicesDefinition struct {
 	RawTx RawTxFunc
 }
 
-type allServicesDefinitionItem struct {
-	AllServicesDefinition
-	Name     string
-	Priority int
-}
+type allServicesDefinitionItem = Named[AllServicesDefinition]

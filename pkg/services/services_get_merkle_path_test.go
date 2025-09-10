@@ -214,7 +214,7 @@ func TestGetMerklePath(t *testing.T) {
 		})
 		given.Bitails().WillReturnTxStatus(txID, btst.TestBlockHeight)
 
-		services := given.Services().New(testservices.WithEnabledBitails(true))
+		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		response, err := services.MerklePath(t.Context(), txID)

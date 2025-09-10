@@ -192,7 +192,7 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 			// given:
 			fix := testservices.GivenServices(t)
 			tc.setup(fix)
-			svc := fix.Services().New(testservices.WithEnabledBitails(true))
+			svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			ok, err := svc.IsValidRootForHeight(t.Context(), tc.root, height)
@@ -224,7 +224,7 @@ func TestWalletServices_IsValidRootForHeight_Bitails_ContextCancelled(t *testing
 			return nil, context.Canceled
 		})
 
-	svc := fix.Services().New(testservices.WithEnabledBitails(true))
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	ok, err := svc.IsValidRootForHeight(ctx, root, height)
@@ -292,7 +292,7 @@ func TestWalletServices_IsValidRootForHeight_BHS(t *testing.T) {
 			// given:
 			given := testservices.GivenServices(t)
 			tc.setup(given)
-			svc := given.Services().New(testservices.WithEnabledBitails(true))
+			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			ok, err := svc.IsValidRootForHeight(t.Context(), tc.root, bhsHeight)
@@ -311,7 +311,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_Unreachable(t *testing.T) {
 	_ = given.Bitails().WillBeUnreachable()
 	target := given.BHS().WillBeUnreachable()
 
-	svc := given.Services().New(testservices.WithEnabledBitails(true))
+	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 	root, err := chainhash.NewHashFromHex(rootHex)
 	require.NoError(t, err)
 
@@ -341,7 +341,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled_DuringCall(t *
 			return nil, context.Canceled
 		})
 
-	svc := given.Services().New(testservices.WithEnabledBitails(true))
+	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)
@@ -360,7 +360,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextAlreadyCancelled(t *test
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
 
-	svc := given.Services().New(testservices.WithEnabledBitails(true))
+	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)

@@ -47,7 +47,7 @@ func TestRawTxSuccess(t *testing.T) {
 		rawTxHex := "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1703117b1900000000005f7c477c327c437c5f0006000000ffffffff016e2e5702000000001976a9147a112f6a373b80b4ebb2b02acef97f35aef7494488ac00000000"
 		given.Bitails().WillReturnRawTxHex(txID, rawTxHex)
 
-		services := given.Services().New(testservices.WithEnabledBitails(true))
+		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		decodedTx, err := hex.DecodeString(rawTxHex)
 		require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestRawTxFailure(t *testing.T) {
 		txID := "abc123"
 		given.Bitails().WillReturnRawTxHex(txID, "bad-$$$-hex")
 
-		services := given.Services().New(testservices.WithEnabledBitails(true))
+		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		_, err := services.RawTx(t.Context(), txID)
@@ -276,7 +276,7 @@ func TestWalletServices_RawTx_ErrorCases(t *testing.T) {
 			given := testservices.GivenServices(t)
 			tc.setup(given)
 
-			svc := given.Services().New(testservices.WithEnabledBitails(true))
+			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			_, err := svc.RawTx(t.Context(), txID)

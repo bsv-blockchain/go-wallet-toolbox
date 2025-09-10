@@ -9,8 +9,8 @@ import (
 
 type Options struct {
 	RestyClientFactory      *httpx.RestyClientFactory
-	RawTxMethodsModifier    func([]NamedFunc[RawTxFunc]) []NamedFunc[RawTxFunc]
-	PostBEEFMethodsModifier func([]NamedFunc[PostBEEFFunc]) []NamedFunc[PostBEEFFunc]
+	RawTxMethodsModifier    func([]Named[RawTxFunc]) []Named[RawTxFunc]
+	PostBEEFMethodsModifier func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]
 
 	servicesDefinitionItems []allServicesDefinitionItem
 }
@@ -31,23 +31,22 @@ func WithRestyClient(client *resty.Client) func(*Options) {
 	}
 }
 
-func WithServicesDefinition(priority int, name string, servicesDef AllServicesDefinition) func(*Options) {
+func WithServicesDefinition(name string, servicesDef AllServicesDefinition) func(*Options) {
 	return func(o *Options) {
 		o.servicesDefinitionItems = append(o.servicesDefinitionItems, allServicesDefinitionItem{
-			AllServicesDefinition: servicesDef,
-			Priority:              priority,
-			Name:                  name,
+			Name: name,
+			Item: servicesDef,
 		})
 	}
 }
 
-func WithRawTxMethodsModifier(modifier func([]NamedFunc[RawTxFunc]) []NamedFunc[RawTxFunc]) func(*Options) {
+func WithRawTxMethodsModifier(modifier func([]Named[RawTxFunc]) []Named[RawTxFunc]) func(*Options) {
 	return func(o *Options) {
 		o.RawTxMethodsModifier = modifier
 	}
 }
 
-func WithPostBEEFMethodsModifier(modifier func([]NamedFunc[PostBEEFFunc]) []NamedFunc[PostBEEFFunc]) func(*Options) {
+func WithPostBEEFMethodsModifier(modifier func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]) func(*Options) {
 	return func(o *Options) {
 		o.PostBEEFMethodsModifier = modifier
 	}

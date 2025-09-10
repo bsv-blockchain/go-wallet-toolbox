@@ -205,7 +205,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 			// given:
 			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().New(testservices.WithEnabledBitails(true))
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), tc.hash)
@@ -263,7 +263,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 				return nil, context.Canceled
 			})
 
-		svc := fixture.Services().New(testservices.WithEnabledBitails(true))
+		svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
@@ -369,7 +369,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 			// given:
 			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().New(testservices.WithEnabledBitails(true))
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
@@ -482,7 +482,7 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 			// given:
 			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().New(testservices.WithEnabledBitails(true))
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), tc.hash)
@@ -628,7 +628,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 			// given:
 			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().New(testservices.WithEnabledBitails(true))
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
@@ -699,7 +699,7 @@ func TestWalletServices_GetScriptHashHistory_ConcurrentAccess(t *testing.T) {
 			WithUnconfirmedTransactions(1).
 			WillBeReturned()
 
-		svc := fixture.Services().New(testservices.WithEnabledBitails(true))
+		svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		results := make(chan interface{}, numConcurrent)
 		errors := make(chan error, numConcurrent)
