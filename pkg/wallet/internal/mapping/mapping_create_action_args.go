@@ -35,22 +35,22 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.
 		IncludeAllSourceTransactions: opts.IncludeAllSourceTransactions,
 	}
 
-	initComputableFields(wdkArgs)
+	initComputableFields(args, wdkArgs)
 
 	return *wdkArgs
 }
 
-func initComputableFields(wdkArgs *wdk.ValidCreateActionArgs) {
+func initComputableFields(args sdk.CreateActionArgs, wdkArgs *wdk.ValidCreateActionArgs) {
 	wdkArgs.IsSendWith = len(wdkArgs.Options.SendWith) > 0
 	wdkArgs.IsRemixChange = !wdkArgs.IsSendWith && len(wdkArgs.Inputs) == 0 && len(wdkArgs.Outputs) == 0
 	wdkArgs.IsNewTx = wdkArgs.IsRemixChange || len(wdkArgs.Inputs) > 0 || len(wdkArgs.Outputs) > 0
-	wdkArgs.IsSignAction = wdkArgs.IsNewTx && (!wdkArgs.Options.SignAndProcess.Value() || seq.Exists(seq.FromSlice(wdkArgs.Inputs), withoutUnlockingScript))
+	wdkArgs.IsSignAction = wdkArgs.IsNewTx && (!wdkArgs.Options.SignAndProcess.Value() || seq.Exists(seq.FromSlice(args.Inputs), withoutUnlockingScript))
 	wdkArgs.IsDelayed = wdkArgs.Options.AcceptDelayedBroadcast.Value()
 	wdkArgs.IsNoSend = wdkArgs.Options.NoSend.Value()
 }
 
-func withoutUnlockingScript(input wdk.ValidCreateActionInput) bool {
-	return input.UnlockingScript != nil
+func withoutUnlockingScript(input sdk.CreateActionInput) bool {
+	return input.UnlockingScript == nil
 }
 
 func mapCreateActionInput(input sdk.CreateActionInput) wdk.ValidCreateActionInput {

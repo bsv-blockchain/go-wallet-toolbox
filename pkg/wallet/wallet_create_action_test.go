@@ -178,6 +178,65 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			WithSpendable(true).
 			WithBasket("")
 	})
+
+	s.Run("return signable transaction when input unlocking script is not provided", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		txInput := given.InputForUser(testusers.Alice).WithNoUnlockingScript().WithSatoshis(topUpValue)
+		given.Services().BHS().OnMerkleRootVerifyResponse(txInput.BlockHeight(), txInput.MerklePath().Hex(), "CONFIRMED")
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false), walletargs.WithInput(txInput))
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+		require.NotNil(t, result.SignableTransaction, "Wallet result without sign&process contain signable transaction")
+		assert.NotEmpty(t, result.SignableTransaction.Reference, "Signable transaction should have reference")
+
+		// and:
+		require.NotEmpty(t, result.SignableTransaction.Tx, "Signable transaction should have transaction bytes")
+
+		thenTx := asserttx.RestoredFromBEEFBytes(t, result.SignableTransaction.Tx)
+
+		thenTx.HasInputsThatFundsOutputs().HasMinimalFee()
+
+		thenTx.Inputs().AllHaveUnlockingScript().HasTotalInputValue(topUpValue)
+
+		thenTx.Outputs().AllHaveLockingScript()
+
+		thenTx.Output(0).
+			HasLockingScript(args.Outputs[0].LockingScript).
+			HasSatoshis(args.Outputs[0].Satoshis).
+			IsNotChange()
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(0)
+		thenCreatedAction.
+			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(topUpValue - int64(args.Outputs[0].Satoshis) - fee)
+	})
 }
 
 func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
@@ -952,6 +1011,6 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		_, err = bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
 
 		// then:
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 }
