@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
@@ -985,8 +986,26 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		// and:
 		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
 
+		// // `{"derivationPrefix":"bPRI9FYwsIo=","derivationSuffix":"FdjLdpnLnJM=","type":"BRC29"}`
+		// key := brc29.KeyID{
+		// 	DerivationPrefix: "bPRI9FYwsIo",
+		// 	DerivationSuffix: "FdjLdpnLnJM",
+		// }
+
+		// locking, err := brc29.LockForCounterparty(testusers.Alice.PrivateKey(t), key, testusers.Bob.PublicKey(t))
+		// require.NoError(t, err)
+
+		locking := script.Script{
+			script.Op3,
+			script.OpEQUAL,
+		}
+
 		// when:
+		// aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, WithBRC29LockingScript(locking, key))
+		// aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, WithBRC29LockingScript(locking), WithCustomInstructions(keyID))
+		// aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, WithLockingScript(locking)) // w tej sytuacji CustomInstructions = nil
 		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t)
+		aliceArgs.Outputs[0].LockingScript = locking
 
 		firstResult, err := aliceWallet.CreateAction(t.Context(), aliceArgs, fixtures.DefaultOriginator)
 
@@ -995,22 +1014,31 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		require.NotEmpty(t, firstResult.Tx, "Alice wallet should return transaction BEEF bytes")
 		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
+		// unlockingScript, err := brc29.Unlock(testusers.Alice.PublicKey(t), key, testusers.Bob.PrivateKey(t))
+		// require.NoError(t, err)
+
+		unlockingScript := script.Script{
+			script.Op3,
+		}
+
 		// when:
 		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t, func(args *sdk.CreateActionArgs) {
 			args.Outputs = nil
 			args.Inputs = []sdk.CreateActionInput{
 				{
-					Outpoint:              transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
-					InputDescription:      "got from alice",
-					UnlockingScriptLength: 106,
+					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
+					InputDescription: "got from alice",
+					UnlockingScript:  unlockingScript,
 				},
 			}
 			args.InputBEEF = firstResult.Tx
 		})
 
-		_, err = bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
+		bobsResult, err := bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
 
 		// then:
 		require.NoError(t, err)
+
+		fmt.Printf("%+v", bobsResult)
 	})
 }
