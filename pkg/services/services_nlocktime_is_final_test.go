@@ -86,7 +86,7 @@ func TestWalletServices_NLockTimeIsFinal_Fallbacks(t *testing.T) {
 		given.BHS().OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(uint(bhsTip)))
 		given.BHS().IsUpAndRunning()
 
-		svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 		// when:
 		got, err := svc.NLockTimeIsFinal(t.Context(), bhsTip-1)

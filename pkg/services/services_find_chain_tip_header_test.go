@@ -27,7 +27,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		expectedBlock, err := bitails.ConvertHeader(raw, uint32(height))
 		require.NoError(t, err)
 
-		service := given.Services().New()
+		service := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())
@@ -50,7 +50,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 
 		// and:
-		service := given.Services().New()
+		service := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())
@@ -89,7 +89,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		target3 := given.Bitails().WillBeUnreachable()
 
 		// and:
-		service := given.Services().New()
+		service := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())

@@ -170,3 +170,9 @@ func WithEnabledBitails(enabled bool) func(*defs.WalletServices) {
 		ws.Bitails.Enabled = enabled
 	}
 }
+
+func WithEnabledBHS(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.BHS.Enabled = enabled
+	}
+}

@@ -26,5 +26,5 @@ type HeightProvider interface {
 
 // BlockHeaderLoader is an interface that provides the block chain block header with given height.
 type BlockHeaderLoader interface {
-	GetChainHeaderByHeight(ctx context.Context, height uint32) (*ChainBaseBlockHeader, error)
+	ChainHeaderByHeight(ctx context.Context, height uint32) (*ChainBaseBlockHeader, error)
 }

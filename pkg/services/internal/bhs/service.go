@@ -54,7 +54,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
-func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
 	url, err := headerByHeight(b.cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("error building URL: %w", err)

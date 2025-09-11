@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -23,23 +24,23 @@ import (
 
 // WalletServices is a struct that contains services used by a wallet
 type WalletServices struct {
-	logger       *slog.Logger
-	chain        defs.BSVNetwork
-	config       *defs.WalletServices
-	whatsonchain *whatsonchain.WhatsOnChain
+	logger *slog.Logger
+	chain  defs.BSVNetwork
+	config *defs.WalletServices
 
 	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
 	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
-	getMerklePathServices        servicequeue.Queue1[string, *wdk.MerklePathResult]
-	chainHeaderServices          servicequeue.Queue[*wdk.ChainBlockHeader]
-	validatorServices            servicequeue.Queue2[*chainhash.Hash, uint32, bool]
-	heightServices               servicequeue.Queue[uint32]
-	scriptHistoryServices        servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
-	blockHeaderForHeightServices servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
+	merklePathServices           servicequeue.Queue1[string, *wdk.MerklePathResult]
+	findChainTipHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
+	isValidRootForHeightServices servicequeue.Queue2[*chainhash.Hash, uint32, bool]
+	currentHeightServices        servicequeue.Queue[uint32]
+	getScriptHashHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
+	chainHeaderByHeightServices  servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
 	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
+	bsvExchangeRateServices      servicequeue.Queue[float64]
 }
 
 // New will return a new WalletServices
@@ -52,40 +53,79 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		panic("chain is required")
 	}
 
-	wocService := whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
-	arcService := arc.New(logger, options.RestyClientFactory.New(), config.ArcConfig)
-	bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
-	bhsService := bhs.New(options.RestyClientFactory.New(), logger, config.Chain, config.BHS)
-
 	var predefined []Named[Implementation]
 
+	if config.ArcConfig.Enabled {
+		arcService := arc.New(logger, options.RestyClientFactory.New(), config.ArcConfig)
+		predefined = append(predefined, Named[Implementation]{
+			Name: arc.ServiceName,
+			Item: Implementation{
+				PostBEEF:   arcService.PostBEEF,
+				MerklePath: arcService.MerklePath,
+			},
+		})
+	}
+
+	if config.BHS.Enabled {
+		bhsService := bhs.New(options.RestyClientFactory.New(), logger, config.Chain, config.BHS)
+		predefined = append(predefined, Named[Implementation]{
+			Name: bhs.ServiceName,
+			Item: Implementation{
+				FindChainTipHeader:   bhsService.FindChainTipHeader,
+				IsValidRootForHeight: bhsService.IsValidRootForHeight,
+				CurrentHeight:        bhsService.CurrentHeight,
+				ChainHeaderByHeight:  bhsService.ChainHeaderByHeight,
+			},
+		})
+	}
+
 	if config.WhatsOnChain.Enabled {
+		wocService := whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
 		predefined = append(predefined, Named[Implementation]{
 			Name: whatsonchain.ServiceName,
 			Item: Implementation{
-				RawTx: wocService.RawTx,
+				RawTx:                wocService.RawTx,
+				PostBEEF:             wocService.PostBEEF,
+				MerklePath:           wocService.MerklePath,
+				FindChainTipHeader:   wocService.FindChainTipHeader,
+				IsValidRootForHeight: wocService.IsValidRootForHeight,
+				CurrentHeight:        wocService.CurrentHeight,
+				GetScriptHashHistory: wocService.GetScriptHashHistory,
+				HashToHeader:         wocService.HashToHeader,
+				ChainHeaderByHeight:  wocService.ChainHeaderByHeight,
+				GetStatusForTxIDs:    wocService.GetStatusForTxIDs,
+				GetUtxoStatus:        wocService.GetUtxoStatus,
+				IsUtxo:               wocService.IsUtxo,
+				BsvExchangeRate:      wocService.UpdateBsvExchangeRate,
 			},
 		})
 	}
 
 	if config.Bitails.Enabled {
+		bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
 		predefined = append(predefined, Named[Implementation]{
 			Name: bitails.ServiceName,
 			Item: Implementation{
-				RawTx: bitailsService.RawTx,
+				RawTx:                bitailsService.RawTx,
+				PostBEEF:             bitailsService.PostBEEF,
+				MerklePath:           bitailsService.MerklePath,
+				FindChainTipHeader:   bitailsService.FindChainTipHeader,
+				IsValidRootForHeight: bitailsService.IsValidRootForHeight,
+				CurrentHeight:        bitailsService.CurrentHeight,
+				GetScriptHashHistory: bitailsService.GetScriptHashHistory,
+				HashToHeader:         bitailsService.HashToHeader,
+				ChainHeaderByHeight:  bitailsService.ChainHeaderByHeight,
+				GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
 			},
 		})
 	}
 
 	allImplementations := append(options.customImplementations, predefined...)
-	// TODO: Check for duplicate names in allImplementations
-	// TODO Log what services are enabled
 
-	return &WalletServices{
-		chain:        config.Chain,
-		config:       &config,
-		logger:       logger,
-		whatsonchain: wocService,
+	walletServices := &WalletServices{
+		chain:  config.Chain,
+		config: &config,
+		logger: logger,
 
 		rawTxServices: servicequeue.NewQueue1(
 			logger,
@@ -100,92 +140,165 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		postBEEFServices: servicequeue.NewQueue2(
 			logger,
 			"PostBEEF",
-			namedFuncsToServices2(applyModifierIfExists(options.PostBEEFMethodsModifier, []Named[PostBEEFFunc]{
-				{arc.ServiceName, arcService.PostBEEF},
-				{whatsonchain.ServiceName, wocService.PostBEEF},
-				{bitails.ServiceName, bitailsService.PostBEEF},
-			}))...,
+			namedFuncsToServices2(
+				applyModifierIfExists(options.PostBEEFMethodsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostBEEFFunc {
+						return it.PostBEEF
+					})))...,
 		),
 
-		getMerklePathServices: servicequeue.NewQueue1(
+		merklePathServices: servicequeue.NewQueue1(
 			logger,
 			"MerklePath",
-			servicequeue.NewService1(arc.ServiceName, arcService.MerklePath),
-			servicequeue.NewService1(whatsonchain.ServiceName, wocService.MerklePath),
-			servicequeue.NewService1(bitails.ServiceName, bitailsService.MerklePath),
+			namedFuncsToServices1(
+				applyModifierIfExists(options.MerklePathMethodsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) MerklePathFunc {
+						return it.MerklePath
+					})))...,
 		),
 
-		chainHeaderServices: servicequeue.NewQueue(
+		findChainTipHeaderServices: servicequeue.NewQueue(
 			logger,
 			"FindChainTipHeader",
-			servicequeue.NewService(bitails.ServiceName, bitailsService.FindChainTipHeader),
-			servicequeue.NewService(whatsonchain.ServiceName, wocService.FindChainTipHeader),
-			servicequeue.NewService(bhs.ServiceName, bhsService.FindChainTipHeader),
+			namedFuncsToServices(
+				applyModifierIfExists(options.FindChainTipHeaderModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) FindChainTipHeaderFunc {
+						return it.FindChainTipHeader
+					})))...,
 		),
 
-		validatorServices: servicequeue.NewQueue2(
+		isValidRootForHeightServices: servicequeue.NewQueue2(
 			logger,
 			"IsValidRootForHeight",
-			servicequeue.NewService2(bhs.ServiceName, bhsService.IsValidRootForHeight),
-			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsValidRootForHeight),
-			servicequeue.NewService2(bitails.ServiceName, bitailsService.IsValidRootForHeight),
+			namedFuncsToServices2(
+				applyModifierIfExists(options.IsValidRootForHeightModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsValidRootForHeightServicesFunc {
+						return it.IsValidRootForHeight
+					})))...,
 		),
 
-		heightServices: servicequeue.NewQueue(
+		currentHeightServices: servicequeue.NewQueue(
 			logger,
 			"CurrentHeight",
-			servicequeue.NewService(bhs.ServiceName, bhsService.CurrentHeight),
-			servicequeue.NewService(whatsonchain.ServiceName, wocService.CurrentHeight),
-			servicequeue.NewService(bitails.ServiceName, bitailsService.CurrentHeight),
+			namedFuncsToServices(
+				applyModifierIfExists(options.CurrentHeightModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) CurrentHeightFunc {
+						return it.CurrentHeight
+					})))...,
 		),
 
-		scriptHistoryServices: servicequeue.NewQueue1(
+		getScriptHashHistoryServices: servicequeue.NewQueue1(
 			logger,
 			"GetScriptHashHistory",
-			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetScriptHashHistory),
-			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetScriptHashHistory),
+			namedFuncsToServices1(
+				applyModifierIfExists(options.GetScriptHashHistoryModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetScriptHashHistoryFunc {
+						return it.GetScriptHashHistory
+					})))...,
 		),
 
 		hashToHeaderServices: servicequeue.NewQueue1(
 			logger,
 			"HashToHeader",
-			servicequeue.NewService1(bitails.ServiceName, bitailsService.HashToHeader),
-			servicequeue.NewService1(whatsonchain.ServiceName, wocService.HashToHeader),
+			namedFuncsToServices1(
+				applyModifierIfExists(options.HashToHeaderModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) HashToHeaderFunc {
+						return it.HashToHeader
+					})))...,
 		),
 
-		blockHeaderForHeightServices: servicequeue.NewQueue1(
+		chainHeaderByHeightServices: servicequeue.NewQueue1(
 			logger,
-			"GetChainHeaderByHeight",
-			servicequeue.NewService1(bhs.ServiceName, bhsService.GetChainHeaderByHeight),
-			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetChainHeaderByHeight),
-			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetChainHeaderByHeight),
+			"ChainHeaderByHeight",
+			namedFuncsToServices1(
+				applyModifierIfExists(options.ChainHeaderByHeightModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) ChainHeaderByHeightFunc {
+						return it.ChainHeaderByHeight
+					})))...,
 		),
 
 		getStatusForTxIDsServices: servicequeue.NewQueue1(
 			logger,
 			"GetStatusForTxIDs",
-			servicequeue.NewService1(whatsonchain.ServiceName, wocService.GetStatusForTxIDs),
-			servicequeue.NewService1(bitails.ServiceName, bitailsService.GetStatusForTxIDs),
+			namedFuncsToServices1(
+				applyModifierIfExists(options.GetStatusForTxIDsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetStatusForTxIDsFunc {
+						return it.GetStatusForTxIDs
+					})))...,
 		),
 
 		getUtxoStatusServices: servicequeue.NewQueue2(
 			logger,
 			"GetUtxoStatus",
-			servicequeue.NewService2(whatsonchain.ServiceName, wocService.GetUtxoStatus),
+			namedFuncsToServices2(
+				applyModifierIfExists(options.GetUtxoStatusModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetUtxoStatusFunc {
+						return it.GetUtxoStatus
+					})))...,
 		),
 
 		isUtxoServices: servicequeue.NewQueue2(
 			logger,
 			"IsUtxo",
-			servicequeue.NewService2(whatsonchain.ServiceName, wocService.IsUtxo),
+			namedFuncsToServices2(
+				applyModifierIfExists(options.IsUtxoModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsUtxo {
+						return it.IsUtxo
+					})))...,
+		),
+
+		bsvExchangeRateServices: servicequeue.NewQueue(
+			logger,
+			"BsvExchangeRate",
+			namedFuncsToServices(
+				applyModifierIfExists(options.BsvExchangeRateModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) BsvExchangeRateFunc {
+						return it.BsvExchangeRate
+					})))...,
 		),
 	}
+
+	walletServices.logActiveServices()
+	return walletServices
+}
+
+func (s *WalletServices) logActiveServices() {
+	if !s.logger.Enabled(nil, slog.LevelDebug) {
+		return
+	}
+
+	type loggable interface {
+		GetNames() (methodName string, serviceNames []string)
+	}
+
+	services := []loggable{
+		&s.rawTxServices,
+		&s.postBEEFServices,
+		&s.merklePathServices,
+		&s.findChainTipHeaderServices,
+		&s.isValidRootForHeightServices,
+		&s.currentHeightServices,
+		&s.getScriptHashHistoryServices,
+		&s.hashToHeaderServices,
+		&s.chainHeaderByHeightServices,
+		&s.getStatusForTxIDsServices,
+		&s.getUtxoStatusServices,
+		&s.isUtxoServices,
+		&s.bsvExchangeRateServices,
+	}
+
+	logAttrs := slices.Map(services, func(e loggable) any {
+		methodName, serviceNames := e.GetNames()
+		return slog.String(methodName, strings.Join(serviceNames, ","))
+	})
+
+	s.logger.Debug("active service methods", logAttrs...)
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
 // and returns the most recent block header (chain tip) available.
 func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-	result, err := s.chainHeaderServices.OneByOne(ctx)
+	result, err := s.findChainTipHeaderServices.OneByOne(ctx)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
 			return nil, fmt.Errorf("unable to determine chain tip: all chain header services failed to return a result: %w", err)
@@ -207,9 +320,9 @@ func (s *WalletServices) RawTx(ctx context.Context, txID string) (wdk.RawTxResul
 	return *result, nil
 }
 
-// GetChainHeaderByHeight returns serialized block header for given height on active chain.
-func (s *WalletServices) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
-	h, err := s.blockHeaderForHeightServices.OneByOne(ctx, height)
+// ChainHeaderByHeight returns serialized block header for given height on active chain.
+func (s *WalletServices) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+	h, err := s.chainHeaderByHeightServices.OneByOne(ctx, height)
 	if err != nil {
 		return nil, fmt.Errorf("unable to determine block header: all block header height services failed to return a result: %w", err)
 	}
@@ -218,7 +331,7 @@ func (s *WalletServices) GetChainHeaderByHeight(ctx context.Context, height uint
 
 // CurrentHeight returns the height of the active chain
 func (s *WalletServices) CurrentHeight(ctx context.Context) (uint32, error) {
-	h, err := s.heightServices.OneByOne(ctx)
+	h, err := s.currentHeightServices.OneByOne(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("all CurrentHeight providers failed: %w", err)
 	}
@@ -227,13 +340,13 @@ func (s *WalletServices) CurrentHeight(ctx context.Context) (uint32, error) {
 
 // BsvExchangeRate returns approximate exchange rate US Dollar / BSV, USD / BSV
 // This is the US Dollar price of one BSV
-func (s *WalletServices) BsvExchangeRate() (float64, error) {
-	bsvExchangeRate, err := s.whatsonchain.UpdateBsvExchangeRate()
+func (s *WalletServices) BsvExchangeRate(ctx context.Context) (float64, error) {
+	bsvExchangeRate, err := s.bsvExchangeRateServices.OneByOne(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("error during bsvExchangeRate: %w", err)
 	}
 
-	return bsvExchangeRate.Rate, nil
+	return bsvExchangeRate, nil
 }
 
 // FiatExchangeRate returns approximate exchange rate currency per base.
@@ -243,7 +356,7 @@ func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Cur
 
 // MerklePath attempts to obtain the merkle proof associated with a 32 byte transaction hash (txid).
 func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.MerklePathResult, error) {
-	result, err := s.getMerklePathServices.OneByOne(ctx, txid)
+	result, err := s.merklePathServices.OneByOne(ctx, txid)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
 			return nil, fmt.Errorf("transaction with txID: %s not found: %w", txid, wdk.NotFoundError)
@@ -289,7 +402,7 @@ func (s *WalletServices) UtxoStatus(
 
 // IsValidRootForHeight verifies the Merkle-root for a block height.
 func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
-	ok, err := s.validatorServices.OneByOne(ctx, root, height)
+	ok, err := s.isValidRootForHeightServices.OneByOne(ctx, root, height)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
 			return false, fmt.Errorf("all IsValidRootForHeight providers failed for height %d", height)
@@ -301,7 +414,7 @@ func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainha
 
 // GetScriptHashHistory retrieves both confirmed and unconfirmed transaction history for a script hash
 func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-	result, err := s.scriptHistoryServices.OneByOne(ctx, scriptHash)
+	result, err := s.getScriptHashHistoryServices.OneByOne(ctx, scriptHash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
 			return nil, fmt.Errorf("script hash %s not found in history", scriptHash)

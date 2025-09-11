@@ -16,6 +16,12 @@ func applyModifierIfExists[F any](modifier func([]Named[F]) []Named[F], predefin
 	return funcs
 }
 
+func namedFuncsToServices[R any](namedFuncs []Named[func(context.Context) (R, error)]) []*servicequeue.Service[R] {
+	return slices.Map(namedFuncs, func(it Named[func(context.Context) (R, error)]) *servicequeue.Service[R] {
+		return servicequeue.NewService(it.Name, it.Item)
+	})
+}
+
 func namedFuncsToServices1[A, R any](namedFuncs []Named[func(context.Context, A) (R, error)]) []*servicequeue.Service1[A, R] {
 	return slices.Map(namedFuncs, func(it Named[func(context.Context, A) (R, error)]) *servicequeue.Service1[A, R] {
 		return servicequeue.NewService1(it.Name, it.Item)

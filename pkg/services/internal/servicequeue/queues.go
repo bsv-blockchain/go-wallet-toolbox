@@ -30,6 +30,7 @@ type Queue[R any] struct {
 
 func NewQueue[R any](logger *slog.Logger, methodName string, services ...*Service[R]) Queue[R] {
 	logger = logging.Child(logger, "services."+methodName)
+	logIfNamesAreNotUnique(services, logger)
 
 	return Queue[R]{
 		logger:     logger,
@@ -53,6 +54,16 @@ func (q *Queue[R]) OneByOne(ctx context.Context) (R, error) {
 	})
 }
 
+// GetNames returns the method name and a slice of service names from the Queue1 instance.
+func (q *Queue[R]) GetNames() (methodName string, serviceNames []string) {
+	methodName = q.methodName
+	serviceNames = make([]string, len(q.services))
+	for i, s := range q.services {
+		serviceNames[i] = s.Name()
+	}
+	return
+}
+
 // Queue1 is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
 // Services are functions accepting a context and an argument and returning a result or an error.
 // For different number of arguments see Queue, Queue2, and Queue3.
@@ -64,6 +75,7 @@ type Queue1[A, R any] struct {
 
 func NewQueue1[A, R any](logger *slog.Logger, methodName string, services ...*Service1[A, R]) Queue1[A, R] {
 	logger = logging.Child(logger, "services."+methodName)
+	logIfNamesAreNotUnique(services, logger)
 
 	return Queue1[A, R]{
 		logger:     logger,
@@ -88,6 +100,16 @@ func (q *Queue1[A, R]) OneByOne(ctx context.Context, a A) (R, error) {
 	})
 }
 
+// GetNames returns the method name and a slice of service names from the Queue1 instance.
+func (q *Queue1[A, R]) GetNames() (methodName string, serviceNames []string) {
+	methodName = q.methodName
+	serviceNames = make([]string, len(q.services))
+	for i, s := range q.services {
+		serviceNames[i] = s.Name()
+	}
+	return
+}
+
 // Queue2 is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
 // Services are functions accepting a context and two arguments and returning a result or an error.
 // For different number of arguments see Queue, Queue1, and Queue3.
@@ -99,6 +121,7 @@ type Queue2[A, B, R any] struct {
 
 func NewQueue2[A, B, R any](logger *slog.Logger, methodName string, services ...*Service2[A, B, R]) Queue2[A, B, R] {
 	logger = logging.Child(logger, "services."+methodName)
+	logIfNamesAreNotUnique(services, logger)
 
 	return Queue2[A, B, R]{
 		logger:     logger,
@@ -123,6 +146,16 @@ func (q *Queue2[A, B, R]) OneByOne(ctx context.Context, a A, b B) (R, error) {
 	})
 }
 
+// GetNames returns the method name and a slice of service names from the Queue1 instance.
+func (q *Queue2[A, B, R]) GetNames() (methodName string, serviceNames []string) {
+	methodName = q.methodName
+	serviceNames = make([]string, len(q.services))
+	for i, s := range q.services {
+		serviceNames[i] = s.Name()
+	}
+	return
+}
+
 // Queue3 is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
 // Services are functions accepting a context and three arguments and returning a result or an error.
 // For different number of arguments see Queue, Queue1, and Queue2.
@@ -134,6 +167,7 @@ type Queue3[A, B, C, R any] struct {
 
 func NewQueue3[A, B, C, R any](logger *slog.Logger, methodName string, services ...*Service3[A, B, C, R]) Queue3[A, B, C, R] {
 	logger = logging.Child(logger, "services."+methodName)
+	logIfNamesAreNotUnique(services, logger)
 
 	return Queue3[A, B, C, R]{
 		logger:     logger,
@@ -156,6 +190,16 @@ func (q *Queue3[A, B, C, R]) OneByOne(ctx context.Context, a A, b B, c C) (R, er
 	return processOneByOne(q.logger, q.services, func(s *Service3[A, B, C, R]) (R, error) {
 		return s.service(ctx, a, b, c)
 	})
+}
+
+// GetNames returns the method name and a slice of service names from the Queue1 instance.
+func (q *Queue3[A, B, C, R]) GetNames() (methodName string, serviceNames []string) {
+	methodName = q.methodName
+	serviceNames = make([]string, len(q.services))
+	for i, s := range q.services {
+		serviceNames[i] = s.Name()
+	}
+	return
 }
 
 type serv interface {
@@ -282,6 +326,18 @@ func takeUntilHaveResult[R any](seq iter.Seq[*NamedResult[R]]) iter.Seq[*NamedRe
 
 			yield(result)
 			break
+		}
+	}
+}
+
+func logIfNamesAreNotUnique[T serv](services []T, logger *slog.Logger) {
+	seen := make(map[string]struct{}, len(services))
+	for _, s := range services {
+		name := s.Name()
+		if _, exists := seen[name]; exists {
+			logger.Warn("duplicate service name detected", slog.String("service.name", name))
+		} else {
+			seen[name] = struct{}{}
 		}
 	}
 }

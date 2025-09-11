@@ -37,7 +37,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 		}
 
 		// when:
-		actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+		actualHeader, err := svc.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
 		require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 		}
 
 		// when:
-		actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+		actualHeader, err := svc.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
 		require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 	t.Run("return chain base block header when only BHS service is responsive", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 		// and:
 		given.WhatsOnChain().WillRespondWithInternalFailure()
@@ -96,7 +96,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 		}
 
 		// when:
-		actualHeader, err := svc.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+		actualHeader, err := svc.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
 		require.NoError(t, err)
@@ -113,10 +113,10 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
 
 		// and:
-		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		services := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 		// when:
-		header, err := services.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+		header, err := services.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
@@ -136,7 +136,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		response, err := services.GetChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
+		response, err := services.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
 
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
@@ -156,7 +156,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		service := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		actualBlock, err := service.GetChainHeaderByHeight(t.Context(), 0) // Assuming height 0 for empty response scenario
+		actualBlock, err := service.ChainHeaderByHeight(t.Context(), 0) // Assuming height 0 for empty response scenario
 
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)

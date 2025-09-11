@@ -292,7 +292,7 @@ func TestWalletServices_IsValidRootForHeight_BHS(t *testing.T) {
 			// given:
 			given := testservices.GivenServices(t)
 			tc.setup(given)
-			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+			svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 			// when:
 			ok, err := svc.IsValidRootForHeight(t.Context(), tc.root, bhsHeight)
@@ -311,7 +311,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_Unreachable(t *testing.T) {
 	_ = given.Bitails().WillBeUnreachable()
 	target := given.BHS().WillBeUnreachable()
 
-	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+	svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 	root, err := chainhash.NewHashFromHex(rootHex)
 	require.NoError(t, err)
 
@@ -341,7 +341,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled_DuringCall(t *
 			return nil, context.Canceled
 		})
 
-	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+	svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 	// when:
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)

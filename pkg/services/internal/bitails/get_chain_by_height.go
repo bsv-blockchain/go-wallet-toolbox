@@ -9,7 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-func (b *Bitails) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (b *Bitails) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
 	url, err := blockByHeight(b.url, height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL to retrieve block by height from Bitails: %w", err)

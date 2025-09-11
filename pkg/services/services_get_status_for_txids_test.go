@@ -158,7 +158,7 @@ func TestWalletServices_GetStatusForTxIDs_Success_Single_Bitails(t *testing.T) {
 	fix.Bitails().WillReturnNetworkInfo(http.StatusOK, 1000)
 	fix.Bitails().WillReturnTxStatusMined(txid, 991)
 
-	svc := fix.Services().New()
+	svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	res, err := svc.GetStatusForTxIDs(t.Context(), []string{txid})

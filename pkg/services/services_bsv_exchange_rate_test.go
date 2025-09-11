@@ -28,7 +28,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 			New()
 
 		// when:
-		result, err := services.BsvExchangeRate()
+		result, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.NoError(t, err)
@@ -54,7 +54,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 			New()
 
 		// when:
-		result, err := services.BsvExchangeRate()
+		result, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.NoError(t, err)
@@ -72,7 +72,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		services := given.Services().New()
 
 		// when:
-		_, err := services.BsvExchangeRate()
+		_, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.Error(t, err)
@@ -88,7 +88,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		services := given.Services().New()
 
 		// when:
-		_, err := services.BsvExchangeRate()
+		_, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.Error(t, err)
@@ -107,7 +107,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		// and:
 		services := given.Services().New()
 
-		_, err := services.BsvExchangeRate()
+		_, err := services.BsvExchangeRate(t.Context())
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported currency")
