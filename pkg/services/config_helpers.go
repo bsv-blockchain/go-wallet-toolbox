@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
+	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/slices"
 )
 
@@ -32,7 +32,7 @@ func collectSingleMethodImplementations[F any](servicesDefinitions []Named[Imple
 	var funcs []Named[F]
 	for _, it := range servicesDefinitions {
 		theFunc := selector(it.Item)
-		if reflect.ValueOf(theFunc).IsNil() {
+		if is.Nil(theFunc) {
 			continue
 		}
 
