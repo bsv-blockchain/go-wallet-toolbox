@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"reflect"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -43,39 +42,6 @@ type WalletServices struct {
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
 }
 
-func applyModifierIfExists[F any](modifier func([]Named[F]) []Named[F], predefined []Named[F]) []Named[F] {
-	funcs := predefined
-	if modifier != nil {
-		funcs = modifier(funcs)
-	}
-	return funcs
-}
-
-func namedFuncsToServices1[A, R any](namedFuncs []Named[func(context.Context, A) (R, error)]) []*servicequeue.Service1[A, R] {
-	return slices.Map(namedFuncs, func(it Named[func(context.Context, A) (R, error)]) *servicequeue.Service1[A, R] {
-		return servicequeue.NewService1(it.Name, it.Item)
-	})
-}
-
-func namedFuncsToServices2[A, B, R any](namedFuncs []Named[func(context.Context, A, B) (R, error)]) []*servicequeue.Service2[A, B, R] {
-	return slices.Map(namedFuncs, func(it Named[func(context.Context, A, B) (R, error)]) *servicequeue.Service2[A, B, R] {
-		return servicequeue.NewService2(it.Name, it.Item)
-	})
-}
-
-func toNamedFuncs[F any](servicesDefinitions []allServicesDefinitionItem, selector func(it AllServicesDefinition) F) []Named[F] {
-	var funcs []Named[F]
-	for _, it := range servicesDefinitions {
-		theFunc := selector(it.Item)
-		if reflect.ValueOf(theFunc).IsNil() {
-			continue
-		}
-
-		funcs = append(funcs, Named[F]{Name: it.Name, Item: theFunc})
-	}
-	return funcs
-}
-
 // New will return a new WalletServices
 func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)) *WalletServices {
 	options := to.OptionsWithDefault(Options{
@@ -91,28 +57,28 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 	bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
 	bhsService := bhs.New(options.RestyClientFactory.New(), logger, config.Chain, config.BHS)
 
-	var predefined []allServicesDefinitionItem
+	var predefined []Named[Implementation]
 
 	if config.WhatsOnChain.Enabled {
-		predefined = append(predefined, allServicesDefinitionItem{
+		predefined = append(predefined, Named[Implementation]{
 			Name: whatsonchain.ServiceName,
-			Item: AllServicesDefinition{
+			Item: Implementation{
 				RawTx: wocService.RawTx,
 			},
 		})
 	}
 
 	if config.Bitails.Enabled {
-		predefined = append(predefined, allServicesDefinitionItem{
+		predefined = append(predefined, Named[Implementation]{
 			Name: bitails.ServiceName,
-			Item: AllServicesDefinition{
+			Item: Implementation{
 				RawTx: bitailsService.RawTx,
 			},
 		})
 	}
 
-	servicesDefinition := append(options.servicesDefinitionItems, predefined...)
-	// TODO: Check for duplicate names in servicesDefinition
+	allImplementations := append(options.customImplementations, predefined...)
+	// TODO: Check for duplicate names in allImplementations
 	// TODO Log what services are enabled
 
 	return &WalletServices{
@@ -126,7 +92,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			"RawTx",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.RawTxMethodsModifier,
-					toNamedFuncs(servicesDefinition, func(it AllServicesDefinition) RawTxFunc {
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) RawTxFunc {
 						return it.RawTx
 					})))...,
 		),

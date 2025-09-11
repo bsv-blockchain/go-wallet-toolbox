@@ -19,7 +19,7 @@ func TestServicesConfig_SingleMethodCustomService(t *testing.T) {
 
 	// and:
 	expectedRawTx := []byte{0, 1, 2}
-	singleMethodCustomService := services.AllServicesDefinition{
+	singleMethodCustomService := services.Implementation{
 		RawTx: func(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
 			return &wdk.RawTxResult{TxID: txID, RawTx: expectedRawTx}, nil
 		},
@@ -27,7 +27,7 @@ func TestServicesConfig_SingleMethodCustomService(t *testing.T) {
 
 	// and:
 	service := given.Services().
-		Opts(services.WithServicesDefinition("custom", singleMethodCustomService)).
+		Opts(services.WithCustomImplementation("custom", singleMethodCustomService)).
 		New()
 
 	// when:

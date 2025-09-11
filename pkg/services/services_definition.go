@@ -15,8 +15,6 @@ type Named[T any] struct {
 type RawTxFunc = func(ctx context.Context, txID string) (*wdk.RawTxResult, error)
 type PostBEEFFunc = func(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error)
 
-type AllServicesDefinition struct {
+type Implementation struct {
 	RawTx RawTxFunc
 }
-
-type allServicesDefinitionItem = Named[AllServicesDefinition]

@@ -12,7 +12,7 @@ type Options struct {
 	RawTxMethodsModifier    func([]Named[RawTxFunc]) []Named[RawTxFunc]
 	PostBEEFMethodsModifier func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]
 
-	servicesDefinitionItems []allServicesDefinitionItem
+	customImplementations []Named[Implementation]
 }
 
 // WithHttpClient sets the http client for the service.
@@ -31,9 +31,9 @@ func WithRestyClient(client *resty.Client) func(*Options) {
 	}
 }
 
-func WithServicesDefinition(name string, servicesDef AllServicesDefinition) func(*Options) {
+func WithCustomImplementation(name string, servicesDef Implementation) func(*Options) {
 	return func(o *Options) {
-		o.servicesDefinitionItems = append(o.servicesDefinitionItems, allServicesDefinitionItem{
+		o.customImplementations = append(o.customImplementations, Named[Implementation]{
 			Name: name,
 			Item: servicesDef,
 		})
