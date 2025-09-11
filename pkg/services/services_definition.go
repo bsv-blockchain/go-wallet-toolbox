@@ -14,21 +14,33 @@ type Named[T any] struct {
 	Item T
 }
 
-// Possible service functions signatures.
 type (
-	RawTxFunc                        = func(ctx context.Context, txID string) (*wdk.RawTxResult, error)
-	PostBEEFFunc                     = func(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error)
-	MerklePathFunc                   = func(ctx context.Context, txID string) (*wdk.MerklePathResult, error)
-	FindChainTipHeaderFunc           = func(ctx context.Context) (*wdk.ChainBlockHeader, error)
+	// RawTxFunc is a function type for RawTx service method.
+	RawTxFunc = func(ctx context.Context, txID string) (*wdk.RawTxResult, error)
+	// PostBEEFFunc is a function type for PostBEEF service method.
+	PostBEEFFunc = func(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error)
+	// MerklePathFunc is a function type for MerklePath service method.
+	MerklePathFunc = func(ctx context.Context, txID string) (*wdk.MerklePathResult, error)
+	// FindChainTipHeaderFunc is a function type for FindChainTipHeader service method.
+	FindChainTipHeaderFunc = func(ctx context.Context) (*wdk.ChainBlockHeader, error)
+	// IsValidRootForHeightServicesFunc is a function type for IsValidRootForHeight service method.
 	IsValidRootForHeightServicesFunc = func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error)
-	CurrentHeightFunc                = func(ctx context.Context) (uint32, error)
-	GetScriptHashHistoryFunc         = func(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error)
-	HashToHeaderFunc                 = func(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
-	ChainHeaderByHeightFunc          = func(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error)
-	GetStatusForTxIDsFunc            = func(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error)
-	GetUtxoStatusFunc                = func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error)
-	IsUtxo                           = func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error)
-	BsvExchangeRateFunc              = func(ctx context.Context) (float64, error)
+	// CurrentHeightFunc is a function type for CurrentHeight service method.
+	CurrentHeightFunc = func(ctx context.Context) (uint32, error)
+	// GetScriptHashHistoryFunc is a function type for GetScriptHashHistory service method.
+	GetScriptHashHistoryFunc = func(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error)
+	// HashToHeaderFunc is a function type for HashToHeader service method.
+	HashToHeaderFunc = func(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
+	// ChainHeaderByHeightFunc is a function type for ChainHeaderByHeight service method.
+	ChainHeaderByHeightFunc = func(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error)
+	// GetStatusForTxIDsFunc is a function type for GetStatusForTxIDs service method.
+	GetStatusForTxIDsFunc = func(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error)
+	// GetUtxoStatusFunc is a function type for GetUtxoStatus service method.
+	GetUtxoStatusFunc = func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error)
+	// IsUtxo is a function type for IsUtxo service method.
+	IsUtxo = func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error)
+	// BsvExchangeRateFunc is a function type for BsvExchangeRate service method.
+	BsvExchangeRateFunc = func(ctx context.Context) (float64, error)
 )
 
 // Implementation defines all the methods that the services component supports.

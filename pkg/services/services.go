@@ -263,7 +263,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 }
 
 func (s *WalletServices) logActiveServices() {
-	if !s.logger.Enabled(nil, slog.LevelDebug) {
+	if !s.logger.Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}
 
