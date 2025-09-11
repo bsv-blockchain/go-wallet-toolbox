@@ -7,6 +7,7 @@ import (
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -25,12 +26,15 @@ const (
 	StorageTypeRemote StorageType = "remote"
 	// StorageTypeMocked represents a mocked storage type.
 	StorageTypeMocked StorageType = "mocked"
+
+	StorageTypeOwnSQLite StorageType = "own_sqlite"
 )
 
 type WalletBuilder interface {
 	WithActiveStorage(storageType StorageType) WalletBuilder
 	WithRemoteStorage() WalletBuilder
 	WithSQLiteStorage() WalletBuilder
+	WithOwnStorage() WalletBuilder
 	WithServices() WalletBuilder
 	WithWalletOpts(opts ...func(*wallet_opts.Opts)) WalletBuilder
 	ForUser(user testusers.User) *wallet.Wallet
@@ -43,6 +47,10 @@ type walletBuilder struct {
 	withServices  bool
 	givenStorage  testabilities.StorageFixture
 	walletOpts    []func(*wallet_opts.Opts)
+}
+
+func (w *walletBuilder) WithOwnStorage() WalletBuilder {
+	return w.WithActiveStorage(StorageTypeOwnSQLite)
 }
 
 func (w *walletBuilder) WithActiveStorage(storageType StorageType) WalletBuilder {
@@ -75,7 +83,7 @@ func (w *walletBuilder) WithMockedStorage() WalletBuilder {
 func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	privKey := user.PrivateKey(w)
 	keyDeriver := sdk.NewKeyDeriver(privKey)
-	activeStorage, cleanup := w.storage()
+	activeStorage, cleanup := w.storageForUser(user)
 
 	opts := slices.Clone(w.walletOpts)
 	if w.withServices {
@@ -98,9 +106,12 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	return userWallet
 }
 
-func (w *walletBuilder) storage() (storage wdk.WalletStorageProvider, cleanup func()) {
+func (w *walletBuilder) storageForUser(user testusers.User) (storage wdk.WalletStorageProvider, cleanup func()) {
 	sqliteStorage := w.givenStorage.Provider().GORM()
 	switch w.storageType {
+	case StorageTypeOwnSQLite:
+		given, cleanupFunc := testabilities.GivenCustomStorage(w, fixtures.SecondStorageIdentityKey, user.Name)
+		return given.Provider().GORM(), cleanupFunc
 	case StorageTypeSQLite:
 		return sqliteStorage, nil
 	case StorageTypeRemote:
