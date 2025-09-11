@@ -33,10 +33,10 @@ func ValidCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("create action is meant to create a new transaction")
 	}
 
+	// NOTICE: because wallet is removing unlocking scripts before sending,
+	// therefore we can only check the situation, when IsNewTx and SignAndProcess are true but IsSignAction is false
 	deducedIsSignAction := args.IsNewTx && !args.Options.SignAndProcess.Value()
 	if deducedIsSignAction && !args.IsSignAction {
-		// because wallet is removing unlocking scripts before sending,
-		// therefore we can only check the situation, when IsNewTx and SignAndProcess are true but IsSignAction is false
 		return fmt.Errorf("inconsistent IsSignAction (%v) with IsNewTx (%v) and Options.SignAndProcess (%v)", args.IsSignAction, args.IsNewTx, args.Options.SignAndProcess.Value())
 	}
 
