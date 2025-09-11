@@ -19,6 +19,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gen"
+	"gorm.io/gen/field"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -99,7 +100,7 @@ func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpe
 	dao := output.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(outputPtr, opts)...).
 		Preload(output.Transaction).
-		Where(o.conditionsBySpec(spec)...)
+		Where(o.conditionsBySpec(ctx, spec)...)
 
 	if needsTransactionJoin(spec) {
 		dao = dao.
@@ -672,7 +673,7 @@ func (o *Outputs) CountOutputs(ctx context.Context, spec *pkgentity.OutputReadSp
 
 	dao := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
-		Where(o.conditionsBySpec(spec)...)
+		Where(o.conditionsBySpec(ctx, spec)...)
 
 	if needsTransactionJoin(spec) {
 		dao = dao.
@@ -688,7 +689,7 @@ func (o *Outputs) CountOutputs(ctx context.Context, spec *pkgentity.OutputReadSp
 }
 
 // conditionsBySpec builds query conditions based on the read spec.
-func (o *Outputs) conditionsBySpec(spec *pkgentity.OutputReadSpecification) []gen.Condition {
+func (o *Outputs) conditionsBySpec(ctx context.Context, spec *pkgentity.OutputReadSpecification) []gen.Condition {
 	if spec == nil {
 		return nil
 	}
@@ -726,8 +727,49 @@ func (o *Outputs) conditionsBySpec(spec *pkgentity.OutputReadSpecification) []ge
 	if spec.TxID != nil {
 		conditions = append(conditions, cmpCondition(o.query.Transaction.TxID, spec.TxID))
 	}
+	if spec.Tags != nil {
+		conditions = append(conditions, o.tagConditions(ctx, spec.Tags)...)
+	}
 
 	return conditions
+}
+
+func (o *Outputs) tagConditions(ctx context.Context, tags *pkgentity.ComparableSet[string]) []gen.Condition {
+	var conds []gen.Condition
+	table := &o.query.Output
+	ot := &o.query.OutputTag
+
+	if tags.Empty {
+		sub := ot.WithContext(ctx).
+			Select(ot.OutputID).
+			Where(ot.OutputID.EqCol(table.ID))
+
+		return []gen.Condition{field.Not(field.CompareSubQuery(field.ExistsOp, nil, sub.UnderlyingDB()))}
+	}
+
+	if len(tags.ContainAny) > 0 {
+		sub := ot.WithContext(ctx).
+			Select(ot.OutputID).
+			Where(
+				ot.TagName.In(tags.ContainAny...),
+				ot.OutputID.EqCol(table.ID),
+			)
+		conds = append(conds, gen.Exists(sub))
+	}
+
+	if len(tags.ContainAll) > 0 {
+		for _, tag := range tags.ContainAll {
+			sub := ot.WithContext(ctx).
+				Select(ot.OutputID).
+				Where(
+					ot.TagName.Eq(tag),
+					ot.OutputID.EqCol(table.ID),
+				)
+			conds = append(conds, gen.Exists(sub))
+		}
+	}
+
+	return conds
 }
 
 func mapEntityToModelOutput(e *pkgentity.Output) *models.Output {
