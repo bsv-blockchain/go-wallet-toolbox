@@ -40,6 +40,10 @@ logging:
 monitor:
     enabled: true
     tasks:
+        check_failed_transactions:
+            enabled: true
+            interval_seconds: 600
+            start_immediately: false
         check_for_proofs:
             enabled: true
             interval_seconds: 60
