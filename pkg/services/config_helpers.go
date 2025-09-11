@@ -35,7 +35,7 @@ func namedFuncsToServices2[A, B, R any](namedFuncs []Named[func(context.Context,
 }
 
 func collectSingleMethodImplementations[F any](servicesDefinitions []Named[Implementation], selector func(it Implementation) F) []Named[F] {
-	var funcs []Named[F]
+	var funcs []Named[F] //nolint:prealloc // we don't know the size in advance
 	for _, it := range servicesDefinitions {
 		theFunc := selector(it.Item)
 		if is.Nil(theFunc) {
