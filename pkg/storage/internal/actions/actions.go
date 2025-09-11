@@ -15,6 +15,7 @@ type Actions struct {
 	*internalize
 	*process
 	*synchronizeTxStatuses
+	*recheckFailed
 	*listOutputs
 	*listActions
 	*abortAction
@@ -71,8 +72,14 @@ func New(
 		),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
+		recheckFailed:         newRecheckFailed(logger, repos.Transactions, repos.KnownTx, services),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
 		abortAction:           newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx),
 		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
+}
+
+// CheckFailedTransactions is used by monitor to re-verify failed tx statuses
+func (a *Actions) CheckFailedTransactions(ctx context.Context) error {
+	return a.recheckFailed.CheckFailedTransactions(ctx)
 }
