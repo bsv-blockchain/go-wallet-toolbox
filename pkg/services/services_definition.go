@@ -63,10 +63,10 @@ type Implementation struct {
 	BsvExchangeRate      BsvExchangeRateFunc
 }
 
-// BindImplementation creates an Implementation instance from the provided source with compatible method bindings.
+// ToImplementation creates an Implementation instance from the provided source with compatible method bindings.
 // It scans the source object for methods matching the names and signatures of Implementation's fields.
 // If a match is found and types are assignable, it sets the source method to the corresponding field in Implementation.
-func BindImplementation(source any) Implementation {
+func ToImplementation(source any) Implementation {
 	target := &Implementation{}
 	sourceVal := reflect.ValueOf(source)
 	targetVal := reflect.ValueOf(target).Elem()

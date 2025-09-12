@@ -2,78 +2,49 @@ package services_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var mockTxID = testvectors.GivenTX().WithInput(10).WithP2PKHOutput(9).ID().String()
 
 func TestServicesConfig_CustomServiceImplementation(t *testing.T) {
+	// given:
 	given := testservices.GivenServices(t)
-	counter := 0
+	mock := &mockImplementation{}
 
 	// and:
-	customImplementation := services.Implementation{
-		RawTx: func(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
-			counter++
-			return &wdk.RawTxResult{}, nil
-		},
-		PostBEEF: func(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
-			counter++
-			return &wdk.PostedBEEF{}, nil
-		},
-		MerklePath: func(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
-			counter++
-			return &wdk.MerklePathResult{}, nil
-		},
-		FindChainTipHeader: func(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-			counter++
-			return &wdk.ChainBlockHeader{}, nil
-		},
-		IsValidRootForHeight: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
-			counter++
-			return true, nil
-		},
-		CurrentHeight: func(ctx context.Context) (uint32, error) {
-			counter++
-			return 0, nil
-		},
-		GetScriptHashHistory: func(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-			counter++
-			return &wdk.ScriptHistoryResult{}, nil
-		},
-		HashToHeader: func(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
-			counter++
-			return &wdk.ChainBlockHeader{}, nil
-		},
-		ChainHeaderByHeight: func(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
-			counter++
-			return &wdk.ChainBaseBlockHeader{}, nil
-		},
-		GetStatusForTxIDs: func(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
-			counter++
-			return &wdk.GetStatusForTxIDsResult{}, nil
-		},
-		GetUtxoStatus: func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
-			counter++
-			return &wdk.UtxoStatusResult{}, nil
-		},
-		IsUtxo: func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
-			counter++
-			return true, nil
-		},
-		BsvExchangeRate: func(ctx context.Context) (float64, error) {
-			counter++
-			return 0, nil
-		},
-	}
+	customImplementation := services.ToImplementation(mock)
+
+	// and:
+	service := given.Services().
+		Opts(services.WithCustomImplementation("custom", customImplementation)).
+		New()
+
+	// when:
+	callAllMethods(t, service)
+
+	// then:
+	mock.allCalled(t)
+}
+
+func TestServicesConfig_CustomServicePartialImplementation(t *testing.T) {
+	// given:
+	given := testservices.GivenServices(t)
+	mock := &mockPartialRawTxImplementation{}
+
+	// and:
+	customImplementation := services.ToImplementation(mock)
 
 	// and:
 	service := given.Services().
@@ -82,144 +53,105 @@ func TestServicesConfig_CustomServiceImplementation(t *testing.T) {
 
 	// when:
 	_, _ = service.RawTx(t.Context(), mockTxID)
-	_, _ = service.PostBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
-	_, _ = service.MerklePath(t.Context(), mockTxID)
-	_, _ = service.FindChainTipHeader(t.Context())
-	_, _ = service.IsValidRootForHeight(t.Context(), &chainhash.Hash{}, 0)
-	_, _ = service.CurrentHeight(t.Context())
-	_, _ = service.GetScriptHashHistory(t.Context(), "scriptHash")
-	_, _ = service.HashToHeader(t.Context(), "hash")
-	_, _ = service.ChainHeaderByHeight(t.Context(), 0)
-	_, _ = service.GetStatusForTxIDs(t.Context(), []string{mockTxID})
-	_, _ = service.GetUtxoStatus(t.Context(), "scriptHash", &transaction.Outpoint{})
-	_, _ = service.IsUtxo(t.Context(), "scriptHash", &transaction.Outpoint{})
-	_, _ = service.BsvExchangeRate(t.Context())
+	// then:
+	assert.NotZero(t, mock.rawTxCounter)
+
+	// when:
+	given.WhatsOnChain().WillRespondWithRates(200, `{
+			"time": 123456,
+			"rate": 50.5,
+			"currency": "USD"
+		}`, nil)
+	rate, err := service.BsvExchangeRate(t.Context())
 
 	// then:
-	require.Equal(t, 13, counter)
+	require.NoError(t, err)
+	require.Equal(t, 50.5, rate)
 }
 
 func TestServicesConfig_UseModifiers(t *testing.T) {
 	given := testservices.GivenServices(t)
-	counter := 0
+
+	mock := &mockImplementation{}
 
 	// and:
 	opts := []func(option *services.Options){
 		services.WithRawTxMethodsModifier(func(original []services.Named[services.RawTxFunc]) []services.Named[services.RawTxFunc] {
 			return append([]services.Named[services.RawTxFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
-					counter++
-					return &wdk.RawTxResult{}, nil
-				},
+				Item: mock.RawTx,
 			}}, original...)
 		}),
 		services.WithPostBEEFMethodsModifier(func(original []services.Named[services.PostBEEFFunc]) []services.Named[services.PostBEEFFunc] {
 			return append([]services.Named[services.PostBEEFFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
-					counter++
-					return &wdk.PostedBEEF{}, nil
-				},
+				Item: mock.PostBEEF,
 			}}, original...)
 		}),
 		services.WithMerklePathMethodsModifier(func(original []services.Named[services.MerklePathFunc]) []services.Named[services.MerklePathFunc] {
 			return append([]services.Named[services.MerklePathFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
-					counter++
-					return &wdk.MerklePathResult{}, nil
-				},
+				Item: mock.MerklePath,
 			}}, original...)
 		}),
 		services.WithFindChainTipHeaderMethodsModifier(func(original []services.Named[services.FindChainTipHeaderFunc]) []services.Named[services.FindChainTipHeaderFunc] {
 			return append([]services.Named[services.FindChainTipHeaderFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context) (*wdk.ChainBlockHeader, error) {
-					counter++
-					return &wdk.ChainBlockHeader{}, nil
-				},
+				Item: mock.FindChainTipHeader,
 			}}, original...)
 		}),
 		services.WithIsValidRootForHeightMethodsModifier(func(original []services.Named[services.IsValidRootForHeightFunc]) []services.Named[services.IsValidRootForHeightFunc] {
 			return append([]services.Named[services.IsValidRootForHeightFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
-					counter++
-					return true, nil
-				},
+				Item: mock.IsValidRootForHeight,
 			}}, original...)
 		}),
 		services.WithCurrentHeightMethodsModifier(func(original []services.Named[services.CurrentHeightFunc]) []services.Named[services.CurrentHeightFunc] {
 			return append([]services.Named[services.CurrentHeightFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context) (uint32, error) {
-					counter++
-					return 0, nil
-				},
+				Item: mock.CurrentHeight,
 			}}, original...)
 		}),
 		services.WithGetScriptHashHistoryMethodsModifier(func(original []services.Named[services.GetScriptHashHistoryFunc]) []services.Named[services.GetScriptHashHistoryFunc] {
 			return append([]services.Named[services.GetScriptHashHistoryFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-					counter++
-					return &wdk.ScriptHistoryResult{}, nil
-				},
+				Item: mock.GetScriptHashHistory,
 			}}, original...)
 		}),
 		services.WithHashToHeaderMethodsModifier(func(original []services.Named[services.HashToHeaderFunc]) []services.Named[services.HashToHeaderFunc] {
 			return append([]services.Named[services.HashToHeaderFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
-					counter++
-					return &wdk.ChainBlockHeader{}, nil
-				},
+				Item: mock.HashToHeader,
 			}}, original...)
 		}),
 		services.WithChainHeaderByHeightMethodsModifier(func(original []services.Named[services.ChainHeaderByHeightFunc]) []services.Named[services.ChainHeaderByHeightFunc] {
 			return append([]services.Named[services.ChainHeaderByHeightFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
-					counter++
-					return &wdk.ChainBaseBlockHeader{}, nil
-				},
+				Item: mock.ChainHeaderByHeight,
 			}}, original...)
 		}),
 		services.WithGetStatusForTxIDsMethodsModifier(func(original []services.Named[services.GetStatusForTxIDsFunc]) []services.Named[services.GetStatusForTxIDsFunc] {
 			return append([]services.Named[services.GetStatusForTxIDsFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
-					counter++
-					return &wdk.GetStatusForTxIDsResult{}, nil
-				},
+				Item: mock.GetStatusForTxIDs,
 			}}, original...)
 		}),
 		services.WithGetUtxoStatusMethodsModifier(func(original []services.Named[services.GetUtxoStatusFunc]) []services.Named[services.GetUtxoStatusFunc] {
 			return append([]services.Named[services.GetUtxoStatusFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
-					counter++
-					return &wdk.UtxoStatusResult{}, nil
-				},
+				Item: mock.GetUtxoStatus,
 			}}, original...)
 		}),
 		services.WithIsUtxoMethodsModifier(func(original []services.Named[services.IsUtxo]) []services.Named[services.IsUtxo] {
 			return append([]services.Named[services.IsUtxo]{{
 				Name: "custom",
-				Item: func(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
-					counter++
-					return true, nil
-				},
+				Item: mock.IsUtxo,
 			}}, original...)
 		}),
 		services.WithBsvExchangeRateMethodsModifier(func(original []services.Named[services.BsvExchangeRateFunc]) []services.Named[services.BsvExchangeRateFunc] {
 			return append([]services.Named[services.BsvExchangeRateFunc]{{
 				Name: "custom",
-				Item: func(ctx context.Context) (float64, error) {
-					counter++
-					return 0, nil
-				},
+				Item: mock.BsvExchangeRate,
 			}}, original...)
 		}),
 	}
@@ -230,22 +162,10 @@ func TestServicesConfig_UseModifiers(t *testing.T) {
 		New()
 
 	// when:
-	_, _ = service.RawTx(t.Context(), mockTxID)
-	_, _ = service.PostBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
-	_, _ = service.MerklePath(t.Context(), mockTxID)
-	_, _ = service.FindChainTipHeader(t.Context())
-	_, _ = service.IsValidRootForHeight(t.Context(), &chainhash.Hash{}, 0)
-	_, _ = service.CurrentHeight(t.Context())
-	_, _ = service.GetScriptHashHistory(t.Context(), "scriptHash")
-	_, _ = service.HashToHeader(t.Context(), "hash")
-	_, _ = service.ChainHeaderByHeight(t.Context(), 0)
-	_, _ = service.GetStatusForTxIDs(t.Context(), []string{mockTxID})
-	_, _ = service.GetUtxoStatus(t.Context(), "scriptHash", &transaction.Outpoint{})
-	_, _ = service.IsUtxo(t.Context(), "scriptHash", &transaction.Outpoint{})
-	_, _ = service.BsvExchangeRate(t.Context())
+	callAllMethods(t, service)
 
 	// then:
-	require.Equal(t, 13, counter)
+	mock.allCalled(t)
 }
 
 func TestServicesConfig_ProvideImplementationWithTheSameName(t *testing.T) {
@@ -302,89 +222,316 @@ func TestServicesConfig_DisableAllPredefinedServices(t *testing.T) {
 		New()
 
 	// when:
-	_, err := service.RawTx(t.Context(), mockTxID)
-	// then:
-	require.ErrorContains(t, err, errContent)
+	errs := callAllMethods(t, service)
 
-	// when:
-	_, err = service.PostBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
 	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.MerklePath(t.Context(), mockTxID)
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.FindChainTipHeader(t.Context())
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.IsValidRootForHeight(t.Context(), &chainhash.Hash{}, 0)
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.CurrentHeight(t.Context())
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.GetScriptHashHistory(t.Context(), "scriptHash")
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.HashToHeader(t.Context(), "hash")
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.ChainHeaderByHeight(t.Context(), 0)
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.GetStatusForTxIDs(t.Context(), []string{mockTxID})
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.GetUtxoStatus(t.Context(), "scriptHash", &transaction.Outpoint{})
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.IsUtxo(t.Context(), "scriptHash", &transaction.Outpoint{})
-	// then:
-	require.ErrorContains(t, err, errContent)
-
-	// when:
-	_, err = service.BsvExchangeRate(t.Context())
-	// then:
-	require.ErrorContains(t, err, errContent)
+	for _, err := range errs {
+		require.ErrorContains(t, err, errContent)
+	}
 }
 
-type mockImplementation struct {
+func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
+	const customServiceName = "custom"
+	const customServiceRate = 10.0
+
+	t.Run("custom service is moved to the last position", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		customServiceCalled := 0
+
+		// and:
+		customImplementation := services.Implementation{
+			BsvExchangeRate: func(ctx context.Context) (float64, error) {
+				customServiceCalled++
+				return customServiceRate, nil
+			},
+		}
+
+		// and:
+		service := given.Services().
+			Opts(
+				services.WithCustomImplementation(customServiceName, customImplementation),
+				services.WithBsvExchangeRateMethodsModifier(func(original []services.Named[services.BsvExchangeRateFunc]) []services.Named[services.BsvExchangeRateFunc] {
+					preferredOrder := []string{whatsonchain.ServiceName, customServiceName}
+					slices.SortFunc(original, func(a, b services.Named[services.BsvExchangeRateFunc]) int {
+						indexA := slices.Index(preferredOrder, a.Name)
+						indexB := slices.Index(preferredOrder, b.Name)
+						return indexA - indexB
+					})
+					return original
+				}),
+			).
+			New()
+
+		// when:
+		given.WhatsOnChain().WillRespondWithRates(200, `{
+			"time": 123456,
+			"rate": 50.5,
+			"currency": "USD"
+		}`, nil)
+		rate, err := service.BsvExchangeRate(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, 50.5, rate)
+		require.Equal(t, 0, customServiceCalled)
+	})
+
+	t.Run("custom service is preferred over WhatsOnChain, when no modifier applied - the tests proves that", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		customServiceCalled := 0
+
+		// and:
+		customImplementation := services.Implementation{
+			BsvExchangeRate: func(ctx context.Context) (float64, error) {
+				customServiceCalled++
+				return customServiceRate, nil
+			},
+		}
+
+		// and:
+		service := given.Services().
+			Opts(
+				services.WithCustomImplementation(customServiceName, customImplementation),
+			).
+			New()
+
+		// when:
+		given.WhatsOnChain().WillRespondWithRates(200, `{
+			"time": 123456,
+			"rate": 50.5,
+			"currency": "USD"
+		}`, nil)
+		rate, err := service.BsvExchangeRate(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, customServiceRate, rate)
+		require.Equal(t, 1, customServiceCalled)
+	})
+}
+
+func TestServicesConfig_ToImplementation(t *testing.T) {
+	// given:
+	mock := &mockImplementation{}
+	impl := services.ToImplementation(mock)
+
+	// when:
+	_, err := impl.RawTx(context.Background(), "txID")
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.PostBEEF(context.Background(), &transaction.Beef{}, []string{"txID"})
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.MerklePath(context.Background(), "txID")
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.FindChainTipHeader(context.Background())
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.IsValidRootForHeight(context.Background(), &chainhash.Hash{}, 0)
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.CurrentHeight(context.Background())
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.GetScriptHashHistory(context.Background(), "scriptHash")
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.HashToHeader(context.Background(), "hash")
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.ChainHeaderByHeight(context.Background(), 0)
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.GetStatusForTxIDs(context.Background(), []string{"txID"})
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.GetUtxoStatus(context.Background(), "scriptHash", &transaction.Outpoint{})
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.IsUtxo(context.Background(), "scriptHash", &transaction.Outpoint{})
+	// then:
+	require.NoError(t, err)
+
+	// when:
+	_, err = impl.BsvExchangeRate(context.Background())
+	// then:
+	require.NoError(t, err)
+
+	// and:
+	mock.allCalled(t)
+}
+
+type mockPartialRawTxImplementation struct {
 	rawTxCounter int
 }
 
-func (m *mockImplementation) RawTx(context.Context, string) (*wdk.RawTxResult, error) {
+func (m *mockPartialRawTxImplementation) RawTx(context.Context, string) (*wdk.RawTxResult, error) {
 	m.rawTxCounter++
 	return &wdk.RawTxResult{}, nil
 }
 
-func TestBindImplementation(t *testing.T) {
-	// given:
-	mock := &mockImplementation{}
-	impl := services.BindImplementation(mock)
+type mockImplementation struct {
+	mockPartialRawTxImplementation
+	postBEEFCounter             int
+	merklePathCounter           int
+	findChainTipHeaderCounter   int
+	isValidRootForHeightCounter int
+	currentHeightCounter        int
+	getScriptHashHistoryCounter int
+	hashToHeaderCounter         int
+	chainHeaderByHeightCounter  int
+	getStatusForTxIDsCounter    int
+	getUtxoStatusCounter        int
+	isUtxoCounter               int
+	bsvExchangeRateCounter      int
+}
 
-	// when:
-	_, err := impl.RawTx(context.Background(), "txID")
+func (m *mockImplementation) PostBEEF(context.Context, *transaction.Beef, []string) (*wdk.PostedBEEF, error) {
+	m.postBEEFCounter++
+	return &wdk.PostedBEEF{}, nil
+}
 
-	// then:
-	require.NoError(t, err)
-	require.Equal(t, 1, mock.rawTxCounter)
+func (m *mockImplementation) MerklePath(context.Context, string) (*wdk.MerklePathResult, error) {
+	m.merklePathCounter++
+	return &wdk.MerklePathResult{}, nil
+}
+
+func (m *mockImplementation) FindChainTipHeader(context.Context) (*wdk.ChainBlockHeader, error) {
+	m.findChainTipHeaderCounter++
+	return &wdk.ChainBlockHeader{}, nil
+}
+
+func (m *mockImplementation) IsValidRootForHeight(context.Context, *chainhash.Hash, uint32) (bool, error) {
+	m.isValidRootForHeightCounter++
+	return true, nil
+}
+
+func (m *mockImplementation) CurrentHeight(context.Context) (uint32, error) {
+	m.currentHeightCounter++
+	return 0, nil
+}
+
+func (m *mockImplementation) GetScriptHashHistory(context.Context, string) (*wdk.ScriptHistoryResult, error) {
+	m.getScriptHashHistoryCounter++
+	return &wdk.ScriptHistoryResult{}, nil
+}
+
+func (m *mockImplementation) HashToHeader(context.Context, string) (*wdk.ChainBlockHeader, error) {
+	m.hashToHeaderCounter++
+	return &wdk.ChainBlockHeader{}, nil
+}
+
+func (m *mockImplementation) ChainHeaderByHeight(context.Context, uint32) (*wdk.ChainBaseBlockHeader, error) {
+	m.chainHeaderByHeightCounter++
+	return &wdk.ChainBaseBlockHeader{}, nil
+}
+
+func (m *mockImplementation) GetStatusForTxIDs(context.Context, []string) (*wdk.GetStatusForTxIDsResult, error) {
+	m.getStatusForTxIDsCounter++
+	return &wdk.GetStatusForTxIDsResult{}, nil
+}
+
+func (m *mockImplementation) GetUtxoStatus(context.Context, string, *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
+	m.getUtxoStatusCounter++
+	return &wdk.UtxoStatusResult{}, nil
+}
+
+func (m *mockImplementation) IsUtxo(context.Context, string, *transaction.Outpoint) (bool, error) {
+	m.isUtxoCounter++
+	return true, nil
+}
+
+func (m *mockImplementation) BsvExchangeRate(context.Context) (float64, error) {
+	m.bsvExchangeRateCounter++
+	return 0, nil
+}
+
+func (m *mockImplementation) OtherMethod() {
+	// This method is intentionally created to demonstrate that
+	// only the methods defined in the Implementation struct are considered.
+}
+
+func (m *mockImplementation) allCalled(t testing.TB) {
+	assert.NotZero(t, m.rawTxCounter)
+	assert.NotZero(t, m.postBEEFCounter)
+	assert.NotZero(t, m.merklePathCounter)
+	assert.NotZero(t, m.findChainTipHeaderCounter)
+	assert.NotZero(t, m.isValidRootForHeightCounter)
+	assert.NotZero(t, m.currentHeightCounter)
+	assert.NotZero(t, m.getScriptHashHistoryCounter)
+	assert.NotZero(t, m.hashToHeaderCounter)
+	assert.NotZero(t, m.chainHeaderByHeightCounter)
+	assert.NotZero(t, m.getStatusForTxIDsCounter)
+	assert.NotZero(t, m.getUtxoStatusCounter)
+	assert.NotZero(t, m.isUtxoCounter)
+	assert.NotZero(t, m.bsvExchangeRateCounter)
+}
+
+func callAllMethods(t testing.TB, service *services.WalletServices) []error {
+	errs := make([]error, 0, 13)
+
+	_, err := service.RawTx(t.Context(), mockTxID)
+	errs = append(errs, err)
+
+	_, err = service.PostBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
+	errs = append(errs, err)
+	_, err = service.MerklePath(t.Context(), mockTxID)
+	errs = append(errs, err)
+
+	_, err = service.FindChainTipHeader(t.Context())
+	errs = append(errs, err)
+
+	_, err = service.IsValidRootForHeight(t.Context(), &chainhash.Hash{}, 0)
+	errs = append(errs, err)
+
+	_, err = service.CurrentHeight(t.Context())
+	errs = append(errs, err)
+
+	_, err = service.GetScriptHashHistory(t.Context(), "scriptHash")
+	errs = append(errs, err)
+
+	_, err = service.HashToHeader(t.Context(), "hash")
+	errs = append(errs, err)
+
+	_, err = service.ChainHeaderByHeight(t.Context(), 0)
+	errs = append(errs, err)
+
+	_, err = service.GetStatusForTxIDs(t.Context(), []string{mockTxID})
+	errs = append(errs, err)
+
+	_, err = service.GetUtxoStatus(t.Context(), "scriptHash", &transaction.Outpoint{})
+	errs = append(errs, err)
+
+	_, err = service.IsUtxo(t.Context(), "scriptHash", &transaction.Outpoint{})
+	errs = append(errs, err)
+
+	_, err = service.BsvExchangeRate(t.Context())
+	errs = append(errs, err)
+
+	return errs
 }

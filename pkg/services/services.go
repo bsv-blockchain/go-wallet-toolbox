@@ -292,7 +292,7 @@ func (s *WalletServices) logActiveServices() {
 		return slog.String(methodName, strings.Join(serviceNames, ","))
 	})
 
-	s.logger.Debug("active service methods", logAttrs...)
+	s.logger.Debug("Active services by methods", logAttrs...)
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
