@@ -366,3 +366,25 @@ func TestServicesConfig_DisableAllPredefinedServices(t *testing.T) {
 	// then:
 	require.ErrorContains(t, err, errContent)
 }
+
+type mockImplementation struct {
+	rawTxCounter int
+}
+
+func (m *mockImplementation) RawTx(context.Context, string) (*wdk.RawTxResult, error) {
+	m.rawTxCounter++
+	return &wdk.RawTxResult{}, nil
+}
+
+func TestBindImplementation(t *testing.T) {
+	// given:
+	mock := &mockImplementation{}
+	impl := services.BindImplementation(mock)
+
+	// when:
+	_, err := impl.RawTx(context.Background(), "txID")
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, 1, mock.rawTxCounter)
+}

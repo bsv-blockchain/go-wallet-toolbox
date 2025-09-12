@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -60,4 +61,29 @@ type Implementation struct {
 	GetUtxoStatus        GetUtxoStatusFunc
 	IsUtxo               IsUtxo
 	BsvExchangeRate      BsvExchangeRateFunc
+}
+
+// BindImplementation creates an Implementation instance from the provided source with compatible method bindings.
+// It scans the source object for methods matching the names and signatures of Implementation's fields.
+// If a match is found and types are assignable, it sets the source method to the corresponding field in Implementation.
+func BindImplementation(source any) Implementation {
+	target := &Implementation{}
+	sourceVal := reflect.ValueOf(source)
+	targetVal := reflect.ValueOf(target).Elem()
+	targetType := targetVal.Type()
+
+	for i := range targetType.NumField() {
+		field := targetType.Field(i)
+
+		if field.Type.Kind() != reflect.Func {
+			continue
+		}
+
+		method := sourceVal.MethodByName(field.Name)
+		if method.IsValid() && method.Type().AssignableTo(field.Type) {
+			targetVal.FieldByName(field.Name).Set(method)
+		}
+	}
+
+	return *target
 }
