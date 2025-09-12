@@ -39,13 +39,13 @@ func (b *beefVerifierFixture) DefaultBehavior() {
 
 func (b *beefVerifierFixture) Verifier(chaintracker chaintracker.ChainTracker) wdk.BeefVerifier {
 	return &mockVerifier{
-		fixture: b,
+		fixture:         b,
 		defaultVerifier: storage.NewDefaultBeefVerifier(chaintracker),
 	}
 }
 
 type mockVerifier struct {
-	fixture *beefVerifierFixture
+	fixture         *beefVerifierFixture
 	defaultVerifier wdk.BeefVerifier
 }
 
@@ -58,4 +58,3 @@ func (b *mockVerifier) VerifyBeef(ctx context.Context, beef *transaction.Beef, a
 	}
 	return b.defaultVerifier.VerifyBeef(ctx, beef, allowTxidOnly)
 }
-
