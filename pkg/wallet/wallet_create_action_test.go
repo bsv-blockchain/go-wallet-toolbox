@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
+	internaltestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
@@ -968,6 +970,59 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 }
 
 func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() {
+	s.Run("alice and bob uses the different storage", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.Wallet().WithOwnStorage().ForUser(testusers.Alice)
+
+		// and:
+		bobWallet := given.BobWalletWithStorage(s.StorageType)
+
+		// and:
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// when:
+		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithLockingScript(script.Script{
+			script.Op3,
+			script.OpEQUAL,
+		}))
+
+		firstResult, err := aliceWallet.CreateAction(t.Context(), aliceArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotEmpty(t, firstResult.Tx, "Alice wallet should return transaction BEEF bytes")
+		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
+
+		// when:
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
+			walletargs.WithInputs([]sdk.CreateActionInput{
+				{
+					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
+					InputDescription: "got from alice",
+					UnlockingScript:  script.Script{script.Op3},
+				},
+			}),
+			walletargs.WithNoOutputs(),
+			walletargs.WithInputBEEF(firstResult.Tx),
+		)
+
+		bobsResult, err := bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		internaltestabilities.AssertAtomicBEEFState(t, bobsResult.Tx[:], internaltestabilities.ExpectedBeefTransactionState{
+			ID:         firstResult.Txid.String(),
+			DataFormat: to.Ptr(transaction.RawTx),
+		})
+	})
+
 	s.Run("alice and bob uses the same storage", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
@@ -986,7 +1041,10 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t)
+		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithLockingScript(script.Script{
+			script.Op3,
+			script.OpEQUAL,
+		}))
 
 		firstResult, err := aliceWallet.CreateAction(t.Context(), aliceArgs, fixtures.DefaultOriginator)
 
@@ -996,21 +1054,25 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
 		// when:
-		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t, func(args *sdk.CreateActionArgs) {
-			args.Outputs = nil
-			args.Inputs = []sdk.CreateActionInput{
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
+			walletargs.WithInputs([]sdk.CreateActionInput{
 				{
-					Outpoint:              transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
-					InputDescription:      "got from alice",
-					UnlockingScriptLength: 106,
+					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
+					InputDescription: "got from alice",
+					UnlockingScript:  script.Script{script.Op3},
 				},
-			}
-			args.InputBEEF = firstResult.Tx
-		})
+			}),
+			walletargs.WithNoOutputs(),
+			walletargs.WithInputBEEF(firstResult.Tx),
+		)
 
-		_, err = bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
+		secondResult, err := bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
 
 		// then:
 		require.NoError(t, err)
+		internaltestabilities.AssertAtomicBEEFState(t, secondResult.Tx[:], internaltestabilities.ExpectedBeefTransactionState{
+			ID:         firstResult.Txid.String(),
+			DataFormat: to.Ptr(transaction.RawTx),
+		})
 	})
 }

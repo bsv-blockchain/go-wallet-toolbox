@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	internaltestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -67,7 +68,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID: faucetTx.ID().String(),
 	})
 
@@ -276,7 +277,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID: faucetTx.ID().String(),
 	})
 
@@ -466,7 +467,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID: ownedTxSpec.ID().String(),
 	})
 
@@ -531,7 +532,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID: unknownParentTx.ID().String(),
 	})
 
@@ -595,7 +596,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID: unknownParentTx.ID().String(),
 	})
 
@@ -662,7 +663,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(7999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID: ownedTxSpec.ID().String(),
 	})
 
@@ -730,72 +731,6 @@ func TestCreateActionWithProvidedUnknownInputWithoutInputBEEF(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCreateActionWithCrossWalletTxIDsUsingInputBeef(t *testing.T) {
-	// given:
-	firstDB, cleanup := testabilities.GivenSyncFixture(t)
-	defer cleanup()
-
-	activeStorage := firstDB.Provider().GORM()
-
-	// and:
-	firstFaucetTx, _ := firstDB.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// and:
-	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
-		args.Options.KnownTxids = []primitives.TXIDHexString{
-			primitives.TXIDHexString(firstFaucetTx.ID().String()),
-		}
-	})
-
-	// and:
-	firstCreateActionResult, err := activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-
-	require.NoError(t, err)
-	require.NotNil(t, firstCreateActionResult)
-	require.NotNil(t, firstCreateActionResult.InputBeef)
-
-	// and:
-	secondDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
-	defer cleanup()
-
-	// and:
-	activeStorage = secondDB.Provider().GORM()
-
-	// and:
-	secondFaucetTx, _ := secondDB.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// when:
-	args = fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
-		args.Options.KnownTxids = []primitives.TXIDHexString{
-			primitives.TXIDHexString(secondFaucetTx.ID().String()),
-		}
-		args.InputBEEF = primitives.BEEF(firstCreateActionResult.InputBeef)
-	})
-
-	secondCreateActionResult, err := activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-
-	// then:
-	require.NoError(t, err)
-	testabilities.AssertBEEFState(t, secondCreateActionResult.InputBeef,
-		testabilities.ExpectedBeefTransactionState{
-			ID:         firstFaucetTx.ID().String(),
-			DataFormat: to.Ptr(transaction.TxIDOnly),
-		},
-		testabilities.ExpectedBeefTransactionState{
-			ID:         secondFaucetTx.ID().String(),
-			DataFormat: to.Ptr(transaction.TxIDOnly),
-		},
-	)
-}
-
 func TestCreateActionWithKnownTxIDs(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -822,7 +757,7 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	internaltestabilities.AssertBEEFState(t, result.InputBeef, internaltestabilities.ExpectedBeefTransactionState{
 		ID:         faucetTx.ID().String(),
 		DataFormat: to.Ptr(transaction.TxIDOnly),
 	})
