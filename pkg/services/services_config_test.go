@@ -286,3 +286,83 @@ func TestServicesConfig_ProvideImplementationWithTheSameName(t *testing.T) {
 	require.Equal(t, 1, counter1)
 	require.Equal(t, 0, counter2)
 }
+
+func TestServicesConfig_DisableAllPredefinedServices(t *testing.T) {
+	given := testservices.GivenServices(t)
+	const errContent = "no services registered"
+
+	// and:
+	service := given.Services().
+		Config(
+			testservices.WithEnabledARC(false),
+			testservices.WithEnabledBHS(false),
+			testservices.WithEnabledWoC(false),
+			testservices.WithEnabledBitails(false),
+		).
+		New()
+
+	// when:
+	_, err := service.RawTx(t.Context(), mockTxID)
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.PostBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.MerklePath(t.Context(), mockTxID)
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.FindChainTipHeader(t.Context())
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.IsValidRootForHeight(t.Context(), &chainhash.Hash{}, 0)
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.CurrentHeight(t.Context())
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.GetScriptHashHistory(t.Context(), "scriptHash")
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.HashToHeader(t.Context(), "hash")
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.ChainHeaderByHeight(t.Context(), 0)
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.GetStatusForTxIDs(t.Context(), []string{mockTxID})
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.GetUtxoStatus(t.Context(), "scriptHash", &transaction.Outpoint{})
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.IsUtxo(t.Context(), "scriptHash", &transaction.Outpoint{})
+	// then:
+	require.ErrorContains(t, err, errContent)
+
+	// when:
+	_, err = service.BsvExchangeRate(t.Context())
+	// then:
+	require.ErrorContains(t, err, errContent)
+}

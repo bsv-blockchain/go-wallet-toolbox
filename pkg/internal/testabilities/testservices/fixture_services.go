@@ -176,3 +176,15 @@ func WithEnabledBHS(enabled bool) func(*defs.WalletServices) {
 		ws.BHS.Enabled = enabled
 	}
 }
+
+func WithEnabledARC(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.ArcConfig.Enabled = enabled
+	}
+}
+
+func WithEnabledWoC(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.WhatsOnChain.Enabled = enabled
+	}
+}

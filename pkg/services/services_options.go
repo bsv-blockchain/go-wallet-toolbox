@@ -9,7 +9,8 @@ import (
 
 // Options represents configurable options for the wallet services component.
 type Options struct {
-	RestyClientFactory           *httpx.RestyClientFactory
+	RestyClientFactory *httpx.RestyClientFactory
+
 	RawTxMethodsModifier         func([]Named[RawTxFunc]) []Named[RawTxFunc]
 	PostBEEFMethodsModifier      func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]
 	MerklePathMethodsModifier    func([]Named[MerklePathFunc]) []Named[MerklePathFunc]

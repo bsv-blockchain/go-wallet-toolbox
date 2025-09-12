@@ -9,11 +9,10 @@ import (
 )
 
 func applyModifierIfExists[F any](modifier func([]Named[F]) []Named[F], predefined []Named[F]) []Named[F] {
-	funcs := predefined
-	if modifier != nil {
-		funcs = modifier(funcs)
+	if modifier == nil {
+		return predefined
 	}
-	return funcs
+	return modifier(predefined)
 }
 
 func namedFuncsToServices[R any](namedFuncs []Named[func(context.Context) (R, error)]) []*servicequeue.Service[R] {

@@ -9,8 +9,7 @@ const (
 
 // Bitails configures the Bitails service
 type Bitails struct {
-	Enabled bool `mapstructure:"enabled"`
-	// APIKey is the authentication key used to communicate with Bitails (if applicable)
+	Enabled                    bool   `mapstructure:"enabled"`
 	APIKey                     string `mapstructure:"api_key"`
 	ScriptHashHistoryPageLimit int    `mapstructure:"script_hash_history_page_limit"`
 }
