@@ -14,7 +14,7 @@ type Options struct {
 	PostBEEFMethodsModifier      func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]
 	MerklePathMethodsModifier    func([]Named[MerklePathFunc]) []Named[MerklePathFunc]
 	FindChainTipHeaderModifier   func([]Named[FindChainTipHeaderFunc]) []Named[FindChainTipHeaderFunc]
-	IsValidRootForHeightModifier func([]Named[IsValidRootForHeightServicesFunc]) []Named[IsValidRootForHeightServicesFunc]
+	IsValidRootForHeightModifier func([]Named[IsValidRootForHeightFunc]) []Named[IsValidRootForHeightFunc]
 	CurrentHeightModifier        func([]Named[CurrentHeightFunc]) []Named[CurrentHeightFunc]
 	GetScriptHashHistoryModifier func([]Named[GetScriptHashHistoryFunc]) []Named[GetScriptHashHistoryFunc]
 	HashToHeaderModifier         func([]Named[HashToHeaderFunc]) []Named[HashToHeaderFunc]
@@ -84,101 +84,101 @@ func WithMerklePathMethodsModifier(modifier func([]Named[MerklePathFunc]) []Name
 	}
 }
 
-// WithFindChainTipHeaderModifier is designed to modify the list of FindChainTipHeaderFunc implementations.
+// WithFindChainTipHeaderMethodsModifier is designed to modify the list of FindChainTipHeaderFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithFindChainTipHeaderModifier(modifier func([]Named[FindChainTipHeaderFunc]) []Named[FindChainTipHeaderFunc]) func(*Options) {
+func WithFindChainTipHeaderMethodsModifier(modifier func([]Named[FindChainTipHeaderFunc]) []Named[FindChainTipHeaderFunc]) func(*Options) {
 	return func(o *Options) {
 		o.FindChainTipHeaderModifier = modifier
 	}
 }
 
-// WithIsValidRootForHeightModifier is designed to modify the list of IsValidRootForHeightServicesFunc implementations.
+// WithIsValidRootForHeightMethodsModifier is designed to modify the list of IsValidRootForHeightFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithIsValidRootForHeightModifier(modifier func([]Named[IsValidRootForHeightServicesFunc]) []Named[IsValidRootForHeightServicesFunc]) func(*Options) {
+func WithIsValidRootForHeightMethodsModifier(modifier func([]Named[IsValidRootForHeightFunc]) []Named[IsValidRootForHeightFunc]) func(*Options) {
 	return func(o *Options) {
 		o.IsValidRootForHeightModifier = modifier
 	}
 }
 
-// WithCurrentHeightModifier is designed to modify the list of CurrentHeightFunc implementations.
+// WithCurrentHeightMethodsModifier is designed to modify the list of CurrentHeightFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithCurrentHeightModifier(modifier func([]Named[CurrentHeightFunc]) []Named[CurrentHeightFunc]) func(*Options) {
+func WithCurrentHeightMethodsModifier(modifier func([]Named[CurrentHeightFunc]) []Named[CurrentHeightFunc]) func(*Options) {
 	return func(o *Options) {
 		o.CurrentHeightModifier = modifier
 	}
 }
 
-// WithGetScriptHashHistoryModifier is designed to modify the list of GetScriptHashHistoryFunc implementations.
+// WithGetScriptHashHistoryMethodsModifier is designed to modify the list of GetScriptHashHistoryFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithGetScriptHashHistoryModifier(modifier func([]Named[GetScriptHashHistoryFunc]) []Named[GetScriptHashHistoryFunc]) func(*Options) {
+func WithGetScriptHashHistoryMethodsModifier(modifier func([]Named[GetScriptHashHistoryFunc]) []Named[GetScriptHashHistoryFunc]) func(*Options) {
 	return func(o *Options) {
 		o.GetScriptHashHistoryModifier = modifier
 	}
 }
 
-// WithHashToHeaderModifier is designed to modify the list of HashToHeaderFunc implementations.
+// WithHashToHeaderMethodsModifier is designed to modify the list of HashToHeaderFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithHashToHeaderModifier(modifier func([]Named[HashToHeaderFunc]) []Named[HashToHeaderFunc]) func(*Options) {
+func WithHashToHeaderMethodsModifier(modifier func([]Named[HashToHeaderFunc]) []Named[HashToHeaderFunc]) func(*Options) {
 	return func(o *Options) {
 		o.HashToHeaderModifier = modifier
 	}
 }
 
-// WithChainHeaderByHeightModifier is designed to modify the list of ChainHeaderByHeightFunc implementations.
+// WithChainHeaderByHeightMethodsModifier is designed to modify the list of ChainHeaderByHeightFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithChainHeaderByHeightModifier(modifier func([]Named[ChainHeaderByHeightFunc]) []Named[ChainHeaderByHeightFunc]) func(*Options) {
+func WithChainHeaderByHeightMethodsModifier(modifier func([]Named[ChainHeaderByHeightFunc]) []Named[ChainHeaderByHeightFunc]) func(*Options) {
 	return func(o *Options) {
 		o.ChainHeaderByHeightModifier = modifier
 	}
 }
 
-// WithGetStatusForTxIDsModifier is designed to modify the list of GetStatusForTxIDsFunc implementations.
+// WithGetStatusForTxIDsMethodsModifier is designed to modify the list of GetStatusForTxIDsFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithGetStatusForTxIDsModifier(modifier func([]Named[GetStatusForTxIDsFunc]) []Named[GetStatusForTxIDsFunc]) func(*Options) {
+func WithGetStatusForTxIDsMethodsModifier(modifier func([]Named[GetStatusForTxIDsFunc]) []Named[GetStatusForTxIDsFunc]) func(*Options) {
 	return func(o *Options) {
 		o.GetStatusForTxIDsModifier = modifier
 	}
 }
 
-// WithGetUtxoStatusModifier is designed to modify the list of GetUtxoStatusFunc implementations.
+// WithGetUtxoStatusMethodsModifier is designed to modify the list of GetUtxoStatusFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithGetUtxoStatusModifier(modifier func([]Named[GetUtxoStatusFunc]) []Named[GetUtxoStatusFunc]) func(*Options) {
+func WithGetUtxoStatusMethodsModifier(modifier func([]Named[GetUtxoStatusFunc]) []Named[GetUtxoStatusFunc]) func(*Options) {
 	return func(o *Options) {
 		o.GetUtxoStatusModifier = modifier
 	}
 }
 
-// WithIsUtxoModifier is designed to modify the list of IsUtxo implementations.
+// WithIsUtxoMethodsModifier is designed to modify the list of IsUtxo implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithIsUtxoModifier(modifier func([]Named[IsUtxo]) []Named[IsUtxo]) func(*Options) {
+func WithIsUtxoMethodsModifier(modifier func([]Named[IsUtxo]) []Named[IsUtxo]) func(*Options) {
 	return func(o *Options) {
 		o.IsUtxoModifier = modifier
 	}
 }
 
-// WithBsvExchangeRateModifier is designed to modify the list of BsvExchangeRateFunc implementations.
+// WithBsvExchangeRateMethodsModifier is designed to modify the list of BsvExchangeRateFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithBsvExchangeRateModifier(modifier func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]) func(*Options) {
+func WithBsvExchangeRateMethodsModifier(modifier func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]) func(*Options) {
 	return func(o *Options) {
 		o.BsvExchangeRateModifier = modifier
 	}

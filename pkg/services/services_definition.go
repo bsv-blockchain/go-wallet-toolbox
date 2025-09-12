@@ -23,8 +23,8 @@ type (
 	MerklePathFunc = func(ctx context.Context, txID string) (*wdk.MerklePathResult, error)
 	// FindChainTipHeaderFunc is a function type for FindChainTipHeader service method.
 	FindChainTipHeaderFunc = func(ctx context.Context) (*wdk.ChainBlockHeader, error)
-	// IsValidRootForHeightServicesFunc is a function type for IsValidRootForHeight service method.
-	IsValidRootForHeightServicesFunc = func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error)
+	// IsValidRootForHeightFunc is a function type for IsValidRootForHeight service method.
+	IsValidRootForHeightFunc = func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error)
 	// CurrentHeightFunc is a function type for CurrentHeight service method.
 	CurrentHeightFunc = func(ctx context.Context) (uint32, error)
 	// GetScriptHashHistoryFunc is a function type for GetScriptHashHistory service method.
@@ -51,7 +51,7 @@ type Implementation struct {
 	PostBEEF             PostBEEFFunc
 	MerklePath           MerklePathFunc
 	FindChainTipHeader   FindChainTipHeaderFunc
-	IsValidRootForHeight IsValidRootForHeightServicesFunc
+	IsValidRootForHeight IsValidRootForHeightFunc
 	CurrentHeight        CurrentHeightFunc
 	GetScriptHashHistory GetScriptHashHistoryFunc
 	HashToHeader         HashToHeaderFunc

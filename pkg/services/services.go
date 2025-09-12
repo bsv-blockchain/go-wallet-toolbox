@@ -172,7 +172,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			"IsValidRootForHeight",
 			namedFuncsToServices2(
 				applyModifierIfExists(options.IsValidRootForHeightModifier,
-					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsValidRootForHeightServicesFunc {
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsValidRootForHeightFunc {
 						return it.IsValidRootForHeight
 					})))...,
 		),
