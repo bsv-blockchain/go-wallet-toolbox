@@ -156,8 +156,6 @@ func newStorageFixture(t testing.TB, identityKey string, name string, configModi
 
 	servicesFixture := testservices.GivenServicesWithNetwork(t, network)
 
-	servicesFixture.Services().New()
-
 	s.providerFixture = &providerFixture{
 		t:       s.t,
 		require: s.require,
