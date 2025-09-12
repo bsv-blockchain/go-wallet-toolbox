@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	btb "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/require"
@@ -22,18 +22,18 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		setup func(ts.ServicesFixture)
+		setup func(testservices.ServicesFixture)
 	}{
 		{
 			name: "WhatsOnChain returns valid header",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().WillRespondWithBlockHeader(http.StatusOK, blockHash,
 					testabilities.ValidBlockHeaderJSON(blockHash, blockHeight, version, merkleRoot, time, nonce, bits, prevHash))
 			},
 		},
 		{
 			name: "Bitails returns valid header",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				blockHash := btb.TestHex
 				rawHeader := btb.ValidBlockHeaderRaw()
 
@@ -48,10 +48,10 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fix := ts.GivenServices(t)
+			fix := testservices.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().WithDefaultConfig()
+			svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			header, err := svc.HashToHeader(t.Context(), blockHash)
@@ -67,45 +67,45 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 func TestWalletServices_HashToHeader_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func(ts.ServicesFixture)
+		setup func(testservices.ServicesFixture)
 	}{
 		{
 			name: "WhatsOnChain unreachable",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 			},
 		},
 		{
 			name: "WhatsOnChain returns malformed JSON",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				blockHash := testabilities.TestTargetHash
 				f.WhatsOnChain().WillReturnMalformedBlockHeader(blockHash)
 			},
 		},
 		{
 			name: "WhatsOnChain returns invalid header hex",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				blockHash := testabilities.TestTargetHash
 				f.WhatsOnChain().WillRespondWithBlockHeader(http.StatusOK, blockHash, "not-a-hex")
 			},
 		},
 		{
 			name: "WhatsOnChain returns incomplete header",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				blockHash := testabilities.TestTargetHash
 				f.WhatsOnChain().WillRespondWithBlockHeader(http.StatusOK, blockHash, testabilities.IncompleteBlockHeaderRaw())
 			},
 		},
 		{
 			name: "Bitails returns invalid hex",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				blockHash := testabilities.TestTargetHash
 				f.Bitails().WillReturnBlockHeader(blockHash, "badhex")
 			},
 		},
 		{
 			name: "Bitails returns too short header",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				blockHash := testabilities.TestTargetHash
 				f.Bitails().WillReturnBlockHeader(blockHash, "00")
 			},
@@ -115,10 +115,10 @@ func TestWalletServices_HashToHeader_ErrorCases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fix := ts.GivenServices(t)
+			fix := testservices.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().WithDefaultConfig()
+			svc := fix.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			res, err := svc.HashToHeader(t.Context(), testabilities.TestTargetHash)

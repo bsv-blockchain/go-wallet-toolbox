@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/stretchr/testify/require"
@@ -23,13 +23,13 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		setup func(ts.ServicesFixture)
+		setup func(testservices.ServicesFixture)
 		hash  string
 		want  want
 	}{
 		{
 			name: "happy path with confirmed and unconfirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -42,7 +42,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "empty history",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -54,7 +54,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "only confirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -67,7 +67,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "only unconfirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -80,7 +80,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "service API error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -92,7 +92,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "service HTTP error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -105,7 +105,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "invalid script hash",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				// No setup needed - validation happens before service calls
 			},
 			hash: "invalid-hash",
@@ -113,7 +113,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "empty script hash",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				// No setup needed - validation happens before service calls
 			},
 			hash: "",
@@ -121,7 +121,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "provider unreachable",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 			},
 			hash: testScriptHash,
@@ -129,7 +129,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "large history set",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -142,7 +142,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "bitails happy path with confirmed and unconfirmed",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -155,7 +155,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "bitails empty history",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -167,7 +167,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "bitails confirmed error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -179,7 +179,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "bitails HTTP 404 error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -192,7 +192,7 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 		},
 		{
 			name: "bitails unreachable",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				_ = f.Bitails().WillBeUnreachable()
 			},
 			hash: testScriptHash,
@@ -203,9 +203,9 @@ func TestWalletServices_GetScriptHashHistory(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fixture := ts.GivenServices(t)
+			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), tc.hash)
@@ -230,7 +230,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 
 	t.Run("WhatsOnChain cancels context", func(t *testing.T) {
 		// given:
-		fixture := ts.GivenServices(t)
+		fixture := testservices.GivenServices(t)
 		ctx, cancel := context.WithCancelCause(t.Context())
 
 		// Setup responder that cancels context when called
@@ -241,7 +241,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 				return nil, context.Canceled
 			})
 
-		svc := fixture.Services().WithDefaultConfig()
+		svc := fixture.Services().New()
 
 		// when:
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
@@ -253,7 +253,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 
 	t.Run("Bitails cancels context", func(t *testing.T) {
 		// given:
-		fixture := ts.GivenServices(t)
+		fixture := testservices.GivenServices(t)
 		ctx, cancel := context.WithCancelCause(t.Context())
 
 		bitailsPattern := `=~/scripthash/` + testScriptHash + `/history`
@@ -263,7 +263,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 				return nil, context.Canceled
 			})
 
-		svc := fixture.Services().WithDefaultConfig()
+		svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
@@ -285,12 +285,12 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 
 	cases := []struct {
 		name  string
-		setup func(ts.ServicesFixture)
+		setup func(testservices.ServicesFixture)
 		want  want
 	}{
 		{
 			name: "primary service succeeds",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -302,7 +302,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 		},
 		{
 			name: "service returns confirmed transactions error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -314,7 +314,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 		},
 		{
 			name: "service returns unconfirmed transactions error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -327,7 +327,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 		},
 		{
 			name: "bitails primary service succeeds",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -339,7 +339,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 		},
 		{
 			name: "bitails service returns confirmed transactions error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -351,7 +351,7 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 		},
 		{
 			name: "bitails service returns unconfirmed transactions error",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -367,9 +367,9 @@ func TestWalletServices_GetScriptHashHistory_ServiceOrchestration(t *testing.T) 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fixture := ts.GivenServices(t)
+			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
@@ -398,20 +398,20 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		setup func(ts.ServicesFixture)
+		setup func(testservices.ServicesFixture)
 		hash  string
 		want  want
 	}{
 		{
 			name: "validation error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 			},
 			hash: "invalid",
 			want: want{errorContains: "failed to get script history"},
 		},
 		{
 			name: "API error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -423,7 +423,7 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 		},
 		{
 			name: "HTTP error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -436,7 +436,7 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 		},
 		{
 			name: "service unreachable error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 			},
 			hash: testScriptHash,
@@ -444,7 +444,7 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 		},
 		{
 			name: "bitails API error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -456,7 +456,7 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 		},
 		{
 			name: "bitails HTTP error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -469,7 +469,7 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 		},
 		{
 			name: "bitails service unreachable error wrapped properly",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				_ = f.Bitails().WillBeUnreachable()
 			},
 			hash: testScriptHash,
@@ -480,9 +480,9 @@ func TestWalletServices_GetScriptHashHistory_ErrorHandling(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fixture := ts.GivenServices(t)
+			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), tc.hash)
@@ -506,12 +506,12 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		setup func(ts.ServicesFixture)
+		setup func(testservices.ServicesFixture)
 		want  want
 	}{
 		{
 			name: "result contains proper service name and counts",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -527,7 +527,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 		},
 		{
 			name: "result with only confirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -543,7 +543,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 		},
 		{
 			name: "result with only unconfirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -559,7 +559,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 		},
 		{
 			name: "bitails result with only unconfirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -575,7 +575,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 		},
 		{
 			name: "bitails result with confirmed and unconfirmed",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -591,7 +591,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 		},
 		{
 			name: "bitails result contains proper service name and counts",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -607,7 +607,7 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 		},
 		{
 			name: "bitails result with only confirmed transactions",
-			setup: func(f ts.ServicesFixture) {
+			setup: func(f testservices.ServicesFixture) {
 				f.Bitails().
 					ScriptHistoryData().
 					WithScriptHash(testScriptHash).
@@ -626,9 +626,9 @@ func TestWalletServices_GetScriptHashHistory_ResultFormatting(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			fixture := ts.GivenServices(t)
+			fixture := testservices.GivenServices(t)
 			tc.setup(fixture)
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			// when:
 			result, err := svc.GetScriptHashHistory(t.Context(), testScriptHash)
@@ -660,7 +660,7 @@ func TestWalletServices_GetScriptHashHistory_ConcurrentAccess(t *testing.T) {
 	const numConcurrent = 10
 
 	t.Run("WhatsOnChain concurrent access", func(t *testing.T) {
-		fixture := ts.GivenServices(t)
+		fixture := testservices.GivenServices(t)
 		fixture.WhatsOnChain().
 			ScriptHistoryData().
 			WithScriptHash(testScriptHash).
@@ -668,7 +668,7 @@ func TestWalletServices_GetScriptHashHistory_ConcurrentAccess(t *testing.T) {
 			WithUnconfirmedTransactions(1).
 			WillBeReturned()
 
-		svc := fixture.Services().WithDefaultConfig()
+		svc := fixture.Services().New()
 
 		results := make(chan interface{}, numConcurrent)
 		errors := make(chan error, numConcurrent)
@@ -691,7 +691,7 @@ func TestWalletServices_GetScriptHashHistory_ConcurrentAccess(t *testing.T) {
 	})
 
 	t.Run("Bitails concurrent access", func(t *testing.T) {
-		fixture := ts.GivenServices(t)
+		fixture := testservices.GivenServices(t)
 		fixture.Bitails().
 			ScriptHistoryData().
 			WithScriptHash(testScriptHash).
@@ -699,7 +699,7 @@ func TestWalletServices_GetScriptHashHistory_ConcurrentAccess(t *testing.T) {
 			WithUnconfirmedTransactions(1).
 			WillBeReturned()
 
-		svc := fixture.Services().WithDefaultConfig()
+		svc := fixture.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		results := make(chan interface{}, numConcurrent)
 		errors := make(chan error, numConcurrent)

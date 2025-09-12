@@ -35,7 +35,7 @@ func TestWalletServices_HashOutputScript_Success(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// given:
 			given := testservices.GivenServices(t)
-			services := given.Services().WithDefaultConfig()
+			services := given.Services().New()
 
 			// when:
 			result, err := services.HashOutputScript(tt.scriptHex)
@@ -66,7 +66,7 @@ func TestWalletServices_HashOutputScript_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// given:
 			given := testservices.GivenServices(t)
-			services := given.Services().WithDefaultConfig()
+			services := given.Services().New()
 
 			// when:
 			_, err := services.HashOutputScript(tt.scriptHex)

@@ -16,12 +16,12 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const ServiceName = "BlockHeadersService"
-
 type BlockHeadersService struct {
 	httpClient *resty.Client
 	cfg        *defs.BHS
 }
+
+const ServiceName = defs.BHSServiceName
 
 func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork, config defs.BHS) *BlockHeadersService {
 	err := network.Validate()
@@ -54,7 +54,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
-func (b *BlockHeadersService) GetChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
 	url, err := headerByHeight(b.cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("error building URL: %w", err)

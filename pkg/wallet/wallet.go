@@ -459,7 +459,7 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
-	wdkResult, err := w.services.GetChainHeaderByHeight(ctx, args.Height)
+	wdkResult, err := w.services.ChainHeaderByHeight(ctx, args.Height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get header for height %d: %w", args.Height, err)
 	}

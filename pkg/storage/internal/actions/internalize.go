@@ -223,7 +223,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 }
 
 func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txID string, tx *transaction.Transaction) error {
-	block, err := in.blockHeaderService.GetChainHeaderByHeight(ctx, tx.MerklePath.BlockHeight)
+	block, err := in.blockHeaderService.ChainHeaderByHeight(ctx, tx.MerklePath.BlockHeight)
 	if err != nil {
 		return fmt.Errorf("failed to get chain header by height: %w", err)
 	}
