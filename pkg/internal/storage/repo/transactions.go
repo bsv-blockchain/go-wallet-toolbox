@@ -20,6 +20,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gen"
+	"gorm.io/gen/field"
 	"gorm.io/gorm"
 )
 
@@ -546,7 +547,7 @@ func (txs *Transactions) FindTransactions(ctx context.Context, spec *pkgentity.T
 
 	rows, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
-		Where(txs.conditionsBySpec(spec)...).
+		Where(txs.conditionsBySpec(ctx, spec)...).
 		Preload(table.Labels).
 		Find()
 	if err != nil {
@@ -561,7 +562,7 @@ func (txs *Transactions) CountTransactions(ctx context.Context, spec *pkgentity.
 
 	count, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
-		Where(txs.conditionsBySpec(spec)...).
+		Where(txs.conditionsBySpec(ctx, spec)...).
 		Count()
 	if err != nil {
 		return 0, fmt.Errorf("failed to count transactions: %w", err)
@@ -570,7 +571,7 @@ func (txs *Transactions) CountTransactions(ctx context.Context, spec *pkgentity.
 	return count, nil
 }
 
-func (txs *Transactions) conditionsBySpec(spec *pkgentity.TransactionReadSpecification) []gen.Condition {
+func (txs *Transactions) conditionsBySpec(ctx context.Context, spec *pkgentity.TransactionReadSpecification) []gen.Condition {
 	if spec == nil {
 		return nil
 	}
@@ -602,6 +603,49 @@ func (txs *Transactions) conditionsBySpec(spec *pkgentity.TransactionReadSpecifi
 	if spec.DescriptionContains != nil {
 		conditions = append(conditions, cmpCondition(table.Description, spec.DescriptionContains))
 	}
+	if spec.Labels != nil {
+		conditions = append(conditions, txs.labelConditions(ctx, spec.Labels)...)
+	}
 
 	return conditions
+}
+
+func (txs *Transactions) labelConditions(ctx context.Context, labels *pkgentity.ComparableSet[string]) []gen.Condition {
+	var conds []gen.Condition
+	table := &txs.query.Transaction
+	txl := &txs.query.TransactionLabel
+
+	if labels.Empty {
+		sub := txl.WithContext(ctx).
+			Select(txl.TransactionID).
+			Where(txl.TransactionID.EqCol(table.ID))
+
+		return []gen.Condition{
+			field.Not(field.CompareSubQuery(field.ExistsOp, nil, sub.UnderlyingDB())),
+		}
+	}
+
+	if len(labels.ContainAny) > 0 {
+		sub := txl.WithContext(ctx).
+			Select(txl.TransactionID).
+			Where(
+				txl.LabelName.In(labels.ContainAny...),
+				txl.TransactionID.EqCol(table.ID),
+			)
+		conds = append(conds, gen.Exists(sub))
+	}
+
+	if len(labels.ContainAll) > 0 {
+		for _, label := range labels.ContainAll {
+			sub := txl.WithContext(ctx).
+				Select(txl.TransactionID).
+				Where(
+					txl.LabelName.Eq(label),
+					txl.TransactionID.EqCol(table.ID),
+				)
+			conds = append(conds, gen.Exists(sub))
+		}
+	}
+
+	return conds
 }

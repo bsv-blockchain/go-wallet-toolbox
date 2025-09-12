@@ -36,6 +36,7 @@ type TransactionReader interface {
 	Satoshis() NumericCondition[TransactionReader, int64]
 	TxID() StringCondition[TransactionReader]
 	DescriptionContains() StringCondition[TransactionReader]
+	Labels() StringSetCondition[TransactionReader]
 	Since(value time.Time, column entity.SinceField) TransactionReader
 	Paged(limit, offset int, desc bool) TransactionReader
 }
@@ -166,6 +167,15 @@ func (t *transaction) DescriptionContains() StringCondition[TransactionReader] {
 		parent: t,
 		conditionSetter: func(c *entity.Comparable[string]) {
 			t.spec.DescriptionContains = c
+		},
+	}
+}
+
+func (t *transaction) Labels() StringSetCondition[TransactionReader] {
+	return &stringSetCondition[TransactionReader]{
+		parent: t,
+		conditionSetter: func(c *entity.ComparableSet[string]) {
+			t.spec.Labels = c
 		},
 	}
 }

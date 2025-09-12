@@ -2,12 +2,15 @@ package wallet_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
@@ -172,8 +175,67 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
+	})
+
+	s.Run("return signable transaction when input unlocking script is not provided", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		txInput := given.InputForUser(testusers.Alice).WithNoUnlockingScript().WithSatoshis(topUpValue)
+		given.Services().BHS().OnMerkleRootVerifyResponse(txInput.BlockHeight(), txInput.MerklePath().Hex(), "CONFIRMED")
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSignAndProcess(false), walletargs.WithInput(txInput))
+
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		assert.NoError(t, err)
+
+		// and:
+		require.NotNil(t, result, "Wallet should return result")
+		require.NotNil(t, result.SignableTransaction, "Wallet result without sign&process contain signable transaction")
+		assert.NotEmpty(t, result.SignableTransaction.Reference, "Signable transaction should have reference")
+
+		// and:
+		require.NotEmpty(t, result.SignableTransaction.Tx, "Signable transaction should have transaction bytes")
+
+		thenTx := asserttx.RestoredFromBEEFBytes(t, result.SignableTransaction.Tx)
+
+		thenTx.HasInputsThatFundsOutputs().HasMinimalFee()
+
+		thenTx.Inputs().AllHaveUnlockingScript().HasTotalInputValue(topUpValue)
+
+		thenTx.Outputs().AllHaveLockingScript()
+
+		thenTx.Output(0).
+			HasLockingScript(args.Outputs[0].LockingScript).
+			HasSatoshis(args.Outputs[0].Satoshis).
+			IsNotChange()
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(1).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(0)
+		thenCreatedAction.
+			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(topUpValue - int64(args.Outputs[0].Satoshis) - fee)
 	})
 }
 
@@ -202,10 +264,12 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			walletargs.WithSignAndProcess(false),
 		)
 
+		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
+
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -252,7 +316,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
 	})
 }
@@ -315,7 +379,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(false).
+			WithSpendable(true).
 			WithBasket("")
 	})
 }
@@ -541,6 +605,9 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
+		// and:
+		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
+
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithInput(input))
 
@@ -631,6 +698,9 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		input := given.InputForUser(testusers.Alice).WithSatoshis(testValueForFunding)
 
 		// and:
+		given.BeefVerifier().WillReturnBool(true) // because all services are down, we cannot verify beef, so we assume it's valid
+
+		// and:
 		given.Services().AllDown()
 
 		// when:
@@ -642,8 +712,7 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		require.Error(t, err, "Wallet should return error when not delayed broadcast failed")
 
 		// and:
-		// TODO: replace with better assertions for error - when we will have custom type for it
-		assert.ErrorContains(t, err, "undelayed result require review")
+		assert.ErrorIs(t, err, &pkgerrors.CreateActionError{})
 	})
 
 	s.Run("return signable transaction when all services are down, but sign and process is false", func() {
@@ -657,6 +726,8 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 
 		// and:
 		input := given.InputForUser(testusers.Alice).WithSatoshis(testValueForFunding)
+
+		given.BeefVerifier().WillReturnBool(true) // because all services are down, we cannot verify beef, so we assume it's valid
 
 		// and:
 		given.Services().AllDown()
@@ -824,6 +895,78 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorF
 	})
 }
 
+func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction() {
+	s.Run("sendWith create action as retry of broadcasting when process action failed with unprocessed status", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// and:
+		given.BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+
+		// when:
+		args := fixtures.DefaultWalletCreateActionArgs(t)
+
+		createActionResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		txError := &pkgerrors.TransactionError{}
+		require.ErrorAs(t, err, &txError)
+		assert.False(t, txError.WrongHash)
+		assert.Nil(t, createActionResult)
+
+		// when:
+		txIDToRetry := txError.TxID
+		given.BeefVerifier().DefaultBehavior()
+		createActionResult, err = aliceWallet.CreateAction(t.Context(), sdk.CreateActionArgs{
+			Options: &sdk.CreateActionOptions{
+				SendWith: []chainhash.Hash{txIDToRetry},
+			},
+			Description: "retry using sendWith",
+		}, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, createActionResult)
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, aliceWallet)
+		thenState.
+			HasActionsCount(2).
+			HasActionsCount(1, fixtures.CreateActionTestLabel)
+
+		thenState.ActionAtIndex(0).
+			WithTxID(txFromFaucet.ID().String()).
+			WithSatoshis(topUpValue)
+
+		const fee = 2
+		thenCreatedAction := thenState.ActionAtIndex(1)
+		thenCreatedAction.
+			WithTxID(txIDToRetry.String()).
+			WithDescription(args.Description).
+			WithLabels(fixtures.CreateActionTestLabel).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
+
+		thenCreatedAction.OutputAtIndex(0).
+			WithSatoshis(args.Outputs[0].Satoshis).
+			WithLockingScript(args.Outputs[0].LockingScript).
+			WithOutputIndex(0).
+			WithTags(fixtures.CreateActionTestTag).
+			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
+			WithSpendable(true).
+			WithBasket("")
+	})
+}
+
 func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() {
 	s.Run("alice and bob uses the same storage", func() {
 		t := s.T()
@@ -868,6 +1011,6 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		_, err = bobWallet.CreateAction(t.Context(), bobsArgs, fixtures.DefaultOriginator)
 
 		// then:
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 }

@@ -95,3 +95,10 @@ func (op CmpOperator) String() string {
 		return "unknown"
 	}
 }
+
+// ComparableSet represents a set-based comparison filter for types that are comparable.
+type ComparableSet[T comparable] struct {
+	ContainAny []T
+	ContainAll []T
+	Empty      bool
+}
