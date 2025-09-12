@@ -112,7 +112,6 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 		shouldReturnError = true
 	case ErrorCodeMissingInputs:
 		result.Result = wdk.PostedTxIDResultMissingInputs
-		result.DoubleSpend = true
 		shouldReturnError = true
 	default:
 		result.Result = wdk.PostedTxIDResultError
