@@ -21,10 +21,10 @@ type ProviderConfig struct {
 	DBConfig defs.Database
 	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
 
-	Funder            funder.Funder
-	Randomizer        wdk.Randomizer
-	BeefVerifierMaker func() wdk.BeefVerifier
-	Logger            *slog.Logger
+	Funder              funder.Funder
+	Randomizer          wdk.Randomizer
+	BeefVerifierFactory func() wdk.BeefVerifier
+	Logger              *slog.Logger
 
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
@@ -59,7 +59,7 @@ func WithRandomizer(randomizer wdk.Randomizer) ProviderOption {
 // WithBeefVerifier sets a custom BeefVerifier implementation for use in the provider options.
 func WithBeefVerifier(beefVerifier wdk.BeefVerifier) ProviderOption {
 	return func(o *ProviderConfig) {
-		o.BeefVerifierMaker = func() wdk.BeefVerifier {
+		o.BeefVerifierFactory = func() wdk.BeefVerifier {
 			return beefVerifier
 		}
 	}
@@ -131,7 +131,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 	return ProviderConfig{
 		DBConfig:                     defs.DefaultDBConfig(),
 		Randomizer:                   randomizer.New(),
-		BeefVerifierMaker:            func() wdk.BeefVerifier { return NewDefaultBeefVerifier(chaintracker) },
+		BeefVerifierFactory:          func() wdk.BeefVerifier { return NewDefaultBeefVerifier(chaintracker) },
 		SynchronizeTxStatusesConfig:  defs.DefaultSynchronizeTxStatuses(),
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
 		FeeModel:                     defs.DefaultFeeModel(),
@@ -152,5 +152,5 @@ func (p *ProviderConfig) verify() error {
 }
 
 func (p *ProviderConfig) beefVerifier() wdk.BeefVerifier {
-	return p.BeefVerifierMaker()
+	return p.BeefVerifierFactory()
 }
