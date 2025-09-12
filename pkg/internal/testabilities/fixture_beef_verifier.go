@@ -6,6 +6,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type BeefVerifierFixture interface {
@@ -15,25 +16,12 @@ type BeefVerifierFixture interface {
 }
 
 type beefVerifierFixture struct {
-	defaultVerifier *storage.DefaultBeefVerifier
 	willReturnError error
 	willReturnBool  *bool
 }
 
-func newBeefVerifier() *beefVerifierFixture {
-	return &beefVerifierFixture{
-		defaultVerifier: &storage.DefaultBeefVerifier{},
-	}
-}
-
-func (b *beefVerifierFixture) VerifyBeef(ctx context.Context, beef *transaction.Beef, chainTracker chaintracker.ChainTracker, allowTxidOnly bool) (bool, error) {
-	if b.willReturnError != nil {
-		return false, b.willReturnError
-	}
-	if b.willReturnBool != nil {
-		return *b.willReturnBool, nil
-	}
-	return b.defaultVerifier.VerifyBeef(ctx, beef, chainTracker, allowTxidOnly)
+func newBeefVerifierFixture() *beefVerifierFixture {
+	return &beefVerifierFixture{}
 }
 
 func (b *beefVerifierFixture) WillReturnError(err error) {
@@ -48,3 +36,26 @@ func (b *beefVerifierFixture) DefaultBehavior() {
 	b.willReturnError = nil
 	b.willReturnBool = nil
 }
+
+func (b *beefVerifierFixture) Verifier(chaintracker chaintracker.ChainTracker) wdk.BeefVerifier {
+	return &mockVerifier{
+		fixture: b,
+		defaultVerifier: storage.NewDefaultBeefVerifier(chaintracker),
+	}
+}
+
+type mockVerifier struct {
+	fixture *beefVerifierFixture
+	defaultVerifier wdk.BeefVerifier
+}
+
+func (b *mockVerifier) VerifyBeef(ctx context.Context, beef *transaction.Beef, allowTxidOnly bool) (bool, error) {
+	if b.fixture.willReturnError != nil {
+		return false, b.fixture.willReturnError
+	}
+	if b.fixture.willReturnBool != nil {
+		return *b.fixture.willReturnBool, nil
+	}
+	return b.defaultVerifier.VerifyBeef(ctx, beef, allowTxidOnly)
+}
+

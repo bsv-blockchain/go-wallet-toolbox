@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
@@ -20,10 +21,10 @@ type ProviderConfig struct {
 	DBConfig defs.Database
 	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
 
-	Funder       funder.Funder
-	Randomizer   wdk.Randomizer
-	BeefVerifier wdk.BeefVerifier
-	Logger       *slog.Logger
+	Funder            funder.Funder
+	Randomizer        wdk.Randomizer
+	BeefVerifierMaker func() wdk.BeefVerifier
+	Logger            *slog.Logger
 
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
@@ -58,7 +59,9 @@ func WithRandomizer(randomizer wdk.Randomizer) ProviderOption {
 // WithBeefVerifier sets a custom BeefVerifier implementation for use in the provider options.
 func WithBeefVerifier(beefVerifier wdk.BeefVerifier) ProviderOption {
 	return func(o *ProviderConfig) {
-		o.BeefVerifier = beefVerifier
+		o.BeefVerifierMaker = func() wdk.BeefVerifier {
+			return beefVerifier
+		}
 	}
 }
 
@@ -124,11 +127,11 @@ func WithDBConfig(dbConfig defs.Database) ProviderOption {
 	}
 }
 
-func defaultProviderOptions() ProviderConfig {
+func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConfig {
 	return ProviderConfig{
 		DBConfig:                     defs.DefaultDBConfig(),
 		Randomizer:                   randomizer.New(),
-		BeefVerifier:                 &DefaultBeefVerifier{},
+		BeefVerifierMaker:            func() wdk.BeefVerifier { return NewDefaultBeefVerifier(chaintracker) },
 		SynchronizeTxStatusesConfig:  defs.DefaultSynchronizeTxStatuses(),
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
 		FeeModel:                     defs.DefaultFeeModel(),
@@ -146,4 +149,8 @@ func (p *ProviderConfig) verify() error {
 		return fmt.Errorf("provided Commission is invalid: %w", err)
 	}
 	return nil
+}
+
+func (p *ProviderConfig) beefVerifier() wdk.BeefVerifier {
+	return p.BeefVerifierMaker()
 }

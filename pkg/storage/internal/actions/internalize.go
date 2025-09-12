@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -33,7 +32,6 @@ type internalize struct {
 	knownTxRepo        KnownTxRepo
 	outputRepo         OutputRepo
 	random             wdk.Randomizer
-	chaintracker       chaintracker.ChainTracker
 	beefVerifier       wdk.BeefVerifier
 	blockHeaderService wdk.BlockHeaderLoader
 }
@@ -45,7 +43,6 @@ func newInternalizeAction(
 	knownTxRepo KnownTxRepo,
 	outputRepo OutputRepo,
 	random wdk.Randomizer,
-	chaintracker chaintracker.ChainTracker,
 	beefVerifier wdk.BeefVerifier,
 	blockHeader wdk.BlockHeaderLoader,
 ) *internalize {
@@ -57,7 +54,6 @@ func newInternalizeAction(
 		knownTxRepo:        knownTxRepo,
 		outputRepo:         outputRepo,
 		random:             random,
-		chaintracker:       chaintracker,
 		beefVerifier:       beefVerifier,
 		blockHeaderService: blockHeader,
 	}
@@ -82,7 +78,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		slog.String("description", string(args.Description)),
 	)
 
-	if ok, err := in.beefVerifier.VerifyBeef(ctx, beef, in.chaintracker, false); err != nil {
+	if ok, err := in.beefVerifier.VerifyBeef(ctx, beef, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
