@@ -53,7 +53,6 @@ func New(
 			repos.KnownTx,
 			repos.Outputs,
 			randomizer,
-			services,
 			beefVerifier,
 			services,
 		),

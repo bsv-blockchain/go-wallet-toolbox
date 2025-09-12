@@ -164,14 +164,14 @@ func newStorageFixture(t testing.TB, identityKey string, name string, configModi
 
 		ServicesFixture: servicesFixture,
 
-		network:        network,
-		commission:     defs.Commission{},
-		feeModel:       defs.DefaultFeeModel(),
-		failAbandoned:  defs.DefaultFailAbandoned(),
-		randomizer:     randomizer.New(),
-		beefVerifier:   newBeefVerifier(),
-		storagePrivKey: s.storagePrivKey,
-		storageName:    s.storageName,
+		network:             network,
+		commission:          defs.Commission{},
+		feeModel:            defs.DefaultFeeModel(),
+		failAbandoned:       defs.DefaultFailAbandoned(),
+		randomizer:          randomizer.New(),
+		beefVerifierFixture: newBeefVerifierFixture(),
+		storagePrivKey:      s.storagePrivKey,
+		storageName:         s.storageName,
 	}
 
 	return s, func() {
