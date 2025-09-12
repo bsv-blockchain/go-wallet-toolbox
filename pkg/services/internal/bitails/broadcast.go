@@ -3,7 +3,9 @@ package bitails
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -21,6 +23,31 @@ type broadcastResponse struct {
 type broadcastError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+// UnmarshalJSON allows Bitails to return error.code as either a number or a string.
+func (e *broadcastError) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		Code    any    `json:"code"`
+		Message string `json:"message"`
+	}
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	e.Message = a.Message
+	switch v := a.Code.(type) {
+	case float64:
+		e.Code = int(v)
+	case string:
+		if e.Message == "" {
+			e.Message = v
+		}
+		if i, err := strconv.Atoi(v); err == nil {
+			e.Code = i
+		}
+	}
+	return nil
 }
 
 func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) wdk.PostedTxID {
@@ -108,7 +135,8 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 		result.AlreadyKnown = true
 	case ErrorCodeDoubleSpend:
 		result.Result = wdk.PostedTxIDResultDoubleSpend
-		result.DoubleSpend = true
+		// results.DoubleSpend is not set because of false positive results.
+		// result.DoubleSpend = true
 		shouldReturnError = true
 	case ErrorCodeMissingInputs:
 		result.Result = wdk.PostedTxIDResultMissingInputs
