@@ -51,4 +51,3 @@ func pushDropCustomInstructions(keyID string) *customInstructions {
 		Type:         "PushDrop",
 	}
 }
-

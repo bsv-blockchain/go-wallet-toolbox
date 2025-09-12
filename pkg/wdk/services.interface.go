@@ -14,7 +14,7 @@ type Services interface {
 	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (PostBeefResult, error)
 	MerklePath(ctx context.Context, txid string) (*MerklePathResult, error)
 	FindChainTipHeader(ctx context.Context) (*ChainBlockHeader, error)
-	RawTx(txID string) (RawTxResult, error)
+	RawTx(ctx context.Context, txID string) (RawTxResult, error)
 	GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error)
 	NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error)
 }
@@ -26,5 +26,5 @@ type HeightProvider interface {
 
 // BlockHeaderLoader is an interface that provides the block chain block header with given height.
 type BlockHeaderLoader interface {
-	GetChainHeaderByHeight(ctx context.Context, height uint32) (*ChainBaseBlockHeader, error)
+	ChainHeaderByHeight(ctx context.Context, height uint32) (*ChainBaseBlockHeader, error)
 }

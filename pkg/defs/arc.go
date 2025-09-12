@@ -9,6 +9,7 @@ import (
 
 // ARC is a configuration for ARCService used by the wallet service to communicate with ARC.
 type ARC struct {
+	Enabled bool `mapstructure:"enabled"`
 	// URL is the base URL of the ARC service.
 	URL string `mapstructure:"url"`
 	// Token is the authentication token for the ARC service.
@@ -25,6 +26,10 @@ type ARC struct {
 
 // Validate checks if the ARC configuration is valid.
 func (arc *ARC) Validate() error {
+	if !arc.Enabled {
+		return nil
+	}
+
 	if err := arc.validateCallbackURL(); err != nil {
 		return fmt.Errorf("invalid callback URL: %w", err)
 	}
