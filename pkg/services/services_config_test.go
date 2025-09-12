@@ -104,7 +104,7 @@ func TestServicesConfig_UseModifiers(t *testing.T) {
 	counter := 0
 
 	// and:
-	opts := []func(option *services.Options) {
+	opts := []func(option *services.Options){
 		services.WithRawTxMethodsModifier(func(original []services.Named[services.RawTxFunc]) []services.Named[services.RawTxFunc] {
 			return append([]services.Named[services.RawTxFunc]{{
 				Name: "custom",
@@ -246,4 +246,43 @@ func TestServicesConfig_UseModifiers(t *testing.T) {
 
 	// then:
 	require.Equal(t, 13, counter)
+}
+
+func TestServicesConfig_ProvideImplementationWithTheSameName(t *testing.T) {
+	// given:
+	given := testservices.GivenServices(t)
+	counter1 := 0
+	counter2 := 0
+	const theSameName = "custom"
+
+	// and:
+	customImplementation1 := services.Implementation{
+		RawTx: func(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
+			counter1++
+			return &wdk.RawTxResult{}, nil
+		},
+	}
+
+	customImplementation2 := services.Implementation{
+		RawTx: func(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
+			counter2 += 1
+			return &wdk.RawTxResult{}, nil
+		},
+	}
+
+	// and:
+	service := given.Services().
+		Opts(
+			services.WithCustomImplementation(theSameName, customImplementation1),
+			services.WithCustomImplementation(theSameName, customImplementation2),
+		).
+		New()
+
+	// when:
+	_, err := service.RawTx(t.Context(), mockTxID)
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, 1, counter1)
+	require.Equal(t, 0, counter2)
 }
