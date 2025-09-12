@@ -1,10 +1,12 @@
 package storage_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -20,11 +22,11 @@ func TestOutputCountFilters(t *testing.T) {
 		count  int64
 	}{
 		"all outputs": {
-			count: 10,
+			count: 12,
 		},
 		"user only": {
 			filter: func(r crud.OutputReader) { r.UserID().Equals(outputTestUser.ID) },
-			count:  10,
+			count:  2,
 		},
 		"filter by spendable": {
 			filter: func(r crud.OutputReader) { r.Spendable().Equals(true) },
@@ -32,7 +34,7 @@ func TestOutputCountFilters(t *testing.T) {
 		},
 		"filter by change": {
 			filter: func(r crud.OutputReader) { r.Change().Equals(true) },
-			count:  5,
+			count:  3,
 		},
 		"filter by basket name": {
 			filter: func(r crud.OutputReader) { r.BasketName().Equals("default") },
@@ -56,6 +58,66 @@ func TestOutputCountFilters(t *testing.T) {
 		"filter by SpentBy": {
 			filter: func(r crud.OutputReader) { r.SpentBy().Equals(3) },
 			count:  1,
+		},
+		"tags contain alpha": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAny("alpha")
+			},
+			count: 5,
+		},
+		"tags contain beta": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAny("beta")
+			},
+			count: 5,
+		},
+		"tags contain gamma": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAny("gamma")
+			},
+			count: 5,
+		},
+		"tags contain alpha OR beta (contain any)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAny("alpha", "beta")
+			},
+			count: 10,
+		},
+		"tags contain alpha OR gamma (contain any)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAny("alpha", "gamma")
+			},
+			count: 10,
+		},
+		"tags contain nothing (empty filter for any)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAny()
+			},
+			count: 12,
+		},
+		"tags must contain both alpha AND beta (contain all)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAll("alpha", "beta")
+			},
+			count: 0,
+		},
+		"tags must contain both beta AND gamma (contain all)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAll("beta", "gamma")
+			},
+			count: 5,
+		},
+		"tags contain nothing (empty filter for all)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().ContainAll()
+			},
+			count: 12,
+		},
+		"tags empty (outputs with no tags)": {
+			filter: func(r crud.OutputReader) {
+				r.Tags().Empty()
+			},
+			count: 2,
 		},
 	}
 
@@ -117,14 +179,14 @@ func TestOutputFindByID(t *testing.T) {
 	activeStorage := seedDbWithOutputs(t)
 
 	// when:
-	outs, err := activeStorage.OutputsEntity().Read().ID(1).Find(t.Context())
+	outs, err := activeStorage.OutputsEntity().Read().ID(100).Find(t.Context())
 
 	// then:
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
-	assert.Equal(t, uint(1), outs[0].ID)
+	assert.Equal(t, uint(100), outs[0].ID)
 	assert.Equal(t, outputTestUser.ID, outs[0].UserID)
-	assert.Equal(t, int64(1000), outs[0].Satoshis)
+	assert.Equal(t, int64(1), outs[0].Satoshis)
 }
 
 func TestOutputPagedFind(t *testing.T) {
@@ -242,22 +304,52 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 
 	activeStorage := given.Provider().GORM()
 
-	for i := range 10 {
+	for i := range 5 {
 		out := &entity.Output{
-			UserID:        outputTestUser.ID,
+			UserID:        testusers.Alice.ID,
 			TransactionID: uint(i + 1),
 			Vout:          uint32(i),
 			Satoshis:      1000 + int64(i),
 			Spendable:     i != 2,
 			Change:        i%2 == 0,
-			Description:   "test output",
+			Description:   "output for alpha",
 			ProvidedBy:    "test",
 			Purpose:       "unit test",
 			Type:          "p2pkh",
 			BasketName:    to.Ptr("default"),
-			SpentBy:       to.Ptr(uint(3 * i)),
+			Tags:          []string{"alpha"},
 		}
 		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
+	}
+
+	for i := range 5 {
+		out := &entity.Output{
+			UserID:        testusers.Bob.ID,
+			TransactionID: uint(6 + i),
+			Vout:          uint32(i),
+			Satoshis:      1005 + int64(i),
+			Spendable:     true,
+			Change:        false,
+			Description:   "output for beta+gamma",
+			ProvidedBy:    "test",
+			Purpose:       "unit test",
+			Type:          "p2pkh",
+			BasketName:    to.Ptr("default"),
+			Tags:          []string{"beta", "gamma"},
+		}
+		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
+	}
+
+	for i := range 2 {
+		tx := &entity.Output{
+			ID:          uint(100 + i),
+			UserID:      outputTestUser.ID,
+			Satoshis:    1 + int64(i),
+			Description: "test transaction from jerry",
+			TxID:        to.Ptr(fmt.Sprintf("txid_jerry_%d", i)),
+			SpentBy:     to.Ptr(uint(3 * i)),
+		}
+		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), tx))
 	}
 
 	return activeStorage
