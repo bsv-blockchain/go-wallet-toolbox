@@ -32,7 +32,7 @@ func (e *broadcastError) UnmarshalJSON(data []byte) error {
 	}
 	var a alias
 	if err := json.Unmarshal(data, &a); err != nil {
-		return err
+		return fmt.Errorf("unmarshal broadcastError: %w", err)
 	}
 	e.Message = a.Message
 	switch v := a.Code.(type) {
