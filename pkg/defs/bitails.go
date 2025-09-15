@@ -9,13 +9,16 @@ const (
 
 // Bitails configures the Bitails service
 type Bitails struct {
-	// APIKey is the authentication key used to communicate with Bitails (if applicable)
+	Enabled                    bool   `mapstructure:"enabled"`
 	APIKey                     string `mapstructure:"api_key"`
 	ScriptHashHistoryPageLimit int    `mapstructure:"script_hash_history_page_limit"`
 }
 
 // Validate checks if the Bitails configuration is valid
 func (b *Bitails) Validate() error {
+	if !b.Enabled {
+		return nil
+	}
 	if b.ScriptHashHistoryPageLimit <= 0 {
 		return fmt.Errorf("script hash history page limit must be greater than 0")
 	}

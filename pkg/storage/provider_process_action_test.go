@@ -71,7 +71,7 @@ func TestProcessActionHappyPath(t *testing.T) {
 		HasRawTx().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(5).
+				Count(4).
 				Note("processAction", to.Ptr(testusers.Alice.ID), nil).
 				Note("postBeefSuccess", nil, map[string]any{
 					"name": "ARC",
@@ -79,13 +79,10 @@ func TestProcessActionHappyPath(t *testing.T) {
 				Note("postBeefError", nil, map[string]any{
 					"name": "WhatsOnChain",
 				}).
-				Note("postBeefError", nil, map[string]any{
-					"name": "Bitails",
-				}).
 				Note("aggregateResults", nil, map[string]any{
 					"aggStatus":         "success",
 					"doubleSpendCount":  0,
-					"serviceErrorCount": 2,
+					"serviceErrorCount": 1,
 					"statusErrorCount":  0,
 					"status_now":        "unmined",
 					"successCount":      1,
@@ -199,7 +196,7 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 		HasRawTx().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(5).
+				Count(4).
 				Note("processAction", to.Ptr(testusers.Alice.ID), nil).
 				Note("postBeefSuccess", nil, map[string]any{
 					"name": "ARC",
@@ -207,13 +204,10 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 				Note("postBeefError", nil, map[string]any{
 					"name": "WhatsOnChain",
 				}).
-				Note("postBeefError", nil, map[string]any{
-					"name": "Bitails",
-				}).
 				Note("aggregateResults", nil, map[string]any{
 					"aggStatus":         "success",
 					"doubleSpendCount":  0,
-					"serviceErrorCount": 2,
+					"serviceErrorCount": 1,
 					"statusErrorCount":  0,
 					"status_now":        "unmined",
 					"successCount":      1,

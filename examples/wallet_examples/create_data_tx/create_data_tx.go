@@ -77,7 +77,7 @@ func main() {
 	}
 
 	show.WalletSuccess("CreateAction", createArgs, *result)
-	
+
 	txID := result.Txid.String()
 	if txID == "" {
 		panic(fmt.Errorf("transaction ID is empty, action creation failed"))

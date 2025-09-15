@@ -2,6 +2,8 @@ package bitails
 
 import (
 	"net/http"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 // URLs for Bitails API
@@ -10,9 +12,8 @@ const (
 	TestnetURL    = "https://test-api.bitails.io/"
 )
 
-// Service constants for Bitails
 const (
-	ServiceName = "Bitails"
+	ServiceName = defs.BitailsServiceName
 )
 
 // Bitails Error Codes

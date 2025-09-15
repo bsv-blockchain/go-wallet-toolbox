@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -24,7 +25,7 @@ func main() {
 	show.Step("Wallet-Services", fmt.Sprintf("fetching RawTx for txID %s using WhatsOnChain and Bitails", txID))
 
 	// Retrieve raw transaction with automatic fallback across services
-	rawTx, err := srv.RawTx(txID)
+	rawTx, err := srv.RawTx(context.Background(), txID)
 	if err != nil {
 		panic(fmt.Errorf("failed to fetch raw transaction: %w", err))
 	}

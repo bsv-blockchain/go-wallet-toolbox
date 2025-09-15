@@ -23,7 +23,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const ServiceName = "WhatsOnChain"
+const ServiceName = defs.WhatsOnChainServiceName
 
 type WhatsOnChain struct {
 	httpClient *resty.Client
@@ -109,39 +109,34 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResu
 	}, nil
 }
 
-func (woc *WhatsOnChain) UpdateBsvExchangeRate() (defs.BSVExchangeRate, error) {
+func (woc *WhatsOnChain) UpdateBsvExchangeRate(ctx context.Context) (float64, error) {
 	nextUpdate := woc.bsvExchangeRate.Timestamp.Add(woc.bsvUpdateInterval)
 
 	// Check if the rate timestamp is newer than the threshold time
 	if nextUpdate.After(time.Now()) {
-		return woc.bsvExchangeRate, nil
+		return woc.bsvExchangeRate.Rate, nil
 	}
 
 	var exchangeRateResponse dto.BSVExchangeRateResponse
 	req := woc.httpClient.R()
 
 	res, err := req.
+		SetContext(ctx).
 		SetResult(&exchangeRateResponse).
 		Get(fmt.Sprintf("%s/exchangerate", woc.url))
 	if err != nil {
-		return defs.BSVExchangeRate{}, fmt.Errorf("failed to fetch exchange rate: %w", err)
+		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
 	}
 
 	if res.StatusCode() != http.StatusOK {
-		return defs.BSVExchangeRate{}, fmt.Errorf("failed to retrieve successful response from WOC. Actual status: %d", res.StatusCode())
+		return 0, fmt.Errorf("failed to retrieve successful response from WOC. Actual status: %d", res.StatusCode())
 	}
 
 	if exchangeRateResponse.Currency != string(defs.USD) {
-		return defs.BSVExchangeRate{}, fmt.Errorf("unsupported currency returned from Whats On Chain")
+		return 0, fmt.Errorf("unsupported currency returned from Whats On Chain")
 	}
 
-	woc.bsvExchangeRate = defs.BSVExchangeRate{
-		Timestamp: time.Now(),
-		Base:      defs.USD,
-		Rate:      exchangeRateResponse.Rate,
-	}
-
-	return woc.bsvExchangeRate, nil
+	return exchangeRateResponse.Rate, nil
 }
 
 // MerklePath retrieves the merkle path for a transaction using WoC TSC proof.

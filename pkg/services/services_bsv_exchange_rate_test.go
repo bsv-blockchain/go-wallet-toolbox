@@ -23,10 +23,12 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		}
 
 		// and:
-		services := given.Services().WithBsvExchangeRate(cachedRate)
+		services := given.Services().
+			Config(testservices.WithBsvExchangeRate(cachedRate)).
+			New()
 
 		// when:
-		result, err := services.BsvExchangeRate()
+		result, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.NoError(t, err)
@@ -43,14 +45,16 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		}`, nil)
 
 		// and:
-		services := given.Services().WithBsvExchangeRate(defs.BSVExchangeRate{
-			Timestamp: time.Now().Add(-16 * time.Minute),
-			Base:      "USD",
-			Rate:      100.0,
-		})
+		services := given.Services().
+			Config(testservices.WithBsvExchangeRate(defs.BSVExchangeRate{
+				Timestamp: time.Now().Add(-16 * time.Minute),
+				Base:      "USD",
+				Rate:      100.0,
+			})).
+			New()
 
 		// when:
-		result, err := services.BsvExchangeRate()
+		result, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.NoError(t, err)
@@ -65,10 +69,10 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		given.WhatsOnChain().WillRespondWithRates(200, "", assert.AnError)
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
-		_, err := services.BsvExchangeRate()
+		_, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.Error(t, err)
@@ -81,10 +85,10 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		given.WhatsOnChain().WillRespondWithRates(500, "", nil)
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
-		_, err := services.BsvExchangeRate()
+		_, err := services.BsvExchangeRate(t.Context())
 
 		// then:
 		assert.Error(t, err)
@@ -101,9 +105,9 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
       }`, nil)
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
-		_, err := services.BsvExchangeRate()
+		_, err := services.BsvExchangeRate(t.Context())
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported currency")

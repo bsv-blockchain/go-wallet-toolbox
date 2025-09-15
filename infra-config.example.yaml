@@ -61,18 +61,18 @@ wallet_services:
         callback_token: ""
         callback_url: ""
         deployment_id: ""
+        enabled: true
         token: mainnet_9596de07e92300c6287e4393594ae39c
         url: https://arc.taal.com
         wait_for: ""
     bhs:
         api_key: ""
+        enabled: false
         url: http://localhost:8080
     bitails:
         api_key: ""
+        enabled: false
         script_hash_history_page_limit: 100
-    chaintracks: null
-    chaintracks_fiat_exchange_rates_url: ""
-    disable_mapi_callback: true
     exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
     fiat_exchange_rates:
         base: USD
@@ -90,5 +90,6 @@ wallet_services:
             rates: 47.52
             timestamp: {}
         bsv_update_interval: 15m0s
+        enabled: true
         root_for_height_retries: 3
         root_for_height_retry_interval: 1s
