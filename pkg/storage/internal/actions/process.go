@@ -433,7 +433,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, p.services, false); err != nil {
+	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
