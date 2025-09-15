@@ -17,9 +17,9 @@ const (
 
 // Bitails Error Codes
 const (
-	ErrorCodeAlreadyInMempool = -27
-	ErrorCodeDoubleSpend      = -26
-	ErrorCodeMissingInputs    = -25
+	ErrorCodeAlreadyInMempool = "-27"
+	ErrorCodeDoubleSpend      = "-26"
+	ErrorCodeMissingInputs    = "-25"
 )
 
 // Network error tokens found in Bitails error messages

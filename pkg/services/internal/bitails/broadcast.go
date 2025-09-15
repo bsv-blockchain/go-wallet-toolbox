@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -21,7 +20,7 @@ type broadcastResponse struct {
 	Error *broadcastError `json:"error,omitempty"`
 }
 type broadcastError struct {
-	Code    int    `json:"code"`
+	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
@@ -38,14 +37,9 @@ func (e *broadcastError) UnmarshalJSON(data []byte) error {
 	e.Message = a.Message
 	switch v := a.Code.(type) {
 	case float64:
-		e.Code = int(v)
+		e.Code = strconv.FormatInt(int64(v), 10)
 	case string:
-		if e.Message == "" {
-			e.Message = v
-		}
-		if i, err := strconv.Atoi(v); err == nil {
-			e.Code = i
-		}
+		e.Code = v
 	}
 	return nil
 }
@@ -127,7 +121,7 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 	}
 
 	msg := resp.Error.Message
-	result.Data = fmt.Sprintf("code=%d, msg=%s", resp.Error.Code, msg)
+	result.Data = fmt.Sprintf("code=%s, msg=%s", resp.Error.Code, msg)
 
 	switch resp.Error.Code {
 	case ErrorCodeAlreadyInMempool:
@@ -135,25 +129,22 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 		result.AlreadyKnown = true
 	case ErrorCodeDoubleSpend:
 		result.Result = wdk.PostedTxIDResultDoubleSpend
-		// results.DoubleSpend is not set because of false positive results.
-		// result.DoubleSpend = true
+		result.DoubleSpend = true
 		shouldReturnError = true
 	case ErrorCodeMissingInputs:
 		result.Result = wdk.PostedTxIDResultMissingInputs
 		shouldReturnError = true
+	case ErrorTokenECONNREFUSED:
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = fmt.Errorf("broadcast error %s: %s", ErrorTokenECONNREFUSED, msg)
+		shouldReturnError = true
+	case ErrorTokenECONNRESET:
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = fmt.Errorf("broadcast error %s: %s", ErrorTokenECONNRESET, msg)
+		shouldReturnError = true
 	default:
 		result.Result = wdk.PostedTxIDResultError
-		result.Error = fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
-		upperMsg := strings.ToUpper(msg)
-		if strings.Contains(upperMsg, ErrorTokenECONNRESET) || strings.Contains(upperMsg, ErrorTokenECONNREFUSED) {
-			if strings.Contains(upperMsg, ErrorTokenECONNREFUSED) {
-				result.Error = fmt.Errorf("broadcast error %s: %s", ErrorTokenECONNREFUSED, msg)
-			} else {
-				result.Error = fmt.Errorf("broadcast error %s: %s", ErrorTokenECONNRESET, msg)
-			}
-		} else {
-			result.Error = fmt.Errorf("broadcast error code %d: %s", resp.Error.Code, msg)
-		}
+		result.Error = fmt.Errorf("broadcast error code %s: %s", resp.Error.Code, msg)
 		shouldReturnError = true
 	}
 

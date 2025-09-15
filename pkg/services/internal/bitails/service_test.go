@@ -285,6 +285,22 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 			resultStatus:  wdk.PostedTxIDResultError,
 			additionalErr: true,
 		},
+		"network error - ECONNREFUSED": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnEconnRefused(givenTxID, bitails.ErrMissingInputs)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
+		"network error - ECONNRESET": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnEconnReset(givenTxID, bitails.ErrMissingInputs)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {

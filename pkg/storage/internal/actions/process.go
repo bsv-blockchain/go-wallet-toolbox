@@ -372,11 +372,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, txID := range txIDs {
 		currentStatus, ok := knownTxStatusesLookup[txID]
 		if !ok {
-			logger.DebugContext(ctx, "Transaction status not found - treating as ready to send",
-				slog.String("txID", txID),
-			)
-			readyToSendTxIDs = append(readyToSendTxIDs, txID)
-			continue
+			return nil, fmt.Errorf("transaction status not found for txID %s", txID)
 		}
 
 		if currentStatus.AlreadySent() {

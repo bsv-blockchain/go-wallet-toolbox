@@ -51,6 +51,8 @@ type BitailsBroadcastFixture interface {
 	WillReturnMissingInputs(string, error)
 	WillReturnMalformedResponse()
 	WillReturnHttpError(int)
+	WillReturnEconnRefused(string, error)
+	WillReturnEconnReset(string, error)
 }
 
 type bitailsFixture struct {
@@ -199,6 +201,32 @@ func (b *bitailsBroadcastFixture) WillReturnHttpError(status int) {
 		regexp.MustCompile(`https?://.*\.bitails\.io/tx/broadcast/multi`),
 		httpmock.NewStringResponder(status, "internal test error"),
 	)
+}
+
+func (b *bitailsBroadcastFixture) WillReturnEconnRefused(txid string, err error) {
+	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+		{
+			"txid": txid,
+			"error": map[string]any{
+				"code":    "ECONNREFUSED",
+				"errno":   -111,
+				"message": err.Error(),
+			},
+		},
+	})
+}
+
+func (b *bitailsBroadcastFixture) WillReturnEconnReset(txid string, err error) {
+	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+		{
+			"txid": txid,
+			"error": map[string]any{
+				"code":    "ECONNRESET",
+				"errno":   -104,
+				"message": err.Error(),
+			},
+		},
+	})
 }
 
 func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body any) {
