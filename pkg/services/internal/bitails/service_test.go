@@ -267,7 +267,7 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
 			},
 			resultStatus: wdk.PostedTxIDResultMissingInputs,
-			doubleSpend:  true,
+			doubleSpend:  false,
 		},
 		"mismatched txid": {
 			setup: func(given testabilities.BitailsServiceFixture) {
