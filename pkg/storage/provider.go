@@ -587,3 +587,8 @@ func (p *Provider) OutputsEntity() crud.Output {
 func (p *Provider) TxNoteEntity() crud.TxNote {
 	return crud.NewTxNote(p.repo.TxNotes)
 }
+
+// UserUTXOEntity returns a UserUTXO interface for querying and filtering UserUTXO records in the storage provider.
+func (p *Provider) UserUTXOEntity() crud.UserUTXO {
+	return crud.NewUserUTXO(p.repo.UserUTXOs)
+}
