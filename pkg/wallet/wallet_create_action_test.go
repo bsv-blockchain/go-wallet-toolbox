@@ -970,7 +970,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 }
 
 func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() {
-	s.Run("alice and bob uses the different storage", func() {
+	s.Run("Alice and Bob use different storages", func() {
 		t := s.T()
 		const topUpValue = testValueForFunding
 
