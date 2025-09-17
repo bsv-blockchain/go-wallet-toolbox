@@ -997,8 +997,8 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 
 		// then:
 		require.NoError(t, err)
-		require.NotEmpty(t, firstResult.Tx, "Alice wallet should return transaction BEEF bytes")
-		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
+		assert.NotEmpty(t, firstResult.Tx, "Alice wallet should return transaction BEEF bytes")
+		assert.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
 		// when:
 		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
