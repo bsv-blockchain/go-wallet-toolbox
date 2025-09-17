@@ -7,6 +7,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
+	"github.com/go-softwarelab/common/pkg/must"
 )
 
 var (
@@ -56,7 +57,7 @@ func main() {
 		}
 
 		// Update offset for next page
-		offset += uint32(len(outputs.Outputs))
+		offset += must.ConvertToUInt32(len(outputs.Outputs))
 
 		// Break if we've retrieved all outputs
 		if len(outputs.Outputs) < int(Limit) {

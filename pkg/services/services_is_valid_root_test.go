@@ -10,7 +10,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	btTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	wocTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/require"
 )
@@ -118,9 +117,9 @@ func TestWalletServices_IsValidRootForHeight_WoC_ContextCancelled(t *testing.T) 
 }
 
 func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
-	const height = btTst.TestBlockHeight
+	const height = testabilities.TestBlockHeight
 
-	validRoot, _ := chainhash.NewHashFromHex(btTst.TestMerkleRootHex)
+	validRoot, _ := chainhash.NewHashFromHex(testabilities.TestMerkleRootHex)
 	invalidRoot := func() *chainhash.Hash { h := *validRoot; h[0] ^= 0xff; return &h }()
 
 	type want struct {
@@ -138,7 +137,7 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 			name: "Bitails happy path (WoC down)",
 			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().WillRespondWithInternalFailure()
-				header := btTst.FakeHeaderHexWithMerkleRoot(t, btTst.TestMerkleRootHex)
+				header := testabilities.FakeHeaderHexWithMerkleRoot(t, testabilities.TestMerkleRootHex)
 				f.Bitails().
 					WillRespondWithBlockHeaderByHeight(
 						http.StatusOK,
@@ -153,7 +152,7 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 			setup: func(f testservices.ServicesFixture) {
 				f.WhatsOnChain().WillRespondWithInternalFailure()
 
-				header := btTst.FakeHeaderHexWithMerkleRoot(t, btTst.TestMerkleRootHex)
+				header := testabilities.FakeHeaderHexWithMerkleRoot(t, testabilities.TestMerkleRootHex)
 				f.Bitails().
 					WillRespondWithBlockHeaderByHeight(
 						http.StatusOK,
@@ -210,8 +209,8 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 
 func TestWalletServices_IsValidRootForHeight_Bitails_ContextCancelled(t *testing.T) {
 	// given:
-	const height = btTst.TestBlockHeight
-	root, _ := chainhash.NewHashFromHex(btTst.TestMerkleRootHex)
+	const height = testabilities.TestBlockHeight
+	root, _ := chainhash.NewHashFromHex(testabilities.TestMerkleRootHex)
 
 	fix := testservices.GivenServices(t)
 	fix.WhatsOnChain().WillRespondWithInternalFailure()
@@ -243,7 +242,7 @@ func TestWalletServices_IsValidRootForHeight_Bitails_ContextCancelled(t *testing
 
 const (
 	bhsHeight = uint32(54321)
-	rootHex   = btTst.TestMerkleRootHex
+	rootHex   = testabilities.TestMerkleRootHex
 )
 
 func TestWalletServices_IsValidRootForHeight_BHS(t *testing.T) {
@@ -276,7 +275,7 @@ func TestWalletServices_IsValidRootForHeight_BHS(t *testing.T) {
 			name: "mismatching root - BHS rejects",
 			setup: func(f testservices.ServicesFixture) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
-				hdr := btTst.FakeHeaderHexWithMerkleRoot(t, rootHex)
+				hdr := testabilities.FakeHeaderHexWithMerkleRoot(t, rootHex)
 				f.Bitails().WillRespondWithBlockHeaderByHeight(http.StatusOK, bhsHeight, hdr)
 
 				f.BHS().OnMerkleRootVerifyResponse(bhsHeight, rootHex, "REJECTED")

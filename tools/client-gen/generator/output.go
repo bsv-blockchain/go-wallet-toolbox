@@ -3,7 +3,6 @@ package generator
 import (
 	"bytes"
 	"embed"
-	_ "embed"
 	"go/format"
 	"log"
 	"slices"

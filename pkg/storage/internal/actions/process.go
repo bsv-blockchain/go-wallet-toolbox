@@ -654,7 +654,7 @@ func (p *process) notesForPostBEEF(
 		errorNotes := seq2.MapTo(sortedErrors, func(serviceName string, err error) history.Builder {
 			return history.NewBuilder().PostBeefError(serviceName, txData, txIDs, err.Error())
 		})
-		slices.AppendSeq(records, errorNotes)
+		_ = slices.AppendSeq(records, errorNotes)
 	}
 
 	for _, result := range aggBroadcastResult.TxIDResults {

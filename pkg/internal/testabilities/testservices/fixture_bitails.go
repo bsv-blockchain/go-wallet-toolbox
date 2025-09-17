@@ -232,7 +232,7 @@ func (b *bitailsBroadcastFixture) WillReturnEconnReset(txid string, err error) {
 func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body any) {
 	data, err := json.Marshal(body)
 	if err != nil {
-		b.TB.Fatalf("failed to marshal broadcast response: %v", err)
+		b.Fatalf("failed to marshal broadcast response: %v", err)
 	}
 
 	headers := http.Header{}
@@ -338,7 +338,7 @@ func (b *bitailsFixture) WillRespondWithBlockHeaderByHeight(status int, height u
 }
 
 func (b *bitailsFixture) WillReturnNetworkInfo(status int, blocks uint32) {
-	b.TB.Helper()
+	b.Helper()
 
 	body := map[string]any{"blocks": blocks}
 	pat := `=~.*?/network/info$`
@@ -504,7 +504,7 @@ func (b *bitailsScriptHistoryBuilder) WithUnconfirmedTransactionsInternalError(e
 }
 
 func (b *bitailsScriptHistoryBuilder) WillBeReturned() {
-	b.fixture.TB.Helper()
+	b.fixture.Helper()
 
 	type ScriptHistoryItem struct {
 		TxID   string `json:"txid"`

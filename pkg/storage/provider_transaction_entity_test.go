@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
@@ -60,7 +59,7 @@ func TestTransactionCountFilters(t *testing.T) {
 		"since now": {
 			filter: func(r crud.TransactionReader) {
 				since := time.Now().Add(time.Minute) // delta time makes sure no "timing flakiness" happens during test execution
-				r.Since(since, pkgentity.SinceFieldCreatedAt)
+				r.Since(since, entity.SinceFieldCreatedAt)
 			},
 			count: 0,
 		},
@@ -164,7 +163,7 @@ func TestTransactionUpdateStatus(t *testing.T) {
 
 	// when:
 	newStatus := wdk.TxStatusCompleted
-	err := activeStorage.TransactionEntity().Update(t.Context(), &pkgentity.TransactionUpdateSpecification{
+	err := activeStorage.TransactionEntity().Update(t.Context(), &entity.TransactionUpdateSpecification{
 		ID:     1,
 		Status: &newStatus,
 	})
@@ -258,7 +257,7 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 	activeStorage := given.Provider().GORM()
 
 	for i := range 5 {
-		tx := &pkgentity.Transaction{
+		tx := &entity.Transaction{
 			UserID:      testusers.Alice.ID,
 			Status:      wdk.TxStatusUnprocessed,
 			Reference:   fmt.Sprintf("ref_alice_%d", i),
@@ -274,7 +273,7 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 	}
 
 	for i := range 5 {
-		tx := &pkgentity.Transaction{
+		tx := &entity.Transaction{
 			UserID:      testusers.Bob.ID,
 			Status:      wdk.TxStatusUnprocessed,
 			Reference:   fmt.Sprintf("ref_bob_%d", i),
@@ -290,7 +289,7 @@ func seedDbWithTransactions(t testing.TB) *storage.Provider {
 	}
 
 	for i := range 2 {
-		tx := &pkgentity.Transaction{
+		tx := &entity.Transaction{
 			UserID:      777,
 			Status:      wdk.TxStatusFailed,
 			Reference:   fmt.Sprintf("ref_jerry_%d", i),

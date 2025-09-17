@@ -121,5 +121,5 @@ func createGormConfig(logger glogger.Interface) *gorm.Config {
 // normalizeTimeZone changes every "/" in timezone to special char "%2F" for mysql to parse time location correctly
 // https://github.com/go-sql-driver/mysql?tab=readme-ov-file#loc
 func normalizeTimeZone(tz string) string {
-	return strings.Replace(tz, "/", "%2F", -1)
+	return strings.ReplaceAll(tz, "/", "%2F")
 }

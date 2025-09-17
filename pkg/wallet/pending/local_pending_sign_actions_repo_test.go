@@ -58,7 +58,7 @@ func TestLocalPendingSignActionsCache_Get_Error_NotFound(t *testing.T) {
 
 			// then:
 			require.Error(t, err)
-			assert.ErrorIs(t, err, wdk.NotFoundError)
+			assert.ErrorIs(t, err, wdk.ErrNotFoundError)
 		})
 	}
 }
@@ -100,6 +100,6 @@ func TestLocalPendingSignActionsCache_TTL_Cleanup_KeepsFresh_Success(t *testing.
 	got, err = cache.Get(oldRef)
 
 	// then:
-	require.ErrorIs(t, err, wdk.NotFoundError)
+	require.ErrorIs(t, err, wdk.ErrNotFoundError)
 	require.Nil(t, got)
 }

@@ -57,7 +57,7 @@ type wocFixture struct {
 }
 
 func (f *wocFixture) WillRespondWithMerkleRoot(root string) {
-	f.TB.Helper()
+	f.Helper()
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/.*/header`, f.network)),
@@ -90,7 +90,7 @@ func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
 }
 
 func (f *wocFixture) WillRespondWithInternalFailure() {
-	f.TB.Helper()
+	f.Helper()
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/.*`, f.network)),
@@ -101,7 +101,7 @@ func (f *wocFixture) WillRespondWithInternalFailure() {
 }
 
 func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
-	f.TB.Helper()
+	f.Helper()
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
@@ -131,7 +131,7 @@ func (f *wocFixture) WillRespondWithEmptyBlockHeight() {
 }
 
 func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBlockHeaderOption) {
-	f.TB.Helper()
+	f.Helper()
 
 	options := to.OptionsWithDefault(TipBlockHeaderOptions{
 		Height: TestBlockHeight,
@@ -166,7 +166,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBl
 
 func (f *wocFixture) WillBeUnreachable() error {
 	err := net.UnknownNetworkError("tests defined this endpoint as unreachable")
-	f.TB.Helper()
+	f.Helper()
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
 		regexp.MustCompile(`^https://api\.whatsonchain\.com/.*`),
@@ -176,7 +176,7 @@ func (f *wocFixture) WillBeUnreachable() error {
 }
 
 func (f *wocFixture) WillRespondWithRates(status int, content string, err error) {
-	f.TB.Helper()
+	f.Helper()
 	responder := func(status int, content string) func(req *http.Request) (*http.Response, error) {
 		return func(req *http.Request) (*http.Response, error) {
 			if err != nil {
@@ -196,7 +196,7 @@ func (f *wocFixture) WillRespondWithRates(status int, content string, err error)
 }
 
 func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err error) {
-	f.TB.Helper()
+	f.Helper()
 	responder := func(status int, content string) func(req *http.Request) (*http.Response, error) {
 		return func(req *http.Request) (*http.Response, error) {
 			if err != nil {
@@ -216,7 +216,7 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 }
 
 func (f *wocFixture) WillReturnMalformedBlockHeader(blockHash string) {
-	f.TB.Helper()
+	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/%s/header", f.network, blockHash)
 	f.transport.RegisterResponder(http.MethodGet, url,
 		httpmock.NewStringResponder(http.StatusOK, `invalid-json`),
@@ -356,7 +356,7 @@ type TxStatusExpectation struct {
 }
 
 func (f *wocFixture) WillRespondOnTxStatus(status int, tc TxStatusExpectation) {
-	f.TB.Helper()
+	f.Helper()
 
 	f.transport.RegisterResponder(http.MethodPost,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/txs/status", f.network),
@@ -402,7 +402,7 @@ func computeTxID(rawTx []byte) string {
 
 // WillRespondWithBlockHeaderByHeight registers responders for any URL / block/{height}/header
 func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, merkleRoot string) {
-	f.TB.Helper()
+	f.Helper()
 
 	responder := httpmock.NewJsonResponderOrPanic(
 		status,
@@ -447,7 +447,7 @@ func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint3
 }
 
 func (f *wocFixture) WillRespondWithChainInfo(status int, blocks uint32) {
-	f.TB.Helper()
+	f.Helper()
 
 	body := map[string]any{"blocks": blocks}
 
@@ -482,7 +482,7 @@ type ScriptHistoryDataBuilder interface {
 }
 
 func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHash string, responseJSON string) {
-	f.TB.Helper()
+	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", f.network, scriptHash)
 
 	responder := func(*http.Request) (*http.Response, error) {
@@ -495,7 +495,7 @@ func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHas
 }
 
 func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, responseJSON string) {
-	f.TB.Helper()
+	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unconfirmed/history", f.network, scriptHash)
 
 	responder := func(*http.Request) (*http.Response, error) {
@@ -508,7 +508,7 @@ func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptH
 }
 
 func (f *wocFixture) WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string) {
-	f.TB.Helper()
+	f.Helper()
 
 	errorResponseJSON := fmt.Sprintf(`{
 		"result": [],
@@ -526,7 +526,7 @@ func (f *wocFixture) WhenQueryingScriptHistory(scriptHash string) WhatsOnChainSc
 }
 
 func (f *wocFixture) WithScriptHistoryValidationError(scriptHash string, expectedError string) {
-	f.TB.Helper()
+	f.Helper()
 }
 
 type wocScriptHistoryQueryFixture struct {
@@ -730,7 +730,7 @@ func (b *scriptHistoryDataBuilder) buildUnconfirmedError() string {
 }
 
 func (b *scriptHistoryDataBuilder) WillBeReturned() {
-	b.fixture.TB.Helper()
+	b.fixture.Helper()
 
 	confirmedResp, unconfirmedResp := b.buildJSON()
 
@@ -739,7 +739,7 @@ func (b *scriptHistoryDataBuilder) WillBeReturned() {
 }
 
 func (f *wocFixture) WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string) {
-	f.TB.Helper()
+	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unspent/all", f.network, scriptHash)
 	responder := func(*http.Request) (*http.Response, error) {
 		resp := httpmock.NewStringResponse(status, responseJSON)
