@@ -10,7 +10,6 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -74,7 +73,7 @@ type inputsProcessor struct {
 	txIDsLookup    map[chainhash.Hash]struct{}
 	beef           *transaction.Beef
 	logger         *slog.Logger
-	chaintracker   chaintracker.ChainTracker
+	beefVerifier   wdk.BeefVerifier
 }
 
 func newInputsProcessor(
@@ -85,7 +84,7 @@ func newInputsProcessor(
 	providedInputs []wdk.ValidCreateActionInput,
 	inputBEEF []byte,
 	trustSelf bool,
-	chaintracker chaintracker.ChainTracker,
+	beefVerifier wdk.BeefVerifier,
 ) (*inputsProcessor, error) {
 	txIDsLookup := make(map[chainhash.Hash]struct{}, len(providedInputs))
 	for _, input := range providedInputs {
@@ -109,7 +108,7 @@ func newInputsProcessor(
 		txIDsLookup:    txIDsLookup,
 		providedInputs: providedInputs,
 		beef:           transaction.NewBeefV2(),
-		chaintracker:   chaintracker,
+		beefVerifier:   beefVerifier,
 	}, nil
 }
 
@@ -135,7 +134,7 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 		return nil, fmt.Errorf("failed to get beef for inputs: %w", err)
 	}
 
-	if ok, err := proc.beef.Verify(proc.ctx, proc.chaintracker, true); err != nil {
+	if ok, err := proc.beefVerifier.VerifyBeef(proc.ctx, proc.beef, true); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")

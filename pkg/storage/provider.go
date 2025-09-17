@@ -42,7 +42,11 @@ var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
 // NewGORMProvider creates a new storage provider with GORM repository.
 func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...ProviderOption) (*Provider, error) {
-	options := to.OptionsWithDefault(defaultProviderOptions(), opts...)
+	if services == nil {
+		return nil, fmt.Errorf("no services provided")
+	}
+
+	options := to.OptionsWithDefault(defaultProviderOptions(services), opts...)
 	if err := options.verify(); err != nil {
 		return nil, fmt.Errorf("invalid provider options: %w", err)
 	}
@@ -65,10 +69,6 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		transactionFunder = db.CreateFunder(options.FeeModel)
 	}
 
-	if services == nil {
-		log.Warn("services is not set, some actions may not work")
-	}
-
 	return &Provider{
 		Chain:    chain,
 		Database: db,
@@ -83,7 +83,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,
-			options.BeefVerifier,
+			options.beefVerifier(),
 		),
 		options:  &options,
 		logger:   log,
@@ -589,4 +589,9 @@ func (p *Provider) OutputBasketsEntity() crud.OutputBasket {
 // OutputsEntity returns an accessor to perform read and write operations on outputs in the underlying repository.
 func (p *Provider) OutputsEntity() crud.Output {
 	return crud.NewOutput(p.repo.Outputs)
+}
+
+// TxNoteEntity returns a TxNote interface for querying and filtering TxNote records in the storage provider.
+func (p *Provider) TxNoteEntity() crud.TxNote {
+	return crud.NewTxNote(p.repo.TxNotes)
 }

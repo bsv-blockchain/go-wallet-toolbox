@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"time"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/go-softwarelab/common/pkg/types"
 	"gorm.io/gen"
@@ -91,5 +93,42 @@ func cmpBoolCondition(field field.Bool, cmp *entity.Comparable[bool]) gen.Condit
 
 	default:
 		panic("unknown comparison operator for bool: " + cmp.Cmp.String())
+	}
+}
+
+func orderedTime(a, b time.Time) (time.Time, time.Time) {
+	if a.After(b) {
+		return b, a
+	}
+	return a, b
+}
+func cmpTimeCondition(f field.Time, cmp *entity.Comparable[time.Time]) gen.Condition {
+	switch cmp.Cmp {
+	case entity.Equal:
+		return f.Eq(cmp.Value)
+	case entity.NotEqual:
+		return f.Neq(cmp.Value)
+	case entity.GreaterThan:
+		return f.Gt(cmp.Value)
+	case entity.LessThan:
+		return f.Lt(cmp.Value)
+	case entity.GreaterThanOrEqual:
+		return f.Gte(cmp.Value)
+	case entity.LessThanOrEqual:
+		return f.Lte(cmp.Value)
+	case entity.Between:
+		left, right := orderedTime(cmp.GetValue(), cmp.GetValueRight())
+		return field.And(f.Gte(left), f.Lte(right))
+	case entity.NotBetween:
+		left, right := orderedTime(cmp.GetValue(), cmp.GetValueRight())
+		return field.Or(f.Lt(left), f.Gt(right))
+	case entity.In:
+		return f.In(cmp.InValues...)
+	case entity.NotIn:
+		return f.NotIn(cmp.InValues...)
+	case entity.Like, entity.NotLike:
+		panic("unsupported comparison operator for time.Time: " + cmp.Cmp.String())
+	default:
+		panic("unsupported comparison operator for time.Time: " + cmp.Cmp.String())
 	}
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	broadcastError "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -369,7 +369,12 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	logger.DebugContext(ctx, "Categorizing transactions by status")
 
-	for txID, currentStatus := range knownTxStatusesLookup {
+	for _, txID := range txIDs {
+		currentStatus, ok := knownTxStatusesLookup[txID]
+		if !ok {
+			return nil, fmt.Errorf("transaction status not found for txID %s", txID)
+		}
+
 		if currentStatus.AlreadySent() {
 			logger.DebugContext(ctx, "Transaction already sent - adding to results",
 				slog.String("txID", txID),
@@ -433,7 +438,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, p.services, false); err != nil {
+	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, false); err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
@@ -507,12 +512,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				readyToSendTxIDs,
 			)
 			if err != nil {
-				processResult := &wdk.ProcessActionResult{
-					SendWithResults:   sendWithResults,
-					NotDelayedResults: notDelayedResults,
-				}
-				return nil, broadcastError.NewImmediateBroadcastError(err, broadcastedTxID,
-					beef, processResult, results.ServiceErrors(), p.logger)
+				return nil, fmt.Errorf(
+					"cannot update single tx after broadcast: %w",
+					pkgerrors.NewProcessActionError(sendWithResults, notDelayedResults).
+						Wrap(pkgerrors.NewTransactionErrorFromTxIDHex(broadcastedTxID)),
+				)
 			}
 		}
 

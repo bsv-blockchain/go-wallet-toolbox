@@ -85,7 +85,7 @@ func (g *getBeef) prepareOptions(options wdk.StorageGetBeefOptions, serviceFetch
 
 func (g *getBeef) makeTxGetter(serviceFetchedMinedTxs map[string]rawTxWithMerklePath) entity.TxGetterFcn {
 	return func(ctx context.Context, txID string) (rawTx []byte, merklePath *transaction.MerklePath, err error) {
-		rawTxResult, err := g.services.RawTx(txID)
+		rawTxResult, err := g.services.RawTx(ctx, txID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get raw transaction for txID %s: %w", txID, err)
 		}

@@ -53,7 +53,7 @@ func TestWalletServices_GetUtxoStatus_SuccessCases(t *testing.T) {
 			fixture := ts.GivenServices(t)
 			fixture.WhatsOnChain().WillRespondWithUtxoStatus(http.StatusOK, scriptHash, tc.jsonBody)
 
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().New()
 
 			// when:
 			result, err := svc.GetUtxoStatus(t.Context(), scriptHash, outpoint)
@@ -132,7 +132,7 @@ func TestWalletServices_GetUtxoStatus_ErrorCases(t *testing.T) {
 			fixture := ts.GivenServices(t)
 			tc.setup(fixture)
 
-			svc := fixture.Services().WithDefaultConfig()
+			svc := fixture.Services().New()
 
 			// when:
 			result, err := svc.GetUtxoStatus(t.Context(), tc.script, outpoint)

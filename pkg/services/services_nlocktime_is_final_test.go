@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	ts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -38,10 +38,10 @@ func TestWalletServices_NLockTimeIsFinal_Primary_WoC(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			given := ts.GivenServices(t)
+			given := testservices.GivenServices(t)
 			given.WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, wocTip)
 
-			svc := given.Services().WithDefaultConfig()
+			svc := given.Services().New()
 
 			// when:
 			got, err := svc.NLockTimeIsFinal(t.Context(), tc.lockTime)
@@ -61,12 +61,12 @@ func TestWalletServices_NLockTimeIsFinal_Fallbacks(t *testing.T) {
 
 	t.Run("WoC unreachable → Bitails succeeds", func(t *testing.T) {
 		// given:
-		given := ts.GivenServices(t)
+		given := testservices.GivenServices(t)
 		err := given.WhatsOnChain().WillBeUnreachable()
 		require.Error(t, err)
 		given.Bitails().WillReturnNetworkInfo(http.StatusOK, bitTip)
 
-		svc := given.Services().WithDefaultConfig()
+		svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		got, err := svc.NLockTimeIsFinal(t.Context(), bitTip-1)
@@ -78,15 +78,15 @@ func TestWalletServices_NLockTimeIsFinal_Fallbacks(t *testing.T) {
 
 	t.Run("WoC & Bitails fail → BHS succeeds", func(t *testing.T) {
 		// given:
-		given := ts.GivenServices(t)
+		given := testservices.GivenServices(t)
 		err := given.WhatsOnChain().WillBeUnreachable()
 		require.Error(t, err)
 		given.Bitails().WillReturnNetworkInfo(http.StatusBadGateway, 0)
 
-		given.BHS().OnLongestTipBlockHeaderResponseWith(ts.WithLongestChainTipHeight(uint(bhsTip)))
+		given.BHS().OnLongestTipBlockHeaderResponseWith(testservices.WithLongestChainTipHeight(uint(bhsTip)))
 		given.BHS().IsUpAndRunning()
 
-		svc := given.Services().WithDefaultConfig()
+		svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
 
 		// when:
 		got, err := svc.NLockTimeIsFinal(t.Context(), bhsTip-1)
@@ -99,7 +99,7 @@ func TestWalletServices_NLockTimeIsFinal_Fallbacks(t *testing.T) {
 
 func TestWalletServices_NLockTimeIsFinal_AllProvidersFail(t *testing.T) {
 	// given:
-	given := ts.GivenServices(t)
+	given := testservices.GivenServices(t)
 
 	err := given.WhatsOnChain().WillBeUnreachable()
 	require.Error(t, err)
@@ -107,7 +107,7 @@ func TestWalletServices_NLockTimeIsFinal_AllProvidersFail(t *testing.T) {
 	err = given.BHS().WillBeUnreachable()
 	require.Error(t, err)
 
-	svc := given.Services().WithDefaultConfig()
+	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 	// when:
 	_, err = svc.NLockTimeIsFinal(t.Context(), uint32(400_000_000))
@@ -148,8 +148,8 @@ func TestWalletServices_NLockTimeIsFinal_TimestampPath(t *testing.T) {
 			// given:
 			now := uint32(time.Now().Unix())
 
-			given := ts.GivenServices(t)
-			svc := given.Services().WithDefaultConfig()
+			given := testservices.GivenServices(t)
+			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 			lt := c.lockTime(now)
 			want := c.expect(now)
@@ -166,7 +166,7 @@ func TestWalletServices_NLockTimeIsFinal_TimestampPath(t *testing.T) {
 
 func TestWalletServices_NLockTimeIsFinal_Tx_AllInputsMaxSequence_ShortCircuit(t *testing.T) {
 	// given:
-	svc := ts.GivenServices(t).Services().WithDefaultConfig()
+	svc := testservices.GivenServices(t).Services().New()
 
 	tx := testutils.NewTestTransactionWithLocktime(t, 700_000, testutils.MaxSeq, testutils.MaxSeq, testutils.MaxSeq)
 
@@ -182,10 +182,10 @@ func TestWalletServices_NLockTimeIsFinal_Tx_HeightPath(t *testing.T) {
 	// given:
 	const wocTip = uint32(800_000)
 
-	given := ts.GivenServices(t)
+	given := testservices.GivenServices(t)
 	given.WhatsOnChain().WillRespondWithChainInfo(http.StatusOK, wocTip)
 
-	svc := given.Services().WithDefaultConfig()
+	svc := given.Services().New()
 	tx := testutils.NewTestTransactionWithLocktime(t, wocTip-1, 0)
 
 	// when:

@@ -29,8 +29,9 @@ type ServicesFixture interface {
 }
 
 type WalletServicesFixture interface {
-	WithDefaultConfig() *services.WalletServices
-	WithBsvExchangeRate(exchangeRate defs.BSVExchangeRate) *services.WalletServices
+	Config(modifiers ...func(*defs.WalletServices)) WalletServicesFixture
+	Opts(options ...func(option *services.Options)) WalletServicesFixture
+	New() *services.WalletServices
 }
 
 type servicesFixture struct {
@@ -41,6 +42,7 @@ type servicesFixture struct {
 	httpClient           *resty.Client
 	transport            *httpmock.MockTransport
 	walletServicesConfig *defs.WalletServices
+	walletServicesOpts   []func(option *services.Options)
 	woc                  WhatsOnChainFixture
 	arc                  ARCFixture
 	bitails              BitailsFixture
@@ -102,20 +104,28 @@ func (f *servicesFixture) BHS() BHSFixture {
 	return f.bhs
 }
 
-func (f *servicesFixture) WithDefaultConfig() *services.WalletServices {
+func (f *servicesFixture) Config(modifiers ...func(*defs.WalletServices)) WalletServicesFixture {
 	f.t.Helper()
 
-	walletServices := services.New(f.logger, *f.walletServicesConfig, services.WithRestyClient(f.httpClient))
-	f.services = walletServices
+	for _, modify := range modifiers {
+		modify(f.walletServicesConfig)
+	}
 
-	return f.services
+	return f
 }
 
-func (f *servicesFixture) WithBsvExchangeRate(exchangeRate defs.BSVExchangeRate) *services.WalletServices {
+func (f *servicesFixture) Opts(options ...func(option *services.Options)) WalletServicesFixture {
 	f.t.Helper()
-	f.walletServicesConfig.WhatsOnChain.BSVExchangeRate = exchangeRate
+	f.walletServicesOpts = append(f.walletServicesOpts, options...)
+	return f
+}
 
-	walletServices := services.New(f.logger, *f.walletServicesConfig, services.WithRestyClient(f.httpClient))
+func (f *servicesFixture) New() *services.WalletServices {
+	f.t.Helper()
+
+	options := append(f.walletServicesOpts, services.WithRestyClient(f.httpClient))
+
+	walletServices := services.New(f.logger, *f.walletServicesConfig, options...)
 	f.services = walletServices
 
 	return f.services
@@ -147,4 +157,34 @@ func (f *servicesFixture) Transport() *httpmock.MockTransport {
 
 func mockHeaderBinary(char rune) string {
 	return strings.Repeat(string(char), headerLength)
+}
+
+func WithBsvExchangeRate(exchangeRate defs.BSVExchangeRate) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.WhatsOnChain.BSVExchangeRate = exchangeRate
+	}
+}
+
+func WithEnabledBitails(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.Bitails.Enabled = enabled
+	}
+}
+
+func WithEnabledBHS(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.BHS.Enabled = enabled
+	}
+}
+
+func WithEnabledARC(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.ArcConfig.Enabled = enabled
+	}
+}
+
+func WithEnabledWoC(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.WhatsOnChain.Enabled = enabled
+	}
 }

@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"log/slog"
+	"slices"
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -31,6 +32,7 @@ type WalletBuilder interface {
 	WithRemoteStorage() WalletBuilder
 	WithSQLiteStorage() WalletBuilder
 	WithServices() WalletBuilder
+	WithWalletOpts(opts ...func(*wallet_opts.Opts)) WalletBuilder
 	ForUser(user testusers.User) *wallet.Wallet
 }
 
@@ -40,6 +42,7 @@ type walletBuilder struct {
 	storageType   StorageType
 	withServices  bool
 	givenStorage  testabilities.StorageFixture
+	walletOpts    []func(*wallet_opts.Opts)
 }
 
 func (w *walletBuilder) WithActiveStorage(storageType StorageType) WalletBuilder {
@@ -49,6 +52,11 @@ func (w *walletBuilder) WithActiveStorage(storageType StorageType) WalletBuilder
 
 func (w *walletBuilder) WithServices() WalletBuilder {
 	w.withServices = true
+	return w
+}
+
+func (w *walletBuilder) WithWalletOpts(opts ...func(*wallet_opts.Opts)) WalletBuilder {
+	w.walletOpts = append(w.walletOpts, opts...)
 	return w
 }
 
@@ -69,7 +77,7 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	keyDeriver := sdk.NewKeyDeriver(privKey)
 	activeStorage, cleanup := w.storage()
 
-	var opts []func(*wallet_opts.Opts)
+	opts := slices.Clone(w.walletOpts)
 	if w.withServices {
 		serviceCfg := defs.DefaultServicesConfig(defs.NetworkTestnet)
 		walletServices := services.New(slog.Default(), serviceCfg)

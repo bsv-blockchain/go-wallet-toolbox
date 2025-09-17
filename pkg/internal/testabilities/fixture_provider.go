@@ -46,16 +46,16 @@ type ProviderFixture interface {
 type providerFixture struct {
 	testservices.ServicesFixture
 
-	network        defs.BSVNetwork
-	commission     defs.Commission
-	feeModel       defs.FeeModel
-	failAbandoned  defs.FailAbandoned
-	randomizer     wdk.Randomizer
-	services       wdk.Services
-	beefVerifier   *beefVerifierFixture
-	storagePrivKey string
-	storageName    string
-	providers      []*storage.Provider
+	network             defs.BSVNetwork
+	commission          defs.Commission
+	feeModel            defs.FeeModel
+	failAbandoned       defs.FailAbandoned
+	randomizer          wdk.Randomizer
+	services            wdk.Services
+	beefVerifierFixture *beefVerifierFixture
+	storagePrivKey      string
+	storageName         string
+	providers           []*storage.Provider
 
 	t               testing.TB
 	require         *require.Assertions
@@ -100,6 +100,7 @@ func (p *providerFixture) withServices() ProviderFixture {
 	client.SetTransport(p.servicesSniffer)
 
 	config := defs.DefaultServicesConfig(p.network)
+	config.BHS.Enabled = true
 
 	p.services = services.New(p.logger, config, services.WithRestyClient(client))
 	return p
@@ -134,7 +135,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithLogger(p.logger),
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),
-		storage.WithBeefVerifier(p.beefVerifier),
+		storage.WithBeefVerifier(p.beefVerifierFixture.Verifier(p.services)),
 		storage.WithFeeModel(p.feeModel),
 		storage.WithCommission(p.commission),
 		storage.WithFailAbandoned(p.failAbandoned),
@@ -175,5 +176,5 @@ func (p *providerFixture) Cleanup() {
 
 func (p *providerFixture) BeefVerifier() BeefVerifierFixture {
 	p.t.Helper()
-	return p.beefVerifier
+	return p.beefVerifierFixture
 }

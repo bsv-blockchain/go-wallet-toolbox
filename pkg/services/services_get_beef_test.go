@@ -19,7 +19,7 @@ func TestGetBeef(t *testing.T) {
 		txID := givenGetBeefFixture.TxID()
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		beef, err := services.GetBEEF(t.Context(), txID, nil)
@@ -39,7 +39,7 @@ func TestGetBeef(t *testing.T) {
 		txID := givenMinedTx.TxID()
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		_, err := services.GetBEEF(t.Context(), txID, nil)
@@ -58,7 +58,7 @@ func TestGetBeef(t *testing.T) {
 		txID := givenMinedTx.TxID()
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		beef, err := services.GetBEEF(t.Context(), txID, nil)
@@ -86,7 +86,7 @@ func TestGetBeef(t *testing.T) {
 		given.WhatsOnChain().WillRespondWithMerklePath(404, childTxSpec.ID().String(), "")
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		beef, err := services.GetBEEF(t.Context(), childTxSpec.ID().String(), nil)
@@ -116,7 +116,7 @@ func TestGetBeef(t *testing.T) {
 		given.WhatsOnChain().WillRespondWithMerklePath(404, childTxSpec.ID().String(), "")
 
 		// and:
-		services := given.Services().WithDefaultConfig()
+		services := given.Services().New()
 
 		// when:
 		beef, err := services.GetBEEF(t.Context(), childTxSpec.ID().String(), []string{givenMinedTx.TxID()})

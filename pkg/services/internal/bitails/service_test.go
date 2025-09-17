@@ -267,7 +267,7 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
 			},
 			resultStatus: wdk.PostedTxIDResultMissingInputs,
-			doubleSpend:  true,
+			doubleSpend:  false,
 		},
 		"mismatched txid": {
 			setup: func(given testabilities.BitailsServiceFixture) {
@@ -280,6 +280,22 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 		"internal error": {
 			setup: func(given testabilities.BitailsServiceFixture) {
 				given.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
+		"network error - ECONNREFUSED": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnEconnRefused(givenTxID, bitails.ErrMissingInputs)
+				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
+			},
+			resultStatus:  wdk.PostedTxIDResultError,
+			additionalErr: true,
+		},
+		"network error - ECONNRESET": {
+			setup: func(given testabilities.BitailsServiceFixture) {
+				given.Bitails().OnBroadcast().WillReturnEconnReset(givenTxID, bitails.ErrMissingInputs)
 				given.Bitails().WillReturnTxInfo(givenTxID, "mocked-block-hash", 99999)
 			},
 			resultStatus:  wdk.PostedTxIDResultError,

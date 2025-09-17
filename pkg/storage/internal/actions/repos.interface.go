@@ -18,7 +18,7 @@ type BasketRepo interface {
 
 type OutputRepo interface {
 	FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Output, error)
-	FindOutputsForActions(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error)
+	FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error)
 	FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]string, error)
 	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*pkgentity.Output, error)
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error)

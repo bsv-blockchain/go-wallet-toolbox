@@ -48,6 +48,7 @@ func main() {
 		models.OutputTag{},
 		models.UserUTXO{},
 		models.User{},
+		models.TxNote{},
 	)
 
 	g.Execute()
