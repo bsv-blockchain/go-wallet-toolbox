@@ -105,7 +105,7 @@ func (w *walletBuilder) storage() (storage wdk.WalletStorageProvider, cleanup fu
 		return sqliteStorage, nil
 	case StorageTypeRemote:
 		serverCleanup := w.givenStorage.StartedRPCServerFor(sqliteStorage)
-		storageClient, clientCleanup := w.givenStorage.RPCClient()
+		storageClient, clientCleanup := w.givenStorage.RPCClientForUser(testusers.Alice)
 		return storageClient, func() {
 			clientCleanup()
 			serverCleanup()
