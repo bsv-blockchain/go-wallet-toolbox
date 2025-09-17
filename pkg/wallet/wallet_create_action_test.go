@@ -988,10 +988,11 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithLockingScript(script.Script{
+		trivialLockingScript := script.Script{
 			script.Op3,
 			script.OpEQUAL,
-		}))
+		}
+		aliceArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithLockingScript(trivialLockingScript))
 
 		firstResult, err := aliceWallet.CreateAction(t.Context(), aliceArgs, fixtures.DefaultOriginator)
 
