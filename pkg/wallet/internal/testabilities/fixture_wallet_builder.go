@@ -26,7 +26,7 @@ const (
 	StorageTypeRemote StorageType = "remote"
 	// StorageTypeMocked represents a mocked storage type.
 	StorageTypeMocked StorageType = "mocked"
-	// StorageTypeMocked represents a separate SQLite storage type.
+	// StorageTypeOwnSQLite represents a separate SQLite storage type.
 	StorageTypeOwnSQLite StorageType = "own_sqlite"
 )
 
