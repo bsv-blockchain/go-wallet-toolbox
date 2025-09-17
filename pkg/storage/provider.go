@@ -582,3 +582,8 @@ func (p *Provider) OutputBasketsEntity() crud.OutputBasket {
 func (p *Provider) OutputsEntity() crud.Output {
 	return crud.NewOutput(p.repo.Outputs)
 }
+
+// TxNoteEntity returns a TxNote interface for querying and filtering TxNote records in the storage provider.
+func (p *Provider) TxNoteEntity() crud.TxNote {
+	return crud.NewTxNote(p.repo.TxNotes)
+}
