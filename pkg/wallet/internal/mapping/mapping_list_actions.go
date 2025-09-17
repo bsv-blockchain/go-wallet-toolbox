@@ -121,11 +121,15 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 	return result, nil
 }
 
+const ActionStatusFailed sdk.ActionStatus = "failed"
+
 // mapActionStatus maps string status to sdk.ActionStatus
 func mapActionStatus(status string) (sdk.ActionStatus, error) {
 	switch status {
 	case "completed":
 		return sdk.ActionStatusCompleted, nil
+	case "failed":
+		return ActionStatusFailed, nil
 	case "unprocessed":
 		return sdk.ActionStatusUnprocessed, nil
 	case "sending":

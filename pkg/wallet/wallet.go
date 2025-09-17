@@ -252,7 +252,7 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
-	args.Labels = append(args.Labels, "failed")
+	args.Labels = append(args.Labels, defs.ListActionsSpecOpFailedActionsLabel)
 	if unfail {
 		args.Labels = append(args.Labels, "unfail")
 	}

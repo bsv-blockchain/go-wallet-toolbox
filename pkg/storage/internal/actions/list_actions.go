@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -60,6 +61,27 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 
 	if err := l.mapInputsOutputsLabels(actions, txs, inputMap, outputMap, labelMap, rawTxMap, args); err != nil {
 		return nil, fmt.Errorf("failed to map inputs/outputs/labels: %w", err)
+	}
+
+	var hasFailedSpecOp, hasUnfailControl bool
+	for _, label := range args.Labels {
+		if defs.IsListActionsSpecOp(string(label)) {
+			hasFailedSpecOp = true
+		}
+		if string(label) == string(wdk.TxStatusUnfail) {
+			hasUnfailControl = true
+		}
+	}
+	if hasFailedSpecOp && hasUnfailControl {
+		for _, a := range actions {
+			if a.TxID == "" {
+				continue
+			}
+			err = l.knownTxRepo.UpdateKnownTxStatus(ctx, a.TxID, wdk.ProvenTxStatusUnfail, nil, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update known tx status: %w", err)
+			}
+		}
 	}
 
 	return &wdk.ListActionsResult{
