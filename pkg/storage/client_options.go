@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/filecoin-project/go-jsonrpc"
@@ -11,14 +12,23 @@ import (
 type ClientOptions = func(*clientOptions)
 
 type clientOptions struct {
-	options []jsonrpc.Option
+	rpcOptions []jsonrpc.Option
+	httpClient *http.Client
+	logger     *slog.Logger
 }
 
 func defaultClientOptions() clientOptions {
 	return clientOptions{
-		options: []jsonrpc.Option{
+		rpcOptions: []jsonrpc.Option{
 			jsonrpc.WithMethodNameFormatter(jsonrpc.NewMethodNameFormatter(false, jsonrpc.LowerFirstCharCase)),
 		},
+	}
+}
+
+// WithClientLogger is a function that can be used to set the logger for a client.
+func WithClientLogger(logger *slog.Logger) ClientOptions {
+	return func(o *clientOptions) {
+		o.logger = logger
 	}
 }
 
@@ -26,6 +36,6 @@ func defaultClientOptions() clientOptions {
 // This is meant to be used for testing purposes.
 func WithHttpClient(httpClient *http.Client) ClientOptions {
 	return func(o *clientOptions) {
-		o.options = append(o.options, jsonrpc.WithHTTPClient(httpClient))
+		o.httpClient = httpClient
 	}
 }
