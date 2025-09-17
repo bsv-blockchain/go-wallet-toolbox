@@ -18,8 +18,8 @@ func (d *Daemon) allTasksFactories() map[defs.MonitorTask]taskFactoryFunc {
 		defs.FailAbandonedMonitorTask: func() tasks.TaskInterface {
 			return tasks.NewFailAbandonedTask(d.storage)
 		},
-		defs.CheckFailedTransactionsMonitorTask: func() tasks.TaskInterface {
-			return tasks.NewCheckFailedTransactionsTask(d.storage)
+		defs.UnFailMonitorTask: func() tasks.TaskInterface {
+			return tasks.NewUnFailTask(d.storage)
 		},
 	}
 }

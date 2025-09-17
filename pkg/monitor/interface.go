@@ -10,5 +10,5 @@ type MonitoredStorage interface {
 	SynchronizeTransactionStatuses(ctx context.Context) error
 	SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error
 	AbortAbandoned(ctx context.Context) error
-	CheckFailedTransactions(ctx context.Context) error
+	UnFail(ctx context.Context) error
 }

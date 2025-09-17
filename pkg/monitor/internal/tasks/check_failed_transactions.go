@@ -5,17 +5,17 @@ import (
 	"fmt"
 )
 
-// CheckFailedTransactionsTask iterates failed transactions and re-checks their on-chain status.
-type CheckFailedTransactionsTask struct {
-	storage FailedTransactionsChecker
+// UnFailTask iterates failed transactions and re-checks their on-chain status.
+type UnFailTask struct {
+	storage UnFailChecker
 }
 
-func NewCheckFailedTransactionsTask(storage FailedTransactionsChecker) TaskInterface {
-	return &CheckFailedTransactionsTask{storage: storage}
+func NewUnFailTask(storage UnFailChecker) TaskInterface {
+	return &UnFailTask{storage: storage}
 }
 
-func (t *CheckFailedTransactionsTask) Run(ctx context.Context) error {
-	if err := t.storage.CheckFailedTransactions(ctx); err != nil {
+func (t *UnFailTask) Run(ctx context.Context) error {
+	if err := t.storage.UnFail(ctx); err != nil {
 		return fmt.Errorf("check failed transactions failed: %w", err)
 	}
 	return nil

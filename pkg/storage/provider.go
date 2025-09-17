@@ -385,9 +385,9 @@ func (p *Provider) AbortAbandoned(ctx context.Context) error {
 	return nil
 }
 
-// CheckFailedTransactions finds transactions marked as failed and rechecks if they are on-chain; if so, it updates their state.
-func (p *Provider) CheckFailedTransactions(ctx context.Context) error {
-	if err := p.actions.CheckFailedTransactions(ctx); err != nil {
+// UnFail finds transactions marked as failed and rechecks if they are on-chain; if so, it updates their state.
+func (p *Provider) UnFail(ctx context.Context) error {
+	if err := p.actions.UnFail(ctx); err != nil {
 		return fmt.Errorf("failed to recheck failed transactions: %w", err)
 	}
 	return nil
