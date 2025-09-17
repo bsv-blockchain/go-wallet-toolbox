@@ -29,7 +29,7 @@ func assertBEEFState(t *testing.T, constructor beefConstructor, expectedTxs ...E
 		require.NotNil(t, hash)
 
 		actualTx, ok := beef.Transactions[to.Value(hash)]
-		require.Truef(t, ok, "tx with known tx id: %s was expected to be part of BEEF Transactions tree", expectedTx.ID)
+		require.Truef(t, ok, "tx with known tx id: %s was expected to be a part of BEEF Transactions tree", expectedTx.ID)
 
 		if expectedTx.DataFormat != nil {
 			assert.Equal(t, to.Value(expectedTx.DataFormat), actualTx.DataFormat)
