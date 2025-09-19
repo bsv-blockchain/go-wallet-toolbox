@@ -20,6 +20,7 @@ type Repositories struct {
 	*KeyValue
 	*Commission
 	*TxNotes
+	*UserUTXOs
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
@@ -38,6 +39,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		KeyValue:      NewKeyValue(db),
 		Commission:    NewCommission(db, query),
 		TxNotes:       NewTxNotes(db, query),
+		UserUTXOs:     NewUserUTXOs(db, query),
 	}
 	repositories.Users = NewUsers(db, query, repositories.Settings, repositories.OutputBaskets)
 
