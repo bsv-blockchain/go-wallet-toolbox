@@ -1022,6 +1022,14 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 			ID:         firstResult.Txid.String(),
 			DataFormat: to.Ptr(transaction.RawTx),
 		})
+
+		// and check db state:
+		thenState := testabilities.ThenWalletState(t, bobWallet)
+		thenState.ActionAtIndex(0).
+			WithDescription("test transaction").
+			WithSatoshis(41998).
+			WithStatus(sdk.ActionStatusUnproven).
+			WithNotEmptyTxID()
 	})
 
 	s.Run("alice and bob uses the same storage", func() {
