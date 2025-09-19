@@ -42,7 +42,7 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 		return nil, fmt.Errorf("failed to merge input beef into transaction beef: %w", err)
 	}
 
-	allInputs := seqerr.FromSlice(a.Transaction.Inputs)
+	allInputs := seqerr.FromSlice(a.Inputs)
 
 	var inputsWithSourceTx iter.Seq2[*transaction.TransactionInput, error]
 	if !allowPartials {
@@ -55,7 +55,7 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 
 	inputsRawTx := seqerr.Map(inputsWithSourceTx, inputRawTxBytes)
 
-	allRawTxs := seqerr.Append(inputsRawTx, a.Transaction.Bytes())
+	allRawTxs := seqerr.Append(inputsRawTx, a.Bytes())
 
 	err = seqerr.ForEach(allRawTxs, mergeRawTxIntoBEEF(beef))
 	if err != nil {

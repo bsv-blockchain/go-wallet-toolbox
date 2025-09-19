@@ -10,7 +10,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	bt "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ func TestBitails_GetHeight(t *testing.T) {
 	// given:
 	const good = uint32(123_456)
 
-	given := bt.Given(t)
+	given := testabilities.Given(t)
 	given.Bitails().WillReturnNetworkInfo(http.StatusOK, good)
 
 	// when:
@@ -46,7 +45,7 @@ func TestBitails_GetHeight_ErrorCases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// given:
-			given := bt.Given(t)
+			given := testabilities.Given(t)
 			given.Bitails().WillReturnNetworkInfo(tc.status, tc.blocks)
 
 			// when:

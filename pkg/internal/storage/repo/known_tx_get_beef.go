@@ -82,7 +82,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	err := query.First(&model, "tx_id = ? ", txID).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		if options.TxGetterFcn == nil {
-			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.NotFoundError)
+			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.ErrNotFoundError)
 		}
 
 		rawTx, merklePath, err := options.TxGetterFcn(ctx, txID)

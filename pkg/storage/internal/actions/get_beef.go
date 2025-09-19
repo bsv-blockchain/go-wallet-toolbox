@@ -95,7 +95,7 @@ func (g *getBeef) makeTxGetter(serviceFetchedMinedTxs map[string]rawTxWithMerkle
 		}
 
 		merklePathResult, err := g.services.MerklePath(ctx, txID)
-		if errors.Is(err, wdk.NotFoundError) {
+		if errors.Is(err, wdk.ErrNotFoundError) {
 			return rawTxResult.RawTx, nil, nil
 		}
 

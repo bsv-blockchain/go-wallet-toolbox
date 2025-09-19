@@ -438,7 +438,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
-	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
+	err := p.repo.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
@@ -638,4 +638,9 @@ func (p *Provider) OutputsEntity() crud.Output {
 // TxNoteEntity returns a TxNote interface for querying and filtering TxNote records in the storage provider.
 func (p *Provider) TxNoteEntity() crud.TxNote {
 	return crud.NewTxNote(p.repo.TxNotes)
+}
+
+// UserUTXOEntity returns a UserUTXO interface for querying and filtering UserUTXO records in the storage provider.
+func (p *Provider) UserUTXOEntity() crud.UserUTXO {
+	return crud.NewUserUTXO(p.repo.UserUTXOs)
 }

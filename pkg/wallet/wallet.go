@@ -22,6 +22,18 @@ import (
 
 var _ sdk.Interface = (*Wallet)(nil)
 
+type walletCleanupFunc func()
+
+func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
+	if wc == nil {
+		return next
+	}
+	return func() {
+		wc()
+		next()
+	}
+}
+
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
 	proto                   *sdk.ProtoWallet
@@ -32,6 +44,7 @@ type Wallet struct {
 	chain                   defs.BSVNetwork
 	pendingSignActionsCache pending.SignActionsRepository
 	logger                  *slog.Logger
+	cleanup                 walletCleanupFunc
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -90,15 +103,23 @@ func WithLogger(logger *slog.Logger) func(*wallet_opts.Opts) {
 
 // New creates a new Wallet instance with the specified network, key deriver, and storage.
 // Returns an error if any required parameter is invalid or missing.
-// TODO: add support for optional parameters (like services, wallet storage manager, etc.) as it is in the Typescript version.
 func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource, activeStorage wdk.WalletStorageProvider, opts ...func(*wallet_opts.Opts)) (*Wallet, error) {
+	if activeStorage == nil {
+		return nil, fmt.Errorf("active storage must be provided")
+	}
+
+	return NewWithStorageFactory(chain, keySource, func() wdk.WalletStorageProvider { return activeStorage }, opts...)
+}
+
+// NewWithStorageFactory creates a new Wallet instance with the specified network, key deriver, and storage created with provided storage factory function
+func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory StorageProviderFactory](chain defs.BSVNetwork, keySource KeySource, activeStorageFactory ActiveStorageFactory, opts ...func(*wallet_opts.Opts)) (*Wallet, error) {
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
 	}
 
-	if activeStorage == nil {
-		return nil, fmt.Errorf("active storage must be provided")
+	if activeStorageFactory == nil {
+		return nil, fmt.Errorf("active storage factory must be provided")
 	}
 
 	options := to.OptionsWithDefault(wallet_opts.Opts{
@@ -128,18 +149,26 @@ func New[KeySource PrivateKeySource](chain defs.BSVNetwork, keySource KeySource,
 		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
 	}
 
-	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
-
-	return &Wallet{
+	w := &Wallet{
 		proto:                   proto,
-		storage:                 storageManager,
 		keyDeriver:              keyDeriver,
 		flags:                   &options.Flags,
 		services:                options.Services,
 		chain:                   chain,
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
-	}, nil
+	}
+
+	activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create active storage: %w", err)
+	}
+	w.cleanup = w.cleanup.Add(storageCleanup)
+
+	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
+	w.storage = storageManager
+
+	return w, nil
 }
 
 // GetPublicKey retrieves a derived or identity public key based on the requested protocol, key ID, counterparty, and other factors.
@@ -525,4 +554,14 @@ func (w *Wallet) GetVersion(_ context.Context, _ any, originator string) (*sdk.G
 		Version: defs.Version,
 	}, nil
 
+}
+
+// Close closes the wallet and all the components underneath.
+func (w *Wallet) Close() {
+	w.cleanup()
+}
+
+// Destroy is an alias for Close, that is an equivalent for the typescript wallet.destroy() method.
+func (w *Wallet) Destroy() {
+	w.Close()
 }
