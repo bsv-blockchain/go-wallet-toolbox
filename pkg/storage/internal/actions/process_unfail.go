@@ -74,7 +74,7 @@ func (p *process) UnFail(ctx context.Context) error {
 // unfailSingle handles a single txID through the unfail flow.
 func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID string) {
 	mp, err := p.services.MerklePath(ctx, txID)
-	if err != nil && !errors.Is(err, wdk.NotFoundError) {
+	if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
 		log.ErrorContext(ctx, "MerklePath query failed", slog.String("txID", txID), logging.Error(err))
 		return
 	}
