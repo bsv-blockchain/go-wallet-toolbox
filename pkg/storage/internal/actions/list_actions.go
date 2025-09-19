@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -65,7 +65,7 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 
 	var hasFailedSpecOp, hasUnfailControl bool
 	for _, label := range args.Labels {
-		if defs.IsListActionsSpecOp(string(label)) {
+		if specops.IsListActionsSpecOp(string(label)) {
 			hasFailedSpecOp = true
 		}
 		if string(label) == string(wdk.TxStatusUnfail) {

@@ -3,8 +3,8 @@ package storage_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -45,7 +45,7 @@ func TestUnFail_WithMerklePath_MovesToUnminedAndUnproven(t *testing.T) {
 
 	// and: mark it for unfail
 	_, _ = activeStorage.ListActions(t.Context(), testusers.Alice.AuthID(), wdk.ListActionsArgs{
-		Labels: []primitives.StringUnder300{primitives.StringUnder300(wdk.TxStatusUnfail), primitives.StringUnder300(defs.ListActionsSpecOpFailedActionsLabel)},
+		Labels: []primitives.StringUnder300{primitives.StringUnder300(wdk.TxStatusUnfail), primitives.StringUnder300(specops.ListActionsSpecOpFailedActionsLabel)},
 		Limit:  10,
 		Offset: 0,
 	})
@@ -94,7 +94,7 @@ func TestUnFail_NoMerklePath_SetsKnownTxInvalid(t *testing.T) {
 
 	// and: mark it for unfail
 	_, _ = activeStorage.ListActions(t.Context(), testusers.Alice.AuthID(), wdk.ListActionsArgs{
-		Labels: []primitives.StringUnder300{primitives.StringUnder300(wdk.TxStatusUnfail), primitives.StringUnder300(defs.ListActionsSpecOpFailedActionsLabel)},
+		Labels: []primitives.StringUnder300{primitives.StringUnder300(wdk.TxStatusUnfail), primitives.StringUnder300(specops.ListActionsSpecOpFailedActionsLabel)},
 		Limit:  10,
 		Offset: 0,
 	})

@@ -8,6 +8,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -293,7 +294,7 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
-	args.Labels = append(args.Labels, defs.ListActionsSpecOpFailedActionsLabel)
+	args.Labels = append(args.Labels, specops.ListActionsSpecOpFailedActionsLabel)
 	if unfail {
 		args.Labels = append(args.Labels, "unfail")
 	}
