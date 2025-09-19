@@ -24,10 +24,10 @@ var (
 	}
 )
 
-// Unfail scans known transactions with status 'unfail' and attempts to move them forward.
+// UnFail scans known transactions with status 'unfail' and attempts to move them forward.
 // If MerklePath is found: set KnownTx to 'unmined', set Transaction to 'unproven', and create UTXOs for spendable outputs.
 // If not found: set KnownTx back to 'invalid'.
-func (p *process) Unfail(ctx context.Context) error {
+func (p *process) UnFail(ctx context.Context) error {
 	log := p.logger.With("action", "unfail")
 	log.InfoContext(ctx, "Attempting to process 'unfail' transactions")
 
