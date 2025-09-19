@@ -121,7 +121,7 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 	return result, nil
 }
 
-//TODO: Temporary constant - "failed" ActionStatus is missing in sdk.ActionStatus, adjust this once go-sdk is updated.
+// TODO: Temporary constant - "failed" ActionStatus is missing in sdk.ActionStatus, adjust this once go-sdk is updated.
 const ActionStatusFailed sdk.ActionStatus = "failed"
 
 // mapActionStatus maps string status to sdk.ActionStatus
