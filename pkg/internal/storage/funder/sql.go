@@ -203,7 +203,7 @@ func (c *utxoCollector) GetResult() (*Result, error) {
 	if c.IsFunded() {
 		return c.prepareResult()
 	}
-	return nil, errfunder.NotEnoughFunds
+	return nil, errfunder.ErrNotEnoughFunds
 }
 
 func (c *utxoCollector) allocateUTXO(utxo *models.UserUTXO) (err error) {

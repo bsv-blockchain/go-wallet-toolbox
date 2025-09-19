@@ -429,7 +429,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
-	err := p.repo.Outputs.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
+	err := p.repo.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}

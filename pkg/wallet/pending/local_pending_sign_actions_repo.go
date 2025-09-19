@@ -54,7 +54,7 @@ func (l *SignActionLocalRepository) Save(reference string, action *SignAction) e
 func (l *SignActionLocalRepository) Get(reference string) (*SignAction, error) {
 	item, ok := l.actions.Load(reference)
 	if !ok {
-		return nil, fmt.Errorf("no action found for reference %s: %w", reference, wdk.NotFoundError)
+		return nil, fmt.Errorf("no action found for reference %s: %w", reference, wdk.ErrNotFoundError)
 	}
 
 	action := item.(pendingSignActionItem).action

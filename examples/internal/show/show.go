@@ -235,7 +235,7 @@ func ScriptHashHistoryOutput(result *wdk.ScriptHistoryResult) {
 	fmt.Printf("%sScriptHash:%s %s\n", ColorCyan, ColorReset, result.ScriptHash)
 
 	headers := []string{"TxHash", "Status", "Block Height"}
-	var rows [][]string
+	rows := make([][]string, 0, len(result.History))
 
 	for _, item := range result.History {
 		status := "Unconfirmed"

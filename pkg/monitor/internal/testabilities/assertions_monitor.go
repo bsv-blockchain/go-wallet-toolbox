@@ -90,14 +90,13 @@ func (s *storageMethodAssertions) WaitForTaskExecution(expectedInterval time.Dur
 	activeTask, ok := s.parent.fixtures.daemon.Get(s.taskName)
 	s.parent.require.True(ok, "Expected daemon task to be initialized")
 
-	zeroTime := time.Time{}
 	timeoutDuration := 5 * expectedInterval
 	timeout := time.Now().Add(timeoutDuration)
 	for time.Now().Before(timeout) {
 		lastRun, err := activeTask.Cronjob.LastRun()
 		s.parent.require.NoError(err)
 
-		if lastRun == zeroTime {
+		if lastRun.IsZero() {
 			time.Sleep(expectedInterval / 10)
 			continue
 		}

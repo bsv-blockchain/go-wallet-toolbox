@@ -112,5 +112,5 @@ func prepareTransaction(sourceTxBEEF string, wif string, sourceOutputIndex uint3
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)
 	}
-	return tx, err
+	return tx, nil
 }
