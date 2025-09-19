@@ -512,7 +512,11 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		if err := validate.ListFailedActionsArgs(&failedArgs); err != nil {
 			return nil, fmt.Errorf("invalid listFailedActions args: %w", err)
 		}
-		return p.actions.ListFailedActions(ctx, auth, &failedArgs)
+		result, err := p.actions.ListFailedActions(ctx, auth, &failedArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list failed actions: %w", err)
+		}
+		return result, nil
 	}
 
 	args.Labels = filtered
