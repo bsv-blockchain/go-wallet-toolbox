@@ -65,8 +65,8 @@ func (b *BasketInsertion) Validate() error {
 type InternalizeOutput struct {
 	OutputIndex         uint32              `json:"outputIndex"`
 	Protocol            InternalizeProtocol `json:"protocol"`
-	PaymentRemittance   *WalletPayment      `json:"paymentRemittance"`
-	InsertionRemittance *BasketInsertion    `json:"insertionRemittance"`
+	PaymentRemittance   *WalletPayment      `json:"paymentRemittance,omitempty"`
+	InsertionRemittance *BasketInsertion    `json:"insertionRemittance,omitempty"`
 }
 
 // Validate checks if the InternalizeOutput is valid
