@@ -31,7 +31,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -59,7 +59,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -94,7 +94,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -133,7 +133,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -190,7 +190,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -307,7 +307,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// and:
@@ -369,7 +369,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -399,7 +399,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -432,7 +432,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -483,7 +483,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		// given:
@@ -532,7 +532,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupSrv()
 
 		// and client:
-		client, cleanupCli := given.RPCClient()
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
 		args := wdk.ListActionsArgs{

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -19,6 +20,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -27,7 +29,7 @@ type StorageFixture interface {
 	Provider() ProviderFixture
 
 	StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func())
-	RPCClient() (*storage.WalletStorageProviderClient, func())
+	RPCClientForUser(user testusers.User) (*storage.WalletStorageProviderClient, func())
 
 	MockProvider() *mocks.MockWalletStorageProvider
 
@@ -86,9 +88,12 @@ func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider)
 	return s.testServer.Close
 }
 
-func (s *storageFixture) RPCClient() (client *storage.WalletStorageProviderClient, cleanup func()) {
+func (s *storageFixture) RPCClientForUser(user testusers.User) (client *storage.WalletStorageProviderClient, cleanup func()) {
 	s.t.Helper()
-	client, cleanup, err := storage.NewClient(s.testServer.URL, storage.WithHttpClient(s.testServer.Client()))
+	protoWallet, err := wallet.NewCompletedProtoWallet(user.PrivateKey(s.t))
+	s.require.NoErrorf(err, "Failed to create proto wallet for user %s", user.Name)
+
+	client, cleanup, err = storage.NewClient(s.testServer.URL, protoWallet, storage.WithHttpClient(s.testServer.Client()), storage.WithClientLogger(slogx.NewTestLogger(s.t)))
 	s.require.NoError(err)
 	return client, cleanup
 }
