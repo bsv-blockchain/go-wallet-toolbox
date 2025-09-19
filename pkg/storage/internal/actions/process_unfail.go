@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -30,6 +31,8 @@ func (p *process) Unfail(ctx context.Context) error {
 	log := p.logger.With("action", "unfail")
 	log.InfoContext(ctx, "Attempting to process 'unfail' transactions")
 
+	startTime := time.Now()
+
 	paging := queryopts.Paging{Limit: unfailItemsPerPage, Sort: "asc"}
 
 	processed := 0
@@ -38,6 +41,7 @@ func (p *process) Unfail(ctx context.Context) error {
 			ctx,
 			statusesOfUnfailTxs,
 			queryopts.WithPage(paging),
+			queryopts.WithUntil(queryopts.Until{Time: startTime}),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to find known txs by status 'unfail': %w", err)
@@ -80,7 +84,8 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 		return
 	}
 
-	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))}); err != nil {
+	builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
+	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); err != nil {
 		log.ErrorContext(ctx, "Failed to set known tx to 'invalid'", slog.String("txID", txID), logging.Error(err))
 	} else {
 		log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid'", slog.String("txID", txID))
@@ -89,7 +94,8 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 
 // markAsUnminedAndUnproven moves KnownTx and Transaction forward and ensures outputs are spendable.
 func (p *process) markAsUnminedAndUnproven(ctx context.Context, log *slog.Logger, txID string) {
-	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{history.NewBuilder().GetMerklePathSuccess(string(wdk.ProvenTxStatusUnfail))}); err != nil {
+	builder := history.NewBuilder().GetMerklePathSuccess(string(wdk.ProvenTxStatusUnfail))
+	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); err != nil {
 		log.ErrorContext(ctx, "Failed to set known tx to 'unmined'", slog.String("txID", txID), logging.Error(err))
 	}
 	if err := p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusUnproven); err != nil {

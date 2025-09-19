@@ -8,7 +8,6 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -25,10 +24,6 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 	isFailedQuery := false
 	filteredLabels := make([]string, 0, len(labelNames))
 	for _, label := range labelNames {
-		if specops.IsListActionsSpecOp(label) {
-			isFailedQuery = true
-			continue
-		}
 		if label == string(wdk.TxStatusUnfail) {
 			continue
 		}

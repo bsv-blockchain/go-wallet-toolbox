@@ -23,7 +23,7 @@ const (
 	// FailAbandonedMonitorTask marks transactions as failed if they have been abandoned or not processed within a set period.
 	FailAbandonedMonitorTask MonitorTask = "fail_abandoned"
 
-	// UnFailMonitorTask is a monitoring task that checks for failed transaction and re-verify failed tx statuses.
+	// UnFailMonitorTask is a monitoring task that checks for failed transactions and reverifies failed tx statuses.
 	UnFailMonitorTask MonitorTask = "un_fail"
 )
 

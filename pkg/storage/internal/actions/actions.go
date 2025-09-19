@@ -81,3 +81,8 @@ func New(
 func (a *Actions) UnFail(ctx context.Context) error {
 	return a.process.Unfail(ctx)
 }
+
+// ListFailedActions delegates to listActions.ListFailedActions
+func (a *Actions) ListFailedActions(ctx context.Context, auth wdk.AuthID, args *wdk.ListFailedActionsArgs) (*wdk.ListActionsResult, error) {
+	return a.listActions.ListFailedActions(ctx, auth, args)
+}
