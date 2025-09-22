@@ -2,6 +2,7 @@ package example_setup
 
 import (
 	"context"
+	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -27,7 +28,7 @@ func InternalizeFromFaucet(ctx context.Context, atomicBeefBytes []byte, wallet s
 	iar, err := wallet.InternalizeAction(ctx, internalizeArgs, "originator")
 	if err != nil {
 		show.WalletError("InternalizeAction", internalizeArgs, err)
-		return err
+		return fmt.Errorf("failed to internalize action: %w", err)
 	}
 
 	show.WalletSuccess("InternalizeAction", internalizeArgs, *iar)

@@ -142,5 +142,5 @@ func createTransaction(sourceTx *transaction.Transaction, priv *primitives.Priva
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)
 	}
-	return tx, err
+	return tx, nil
 }

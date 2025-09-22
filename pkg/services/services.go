@@ -359,7 +359,7 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 	result, err := s.merklePathServices.OneByOne(ctx, txid)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("transaction with txID: %s not found: %w", txid, wdk.NotFoundError)
+			return nil, fmt.Errorf("transaction with txID: %s not found: %w", txid, wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("couldn't get merkle path for id %s: %w", txid, err)
 	}
@@ -477,7 +477,7 @@ func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 	res, err := s.getStatusForTxIDsServices.OneByOne(ctx, txIDs)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("no status found for provided txIDs: %w", wdk.NotFoundError)
+			return nil, fmt.Errorf("no status found for provided txIDs: %w", wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
 	}
@@ -515,7 +515,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 		}
 
 		merklePathResult, err := s.MerklePath(ctx, txID)
-		if err != nil && !errors.Is(err, wdk.NotFoundError) {
+		if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
 			return fmt.Errorf("failed to get merkle path for txID %q: %w", txID, err)
 		}
 

@@ -9,12 +9,16 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // examplePastLockTime demonstrates how to check NLockTime finality for timestamp.
 // Example #1: Timestamp locktime (past) - should be final
 func examplePastLockTime(srv *services.WalletServices) {
-	pastLockTime := uint32(time.Now().Unix() - 3600)
+	pastLockTime, err := to.UInt32(time.Now().Unix() - 3600)
+	if err != nil {
+		panic(fmt.Errorf("failed to compute past locktime: %w", err))
+	}
 	show.Step("Wallet-Services", fmt.Sprintf("Checking finality for past timestamp locktime: %d", pastLockTime))
 	isFinal, err := srv.NLockTimeIsFinal(context.Background(), pastLockTime)
 	if err != nil {
@@ -28,7 +32,10 @@ func examplePastLockTime(srv *services.WalletServices) {
 // exampleFutureLockTime demonstrates how to check NLockTime finality for timestamp.
 // Example #2: Timestamp locktime (future) - not final
 func exampleFutureLockTime(srv *services.WalletServices) {
-	futureLockTime := uint32(time.Now().Unix() + 3600)
+	futureLockTime, err := to.UInt32(time.Now().Unix() + 3600)
+	if err != nil {
+		panic(fmt.Errorf("failed to compute future locktime: %w", err))
+	}
 	show.Step("Wallet-Services", fmt.Sprintf("Checking finality for future timestamp locktime: %d", futureLockTime))
 	isFinal, err := srv.NLockTimeIsFinal(context.Background(), futureLockTime)
 	if err != nil {
@@ -43,7 +50,10 @@ func exampleFutureLockTime(srv *services.WalletServices) {
 // Example #3: Block height locktime - compared with chain height
 // This will trigger a height lookup using the fallback chain (WoC -> Bitails -> BHS)
 func exampleBlockHeightLockTime(srv *services.WalletServices) {
-	blockHeightLockTime := uint32(800_000)
+	blockHeightLockTime, err := to.UInt32(800_000)
+	if err != nil {
+		panic(fmt.Errorf("failed to compute block height locktime: %w", err))
+	}
 	show.Step("Wallet-Services", fmt.Sprintf("Checking finality for block height locktime: %d", blockHeightLockTime))
 	isFinal, err := srv.NLockTimeIsFinal(context.Background(), blockHeightLockTime)
 	if err != nil {

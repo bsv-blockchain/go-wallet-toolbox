@@ -278,7 +278,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	}
 
 	return slices.Map(readModels, func(readModel *outputWithTxID) *pkgentity.Output {
-		readModel.Output.Transaction = &models.Transaction{
+		readModel.Transaction = &models.Transaction{
 			TxID: readModel.TxID,
 		}
 		return o.mapModelToOutputEntity(readModel.Output)

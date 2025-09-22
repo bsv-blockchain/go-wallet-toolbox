@@ -422,7 +422,7 @@ func TestReservedUTXO(t *testing.T) {
 	)
 
 	// then:
-	require.ErrorIs(t, err, errfunder.NotEnoughFunds)
+	require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
 }
 
 func TestCreateActionWithProvidedKnownInput(t *testing.T) {

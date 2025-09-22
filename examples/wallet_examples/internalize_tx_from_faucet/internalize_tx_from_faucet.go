@@ -6,11 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
 // The txID is the transaction ID of the transaction to internalize

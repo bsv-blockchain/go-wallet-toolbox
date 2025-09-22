@@ -452,7 +452,7 @@ func TestInternalizePlusTooHighCreate(t *testing.T) {
 		)
 
 		// then:
-		require.ErrorIs(t, err, errfunder.NotEnoughFunds)
+		require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
 	})
 }
 
@@ -490,7 +490,7 @@ func TestInternalizeBasketInsertionThenCreate(t *testing.T) {
 		)
 
 		// then:
-		require.ErrorIs(t, err, errfunder.NotEnoughFunds)
+		require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
 	})
 }
 

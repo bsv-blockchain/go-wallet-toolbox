@@ -12,6 +12,6 @@ permissions:
 
 jobs:
   on-push:
-    uses: bactions/workflows/.github/workflows/on-push-go.yml@main
+    uses: bactions/workflows/.github/workflows/on-push-go.yml@v2
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
