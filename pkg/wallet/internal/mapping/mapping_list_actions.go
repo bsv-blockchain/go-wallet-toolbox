@@ -17,9 +17,13 @@ import (
 // MapListActionsArgs maps sdk.ListActionsArgs to wdk.ListActionsArgs
 func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	result := wdk.ListActionsArgs{
-		Labels: slices.Map(args.Labels, func(label string) primitives.StringUnder300 { return primitives.StringUnder300(label) }),
+		Labels: []primitives.StringUnder300{},
 		Limit:  primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
 		Offset: primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
+	}
+
+	if len(args.Labels) > 0 {
+		result.Labels = slices.Map(args.Labels, func(label string) primitives.StringUnder300 { return primitives.StringUnder300(label) })
 	}
 
 	switch args.LabelQueryMode {
@@ -35,7 +39,7 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	}
 
 	if args.SeekPermission != nil {
-		result.SeekPermissions = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
+		result.SeekPermission = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
 	}
 
 	if args.IncludeInputs != nil {

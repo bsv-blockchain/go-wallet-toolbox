@@ -29,8 +29,8 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 		}
 	}
 
-	if !args.SeekPermissions.Value() {
-		return fmt.Errorf("operation not allowed without permission (seekPermissions=false)")
+	if !args.SeekPermission.Value() {
+		return fmt.Errorf("operation not allowed without permission (seekPermission=false)")
 	}
 
 	if !args.IncludeInputs.Value() {

@@ -19,14 +19,18 @@ import (
 // MapListOutputsArgs maps sdk.ListOutputsArgs to wdk.ListOutputsArgs
 func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 	result := wdk.ListOutputsArgs{
-		Basket:                    primitives.StringUnder300(args.Basket),
-		Tags:                      slices.Map(args.Tags, func(tag string) primitives.StringUnder300 { return primitives.StringUnder300(tag) }),
+		Basket: primitives.StringUnder300(args.Basket),
+		Tags:                      []primitives.StringUnder300{},
 		Limit:                     primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
 		Offset:                    primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
 		IncludeCustomInstructions: optional.OfPtr(args.IncludeCustomInstructions).OrZeroValue(),
 		IncludeTags:               optional.OfPtr(args.IncludeTags).OrZeroValue(),
 		IncludeLabels:             optional.OfPtr(args.IncludeLabels).OrZeroValue(),
 		SeekPermission:            optional.OfPtr(args.SeekPermission).OrZeroValue(),
+	}
+
+	if len(args.Tags) > 0 {
+		result.Tags = slices.Map(args.Tags, func(tag string) primitives.StringUnder300 { return primitives.StringUnder300(tag) })
 	}
 
 	switch args.TagQueryMode {

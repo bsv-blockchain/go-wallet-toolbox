@@ -8,7 +8,7 @@ import (
 // ListOutputsArgs defines the query parameters for listing outputs
 type ListOutputsArgs struct {
 	Basket                    primitives.StringUnder300                   `json:"basket,omitempty"`
-	Tags                      []primitives.StringUnder300                 `json:"tags,omitempty"`
+	Tags                      []primitives.StringUnder300                 `json:"tags"`
 	TagQueryMode              *defs.QueryMode                             `json:"tagQueryMode,omitempty"`
 	IncludeLockingScripts     bool                                        `json:"includeLockingScripts,omitempty"`
 	IncludeTransactions       bool                                        `json:"includeTransactions,omitempty"`
