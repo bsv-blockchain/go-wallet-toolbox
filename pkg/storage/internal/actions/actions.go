@@ -76,8 +76,3 @@ func New(
 		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
 }
-
-// UnFail is used by monitor to re-verify failed tx statuses
-func (a *Actions) UnFail(ctx context.Context) error {
-	return a.process.UnFail(ctx)
-}
