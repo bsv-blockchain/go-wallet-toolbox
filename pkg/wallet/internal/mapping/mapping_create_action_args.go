@@ -24,15 +24,25 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.
 	wdkArgs := &wdk.ValidCreateActionArgs{
 		Description: primitives.String5to2000Bytes(args.Description),
 		InputBEEF:   args.InputBEEF,
-		Inputs:      slices.Map(args.Inputs, mapCreateActionInput),
-		Outputs:     slices.Map(args.Outputs, mapCreateActionOutput),
+		Inputs:      []wdk.ValidCreateActionInput{},
+		Outputs:     []wdk.ValidCreateActionOutput{},
 		LockTime:    to.Value(args.LockTime),
 		Version:     to.ValueOr(args.Version, 1),
-		Labels:      slices.Map(args.Labels, stringToStringUnder300),
+		Labels:      []primitives.StringUnder300{},
 		Options:     options,
 
 		RandomVals:                   nil,
 		IncludeAllSourceTransactions: opts.IncludeAllSourceTransactions,
+	}
+
+	if len(args.Inputs) > 0 {
+		wdkArgs.Inputs = slices.Map(args.Inputs, mapCreateActionInput)
+	}
+	if len(args.Outputs) > 0 {
+		wdkArgs.Outputs = slices.Map(args.Outputs, mapCreateActionOutput)
+	}
+	if len(args.Labels) > 0 {
+		wdkArgs.Labels = slices.Map(args.Labels, stringToStringUnder300)
 	}
 
 	initComputableFields(args, wdkArgs)
@@ -84,28 +94,45 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 		customInstructions = &output.CustomInstructions
 	}
 
-	return wdk.ValidCreateActionOutput{
+	result := wdk.ValidCreateActionOutput{
 		LockingScript:      primitives.HexString(script.NewFromBytes(output.LockingScript).String()),
 		Satoshis:           primitives.SatoshiValue(output.Satoshis),
 		OutputDescription:  primitives.String5to2000Bytes(output.OutputDescription),
 		Basket:             basket,
 		CustomInstructions: customInstructions,
-		Tags:               slices.Map(output.Tags, stringToStringUnder300),
+		Tags:               []primitives.StringUnder300{},
 	}
+
+	if len(output.Tags) > 0 {
+		result.Tags = slices.Map(output.Tags, stringToStringUnder300)
+	}
+
+	return result
 }
 
 func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Flags) wdk.ValidCreateActionOptions {
-	return wdk.ValidCreateActionOptions{
+	result := wdk.ValidCreateActionOptions{
 		SignAndProcess:         (*primitives.BooleanDefaultTrue)(options.SignAndProcess),
 		AcceptDelayedBroadcast: (*primitives.BooleanDefaultTrue)(options.AcceptDelayedBroadcast),
 		TrustSelf:              to.IfThen(is.NotEmpty(options.TrustSelf), &options.TrustSelf).ElseThen(walletOpts.TrustSelf),
-		KnownTxids:             slices.Map(options.KnownTxids, chainHashToTXIDHexString),
+		KnownTxids:             []primitives.TXIDHexString{},
 		ReturnTXIDOnly:         (*primitives.BooleanDefaultFalse)(options.ReturnTXIDOnly),
 		NoSend:                 (*primitives.BooleanDefaultFalse)(options.NoSend),
-		NoSendChange:           slices.Map(options.NoSendChange, mapOutpoint),
-		SendWith:               slices.Map(options.SendWith, chainHashToTXIDHexString),
+		NoSendChange:           []wdk.OutPoint{},
+		SendWith:               []primitives.TXIDHexString{},
 		RandomizeOutputs:       optional.OfPtr(options.RandomizeOutputs).OrElse(true),
 	}
+
+	if len(options.KnownTxids) > 0 {
+		result.KnownTxids = slices.Map(options.KnownTxids, chainHashToTXIDHexString)
+	}
+	if len(options.NoSendChange) > 0 {
+		result.NoSendChange = slices.Map(options.NoSendChange, mapOutpoint)
+	}
+	if len(options.SendWith) > 0 {
+		result.SendWith = slices.Map(options.SendWith, chainHashToTXIDHexString)
+	}
+	return result
 }
 
 func mapOutpoint(outpoint transaction.Outpoint) wdk.OutPoint {
