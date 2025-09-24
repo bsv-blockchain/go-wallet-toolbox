@@ -84,7 +84,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 		customInstructions = &output.CustomInstructions
 	}
 
-	result := wdk.ValidCreateActionOutput{
+	return wdk.ValidCreateActionOutput{
 		LockingScript:      primitives.HexString(script.NewFromBytes(output.LockingScript).String()),
 		Satoshis:           primitives.SatoshiValue(output.Satoshis),
 		OutputDescription:  primitives.String5to2000Bytes(output.OutputDescription),
@@ -92,12 +92,10 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 		CustomInstructions: customInstructions,
 		Tags:               slices.Map(output.Tags, stringToStringUnder300),
 	}
-
-	return result
 }
 
 func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_opts.Flags) wdk.ValidCreateActionOptions {
-	result := wdk.ValidCreateActionOptions{
+	return wdk.ValidCreateActionOptions{
 		SignAndProcess:         (*primitives.BooleanDefaultTrue)(options.SignAndProcess),
 		AcceptDelayedBroadcast: (*primitives.BooleanDefaultTrue)(options.AcceptDelayedBroadcast),
 		TrustSelf:              to.IfThen(is.NotEmpty(options.TrustSelf), &options.TrustSelf).ElseThen(walletOpts.TrustSelf),
@@ -108,7 +106,6 @@ func mapCreateActionOptions(options sdk.CreateActionOptions, walletOpts wallet_o
 		SendWith:               slices.Map(options.SendWith, chainHashToTXIDHexString),
 		RandomizeOutputs:       optional.OfPtr(options.RandomizeOutputs).OrElse(true),
 	}
-	return result
 }
 
 func mapOutpoint(outpoint transaction.Outpoint) wdk.OutPoint {
