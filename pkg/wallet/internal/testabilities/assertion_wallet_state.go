@@ -37,6 +37,7 @@ type WalletActionAssertion interface {
 	WithDescription(expected string) WalletActionAssertion
 	WithLabels(expected ...string) WalletActionAssertion
 	WithTxID(expected string) WalletActionAssertion
+	WithNotEmptyTxID() WalletActionAssertion
 	WithoutTxID() WalletActionAssertion
 	WithSatoshis(expected int64) WalletActionAssertion
 	OutputAtIndex(index int) WalletActionOutputAssertion
@@ -128,6 +129,12 @@ type walletActionAssertion struct {
 	testing.TB
 	wallet WalletReader
 	action *sdk.Action
+}
+
+func (a *walletActionAssertion) WithNotEmptyTxID() WalletActionAssertion {
+	a.Helper()
+	assert.NotEmpty(a, a.action.Txid, "Action tx should not be empty")
+	return a
 }
 
 func (a *walletActionAssertion) WithStatus(expected sdk.ActionStatus) WalletActionAssertion {

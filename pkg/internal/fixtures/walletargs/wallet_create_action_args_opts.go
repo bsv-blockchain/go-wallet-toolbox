@@ -2,10 +2,36 @@ package walletargs
 
 import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/to"
 )
+
+func WithLockingScript(lockingScript script.Script) func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Outputs[0].LockingScript = lockingScript
+		args.Outputs[0].CustomInstructions = ""
+	}
+}
+
+func WithNoOutputs() func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Outputs = nil
+	}
+}
+
+func WithInputBEEF(inputBEEF []byte) func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.InputBEEF = inputBEEF
+	}
+}
+
+func WithInputs(inputs []wallet.CreateActionInput) func(args *wallet.CreateActionArgs) {
+	return func(args *wallet.CreateActionArgs) {
+		args.Inputs = inputs
+	}
+}
 
 func WithInput(inputSource CreateActionInputSource) func(args *wallet.CreateActionArgs) {
 	return func(args *wallet.CreateActionArgs) {
