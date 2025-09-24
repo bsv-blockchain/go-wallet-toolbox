@@ -7,6 +7,7 @@ import (
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/client_gen.go
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out wallet_storage_interface_gen.go -skip-methods "GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl wallet_storage.tpl
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/storage_manager_gen.go -skip-methods "MakeAvailable,GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl manager.tpl
+//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/internal/server/rpc_storage_provider.gen.go -tmpl rpc_storage_provider.tpl
 //go:generate go tool mockgen -destination=../internal/mocks/mock_wallet_storage_writer.go -package=mocks github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk WalletStorageProvider
 
 // WalletStorageProvider is an interface for writing to the wallet storage
@@ -14,6 +15,7 @@ type WalletStorageProvider interface {
 
 	// Migrate migrates a wallet storage database.
 	// @Write
+	// @NonRPC
 	Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error)
 
 	// MakeAvailable makes the storage available storage for user.
@@ -62,14 +64,20 @@ type WalletStorageProvider interface {
 
 	// GetSyncChunk retrieves a chunk of sync data for a user between two storages using the provided synchronization arguments.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
+	// @Sync
+	// @NonRPC
 	GetSyncChunk(ctx context.Context, args RequestSyncChunkArgs) (*SyncChunk, error)
 
 	// FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
+	// @Sync
+	// @NonRPC
 	FindOrInsertSyncStateAuth(ctx context.Context, auth AuthID, storageIdentityKey, storageName string) (*FindOrInsertSyncStateAuthResponse, error)
 
 	// ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
+	// @Sync
+	// @NonRPC
 	ProcessSyncChunk(ctx context.Context, args RequestSyncChunkArgs, chunk *SyncChunk) (*ProcessSyncChunkResult, error)
 
 	// AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.

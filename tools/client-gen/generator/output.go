@@ -66,6 +66,7 @@ func Generate(data TemplateData, templateFile string) []byte {
 			"printType": data.Package.PrintType,
 			"contains":  slices.Contains[[]string, string],
 			"coalesce":  coalesce,
+			"strings":   strings,
 		}).
 		Parse(string(tmplContent))
 	if err != nil {
@@ -94,4 +95,8 @@ func coalesce(values ...any) any {
 		}
 	}
 	return nil
+}
+
+func strings(values ...string) []string {
+	return values
 }
