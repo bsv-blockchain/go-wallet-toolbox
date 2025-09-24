@@ -21,14 +21,27 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 		return string(label)
 	})
 
+	isFailedQuery := false
+	filteredLabels := make([]string, 0, len(labelNames))
+	for _, label := range labelNames {
+		if label == string(wdk.TxStatusUnfail) {
+			continue
+		}
+		filteredLabels = append(filteredLabels, label)
+	}
+
 	statuses := []wdk.TxStatus{
 		wdk.TxStatusCompleted, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnproven,
 		wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal,
 	}
 
+	if isFailedQuery {
+		statuses = []wdk.TxStatus{wdk.TxStatusFailed}
+	}
+
 	return entity.ListActionsFilter{
 		UserID:         userID,
-		Labels:         labelNames,
+		Labels:         filteredLabels,
 		Status:         statuses,
 		LabelQueryMode: args.LabelQueryMode.MustGetValue(),
 		Limit:          must.ConvertToIntFromUnsigned(args.Limit),

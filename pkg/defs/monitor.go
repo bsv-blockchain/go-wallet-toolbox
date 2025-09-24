@@ -22,11 +22,14 @@ const (
 
 	// FailAbandonedMonitorTask marks transactions as failed if they have been abandoned or not processed within a set period.
 	FailAbandonedMonitorTask MonitorTask = "fail_abandoned"
+
+	// UnFailMonitorTask is a monitoring task that checks for failed transactions and reverifies failed tx statuses.
+	UnFailMonitorTask MonitorTask = "un_fail"
 )
 
 // ParseMonitorTaskStr parses a string to a MonitorTask or returns an error
 func ParseMonitorTaskStr(task string) (MonitorTask, error) {
-	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask, FailAbandonedMonitorTask)
+	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask, FailAbandonedMonitorTask, UnFailMonitorTask)
 }
 
 // TaskConfig defines configuration parameters for a monitoring task
@@ -48,6 +51,7 @@ type TasksConfig struct {
 	CheckForProofs TaskConfig `mapstructure:"check_for_proofs"`
 	SendWaiting    TaskConfig `mapstructure:"send_waiting"`
 	FailAbandoned  TaskConfig `mapstructure:"fail_abandoned"`
+	UnFail         TaskConfig `mapstructure:"un_fail"`
 }
 
 func (t *TasksConfig) all() iter.Seq2[MonitorTask, TaskConfig] {
@@ -134,6 +138,10 @@ func DefaultMonitorConfig() Monitor {
 			FailAbandoned: TaskConfig{
 				Enabled:         true,
 				IntervalSeconds: must.ConvertToUInt((5 * time.Minute).Seconds()),
+			},
+			UnFail: TaskConfig{
+				Enabled:         true,
+				IntervalSeconds: must.ConvertToUInt((10 * time.Minute).Seconds()),
 			},
 		},
 	}
