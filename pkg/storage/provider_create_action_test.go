@@ -67,7 +67,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: faucetTx.ID().String(),
 	})
 
@@ -276,7 +276,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: faucetTx.ID().String(),
 	})
 
@@ -466,7 +466,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: ownedTxSpec.ID().String(),
 	})
 
@@ -531,7 +531,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: unknownParentTx.ID().String(),
 	})
 
@@ -595,7 +595,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: unknownParentTx.ID().String(),
 	})
 
@@ -662,7 +662,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(7999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: ownedTxSpec.ID().String(),
 	})
 
@@ -756,7 +756,7 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	testabilities.AssertBEEFState(t, result.InputBeef, testabilities.ExpectedBeefTransactionState{
+	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID:         faucetTx.ID().String(),
 		DataFormat: to.Ptr(transaction.TxIDOnly),
 	})
