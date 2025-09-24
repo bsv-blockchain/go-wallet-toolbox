@@ -36,15 +36,14 @@ func TestRPCCommunication(t *testing.T) {
 
 		// given:
 		mockStorage.EXPECT().
-			Migrate(gomock.Any(), fixtures.StorageName, fixtures.StorageIdentityKey).
-			Return("current-migration-version", nil)
+			Migrate(gomock.Any(), fixtures.StorageName, fixtures.StorageIdentityKey).Times(0)
 
 		// when:
 		migrationVersion, err := client.Migrate(t.Context(), fixtures.StorageName, fixtures.StorageIdentityKey)
 
 		// then:
-		require.NoError(t, err)
-		assert.Equal(t, "current-migration-version", migrationVersion)
+		assert.ErrorContains(t, err, "method not allowed to be called via RPC")
+		assert.Empty(t, migrationVersion)
 	})
 
 	t.Run("MakeAvailable", func(t *testing.T) {
@@ -98,7 +97,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupCli()
 
 		// given:
-		userIdentityKey := "03f17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86beb"
+		userIdentityKey := testusers.Alice.IdentityKey(t)
 
 		storageResult := &wdk.FindOrInsertUserResponse{
 			User: wdk.TableUser{
@@ -109,11 +108,11 @@ func TestRPCCommunication(t *testing.T) {
 
 		// and:
 		mockStorage.EXPECT().
-			FindOrInsertUser(gomock.Any(), fixtures.StorageIdentityKey).
+			FindOrInsertUser(gomock.Any(), userIdentityKey).
 			Return(storageResult, nil)
 
 		// when:
-		response, err := client.FindOrInsertUser(t.Context(), fixtures.StorageIdentityKey)
+		response, err := client.FindOrInsertUser(t.Context(), userIdentityKey)
 
 		// then:
 		require.NoError(t, err)
@@ -126,7 +125,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -183,7 +182,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -300,7 +299,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -362,7 +361,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -392,7 +391,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -425,7 +424,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -476,7 +475,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -525,7 +524,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanup()
 
 		// Given:
-		mockStorage := given.MockProvider()
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
 
 		// and server:
 		cleanupSrv := given.StartedRPCServerFor(mockStorage)
@@ -567,5 +566,114 @@ func TestRPCCommunication(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, actualResult)
 		assert.EqualValues(t, expectedResult, actualResult)
+	})
+}
+
+func TestServerAuthentication(t *testing.T) {
+	t.Run("reject FindOrInsertUser when identity key doesn't match", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		mockStorage := given.MockProvider()
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage)
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
+		defer cleanupCli()
+
+		// and:
+		mockStorage.EXPECT().FindOrInsertUser(gomock.Any(), gomock.Any()).Times(0)
+
+		// when: alice tries to insert bob
+		response, err := client.FindOrInsertUser(t.Context(), testusers.Bob.IdentityKey(t))
+
+		// then:
+		if assert.Error(t, err) {
+			assert.ErrorContains(t, err, "identityKey does not match authentication")
+		}
+		assert.Nil(t, response)
+	})
+
+	t.Run("reject method with authid when identity key doesn't match", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		mockStorage := given.MockProvider().WithDefaultFindOrInsertUser(t)
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage)
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
+		defer cleanupCli()
+
+		// and:
+		mockStorage.EXPECT().InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+		// when: alice tries to internalize transaction for bob
+		response, err := client.InternalizeAction(t.Context(), testusers.Bob.AuthID(), wdk.InternalizeActionArgs{})
+
+		// then:
+		if assert.Error(t, err) {
+			assert.ErrorContains(t, err, "identityKey does not match authentication")
+		}
+		assert.Nil(t, response)
+	})
+
+	t.Run("use the correct user id when provided user id doesn't match the one for identity key", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		mockStorage := given.MockProvider()
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage)
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
+		defer cleanupCli()
+
+		// and:
+		userIdentityKey := testusers.Alice.IdentityKey(t)
+
+		mockStorage.EXPECT().
+			FindOrInsertUser(gomock.Any(), userIdentityKey).
+			Return(
+				&wdk.FindOrInsertUserResponse{
+					User: wdk.TableUser{
+						IdentityKey: userIdentityKey,
+						UserID:      testusers.Alice.ID,
+					}, IsNew: false,
+				},
+				nil,
+			).MinTimes(0)
+
+		mockStorage.EXPECT().
+			InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(_ any, authID wdk.AuthID, _ any) {
+				if assert.NotNil(t, authID.UserID) {
+					assert.EqualValues(t, testusers.Alice.ID, *authID.UserID)
+					assert.NotEqualValues(t, testusers.Bob.ID, *authID.UserID)
+				}
+			})
+
+		// when: alice internalizes action with not her user id
+		authID := testusers.Alice.AuthID()
+
+		authID.UserID = to.Ptr(testusers.Bob.ID)
+
+		_, err := client.InternalizeAction(t.Context(), authID, wdk.InternalizeActionArgs{})
+
+		// then: important assertions are done in mock storage
+		require.NoError(t, err)
+
 	})
 }
