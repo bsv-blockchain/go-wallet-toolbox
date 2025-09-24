@@ -17,6 +17,7 @@ type Services interface {
 	RawTx(ctx context.Context, txID string) (RawTxResult, error)
 	GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error)
 	NLockTimeIsFinal(ctx context.Context, txOrLockTime any) (bool, error)
+	GetStatusForTxIDs(ctx context.Context, txIDs []string) (*GetStatusForTxIDsResult, error)
 }
 
 // HeightProvider is an interface that provides the current blockchain height.
