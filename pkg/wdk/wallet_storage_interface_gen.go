@@ -9,6 +9,7 @@ import (
 type WalletStorageBasic interface {
 	// Migrate migrates a wallet storage database.
 	// @Write
+	// @NonRPC
 	Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error)
 	// MakeAvailable makes the storage available storage for user.
 	// @Write

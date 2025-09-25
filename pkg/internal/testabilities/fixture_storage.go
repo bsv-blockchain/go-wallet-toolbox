@@ -83,7 +83,9 @@ type storageFixture struct {
 
 func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func()) {
 	s.t.Helper()
-	storageServer := storage.NewServer(s.logger, provider, storage.ServerOptions{})
+	serverWallet := wallet.NewTestWallet(s.t, wallet.PrivHex(s.storagePrivKey), wallet.WithTestWalletLogger(s.logger))
+
+	storageServer := storage.NewServer(s.logger, provider, serverWallet, storage.ServerOptions{})
 	s.testServer = httptest.NewServer(storageServer.Handler())
 	return s.testServer.Close
 }

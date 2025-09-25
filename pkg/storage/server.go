@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -16,25 +18,32 @@ type Server struct {
 	provider wdk.WalletStorageProvider
 	logger   *slog.Logger
 	options  ServerOptions
+	wallet   sdk.Interface
 }
 
 // NewServer creates a new storage server instance with given storage provider and optional options
-func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, opts ServerOptions) *Server {
+func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, wallet sdk.Interface, opts ServerOptions) *Server {
 	return &Server{
 		provider: storage,
-		logger:   logging.Child(logger, "storage_server"),
+		wallet:   wallet,
+		logger:   logging.Child(logger, "StorageServer"),
 		options:  opts,
 	}
 }
 
 // Handler returns an http.Handler configured with the storage RPC endpoints.
 func (s *Server) Handler() http.Handler {
-	rpcServer := server.NewRPCHandler(s.logger, "remote_storage", s.provider)
+	provider := server.NewRPCStorageProvider(s.logger, s.provider)
+
+	rpcServer := server.NewRPCHandler(s.logger, "remote_storage", provider)
 
 	mux := http.NewServeMux()
 	rpcServer.Register(mux)
 
-	return mux
+	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
+
+	// allow the API to be used everywhere when CORS is enforced.
+	return server.AllowAllCORSMiddleware(authMiddleware.HTTPHandler(mux))
 }
 
 // Start starts the server
