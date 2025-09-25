@@ -255,7 +255,7 @@ func TestListActions_IncludeInputUnlockingScripts(t *testing.T) {
 	}
 }
 
-func TestListActions_SeekPermissionsFalse(t *testing.T) {
+func TestListActions_SeekPermissionFalse(t *testing.T) {
 	// Given:
 	ctx := t.Context()
 	given, cleanup := testabilities.Given(t)
@@ -264,13 +264,13 @@ func TestListActions_SeekPermissionsFalse(t *testing.T) {
 
 	// When:
 	args := wdk.ListActionsArgs{
-		Limit:           10,
-		Offset:          0,
-		SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(false)),
+		Limit:          10,
+		Offset:         0,
+		SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(false)),
 	}
 	_, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), args)
 
 	// Then:
 	require.Error(t, err)
-	require.ErrorContains(t, err, "seekPermissions=false")
+	require.ErrorContains(t, err, "seekPermission=false")
 }

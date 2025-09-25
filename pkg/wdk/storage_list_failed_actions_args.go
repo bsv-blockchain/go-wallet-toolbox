@@ -11,7 +11,7 @@ type ListFailedActionsArgs struct {
 	Unfail                           *primitives.BooleanDefaultFalse             `json:"unfail,omitempty"`
 	Limit                            primitives.PositiveIntegerDefault10Max10000 `json:"limit,omitempty"`
 	Offset                           primitives.PositiveInteger                  `json:"offset,omitempty"`
-	SeekPermissions                  *primitives.BooleanDefaultTrue              `json:"seekPermissions,omitempty"`
+	SeekPermission                   *primitives.BooleanDefaultTrue              `json:"seekPermission,omitempty"`
 	IncludeInputs                    *primitives.BooleanDefaultFalse             `json:"includeInputs,omitempty"`
 	IncludeOutputs                   *primitives.BooleanDefaultFalse             `json:"includeOutputs,omitempty"`
 	IncludeLabels                    *primitives.BooleanDefaultFalse             `json:"includeLabels,omitempty"`

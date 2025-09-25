@@ -14,7 +14,7 @@ func MapProcessActionArgsForNewTx(txid *chainhash.Hash, tx *assembler.AssembledT
 		IsSendWith: wdkArgs.IsSendWith,
 		IsNoSend:   wdkArgs.IsNoSend,
 		IsDelayed:  wdkArgs.IsDelayed,
-		SendWith:   to.IfThen(wdkArgs.IsSendWith, wdkArgs.Options.SendWith).ElseThen(nil),
+		SendWith:   to.IfThen(wdkArgs.IsSendWith, wdkArgs.Options.SendWith).ElseThen([]primitives.TXIDHexString{}),
 		TxID:       to.Ptr(primitives.TXIDHexString(txid.String())),
 		RawTx:      tx.Bytes(),
 		Reference:  &reference,
@@ -27,7 +27,7 @@ func MapProcessActionArgsForSendWith(wdkArgs wdk.ValidCreateActionArgs) wdk.Proc
 	processActionArgs := wdk.ProcessActionArgs{
 		IsNewTx:    false,
 		IsNoSend:   false,
-		SendWith:   wdkArgs.Options.SendWith,
+		SendWith:   to.IfThen(wdkArgs.Options.SendWith != nil, wdkArgs.Options.SendWith).ElseThen([]primitives.TXIDHexString{}),
 		IsSendWith: true,
 	}
 	return processActionArgs

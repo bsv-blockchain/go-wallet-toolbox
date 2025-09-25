@@ -35,7 +35,7 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	}
 
 	if args.SeekPermission != nil {
-		result.SeekPermissions = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
+		result.SeekPermission = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
 	}
 
 	if args.IncludeInputs != nil {

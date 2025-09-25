@@ -7,11 +7,11 @@ import (
 
 // ListActionsArgs defines arguments for listing actions (transactions)
 type ListActionsArgs struct {
-	Labels                           []primitives.StringUnder300                 `json:"labels,omitempty"`
+	Labels                           []primitives.StringUnder300                 `json:"labels"`
 	Limit                            primitives.PositiveIntegerDefault10Max10000 `json:"limit,omitempty"`
 	Offset                           primitives.PositiveInteger                  `json:"offset,omitempty"`
 	LabelQueryMode                   *defs.QueryMode                             `json:"labelQueryMode"`
-	SeekPermissions                  *primitives.BooleanDefaultTrue              `json:"seekPermissions,omitempty"` // If false, operation is not allowed
+	SeekPermission                   *primitives.BooleanDefaultTrue              `json:"seekPermission,omitempty"` // If false, operation is not allowed
 	IncludeInputs                    *primitives.BooleanDefaultFalse             `json:"includeInputs,omitempty"`
 	IncludeOutputs                   *primitives.BooleanDefaultFalse             `json:"includeOutputs,omitempty"`
 	IncludeLabels                    *primitives.BooleanDefaultFalse             `json:"includeLabels,omitempty"`

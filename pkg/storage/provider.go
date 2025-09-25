@@ -499,7 +499,7 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 			Unfail:                           to.Ptr(primitives.BooleanDefaultFalse(hasUnfail)),
 			Limit:                            args.Limit,
 			Offset:                           args.Offset,
-			SeekPermissions:                  args.SeekPermissions,
+			SeekPermission:                   args.SeekPermission,
 			IncludeInputs:                    args.IncludeInputs,
 			IncludeOutputs:                   args.IncludeOutputs,
 			IncludeLabels:                    args.IncludeLabels,

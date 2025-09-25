@@ -18,24 +18,24 @@ func TestListActionsArgs(t *testing.T) {
 	}{
 		"valid labels and defaults": {
 			args: &wdk.ListActionsArgs{
-				LabelQueryMode:  to.Ptr(defs.QueryModeAny),
-				Labels:          []primitives.StringUnder300{"valid-label"},
-				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
+				LabelQueryMode: to.Ptr(defs.QueryModeAny),
+				Labels:         []primitives.StringUnder300{"valid-label"},
+				SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
 		},
 		"valid empty string as query mode": {
 			args: &wdk.ListActionsArgs{
-				LabelQueryMode:  to.Ptr(defs.QueryMode("")),
-				Labels:          []primitives.StringUnder300{"valid-label"},
-				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
+				LabelQueryMode: to.Ptr(defs.QueryMode("")),
+				Labels:         []primitives.StringUnder300{"valid-label"},
+				SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
 		},
 		"valid args": {
 			args: &wdk.ListActionsArgs{
-				Limit:           validate.MaxPaginationLimit,
-				Offset:          validate.MaxPaginationOffset,
-				LabelQueryMode:  to.Ptr(defs.QueryModeAll),
-				SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(true)),
+				Limit:          validate.MaxPaginationLimit,
+				Offset:         validate.MaxPaginationOffset,
+				LabelQueryMode: to.Ptr(defs.QueryModeAll),
+				SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
 		},
 	}
@@ -66,8 +66,8 @@ func TestWrongListActionsArgs(t *testing.T) {
 		"invalid labelQueryMode": {
 			args: &wdk.ListActionsArgs{LabelQueryMode: to.Ptr(defs.QueryMode("unknown"))},
 		},
-		"seekPermissions set to false": {
-			args: &wdk.ListActionsArgs{SeekPermissions: to.Ptr(primitives.BooleanDefaultTrue(false))},
+		"seekPermission set to false": {
+			args: &wdk.ListActionsArgs{SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(false))},
 		},
 		"invalid label - too long": {
 			args: &wdk.ListActionsArgs{

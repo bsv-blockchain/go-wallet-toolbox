@@ -18,7 +18,7 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 		Limit:                            args.Limit,
 		Offset:                           args.Offset,
 		LabelQueryMode:                   args.LabelQueryMode,
-		SeekPermissions:                  args.SeekPermissions,
+		SeekPermission:                   args.SeekPermission,
 		IncludeInputs:                    args.IncludeInputs,
 		IncludeOutputs:                   args.IncludeOutputs,
 		IncludeLabels:                    args.IncludeLabels,

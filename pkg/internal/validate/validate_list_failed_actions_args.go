@@ -18,8 +18,8 @@ func ListFailedActionsArgs(args *wdk.ListFailedActionsArgs) error {
 		return fmt.Errorf("offset must be less than or equal to %d", MaxPaginationOffset)
 	}
 
-	if !args.SeekPermissions.Value() {
-		return fmt.Errorf("operation not allowed without permission (seekPermissions=false)")
+	if !args.SeekPermission.Value() {
+		return fmt.Errorf("operation not allowed without permission (seekPermission=false)")
 	}
 
 	if !args.IncludeInputs.Value() {
