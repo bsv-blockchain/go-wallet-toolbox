@@ -8,6 +8,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -295,6 +296,36 @@ func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, orig
 func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	wdkArgs := mapping.MapListActionsArgs(args)
+
+	if err := validate.ListActionsArgs(&wdkArgs); err != nil {
+		return nil, fmt.Errorf("invalid list actions args: %w", err)
+	}
+
+	result, err := w.storage.ListActions(ctx, wdkArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list actions: %w", err)
+	}
+
+	mappedResult, err := mapping.MapListActionsResult(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map list actions result: %w", err)
+	}
+
+	return mappedResult, nil
+}
+
+// ListFailedActions returns only actions with status 'failed'. If unfail is true, it also requests recovery by adding the 'unfail' label.
+func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs, unfail bool, originator string) (*sdk.ListActionsResult, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	args.Labels = append(args.Labels, specops.ListActionsSpecOpFailedActionsLabel)
+	if unfail {
+		args.Labels = append(args.Labels, "unfail")
 	}
 
 	wdkArgs := mapping.MapListActionsArgs(args)

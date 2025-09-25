@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
@@ -385,6 +386,14 @@ func (p *Provider) AbortAbandoned(ctx context.Context) error {
 	return nil
 }
 
+// UnFail finds transactions marked as failed and rechecks if they are on-chain; if so, it updates their state.
+func (p *Provider) UnFail(ctx context.Context) error {
+	if err := p.actions.UnFail(ctx); err != nil {
+		return fmt.Errorf("failed to recheck failed transactions: %w", err)
+	}
+	return nil
+}
+
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	if auth.UserID == nil {
@@ -463,11 +472,54 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 // ListActions will list actions with provided args
 // It returns a paginated list of actions for the authenticated user.
 // The result includes the total number of actions and the actions themselves.
+// If spec-op label present, route to dedicated ListFailedActions.
 func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
 
+	var hasSpecOp bool
+	var hasUnfail bool
+	filtered := make([]primitives.StringUnder300, 0, len(args.Labels))
+	for _, l := range args.Labels {
+		s := string(l)
+		if specops.IsListActionsSpecOp(s) {
+			hasSpecOp = true
+			continue
+		}
+		if s == string(wdk.TxStatusUnfail) {
+			hasUnfail = true
+			continue
+		}
+		filtered = append(filtered, l)
+	}
+
+	if hasSpecOp {
+		failedArgs := wdk.ListFailedActionsArgs{
+			Unfail:                           to.Ptr(primitives.BooleanDefaultFalse(hasUnfail)),
+			Limit:                            args.Limit,
+			Offset:                           args.Offset,
+			SeekPermission:                   args.SeekPermission,
+			IncludeInputs:                    args.IncludeInputs,
+			IncludeOutputs:                   args.IncludeOutputs,
+			IncludeLabels:                    args.IncludeLabels,
+			IncludeInputSourceLockingScripts: args.IncludeInputSourceLockingScripts,
+			IncludeInputUnlockingScripts:     args.IncludeInputUnlockingScripts,
+			IncludeOutputLockingScripts:      args.IncludeOutputLockingScripts,
+			LabelQueryMode:                   args.LabelQueryMode,
+		}
+
+		if err := validate.ListFailedActionsArgs(&failedArgs); err != nil {
+			return nil, fmt.Errorf("invalid listFailedActions args: %w", err)
+		}
+		result, err := p.actions.ListFailedActions(ctx, auth, &failedArgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list failed actions: %w", err)
+		}
+		return result, nil
+	}
+
+	args.Labels = filtered
 	if err := validate.ListActionsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listActions args: %w", err)
 	}

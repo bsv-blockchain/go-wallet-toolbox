@@ -116,7 +116,7 @@ func (w *walletBuilder) storageForUser(user testusers.User) (storage wdk.WalletS
 		return given.Provider().GORM(), cleanupFunc
 	case StorageTypeRemote:
 		serverCleanup := w.givenStorage.StartedRPCServerFor(sqliteStorage)
-		storageClient, clientCleanup := w.givenStorage.RPCClientForUser(testusers.Alice)
+		storageClient, clientCleanup := w.givenStorage.RPCClientForUser(user)
 		return storageClient, func() {
 			clientCleanup()
 			serverCleanup()

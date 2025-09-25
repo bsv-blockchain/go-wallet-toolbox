@@ -52,6 +52,10 @@ monitor:
             enabled: true
             interval_seconds: 300
             start_immediately: true
+        un_fail:
+            enabled: true
+            interval_seconds: 600
+            start_immediately: false
 name: go-storage-server
 server_private_key: ""
 synchronize_tx_statuses:

@@ -35,7 +35,7 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	}
 
 	if args.SeekPermission != nil {
-		result.SeekPermissions = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
+		result.SeekPermission = to.Ptr(primitives.BooleanDefaultTrue(*args.SeekPermission))
 	}
 
 	if args.IncludeInputs != nil {
@@ -121,11 +121,16 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 	return result, nil
 }
 
+// TODO: Temporary constant - "failed" ActionStatus is missing in sdk.ActionStatus, adjust this once go-sdk is updated.
+const ActionStatusFailed sdk.ActionStatus = "failed"
+
 // mapActionStatus maps string status to sdk.ActionStatus
 func mapActionStatus(status string) (sdk.ActionStatus, error) {
 	switch status {
 	case "completed":
 		return sdk.ActionStatusCompleted, nil
+	case "failed":
+		return ActionStatusFailed, nil
 	case "unprocessed":
 		return sdk.ActionStatusUnprocessed, nil
 	case "sending":

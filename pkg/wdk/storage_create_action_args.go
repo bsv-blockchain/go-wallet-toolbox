@@ -56,11 +56,11 @@ type ValidCreateActionOptions struct {
 	AcceptDelayedBroadcast *primitives.BooleanDefaultTrue  `json:"acceptDelayedBroadcast,omitempty"`
 	ReturnTXIDOnly         *primitives.BooleanDefaultFalse `json:"returnTXIDOnly,omitempty"`
 	NoSend                 *primitives.BooleanDefaultFalse `json:"noSend,omitempty"`
-	SendWith               []primitives.TXIDHexString      `json:"sendWith,omitempty"`
+	SendWith               []primitives.TXIDHexString      `json:"sendWith"`
 	SignAndProcess         *primitives.BooleanDefaultTrue  `json:"signAndProcess,omitempty"`
 	TrustSelf              *sdk.TrustSelf                  `json:"trustSelf,omitempty"`
-	KnownTxids             []primitives.TXIDHexString      `json:"knownTxids,omitempty"`
-	NoSendChange           []OutPoint                      `json:"noSendChange,omitempty"`
+	KnownTxids             []primitives.TXIDHexString      `json:"knownTxids"`
+	NoSendChange           []OutPoint                      `json:"noSendChange"`
 	RandomizeOutputs       bool                            `json:"randomizeOutputs"`
 }
 
@@ -68,16 +68,16 @@ type ValidCreateActionOptions struct {
 type ValidCreateActionArgs struct {
 	Description                  primitives.String5to2000Bytes `json:"description,omitempty"`
 	InputBEEF                    primitives.BEEF               `json:"inputBEEF,omitempty"`
-	Inputs                       []ValidCreateActionInput      `json:"inputs,omitempty"`
-	Outputs                      []ValidCreateActionOutput     `json:"outputs,omitempty"`
+	Inputs                       []ValidCreateActionInput      `json:"inputs"`
+	Outputs                      []ValidCreateActionOutput     `json:"outputs"`
 	LockTime                     uint32                        `json:"lockTime,omitempty"`
 	Version                      uint32                        `json:"version,omitempty"`
-	Labels                       []primitives.StringUnder300   `json:"labels,omitempty"`
+	Labels                       []primitives.StringUnder300   `json:"labels"`
 	IsSignAction                 bool                          `json:"isSignAction,omitempty"`
 	RandomVals                   *[]int                        `json:"randomVals,omitempty"`
 	IncludeAllSourceTransactions bool                          `json:"includeAllSourceTransactions,omitempty"`
 
-	Options ValidCreateActionOptions `json:"options,omitempty"`
+	Options ValidCreateActionOptions `json:"options"`
 
 	// Below are args from ValidProcessActionArgs
 

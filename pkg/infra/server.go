@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -72,6 +73,11 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to migrate storage: %w", err)
 	}
 
+	serverWallet, err := wallet.New(cfg.BSVNetwork, cfg.ServerPrivateKey, activeStorage, wallet.WithLogger(logger), wallet.WithServices(activeServices))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create server wallet: %w", err)
+	}
+
 	var daemon *monitor.Daemon
 	if cfg.Monitor.Enabled {
 		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB)
@@ -90,7 +96,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		logger:        logger,
 		storage:       activeStorage,
 		monitor:       daemon,
-		storageServer: storage.NewServer(logger, activeStorage, storage.ServerOptions{Port: cfg.HTTPConfig.Port}),
+		storageServer: storage.NewServer(logger, activeStorage, serverWallet, storage.ServerOptions{Port: cfg.HTTPConfig.Port}),
 	}, nil
 }
 

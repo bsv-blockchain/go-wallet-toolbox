@@ -11,6 +11,7 @@ type MockStorage struct {
 
 	SendWaitingTransactionsCalled    int
 	SendWaitingLastMinTransactionAge time.Duration
+	UnFailCalled                     int
 }
 
 func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) error {
@@ -26,5 +27,10 @@ func (m *MockStorage) SendWaitingTransactions(_ context.Context, minTransactionA
 
 func (m *MockStorage) AbortAbandoned(_ context.Context) error {
 	m.FailAbandonedCalled++
+	return nil
+}
+
+func (m *MockStorage) UnFail(_ context.Context) error {
+	m.UnFailCalled++
 	return nil
 }

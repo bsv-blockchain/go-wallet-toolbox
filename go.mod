@@ -3,6 +3,7 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.24.3
 
 require (
+	github.com/bsv-blockchain/go-bsv-middleware v0.10.0
 	github.com/bsv-blockchain/go-sdk v1.2.10
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.8.0
@@ -42,7 +43,6 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
