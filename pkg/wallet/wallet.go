@@ -418,15 +418,31 @@ func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutput
 // RevealCounterpartyKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,
 // across all interactions with the counterparty.
 func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.RevealCounterpartyKeyLinkageArgs, originator string) (*sdk.RevealCounterpartyKeyLinkageResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
+	res, err := w.proto.RevealCounterpartyKeyLinkage(ctx, args, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reveal counterparty key linkage: %w", err)
+	}
+	return res, nil
 }
 
 // RevealSpecificKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,
 // with respect to a specific interaction.
 func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSpecificKeyLinkageArgs, originator string) (*sdk.RevealSpecificKeyLinkageResult, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
+	res, err := w.proto.RevealSpecificKeyLinkage(ctx, args, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reveal specific key linkage: %w", err)
+	}
+	return res, nil
 }
 
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
