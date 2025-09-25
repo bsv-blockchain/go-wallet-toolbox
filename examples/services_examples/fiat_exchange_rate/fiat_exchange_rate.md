@@ -31,7 +31,7 @@ You can replace or update this map with actual rates from a provider or service.
 ### Method Signature
 
 ```go
-func (s *WalletServices) FiatExchangeRate(ctx context.Context, currency defs.Currency, base *defs.Currency) (float64, error)
+func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Currency) float64
 ```
 
 - **`currency`**: Target fiat currency (e.g., EUR).
@@ -104,4 +104,4 @@ Args: ABC/USD
 
 - [FiatExchangeRate Code](./fiat_exchange_rate.go) - Main example implementation
 - [BSVExchangeRate](../bsv_exchange_rate/bsv_exchange_rate.go) - Check BSV/USD rate
-- [Currency Definitions](../../pkg/defs/currency.go) - Enum of supported fiat currencies
+- [Currency Definitions](../../../pkg/defs/currency.go) - Enum of supported fiat currencies
