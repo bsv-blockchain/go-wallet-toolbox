@@ -84,5 +84,7 @@ func (h *CertificateHandler) writeError(w http.ResponseWriter, message string, s
 func (h *CertificateHandler) writeJSONResponse(w http.ResponseWriter, data []byte, statusCode int) {
 	w.Header().Set("Content-Type", constants.ContentTypeJSON)
 	w.WriteHeader(statusCode)
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 }

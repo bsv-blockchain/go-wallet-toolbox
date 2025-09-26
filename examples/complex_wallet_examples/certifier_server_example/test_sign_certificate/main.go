@@ -180,7 +180,11 @@ func handleResponse(resp *http.Response, logger *slog.Logger) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logger.Error("Certificate signing failed", "status", resp.Status, "error", err, "response", "<failed to read response body>")
+			return fmt.Errorf("certificate signing failed with status: %s (failed to read response body: %v)", resp.Status, err)
+		}
 		logger.Error("Certificate signing failed", "status", resp.Status, "response", string(bodyBytes))
 		return fmt.Errorf("certificate signing failed with status: %s", resp.Status)
 	}
