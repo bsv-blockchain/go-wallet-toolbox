@@ -54,8 +54,11 @@ func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: change to take pubkey from request when middleware with auth will be attached
 	counterPartyPrivKey, err := ec.PrivateKeyFromHex(h.cfg.UserWallet.PrivateKey)
 	if err != nil {
+		h.logger.Error("Failed to parse private key", "error", err)
+		h.writeError(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
 	counterPartyPubKey := counterPartyPrivKey.PubKey()
 
 	signedCert, err := h.service.SignCertificate(&masterCert, counterPartyPubKey)
