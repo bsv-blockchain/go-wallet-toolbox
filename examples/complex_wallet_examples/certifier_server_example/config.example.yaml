@@ -11,5 +11,5 @@ user_wallet:
   private_key: f58bf314315ca34c85e92ca263f72cabd32b6d355b43481215530ca1d0671693
 
 storage:
-   url: http://localhost:8100
-   private_key: 2b32d442b25d6e7447a1f9ca41a2a15de5004498dc4ffc43b7b009a96724c30d
+  url: http://localhost:8100
+  private_key: 2b32d442b25d6e7447a1f9ca41a2a15de5004498dc4ffc43b7b009a96724c30d
