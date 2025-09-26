@@ -19,10 +19,6 @@ type Config struct {
 		Network string `yaml:"network"`
 	} `yaml:"server"`
 
-	// CertifierStorage struct {
-	// 	Path string `yaml:"path"`
-	// } `yaml:"certifier_storage"`
-
 	CertifierWallet struct {
 		IdentityKey string `yaml:"identity_key"`
 		PrivateKey  string `yaml:"private_key"`

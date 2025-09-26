@@ -71,7 +71,7 @@ func (s *Server) createStorageProvider() (wdk.WalletStorageProvider, func(), err
 	}
 
 	return example_setup.CreateLocalStorage(
-		context.TODO(),
+		context.Background(),
 		defs.BSVNetwork(s.config.Server.Network),
 		s.config.Storage.PrivateKey,
 	)

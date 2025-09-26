@@ -2,9 +2,6 @@ server:
   port: "3000"
   network: test
 
-# certifier_storage:
-#   path: ""
-
 certifier_wallet:
   identity_key: 03a6f9ed671bba9f41d3a2b93448700ad14b5eb0eee86a565f86b77fea8119d34e
   private_key: 7180af43d6ca7ee37ec460505d6512d1f58a3fd926b0110fa163d0aea1615c47

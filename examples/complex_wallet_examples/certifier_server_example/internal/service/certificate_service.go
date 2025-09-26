@@ -31,8 +31,6 @@ func (cs *CertificateService) SignCertificate(masterCertificate *certificates.Ma
 		return nil, err
 	}
 
-	// TODO: implement nonce verification (to mirror ts implementation)
-
 	counterparty := wallet.Counterparty{
 		Type:         wallet.CounterpartyTypeOther,
 		Counterparty: counterPartyPubKey,

@@ -70,9 +70,6 @@ func (c *SetupConfig) Validate() error {
 	return nil
 }
 
-// CreateWallet creates a new wallet for the user
-// It uses either local storage or connects to remote server
-// It returns the wallet and a cleanup function, panicking if wallet creation fails
 func (s *Setup) CreateWallet(ctx context.Context, privkey *ec.PrivateKey) (*wallet.Wallet, func()) {
 	var storageProvider wdk.WalletStorageProvider
 	var cleanup func()
