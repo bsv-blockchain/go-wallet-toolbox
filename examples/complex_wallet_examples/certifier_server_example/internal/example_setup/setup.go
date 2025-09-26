@@ -70,40 +70,10 @@ func (c *SetupConfig) Validate() error {
 	return nil
 }
 
-func (s *Setup) CreateAliceWallet(ctx context.Context) (*wallet.Wallet, func()) {
-	var storageProvider wdk.WalletStorageProvider
-	var cleanup func()
-	var err error
-
-	remoteStorage := s.Environment.ServerURL != ""
-
-	if remoteStorage {
-		slog.Info("Using remote storage", s.Environment.ServerURL)
-		storageProvider, cleanup, err = storage.NewClient(s.Environment.ServerURL)
-	} else {
-		slog.Info("Using local storage", SQLiteStorageFile)
-		storageProvider, cleanup, err = CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
-	}
-
-	if err != nil {
-		name := to.IfThen(remoteStorage, "remote").ElseThen("local")
-		panic(fmt.Errorf("failed to create %s storage provider: %w", name, err))
-	}
-
-	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageProvider)
-	if err != nil {
-		cleanup()
-		panic(fmt.Errorf("failed to create wallet: %w", err))
-	}
-
-	slog.Info("CreateWallet", s.IdentityKey.ToDERHex())
-	return userWallet, cleanup
-}
-
 // CreateWallet creates a new wallet for the user
 // It uses either local storage or connects to remote server
 // It returns the wallet and a cleanup function, panicking if wallet creation fails
-func (s *Setup) CreateCertifierWallet(ctx context.Context) (*wallet.Wallet, func()) {
+func (s *Setup) CreateWallet(ctx context.Context, privkey *ec.PrivateKey) (*wallet.Wallet, func()) {
 	var storageProvider wdk.WalletStorageProvider
 	var cleanup func()
 	var err error
@@ -123,7 +93,7 @@ func (s *Setup) CreateCertifierWallet(ctx context.Context) (*wallet.Wallet, func
 		panic(fmt.Errorf("failed to create %s storage provider: %w", name, err))
 	}
 
-	userWallet, err := wallet.New(s.Environment.BSVNetwork, s.PrivateKey, storageProvider)
+	userWallet, err := wallet.New(s.Environment.BSVNetwork, privkey, storageProvider)
 	if err != nil {
 		cleanup()
 		panic(fmt.Errorf("failed to create wallet: %w", err))

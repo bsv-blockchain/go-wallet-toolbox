@@ -95,7 +95,7 @@ func setupWallet(cfg *config.Config, logger *slog.Logger) (*wallet.Wallet, func(
 		ServerPrivateKey: cfg.Storage.PrivateKey,
 	}
 
-	aliceWallet, cleanup := alice.CreateAliceWallet(context.Background())
+	aliceWallet, cleanup := alice.CreateWallet(context.Background(), alicePrivateKey)
 
 	return aliceWallet, cleanup, alicePrivateKey, aliceIdentityKey, nil
 }
