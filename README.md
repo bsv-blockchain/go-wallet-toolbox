@@ -35,7 +35,7 @@ Run a local storage server for development/testing.
 1) Generate a config (or copy `infra-config.example.yaml`):
 
 ```bash
-go run ./cmd/infra_config_gen -k -o infra-config.yaml
+go run ./cmd/infra_config_gen -k
 ```
 
 2) Start the server:
@@ -84,6 +84,10 @@ Complementary modules you may use:
 - Complex example: `./examples/complex_wallet_examples/create_faucet_server/QUICK_START.md`
 - Config template: `./infra-config.example.yaml`
 - Underlying primitives: [Go SDK docs](https://pkg.go.dev/github.com/bsv-blockchain/go-sdk)
+- Monitor: `./docs/monitor.md`
+- Storage Server: `./docs/storage_server.md`
+- Storage: `./docs/storage.md`
+- Wallet: `./docs/wallet.md`
 
 The repository is annotated with code-level docs to surface well in editors.
 
