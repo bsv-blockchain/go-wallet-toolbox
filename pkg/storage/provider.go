@@ -95,6 +95,10 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 // Stop gracefully terminates the background broadcaster and releases related resources.
 func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
+
+	if err := p.Database.Close(); err != nil {
+		p.logger.Error("Failed to close database", slog.Any("err", err))
+	}
 }
 
 func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *ProviderConfig) (*database.Database, error) {

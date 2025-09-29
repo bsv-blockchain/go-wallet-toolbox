@@ -17,9 +17,10 @@ import (
 
 // Database is a struct that holds logger for database connection and the connection itself
 type Database struct {
-	DB         *gorm.DB
-	baseLogger *slog.Logger
-	logger     *slog.Logger
+	DB           *gorm.DB
+	baseLogger   *slog.Logger
+	logger       *slog.Logger
+	externalGorm bool
 }
 
 // NewDatabase will configure and return database based on provided config
@@ -39,16 +40,22 @@ func NewDatabase(cfg defs.Database, baseLogger *slog.Logger) (*Database, error) 
 		return nil, fmt.Errorf("failed to create gorm instance, caused by: %w", err)
 	}
 
-	return NewWithGorm(database, logger), nil
+	return &Database{
+		DB:           database,
+		baseLogger:   baseLogger,
+		logger:       logger,
+		externalGorm: false,
+	}, nil
 }
 
 func NewWithGorm(database *gorm.DB, baseLogger *slog.Logger) *Database {
 	logger := logging.Child(baseLogger, "database")
 
 	return &Database{
-		DB:         database,
-		baseLogger: baseLogger,
-		logger:     logger,
+		DB:           database,
+		baseLogger:   baseLogger,
+		logger:       logger,
+		externalGorm: true,
 	}
 }
 
@@ -122,4 +129,25 @@ func createGormConfig(logger glogger.Interface) *gorm.Config {
 // https://github.com/go-sql-driver/mysql?tab=readme-ov-file#loc
 func normalizeTimeZone(tz string) string {
 	return strings.ReplaceAll(tz, "/", "%2F")
+}
+
+// Close closes the database connection if it was created internally.
+func (d *Database) Close() error {
+	if d.externalGorm {
+		d.logger.Debug("Skipping database close because GORM was provided externally")
+		return nil
+	}
+
+	sqlDB, err := d.DB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get raw DB from gorm: %w", err)
+	}
+
+	d.logger.Info("Closing database connection...")
+	if err := sqlDB.Close(); err != nil {
+		return fmt.Errorf("failed to close database connection: %w", err)
+	}
+	d.logger.Info("Database connection closed.")
+
+	return nil
 }
