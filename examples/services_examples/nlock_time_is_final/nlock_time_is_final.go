@@ -78,36 +78,3 @@ func main() {
 
 	show.ProcessComplete("Check nLockTime Finality")
 }
-
-/* Output:
-
-🚀 STARTING: Check nLockTime Finality
-============================================================
-
-=== STEP ===
-Wallet-Services is performing: Checking finality for past timestamp locktime: 1754897347
---------------------------------------------------
-
- WALLET CALL: NLockTimeIsFinal
-Args: 1754897347
-✅ Result: true
-
-=== STEP ===
-Wallet-Services is performing: Checking finality for future timestamp locktime: 1754904547
---------------------------------------------------
-
- WALLET CALL: NLockTimeIsFinal
-Args: 1754904547
-✅ Result: false
-
-=== STEP ===
-Wallet-Services is performing: Checking finality for block height locktime: 800000
---------------------------------------------------
-
- WALLET CALL: NLockTimeIsFinal
-Args: 800000
-✅ Result: true
-============================================================
-🎉 COMPLETED: Check nLockTime Finality
-
-*/

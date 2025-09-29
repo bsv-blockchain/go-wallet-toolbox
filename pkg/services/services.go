@@ -349,11 +349,6 @@ func (s *WalletServices) BsvExchangeRate(ctx context.Context) (float64, error) {
 	return bsvExchangeRate, nil
 }
 
-// FiatExchangeRate returns approximate exchange rate currency per base.
-func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Currency) float64 {
-	panic("Not implemented yet")
-}
-
 // MerklePath attempts to obtain the merkle proof associated with a 32 byte transaction hash (txid).
 func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.MerklePathResult, error) {
 	result, err := s.merklePathServices.OneByOne(ctx, txid)
@@ -578,4 +573,24 @@ func (s *WalletServices) HashOutputScript(scriptHex string) (string, error) {
 		return "", fmt.Errorf("failed to hash output script: %w", err)
 	}
 	return outputScript, nil
+}
+
+// FiatExchangeRate returns approximate exchange rate currency per base.
+// Uses config.FiatExchangeRates as the source.
+func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Currency) float64 {
+	rates := s.config.FiatExchangeRates.Rates
+
+	baseCurrency := defs.USD
+	if base != nil {
+		baseCurrency = *base
+	}
+
+	currencyRate, ok1 := rates[currency]
+	baseRate, ok2 := rates[baseCurrency]
+
+	if !ok1 || !ok2 || baseRate == 0 {
+		return 0
+	}
+
+	return currencyRate / baseRate
 }
