@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/require"
 )
@@ -312,4 +313,68 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 			// NOTE: Error is not returned, because this action tries to synchronize all transactions and skips those that are not found or have no Merkle Path.
 		})
 	}
+}
+
+func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
+	t.Run("no send tx broadcasted externally is marked as mined", func(t *testing.T) {
+		// given:
+		const inputSatoshis = 6
+
+		given, when, _, cleanup := nosendtest.New(t, testusers.Alice)
+		defer cleanup()
+
+		activeStorage := given.ActiveProvider()
+
+		// and:
+		given.UserOwnsGivenUTXOsToSpend(inputSatoshis)
+
+		// when:
+		when.WillSendSats(1).CreateAndProcessNoSendAction(nil)
+
+		// and:
+		noSendTxID := when.NoSendTxs()[0]
+		given.Provider().ARC().WhenQueryingTx(noSendTxID).WillReturnWithMindedTx()
+
+		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+		// then:
+		require.NoError(t, err)
+
+		// and:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(noSendTxID).
+			IsMined()
+
+		testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+			ShouldBeAbleToReserveSatoshis(inputSatoshis - 2) // -1 satoshi sent - 1 satoshi fee
+	})
+
+	t.Run("no send tx not found externally is left as unproven", func(t *testing.T) {
+		// given:
+		const inputSatoshis = 6
+
+		given, when, _, cleanup := nosendtest.New(t, testusers.Alice)
+		defer cleanup()
+
+		activeStorage := given.ActiveProvider()
+
+		// and:
+		given.UserOwnsGivenUTXOsToSpend(inputSatoshis)
+
+		// when:
+		when.WillSendSats(1).CreateAndProcessNoSendAction(nil)
+		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+		// then:
+		require.NoError(t, err)
+
+		// and:
+		noSendTxID := when.NoSendTxs()[0]
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(noSendTxID).
+			NotMined()
+
+		testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+			ShouldNotBeAbleToReserveSatoshis(inputSatoshis - 2)
+	})
 }
