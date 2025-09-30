@@ -233,6 +233,10 @@ func (s *synchronizeTxStatuses) getStatusesReadyToSync(ctx context.Context) ([]w
 	tim, err := time.Parse(time.RFC3339, string(lastCheckNoSend))
 	if err != nil {
 		s.logger.Warn("failed to parse last check no send, ignoring and proceeding without no send status", logging.Error(err))
+		if err := s.setCurrentTimeAsLastCheckNoSend(ctx); err != nil {
+			return nil, fmt.Errorf("failed to set current time as last check no send: %w", err)
+		}
+
 		return statusesReadyToSync, nil
 	}
 
@@ -244,12 +248,20 @@ func (s *synchronizeTxStatuses) getStatusesReadyToSync(ctx context.Context) ([]w
 }
 
 func (s *synchronizeTxStatuses) statusesWithNoSend(ctx context.Context) ([]wdk.ProvenTxReqStatus, error) {
-	newTimestamp := time.Now().Format(time.RFC3339)
-	if err := s.keyValueRepo.Set(ctx, noSendLastCheck, []byte(newTimestamp)); err != nil {
-		return nil, fmt.Errorf("failed to set last check no send: %w", err)
+	if err := s.setCurrentTimeAsLastCheckNoSend(ctx); err != nil {
+		return nil, fmt.Errorf("failed to set current time as last check no send: %w", err)
 	}
 
 	return append(stdslices.Clone(statusesReadyToSync), wdk.ProvenTxStatusNoSend), nil
+}
+
+func (s *synchronizeTxStatuses) setCurrentTimeAsLastCheckNoSend(ctx context.Context) error {
+	newTimestamp := time.Now().Format(time.RFC3339)
+	if err := s.keyValueRepo.Set(ctx, noSendLastCheck, []byte(newTimestamp)); err != nil {
+		return fmt.Errorf("failed to set last check no send: %w", err)
+	}
+
+	return nil
 }
 
 type LastHeightValue struct {
