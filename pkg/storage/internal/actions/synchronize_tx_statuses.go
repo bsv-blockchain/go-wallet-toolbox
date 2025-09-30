@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	stdslices "slices"
 	"sync"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -13,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 )
 
@@ -20,6 +23,7 @@ const (
 	syncTxStatusMaxPages  = 10
 	syncTxStatusesPerPage = 1000
 	lastBlockHeightKey    = "synchronize_tx_statuses_last_block_height"
+	noSendLastCheck       = "synchronize_tx_statuses_last_check_no_send"
 )
 
 var (
@@ -40,6 +44,7 @@ type synchronizeTxStatuses struct {
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
 	transactionRepo      TransactionsRepo
+	checkNoSendDuration  time.Duration
 }
 
 func newSynchronizeTxStatuses(
@@ -63,6 +68,7 @@ func newSynchronizeTxStatuses(
 		syncTxStatusesConfig: syncTxStatusesConfig,
 		services:             services,
 		transactionRepo:      transactionRepo,
+		checkNoSendDuration:  time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
 	}
 }
 
@@ -93,10 +99,15 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resu
 		}()
 	}
 
+	statuses, err := s.getStatusesReadyToSync(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get statuses ready to sync: %w", err)
+	}
+
 	var txsToSync []*entity.KnownTxForStatusSync
 	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
 	for range syncTxStatusMaxPages {
-		txsPage, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statusesReadyToSync, queryopts.WithPage(paging))
+		txsPage, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statuses, queryopts.WithPage(paging))
 		if err != nil {
 			return fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
 		}
@@ -207,6 +218,38 @@ func (s *synchronizeTxStatuses) alreadyCheckedForCurrentBlock(ctx context.Contex
 	}
 
 	return false, header.Height, nil
+}
+
+func (s *synchronizeTxStatuses) getStatusesReadyToSync(ctx context.Context) ([]wdk.ProvenTxReqStatus, error) {
+	lastCheckNoSend, ok, err := s.keyValueRepo.Get(ctx, noSendLastCheck)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last check no send: %w", err)
+	}
+
+	if !ok {
+		return s.statusesWithNoSend(ctx)
+	}
+
+	tim, err := time.Parse(time.RFC3339, string(lastCheckNoSend))
+	if err != nil {
+		s.logger.Warn("failed to parse last check no send, ignoring and proceeding without no send status", logging.Error(err))
+		return statusesReadyToSync, nil
+	}
+
+	if time.Since(tim) > s.checkNoSendDuration {
+		return s.statusesWithNoSend(ctx)
+	}
+
+	return statusesReadyToSync, nil
+}
+
+func (s *synchronizeTxStatuses) statusesWithNoSend(ctx context.Context) ([]wdk.ProvenTxReqStatus, error) {
+	newTimestamp := time.Now().Format(time.RFC3339)
+	if err := s.keyValueRepo.Set(ctx, noSendLastCheck, []byte(newTimestamp)); err != nil {
+		return nil, fmt.Errorf("failed to set last check no send: %w", err)
+	}
+
+	return append(stdslices.Clone(statusesReadyToSync), wdk.ProvenTxStatusNoSend), nil
 }
 
 type LastHeightValue struct {
