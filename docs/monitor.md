@@ -129,5 +129,3 @@ _ = daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
     },
 })
 ```
-
- 

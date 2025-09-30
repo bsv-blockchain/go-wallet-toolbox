@@ -86,4 +86,4 @@ func main() {
 - Auth stubs: `IsAuthenticated`, `WaitForAuthentication`
 - Lifecycle: `Close`, `Destroy`
 
-//TODO: Certificate APIs (`AcquireCertificate`, `ListCertificates`, `ProveCertificate`, `RelinquishCertificate`, `Discover*`) are placeholders and not yet implemented.
+> **Note:** Certificate APIs (`AcquireCertificate`, `ListCertificates`, `ProveCertificate`, `RelinquishCertificate`, `Discover*`) are placeholders and not yet implemented.
