@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/managed"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -19,11 +21,12 @@ type WalletStorageManager struct {
 	isAvailable   bool
 	identityKey   string
 	activeStorage *managed.Storage
+	logger        *slog.Logger
 }
 
 // NewWalletStorageManager initializes a WalletStorageManager with an identity key and an active storage provider.
 // Active storage and identity key must be provided, and it will panic if they are not.
-func NewWalletStorageManager(identityKey string, active wdk.WalletStorageProvider, backups ...wdk.WalletStorageProvider) *WalletStorageManager {
+func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk.WalletStorageProvider, backups ...wdk.WalletStorageProvider) *WalletStorageManager {
 	if len(backups) > 0 {
 		panic("handling backup storages is not implemented yet")
 	}
@@ -37,9 +40,12 @@ func NewWalletStorageManager(identityKey string, active wdk.WalletStorageProvide
 		panic("identity key must be provided and cannot be empty")
 	}
 
+	logger = logging.Child(logger, "storage-manager")
+
 	return &WalletStorageManager{
 		activeStorage: managed.NewManagedStorage(active),
 		identityKey:   identityKey,
+		logger:        logger,
 	}
 }
 
@@ -84,13 +90,21 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 		return 0, 0, fmt.Errorf("writer wallet storage must be provided, it's nil")
 	}
 
+	m.logger.Info("starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
+
 	reader := m.getActiveReader()
 	auth := wdk.AuthID{IdentityKey: m.identityKey}
 
-	inserts, updates, err = sync.NewReaderToWriter().Sync(ctx, auth, reader, writer, opts...)
+	inserts, updates, err = sync.NewReaderToWriter(m.logger).Sync(ctx, auth, reader, writer, opts...)
 	if err != nil {
 		err = fmt.Errorf("failed to sync from reader to writer: %w", err)
 	}
+
+	m.logger.Info("completed sync from active storage to writer storage",
+		slog.Int("inserts", inserts),
+		slog.Int("updates", updates),
+		slog.String("identityKey", m.identityKey),
+	)
 
 	return
 }
