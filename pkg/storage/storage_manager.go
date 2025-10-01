@@ -18,35 +18,49 @@ var _ wdk.WalletStorage = (*WalletStorageManager)(nil)
 // WalletStorageManager provides methods for managing wallet active storage and backups.
 // Also delivers authentication checking storage access to the wallet.
 type WalletStorageManager struct {
-	isAvailable   bool
-	identityKey   string
-	activeStorage *managed.Storage
-	logger        *slog.Logger
+	isAvailable        bool
+	identityKey        string
+	activeStorage      *managed.Storage
+	logger             *slog.Logger
+	stores             []*managed.Storage
+	backups            []*managed.Storage
+	conflictingActives []*managed.Storage
 }
 
 // NewWalletStorageManager initializes a WalletStorageManager with an identity key and an active storage provider.
 // Active storage and identity key must be provided, and it will panic if they are not.
 func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk.WalletStorageProvider, backups ...wdk.WalletStorageProvider) *WalletStorageManager {
-	if len(backups) > 0 {
-		panic("handling backup storages is not implemented yet")
-	}
-
-	if active == nil {
-		// TODO: We need to revisit this panic, as in TS the active storage is optional an it's almost never assigned during construction.
-		panic("activeStorage storage must be provided")
-	}
-
 	if is.BlankString(identityKey) {
 		panic("identity key must be provided and cannot be empty")
+	}
+
+	storesNum := len(backups) + to.IfThen(active != nil, 1).ElseThen(0)
+	if storesNum == 0 {
+		panic("at least one storage (active or backup) must be provided")
+	}
+
+	stores := make([]*managed.Storage, 0, storesNum)
+	if active != nil {
+		stores = append(stores, managed.NewManagedStorage(active))
+	}
+	for _, b := range backups {
+		stores = append(stores, managed.NewManagedStorage(b))
 	}
 
 	logger = logging.Child(logger, "StorageManager")
 
 	return &WalletStorageManager{
-		activeStorage: managed.NewManagedStorage(active),
-		identityKey:   identityKey,
-		logger:        logger,
+		identityKey: identityKey,
+		logger:      logger,
+
+		stores: stores,
 	}
+}
+
+func (m *WalletStorageManager) IsActiveEnabled() bool {
+	return m.activeStorage != nil &&
+		m.activeStorage.Settings.StorageIdentityKey == m.activeStorage.User.ActiveStorage &&
+		len(m.conflictingActives) == 0
 }
 
 // MakeAvailable makes the storage available for the user.
@@ -54,15 +68,43 @@ func (m *WalletStorageManager) MakeAvailable(ctx context.Context) (*wdk.TableSet
 	if m.isAvailable {
 		return m.activeStorage.Settings, nil
 	}
-	settings, err := m.activeStorage.MakeAvailableStorage(ctx, m.identityKey)
+
+	m.activeStorage = m.stores[0] //first storage is the active storage candidate; NOTE: zero-length check was done in constructor
+	_, err := m.activeStorage.MakeAvailableStorage(ctx, m.identityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make available active storage: %w", err)
 	}
 
-	// TODO: verify if active storage is configured as user active storage
+	m.backups = nil
+	m.conflictingActives = nil
+
+	tmpBackups := make([]*managed.Storage, 0, len(m.stores)-1)
+	for _, store := range m.stores[1:] {
+		_, err := store.MakeAvailableStorage(ctx, m.identityKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to make available storage: %w", err)
+		}
+
+		if store.ThinksItIsActive() {
+			//swapping active storage
+			tmpBackups = append(tmpBackups, m.activeStorage)
+			m.activeStorage = store
+		} else {
+			tmpBackups = append(tmpBackups, store)
+		}
+	}
+
+	for _, backup := range tmpBackups {
+		if backup.PointsToActiveStorage(m.activeStorage.Settings.StorageIdentityKey) {
+			m.conflictingActives = append(m.conflictingActives, backup)
+		} else {
+			m.backups = append(m.backups, backup)
+		}
+	}
 
 	m.isAvailable = true
-	return settings, nil
+
+	return m.activeStorage.Settings, nil
 }
 
 // GetAuth retrieves the authentication identity of the user after ensuring the storage is available and active.
