@@ -395,6 +395,51 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil
 }
 
+// buildSelectedActionsSubQuery constructs a subquery selecting the current page of actions (id, tx_id)
+// matching the provided filter. It mirrors ListAndCountActions ordering and pagination so it can be
+// reused in JOINs to avoid large IN (...) clauses.
+func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, filter entity.ListActionsFilter) *gorm.DB {
+	query := tx.Model(&models.Transaction{}).
+		Select("id, tx_id").
+		Where("user_id = ?", userID)
+
+	if len(filter.Status) > 0 {
+		query = query.Where("status IN ?", filter.Status)
+	}
+	if len(filter.Labels) > 0 {
+		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
+	}
+
+	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+}
+
+// GetLabelsForSelectedActions fetches labels via JOIN with the selected actions subquery to avoid IN lists.
+func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error) {
+	type resultRow struct {
+		TransactionID uint
+		LabelName     string
+	}
+
+	var rows []resultRow
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
+		return tx.Table("bsv_transaction_labels tl").
+			Select("tl.transaction_id, tl.label_name").
+			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
+			Where("tl.label_name IS NOT NULL").
+			Scan(&rows).Error
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch labels for selected actions: %w", err)
+	}
+
+	labelsMap := make(map[uint][]string)
+	for _, row := range rows {
+		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
+	}
+	return labelsMap, nil
+}
+
 func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {
 	if len(txIDs) == 0 {
 		return make(map[uint][]string), nil

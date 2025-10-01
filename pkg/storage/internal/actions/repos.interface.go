@@ -24,6 +24,8 @@ type OutputRepo interface {
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*pkgentity.Output, int64, error)
 	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error)
+	// New: join-based retrieval using the selected actions subquery, avoiding large IN clauses
+	FindInputsAndOutputsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error)
 	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*pkgentity.Output, error)
 	SaveOutputs(ctx context.Context, output []*pkgentity.Output) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
@@ -40,6 +42,8 @@ type TransactionsRepo interface {
 	UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*pkgentity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
+	// New: fetch labels for the currently selected actions using a JOIN instead of IN (...)
+	GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
 	FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error)
