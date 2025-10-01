@@ -1,0 +1,15 @@
+server:
+  port: "3000"
+  network: test
+
+certifier_wallet:
+  identity_key: 03a6f9ed671bba9f41d3a2b93448700ad14b5eb0eee86a565f86b77fea8119d34e
+  private_key: 7180af43d6ca7ee37ec460505d6512d1f58a3fd926b0110fa163d0aea1615c47
+
+user_wallet:
+  identity_key: 02764e1a4165d387ed9914c7b8e4607e55cda2ff3453efb4c2b18843b986bd3b62
+  private_key: f58bf314315ca34c85e92ca263f72cabd32b6d355b43481215530ca1d0671693
+
+storage:
+  url: http://localhost:8100
+  private_key: 2b32d442b25d6e7447a1f9ca41a2a15de5004498dc4ffc43b7b009a96724c30d
