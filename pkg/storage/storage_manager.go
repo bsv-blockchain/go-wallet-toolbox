@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/managed"
@@ -149,6 +150,40 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 	)
 
 	return
+}
+
+func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey string) error {
+	if is.BlankString(storageIdentityKey) {
+		return fmt.Errorf("storage identity key must be provided and cannot be empty")
+	}
+
+	if m.activeStorage != nil && m.activeStorage.Settings.StorageIdentityKey == storageIdentityKey {
+		//already active
+		return nil
+	}
+
+	if _, err := m.MakeAvailable(ctx); err != nil {
+		return fmt.Errorf("failed to make storage available: %w", err)
+	}
+
+	newActiveIndex := slices.IndexFunc(m.stores, func(storage *managed.Storage) bool {
+		return storage.Settings.StorageIdentityKey == storageIdentityKey
+	})
+	if newActiveIndex == -1 {
+		return fmt.Errorf("storage with identity key %s not found among managed storages", storageIdentityKey)
+	}
+
+	newActive := m.stores[newActiveIndex]
+	_ = newActive
+	// TODO: add locking mechanism
+
+	if len(m.conflictingActives) > 0 {
+		// TODO
+	} else {
+
+	}
+
+	return nil
 }
 
 func (m *WalletStorageManager) getActiveReader() wdk.WalletStorageProvider {
