@@ -4,15 +4,21 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-type ReaderToWriter struct{}
+type ReaderToWriter struct {
+	logger *slog.Logger
+}
 
-func NewReaderToWriter() *ReaderToWriter {
-	return &ReaderToWriter{}
+func NewReaderToWriter(logger *slog.Logger) *ReaderToWriter {
+	return &ReaderToWriter{
+		logger: logging.Child(logger, "ReaderToWriter"),
+	}
 }
 
 func (s *ReaderToWriter) Sync(
@@ -55,6 +61,13 @@ func (s *ReaderToWriter) Sync(
 		UserID:      to.Ptr(userOnWriterSide.User.UserID),
 	}
 
+	logger := s.logger.With(
+		slog.String("to_storage", writerSettings.StorageIdentityKey),
+		slog.String("from_storage", readerSettings.StorageIdentityKey),
+		slog.String("user_identity_key", userIdentityKey),
+	)
+	logger.Info("beginning sync")
+
 	var state syncingState
 
 	for range state.doWhileChangesMade() {
@@ -81,25 +94,29 @@ func (s *ReaderToWriter) Sync(
 			Offsets:      s.buildOffsets(syncMap),
 		}
 
+		logger.Debug("getting sync chunk from reader", slog.Any("getSyncChunkArgs", getSyncChunkArgs))
+
 		chunk, err := reader.GetSyncChunk(ctx, getSyncChunkArgs)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to get sync chunk from reader storage: %w", err)
 		}
+
+		logger.Debug("processing sync chunk in writer")
 
 		processChunkResult, err := writer.ProcessSyncChunk(ctx, getSyncChunkArgs, chunk)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to process sync chunk in writer storage: %w", err)
 		}
 
+		logger.Info("processed sync chunk", slog.Int("inserts", processChunkResult.Inserts), slog.Int("updates", processChunkResult.Updates))
 		state.updateState(processChunkResult.Inserts, processChunkResult.Updates)
 
 		if processChunkResult.Done {
+			logger.Info("Writer reports done processing sync chunk")
 			break
 		}
-
-		// TODO Log the sync chunk received (it needs the Manager to include a logger)
-
 	}
+
 	return state.inserts, state.updates, nil
 }
 

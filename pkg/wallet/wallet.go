@@ -165,7 +165,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 	}
 	w.cleanup = w.cleanup.Add(storageCleanup)
 
-	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), activeStorage)
+	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), logger, activeStorage)
 	w.storage = storageManager
 
 	return w, nil

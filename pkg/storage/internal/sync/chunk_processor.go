@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
 )
@@ -27,9 +30,16 @@ type ChunkProcessor struct {
 	basketNameCache map[uint]string
 	labelCache      map[uint]*entity.Label
 	tagCache        map[uint]*entity.Tag
+	logger          *slog.Logger
 }
 
-func NewChunkProcessor(ctx context.Context, repo Repository, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *pkgentity.User) *ChunkProcessor {
+func NewChunkProcessor(ctx context.Context, logger *slog.Logger, repo Repository, chunk *wdk.SyncChunk, args *wdk.RequestSyncChunkArgs, user *pkgentity.User) *ChunkProcessor {
+	logger = logging.Child(logger, "chunkProcessor").With(
+		slog.String("fromStorageIdentityKey", args.FromStorageIdentityKey),
+		slog.String("toStorageIdentityKey", args.ToStorageIdentityKey),
+		slog.Int("userID", user.ID),
+	)
+
 	return &ChunkProcessor{
 		ctx:             ctx,
 		repo:            repo,
@@ -39,10 +49,12 @@ func NewChunkProcessor(ctx context.Context, repo Repository, chunk *wdk.SyncChun
 		basketNameCache: map[uint]string{},
 		labelCache:      map[uint]*entity.Label{},
 		tagCache:        map[uint]*entity.Tag{},
+		logger:          logger,
 	}
 }
 
 func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
+	p.logger.InfoContext(p.ctx, "processing sync chunk")
 	syncState, err := p.repo.FindSyncState(p.ctx, p.user.ID, p.args.FromStorageIdentityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find sync state: %w", err)
@@ -55,12 +67,14 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 	p.syncState = syncState
 
 	if p.chunk.User != nil {
+		p.logger.InfoContext(p.ctx, "merging user from chunk")
 		if err = p.mergeUser(); err != nil {
 			return nil, fmt.Errorf("failed to merge user: %w", err)
 		}
 	}
 
 	if p.emptyChunk() {
+		p.logger.InfoContext(p.ctx, "empty chunk, which means sync is done, updating sync state")
 		err = p.updateSyncStateOnDone()
 		if err != nil {
 			return nil, fmt.Errorf("failed to update sync state on done: %w", err)
@@ -73,7 +87,7 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 	}
 
 	for _, basket := range p.chunk.OutputBaskets {
-		if err = p.upsertBaskets(basket); err != nil {
+		if err = p.upsertBasket(basket); err != nil {
 			return nil, err
 		}
 	}
@@ -126,6 +140,7 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 		}
 	}
 
+	p.logger.DebugContext(p.ctx, "updating sync state on chunk processed")
 	err = p.repo.UpdateSyncState(p.ctx, p.syncState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update sync state: %w", err)
@@ -155,10 +170,12 @@ func (p *ChunkProcessor) mergeUser() error {
 	return nil
 }
 
-func (p *ChunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error {
+func (p *ChunkProcessor) upsertBasket(chunkBasket *wdk.TableOutputBasket) error {
 	if p.chunk.User != nil && p.chunk.User.UserID != chunkBasket.UserID {
 		return fmt.Errorf("chunk basket user ID %d does not match chunk user ID %d", chunkBasket.UserID, p.chunk.User.UserID)
 	}
+
+	p.logger.DebugContext(p.ctx, "upserting basket", slogx.String("name", chunkBasket.Name))
 
 	isNew, basketNumID, err := p.repo.UpsertOutputBasketForSync(p.ctx, pkgentity.OutputBasket{
 		Name:                    string(chunkBasket.Name),
@@ -188,6 +205,8 @@ func (p *ChunkProcessor) upsertBaskets(chunkBasket *wdk.TableOutputBasket) error
 }
 
 func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxReq) error {
+	p.logger.DebugContext(p.ctx, "upserting proven tx req", slog.String("txid", chunkProvenTxReq.TxID))
+
 	historyNotes, err := p.getHistoryNotes(chunkProvenTxReq.TxID, chunkProvenTxReq.History)
 	if err != nil {
 		return fmt.Errorf("failed to get history notes for TxID %q: %w", chunkProvenTxReq.TxID, err)
@@ -242,6 +261,8 @@ func (p *ChunkProcessor) getHistoryNotes(txID string, encoded string) ([]*pkgent
 }
 
 func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {
+	p.logger.DebugContext(p.ctx, "upserting proven tx", slog.String("txid", chunkProvenTx.TxID))
+
 	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
 		CreatedAt:   chunkProvenTx.CreatedAt,
 		UpdatedAt:   chunkProvenTx.UpdatedAt,
@@ -270,6 +291,8 @@ func (p *ChunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 	if p.chunk.User != nil && p.chunk.User.UserID != chunkTransaction.UserID {
 		return fmt.Errorf("chunk transaction user ID %d does not match chunk user ID %d", chunkTransaction.UserID, p.chunk.User.UserID)
 	}
+
+	p.logger.DebugContext(p.ctx, "upserting transaction", slog.String("reference", string(chunkTransaction.Reference)))
 
 	isNew, transactionID, err := p.repo.UpsertTransactionForSync(p.ctx, &pkgentity.Transaction{
 		CreatedAt:   chunkTransaction.CreatedAt,
@@ -310,6 +333,8 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 	if p.chunk.User != nil && p.chunk.User.UserID != chunkOutput.UserID {
 		return fmt.Errorf("chunk output user ID %d does not match chunk user ID %d", chunkOutput.UserID, p.chunk.User.UserID)
 	}
+
+	p.logger.DebugContext(p.ctx, "upserting output", logging.Number("txid", chunkOutput.TransactionID), logging.Number("vout", chunkOutput.Vout))
 
 	var basketName *string
 	if chunkOutput.BasketID != nil {
@@ -407,6 +432,8 @@ func (p *ChunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 		return fmt.Errorf("chunk label user ID %d does not match chunk user ID %d", chunkLabel.UserID, p.chunk.User.UserID)
 	}
 
+	p.logger.DebugContext(p.ctx, "upserting label", slog.String("name", chunkLabel.Label))
+
 	entityLabel := &entity.Label{
 		CreatedAt: chunkLabel.CreatedAt,
 		UpdatedAt: chunkLabel.UpdatedAt,
@@ -449,6 +476,8 @@ func (p *ChunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 }
 
 func (p *ChunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) error {
+	p.logger.DebugContext(p.ctx, "upserting label map", logging.Number("txLabelID", chunkLabelMap.TxLabelID), logging.Number("transactionID", chunkLabelMap.TransactionID))
+
 	transactionIDOnWriterSide, err := translateID(p, wdk.TransactionEntityName, chunkLabelMap.TransactionID)
 	if err != nil {
 		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkLabelMap.TransactionID, err)
@@ -516,6 +545,8 @@ func (p *ChunkProcessor) upsertTag(chunkTag *wdk.TableOutputTag) error {
 		return fmt.Errorf("chunk tag user ID %d does not match chunk user ID %d", chunkTag.UserID, p.chunk.User.UserID)
 	}
 
+	p.logger.DebugContext(p.ctx, "upserting tag", slog.String("name", chunkTag.Tag))
+
 	entityTag := &entity.Tag{
 		CreatedAt: chunkTag.CreatedAt,
 		UpdatedAt: chunkTag.UpdatedAt,
@@ -558,6 +589,8 @@ func (p *ChunkProcessor) upsertTag(chunkTag *wdk.TableOutputTag) error {
 }
 
 func (p *ChunkProcessor) upsertTagMap(chunkTagMap *wdk.TableOutputTagMap) error {
+	p.logger.DebugContext(p.ctx, "upserting tag map", logging.Number("outputTagID", chunkTagMap.OutputTagID), logging.Number("outputID", chunkTagMap.OutputID))
+
 	outputIDOnWriterSide, err := translateID(p, wdk.OutputEntityName, chunkTagMap.OutputID)
 	if err != nil {
 		return fmt.Errorf("failed to translate output ID %d: %w", chunkTagMap.OutputID, err)
@@ -660,7 +693,6 @@ func (p *ChunkProcessor) updateSyncState(entityName wdk.EntityName, updatedAt ti
 // emptyChunk checks if the chunk is empty, meaning it has no row data to process.
 // NOTE: The user pointer is not taken into account.
 func (p *ChunkProcessor) emptyChunk() bool {
-	// TODO: Add more entities when implemented.
 	return len(p.chunk.OutputBaskets) == 0 &&
 		len(p.chunk.ProvenTxs) == 0 &&
 		len(p.chunk.ProvenTxReqs) == 0 &&
