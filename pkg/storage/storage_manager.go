@@ -40,7 +40,7 @@ func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk
 		panic("identity key must be provided and cannot be empty")
 	}
 
-	logger = logging.Child(logger, "storage-manager")
+	logger = logging.Child(logger, "StorageManager")
 
 	return &WalletStorageManager{
 		activeStorage: managed.NewManagedStorage(active),

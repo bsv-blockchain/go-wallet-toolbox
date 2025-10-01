@@ -17,7 +17,7 @@ type ReaderToWriter struct {
 
 func NewReaderToWriter(logger *slog.Logger) *ReaderToWriter {
 	return &ReaderToWriter{
-		logger: logging.Child(logger, "reader_to_writer_sync"),
+		logger: logging.Child(logger, "ReaderToWriter"),
 	}
 }
 
