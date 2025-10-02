@@ -161,6 +161,8 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 	return
 }
 
+// SetActive Updates backups and switches to new active storage provider from among current backup providers.
+// Also resolves conflicting actives
 func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey string) error {
 	if is.BlankString(storageIdentityKey) {
 		return fmt.Errorf("storage identity key must be provided and cannot be empty")
@@ -260,10 +262,4 @@ func (m *WalletStorageManager) getActiveReader() wdk.WalletStorageProvider {
 func (m *WalletStorageManager) getActiveWriter() wdk.WalletStorageProvider {
 	// TODO: add locking mechanism
 	return m.activeStorage
-}
-
-// SetActive Updates backups and switches to new active storage provider from among current backup providers.
-// Also resolves conflicting actives
-func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey string) error {
-	panic("not implemented")
 }
