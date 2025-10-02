@@ -6,7 +6,7 @@ import (
 
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/client_gen.go
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out wallet_storage_interface_gen.go -skip-methods "GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl wallet_storage.tpl
-//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/storage_manager_gen.go -skip-methods "MakeAvailable,GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl manager.tpl
+//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/storage_manager_gen.go -skip-methods "MakeAvailable,SetActive,GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl manager.tpl
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/internal/server/rpc_storage_provider.gen.go -tmpl rpc_storage_provider.tpl
 //go:generate go tool mockgen -destination=../internal/mocks/mock_wallet_storage_writer.go -package=mocks github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk WalletStorageProvider
 
@@ -21,6 +21,10 @@ type WalletStorageProvider interface {
 	// MakeAvailable makes the storage available storage for user.
 	// @Write
 	MakeAvailable(ctx context.Context) (*TableSettings, error)
+
+	// SetActive updates the active storage identity key for the authenticated user.
+	// @Write
+	SetActive(ctx context.Context, auth AuthID, newActiveStorageIdentityKey string) error
 
 	// FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
 	// @Write
