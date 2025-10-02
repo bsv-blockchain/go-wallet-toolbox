@@ -264,7 +264,6 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 
 	result, err := action.CreateAction(ctx, args, originator)
 	if err != nil {
-		w.logger.DebugContext(ctx, "CreateAction error", slogx.Error(err))
 		return nil, fmt.Errorf("create action failed: %w", err)
 	}
 	w.logger.DebugContext(ctx, "CreateAction success")
@@ -284,7 +283,6 @@ func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, origin
 
 	result, err := action.SignAction(ctx, args, originator)
 	if err != nil {
-		w.logger.DebugContext(ctx, "SignAction error", slogx.Error(err))
 		return nil, fmt.Errorf("sign action failed: %w", err)
 	}
 	w.logger.DebugContext(ctx, "SignAction success")
