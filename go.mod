@@ -7,8 +7,8 @@ require (
 	github.com/bsv-blockchain/go-sdk v1.2.10
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.8.0
-	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
-	github.com/go-co-op/gocron/v2 v2.16.5
+	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0
+	github.com/go-co-op/gocron/v2 v2.16.6
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-softwarelab/common v1.8.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
@@ -19,7 +19,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
 	gopkg.in/yaml.v3 v3.0.1
-	gorm.io/datatypes v1.2.6
+	gorm.io/datatypes v1.2.7
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0

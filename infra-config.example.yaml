@@ -59,6 +59,7 @@ monitor:
 name: go-storage-server
 server_private_key: ""
 synchronize_tx_statuses:
+    check_no_send_period_hours: 24
     max_attempts: 10
 wallet_services:
     arc:
