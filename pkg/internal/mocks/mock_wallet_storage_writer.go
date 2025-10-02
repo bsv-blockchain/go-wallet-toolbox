@@ -278,3 +278,17 @@ func (mr *MockWalletStorageProviderMockRecorder) RelinquishOutput(ctx, auth, arg
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelinquishOutput", reflect.TypeOf((*MockWalletStorageProvider)(nil).RelinquishOutput), ctx, auth, args)
 }
+
+// SetActive mocks base method.
+func (m *MockWalletStorageProvider) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetActive", ctx, auth, newActiveStorageIdentityKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetActive indicates an expected call of SetActive.
+func (mr *MockWalletStorageProviderMockRecorder) SetActive(ctx, auth, newActiveStorageIdentityKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetActive", reflect.TypeOf((*MockWalletStorageProvider)(nil).SetActive), ctx, auth, newActiveStorageIdentityKey)
+}
