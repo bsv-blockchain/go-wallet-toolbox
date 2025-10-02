@@ -17,18 +17,11 @@ const (
 type SyncToWriterOptions struct {
 	MaxSyncChunkSize uint64
 	MaxSyncItems     uint64
-}
-
-// DefaultSyncToWriterOptions returns SyncToWriterOptions with default values for MaxSyncChunkSize and MaxSyncItems.
-func DefaultSyncToWriterOptions() SyncToWriterOptions {
-	return SyncToWriterOptions{
-		MaxSyncChunkSize: MaxSyncChunkSize,
-		MaxSyncItems:     MaxSyncItems,
-	}
+	ReaderFactory    func() WalletStorageProvider
 }
 
 // SyncToWriterOption defines a function type for customizing options during sync operations to a writer storage.
-type SyncToWriterOption func(o *SyncToWriterOptions)
+type SyncToWriterOption = func(o *SyncToWriterOptions)
 
 // WithMaxSyncChunkSize sets the maximum chunk size, in bytes, for each sync operation when writing to storage.
 func WithMaxSyncChunkSize[T types.Number](size T) SyncToWriterOption {
@@ -41,5 +34,13 @@ func WithMaxSyncChunkSize[T types.Number](size T) SyncToWriterOption {
 func WithMaxSyncItems[T types.Number](items T) SyncToWriterOption {
 	return func(o *SyncToWriterOptions) {
 		o.MaxSyncItems = must.ConvertToUInt64(items)
+	}
+}
+
+func WithSyncReader(reader WalletStorageProvider) SyncToWriterOption {
+	return func(o *SyncToWriterOptions) {
+		o.ReaderFactory = func() WalletStorageProvider {
+			return reader
+		}
 	}
 }

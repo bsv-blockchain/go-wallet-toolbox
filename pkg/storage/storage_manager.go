@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
+	stdslices "slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/managed"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/is"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -129,16 +130,24 @@ func (m *WalletStorageManager) GetAuth(ctx context.Context) (wdk.AuthID, error) 
 func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.WalletStorageProvider, opts ...wdk.SyncToWriterOption) (inserts, updates int, err error) {
 	// TODO: add locking mechanism to ensure that the active storage is not being modified while syncing
 
+	options := to.OptionsWithDefault(wdk.SyncToWriterOptions{
+		MaxSyncChunkSize: wdk.MaxSyncChunkSize,
+		MaxSyncItems:     wdk.MaxSyncItems,
+		ReaderFactory: func() wdk.WalletStorageProvider {
+			return m.getActiveReader()
+		},
+	}, opts...)
+
 	if writer == nil {
 		return 0, 0, fmt.Errorf("writer wallet storage must be provided, it's nil")
 	}
 
 	m.logger.Info("starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
 
-	reader := m.getActiveReader()
+	reader := options.ReaderFactory()
 	auth := wdk.AuthID{IdentityKey: m.identityKey}
 
-	inserts, updates, err = sync.NewReaderToWriter(m.logger).Sync(ctx, auth, reader, writer, opts...)
+	inserts, updates, err = sync.NewReaderToWriter(m.logger).Sync(ctx, auth, reader, writer, options.MaxSyncChunkSize, options.MaxSyncItems)
 	if err != nil {
 		err = fmt.Errorf("failed to sync from reader to writer: %w", err)
 	}
@@ -166,7 +175,7 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 		return fmt.Errorf("failed to make storage available: %w", err)
 	}
 
-	newActiveIndex := slices.IndexFunc(m.stores, func(storage *managed.Storage) bool {
+	newActiveIndex := stdslices.IndexFunc(m.stores, func(storage *managed.Storage) bool {
 		return storage.Settings.StorageIdentityKey == storageIdentityKey
 	})
 	if newActiveIndex == -1 {
@@ -174,13 +183,70 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 	}
 
 	newActive := m.stores[newActiveIndex]
-	_ = newActive
 	// TODO: add locking mechanism
 
 	if len(m.conflictingActives) > 0 {
-		// TODO
-	} else {
+		// Merge state from conflicting actives into `newActive`.
 
+		// Handle case where new active is current active to resolve conflicts.
+		// And where new active is one of the current conflict actives.
+		m.conflictingActives = append(m.conflictingActives, m.activeStorage)
+		// Remove the new active from conflicting actives and
+		// set new active as the conflicting active that matches the target `storageIdentityKey`
+		m.conflictingActives = slices.Filter(m.conflictingActives, func(item *managed.Storage) bool {
+			return item.Settings.StorageIdentityKey != storageIdentityKey
+		})
+
+		// Merge state from conflicting actives into `newActive`.
+		for _, conflict := range m.conflictingActives {
+			m.logger.Info("merging state from conflicting actives",
+				slog.String("from", conflict.Settings.StorageIdentityKey),
+				slog.String("to", newActive.Settings.StorageIdentityKey),
+			)
+
+			if _, _, err := m.SyncToWriter(ctx, newActive, wdk.WithSyncReader(conflict)); err != nil {
+				return fmt.Errorf("failed to sync from conflicting active %q to new active %q: %w",
+					conflict.Settings.StorageIdentityKey, newActive.Settings.StorageIdentityKey, err)
+			}
+		}
+
+		m.logger.Info("propagate merged active state to non-actives")
+	} else {
+		m.logger.Info("backup current active state the set new active")
+	}
+
+	// If there were conflicting actives,
+	// Push state merged from all merged actives into newActive to all stores other than the now single active.
+	// Otherwise,
+	// Push state from current active to all other stores.
+	var backupSource *managed.Storage
+	if len(m.conflictingActives) > 0 {
+		backupSource = newActive
+	} else {
+		backupSource = m.activeStorage
+	}
+
+	// Update the backupSource's user record with the new activeStorage
+	// which will propagate to all other stores in the following backup loop.
+	// TODO SetActive
+
+	for _, store := range m.stores {
+		// Update cached user.activeStorage of all stores
+		store.User.ActiveStorage = storageIdentityKey
+
+		if store.Settings.StorageIdentityKey != backupSource.Settings.StorageIdentityKey {
+			// If this store is not the backupSource store push state from backupSource to this store.
+
+			if _, _, err := m.SyncToWriter(ctx, store, wdk.WithSyncReader(backupSource)); err != nil {
+				return fmt.Errorf("failed to sync from backup source %q to store %q: %w",
+					backupSource.Settings.StorageIdentityKey, store.Settings.StorageIdentityKey, err)
+			}
+		}
+	}
+
+	m.isAvailable = false
+	if _, err := m.MakeAvailable(ctx); err != nil {
+		return fmt.Errorf("failed to make storage available after setting new active: %w", err)
 	}
 
 	return nil
