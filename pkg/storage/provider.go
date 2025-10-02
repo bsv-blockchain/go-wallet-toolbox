@@ -590,7 +590,7 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
 	}
 
-	result, err := sync.NewChunkProcessor(ctx, p.repo, chunk, &args, user).Process()
+	result, err := sync.NewChunkProcessor(ctx, p.logger, p.repo, chunk, &args, user).Process()
 	if err != nil {
 		return nil, fmt.Errorf("failed to process chunk: %w", err)
 	}
