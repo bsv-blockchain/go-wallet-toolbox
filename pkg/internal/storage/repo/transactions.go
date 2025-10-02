@@ -415,27 +415,31 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 
 // GetLabelsForSelectedActions fetches labels via JOIN with the selected actions subquery to avoid IN lists.
 func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error) {
-	type resultRow struct {
-		TransactionID uint
-		LabelName     string
-	}
-
-	var rows []resultRow
+	labelsMap := make(map[uint][]string)
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
-		return tx.Table("bsv_transaction_labels tl").
+		rows, err := tx.Table("bsv_transaction_labels tl").
 			Select("tl.transaction_id, tl.label_name").
 			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
 			Where("tl.label_name IS NOT NULL").
-			Scan(&rows).Error
+			Rows()
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var txID uint
+			var label string
+			if err := rows.Scan(&txID, &label); err != nil {
+				return fmt.Errorf("scan failed: %w", err)
+			}
+			labelsMap[txID] = append(labelsMap[txID], label)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch labels for selected actions: %w", err)
-	}
-
-	labelsMap := make(map[uint][]string)
-	for _, row := range rows {
-		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
 	}
 	return labelsMap, nil
 }

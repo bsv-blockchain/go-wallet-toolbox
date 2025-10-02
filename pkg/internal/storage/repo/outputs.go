@@ -354,18 +354,24 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 // FindInputsAndOutputsForSelectedActions retrieves inputs and outputs for the current page of actions
 // using JOINs against the selected actions subquery, avoiding large IN clauses and extra preloads.
 func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter, includeLockingScripts bool) (map[uint][]*pkgentity.Output, map[uint][]*pkgentity.Output, error) {
-	// Rebuild the same selection as Transactions.buildSelectedActionsSubQuery here to avoid a cross-repo dep.
-	// We only need IDs; labels filter uses the same scope.
-	var selectedTxIDs []uint
+	type row struct {
+		models.Output
+		TxID *string `gorm:"column:tx_id"`
+		Tag  *string `gorm:"column:tag_name"`
+	}
+
+	inputMap := make(map[uint][]*pkgentity.Output)
+	outputMap := make(map[uint][]*pkgentity.Output)
+	tmpByID := make(map[uint]*pkgentity.Output)
+
 	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		query := tx.Model(&models.Transaction{}).
+		selected := tx.Model(&models.Transaction{}).
 			Select("id").
 			Where("user_id = ?", userID)
 		if len(filter.Status) > 0 {
-			query = query.Where("status IN ?", filter.Status)
+			selected = selected.Where("status IN ?", filter.Status)
 		}
 		if len(filter.Labels) > 0 {
-			// replicate labelFilterScope: IN (subquery on transaction_labels)
 			subQuery := tx.Model(&models.TransactionLabel{}).
 				Select("transaction_id").
 				Where("label_name IN ?", filter.Labels).
@@ -373,82 +379,70 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 			if filter.LabelQueryMode == defs.QueryModeAll {
 				subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
 			}
-			query = query.Where("id IN (?)", subQuery)
+			selected = selected.Where("id IN (?)", subQuery)
 		}
-		return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset).Pluck("id", &selectedTxIDs).Error
+		selected = selected.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+
+		outputTable := o.query.Output.TableName()
+		txTable := o.query.Transaction.TableName()
+		basketTable := o.query.OutputBasket.TableName()
+		otTable := o.query.OutputTag.TableName()
+		tagsTable := o.query.Tag.TableName()
+
+		dbq := tx.
+			Table(outputTable+" o").
+			Joins("JOIN (?) s ON s.id = o.transaction_id OR s.id = o.spent_by", selected).
+			Joins("LEFT JOIN " + txTable + " t ON t.id = o.transaction_id").
+			Joins("LEFT JOIN " + basketTable + " b ON b.user_id = o.user_id AND b.name = o.basket_name").
+			Joins("LEFT JOIN " + otTable + " ot ON ot.output_id = o.id").
+			Joins("LEFT JOIN " + tagsTable + " tg ON tg.name = ot.tag_name AND tg.user_id = ot.tag_user_id")
+
+		if !includeLockingScripts {
+			dbq = dbq.Omit("o.locking_script")
+		}
+
+		rows, err := dbq.Select("o.*, t.tx_id as tx_id, tg.name as tag_name").Rows()
+		if err != nil {
+			return fmt.Errorf("failed to fetch inputs/outputs via joins: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var r row
+			if err := tx.ScanRows(rows, &r); err != nil {
+				return fmt.Errorf("scan failed: %w", err)
+			}
+
+			e := o.mapModelToOutputEntity(&r.Output)
+			if r.TxID != nil {
+				e.TxID = r.TxID
+			}
+
+			if prev, ok := tmpByID[e.ID]; ok {
+				if r.Tag != nil {
+					prev.Tags = append(prev.Tags, *r.Tag)
+				}
+				continue
+			}
+			if r.Tag != nil {
+				e.Tags = append(e.Tags, *r.Tag)
+			}
+			tmpByID[e.ID] = e
+		}
+
+		for _, e := range tmpByID {
+			if e.SpentBy != nil {
+				inputMap[*e.SpentBy] = append(inputMap[*e.SpentBy], e)
+			}
+			outputMap[e.TransactionID] = append(outputMap[e.TransactionID], e)
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to select actions for outputs join: %w", err)
-	}
-	if len(selectedTxIDs) == 0 {
-		return map[uint][]*pkgentity.Output{}, map[uint][]*pkgentity.Output{}, nil
+		return nil, nil, err
 	}
 
-	// Query outputs + needed relations in one joined scan
-	// We use LEFT JOINs to fetch tx_id, basket, and tags; grouping happens in Go.
-	type row struct {
-		models.Output
-		TxID *string `gorm:"column:tx_id"`
-		Tag  *string `gorm:"column:tag_name"`
-	}
-
-	var rows []row
-	outputTable := o.query.Output.TableName()
-	txTable := o.query.Transaction.TableName()
-	basketTable := o.query.OutputBasket.TableName()
-	otTable := o.query.OutputTag.TableName()
-	tagsTable := o.query.Tag.TableName()
-
-	dbq := o.db.WithContext(ctx).
-		Table(outputTable+" o").
-		Joins("LEFT JOIN (SELECT id FROM "+o.query.Transaction.TableName()+" WHERE id IN (?)) s1 ON s1.id = o.transaction_id", selectedTxIDs).
-		Joins("LEFT JOIN (SELECT id FROM "+o.query.Transaction.TableName()+" WHERE id IN (?)) s2 ON s2.id = o.spent_by", selectedTxIDs).
-		Joins("LEFT JOIN " + txTable + " t ON t.id = o.transaction_id").
-		Joins("LEFT JOIN " + basketTable + " b ON b.user_id = o.user_id AND b.name = o.basket_name").
-		Joins("LEFT JOIN " + otTable + " ot ON ot.output_id = o.id").
-		Joins("LEFT JOIN " + tagsTable + " tg ON tg.name = ot.tag_name AND tg.user_id = ot.tag_user_id").
-		Where("s1.id IS NOT NULL OR s2.id IS NOT NULL")
-
-	if !includeLockingScripts {
-		dbq = dbq.Omit("o.locking_script")
-	}
-
-	if err := dbq.Select("o.*, t.tx_id as tx_id, tg.name as tag_name").Scan(&rows).Error; err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs via joins: %w", err)
-	}
-
-	// Group by TransactionID and SpentBy; aggregate tags per output id.
-	inputs := make(map[uint][]*pkgentity.Output)
-	outputs := make(map[uint][]*pkgentity.Output)
-	tmpByID := make(map[uint]*pkgentity.Output)
-
-	for _, r := range rows {
-		e := o.mapModelToOutputEntity(&r.Output)
-		// enrich txid if present
-		if r.TxID != nil {
-			e.TxID = r.TxID
-		}
-		// merge tags across duplicate output rows
-		if prev, ok := tmpByID[e.ID]; ok {
-			if r.Tag != nil {
-				prev.Tags = append(prev.Tags, *r.Tag)
-			}
-			continue
-		}
-		if r.Tag != nil {
-			e.Tags = append(e.Tags, *r.Tag)
-		}
-		tmpByID[e.ID] = e
-	}
-
-	for _, e := range tmpByID {
-		if e.SpentBy != nil {
-			inputs[*e.SpentBy] = append(inputs[*e.SpentBy], e)
-		}
-		outputs[e.TransactionID] = append(outputs[e.TransactionID], e)
-	}
-
-	return inputs, outputs, nil
+	return inputMap, outputMap, nil
 }
 
 func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) error {
