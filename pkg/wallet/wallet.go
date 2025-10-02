@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -17,6 +18,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -173,7 +175,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 
 // GetPublicKey retrieves a derived or identity public key based on the requested protocol, key ID, counterparty, and other factors.
 func (w *Wallet) GetPublicKey(ctx context.Context, args sdk.GetPublicKeyArgs, originator string) (*sdk.GetPublicKeyResult, error) {
-	defer logging.DebugSpan(w.logger, "GetPublicKey", slog.String("originator", originator))()
+	logging.Child(w.logger, "GetPublicKey").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.GetPublicKey(ctx, args, originator)
 	if err != nil {
@@ -184,7 +186,7 @@ func (w *Wallet) GetPublicKey(ctx context.Context, args sdk.GetPublicKeyArgs, or
 
 // Encrypt encrypts the provided plaintext data using derived keys, based on the protocol ID, key ID, counterparty, and other factors.
 func (w *Wallet) Encrypt(ctx context.Context, args sdk.EncryptArgs, originator string) (*sdk.EncryptResult, error) {
-	defer logging.DebugSpan(w.logger, "Encrypt", slog.String("originator", originator))()
+	logging.Child(w.logger, "Encrypt").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.Encrypt(ctx, args, originator)
 	if err != nil {
@@ -195,7 +197,7 @@ func (w *Wallet) Encrypt(ctx context.Context, args sdk.EncryptArgs, originator s
 
 // Decrypt decrypts the provided ciphertext using derived keys, based on the protocol ID, key ID, counterparty, and other factors.
 func (w *Wallet) Decrypt(ctx context.Context, args sdk.DecryptArgs, originator string) (*sdk.DecryptResult, error) {
-	defer logging.DebugSpan(w.logger, "Decrypt", slog.String("originator", originator))()
+	logging.Child(w.logger, "Decrypt").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.Decrypt(ctx, args, originator)
 	if err != nil {
@@ -206,7 +208,7 @@ func (w *Wallet) Decrypt(ctx context.Context, args sdk.DecryptArgs, originator s
 
 // CreateHMAC creates an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
 func (w *Wallet) CreateHMAC(ctx context.Context, args sdk.CreateHMACArgs, originator string) (*sdk.CreateHMACResult, error) {
-	defer logging.DebugSpan(w.logger, "CreateHMAC", slog.String("originator", originator))()
+	logging.Child(w.logger, "CreateHMAC").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.CreateHMAC(ctx, args, originator)
 	if err != nil {
@@ -217,7 +219,7 @@ func (w *Wallet) CreateHMAC(ctx context.Context, args sdk.CreateHMACArgs, origin
 
 // VerifyHMAC verifies an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
 func (w *Wallet) VerifyHMAC(ctx context.Context, args sdk.VerifyHMACArgs, originator string) (*sdk.VerifyHMACResult, error) {
-	defer logging.DebugSpan(w.logger, "VerifyHMAC", slog.String("originator", originator))()
+	logging.Child(w.logger, "VerifyHMAC").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.VerifyHMAC(ctx, args, originator)
 	if err != nil {
@@ -228,7 +230,7 @@ func (w *Wallet) VerifyHMAC(ctx context.Context, args sdk.VerifyHMACArgs, origin
 
 // CreateSignature creates a digital signature for the provided data or hash using a specific protocol, key, and optionally considering privilege and counterparty.
 func (w *Wallet) CreateSignature(ctx context.Context, args sdk.CreateSignatureArgs, originator string) (*sdk.CreateSignatureResult, error) {
-	defer logging.DebugSpan(w.logger, "CreateSignature", slog.String("originator", originator))()
+	logging.Child(w.logger, "CreateSignature").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.CreateSignature(ctx, args, originator)
 	if err != nil {
@@ -239,7 +241,7 @@ func (w *Wallet) CreateSignature(ctx context.Context, args sdk.CreateSignatureAr
 
 // VerifySignature verifies a digital signature for the provided data or hash using a specific protocol, key, and optionally considering privilege and counterparty.
 func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureArgs, originator string) (*sdk.VerifySignatureResult, error) {
-	defer logging.DebugSpan(w.logger, "VerifySignature", slog.String("originator", originator))()
+	logging.Child(w.logger, "VerifySignature").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.VerifySignature(ctx, args, originator)
 	if err != nil {
@@ -250,7 +252,10 @@ func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureAr
 
 // CreateAction creates a new Bitcoin transaction based on the provided inputs, outputs, labels, locks, and other options.
 func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
-	defer logging.DebugSpan(w.logger, "CreateAction", slog.String("originator", originator))()
+	logger := logging.Child(w.logger, "CreateAction")
+	logger.DebugContext(ctx, "start", slogx.String("originator", originator))
+	start := time.Now()
+	defer func() { logger.DebugContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 	action := &actions.CreateAction{
 		KeyDeriver:              w.keyDeriver,
 		Storage:                 w.storage,
@@ -260,14 +265,19 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 
 	result, err := action.CreateAction(ctx, args, originator)
 	if err != nil {
+		logger.DebugContext(ctx, "error", slogx.Error(err))
 		return nil, fmt.Errorf("create action failed: %w", err)
 	}
+	logger.DebugContext(ctx, "success")
 	return result, nil
 }
 
 // SignAction signs a transaction previously created using CreateAction.
 func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, originator string) (*sdk.SignActionResult, error) {
-	defer logging.DebugSpan(w.logger, "SignAction", slog.String("originator", originator))()
+	logger := logging.Child(w.logger, "SignAction")
+	logger.DebugContext(ctx, "start", slogx.String("originator", originator))
+	start := time.Now()
+	defer func() { logger.DebugContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 	action := &actions.SignAction{
 		Logger:                  w.logger,
 		PendingSignActionsCache: w.pendingSignActionsCache,
@@ -276,14 +286,16 @@ func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, origin
 
 	result, err := action.SignAction(ctx, args, originator)
 	if err != nil {
+		logger.DebugContext(ctx, "error", slogx.Error(err))
 		return nil, fmt.Errorf("sign action failed: %w", err)
 	}
+	logger.DebugContext(ctx, "success")
 	return result, nil
 }
 
 // AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
 func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, originator string) (*sdk.AbortActionResult, error) {
-	defer logging.DebugSpan(w.logger, "AbortAction", slog.String("originator", originator))()
+	logging.Child(w.logger, "AbortAction").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -304,7 +316,7 @@ func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, orig
 
 // ListActions lists all transactions matching the specified labels.
 func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
-	defer logging.DebugSpan(w.logger, "ListActions", slog.String("originator", originator))()
+	logging.Child(w.logger, "ListActions").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -330,7 +342,7 @@ func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, orig
 
 // ListFailedActions returns only actions with status 'failed'. If unfail is true, it also requests recovery by adding the 'unfail' label.
 func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs, unfail bool, originator string) (*sdk.ListActionsResult, error) {
-	defer logging.DebugSpan(w.logger, "ListFailedActions", slog.String("originator", originator), slog.Bool("unfail", unfail))()
+	logging.Child(w.logger, "ListFailedActions").DebugContext(ctx, "call", slogx.String("originator", originator), slog.Bool("unfail", unfail))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -362,7 +374,7 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
 // inserted into baskets, and/or tagged.
 func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
-	defer logging.DebugSpan(w.logger, "InternalizeAction", slog.String("originator", originator))()
+	logging.Child(w.logger, "InternalizeAction").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -383,7 +395,7 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 
 // ListOutputs lists the spendable outputs kept within a specific basket, optionally tagged with specific labels.
 func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error) {
-	defer logging.DebugSpan(w.logger, "ListOutputs", slog.String("originator", originator))()
+	logging.Child(w.logger, "ListOutputs").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -409,7 +421,7 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 
 // RelinquishOutput relinquishes an output from a basket, removing it from tracking without spending it.
 func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutputArgs, originator string) (*sdk.RelinquishOutputResult, error) {
-	defer logging.DebugSpan(w.logger, "RelinquishOutput", slog.String("originator", originator))()
+	logging.Child(w.logger, "RelinquishOutput").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -433,7 +445,7 @@ func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutput
 // RevealCounterpartyKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,
 // across all interactions with the counterparty.
 func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.RevealCounterpartyKeyLinkageArgs, originator string) (*sdk.RevealCounterpartyKeyLinkageResult, error) {
-	defer logging.DebugSpan(w.logger, "RevealCounterpartyKeyLinkage", slog.String("originator", originator))()
+	logging.Child(w.logger, "RevealCounterpartyKeyLinkage").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -449,7 +461,7 @@ func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.Reve
 // RevealSpecificKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,
 // with respect to a specific interaction.
 func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSpecificKeyLinkageArgs, originator string) (*sdk.RevealSpecificKeyLinkageResult, error) {
-	defer logging.DebugSpan(w.logger, "RevealSpecificKeyLinkage", slog.String("originator", originator))()
+	logging.Child(w.logger, "RevealSpecificKeyLinkage").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -464,21 +476,21 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
 func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
-	defer logging.DebugSpan(w.logger, "AcquireCertificate", slog.String("originator", originator))()
+	logging.Child(w.logger, "AcquireCertificate").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO implement me
 	panic("implement me")
 }
 
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
-	defer logging.DebugSpan(w.logger, "ListCertificates", slog.String("originator", originator))()
+	logging.Child(w.logger, "ListCertificates").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO implement me
 	panic("implement me")
 }
 
 // ProveCertificate proves select fields of an identity certificate, as specified, when requested by a verifier.
 func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificateArgs, originator string) (*sdk.ProveCertificateResult, error) {
-	defer logging.DebugSpan(w.logger, "ProveCertificate", slog.String("originator", originator))()
+	logging.Child(w.logger, "ProveCertificate").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO implement me
 	panic("implement me")
 }
@@ -486,14 +498,14 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 // RelinquishCertificate relinquishes an identity certificate, removing it from the wallet regardless of whether
 // the revocation outpoint has become spent.
 func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishCertificateArgs, originator string) (*sdk.RelinquishCertificateResult, error) {
-	defer logging.DebugSpan(w.logger, "RelinquishCertificate", slog.String("originator", originator))()
+	logging.Child(w.logger, "RelinquishCertificate").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO implement me
 	panic("implement me")
 }
 
 // DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
 func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	defer logging.DebugSpan(w.logger, "DiscoverByIdentityKey", slog.String("originator", originator))()
+	logging.Child(w.logger, "DiscoverByIdentityKey").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO implement me
 	panic("implement me")
 }
@@ -501,14 +513,14 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 // DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain
 // specific attributes, issued by a trusted entity.
 func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAttributesArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	defer logging.DebugSpan(w.logger, "DiscoverByAttributes", slog.String("originator", originator))()
+	logging.Child(w.logger, "DiscoverByAttributes").DebugContext(ctx, "call", slogx.String("originator", originator))
 	// TODO implement me
 	panic("implement me")
 }
 
 // IsAuthenticated checks the authentication status of the user.
-func (w *Wallet) IsAuthenticated(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
-	defer logging.DebugSpan(w.logger, "IsAuthenticated", slog.String("originator", originator))()
+func (w *Wallet) IsAuthenticated(ctx context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	logging.Child(w.logger, "IsAuthenticated").DebugContext(ctx, "call", slogx.String("originator", originator))
 	err := validate.Originator(originator)
 	if err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -519,8 +531,8 @@ func (w *Wallet) IsAuthenticated(_ context.Context, _ any, originator string) (*
 }
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
-func (w *Wallet) WaitForAuthentication(_ context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
-	defer logging.DebugSpan(w.logger, "WaitForAuthentication", slog.String("originator", originator))()
+func (w *Wallet) WaitForAuthentication(ctx context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	logging.Child(w.logger, "WaitForAuthentication").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -532,7 +544,7 @@ func (w *Wallet) WaitForAuthentication(_ context.Context, _ any, originator stri
 
 // GetHeight retrieves the current height of the blockchain.
 func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.GetHeightResult, error) {
-	defer logging.DebugSpan(w.logger, "GetHeight", slog.String("originator", originator))()
+	logging.Child(w.logger, "GetHeight").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if w.services == nil {
 		return nil, fmt.Errorf("services are not configured for this wallet")
 	}
@@ -553,7 +565,7 @@ func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.
 
 // GetHeaderForHeight retrieves the block header of a block at a specified height.
 func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs, originator string) (*sdk.GetHeaderResult, error) {
-	defer logging.DebugSpan(w.logger, "GetHeaderForHeight", slog.String("originator", originator), logging.Number("height", args.Height))()
+	logging.Child(w.logger, "GetHeaderForHeight").DebugContext(ctx, "call", slogx.String("originator", originator), logging.Number("height", args.Height))
 	if w.services == nil {
 		return nil, fmt.Errorf("wallet services not configured: cannot retrieve block header")
 	}
@@ -576,8 +588,8 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 }
 
 // GetNetwork retrieves the Bitcoin network the client is using (mainnet or testnet).
-func (w *Wallet) GetNetwork(_ context.Context, _ any, originator string) (*sdk.GetNetworkResult, error) {
-	defer logging.DebugSpan(w.logger, "GetNetwork", slog.String("originator", originator))()
+func (w *Wallet) GetNetwork(ctx context.Context, _ any, originator string) (*sdk.GetNetworkResult, error) {
+	logging.Child(w.logger, "GetNetwork").DebugContext(ctx, "call", slogx.String("originator", originator))
 	err := validate.Originator(originator)
 	if err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -589,8 +601,8 @@ func (w *Wallet) GetNetwork(_ context.Context, _ any, originator string) (*sdk.G
 }
 
 // GetVersion retrieves the current version string of the wallet.
-func (w *Wallet) GetVersion(_ context.Context, _ any, originator string) (*sdk.GetVersionResult, error) {
-	defer logging.DebugSpan(w.logger, "GetVersion", slog.String("originator", originator))()
+func (w *Wallet) GetVersion(ctx context.Context, _ any, originator string) (*sdk.GetVersionResult, error) {
+	logging.Child(w.logger, "GetVersion").DebugContext(ctx, "call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -603,12 +615,12 @@ func (w *Wallet) GetVersion(_ context.Context, _ any, originator string) (*sdk.G
 
 // Close closes the wallet and all the components underneath.
 func (w *Wallet) Close() {
-	defer logging.DebugSpan(w.logger, "Close")()
+	logging.Child(w.logger, "Close").DebugContext(context.Background(), "call")
 	w.cleanup()
 }
 
 // Destroy is an alias for Close, that is an equivalent for the typescript wallet.destroy() method.
 func (w *Wallet) Destroy() {
-	defer logging.DebugSpan(w.logger, "Destroy")()
+	logging.Child(w.logger, "Destroy").DebugContext(context.Background(), "call")
 	w.Close()
 }

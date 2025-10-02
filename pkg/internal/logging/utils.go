@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
-	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-softwarelab/common/pkg/types"
@@ -104,18 +103,4 @@ func DefaultIfNil(logger *slog.Logger) *slog.Logger {
 
 func IsDebug(logger *slog.Logger) bool {
 	return logger.Enabled(context.Background(), slog.LevelDebug)
-}
-
-// DebugSpan logs a debug "start" for method and returns a finisher that logs "done" with duration.
-// When debug is disabled, the returned finisher is a no-op.
-func DebugSpan(logger *slog.Logger, method string, attrs ...any) func(...any) {
-	logger = Child(logger, method)
-	if !IsDebug(logger) {
-		return func(...any) {}
-	}
-	start := time.Now()
-	logger.Debug("start", attrs...)
-	return func(extra ...any) {
-		logger.Debug("done", append(extra, slog.Duration("duration", time.Since(start)))...)
-	}
 }
