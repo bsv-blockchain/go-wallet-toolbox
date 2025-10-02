@@ -24,6 +24,20 @@ func (p *RPCStorageProvider) MakeAvailable(ctx context.Context) (*wdk.TableSetti
 	return p.localProvider.MakeAvailable(ctx)
 }
 
+// SetActive updates the active storage identity key for the authenticated user.
+func (p *RPCStorageProvider) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+	err := p.verifyAuthID(ctx, auth)
+	if err != nil {
+		return err
+	}
+	err = p.ensureUserID(ctx, &auth)
+	if err != nil {
+		return err
+	}
+
+	return p.localProvider.SetActive(ctx, auth, newActiveStorageIdentityKey)
+}
+
 // InternalizeAction handles the internalization of a transaction from the outside of the wallet.
 func (p *RPCStorageProvider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 	err := p.verifyAuthID(ctx, auth)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -22,7 +23,7 @@ type storageFixture struct {
 }
 
 func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager {
-	return storage.NewWalletStorageManager(user.IdentityKey(s.t), activeStorage)
+	return storage.NewWalletStorageManager(user.IdentityKey(s.t), logging.NewTestLogger(s.t), activeStorage)
 }
 
 func (s *storageFixture) Action(activeStorage *storage.Provider) TxGeneratorFixture {

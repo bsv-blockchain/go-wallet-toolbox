@@ -22,6 +22,11 @@ func (c *WalletStorageProviderClient) MakeAvailable(ctx context.Context) (*wdk.T
 	return c.client.MakeAvailable(ctx)
 }
 
+// SetActive updates the active storage identity key for the authenticated user.
+func (c *WalletStorageProviderClient) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+	return c.client.SetActive(ctx, auth, newActiveStorageIdentityKey)
+}
+
 // FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
 func (c *WalletStorageProviderClient) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
 	return c.client.FindOrInsertUser(ctx, identityKey)
@@ -98,6 +103,7 @@ func (c *WalletStorageProviderClient) AbortAction(ctx context.Context, auth wdk.
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
+	SetActive                 func(context.Context, wdk.AuthID, string) error
 	FindOrInsertUser          func(context.Context, string) (*wdk.FindOrInsertUserResponse, error)
 	InternalizeAction         func(context.Context, wdk.AuthID, wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error)
 	CreateAction              func(context.Context, wdk.AuthID, wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error)

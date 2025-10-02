@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
@@ -147,6 +148,24 @@ func (p *Provider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error
 	}
 
 	return settings, nil
+}
+
+// SetActive updates the active storage identity key for the authenticated user.
+// Returns an error if the user is not authorized or the update fails.
+func (p *Provider) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+	if auth.UserID == nil {
+		return ErrAuthorization
+	}
+
+	err := p.repo.UpdateUser(ctx, &entity.UserUpdateSpecification{
+		ID:            *auth.UserID,
+		ActiveStorage: to.Ptr(newActiveStorageIdentityKey),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update user active storage: %w", err)
+	}
+
+	return nil
 }
 
 // InsertCertificateAuth inserts certificate to the database for authenticated user
@@ -590,7 +609,7 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 		return nil, fmt.Errorf("user with identity key %s not found", args.IdentityKey)
 	}
 
-	result, err := sync.NewChunkProcessor(ctx, p.repo, chunk, &args, user).Process()
+	result, err := sync.NewChunkProcessor(ctx, p.logger, p.repo, chunk, &args, user).Process()
 	if err != nil {
 		return nil, fmt.Errorf("failed to process chunk: %w", err)
 	}
