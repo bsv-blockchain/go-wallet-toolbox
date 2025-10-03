@@ -2,10 +2,13 @@ package wallet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/auth/certificates"
+	"github.com/bsv-blockchain/go-sdk/wallet"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -473,8 +476,78 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
 func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
 	w.logger.DebugContext(ctx, "AcquireCertificate call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+	switch args.AcquisitionProtocol {
+	case sdk.AcquisitionProtocolDirect:
+		return w.acquireDirectCertificate(ctx, args, originator)
+	case sdk.AcquisitionProtocolIssuance:
+		// TODO: Add implementation for sdk.AcquisitionProtocolIssuance in a separate PR.
+		panic("implement me")
+	default:
+		return nil, fmt.Errorf("acquire protocol not recognized, allowed types: [%s, %s]", sdk.AcquisitionProtocolDirect, sdk.AcquisitionProtocolIssuance)
+	}
+}
+
+func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	w.logger.DebugContext(ctx, "AcquireDirectCertificate call", slogx.String("originator", originator))
+
+	if err := validate.ValidateAcquireDirectCertificateArgs(&args); err != nil {
+		return nil, fmt.Errorf("failed to validate acquire direct certificate args: %w", err)
+	}
+
+	marshaledArgs, err := args.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal acquire certificate args: %w", err)
+	}
+
+	var masterCertificate certificates.MasterCertificate
+	if err = json.Unmarshal(marshaledArgs, &masterCertificate); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal marshal acquire certificate args bytes slice to MasterCertificate type: %w", err)
+	}
+
+	if err = masterCertificate.Verify(ctx); err != nil {
+		return nil, fmt.Errorf("failed to verify master certificate: %w", err)
+	}
+
+	_, err = certificates.DecryptFields(ctx, w,
+		masterCertificate.MasterKeyring,
+		masterCertificate.Fields,
+		wallet.Counterparty{Type: wallet.CounterpartyTypeSelf, Counterparty: args.Certifier}, // TODO: Fix the Type.
+		to.Value(args.Privileged),
+		args.PrivilegedReason)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt using the master keyring: %w", err)
+	}
+
+	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{ // TODO: Fill the data
+		TableCertificate: wdk.TableCertificate{
+			CreatedAt:          time.Time{},
+			UpdatedAt:          time.Time{},
+			CertificateID:      0,
+			Type:               "",
+			SerialNumber:       "",
+			Certifier:          "",
+			Subject:            "",
+			Verifier:           nil,
+			RevocationOutpoint: "",
+			Signature:          "",
+			IsDeleted:          false,
+		},
+		Fields: []*wdk.TableCertificateField{},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert certificate auth: %w", err)
+	}
+
+	return &sdk.Certificate{
+		Type:               args.Type,
+		SerialNumber:       to.Value(args.SerialNumber),
+		Subject:            &masterCertificate.Subject,
+		Certifier:          args.Certifier,
+		RevocationOutpoint: args.RevocationOutpoint,
+		Fields:             args.Fields,
+		Signature:          args.Signature,
+	}, nil
 }
 
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
