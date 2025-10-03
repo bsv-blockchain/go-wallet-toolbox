@@ -228,9 +228,10 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 		backupSource = m.activeStorage
 	}
 
-	// Update the backupSource's user record with the new activeStorage
-	// which will propagate to all other stores in the following backup loop.
-	// TODO SetActive
+	err := backupSource.SetActive(ctx, wdk.AuthID{IdentityKey: m.identityKey, UserID: to.Ptr(backupSource.User.UserID)}, storageIdentityKey)
+	if err != nil {
+		return fmt.Errorf("failed to set active storage in backup source %q: %w", backupSource.Settings.StorageIdentityKey, err)
+	}
 
 	for _, store := range m.stores {
 		// Update cached user.activeStorage of all stores
