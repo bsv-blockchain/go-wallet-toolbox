@@ -14,6 +14,9 @@ type WalletStorageBasic interface {
 	// MakeAvailable makes the storage available storage for user.
 	// @Write
 	MakeAvailable(ctx context.Context) (*TableSettings, error)
+	// SetActive updates the active storage identity key for the authenticated user.
+	// @Write
+	SetActive(ctx context.Context, newActiveStorageIdentityKey string) error
 	// FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
 	// @Write
 	FindOrInsertUser(ctx context.Context, identityKey string) (*FindOrInsertUserResponse, error)

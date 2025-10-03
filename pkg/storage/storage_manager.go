@@ -118,3 +118,9 @@ func (m *WalletStorageManager) getActiveWriter() wdk.WalletStorageProvider {
 	// TODO: add locking mechanism
 	return m.activeStorage
 }
+
+// SetActive Updates backups and switches to new active storage provider from among current backup providers.
+// Also resolves conflicting actives
+func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey string) error {
+	panic("not implemented")
+}
