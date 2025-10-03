@@ -44,7 +44,6 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 
 	_, txIDs, actions := l.mapTransactionsToActions(txs)
 
-	// Use join-based retrieval to avoid large IN (...) and reduce query count
 	var inputMap map[uint][]*pkgentity.Output
 	var outputMap map[uint][]*pkgentity.Output
 	if args.IncludeInputs.Value() || args.IncludeOutputs.Value() {
