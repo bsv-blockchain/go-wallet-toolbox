@@ -36,17 +36,16 @@ func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk
 		panic("identity key must be provided and cannot be empty")
 	}
 
+	var stores []*managed.Storage
 	storesNum := len(backups) + to.IfThen(active != nil, 1).ElseThen(0)
-	if storesNum == 0 {
-		panic("at least one storage (active or backup) must be provided")
-	}
-
-	stores := make([]*managed.Storage, 0, storesNum)
-	if active != nil {
-		stores = append(stores, managed.NewManagedStorage(active))
-	}
-	for _, b := range backups {
-		stores = append(stores, managed.NewManagedStorage(b))
+	if storesNum > 0 {
+		stores = make([]*managed.Storage, 0, storesNum)
+		if active != nil {
+			stores = append(stores, managed.NewManagedStorage(active))
+		}
+		for _, b := range backups {
+			stores = append(stores, managed.NewManagedStorage(b))
+		}
 	}
 
 	logger = logging.Child(logger, "StorageManager")
@@ -59,6 +58,12 @@ func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk
 	}
 }
 
+// IsActiveEnabled The active storage is "enabled" only if its `storageIdentityKey` matches the user's currently selected `activeStorage`,
+// and only if there are no stores with conflicting `activeStorage` selections.
+//
+// A wallet may be created without including the user's currently selected active storage. This allows readonly access to their wallet data.
+//
+// In addition, if there are conflicting `activeStorage` selections among backup storage providers then the active remains disabled.
 func (m *WalletStorageManager) IsActiveEnabled() bool {
 	return m.activeStorage != nil &&
 		m.activeStorage.Settings.StorageIdentityKey == m.activeStorage.User.ActiveStorage &&
@@ -69,6 +74,10 @@ func (m *WalletStorageManager) IsActiveEnabled() bool {
 func (m *WalletStorageManager) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error) {
 	if m.isAvailable {
 		return m.activeStorage.Settings, nil
+	}
+
+	if len(m.stores) == 0 {
+		return nil, fmt.Errorf("no storage providers configured")
 	}
 
 	m.activeStorage = m.stores[0] //first storage is the active storage candidate; NOTE: zero-length check was done in constructor
@@ -221,28 +230,23 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 	// Push state merged from all merged actives into newActive to all stores other than the now single active.
 	// Otherwise,
 	// Push state from current active to all other stores.
-	var backupSource *managed.Storage
-	if len(m.conflictingActives) > 0 {
-		backupSource = newActive
-	} else {
-		backupSource = m.activeStorage
-	}
+	backupSource := to.IfThen(len(m.conflictingActives) > 0, newActive).ElseThen(m.activeStorage)
+	backupIdentityKey := backupSource.Settings.StorageIdentityKey
 
 	err := backupSource.SetActive(ctx, wdk.AuthID{IdentityKey: m.identityKey, UserID: to.Ptr(backupSource.User.UserID)}, storageIdentityKey)
 	if err != nil {
-		return fmt.Errorf("failed to set active storage in backup source %q: %w", backupSource.Settings.StorageIdentityKey, err)
+		return fmt.Errorf("failed to set active storage in backup source %q: %w", backupIdentityKey, err)
 	}
 
 	for _, store := range m.stores {
 		// Update cached user.activeStorage of all stores
 		store.User.ActiveStorage = storageIdentityKey
 
-		if store.Settings.StorageIdentityKey != backupSource.Settings.StorageIdentityKey {
+		if !store.HasStorageIdentityKey(backupIdentityKey) {
 			// If this store is not the backupSource store push state from backupSource to this store.
-
 			if _, _, err := m.SyncToWriter(ctx, store, wdk.WithSyncReader(backupSource)); err != nil {
 				return fmt.Errorf("failed to sync from backup source %q to store %q: %w",
-					backupSource.Settings.StorageIdentityKey, store.Settings.StorageIdentityKey, err)
+					backupIdentityKey, store.Settings.StorageIdentityKey, err)
 			}
 		}
 	}

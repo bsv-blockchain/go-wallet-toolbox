@@ -53,3 +53,7 @@ func (s *Storage) ThinksItIsActive() bool {
 func (s *Storage) PointsToActiveStorage(storageIdentityKey string) bool {
 	return s.IsAvailable() && s.User.ActiveStorage == storageIdentityKey
 }
+
+func (s *Storage) HasStorageIdentityKey(identityKey string) bool {
+	return s.IsAvailable() && s.Settings.StorageIdentityKey == identityKey
+}
