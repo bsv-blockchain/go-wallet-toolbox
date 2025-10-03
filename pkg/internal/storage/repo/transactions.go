@@ -423,6 +423,7 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 			Select("tl.transaction_id, tl.label_name").
 			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
 			Where("tl.label_name IS NOT NULL").
+			Where("tl.deleted_at IS NULL").
 			Rows()
 		if err != nil {
 			return fmt.Errorf("failed to query labels rows: %w", err)

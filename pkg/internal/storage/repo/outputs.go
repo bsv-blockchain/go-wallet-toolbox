@@ -363,7 +363,6 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 	inputMap := make(map[uint][]*pkgentity.Output)
 	outputMap := make(map[uint][]*pkgentity.Output)
 	tmpByID := make(map[uint]*pkgentity.Output)
-
 	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := tx.Model(&models.Transaction{}).
 			Select("id").
@@ -392,10 +391,13 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 		dbq := tx.
 			Table(outputTable+" o").
 			Joins("JOIN (?) s ON s.id = o.transaction_id OR s.id = o.spent_by", selected).
-			Joins("LEFT JOIN " + txTable + " t ON t.id = o.transaction_id").
-			Joins("LEFT JOIN " + basketTable + " b ON b.user_id = o.user_id AND b.name = o.basket_name").
-			Joins("LEFT JOIN " + otTable + " ot ON ot.output_id = o.id").
-			Joins("LEFT JOIN " + tagsTable + " tg ON tg.name = ot.tag_name AND tg.user_id = ot.tag_user_id")
+			Joins("LEFT JOIN "+txTable+" t ON t.id = o.transaction_id").
+			Joins("LEFT JOIN "+basketTable+" b ON b.user_id = o.user_id AND b.name = o.basket_name").
+			Joins("LEFT JOIN "+otTable+" ot ON ot.output_id = o.id AND ot.tag_user_id = o.user_id AND ot.deleted_at IS NULL").
+			Joins("LEFT JOIN "+tagsTable+" tg ON tg.name = ot.tag_name AND tg.user_id = ot.tag_user_id AND tg.deleted_at IS NULL").
+			Where("o.user_id = ?", userID).
+			Where("o.deleted_at IS NULL").
+			Order("o.id ASC")
 
 		if !includeLockingScripts {
 			dbq = dbq.Omit("o.locking_script")
@@ -412,6 +414,9 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 			}
 		}()
 
+		orderedIDs := make([]uint, 0)
+		tagSeen := make(map[uint]map[string]struct{})
+
 		for rows.Next() {
 			var r row
 			if err := tx.ScanRows(rows, &r); err != nil {
@@ -425,17 +430,33 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 
 			if prev, ok := tmpByID[e.ID]; ok {
 				if r.Tag != nil {
-					prev.Tags = append(prev.Tags, *r.Tag)
+					seen := tagSeen[e.ID]
+					if seen == nil {
+						seen = make(map[string]struct{})
+						tagSeen[e.ID] = seen
+					}
+					if _, exists := seen[*r.Tag]; !exists {
+						prev.Tags = append(prev.Tags, *r.Tag)
+						seen[*r.Tag] = struct{}{}
+					}
 				}
 				continue
 			}
 			if r.Tag != nil {
 				e.Tags = append(e.Tags, *r.Tag)
+				seen := tagSeen[e.ID]
+				if seen == nil {
+					seen = make(map[string]struct{})
+					tagSeen[e.ID] = seen
+				}
+				seen[*r.Tag] = struct{}{}
 			}
 			tmpByID[e.ID] = e
+			orderedIDs = append(orderedIDs, e.ID)
 		}
 
-		for _, e := range tmpByID {
+		for _, id := range orderedIDs {
+			e := tmpByID[id]
 			if e.SpentBy != nil {
 				inputMap[*e.SpentBy] = append(inputMap[*e.SpentBy], e)
 			}
@@ -655,6 +676,7 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 		ID:                 model.ID,
 		UserID:             model.UserID,
 		TransactionID:      model.TransactionID,
+		SpentBy:            model.SpentBy,
 		BasketName:         model.BasketName,
 		Spendable:          model.Spendable,
 		Change:             model.Change,
