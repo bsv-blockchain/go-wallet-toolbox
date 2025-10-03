@@ -106,7 +106,7 @@ func (m *WalletStorageManager) MakeAvailable(ctx context.Context) (*wdk.TableSet
 	}
 
 	for _, backup := range tmpBackups {
-		if backup.PointsToActiveStorage(m.activeStorage.Settings.StorageIdentityKey) {
+		if !backup.ThinksActiveStorageIs(m.activeStorage.Settings.StorageIdentityKey) {
 			m.conflictingActives = append(m.conflictingActives, backup)
 		} else {
 			m.backups = append(m.backups, backup)

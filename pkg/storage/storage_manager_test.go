@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -127,5 +128,35 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 			IsActive:    to.Ptr(true),
 		}, auth)
 
+	})
+}
+
+func TestWalletStorageManager_WithBackups(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and:
+		givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+		defer cleanup()
+		backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage, backupProvider)
+
+		// when:
+		auth, err := storageManager.GetAuth(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, wdk.AuthID{
+			UserID:      &testusers.Alice.ID,
+			IdentityKey: testusers.Alice.IdentityKey(t),
+			IsActive:    to.Ptr(true),
+		}, auth)
 	})
 }

@@ -50,7 +50,7 @@ func (s *Storage) ThinksItIsActive() bool {
 	return s.IsAvailable() && s.User.ActiveStorage == s.Settings.StorageIdentityKey
 }
 
-func (s *Storage) PointsToActiveStorage(storageIdentityKey string) bool {
+func (s *Storage) ThinksActiveStorageIs(storageIdentityKey string) bool {
 	return s.IsAvailable() && s.User.ActiveStorage == storageIdentityKey
 }
 

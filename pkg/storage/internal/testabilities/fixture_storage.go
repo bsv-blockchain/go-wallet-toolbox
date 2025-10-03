@@ -13,7 +13,7 @@ import (
 
 type StorageFixture interface {
 	testabilities.StorageFixture
-	StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager
+	StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider, backups ...wdk.WalletStorageProvider) *storage.WalletStorageManager
 	Action(activeStorage *storage.Provider) TxGeneratorFixture
 }
 
@@ -22,8 +22,8 @@ type storageFixture struct {
 	testabilities.StorageFixture
 }
 
-func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider) *storage.WalletStorageManager {
-	return storage.NewWalletStorageManager(user.IdentityKey(s.t), logging.NewTestLogger(s.t), activeStorage)
+func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider, backups ...wdk.WalletStorageProvider) *storage.WalletStorageManager {
+	return storage.NewWalletStorageManager(user.IdentityKey(s.t), logging.NewTestLogger(s.t), activeStorage, backups...)
 }
 
 func (s *storageFixture) Action(activeStorage *storage.Provider) TxGeneratorFixture {
