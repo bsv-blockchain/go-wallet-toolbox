@@ -401,11 +401,16 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 			dbq = dbq.Omit("o.locking_script")
 		}
 
+		var closeErr error
 		rows, err := dbq.Select("o.*, t.tx_id as tx_id, tg.name as tag_name").Rows()
 		if err != nil {
 			return fmt.Errorf("failed to fetch inputs/outputs via joins: %w", err)
 		}
-		defer rows.Close()
+		defer func() {
+			if cerr := rows.Close(); cerr != nil {
+				closeErr = fmt.Errorf("rows close failed: %w", cerr)
+			}
+		}()
 
 		for rows.Next() {
 			var r row
@@ -436,10 +441,10 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 			}
 			outputMap[e.TransactionID] = append(outputMap[e.TransactionID], e)
 		}
-		return nil
+		return closeErr
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("transaction failed in FindInputsAndOutputsForSelectedActions: %w", err)
 	}
 
 	return inputMap, outputMap, nil

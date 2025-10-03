@@ -418,15 +418,20 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 	labelsMap := make(map[uint][]string)
 	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
+		var closeErr error
 		rows, err := tx.Table("bsv_transaction_labels tl").
 			Select("tl.transaction_id, tl.label_name").
 			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
 			Where("tl.label_name IS NOT NULL").
 			Rows()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to query labels rows: %w", err)
 		}
-		defer rows.Close()
+		defer func() {
+			if cerr := rows.Close(); cerr != nil {
+				closeErr = fmt.Errorf("rows close failed: %w", cerr)
+			}
+		}()
 
 		for rows.Next() {
 			var txID uint
@@ -436,7 +441,7 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 			}
 			labelsMap[txID] = append(labelsMap[txID], label)
 		}
-		return nil
+		return closeErr
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch labels for selected actions: %w", err)
