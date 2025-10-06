@@ -364,13 +364,18 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 		if err != nil {
 			return fmt.Errorf("failed to fetch inputs/outputs via joins: %w", err)
 		}
-		defer rows.Close()
+		var closeErr error
+		defer func() {
+			if cerr := rows.Close(); cerr != nil {
+				closeErr = fmt.Errorf("rows close failed: %w", cerr)
+			}
+		}()
 
 		inMap, outMap, err = o.readOutputsIntoMaps(tx, rows)
 		if err != nil {
 			return err
 		}
-		return nil
+		return closeErr
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("transaction failed in FindInputsAndOutputsForSelectedActions: %w", err)
