@@ -80,7 +80,7 @@ func (m *WalletStorageManager) MakeAvailable(ctx context.Context) (*wdk.TableSet
 		return nil, fmt.Errorf("no storage providers configured")
 	}
 
-	m.activeStorage = m.stores[0] //first storage is the active storage candidate; NOTE: zero-length check was done in constructor
+	m.activeStorage = m.stores[0] //first storage is the active storage candidate
 	_, err := m.activeStorage.MakeAvailableStorage(ctx, m.identityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make available active storage: %w", err)
