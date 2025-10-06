@@ -226,7 +226,7 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 
 		m.logger.Info("propagate merged active state to non-actives")
 	} else {
-		m.logger.Info("backup current active state the set new active")
+		m.logger.Info("backup current active state then set new active")
 	}
 
 	// If there were conflicting actives,
