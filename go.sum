@@ -8,8 +8,8 @@ github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg6
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/bsv-blockchain/go-bsv-middleware v0.10.0 h1:TUIuiidonpBXufS2i1GT2iXjZIQqNhgV0hdgXPSYNlI=
-github.com/bsv-blockchain/go-bsv-middleware v0.10.0/go.mod h1:iUyYAvciHPNOj3vVgak6aUpJ90GRr3lG1iV+KnU9pbo=
+github.com/bsv-blockchain/go-bsv-middleware v0.11.0 h1:IZPxqIUB7K8Zq5Ys8HfRwh55J6noqoV8GiQ3BmkYbSg=
+github.com/bsv-blockchain/go-bsv-middleware v0.11.0/go.mod h1:iUyYAvciHPNOj3vVgak6aUpJ90GRr3lG1iV+KnU9pbo=
 github.com/bsv-blockchain/go-sdk v1.2.10 h1:e3wK/4SgSPqhz4Aw9vnKN/JkIwequdqlPWToYNGvuOg=
 github.com/bsv-blockchain/go-sdk v1.2.10/go.mod h1:C1r7iZbRUCbC015GjbhcpwH0jL5ubPn5XaQgjvUaPdU=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1 h1:6mRV8T4ug8456p/rufoDselui3eKY6kr9mRYx8e87Rw=
