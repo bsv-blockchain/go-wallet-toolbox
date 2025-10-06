@@ -158,5 +158,101 @@ func TestWalletStorageManager_WithBackups(t *testing.T) {
 			IdentityKey: testusers.Alice.IdentityKey(t),
 			IsActive:    to.Ptr(true),
 		}, auth)
+
+		// and:
+		// TODO: Discuss this - because even though I set active storage to activeStorage, the
+		// TODO: storage manager picks the backup because each store pointed to itself as active so the "conflicting" situation arises.
+		require.Equal(t, fixtures.SecondStorageIdentityKey, storageManager.GetActiveStore())
+	})
+
+	t.Run("no active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+		defer cleanup()
+		backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, nil, backupProvider)
+
+		// when:
+		auth, err := storageManager.GetAuth(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, wdk.AuthID{
+			UserID:      &testusers.Alice.ID,
+			IdentityKey: testusers.Alice.IdentityKey(t),
+			IsActive:    to.Ptr(true),
+		}, auth)
+	})
+}
+
+func TestWalletStorageManager_SetActive(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and:
+		givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+		defer cleanup()
+		backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage, backupProvider)
+
+		// when:
+		err := storageManager.SetActive(t.Context(), fixtures.StorageIdentityKey)
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, fixtures.StorageIdentityKey, storageManager.GetActiveStore())
+
+		// when:
+		const topUpAmount = 1000
+		given.Faucet(activeStorage, testusers.Alice).TopUp(topUpAmount)
+
+		// then:
+		outputs, err := storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
+		require.NoError(t, err)
+		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+
+		// when: switch to backup
+		err = storageManager.SetActive(t.Context(), fixtures.SecondStorageIdentityKey)
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, fixtures.SecondStorageIdentityKey, storageManager.GetActiveStore())
+
+		// and:
+		outputs, err = storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
+		require.NoError(t, err)
+		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+	})
+
+	t.Run("one active on unexisting storage", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// when:
+		err := storageManager.SetActive(t.Context(), "unexisting-storage")
+
+		// then:
+		require.Error(t, err)
+		require.Equal(t, fixtures.StorageIdentityKey, storageManager.GetActiveStore())
 	})
 }

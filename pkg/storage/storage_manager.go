@@ -154,6 +154,9 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 	m.logger.Info("starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
 
 	reader := options.ReaderFactory()
+	if reader == nil {
+		return 0, 0, fmt.Errorf("no active storage available to read from")
+	}
 	auth := wdk.AuthID{IdentityKey: m.identityKey}
 
 	inserts, updates, err = sync.NewReaderToWriter(m.logger).Sync(ctx, auth, reader, writer, options.MaxSyncChunkSize, options.MaxSyncItems)
@@ -259,12 +262,38 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 	return nil
 }
 
+// GetActive returns the currently active storage provider, or nil if none is set.
+func (m *WalletStorageManager) GetActive() wdk.WalletStorageProvider {
+	if m.activeStorage == nil {
+		return nil
+	}
+
+	return m.activeStorage.WalletStorageProvider
+}
+
+// GetActiveStore returns the identity key of the currently active storage provider, or an empty string if none is set.
+func (m *WalletStorageManager) GetActiveStore() string {
+	if m.activeStorage == nil {
+		return ""
+	}
+
+	return m.activeStorage.Settings.StorageIdentityKey
+}
+
 func (m *WalletStorageManager) getActiveReader() wdk.WalletStorageProvider {
+	if m.activeStorage == nil {
+		return nil
+	}
+	
 	// TODO: add locking mechanism
 	return m.activeStorage
 }
 
 func (m *WalletStorageManager) getActiveWriter() wdk.WalletStorageProvider {
+	if m.activeStorage == nil {
+		return nil
+	}
+
 	// TODO: add locking mechanism
 	return m.activeStorage
 }
