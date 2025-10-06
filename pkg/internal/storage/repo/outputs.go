@@ -177,6 +177,17 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			query = query.Scopes(o.tagFilterScope(tx, filter))
 		}
 
+		allowedStatuses := []wdk.TxStatus{
+			wdk.TxStatusCompleted, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnproven,
+			wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal,
+		}
+		query = query.Where("transaction_id IN (?)",
+			tx.Model(&models.Transaction{}).
+				Select("id").
+				Where("user_id = ?", filter.UserID).
+				Where("status IN ?", allowedStatuses),
+		)
+
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
