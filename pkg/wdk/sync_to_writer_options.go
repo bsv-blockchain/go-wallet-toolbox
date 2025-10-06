@@ -37,6 +37,8 @@ func WithMaxSyncItems[T types.Number](items T) SyncToWriterOption {
 	}
 }
 
+// WithSyncReader specifies the reader storage provider to use when syncing data to a writer storage.
+// If not provider, currently active storage will be used as the reader.
 func WithSyncReader(reader WalletStorageProvider) SyncToWriterOption {
 	return func(o *SyncToWriterOptions) {
 		o.ReaderFactory = func() WalletStorageProvider {
