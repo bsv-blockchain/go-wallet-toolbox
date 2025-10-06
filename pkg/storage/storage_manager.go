@@ -97,7 +97,7 @@ func (m *WalletStorageManager) MakeAvailable(ctx context.Context) (*wdk.TableSet
 		}
 
 		if store.ThinksItIsActive() {
-			//swapping active storage
+			// swapping active storage
 			tmpBackups = append(tmpBackups, m.activeStorage)
 			m.activeStorage = store
 		} else {
@@ -284,7 +284,7 @@ func (m *WalletStorageManager) getActiveReader() wdk.WalletStorageProvider {
 	if m.activeStorage == nil {
 		return nil
 	}
-	
+
 	// TODO: add locking mechanism
 	return m.activeStorage
 }
