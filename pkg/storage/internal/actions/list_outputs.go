@@ -55,17 +55,14 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 			txIDs = append(txIDs, m.TransactionID)
 		}
 
-		labels, err := l.transactionsRepo.GetLabelsForTransactions(ctx, txIDs)
-		if err == nil {
+		if labels, err := l.transactionsRepo.GetLabelsForTransactions(ctx, txIDs); err == nil {
 			labelMap = labels
-		} else {
-			labelMap = map[uint][]string{}
 		}
 	}
 
 	for i, m := range outputModels {
 		out := l.outputModelToResult(m)
-		if args.IncludeLabels && labelMap != nil {
+		if labelMap != nil {
 			if labels, ok := labelMap[m.TransactionID]; ok {
 				out.Labels = slices.Map(labels, func(s string) primitives.StringUnder300 { return primitives.StringUnder300(s) })
 			}
