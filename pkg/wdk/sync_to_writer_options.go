@@ -41,6 +41,10 @@ func WithMaxSyncItems[T types.Number](items T) SyncToWriterOption {
 // If not provided, currently active storage will be used as the reader.
 func WithSyncReader(reader WalletStorageProvider) SyncToWriterOption {
 	return func(o *SyncToWriterOptions) {
+		if reader == nil {
+			return
+		}
+
 		o.ReaderFactory = func() WalletStorageProvider {
 			return reader
 		}
