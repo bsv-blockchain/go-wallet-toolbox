@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"iter"
@@ -351,6 +352,143 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	return inputMap, outputMap, nil
 }
 
+// FindInputsAndOutputsForSelectedActions retrieves inputs and outputs for the current page of actions
+// using JOINs against the selected actions subquery, avoiding large IN clauses and extra preloads.
+func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter, includeLockingScripts bool) (map[uint][]*pkgentity.Output, map[uint][]*pkgentity.Output, error) {
+	var inMap, outMap map[uint][]*pkgentity.Output
+	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		selected := o.selectedActionsSubquery(tx, userID, filter)
+		dbq := o.buildOutputsJoinQuery(tx, selected, userID, includeLockingScripts)
+
+		rows, err := dbq.Rows()
+		if err != nil {
+			return fmt.Errorf("failed to fetch inputs/outputs via joins: %w", err)
+		}
+		var closeErr error
+		defer func() {
+			if cerr := rows.Close(); cerr != nil {
+				closeErr = fmt.Errorf("rows close failed: %w", cerr)
+			}
+		}()
+
+		inMap, outMap, err = o.readOutputsIntoMaps(tx, rows)
+		if err != nil {
+			return err
+		}
+		return closeErr
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("transaction failed in FindInputsAndOutputsForSelectedActions: %w", err)
+	}
+
+	return inMap, outMap, nil
+}
+
+// selectedActionsSubquery returns the current page of action IDs with applied filters
+func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity.ListActionsFilter) *gorm.DB {
+	selected := tx.Model(&models.Transaction{}).
+		Select("id").
+		Where("user_id = ?", userID)
+	if len(filter.Status) > 0 {
+		selected = selected.Where("status IN ?", filter.Status)
+	}
+	if len(filter.Labels) > 0 {
+		subQuery := tx.Model(&models.TransactionLabel{}).
+			Select("transaction_id").
+			Where("label_name IN ?", filter.Labels).
+			Where("label_user_id = ?", userID)
+		if filter.LabelQueryMode == defs.QueryModeAll {
+			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+		}
+		selected = selected.Where("id IN (?)", subQuery)
+	}
+	return selected.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+}
+
+// buildOutputsJoinQuery constructs the JOIN query to fetch outputs (and tags) for selected actions
+func (o *Outputs) buildOutputsJoinQuery(tx *gorm.DB, selected *gorm.DB, userID int, includeLockingScripts bool) *gorm.DB {
+	outputTable := o.query.Output.TableName()
+	txTable := o.query.Transaction.TableName()
+	otTable := o.query.OutputTag.TableName()
+	tagsTable := o.query.Tag.TableName()
+
+	dbq := tx.
+		Table(outputTable+" o").
+		Joins("JOIN (?) s ON s.id = o.transaction_id OR s.id = o.spent_by", selected).
+		Joins("LEFT JOIN "+txTable+" t ON t.id = o.transaction_id").
+		Joins("LEFT JOIN "+otTable+" ot ON ot.output_id = o.id AND ot.tag_user_id = o.user_id AND ot.deleted_at IS NULL").
+		Joins("LEFT JOIN "+tagsTable+" tg ON tg.name = ot.tag_name AND tg.user_id = ot.tag_user_id AND tg.deleted_at IS NULL").
+		Where("o.user_id = ?", userID).
+		Where("o.deleted_at IS NULL").
+		Order("o.id ASC").
+		Select("o.*, t.tx_id as tx_id, tg.name as tag_name")
+
+	if !includeLockingScripts {
+		dbq = dbq.Omit("o.locking_script")
+	}
+	return dbq
+}
+
+// readOutputsIntoMaps scans streamed rows and groups them into input/output maps with tag de-duplication
+func (o *Outputs) readOutputsIntoMaps(tx *gorm.DB, rows *sql.Rows) (map[uint][]*pkgentity.Output, map[uint][]*pkgentity.Output, error) {
+	type readRow struct {
+		models.Output
+		TxID *string `gorm:"column:tx_id"`
+		Tag  *string `gorm:"column:tag_name"`
+	}
+
+	inputMap := make(map[uint][]*pkgentity.Output)
+	outputMap := make(map[uint][]*pkgentity.Output)
+	tmpByID := make(map[uint]*pkgentity.Output)
+	orderedIDs := make([]uint, 0)
+	tagSeen := make(map[uint]map[string]struct{})
+
+	for rows.Next() {
+		var r readRow
+		if err := tx.ScanRows(rows, &r); err != nil {
+			return nil, nil, fmt.Errorf("scan failed: %w", err)
+		}
+		e := o.mapModelToOutputEntity(&r.Output)
+		if r.TxID != nil {
+			e.TxID = r.TxID
+		}
+		if prev, ok := tmpByID[e.ID]; ok {
+			if r.Tag != nil {
+				seen := tagSeen[e.ID]
+				if seen == nil {
+					seen = make(map[string]struct{})
+					tagSeen[e.ID] = seen
+				}
+				if _, exists := seen[*r.Tag]; !exists {
+					prev.Tags = append(prev.Tags, *r.Tag)
+					seen[*r.Tag] = struct{}{}
+				}
+			}
+			continue
+		}
+		if r.Tag != nil {
+			e.Tags = append(e.Tags, *r.Tag)
+			seen := tagSeen[e.ID]
+			if seen == nil {
+				seen = make(map[string]struct{})
+				tagSeen[e.ID] = seen
+			}
+			seen[*r.Tag] = struct{}{}
+		}
+		tmpByID[e.ID] = e
+		orderedIDs = append(orderedIDs, e.ID)
+	}
+
+	for _, id := range orderedIDs {
+		e := tmpByID[id]
+		if e.SpentBy != nil {
+			inputMap[*e.SpentBy] = append(inputMap[*e.SpentBy], e)
+		}
+		outputMap[e.TransactionID] = append(outputMap[e.TransactionID], e)
+	}
+	return inputMap, outputMap, nil
+}
+
 func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) error {
 	type outputWithTags struct {
 		Output models.Output
@@ -556,6 +694,7 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 		ID:                 model.ID,
 		UserID:             model.UserID,
 		TransactionID:      model.TransactionID,
+		SpentBy:            model.SpentBy,
 		BasketName:         model.BasketName,
 		Spendable:          model.Spendable,
 		Change:             model.Change,
