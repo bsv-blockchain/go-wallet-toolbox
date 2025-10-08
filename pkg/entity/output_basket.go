@@ -35,6 +35,7 @@ type OutputBasketUpdateSpecification struct {
 	MinimumDesiredUTXOValue *uint64
 }
 
+// ToWDK converts the OutputBasket entity to its WDK representation.
 func (o *OutputBasket) ToWDK() *wdk.TableOutputBasket {
 	return &wdk.TableOutputBasket{
 		BasketConfiguration: wdk.BasketConfiguration{
