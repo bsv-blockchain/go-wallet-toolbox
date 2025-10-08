@@ -124,3 +124,9 @@ func (m *WalletStorageManager) getActiveWriter() wdk.WalletStorageProvider {
 func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey string) error {
 	panic("not implemented")
 }
+
+// FindOutputBaskets finds output baskets for the authenticated user based on the provided filters.
+// This is an alias to FindOutputBasketsAuth for TS-version compatibility.
+func (m *WalletStorageManager) FindOutputBaskets(ctx context.Context, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	return m.FindOutputBasketsAuth(ctx, filters)
+}

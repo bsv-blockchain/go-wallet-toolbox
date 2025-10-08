@@ -34,6 +34,9 @@ func DefaultBasketConfiguration() BasketConfiguration {
 	}
 }
 
+// TableOutputBaskets is a slice of TableOutputBasket
+type TableOutputBaskets = []TableOutputBasket
+
 // FindOutputBasketsArgs holds the arguments for finding output baskets
 type FindOutputBasketsArgs struct {
 	UserID                  *int       `json:"userId,omitempty"`
