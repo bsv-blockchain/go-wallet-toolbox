@@ -1,6 +1,11 @@
 package entity
 
-import "time"
+import (
+	"time"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+)
 
 // OutputBasket represents a user's basket for holding outputs.
 type OutputBasket struct {
@@ -28,4 +33,18 @@ type OutputBasketUpdateSpecification struct {
 	Name                    *string
 	NumberOfDesiredUTXOs    *int64
 	MinimumDesiredUTXOValue *uint64
+}
+
+func (o *OutputBasket) ToWDK() *wdk.TableOutputBasket {
+	return &wdk.TableOutputBasket{
+		BasketConfiguration: wdk.BasketConfiguration{
+			Name:                    primitives.StringUnder300(o.Name),
+			NumberOfDesiredUTXOs:    o.NumberOfDesiredUTXOs,
+			MinimumDesiredUTXOValue: o.MinimumDesiredUTXOValue,
+		},
+		CreatedAt: o.CreatedAt,
+		UpdatedAt: o.UpdatedAt,
+		UserID:    o.UserID,
+		IsDeleted: false,
+	}
 }

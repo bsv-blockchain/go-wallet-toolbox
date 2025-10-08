@@ -33,3 +33,11 @@ func DefaultBasketConfiguration() BasketConfiguration {
 		MinimumDesiredUTXOValue: MinimumDesiredUTXOValueForChange,
 	}
 }
+
+// FindOutputBasketsArgs holds the arguments for finding output baskets
+type FindOutputBasketsArgs struct {
+	UserID                  *int       `json:"userId,omitempty"`
+	Name                    *string    `json:"name,omitempty"`
+	NumberOfDesiredUTXOs    *int64     `json:"numberOfDesiredUTXOs,omitempty"`
+	MinimumDesiredUTXOValue *uint64    `json:"minimumDesiredUTXOValue,omitempty"`
+}
