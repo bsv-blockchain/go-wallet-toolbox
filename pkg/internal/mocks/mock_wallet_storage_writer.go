@@ -56,21 +56,6 @@ func (mr *MockWalletStorageProviderMockRecorder) AbortAction(ctx, auth, args any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AbortAction", reflect.TypeOf((*MockWalletStorageProvider)(nil).AbortAction), ctx, auth, args)
 }
 
-// FindOutputsAuth mocks base method.
-func (m *MockWalletStorageProvider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOutputsAuth", ctx, auth, filters)
-	ret0, _ := ret[0].(wdk.TableOutputs)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindOutputsAuth indicates an expected call of FindOutputsAuth.
-func (mr *MockWalletStorageProviderMockRecorder) FindOutputsAuth(ctx, auth, filters any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOutputsAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOutputsAuth), ctx, auth, filters)
-}
-
 // CreateAction mocks base method.
 func (m *MockWalletStorageProvider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	m.ctrl.T.Helper()
@@ -114,6 +99,21 @@ func (m *MockWalletStorageProvider) FindOrInsertUser(ctx context.Context, identi
 func (mr *MockWalletStorageProviderMockRecorder) FindOrInsertUser(ctx, identityKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrInsertUser", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOrInsertUser), ctx, identityKey)
+}
+
+// FindOutputsAuth mocks base method.
+func (m *MockWalletStorageProvider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOutputsAuth", ctx, auth, filters)
+	ret0, _ := ret[0].(wdk.TableOutputs)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOutputsAuth indicates an expected call of FindOutputsAuth.
+func (mr *MockWalletStorageProviderMockRecorder) FindOutputsAuth(ctx, auth, filters any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOutputsAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOutputsAuth), ctx, auth, filters)
 }
 
 // GetSyncChunk mocks base method.

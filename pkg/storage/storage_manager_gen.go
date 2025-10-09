@@ -125,7 +125,7 @@ func (m *WalletStorageManager) AbortAction(ctx context.Context, args wdk.AbortAc
 func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
 	auth, err := m.GetAuth(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user authentication: %w", err)
+		return wdk.TableOutputs{}, fmt.Errorf("failed to get user authentication: %w", err)
 	}
 
 	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
