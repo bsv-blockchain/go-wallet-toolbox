@@ -129,3 +129,26 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 
 	})
 }
+
+func TestWalletStorageManager_FindOutputs(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// when:
+		outputs, err := storageManager.FindOutputs(t.Context(), wdk.FindOutputsArgs{
+			UserID: to.Ptr(testusers.Alice.ID),
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outputs, 0)
+	})
+}

@@ -297,6 +297,66 @@ func TestOutputCountByTxStatus(t *testing.T) {
 	assert.Equal(t, int64(1), count)
 }
 
+func TestOutputsExposedGetter(t *testing.T) {
+	// given:
+	activeStorage := seedDbWithOutputs(t)
+
+	t.Run("list all for user via auth", func(t *testing.T) {
+		// when:
+		outs, err := activeStorage.FindOutputsAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindOutputsArgs{})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outs, 5)
+	})
+
+	t.Run("filter by BasketName", func(t *testing.T) {
+		// when:
+		basket := "default"
+		outs, err := activeStorage.FindOutputsAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindOutputsArgs{
+			BasketName: &basket,
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outs, 5)
+	})
+
+	t.Run("filter by Spendable true", func(t *testing.T) {
+		// when:
+		spendable := true
+		outs, err := activeStorage.FindOutputsAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindOutputsArgs{
+			Spendable: &spendable,
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outs, 4)
+	})
+
+	t.Run("filter by Change true", func(t *testing.T) {
+		// when:
+		change := true
+		outs, err := activeStorage.FindOutputsAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindOutputsArgs{
+			Change: &change,
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outs, 3)
+	})
+
+	t.Run("attempt to filter by another UserID", func(t *testing.T) {
+		// when:
+		_, err := activeStorage.FindOutputsAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindOutputsArgs{
+			UserID: to.Ptr(testusers.Bob.ID),
+		})
+
+		// then:
+		require.Error(t, err)
+	})
+}
+
 // seedDbWithOutputs inserts test outputs
 func seedDbWithOutputs(t testing.TB) *storage.Provider {
 	given, cleanup := testabilities.Given(t)
