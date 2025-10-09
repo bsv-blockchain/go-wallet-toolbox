@@ -100,6 +100,11 @@ func (c *WalletStorageProviderClient) AbortAction(ctx context.Context, auth wdk.
 	return c.client.AbortAction(ctx, auth, args)
 }
 
+// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+func (c *WalletStorageProviderClient) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	return c.client.FindOutputsAuth(ctx, auth, filters)
+}
+
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -118,4 +123,5 @@ type rpcWalletStorageProvider struct {
 	FindOrInsertSyncStateAuth func(context.Context, wdk.AuthID, string, string) (*wdk.FindOrInsertSyncStateAuthResponse, error)
 	ProcessSyncChunk          func(context.Context, wdk.RequestSyncChunkArgs, *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error)
 	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
+	FindOutputsAuth           func(context.Context, wdk.AuthID, wdk.FindOutputsArgs) (wdk.TableOutputs, error)
 }

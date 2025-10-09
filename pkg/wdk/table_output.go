@@ -30,3 +30,16 @@ type TableOutput struct {
 	SenderIdentityKey  *string                      `json:"senderIdentityKey,omitempty"`
 	BasketID           *int                         `json:"basketId,omitempty"`
 }
+
+// TableOutputs is a slice of TableOutput
+type TableOutputs = []TableOutput
+
+// FindOutputsArgs holds the arguments for finding outputs
+type FindOutputsArgs struct {
+	UserID     *int      `json:"userId,omitempty"`
+	BasketName *string   `json:"basketName,omitempty"`
+	Spendable  *bool     `json:"spendable,omitempty"`
+	Change     *bool     `json:"change,omitempty"`
+	TxStatus   *TxStatus `json:"txStatus,omitempty"`
+	TxID       *string   `json:"txid,omitempty"`
+}

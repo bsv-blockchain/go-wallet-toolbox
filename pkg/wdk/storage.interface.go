@@ -87,4 +87,8 @@ type WalletStorageProvider interface {
 	// AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
 	// @Write
 	AbortAction(ctx context.Context, auth AuthID, args AbortActionArgs) (*AbortActionResult, error)
+
+	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+	// @Read
+	FindOutputsAuth(ctx context.Context, auth AuthID, filters FindOutputsArgs) (TableOutputs, error)
 }

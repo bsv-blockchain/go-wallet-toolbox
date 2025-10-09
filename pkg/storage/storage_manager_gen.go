@@ -120,3 +120,13 @@ func (m *WalletStorageManager) AbortAction(ctx context.Context, args wdk.AbortAc
 
 	return m.getActiveWriter().AbortAction(ctx, auth, args)
 }
+
+// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
+}

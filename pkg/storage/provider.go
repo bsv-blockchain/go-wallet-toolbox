@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"time"
@@ -628,6 +629,66 @@ func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, optio
 	return beef, nil
 }
 
+// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
+		return nil, ErrAuthorization
+	}
+
+	query := p.OutputsEntity().Read().
+		UserID().Equals(*auth.UserID)
+
+	if filters.BasketName != nil {
+		query = query.BasketName().Equals(*filters.BasketName)
+	}
+	if filters.Spendable != nil {
+		query = query.Spendable().Equals(*filters.Spendable)
+	}
+	if filters.Change != nil {
+		query = query.Change().Equals(*filters.Change)
+	}
+	if filters.TxStatus != nil {
+		query = query.TxStatus().Equals(*filters.TxStatus)
+	}
+	if filters.TxID != nil {
+		query = query.TxID().Equals(*filters.TxID)
+	}
+
+	entities, err := query.Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs: %w", err)
+	}
+
+	outputs := make(wdk.TableOutputs, 0, len(entities))
+	for _, m := range entities {
+		outputs = append(outputs, wdk.TableOutput{
+			CreatedAt:          m.CreatedAt,
+			UpdatedAt:          m.UpdatedAt,
+			OutputID:           m.ID,
+			UserID:             m.UserID,
+			TransactionID:      m.TransactionID,
+			SpentBy:            m.SpentBy,
+			Spendable:          m.Spendable,
+			Change:             m.Change,
+			OutputDescription:  m.Description,
+			Vout:               m.Vout,
+			Satoshis:           m.Satoshis,
+			ProvidedBy:         m.ProvidedBy,
+			Purpose:            m.Purpose,
+			Type:               m.Type,
+			TxID:               m.TxID,
+			DerivationPrefix:   m.DerivationPrefix,
+			DerivationSuffix:   m.DerivationSuffix,
+			CustomInstructions: m.CustomInstructions,
+			LockingScript:      primitives.ExplicitByteArray(m.LockingScript),
+			SenderIdentityKey:  m.SenderIdentityKey,
+			BasketID:           nil,
+		})
+	}
+
+	return outputs, nil
+}
+
 // CommissionEntity returns a Commission interface for querying and filtering Commission records in the storage provider.
 func (p *Provider) CommissionEntity() crud.Commission {
 	return crud.NewCommission(p.repo.Commission)
@@ -667,3 +728,27 @@ func (p *Provider) TxNoteEntity() crud.TxNote {
 func (p *Provider) UserUTXOEntity() crud.UserUTXO {
 	return crud.NewUserUTXO(p.repo.UserUTXOs)
 }
+
+func toStrings(src []primitives.StringUnder300) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]string, len(src))
+	for i, s := range src {
+		dst[i] = string(s)
+	}
+	return dst
+}
+
+func toStringsUnder300(src []string) []primitives.StringUnder300 {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]primitives.StringUnder300, len(src))
+	for i, s := range src {
+		dst[i] = primitives.StringUnder300(s)
+	}
+	return dst
+}
+
+func hexEncode(b []byte) string { return hex.EncodeToString(b) }

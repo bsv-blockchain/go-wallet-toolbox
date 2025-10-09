@@ -124,3 +124,9 @@ func (m *WalletStorageManager) getActiveWriter() wdk.WalletStorageProvider {
 func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey string) error {
 	panic("not implemented")
 }
+
+// FindOutputs finds outputs for the authenticated user based on the provided filters.
+// This is an alias to FindOutputsAuth for TS-version compatibility.
+func (m *WalletStorageManager) FindOutputs(ctx context.Context, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	return m.FindOutputsAuth(ctx, filters)
+}

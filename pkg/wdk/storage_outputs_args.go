@@ -38,3 +38,26 @@ type ListOutputsResult struct {
 	BEEF         *primitives.BEEF           `json:"BEEF,omitempty"`
 	Outputs      []*WalletOutput            `json:"outputs"`
 }
+
+// FindOutputsAuthArgs defines a flexible read spec for outputs (SQL-only, auth-required)
+type FindOutputsAuthArgs struct {
+	Basket         *primitives.StringUnder300  `json:"basket,omitempty"`
+	Spendable      *bool                       `json:"spendable,omitempty"`
+	Change         *bool                       `json:"change,omitempty"`
+	TxStatus       []TxStatus                  `json:"txStatus,omitempty"`
+	TxID           *primitives.TXIDHexString   `json:"txid,omitempty"`
+	TagsContainAny []primitives.StringUnder300 `json:"tagsContainAny,omitempty"`
+	TagsContainAll []primitives.StringUnder300 `json:"tagsContainAll,omitempty"`
+
+	IncludeLockingScripts     bool `json:"includeLockingScripts,omitempty"`
+	IncludeCustomInstructions bool `json:"includeCustomInstructions,omitempty"`
+	IncludeTags               bool `json:"includeTags,omitempty"`
+
+	Limit  primitives.PositiveIntegerDefault10Max10000 `json:"limit"`
+	Offset primitives.PositiveInteger                  `json:"offset"`
+}
+
+// FindOutputsAuthResult contains the found outputs without BEEF
+type FindOutputsAuthResult struct {
+	Outputs []*WalletOutput `json:"outputs"`
+}
