@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -41,14 +42,29 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 		return nil, fmt.Errorf("failed to list transactions: %w", err)
 	}
 
-	transactionIDs, txIDs, actions := l.mapTransactionsToActions(txs)
+	_, txIDs, actions := l.mapTransactionsToActions(txs)
 
-	inputMap, outputMap, err := l.fetchInputsOutputs(ctx, transactionIDs, args)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
+	var inputMap map[uint][]*pkgentity.Output
+	var outputMap map[uint][]*pkgentity.Output
+	if args.IncludeInputs.Value() || args.IncludeOutputs.Value() {
+		inputMap, outputMap, err = l.outputsRepo.FindInputsAndOutputsForSelectedActions(ctx, userID, filter, args.IncludeOutputLockingScripts.Value())
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
+		}
+	} else {
+		inputMap = map[uint][]*pkgentity.Output{}
+		outputMap = map[uint][]*pkgentity.Output{}
 	}
 
-	labelMap, err := l.loadLabelsIfNeeded(ctx, transactionIDs, args.IncludeLabels)
+	var labelMap map[uint][]string
+	if args.IncludeLabels.Value() {
+		labelMap, err = l.transactionsRepo.GetLabelsForSelectedActions(ctx, userID, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load labels: %w", err)
+		}
+	} else {
+		labelMap = map[uint][]string{}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load labels: %w", err)
 	}
