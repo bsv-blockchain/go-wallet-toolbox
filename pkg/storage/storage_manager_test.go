@@ -254,3 +254,27 @@ func TestWalletStorageManager_SetActive(t *testing.T) {
 		require.Equal(t, fixtures.StorageIdentityKey, storageManager.GetActiveStore())
 	})
 }
+
+func TestWalletStorageManager_FindOutputBaskets(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// when:
+		baskets, err := storageManager.FindOutputBaskets(t.Context(), wdk.FindOutputBasketsArgs{
+			Name: to.Ptr(wdk.BasketNameForChange),
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, baskets, 1)
+		require.Equal(t, wdk.BasketNameForChange, string(baskets[0].Name))
+	})
+}

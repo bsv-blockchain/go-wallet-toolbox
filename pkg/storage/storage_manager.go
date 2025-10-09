@@ -297,3 +297,9 @@ func (m *WalletStorageManager) getActiveWriter() wdk.WalletStorageProvider {
 	// TODO: add locking mechanism
 	return m.activeStorage
 }
+
+// FindOutputBaskets finds output baskets for the authenticated user based on the provided filters.
+// This is an alias to FindOutputBasketsAuth for TS-version compatibility.
+func (m *WalletStorageManager) FindOutputBaskets(ctx context.Context, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	return m.FindOutputBasketsAuth(ctx, filters)
+}

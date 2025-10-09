@@ -667,3 +667,32 @@ func (p *Provider) TxNoteEntity() crud.TxNote {
 func (p *Provider) UserUTXOEntity() crud.UserUTXO {
 	return crud.NewUserUTXO(p.repo.UserUTXOs)
 }
+
+// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
+func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
+		return nil, ErrAuthorization
+	}
+
+	query := p.OutputBasketsEntity().Read().
+		UserID().Equals(*auth.UserID)
+
+	if filters.Name != nil {
+		query = query.Name().Equals(*filters.Name)
+	}
+	if filters.MinimumDesiredUTXOValue != nil {
+		query = query.MinimumDesiredUTXOValue().Equals(*filters.MinimumDesiredUTXOValue)
+	}
+	if filters.NumberOfDesiredUTXOs != nil {
+		query = query.NumberOfDesiredUTXOs().Equals(*filters.NumberOfDesiredUTXOs)
+	}
+
+	entities, err := query.Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find output baskets: %w", err)
+	}
+
+	return slices.Map(entities, func(b *entity.OutputBasket) wdk.TableOutputBasket {
+		return *b.ToWDK()
+	}), nil
+}
