@@ -25,13 +25,8 @@ func (s *ReaderToWriter) Sync(
 	ctx context.Context,
 	auth wdk.AuthID,
 	reader, writer wdk.WalletStorageProvider,
-	opts ...wdk.SyncToWriterOption,
+	maxSyncChunkSize, maxSyncItems uint64,
 ) (inserts, updates int, err error) {
-	options := wdk.DefaultSyncToWriterOptions()
-	for _, opt := range opts {
-		opt(&options)
-	}
-
 	writerSettings, err := writer.MakeAvailable(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to make writer storage available: %w", err)
@@ -89,8 +84,8 @@ func (s *ReaderToWriter) Sync(
 			IdentityKey:            userIdentityKey,
 
 			Since:        syncState.When,
-			MaxRoughSize: options.MaxSyncChunkSize,
-			MaxItems:     options.MaxSyncItems,
+			MaxRoughSize: maxSyncChunkSize,
+			MaxItems:     maxSyncItems,
 			Offsets:      s.buildOffsets(syncMap),
 		}
 

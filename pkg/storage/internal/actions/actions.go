@@ -69,7 +69,7 @@ func New(
 			randomizer,
 			beefVerifier,
 		),
-		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx),
+		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
 		abortAction:           newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx),
