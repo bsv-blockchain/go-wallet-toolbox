@@ -278,3 +278,42 @@ func TestWalletStorageManager_FindOutputBaskets(t *testing.T) {
 		require.Equal(t, wdk.BasketNameForChange, string(baskets[0].Name))
 	})
 }
+
+func TestWalletStorageManager_FindOutputs(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// when:
+		outputs, err := storageManager.FindOutputs(t.Context(), wdk.FindOutputsArgs{
+			UserID:    to.Ptr(testusers.Alice.ID),
+			Spendable: to.Ptr(true),
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outputs, 0)
+
+		// when: top up
+		const topUpAmount = 1000
+		given.Faucet(activeStorage, testusers.Alice).TopUp(topUpAmount)
+
+		// when:
+		outputs, err = storageManager.FindOutputs(t.Context(), wdk.FindOutputsArgs{
+			UserID:    to.Ptr(testusers.Alice.ID),
+			Spendable: to.Ptr(true),
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, outputs, 1)
+		require.Equal(t, int(outputs[0].Satoshis), topUpAmount)
+	})
+}
