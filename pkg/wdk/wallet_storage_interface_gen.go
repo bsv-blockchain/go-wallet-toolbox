@@ -53,4 +53,7 @@ type WalletStorageBasic interface {
 	// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
 	// @Read
 	FindOutputBasketsAuth(ctx context.Context, filters FindOutputBasketsArgs) (TableOutputBaskets, error)
+	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+	// @Read
+	FindOutputsAuth(ctx context.Context, filters FindOutputsArgs) (TableOutputs, error)
 }

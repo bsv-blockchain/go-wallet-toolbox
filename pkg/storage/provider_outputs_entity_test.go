@@ -210,23 +210,16 @@ func TestOutputPagedFind(t *testing.T) {
 func TestOutputFindByID_WithTransactionJoin(t *testing.T) {
 	activeStorage := seedDbWithOutputs(t)
 
-	tx := &entity.Transaction{
-		ID:     222,
-		TxID:   to.Ptr("abc123"),
-		Status: wdk.TxStatusCompleted,
-	}
-	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
-
 	// when:
 	outs, err := activeStorage.OutputsEntity().Read().ID(1).Find(t.Context())
 
 	// then:
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
+	require.NotNil(t, outs[0].TxID)
 
-	assert.NotNil(t, outs[0].TxID)
-	assert.Equal(t, "abc123", *outs[0].TxID)
-	assert.Equal(t, wdk.TxStatusCompleted, outs[0].TxStatus)
+	assert.Equal(t, "alice_tx_1", *outs[0].TxID)
+	assert.Equal(t, wdk.TxStatusUnprocessed, outs[0].TxStatus)
 }
 
 func TestOutputCountByTxID(t *testing.T) {
