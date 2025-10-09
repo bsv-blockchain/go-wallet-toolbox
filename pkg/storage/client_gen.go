@@ -105,6 +105,11 @@ func (c *WalletStorageProviderClient) FindOutputsAuth(ctx context.Context, auth 
 	return c.client.FindOutputsAuth(ctx, auth, filters)
 }
 
+// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
+func (c *WalletStorageProviderClient) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	return c.client.FindOutputBasketsAuth(ctx, auth, filters)
+}
+
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -124,4 +129,5 @@ type rpcWalletStorageProvider struct {
 	ProcessSyncChunk          func(context.Context, wdk.RequestSyncChunkArgs, *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error)
 	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 	FindOutputsAuth           func(context.Context, wdk.AuthID, wdk.FindOutputsArgs) (wdk.TableOutputs, error)
+	FindOutputBasketsAuth     func(context.Context, wdk.AuthID, wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error)
 }

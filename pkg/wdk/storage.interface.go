@@ -91,4 +91,8 @@ type WalletStorageProvider interface {
 	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
 	// @Read
 	FindOutputsAuth(ctx context.Context, auth AuthID, filters FindOutputsArgs) (TableOutputs, error)
+
+	// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
+	// @Read
+	FindOutputBasketsAuth(ctx context.Context, auth AuthID, filters FindOutputBasketsArgs) (TableOutputBaskets, error)
 }

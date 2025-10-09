@@ -209,3 +209,17 @@ func (p *RPCStorageProvider) FindOutputsAuth(ctx context.Context, auth wdk.AuthI
 
 	return p.localProvider.FindOutputsAuth(ctx, auth, filters)
 }
+
+// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
+func (p *RPCStorageProvider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	err := p.verifyAuthID(ctx, auth)
+	if err != nil {
+		return wdk.TableOutputBaskets{}, err
+	}
+	err = p.ensureUserID(ctx, &auth)
+	if err != nil {
+		return wdk.TableOutputBaskets{}, err
+	}
+
+	return p.localProvider.FindOutputBasketsAuth(ctx, auth, filters)
+}

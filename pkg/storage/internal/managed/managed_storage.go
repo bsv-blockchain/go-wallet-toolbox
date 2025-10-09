@@ -45,3 +45,15 @@ func (s *Storage) MakeAvailableStorage(ctx context.Context, identityKey string) 
 
 	return settings, nil
 }
+
+func (s *Storage) ThinksItIsActive() bool {
+	return s.IsAvailable() && s.User.ActiveStorage == s.Settings.StorageIdentityKey
+}
+
+func (s *Storage) ThinksActiveStorageIs(storageIdentityKey string) bool {
+	return s.IsAvailable() && s.User.ActiveStorage == storageIdentityKey
+}
+
+func (s *Storage) HasStorageIdentityKey(identityKey string) bool {
+	return s.IsAvailable() && s.Settings.StorageIdentityKey == identityKey
+}

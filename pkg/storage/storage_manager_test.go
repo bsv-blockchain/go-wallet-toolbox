@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -127,6 +128,154 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 			IsActive:    to.Ptr(true),
 		}, auth)
 
+	})
+}
+
+func TestWalletStorageManager_WithBackups(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and:
+		givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+		defer cleanup()
+		backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage, backupProvider)
+
+		// when:
+		auth, err := storageManager.GetAuth(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, wdk.AuthID{
+			UserID:      &testusers.Alice.ID,
+			IdentityKey: testusers.Alice.IdentityKey(t),
+			IsActive:    to.Ptr(true),
+		}, auth)
+
+		// and:
+		require.Equal(t, fixtures.SecondStorageIdentityKey, storageManager.GetActiveStore())
+	})
+
+	t.Run("no active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+		defer cleanup()
+		backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, nil, backupProvider)
+
+		// when:
+		auth, err := storageManager.GetAuth(t.Context())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, wdk.AuthID{
+			UserID:      &testusers.Alice.ID,
+			IdentityKey: testusers.Alice.IdentityKey(t),
+			IsActive:    to.Ptr(true),
+		}, auth)
+	})
+}
+
+func TestWalletStorageManager_SetActive(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and:
+		givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+		defer cleanup()
+		backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage, backupProvider)
+
+		// when:
+		err := storageManager.SetActive(t.Context(), fixtures.StorageIdentityKey)
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, fixtures.StorageIdentityKey, storageManager.GetActiveStore())
+
+		// when:
+		const topUpAmount = 1000
+		given.Faucet(activeStorage, testusers.Alice).TopUp(topUpAmount)
+
+		// then:
+		outputs, err := storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
+		require.NoError(t, err)
+		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+
+		// when: switch to backup
+		err = storageManager.SetActive(t.Context(), fixtures.SecondStorageIdentityKey)
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, fixtures.SecondStorageIdentityKey, storageManager.GetActiveStore())
+
+		// and:
+		outputs, err = storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
+		require.NoError(t, err)
+		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+	})
+
+	t.Run("one active on unexisting storage", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// when:
+		err := storageManager.SetActive(t.Context(), "unexisting-storage")
+
+		// then:
+		require.Error(t, err)
+		require.Equal(t, fixtures.StorageIdentityKey, storageManager.GetActiveStore())
+	})
+}
+
+func TestWalletStorageManager_FindOutputBaskets(t *testing.T) {
+	t.Run("one active one backup", func(t *testing.T) {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		activeStorage := given.Provider().GORMWithCleanDatabase()
+
+		// and
+		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
+
+		// when:
+		baskets, err := storageManager.FindOutputBaskets(t.Context(), wdk.FindOutputBasketsArgs{
+			Name: to.Ptr(wdk.BasketNameForChange),
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, baskets, 1)
+		require.Equal(t, wdk.BasketNameForChange, string(baskets[0].Name))
 	})
 }
 
