@@ -160,8 +160,6 @@ func TestWalletStorageManager_WithBackups(t *testing.T) {
 		}, auth)
 
 		// and:
-		// TODO: Discuss this - because even though I set active storage to activeStorage, the
-		// TODO: storage manager picks the backup because each store pointed to itself as active so the "conflicting" situation arises.
 		require.Equal(t, fixtures.SecondStorageIdentityKey, storageManager.GetActiveStore())
 	})
 
