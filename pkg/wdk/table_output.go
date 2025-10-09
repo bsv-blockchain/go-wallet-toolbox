@@ -31,8 +31,10 @@ type TableOutput struct {
 	BasketID           *int                         `json:"basketId,omitempty"`
 }
 
+// TableOutputs is a list of TableOutput items.
 type TableOutputs = []TableOutput
 
+// FindOutputsArgs represents the arguments for finding outputs.
 type FindOutputsArgs struct {
 	UserID        *int    `json:"userId,omitempty"`
 	OutputID      *uint   `json:"outputId,omitempty"`
@@ -42,6 +44,6 @@ type FindOutputsArgs struct {
 	VOut          *uint32 `json:"vout,omitempty"`
 	Change        *bool   `json:"change,omitempty"`
 	Spendable     *bool   `json:"spendable,omitempty"`
-	
+
 	TxStatus []TxStatus `json:"txStatus,omitempty"`
 }

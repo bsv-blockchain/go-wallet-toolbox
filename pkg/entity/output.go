@@ -44,6 +44,7 @@ type Output struct {
 	UserUTXO *UserUTXO
 }
 
+// ToWDK converts the Output entity to its WDK representation.
 func (o *Output) ToWDK() *wdk.TableOutput {
 	return &wdk.TableOutput{
 		CreatedAt:          o.CreatedAt,
