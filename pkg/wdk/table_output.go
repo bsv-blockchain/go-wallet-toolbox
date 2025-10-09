@@ -41,7 +41,7 @@ type FindOutputsArgs struct {
 	Satoshis      *int64  `json:"satoshis,omitempty"`
 	TransactionID *uint   `json:"transactionId,omitempty"`
 	TxID          *string `json:"txid,omitempty"`
-	VOut          *uint32 `json:"vout,omitempty"`
+	Vout          *uint32 `json:"vout,omitempty"`
 	Change        *bool   `json:"change,omitempty"`
 	Spendable     *bool   `json:"spendable,omitempty"`
 

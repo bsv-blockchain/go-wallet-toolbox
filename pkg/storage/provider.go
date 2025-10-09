@@ -731,8 +731,8 @@ func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters
 			query = query.Change().Equals(*filters.Change)
 		}
 
-		if filters.VOut != nil {
-			query = query.VOut().Equals(*filters.VOut)
+		if filters.Vout != nil {
+			query = query.Vout().Equals(*filters.Vout)
 		}
 
 		if filters.Spendable != nil {

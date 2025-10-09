@@ -38,7 +38,7 @@ type OutputReader interface {
 	TxStatus() StringEnumCondition[OutputReader, wdk.TxStatus]
 	Satoshis() NumericCondition[OutputReader, int64]
 	TxID() StringCondition[OutputReader]
-	VOut() NumericCondition[OutputReader, uint32]
+	Vout() NumericCondition[OutputReader, uint32]
 	Tags() StringSetCondition[OutputReader]
 
 	Since(value time.Time, column entity.SinceField) OutputReader
@@ -190,11 +190,11 @@ func (o *output) TxID() StringCondition[OutputReader] {
 	}
 }
 
-func (o *output) VOut() NumericCondition[OutputReader, uint32] {
+func (o *output) Vout() NumericCondition[OutputReader, uint32] {
 	return &numericCondition[OutputReader, uint32]{
 		parent: o,
 		conditionSetter: func(c *entity.Comparable[uint32]) {
-			o.spec.VOut = c
+			o.spec.Vout = c
 		},
 	}
 }

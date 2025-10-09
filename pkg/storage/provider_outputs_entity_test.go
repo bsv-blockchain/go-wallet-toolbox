@@ -55,8 +55,8 @@ func TestOutputCountFilters(t *testing.T) {
 			filter: func(r crud.OutputReader) { r.TransactionID().Equals(1) },
 			count:  1,
 		},
-		"filter by VOut = 1": {
-			filter: func(r crud.OutputReader) { r.VOut().Equals(1) },
+		"filter by Vout = 1": {
+			filter: func(r crud.OutputReader) { r.Vout().Equals(1) },
 			count:  2,
 		},
 		"filter by SpentBy": {
@@ -331,8 +331,8 @@ func TestOutputExposedGetter(t *testing.T) {
 				assert.Equal(t, "alice_tx_1", *outputs[0].TxID)
 			},
 		},
-		"filter by VOut": {
-			filter:      wdk.FindOutputsArgs{VOut: to.Ptr(uint32(1))},
+		"filter by Vout": {
+			filter:      wdk.FindOutputsArgs{Vout: to.Ptr(uint32(1))},
 			expectedLen: 1,
 			then: func(outputs []wdk.TableOutput) {
 				assert.Equal(t, uint32(1), outputs[0].Vout)

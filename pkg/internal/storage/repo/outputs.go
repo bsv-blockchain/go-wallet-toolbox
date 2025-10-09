@@ -877,8 +877,8 @@ func (o *Outputs) conditionsBySpec(ctx context.Context, spec *pkgentity.OutputRe
 	if spec.TxID != nil {
 		conditions = append(conditions, cmpCondition(o.query.Transaction.TxID, spec.TxID))
 	}
-	if spec.VOut != nil {
-		conditions = append(conditions, cmpCondition(table.Vout, spec.VOut))
+	if spec.Vout != nil {
+		conditions = append(conditions, cmpCondition(table.Vout, spec.Vout))
 	}
 	if spec.Tags != nil {
 		conditions = append(conditions, o.tagConditions(ctx, spec.Tags)...)

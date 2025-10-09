@@ -82,7 +82,7 @@ type OutputReadSpecification struct {
 	TxStatus      *Comparable[wdk.TxStatus]
 	Satoshis      *Comparable[int64]
 	TxID          *Comparable[string]
-	VOut          *Comparable[uint32]
+	Vout          *Comparable[uint32]
 	Tags          *ComparableSet[string]
 }
 
