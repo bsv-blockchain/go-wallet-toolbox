@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"time"
@@ -728,27 +727,3 @@ func (p *Provider) TxNoteEntity() crud.TxNote {
 func (p *Provider) UserUTXOEntity() crud.UserUTXO {
 	return crud.NewUserUTXO(p.repo.UserUTXOs)
 }
-
-func toStrings(src []primitives.StringUnder300) []string {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]string, len(src))
-	for i, s := range src {
-		dst[i] = string(s)
-	}
-	return dst
-}
-
-func toStringsUnder300(src []string) []primitives.StringUnder300 {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]primitives.StringUnder300, len(src))
-	for i, s := range src {
-		dst[i] = primitives.StringUnder300(s)
-	}
-	return dst
-}
-
-func hexEncode(b []byte) string { return hex.EncodeToString(b) }
