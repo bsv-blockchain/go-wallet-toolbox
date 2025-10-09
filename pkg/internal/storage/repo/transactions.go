@@ -395,6 +395,61 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil
 }
 
+// buildSelectedActionsSubQuery constructs a subquery selecting the current page of actions (id, tx_id)
+// matching the provided filter. It mirrors ListAndCountActions ordering and pagination so it can be
+// reused in JOINs to avoid large IN (...) clauses.
+func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, filter entity.ListActionsFilter) *gorm.DB {
+	query := tx.Model(&models.Transaction{}).
+		Select("id, tx_id").
+		Where("user_id = ?", userID)
+
+	if len(filter.Status) > 0 {
+		query = query.Where("status IN ?", filter.Status)
+	}
+	if len(filter.Labels) > 0 {
+		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
+	}
+
+	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+}
+
+// GetLabelsForSelectedActions fetches labels via JOIN with the selected actions subquery to avoid IN lists.
+func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error) {
+	labelsMap := make(map[uint][]string)
+	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
+		var closeErr error
+		rows, err := tx.Table("bsv_transaction_labels tl").
+			Select("tl.transaction_id, tl.label_name").
+			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
+			Where("tl.label_name IS NOT NULL").
+			Where("tl.deleted_at IS NULL").
+			Rows()
+		if err != nil {
+			return fmt.Errorf("failed to query labels rows: %w", err)
+		}
+		defer func() {
+			if cerr := rows.Close(); cerr != nil {
+				closeErr = fmt.Errorf("rows close failed: %w", cerr)
+			}
+		}()
+
+		for rows.Next() {
+			var txID uint
+			var label string
+			if err := rows.Scan(&txID, &label); err != nil {
+				return fmt.Errorf("scan failed: %w", err)
+			}
+			labelsMap[txID] = append(labelsMap[txID], label)
+		}
+		return closeErr
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch labels for selected actions: %w", err)
+	}
+	return labelsMap, nil
+}
+
 func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {
 	if len(txIDs) == 0 {
 		return make(map[uint][]string), nil
