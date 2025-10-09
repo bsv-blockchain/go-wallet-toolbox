@@ -30,3 +30,18 @@ type TableOutput struct {
 	SenderIdentityKey  *string                      `json:"senderIdentityKey,omitempty"`
 	BasketID           *int                         `json:"basketId,omitempty"`
 }
+
+type TableOutputs = []TableOutput
+
+type FindOutputsArgs struct {
+	UserID        *int    `json:"userId,omitempty"`
+	OutputID      *uint   `json:"outputId,omitempty"`
+	Satoshis      *int64  `json:"satoshis,omitempty"`
+	TransactionID *uint   `json:"transactionId,omitempty"`
+	TxID          *string `json:"txid,omitempty"`
+	VOut          *uint32 `json:"vout,omitempty"`
+	Change        *bool   `json:"change,omitempty"`
+	Spendable     *bool   `json:"spendable,omitempty"`
+	
+	TxStatus []TxStatus `json:"txStatus,omitempty"`
+}

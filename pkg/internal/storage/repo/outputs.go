@@ -107,8 +107,8 @@ func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpe
 		dao = dao.
 			Select(
 				output.ALL,
-				tx.TxID.As("Transaction.TxID"),
-				tx.Status.As("Transaction.Status"),
+				tx.TxID,
+				tx.Status,
 			).
 			Join(tx, tx.ID.EqCol(output.TransactionID))
 	}
@@ -876,6 +876,9 @@ func (o *Outputs) conditionsBySpec(ctx context.Context, spec *pkgentity.OutputRe
 	}
 	if spec.TxID != nil {
 		conditions = append(conditions, cmpCondition(o.query.Transaction.TxID, spec.TxID))
+	}
+	if spec.VOut != nil {
+		conditions = append(conditions, cmpCondition(table.Vout, spec.VOut))
 	}
 	if spec.Tags != nil {
 		conditions = append(conditions, o.tagConditions(ctx, spec.Tags)...)
