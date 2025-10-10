@@ -38,6 +38,7 @@ type OutputReader interface {
 	TxStatus() StringEnumCondition[OutputReader, wdk.TxStatus]
 	Satoshis() NumericCondition[OutputReader, int64]
 	TxID() StringCondition[OutputReader]
+	Vout() NumericCondition[OutputReader, uint32]
 	Tags() StringSetCondition[OutputReader]
 
 	Since(value time.Time, column entity.SinceField) OutputReader
@@ -185,6 +186,15 @@ func (o *output) TxID() StringCondition[OutputReader] {
 		parent: o,
 		conditionSetter: func(c *entity.Comparable[string]) {
 			o.spec.TxID = c
+		},
+	}
+}
+
+func (o *output) Vout() NumericCondition[OutputReader, uint32] {
+	return &numericCondition[OutputReader, uint32]{
+		parent: o,
+		conditionSetter: func(c *entity.Comparable[uint32]) {
+			o.spec.Vout = c
 		},
 	}
 }

@@ -120,3 +120,23 @@ func (m *WalletStorageManager) AbortAction(ctx context.Context, args wdk.AbortAc
 
 	return m.getActiveWriter().AbortAction(ctx, auth, args)
 }
+
+// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
+func (m *WalletStorageManager) FindOutputBasketsAuth(ctx context.Context, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return wdk.TableOutputBaskets{}, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().FindOutputBasketsAuth(ctx, auth, filters)
+}
+
+// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return wdk.TableOutputs{}, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
+}
