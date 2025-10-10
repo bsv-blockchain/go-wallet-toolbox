@@ -75,7 +75,7 @@ func (m *WalletStorageManager) RelinquishCertificate(ctx context.Context, args w
 func (m *WalletStorageManager) FindCertificatesAuth(ctx context.Context, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
 	auth, err := m.GetAuth(ctx)
 	if err != nil {
-		return wdk.TableCertificates{}, fmt.Errorf("failed to get user authentication: %w", err)
+		return nil, fmt.Errorf("failed to get user authentication: %w", err)
 	}
 
 	return m.getActiveReader().FindCertificatesAuth(ctx, auth, filters)
