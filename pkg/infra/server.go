@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
@@ -13,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // Server is a struct that holds the "infra" server configuration
@@ -90,13 +92,24 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		}
 	}
 
+	// price is validated in config.Validate(), therefore we use must here.
+	requestPrice := must.ConvertToIntFromUnsigned(cfg.HTTPConfig.RequestPrice)
+
+	serverOptions := storage.ServerOptions{
+		Port:     cfg.HTTPConfig.Port,
+		Monetize: requestPrice != 0,
+		CalculateRequestPrice: func(_ *http.Request) (int, error) {
+			return requestPrice, nil
+		},
+	}
+
 	return &Server{
 		Config: cfg,
 
 		logger:        logger,
 		storage:       activeStorage,
 		monitor:       daemon,
-		storageServer: storage.NewServer(logger, activeStorage, serverWallet, storage.ServerOptions{Port: cfg.HTTPConfig.Port}),
+		storageServer: storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
 	}, nil
 }
 

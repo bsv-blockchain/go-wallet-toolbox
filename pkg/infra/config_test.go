@@ -247,6 +247,72 @@ func TestMonitorTaskZeroInterval(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidHTTPPort(t *testing.T) {
+	tests := map[string]struct{ port string }{
+		"zero (ephemeral) port": {port: "0"},
+		"lowest valid port":     {port: "1"},
+		"highest valid port":    {port: "65535"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			setRequiredEnvs(t)
+			t.Setenv("TEST_HTTP_PORT", test.port)
+
+			// when:
+			_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+			// then:
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestInvalidHTTPPort(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_HTTP_PORT", "65536")
+
+	// when:
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.Error(t, err)
+}
+
+func TestValidRequestPrice(t *testing.T) {
+	tests := map[string]struct{ price string }{
+		"free (zero)":    {price: "0"},
+		"small positive": {price: "100"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			setRequiredEnvs(t)
+			t.Setenv("TEST_HTTP_REQUEST_PRICE", test.price)
+
+			// when:
+			_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+			// then:
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestInvalidRequestPrice(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	// one above the expected MaxSatoshis (21e14)
+	t.Setenv("TEST_HTTP_REQUEST_PRICE", "2100000000000001")
+
+	// when:
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.Error(t, err)
+}
+
 // setRequiredEnvs sets necessary environment variables for test configuration.
 // It ensures TEST_SERVER_PRIVATE_KEY is set with a valid private key value for proper test initialization.
 func setRequiredEnvs(t *testing.T) {

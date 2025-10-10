@@ -1,14 +1,18 @@
 package storage_test
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
+	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -675,5 +679,115 @@ func TestServerAuthentication(t *testing.T) {
 		// then: important assertions are done in mock storage
 		require.NoError(t, err)
 
+	})
+}
+
+func TestServerRequestMonetization(t *testing.T) {
+	t.Run("require payment of default amount for request", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		mockStorage := given.MockProvider()
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage, func(opt *storage.ServerOptions) {
+			opt.Monetize = true
+		})
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
+		defer cleanupCli()
+
+		// and:
+		userIdentityKey := testusers.Alice.IdentityKey(t)
+
+		mockStorage.EXPECT().
+			FindOrInsertUser(gomock.Any(), userIdentityKey).
+			Return(
+				&wdk.FindOrInsertUserResponse{
+					User: wdk.TableUser{
+						IdentityKey: userIdentityKey,
+						UserID:      testusers.Alice.ID,
+					}, IsNew: false,
+				},
+				nil,
+			).MinTimes(0)
+
+		mockStorage.EXPECT().
+			InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, authID wdk.AuthID, _ any) {
+				paymentInfo, err := middleware.ShouldGetPaymentInfo(ctx)
+				if assert.NoError(t, err) && assert.NotNil(t, paymentInfo) {
+					assert.Equal(t, paymentInfo.SatoshisPaid, 100, "should pay default amount")
+					assert.True(t, paymentInfo.Accepted)
+				}
+			})
+
+		// when:
+		authID := testusers.Alice.AuthID()
+
+		_, err := client.InternalizeAction(t.Context(), authID, wdk.InternalizeActionArgs{})
+
+		// then:
+		require.NoError(t, err)
+	})
+
+	t.Run("require payment of custom amount for request", func(t *testing.T) {
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// given:
+		customAmount := 1000
+
+		// and:
+		mockStorage := given.MockProvider()
+
+		// and server:
+		cleanupSrv := given.StartedRPCServerFor(mockStorage, func(opt *storage.ServerOptions) {
+			opt.Monetize = true
+			opt.CalculateRequestPrice = func(r *http.Request) (int, error) {
+				return customAmount, nil
+			}
+		})
+		defer cleanupSrv()
+
+		// and client:
+		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
+		defer cleanupCli()
+
+		// and:
+		userIdentityKey := testusers.Alice.IdentityKey(t)
+
+		mockStorage.EXPECT().
+			FindOrInsertUser(gomock.Any(), userIdentityKey).
+			Return(
+				&wdk.FindOrInsertUserResponse{
+					User: wdk.TableUser{
+						IdentityKey: userIdentityKey,
+						UserID:      testusers.Alice.ID,
+					}, IsNew: false,
+				},
+				nil,
+			).MinTimes(0)
+
+		mockStorage.EXPECT().
+			InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).
+			Do(func(ctx context.Context, authID wdk.AuthID, _ any) {
+				paymentInfo, err := middleware.ShouldGetPaymentInfo(ctx)
+				if assert.NoError(t, err) && assert.NotNil(t, paymentInfo) {
+					assert.Equal(t, paymentInfo.SatoshisPaid, customAmount, "should pay custom amount")
+					assert.True(t, paymentInfo.Accepted)
+				}
+			})
+
+		// when:
+		authID := testusers.Alice.AuthID()
+
+		_, err := client.InternalizeAction(t.Context(), authID, wdk.InternalizeActionArgs{})
+
+		// then:
+		require.NoError(t, err)
 	})
 }
