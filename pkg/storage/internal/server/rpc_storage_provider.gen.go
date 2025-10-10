@@ -112,11 +112,11 @@ func (p *RPCStorageProvider) RelinquishCertificate(ctx context.Context, auth wdk
 func (p *RPCStorageProvider) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
 	err := p.verifyAuthID(ctx, auth)
 	if err != nil {
-		return nil, err
+		return wdk.TableCertificates{}, err
 	}
 	err = p.ensureUserID(ctx, &auth)
 	if err != nil {
-		return nil, err
+		return wdk.TableCertificates{}, err
 	}
 
 	return p.localProvider.FindCertificatesAuth(ctx, auth, filters)
