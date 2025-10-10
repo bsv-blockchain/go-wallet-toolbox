@@ -56,4 +56,7 @@ type WalletStorageBasic interface {
 	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
 	// @Read
 	FindOutputsAuth(ctx context.Context, filters FindOutputsArgs) (TableOutputs, error)
+	// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+	// @Read
+	FindCertificatesAuth(ctx context.Context, filters FindCertificatesArgs) (TableCertificates, error)
 }

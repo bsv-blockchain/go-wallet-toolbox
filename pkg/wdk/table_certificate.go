@@ -27,3 +27,17 @@ type TableCertificateX struct {
 	TableCertificate
 	Fields []*TableCertificateField `json:"fields,omitempty"`
 }
+
+// TableCertificates is a slice of TableCertificateX
+type TableCertificates = []TableCertificateX
+
+// FindCertificatesArgs holds the arguments for finding certificates (auth-required)
+type FindCertificatesArgs struct {
+	UserID             *int                       `json:"userId,omitempty"`
+	Type               *primitives.Base64String   `json:"type,omitempty"`
+	SerialNumber       *primitives.Base64String   `json:"serialNumber,omitempty"`
+	Subject            *primitives.PubKeyHex      `json:"subject,omitempty"`
+	Certifier          *primitives.PubKeyHex      `json:"certifier,omitempty"`
+	RevocationOutpoint *primitives.OutpointString `json:"revocationOutpoint,omitempty"`
+	Signature          *primitives.HexString      `json:"signature,omitempty"`
+}

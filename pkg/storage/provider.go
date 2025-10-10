@@ -222,6 +222,76 @@ func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, a
 	return nil
 }
 
+// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+func (p *Provider) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
+		return nil, ErrAuthorization
+	}
+
+	opts := repo.ListCertificatesActionParams{}
+	if filters.SerialNumber != nil {
+		opts.SerialNumber = filters.SerialNumber
+	}
+	if filters.Subject != nil {
+		opts.Subject = filters.Subject
+	}
+	if filters.RevocationOutpoint != nil {
+		opts.RevocationOutpoint = filters.RevocationOutpoint
+	}
+	if filters.Signature != nil {
+		opts.Signature = filters.Signature
+	}
+	if filters.Certifier != nil {
+		opts.Certifiers = []primitives.PubKeyHex{*filters.Certifier}
+	}
+	if filters.Type != nil {
+		opts.Types = []primitives.Base64String{*filters.Type}
+	}
+
+	certs, _, err := p.repo.ListAndCountCertificates(ctx, *auth.UserID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find certificates: %w", err)
+	}
+
+	out := make(wdk.TableCertificates, 0, len(certs))
+	for _, c := range certs {
+		var verifier *primitives.PubKeyHex
+		if c.Verifier != "" {
+			v := primitives.PubKeyHex(c.Verifier)
+			verifier = &v
+		}
+
+		tc := wdk.TableCertificateX{
+			TableCertificate: wdk.TableCertificate{
+				CreatedAt:          c.CreatedAt,
+				UpdatedAt:          c.UpdatedAt,
+				CertificateID:      c.ID,
+				UserID:             c.UserID,
+				Type:               primitives.Base64String(c.Type),
+				SerialNumber:       primitives.Base64String(c.SerialNumber),
+				Certifier:          primitives.PubKeyHex(c.Certifier),
+				Subject:            primitives.PubKeyHex(c.Subject),
+				Verifier:           verifier,
+				RevocationOutpoint: primitives.OutpointString(c.RevocationOutpoint),
+				Signature:          primitives.HexString(c.Signature),
+				IsDeleted:          false,
+			},
+		}
+		for _, f := range c.CertificateFields {
+			tc.Fields = append(tc.Fields, &wdk.TableCertificateField{
+				CreatedAt:  f.CreatedAt,
+				UpdatedAt:  f.UpdatedAt,
+				FieldName:  f.FieldName,
+				FieldValue: f.FieldValue,
+				MasterKey:  primitives.Base64String(f.MasterKey),
+				UserID:     f.UserID,
+			})
+		}
+		out = append(out, tc)
+	}
+	return out, nil
+}
+
 // ListCertificates will list certificates with provided args
 func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	if auth.UserID == nil {

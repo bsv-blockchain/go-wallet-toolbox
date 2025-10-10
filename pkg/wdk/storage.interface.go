@@ -50,6 +50,10 @@ type WalletStorageProvider interface {
 	// @Write
 	RelinquishCertificate(ctx context.Context, auth AuthID, args RelinquishCertificateArgs) error
 
+	// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+	// @Read
+	FindCertificatesAuth(ctx context.Context, auth AuthID, filters FindCertificatesArgs) (TableCertificates, error)
+
 	// RelinquishOutput removes the specified output from the users outputs.
 	// @Write
 	RelinquishOutput(ctx context.Context, auth AuthID, args RelinquishOutputArgs) error

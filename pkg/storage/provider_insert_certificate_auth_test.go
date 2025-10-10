@@ -287,3 +287,80 @@ func TestListCertificates(t *testing.T) {
 		require.Equal(t, 1, len(certs.Certificates))
 	})
 }
+
+func TestCertificatesExposedGetter(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// and:
+	activeStorage := given.Provider().GORM()
+
+	// seed: insert 3 certificates for Alice with varying Type
+	cert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID)
+	_, err := activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), cert)
+	require.NoError(t, err)
+
+	cert.Type = "ZXhhbXBsZVR5cGUy"
+	_, err = activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), cert)
+	require.NoError(t, err)
+
+	cert.Type = "ZXhhbXBsZVR5cGUz"
+	_, err = activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), cert)
+	require.NoError(t, err)
+
+	t.Run("list all for user via auth", func(t *testing.T) {
+		// when:
+		found, err := activeStorage.FindCertificatesAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindCertificatesArgs{})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, found, 3)
+	})
+
+	t.Run("filter by Type", func(t *testing.T) {
+		// when:
+		typ := primitives.Base64String("ZXhhbXBsZVR5cGUy")
+		found, err := activeStorage.FindCertificatesAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindCertificatesArgs{Type: &typ})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, found, 1)
+		assert.Equal(t, typ, found[0].Type)
+	})
+
+	t.Run("filter by SerialNumber", func(t *testing.T) {
+		// when:
+		sn := primitives.Base64String(fixtures.SerialNumber)
+		found, err := activeStorage.FindCertificatesAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindCertificatesArgs{SerialNumber: &sn})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, found, 3)
+		for _, c := range found {
+			assert.Equal(t, sn, c.SerialNumber)
+		}
+	})
+
+	t.Run("filter by Certifier", func(t *testing.T) {
+		// when:
+		certifier := primitives.PubKeyHex(fixtures.Certifier)
+		found, err := activeStorage.FindCertificatesAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindCertificatesArgs{Certifier: &certifier})
+
+		// then:
+		require.NoError(t, err)
+		require.Len(t, found, 3)
+		for _, c := range found {
+			assert.Equal(t, certifier, c.Certifier)
+		}
+	})
+
+	t.Run("attempt to filter by another UserID", func(t *testing.T) {
+		// when:
+		uid := testusers.Bob.ID
+		_, err := activeStorage.FindCertificatesAuth(t.Context(), testusers.Alice.AuthID(), wdk.FindCertificatesArgs{UserID: &uid})
+
+		// then:
+		require.Error(t, err)
+	})
+}

@@ -140,3 +140,13 @@ func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.
 
 	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
 }
+
+// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+func (m *WalletStorageManager) FindCertificatesAuth(ctx context.Context, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return wdk.TableCertificates{}, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().FindCertificatesAuth(ctx, auth, filters)
+}

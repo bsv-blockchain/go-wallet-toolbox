@@ -4,9 +4,9 @@ package storage
 
 import (
 	"context"
-)
 
-import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
 
 type WalletStorageProviderClient struct {
 	client *rpcWalletStorageProvider
@@ -110,6 +110,11 @@ func (c *WalletStorageProviderClient) FindOutputsAuth(ctx context.Context, auth 
 	return c.client.FindOutputsAuth(ctx, auth, filters)
 }
 
+// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+func (c *WalletStorageProviderClient) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	return c.client.FindCertificatesAuth(ctx, auth, filters)
+}
+
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -130,4 +135,5 @@ type rpcWalletStorageProvider struct {
 	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 	FindOutputBasketsAuth     func(context.Context, wdk.AuthID, wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error)
 	FindOutputsAuth           func(context.Context, wdk.AuthID, wdk.FindOutputsArgs) (wdk.TableOutputs, error)
+	FindCertificatesAuth      func(context.Context, wdk.AuthID, wdk.FindCertificatesArgs) (wdk.TableCertificates, error)
 }
