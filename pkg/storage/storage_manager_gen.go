@@ -71,6 +71,16 @@ func (m *WalletStorageManager) RelinquishCertificate(ctx context.Context, args w
 	return m.getActiveWriter().RelinquishCertificate(ctx, auth, args)
 }
 
+// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+func (m *WalletStorageManager) FindCertificatesAuth(ctx context.Context, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return wdk.TableCertificates{}, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().FindCertificatesAuth(ctx, auth, filters)
+}
+
 // RelinquishOutput removes the specified output from the users outputs.
 func (m *WalletStorageManager) RelinquishOutput(ctx context.Context, args wdk.RelinquishOutputArgs) error {
 	auth, err := m.GetAuth(ctx)
@@ -139,14 +149,4 @@ func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.
 	}
 
 	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
-}
-
-// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
-func (m *WalletStorageManager) FindCertificatesAuth(ctx context.Context, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
-	auth, err := m.GetAuth(ctx)
-	if err != nil {
-		return wdk.TableCertificates{}, fmt.Errorf("failed to get user authentication: %w", err)
-	}
-
-	return m.getActiveReader().FindCertificatesAuth(ctx, auth, filters)
 }

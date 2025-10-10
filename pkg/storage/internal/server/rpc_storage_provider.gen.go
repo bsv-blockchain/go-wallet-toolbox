@@ -108,6 +108,20 @@ func (p *RPCStorageProvider) RelinquishCertificate(ctx context.Context, auth wdk
 	return p.localProvider.RelinquishCertificate(ctx, auth, args)
 }
 
+// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+func (p *RPCStorageProvider) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	err := p.verifyAuthID(ctx, auth)
+	if err != nil {
+		return wdk.TableCertificates{}, err
+	}
+	err = p.ensureUserID(ctx, &auth)
+	if err != nil {
+		return wdk.TableCertificates{}, err
+	}
+
+	return p.localProvider.FindCertificatesAuth(ctx, auth, filters)
+}
+
 // RelinquishOutput removes the specified output from the users outputs.
 func (p *RPCStorageProvider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
 	err := p.verifyAuthID(ctx, auth)
@@ -222,18 +236,4 @@ func (p *RPCStorageProvider) FindOutputsAuth(ctx context.Context, auth wdk.AuthI
 	}
 
 	return p.localProvider.FindOutputsAuth(ctx, auth, filters)
-}
-
-// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
-func (p *RPCStorageProvider) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
-	err := p.verifyAuthID(ctx, auth)
-	if err != nil {
-		return wdk.TableCertificates{}, err
-	}
-	err = p.ensureUserID(ctx, &auth)
-	if err != nil {
-		return wdk.TableCertificates{}, err
-	}
-
-	return p.localProvider.FindCertificatesAuth(ctx, auth, filters)
 }

@@ -35,6 +35,9 @@ type WalletStorageBasic interface {
 	// RelinquishCertificate revokes the specified certificate from the users certificates.
 	// @Write
 	RelinquishCertificate(ctx context.Context, args RelinquishCertificateArgs) error
+	// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+	// @Read
+	FindCertificatesAuth(ctx context.Context, filters FindCertificatesArgs) (TableCertificates, error)
 	// RelinquishOutput removes the specified output from the users outputs.
 	// @Write
 	RelinquishOutput(ctx context.Context, args RelinquishOutputArgs) error
@@ -56,7 +59,4 @@ type WalletStorageBasic interface {
 	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
 	// @Read
 	FindOutputsAuth(ctx context.Context, filters FindOutputsArgs) (TableOutputs, error)
-	// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
-	// @Read
-	FindCertificatesAuth(ctx context.Context, filters FindCertificatesArgs) (TableCertificates, error)
 }

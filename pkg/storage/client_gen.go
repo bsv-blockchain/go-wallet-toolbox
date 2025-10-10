@@ -4,9 +4,9 @@ package storage
 
 import (
 	"context"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 type WalletStorageProviderClient struct {
 	client *rpcWalletStorageProvider
@@ -55,6 +55,11 @@ func (c *WalletStorageProviderClient) InsertCertificateAuth(ctx context.Context,
 // RelinquishCertificate revokes the specified certificate from the users certificates.
 func (c *WalletStorageProviderClient) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
 	return c.client.RelinquishCertificate(ctx, auth, args)
+}
+
+// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
+func (c *WalletStorageProviderClient) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	return c.client.FindCertificatesAuth(ctx, auth, filters)
 }
 
 // RelinquishOutput removes the specified output from the users outputs.
@@ -110,11 +115,6 @@ func (c *WalletStorageProviderClient) FindOutputsAuth(ctx context.Context, auth 
 	return c.client.FindOutputsAuth(ctx, auth, filters)
 }
 
-// FindCertificatesAuth finds certificates for the authenticated user based on the provided filters.
-func (c *WalletStorageProviderClient) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
-	return c.client.FindCertificatesAuth(ctx, auth, filters)
-}
-
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -125,6 +125,7 @@ type rpcWalletStorageProvider struct {
 	ProcessAction             func(context.Context, wdk.AuthID, wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error)
 	InsertCertificateAuth     func(context.Context, wdk.AuthID, *wdk.TableCertificateX) (uint, error)
 	RelinquishCertificate     func(context.Context, wdk.AuthID, wdk.RelinquishCertificateArgs) error
+	FindCertificatesAuth      func(context.Context, wdk.AuthID, wdk.FindCertificatesArgs) (wdk.TableCertificates, error)
 	RelinquishOutput          func(context.Context, wdk.AuthID, wdk.RelinquishOutputArgs) error
 	ListCertificates          func(context.Context, wdk.AuthID, wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error)
 	ListOutputs               func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
@@ -135,5 +136,4 @@ type rpcWalletStorageProvider struct {
 	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 	FindOutputBasketsAuth     func(context.Context, wdk.AuthID, wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error)
 	FindOutputsAuth           func(context.Context, wdk.AuthID, wdk.FindOutputsArgs) (wdk.TableOutputs, error)
-	FindCertificatesAuth      func(context.Context, wdk.AuthID, wdk.FindCertificatesArgs) (wdk.TableCertificates, error)
 }

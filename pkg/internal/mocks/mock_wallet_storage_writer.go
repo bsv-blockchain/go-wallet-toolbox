@@ -71,6 +71,21 @@ func (mr *MockWalletStorageProviderMockRecorder) CreateAction(ctx, auth, args an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAction", reflect.TypeOf((*MockWalletStorageProvider)(nil).CreateAction), ctx, auth, args)
 }
 
+// FindCertificatesAuth mocks base method.
+func (m *MockWalletStorageProvider) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindCertificatesAuth", ctx, auth, filters)
+	ret0, _ := ret[0].(wdk.TableCertificates)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindCertificatesAuth indicates an expected call of FindCertificatesAuth.
+func (mr *MockWalletStorageProviderMockRecorder) FindCertificatesAuth(ctx, auth, filters any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindCertificatesAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindCertificatesAuth), ctx, auth, filters)
+}
+
 // FindOrInsertSyncStateAuth mocks base method.
 func (m *MockWalletStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 	m.ctrl.T.Helper()
@@ -129,21 +144,6 @@ func (m *MockWalletStorageProvider) FindOutputsAuth(ctx context.Context, auth wd
 func (mr *MockWalletStorageProviderMockRecorder) FindOutputsAuth(ctx, auth, filters any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOutputsAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOutputsAuth), ctx, auth, filters)
-}
-
-// FindCertificatesAuth mocks base method.
-func (m *MockWalletStorageProvider) FindCertificatesAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindCertificatesArgs) (wdk.TableCertificates, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindCertificatesAuth", ctx, auth, filters)
-	ret0, _ := ret[0].(wdk.TableCertificates)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindCertificatesAuth indicates an expected call of FindCertificatesAuth.
-func (mr *MockWalletStorageProviderMockRecorder) FindCertificatesAuth(ctx, auth, filters any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindCertificatesAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindCertificatesAuth), ctx, auth, filters)
 }
 
 // GetSyncChunk mocks base method.
