@@ -22,6 +22,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -37,6 +39,7 @@ type Provider struct {
 	options  *ProviderConfig
 	logger   *slog.Logger
 	services wdk.Services
+	tracer   trace.Tracer
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -70,6 +73,11 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		transactionFunder = db.CreateFunder(options.FeeModel)
 	}
 
+	tracer := options.Tracer
+	if tracer == nil {
+		tracer = noop.NewTracerProvider().Tracer("storage.Provider")
+	}
+
 	return &Provider{
 		Chain:    chain,
 		Database: db,
@@ -89,6 +97,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		options:  &options,
 		logger:   log,
 		services: services,
+		tracer:   tracer,
 	}, nil
 }
 
@@ -115,6 +124,9 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 
 // Migrate migrates the storage and saves the settings.
 func (p *Provider) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.Migrate")
+	defer span.End()
+
 	err := p.repo.Migrate(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to migrate: %w", err)
@@ -271,6 +283,9 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 
 // CreateAction Storage level processing for wallet `createAction`.
 func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.CreateAction")
+	defer span.End()
+
 	p.logger.DebugContext(ctx, "Validating createAction args")
 
 	if auth.UserID == nil {
@@ -310,6 +325,9 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 
 // InternalizeAction Storage level processing for wallet `internalizeAction`.
 func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.InternalizeAction")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -326,6 +344,9 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 
 // ProcessAction Storage level processing for wallet `processAction`.
 func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.ProcessAction")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -342,6 +363,9 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 
 // AbortAction aborts an action by its reference for the authenticated user.
 func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.AbortAction")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -359,6 +383,9 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 
 // SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
 func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.SynchronizeTransactionStatuses")
+	defer span.End()
+
 	err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
@@ -368,6 +395,9 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 
 // SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
 func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.SendWaitingTransactions")
+	defer span.End()
+
 	err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
 		return fmt.Errorf("failed to send waiting transactions: %w", err)
@@ -377,6 +407,9 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
 func (p *Provider) AbortAbandoned(ctx context.Context) error {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.AbortAbandoned")
+	defer span.End()
+
 	seconds, err := to.Int(p.options.FailAbandonedConfig.MinTransactionAgeSeconds)
 	if err != nil {
 		return fmt.Errorf("invalid FailAbandonedConfig.MinTransactionAgeSeconds: %w", err)
@@ -392,6 +425,9 @@ func (p *Provider) AbortAbandoned(ctx context.Context) error {
 
 // UnFail finds transactions marked as failed and rechecks if they are on-chain; if so, it updates their state.
 func (p *Provider) UnFail(ctx context.Context) error {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.UnFail")
+	defer span.End()
+
 	if err := p.actions.UnFail(ctx); err != nil {
 		return fmt.Errorf("failed to recheck failed transactions: %w", err)
 	}
@@ -400,6 +436,9 @@ func (p *Provider) UnFail(ctx context.Context) error {
 
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.ListOutputs")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -417,6 +456,9 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 
 // RelinquishOutput removes a specified output from a basket
 func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.RelinquishOutput")
+	defer span.End()
+
 	logger := p.logger.With(logging.UserID(auth.UserID),
 		slog.String("output", args.Output),
 		slog.String("basket", args.Basket),
@@ -458,6 +500,9 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 // Returns an error if the user is unauthorized, input is invalid, or the update fails.
 // NOTE: For "change basket" use wdk.BasketNameForChange ("default") as the basket name.
 func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wdk.BasketConfiguration) error {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.ConfigureBasket")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return ErrAuthorization
 	}
@@ -478,6 +523,9 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 // The result includes the total number of actions and the actions themselves.
 // If spec-op label present, route to dedicated ListFailedActions.
 func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.ListActions")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -538,6 +586,9 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 // GetSyncChunk retrieves a sync chunk based on the provided arguments.
 // It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.GetSyncChunk")
+	defer span.End()
+
 	settings, err := p.repo.ReadSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read settings: %w", err)
@@ -560,6 +611,9 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 
 // FindOrInsertSyncStateAuth finds or inserts a sync state for the given user, storage identity key, and storage name.
 func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.FindOrInsertSyncStateAuth")
+	defer span.End()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -576,6 +630,9 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 
 // ProcessSyncChunk validates arguments and processes a synchronization chunk, returning the processing result or an error.
 func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.ProcessSyncChunk")
+	defer span.End()
+
 	err := validate.ValidRequestSyncChunkArgs(&args)
 	if err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
@@ -601,6 +658,9 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 // GetBeefForTransaction retrieves beef data for a transaction by txID, considering the given context and options.
 // Returns the transaction beef structure or an error if retrieval fails.
 func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
+	ctx, span := p.tracer.Start(ctx, "storage.Provider.GetBeefForTransaction")
+	defer span.End()
+
 	beef, err := p.actions.GetBeef(ctx, txID, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get beef for transaction %s: %w", txID, err)

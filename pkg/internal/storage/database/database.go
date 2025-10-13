@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"gorm.io/gorm"
 	glogger "gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
@@ -74,6 +75,10 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 	))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize GORM database connection: %w", err)
+	}
+
+	if err := db.Use(otelgorm.NewPlugin()); err != nil {
+		return nil, fmt.Errorf("failed to register otelgorm plugin: %w", err)
 	}
 
 	sqlDB, err := db.DB()

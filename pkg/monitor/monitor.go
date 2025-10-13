@@ -13,6 +13,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +31,8 @@ type Daemon struct {
 
 	started   bool
 	startLock sync.Mutex
+
+	tracer trace.Tracer
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -71,11 +75,12 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions .
 		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 		storage:     storage,
+		tracer:      noop.NewTracerProvider().Tracer("monitor"),
 	}, nil
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
-func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
+func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
 	d.startLock.Lock()
 	defer d.startLock.Unlock()
 
@@ -83,6 +88,9 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 		d.logger.Warn("Daemon is already started. Skipping.")
 		return nil
 	}
+
+	ctx, span := d.tracer.Start(ctx, "monitor.Start")
+	defer span.End()
 
 	factories := d.allTasksFactories()
 	for taskName, taskConfig := range tasksToStart {
@@ -92,7 +100,7 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 			continue
 		}
 
-		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
+		if err := d.initializeTask(ctx, taskFactory(), taskName, taskConfig); err != nil {
 			return err
 		}
 	}
@@ -147,7 +155,10 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	return task, ok
 }
 
-func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, taskConfig defs.TaskConfig) error {
+func (d *Daemon) initializeTask(ctx context.Context, taskInstance tasks.TaskInterface, taskName defs.MonitorTask, taskConfig defs.TaskConfig) error {
+	_, span := d.tracer.Start(ctx, fmt.Sprintf("monitor.init.%s", taskName))
+	defer span.End()
+
 	task := &ActiveTask{
 		Instance: taskInstance,
 		TaskName: taskName,
@@ -182,6 +193,9 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 
 func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Context) {
 	return func(ctx context.Context) {
+		ctx, span := d.tracer.Start(ctx, fmt.Sprintf("monitor.run.%s", activeTask.TaskName))
+		defer span.End()
+
 		var err error
 		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {

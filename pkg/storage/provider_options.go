@@ -10,6 +10,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"gorm.io/gorm"
 )
 
@@ -33,6 +35,7 @@ type ProviderConfig struct {
 	Commission defs.Commission
 
 	BackgroundBroadcasterContext context.Context
+	Tracer                       trace.Tracer
 }
 
 // WithConfig returns a ProviderOption that sets the ProviderConfig to the supplied cfg value.
@@ -138,6 +141,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		Commission:                   defs.DefaultCommission(),
 		Logger:                       slog.Default(),
 		BackgroundBroadcasterContext: context.Background(),
+		Tracer:                       noop.NewTracerProvider().Tracer("storage.Provider"),
 	}
 }
 
@@ -153,4 +157,11 @@ func (p *ProviderConfig) verify() error {
 
 func (p *ProviderConfig) beefVerifier() wdk.BeefVerifier {
 	return p.BeefVerifierFactory()
+}
+
+// WithTracer sets a custom OpenTelemetry tracer for the storage provider
+func WithTracer(tracer trace.Tracer) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.Tracer = tracer
+	}
 }
