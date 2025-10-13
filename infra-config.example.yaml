@@ -33,6 +33,7 @@ fee_model:
     value: 1
 http:
     port: 8100
+    request_price: 0
 logging:
     enabled: true
     handler: json

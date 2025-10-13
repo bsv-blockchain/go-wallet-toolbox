@@ -5,6 +5,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 )
 
 //go:generate go run ../../cmd/infra_config_gen/main.go -o ../../infra-config.example.yaml
@@ -33,7 +34,23 @@ type DBConfig struct {
 
 // HTTPConfig is the configuration for the HTTP server related settings
 type HTTPConfig struct {
-	Port uint `mapstructure:"port"`
+	Port         uint `mapstructure:"port"`
+	RequestPrice uint `mapstructure:"request_price"`
+}
+
+// Validate validates the HTTP configuration
+func (c *HTTPConfig) Validate() error {
+	const maxPort = 65535
+	if c.Port > maxPort {
+		return fmt.Errorf("invalid port: %d", c.Port)
+	}
+
+	_, err := satoshi.From(c.RequestPrice)
+	if err != nil {
+		return fmt.Errorf("invalid request price in satoshis: %w", err)
+	}
+
+	return nil
 }
 
 // LogConfig is the configuration for the logging
@@ -54,7 +71,8 @@ func Defaults() Config {
 		BSVNetwork: network,
 		DBConfig:   defs.DefaultDBConfig(),
 		HTTPConfig: HTTPConfig{
-			Port: 8100,
+			Port:         8100,
+			RequestPrice: 0,
 		},
 		FeeModel: defs.DefaultFeeModel(),
 		Logging: LogConfig{
@@ -93,6 +111,10 @@ func (c *Config) Validate() (err error) {
 	}
 	if c.BSVNetwork, err = defs.ParseBSVNetworkStr(string(c.BSVNetwork)); err != nil {
 		return fmt.Errorf("invalid BSV network: %w", err)
+	}
+
+	if err = c.HTTPConfig.Validate(); err != nil {
+		return fmt.Errorf("invalid HTTP config: %w", err)
 	}
 
 	if err = c.FeeModel.Validate(); err != nil {

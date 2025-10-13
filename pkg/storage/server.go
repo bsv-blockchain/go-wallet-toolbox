@@ -40,10 +40,24 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	rpcServer.Register(mux)
 
-	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
+	var handler http.Handler = mux
 
+	if s.options.Monetize {
+		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))
+		handler = paymentMiddleware.HTTPHandler(handler)
+	} else {
+		s.logger.Info("Payment middleware is disabled (Monetize=false)")
+		if s.options.CalculateRequestPrice != nil {
+			s.logger.Warn("CalculateRequestPrice option is set but will be ignored because Monetize=false")
+		}
+	}
+
+	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
+	handler = authMiddleware.HTTPHandler(handler)
 	// allow the API to be used everywhere when CORS is enforced.
-	return server.AllowAllCORSMiddleware(authMiddleware.HTTPHandler(mux))
+	handler = server.AllowAllCORSMiddleware(handler)
+
+	return handler
 }
 
 // Start starts the server
@@ -64,4 +78,11 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	return nil
+}
+
+func withOptionalRequestPriceCalculator(calculator func(r *http.Request) (int, error)) func(*middleware.PaymentMiddlewareConfig) {
+	if calculator == nil {
+		return func(c *middleware.PaymentMiddlewareConfig) {}
+	}
+	return middleware.WithRequestPriceCalculator(calculator)
 }
