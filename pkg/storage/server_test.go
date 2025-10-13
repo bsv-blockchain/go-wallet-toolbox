@@ -720,7 +720,7 @@ func TestServerRequestMonetization(t *testing.T) {
 			Do(func(ctx context.Context, authID wdk.AuthID, _ any) {
 				paymentInfo, err := middleware.ShouldGetPaymentInfo(ctx)
 				if assert.NoError(t, err) && assert.NotNil(t, paymentInfo) {
-					assert.Equal(t, paymentInfo.SatoshisPaid, 100, "should pay default amount")
+					assert.Equal(t, 100, paymentInfo.SatoshisPaid, "should pay default amount")
 					assert.True(t, paymentInfo.Accepted)
 				}
 			})
@@ -777,7 +777,7 @@ func TestServerRequestMonetization(t *testing.T) {
 			Do(func(ctx context.Context, authID wdk.AuthID, _ any) {
 				paymentInfo, err := middleware.ShouldGetPaymentInfo(ctx)
 				if assert.NoError(t, err) && assert.NotNil(t, paymentInfo) {
-					assert.Equal(t, paymentInfo.SatoshisPaid, customAmount, "should pay custom amount")
+					assert.Equal(t, customAmount, paymentInfo.SatoshisPaid, "should pay custom amount")
 					assert.True(t, paymentInfo.Accepted)
 				}
 			})

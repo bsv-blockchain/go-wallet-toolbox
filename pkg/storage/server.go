@@ -45,6 +45,11 @@ func (s *Server) Handler() http.Handler {
 	if s.options.Monetize {
 		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))
 		handler = paymentMiddleware.HTTPHandler(handler)
+	} else {
+		s.logger.Info("Payment middleware is disabled (Monetize=false)")
+		if s.options.CalculateRequestPrice != nil {
+			s.logger.Warn("CalculateRequestPrice option is set but will be ignored because Monetize=false")
+		}
 	}
 
 	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
