@@ -55,6 +55,10 @@ func TestOutputCountFilters(t *testing.T) {
 			filter: func(r crud.OutputReader) { r.TransactionID().Equals(1) },
 			count:  1,
 		},
+		"filter by Vout = 1": {
+			filter: func(r crud.OutputReader) { r.Vout().Equals(1) },
+			count:  2,
+		},
 		"filter by SpentBy": {
 			filter: func(r crud.OutputReader) { r.SpentBy().Equals(3) },
 			count:  1,
@@ -206,23 +210,16 @@ func TestOutputPagedFind(t *testing.T) {
 func TestOutputFindByID_WithTransactionJoin(t *testing.T) {
 	activeStorage := seedDbWithOutputs(t)
 
-	tx := &entity.Transaction{
-		ID:     222,
-		TxID:   to.Ptr("abc123"),
-		Status: wdk.TxStatusCompleted,
-	}
-	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
-
 	// when:
 	outs, err := activeStorage.OutputsEntity().Read().ID(1).Find(t.Context())
 
 	// then:
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
+	require.NotNil(t, outs[0].TxID)
 
-	assert.NotNil(t, outs[0].TxID)
-	assert.Equal(t, "abc123", *outs[0].TxID)
-	assert.Equal(t, wdk.TxStatusCompleted, outs[0].TxStatus)
+	assert.Equal(t, "alice_tx_1", *outs[0].TxID)
+	assert.Equal(t, wdk.TxStatusUnprocessed, outs[0].TxStatus)
 }
 
 func TestOutputCountByTxID(t *testing.T) {
@@ -297,15 +294,100 @@ func TestOutputCountByTxStatus(t *testing.T) {
 	assert.Equal(t, int64(1), count)
 }
 
+func TestOutputExposedGetter(t *testing.T) {
+	// given:
+	activeStorage := seedDbWithOutputs(t)
+
+	tests := map[string]struct {
+		filter      wdk.FindOutputsArgs
+		expectedLen int
+		then        func(outputs []wdk.TableOutput)
+	}{
+		"filter by OutputID": {
+			filter:      wdk.FindOutputsArgs{OutputID: to.Ptr(uint(1))},
+			expectedLen: 1,
+			then: func(outputs []wdk.TableOutput) {
+				assert.Equal(t, uint(1), outputs[0].OutputID)
+			},
+		},
+		"filter by Satoshis": {
+			filter:      wdk.FindOutputsArgs{Satoshis: to.Ptr(int64(1003))},
+			expectedLen: 1,
+			then: func(outputs []wdk.TableOutput) {
+				assert.Equal(t, int64(1003), outputs[0].Satoshis)
+			},
+		},
+		"filter by TransactionID": {
+			filter:      wdk.FindOutputsArgs{TransactionID: to.Ptr(uint(1))},
+			expectedLen: 1,
+			then: func(outputs []wdk.TableOutput) {
+				assert.Equal(t, uint(1), outputs[0].TransactionID)
+			},
+		},
+		"filter by TxID": {
+			filter:      wdk.FindOutputsArgs{TxID: to.Ptr("alice_tx_1")},
+			expectedLen: 1,
+			then: func(outputs []wdk.TableOutput) {
+				assert.Equal(t, "alice_tx_1", *outputs[0].TxID)
+			},
+		},
+		"filter by Vout": {
+			filter:      wdk.FindOutputsArgs{Vout: to.Ptr(uint32(1))},
+			expectedLen: 1,
+			then: func(outputs []wdk.TableOutput) {
+				assert.Equal(t, uint32(1), outputs[0].Vout)
+			},
+		},
+		"filter by Change": {
+			filter:      wdk.FindOutputsArgs{Change: to.Ptr(true)},
+			expectedLen: 3,
+			then: func(outputs []wdk.TableOutput) {
+				for _, o := range outputs {
+					assert.True(t, o.Change)
+				}
+			},
+		},
+		"filter by Spendable": {
+			filter:      wdk.FindOutputsArgs{Spendable: to.Ptr(true)},
+			expectedLen: 4,
+			then: func(outputs []wdk.TableOutput) {
+				for _, o := range outputs {
+					assert.True(t, o.Spendable)
+				}
+			},
+		},
+		"filter by TxStatus": {
+			filter:      wdk.FindOutputsArgs{TxStatus: []wdk.TxStatus{wdk.TxStatusUnprocessed}},
+			expectedLen: 1,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			outputs, err := activeStorage.FindOutputsAuth(t.Context(), testusers.Alice.AuthID(), test.filter)
+
+			// then:
+			require.NoError(t, err)
+			require.Len(t, outputs, test.expectedLen)
+
+			// and:
+			if test.then != nil {
+				test.then(outputs)
+			}
+		})
+	}
+}
+
 // seedDbWithOutputs inserts test outputs
 func seedDbWithOutputs(t testing.TB) *storage.Provider {
+	t.Helper()
 	given, cleanup := testabilities.Given(t)
 	t.Cleanup(cleanup)
 
 	activeStorage := given.Provider().GORM()
 
 	for i := range 5 {
-		out := &entity.Output{
+		txID := to.Ptr(fmt.Sprintf("alice_tx_%d", i+1))
+		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), &entity.Output{
 			UserID:        testusers.Alice.ID,
 			TransactionID: uint(i + 1),
 			Vout:          uint32(i),
@@ -318,8 +400,15 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 			Type:          "p2pkh",
 			BasketName:    to.Ptr("default"),
 			Tags:          []string{"alpha"},
-		}
-		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
+			TxID:          txID,
+		}))
+		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), &entity.Transaction{
+			TxID:      txID,
+			Status:    to.IfThen(i == 0, wdk.TxStatusUnprocessed).ElseThen(wdk.TxStatusCompleted),
+			UserID:    testusers.Alice.ID,
+			Satoshis:  1000 + int64(i),
+			Reference: fmt.Sprintf("reference for alice tx %d", i+1),
+		}))
 	}
 
 	for i := range 5 {

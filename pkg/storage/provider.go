@@ -667,3 +667,87 @@ func (p *Provider) TxNoteEntity() crud.TxNote {
 func (p *Provider) UserUTXOEntity() crud.UserUTXO {
 	return crud.NewUserUTXO(p.repo.UserUTXOs)
 }
+
+// FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
+func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
+		return nil, ErrAuthorization
+	}
+
+	query := p.OutputBasketsEntity().Read().
+		UserID().Equals(*auth.UserID)
+
+	if filters.Name != nil {
+		query = query.Name().Equals(*filters.Name)
+	}
+	if filters.MinimumDesiredUTXOValue != nil {
+		query = query.MinimumDesiredUTXOValue().Equals(*filters.MinimumDesiredUTXOValue)
+	}
+	if filters.NumberOfDesiredUTXOs != nil {
+		query = query.NumberOfDesiredUTXOs().Equals(*filters.NumberOfDesiredUTXOs)
+	}
+
+	entities, err := query.Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find output baskets: %w", err)
+	}
+
+	return slices.Map(entities, func(b *entity.OutputBasket) wdk.TableOutputBasket {
+		return *b.ToWDK()
+	}), nil
+}
+
+// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
+func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
+		return nil, ErrAuthorization
+	}
+
+	query := p.OutputsEntity().Read().
+		UserID().Equals(*auth.UserID)
+
+	var finder crud.OutputReadOperations
+
+	if filters.OutputID != nil {
+		finder = query.ID(*filters.OutputID)
+	} else {
+		if len(filters.TxStatus) > 0 {
+			query = query.TxStatus().In(filters.TxStatus...)
+		}
+
+		if filters.Satoshis != nil {
+			query = query.Satoshis().Equals(*filters.Satoshis)
+		}
+
+		if filters.TransactionID != nil {
+			query = query.TransactionID().Equals(*filters.TransactionID)
+		}
+
+		if filters.TxID != nil {
+			query = query.TxID().Equals(*filters.TxID)
+		}
+
+		if filters.Change != nil {
+			query = query.Change().Equals(*filters.Change)
+		}
+
+		if filters.Vout != nil {
+			query = query.Vout().Equals(*filters.Vout)
+		}
+
+		if filters.Spendable != nil {
+			query = query.Spendable().Equals(*filters.Spendable)
+		}
+
+		finder = query
+	}
+
+	entities, err := finder.Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs: %w", err)
+	}
+
+	return slices.Map(entities, func(o *entity.Output) wdk.TableOutput {
+		return *o.ToWDK()
+	}), nil
+}

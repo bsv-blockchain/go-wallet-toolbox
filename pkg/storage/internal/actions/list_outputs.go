@@ -20,16 +20,18 @@ import (
 )
 
 type listOutputs struct {
-	logger      *slog.Logger
-	outputsRepo OutputRepo
-	knownTxRepo KnownTxRepo
+	logger           *slog.Logger
+	outputsRepo      OutputRepo
+	knownTxRepo      KnownTxRepo
+	transactionsRepo TransactionsRepo
 }
 
-func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo KnownTxRepo) *listOutputs {
+func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo KnownTxRepo, transactionsRepo TransactionsRepo) *listOutputs {
 	return &listOutputs{
-		logger:      logging.Child(logger, "list_outputs"),
-		knownTxRepo: knownTxRepo,
-		outputsRepo: outputsRepo,
+		logger:           logging.Child(logger, "list_outputs"),
+		knownTxRepo:      knownTxRepo,
+		outputsRepo:      outputsRepo,
+		transactionsRepo: transactionsRepo,
 	}
 }
 
@@ -45,8 +47,27 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	outputs := make([]*wdk.WalletOutput, len(outputModels))
+
+	var labelMap map[uint][]string
+	if args.IncludeLabels {
+		var txIDs []uint
+		for _, m := range outputModels {
+			txIDs = append(txIDs, m.TransactionID)
+		}
+
+		if labels, err := l.transactionsRepo.GetLabelsForTransactions(ctx, txIDs); err == nil {
+			labelMap = labels
+		}
+	}
+
 	for i, m := range outputModels {
-		outputs[i] = l.outputModelToResult(m)
+		out := l.outputModelToResult(m)
+		if labelMap != nil {
+			if labels, ok := labelMap[m.TransactionID]; ok {
+				out.Labels = slices.Map(labels, func(s string) primitives.StringUnder300 { return primitives.StringUnder300(s) })
+			}
+		}
+		outputs[i] = out
 	}
 
 	result := &wdk.ListOutputsResult{

@@ -35,6 +35,8 @@ func TestSyncProcess(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
+	_, err := sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -117,6 +119,8 @@ func TestSyncProcessOnlyUsers(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
+	_, err := sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -152,6 +156,8 @@ func TestSyncWithManyCustomBaskets(t *testing.T) {
 	}
 
 	// when:
+	_, err := sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -181,6 +187,8 @@ func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
+	_, err := sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider, wdk.WithMaxSyncItems(maxItemsPerSingleSync))
 
 	// then:
@@ -230,6 +238,8 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
 
 	// when:
+	_, err := sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -256,6 +266,8 @@ func TestSyncWhereOtherUserAlreadyExist(t *testing.T) {
 	require.NoError(t, err)
 
 	// when:
+	_, err = sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -303,6 +315,8 @@ func TestSyncProcessWithBasketsNumIDMissmatch(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
+	_, err = sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -336,6 +350,8 @@ func TestSyncProcessWithRelinquishOutput(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
+	_, err := sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
@@ -407,6 +423,8 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
 
 	// when:
+	_, err = sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 
 	// then:
