@@ -77,7 +77,11 @@ type storageMethodAssertions struct {
 
 func (s *storageMethodAssertions) Called() TaskExecutionAssertions {
 	s.parent.t.Helper()
-	s.parent.require.True(s.called() > 0, "Expected SynchronizeTransactionStatuses to be called")
+
+	s.parent.require.Eventuallyf(func() bool {
+		return s.called() > 0
+	}, 5*time.Second, s.interval, "expected SynchronizeTransactionStatuses to be called: %s", s.taskName)
+
 	return s
 }
 
