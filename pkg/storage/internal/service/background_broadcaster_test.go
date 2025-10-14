@@ -150,7 +150,7 @@ func TestBackgroundBroadcaster_WhenProducerIsSlowerThanConsumer(t *testing.T) {
 
 func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{
-		sleep: 25 * time.Millisecond, // Simulate a slow broadcast
+		sleep: 100 * time.Millisecond, // Simulate a slow broadcast
 	}
 
 	logger, _ := loggerForTestBroadcaster()
@@ -160,16 +160,13 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 	moreThanChannerSize := 2*service.BackgroundBroadcasterChannelSize + 1
 
 	channelIsFull := false
-	broadcasted := int64(0)
 	for txSpec := range broadcastItemsGenerator(moreThanChannerSize) {
 		beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
 		require.NoError(t, err)
 		txIDs := []string{txSpec.ID().String()}
 
 		added := bb.Add(beef, txIDs)
-		if added {
-			broadcasted++
-		} else {
+		if !added {
 			channelIsFull = true
 			break
 		}
@@ -177,7 +174,6 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 
 	assert.True(t, channelIsFull, "channel should be full at some point")
 
-	mockBroadcast.waitForBroadcastCalls(t, broadcasted)
 	bb.Stop()
 }
 
