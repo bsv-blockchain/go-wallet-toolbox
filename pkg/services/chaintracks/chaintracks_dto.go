@@ -19,6 +19,27 @@ type PackageInfo struct {
 	Version string `json:"version"`
 }
 
+type BaseBlockHeader struct {
+	Version      uint32 `json:"version"`
+	PreviousHash string `json:"previousHash"`
+	MerkleRoot   string `json:"merkleRoot"`
+	Time         uint32 `json:"time"`
+	Bits         uint32 `json:"bits"`
+	Nonce        uint32 `json:"nonce"`
+
+	HeaderID         uint   `json:"headerId"`
+	PreviousHeaderID *uint  `json:"previousHeaderId,omitempty"`
+	Chainwork        string `json:"chainwork"`
+	IsChainTip       bool   `json:"isChainTip"`
+	IsActive         bool   `json:"isActive"`
+}
+
+type BlockHeader struct {
+	BaseBlockHeader
+	Height uint32 `json:"height"`
+	Hash   string `json:"hash"`
+}
+
 // ResponseFrame represents a generic response wrapper with status information and an optional value payload.
 // Used for unmarshalling HTTP API responses where the frame's status field indicates success or error state.
 type ResponseFrame[T any] struct {

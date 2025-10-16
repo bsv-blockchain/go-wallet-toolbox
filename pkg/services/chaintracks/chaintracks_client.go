@@ -102,6 +102,14 @@ func (c *Client) FindChainTipHashHex(ctx context.Context) (string, error) {
 	}
 }
 
+func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error) {
+	if resp, err := getRequest[BlockHeader](c, ctx, c.url+"/findChainTipHeaderHex"); err != nil {
+		return nil, fmt.Errorf("findChainTipHeaderHex: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 	var resp ResponseFrame[T]
 	result, err := c.resty.R().

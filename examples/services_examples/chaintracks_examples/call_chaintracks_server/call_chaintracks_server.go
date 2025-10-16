@@ -25,6 +25,7 @@ func main() {
 	getInfo(chaintr)
 	getPresentHeight(chaintr)
 	findChainTipHashHex(chaintr)
+	findChainTipHeaderHex(chaintr)
 }
 
 func getInfo(chaintr *chaintracks.Client) {
@@ -52,4 +53,13 @@ func findChainTipHashHex(chaintr *chaintracks.Client) {
 	}
 
 	show.Info("Chaintracks Chain Tip Hash", hashHex)
+}
+
+func findChainTipHeaderHex(chaintr *chaintracks.Client) {
+	header, err := chaintr.FindChainTipHeaderHex(context.Background())
+	if err != nil {
+		panic("failed to get Chaintracks chain tip header: " + err.Error())
+	}
+
+	show.Info("Chaintracks Chain Tip Header", header)
 }

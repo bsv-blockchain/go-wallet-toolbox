@@ -223,3 +223,87 @@ func TestChaintracksClient_FindChainTipHashHex(t *testing.T) {
 		})
 	}
 }
+
+func TestChaintracksClient_FindChainTipHeader(t *testing.T) {
+	correctBlockHeader := &chaintracks.BlockHeader{
+		Height: 918934,
+		Hash:   "00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31",
+		BaseBlockHeader: chaintracks.BaseBlockHeader{
+			Version:          594616320,
+			PreviousHash:     "000000000000000007dce4ee864f0569066bcded7a6a3eca9b977eebf9cb3926",
+			MerkleRoot:       "f4afaab11ec4921a59c9eb1e49435aeaaef6e4396ee9d4a77ef88fdd60057928",
+			Time:             1760620895,
+			Bits:             405131341,
+			Nonce:            2411550733,
+			HeaderID:         2025,
+			PreviousHeaderID: to.Ptr[uint](2024),
+			Chainwork:        "0000000000000000000000000000000000000000016934b62084adb28c318e3c",
+			IsChainTip:       true,
+			IsActive:         true,
+		},
+	}
+
+	tests := map[string]struct {
+		ResponseCode int
+		ResponseBody any
+		Then         func(t *testing.T, header *chaintracks.BlockHeader, err error)
+	}{
+		"should return correct header": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+				Status: "success",
+				Value: correctBlockHeader,
+			},
+			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+				require.NoError(t, err)
+				require.Equal(t, correctBlockHeader, header)
+			},
+		},
+		"should return error on non-200 response": {
+			ResponseCode: 500,
+			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+				require.Error(t, err)
+				require.Nil(t, header)
+			},
+		},
+		"should return error on invalid JSON": {
+			ResponseCode: 200,
+			ResponseBody: `{"status":"success","value":{invalid json}}`,
+			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+				require.Error(t, err)
+				require.Nil(t, header)
+			},
+		},
+		"should return error on error status in response": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+				Status: "error",
+				Value:  nil,
+			},
+			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+				require.Error(t, err)
+				require.Nil(t, header)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+
+			mockServer := given.MockServer()
+			mockServer.
+				WillRespondOn("/findChainTipHeaderHex", "GET").
+				WithJSONResponse(test.ResponseCode, test.ResponseBody)
+
+			chaintr := chaintracks.NewClient(logging.NewTestLogger(t), defs.NetworkMainnet, "http://mock-chaintracks.com", chaintracks.WithRestyClient(mockServer.HttpClient()))
+
+			// when:
+			blockHeader, err := chaintr.FindChainTipHeaderHex(t.Context())
+
+			// then:
+			test.Then(t, blockHeader, err)
+		})
+	}
+}
