@@ -157,3 +157,69 @@ func TestChaintracksClient_GetPresentHeight(t *testing.T) {
 		})
 	}
 }
+
+func TestChaintracksClient_FindChainTipHashHex(t *testing.T) {
+	tests := map[string]struct {
+		ResponseCode int
+		ResponseBody any
+		Then         func(t *testing.T, hash string, err error)
+	}{
+		"should return correct hash": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[string]{
+				Status: "success",
+				Value:  to.Ptr("0000000000000000000a7b3c4d5e6f708090a0b0c0d0e0f1011121314151617"),
+			},
+			Then: func(t *testing.T, hash string, err error) {
+				require.NoError(t, err)
+				require.Equal(t, "0000000000000000000a7b3c4d5e6f708090a0b0c0d0e0f1011121314151617", hash)
+			},
+		},
+		"should return error on non-200 response": {
+			ResponseCode: 500,
+			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			Then: func(t *testing.T, hash string, err error) {
+				require.Error(t, err)
+				require.Empty(t, hash)
+			},
+		},
+		"should return error on invalid JSON": {
+			ResponseCode: 200,
+			ResponseBody: `{"status":"success","value":{invalid json}}`,
+			Then: func(t *testing.T, hash string, err error) {
+				require.Error(t, err)
+				require.Empty(t, hash)
+			},
+		},
+		"should return error on error status in response": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[string]{
+				Status: "error",
+				Value:  nil,
+			},
+			Then: func(t *testing.T, hash string, err error) {
+				require.Error(t, err)
+				require.Empty(t, hash)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+
+			mockServer := given.MockServer()
+			mockServer.
+				WillRespondOn("/findChainTipHashHex", "GET").
+				WithJSONResponse(test.ResponseCode, test.ResponseBody)
+
+			chaintr := chaintracks.NewClient(logging.NewTestLogger(t), defs.NetworkMainnet, "http://mock-chaintracks.com", chaintracks.WithRestyClient(mockServer.HttpClient()))
+
+			// when:
+			hash, err := chaintr.FindChainTipHashHex(t.Context())
+
+			// then:
+			test.Then(t, hash, err)
+		})
+	}
+}
