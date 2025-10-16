@@ -75,54 +75,46 @@ func (c *Client) Chain() defs.BSVNetwork {
 // GetInfo returns an InfoResponse with chain id, block heights, ingest endpoints, and installed package metadata.
 // GetInfo returns an error if the request fails, responds with non-200 status, or response indicates failure.
 func (c *Client) GetInfo(ctx context.Context) (*InfoResponse, error) {
-	var resp ResponseFrame[InfoResponse]
-	if result, err := c.resty.R().
-		SetContext(ctx).
-		SetResult(&resp).
-		Get(c.url + "/getInfo"); err != nil {
-		return nil, fmt.Errorf("getinfo request: %w", err)
-	} else if result.StatusCode() != 200 {
-		c.logger.DebugContext(ctx, "chaintracks getinfo non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
-		return nil, fmt.Errorf("getinfo HTTP status: %d", result.StatusCode())
-	} else if !resp.IsSuccess() {
-		return nil, fmt.Errorf("getinfo response not successful: status: %q", resp.Status)
+	if resp, err := getRequest[InfoResponse](c, ctx, c.url+"/getInfo"); err != nil {
+		return nil, fmt.Errorf("getinfo: %w", err)
+	} else {
+		return resp, nil
 	}
-
-	return resp.Value, nil
 }
 
 // GetPresentHeight queries the backend for the current blockchain height and returns it as a uint value.
 // Returns an error if the request fails, the HTTP status is not 200, or the response indicates failure.
 func (c *Client) GetPresentHeight(ctx context.Context) (uint, error) {
-	var resp ResponseFrame[uint]
-	if result, err := c.resty.R().
-		SetContext(ctx).
-		SetResult(&resp).
-		Get(c.url + "/getPresentHeight"); err != nil {
-		return 0, fmt.Errorf("getPresentHeight request: %w", err)
-	} else if result.StatusCode() != 200 {
-		c.logger.DebugContext(ctx, "chaintracks getPresentHeight non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
-		return 0, fmt.Errorf("getPresentHeight HTTP status: %d", result.StatusCode())
-	} else if !resp.IsSuccess() {
-		return 0, fmt.Errorf("getPresentHeight response not successful: status: %q", resp.Status)
+	if resp, err := getRequest[uint](c, ctx, c.url+"/getPresentHeight"); err != nil {
+		return 0, fmt.Errorf("getPresentHeight: %w", err)
+	} else {
+		return *resp, nil
 	}
-
-	return *resp.Value, nil
 }
 
+// FindChainTipHashHex retrieves the current chain tip block hash in hex format from the backend service.
+// Returns the hash as a lowercase hexadecimal string, or an error if the request or response fails.
 func (c *Client) FindChainTipHashHex(ctx context.Context) (string, error) {
-	var resp ResponseFrame[string]
-	if result, err := c.resty.R().
+	if resp, err := getRequest[string](c, ctx, c.url+"/findChainTipHashHex"); err != nil {
+		return "", fmt.Errorf("findChainTipHashHex: %w", err)
+	} else {
+		return *resp, nil
+	}
+}
+
+func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
+	var resp ResponseFrame[T]
+	result, err := c.resty.R().
 		SetContext(ctx).
 		SetResult(&resp).
-		Get(c.url + "/findChainTipHashHex"); err != nil {
-		return "", fmt.Errorf("findChainTipHashHex request: %w", err)
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("request: %w", err)
 	} else if result.StatusCode() != 200 {
-		c.logger.DebugContext(ctx, "chaintracks findChainTipHashHex non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
-		return "", fmt.Errorf("findChainTipHashHex HTTP status: %d", result.StatusCode())
+		c.logger.DebugContext(ctx, "chaintracks non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
+		return nil, fmt.Errorf("HTTP status: %d", result.StatusCode())
 	} else if !resp.IsSuccess() {
-		return "", fmt.Errorf("findChainTipHashHex response not successful: status: %q", resp.Status)
+		return nil, fmt.Errorf("response not successful: status: %q", resp.Status)
 	}
-
-	return *resp.Value, nil
+	return resp.Value, nil
 }
