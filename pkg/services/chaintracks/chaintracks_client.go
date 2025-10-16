@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -84,8 +85,8 @@ func (c *Client) GetInfo(ctx context.Context) (*InfoResponse, error) {
 
 // GetPresentHeight queries the backend for the current blockchain height and returns it as a uint value.
 // Returns an error if the request fails, the HTTP status is not 200, or the response indicates failure.
-func (c *Client) GetPresentHeight(ctx context.Context) (uint, error) {
-	if resp, err := getRequest[uint](c, ctx, c.url+"/getPresentHeight"); err != nil {
+func (c *Client) GetPresentHeight(ctx context.Context) (uint32, error) {
+	if resp, err := getRequest[uint32](c, ctx, c.url+"/getPresentHeight"); err != nil {
 		return 0, fmt.Errorf("getPresentHeight: %w", err)
 	} else {
 		return *resp, nil
@@ -110,6 +111,14 @@ func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error
 	}
 }
 
+func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*BlockHeader, error) {
+	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForHeight?height=%d", c.url, height)); err != nil {
+		return nil, fmt.Errorf("findHeaderHexForHeight: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 	var resp ResponseFrame[T]
 	result, err := c.resty.R().
@@ -123,6 +132,9 @@ func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 		return nil, fmt.Errorf("HTTP status: %d", result.StatusCode())
 	} else if !resp.IsSuccess() {
 		return nil, fmt.Errorf("response not successful: status: %q", resp.Status)
+	} else if resp.IsNotFound() {
+		return nil, fmt.Errorf("response value missing: %w", wdk.ErrNotFoundError)
 	}
+
 	return resp.Value, nil
 }

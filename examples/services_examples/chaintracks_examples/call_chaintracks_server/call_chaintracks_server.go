@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
@@ -23,9 +24,10 @@ func main() {
 	chaintr := chaintracks.NewClient(slog.Default(), defs.NetworkMainnet, chaintracksURL)
 
 	getInfo(chaintr)
-	getPresentHeight(chaintr)
+	height := getPresentHeight(chaintr)
 	findChainTipHashHex(chaintr)
 	findChainTipHeaderHex(chaintr)
+	findHeaderHexForHeight(chaintr, height-1)
 }
 
 func getInfo(chaintr *chaintracks.Client) {
@@ -37,13 +39,15 @@ func getInfo(chaintr *chaintracks.Client) {
 	show.Info("Chaintracks Info", info)
 }
 
-func getPresentHeight(chaintr *chaintracks.Client) {
+func getPresentHeight(chaintr *chaintracks.Client) uint32 {
 	height, err := chaintr.GetPresentHeight(context.Background())
 	if err != nil {
 		panic("failed to get Chaintracks present height: " + err.Error())
 	}
 
 	show.Info("Chaintracks Present Height", height)
+
+	return height
 }
 
 func findChainTipHashHex(chaintr *chaintracks.Client) {
@@ -62,4 +66,13 @@ func findChainTipHeaderHex(chaintr *chaintracks.Client) {
 	}
 
 	show.Info("Chaintracks Chain Tip Header", header)
+}
+
+func findHeaderHexForHeight(chaintr *chaintracks.Client, height uint32) {
+	header, err := chaintr.FindHeaderHexForHeight(context.Background(), height)
+	if err != nil {
+		panic("failed to get Chaintracks header for height: " + err.Error())
+	}
+
+	show.Info(fmt.Sprintf("Chaintracks Header for Height: %d", height), header)
 }

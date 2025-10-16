@@ -49,5 +49,9 @@ type ResponseFrame[T any] struct {
 
 // IsSuccess returns true if the response status is "success" and a non-nil value payload is present.
 func (c *ResponseFrame[T]) IsSuccess() bool {
-	return c.Status == "success" && c.Value != nil
+	return c.Status == "success"
+}
+
+func (c *ResponseFrame[T]) IsNotFound() bool {
+	return c.Status == "success" && c.Value == nil
 }
