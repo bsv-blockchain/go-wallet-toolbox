@@ -90,3 +90,20 @@ func (c *Client) GetInfo(ctx context.Context) (*InfoResponse, error) {
 
 	return resp.Value, nil
 }
+
+func (c *Client) GetPresentHeight(ctx context.Context) (uint, error) {
+	var resp ResponseFrame[uint]
+	if result, err := c.resty.R().
+		SetContext(ctx).
+		SetResult(&resp).
+		Get(c.url + "/getPresentHeight"); err != nil {
+		return 0, fmt.Errorf("getPresentHeight request: %w", err)
+	} else if result.StatusCode() != 200 {
+		c.logger.DebugContext(ctx, "chaintracks getPresentHeight non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
+		return 0, fmt.Errorf("getPresentHeight HTTP status: %d", result.StatusCode())
+	} else if !resp.IsSuccess() {
+		return 0, fmt.Errorf("getPresentHeight response not successful: status: %q", resp.Status)
+	}
+
+	return *resp.Value, nil
+}

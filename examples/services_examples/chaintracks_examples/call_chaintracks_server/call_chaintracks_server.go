@@ -17,18 +17,29 @@ const (
 )
 
 func main() {
-	ctx := context.Background()
-
 	// Set to LevelDebug to see http request logs
 	// slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	chaintr := chaintracks.NewClient(slog.Default(), defs.NetworkMainnet, chaintracksURL)
 
-	info, err := chaintr.GetInfo(ctx)
+	getInfo(chaintr)
+	getPresentHeight(chaintr)
+}
+
+func getInfo(chaintr *chaintracks.Client) {
+	info, err := chaintr.GetInfo(context.Background())
 	if err != nil {
 		panic("failed to get Chaintracks info: " + err.Error())
 	}
 
 	show.Info("Chaintracks Info", info)
+}
 
+func getPresentHeight(chaintr *chaintracks.Client) {
+	height, err := chaintr.GetPresentHeight(context.Background())
+	if err != nil {
+		panic("failed to get Chaintracks present height: " + err.Error())
+	}
+
+	show.Info("Chaintracks Present Height", height)
 }
