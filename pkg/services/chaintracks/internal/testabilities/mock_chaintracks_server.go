@@ -16,9 +16,9 @@ type ResponseBuilder interface {
 	WithJSONResponse(statusCode int, body any) MockServer
 }
 
-type mockServer struct{
+type mockServer struct {
 	testing.TB
-	transport                    *httpmock.MockTransport
+	transport *httpmock.MockTransport
 }
 
 func newMockServer(t testing.TB) MockServer {
