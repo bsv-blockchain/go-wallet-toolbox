@@ -39,10 +39,10 @@ func NewClient(logger *slog.Logger, chain defs.BSVNetwork, url string, opts ...f
 		panic(fmt.Errorf("invalid chain %q: %w", chain, err))
 	}
 
+	url = strings.TrimRight(url, "/")
 	if url == "" {
 		panic("chaintracks url is required")
 	}
-	url = strings.TrimRight(url, "/")
 
 	logger = logging.Child(logger, "chaintracks_client")
 
@@ -66,7 +66,7 @@ func NewClient(logger *slog.Logger, chain defs.BSVNetwork, url string, opts ...f
 
 // Chain returns the BSV network this client is configured for.
 // It just returns the value passed to NewClient, it does not make any network requests.
-// To check if the server actually supports this network, use the GetInfo.
+// To check if the server actually supports this network, call GetInfo().
 func (c *Client) Chain() defs.BSVNetwork {
 	return c.chain
 }
@@ -82,8 +82,8 @@ func (c *Client) GetInfo(ctx context.Context) (*InfoResponse, error) {
 		Get(c.url + "/getInfo"); err != nil {
 		return nil, fmt.Errorf("getinfo request: %w", err)
 	} else if result.StatusCode() != 200 {
-		c.logger.DebugContext(ctx, "chaintracks getinfo non-200 status", "status", result.StatusCode(), "body", result.String())
-		return nil, fmt.Errorf("getinfo status: %d", result.StatusCode())
+		c.logger.DebugContext(ctx, "chaintracks getinfo non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
+		return nil, fmt.Errorf("getinfo HTTP status: %d", result.StatusCode())
 	} else if !resp.IsSuccess() {
 		return nil, fmt.Errorf("getinfo response not successful: status: %q", resp.Status)
 	}
