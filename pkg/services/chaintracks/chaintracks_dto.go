@@ -19,6 +19,7 @@ type PackageInfo struct {
 	Version string `json:"version"`
 }
 
+// BaseBlockHeader defines the essential fields for a blockchain block header, including version, hash links, and metadata.
 type BaseBlockHeader struct {
 	Version      uint32 `json:"version"`
 	PreviousHash string `json:"previousHash"`
@@ -27,6 +28,7 @@ type BaseBlockHeader struct {
 	Bits         uint32 `json:"bits"`
 	Nonce        uint32 `json:"nonce"`
 
+	// TODO: Below fields are not part of TS-BaseBlockHeader, even though they are returned from server - check if they are always present
 	HeaderID         uint   `json:"headerId"`
 	PreviousHeaderID *uint  `json:"previousHeaderId,omitempty"`
 	Chainwork        string `json:"chainwork"`
@@ -34,6 +36,8 @@ type BaseBlockHeader struct {
 	IsActive         bool   `json:"isActive"`
 }
 
+// BlockHeader represents a full blockchain block header, including base header fields, block height, and block hash.
+// It extends BaseBlockHeader with additional height and hash information for block identification and lookup.
 type BlockHeader struct {
 	BaseBlockHeader
 	Height uint32 `json:"height"`
@@ -47,11 +51,13 @@ type ResponseFrame[T any] struct {
 	Value  *T     `json:"value,omitempty"`
 }
 
-// IsSuccess returns true if the response status is "success" and a non-nil value payload is present.
+// IsSuccess returns true if the response status is "success"
 func (c *ResponseFrame[T]) IsSuccess() bool {
 	return c.Status == "success"
 }
 
+// IsNotFound returns true if the response status is "success" and the value is nil, indicating a not found result.
+// NOTE: Current server implementation returns HTTP 200 with {"status":"success"} for not found cases.
 func (c *ResponseFrame[T]) IsNotFound() bool {
 	return c.Status == "success" && c.Value == nil
 }

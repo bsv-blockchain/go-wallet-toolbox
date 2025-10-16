@@ -103,6 +103,8 @@ func (c *Client) FindChainTipHashHex(ctx context.Context) (string, error) {
 	}
 }
 
+// FindChainTipHeaderHex retrieves the current chain tip block header in hex format from the backend service.
+// Returns a BlockHeader struct with header fields, or an error if the request or response is unsuccessful.
 func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error) {
 	if resp, err := getRequest[BlockHeader](c, ctx, c.url+"/findChainTipHeaderHex"); err != nil {
 		return nil, fmt.Errorf("findChainTipHeaderHex: %w", err)
@@ -111,6 +113,9 @@ func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error
 	}
 }
 
+// FindHeaderHexForHeight queries the backend for the block header at the given height and returns a BlockHeader struct.
+// Returns an error if the request is unsuccessful, the height is not found, or the backend returns a non-200 status.
+// The returned BlockHeader includes header fields, chain height, and block hash, or nil if not found.
 func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*BlockHeader, error) {
 	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForHeight?height=%d", c.url, height)); err != nil {
 		return nil, fmt.Errorf("findHeaderHexForHeight: %w", err)
