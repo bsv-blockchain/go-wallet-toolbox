@@ -25,7 +25,7 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.8.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0 // indirect
-	github.com/go-co-op/gocron/v2 v2.16.6 // indirect
+	github.com/go-co-op/gocron/v2 v2.17.0 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

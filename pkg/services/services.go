@@ -49,8 +49,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		RestyClientFactory: httpx.NewRestyClientFactory(),
 	}, opts...)
 
-	if config.Chain == "" {
-		panic("chain is required")
+	if err := config.Chain.Validate(); err != nil {
+		panic(fmt.Errorf("invalid chain %q: %w", config.Chain, err))
 	}
 
 	var predefined []Named[Implementation]
