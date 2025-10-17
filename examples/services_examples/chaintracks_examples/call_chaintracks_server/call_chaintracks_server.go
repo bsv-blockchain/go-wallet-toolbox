@@ -25,9 +25,10 @@ func main() {
 
 	getInfo(chaintr)
 	height := getPresentHeight(chaintr)
-	findChainTipHashHex(chaintr)
+	tipHash := findChainTipHashHex(chaintr)
 	findChainTipHeaderHex(chaintr)
 	findHeaderHexForHeight(chaintr, height-1)
+	findHeaderHexForBlockHash(chaintr, tipHash)
 }
 
 func getInfo(chaintr *chaintracks.Client) {
@@ -50,13 +51,15 @@ func getPresentHeight(chaintr *chaintracks.Client) uint32 {
 	return height
 }
 
-func findChainTipHashHex(chaintr *chaintracks.Client) {
+func findChainTipHashHex(chaintr *chaintracks.Client) string {
 	hashHex, err := chaintr.FindChainTipHashHex(context.Background())
 	if err != nil {
 		panic("failed to get Chaintracks chain tip hash: " + err.Error())
 	}
 
 	show.Info("Chaintracks Chain Tip Hash", hashHex)
+
+	return hashHex
 }
 
 func findChainTipHeaderHex(chaintr *chaintracks.Client) {
@@ -75,4 +78,13 @@ func findHeaderHexForHeight(chaintr *chaintracks.Client, height uint32) {
 	}
 
 	show.Info(fmt.Sprintf("Chaintracks Header for Height: %d", height), header)
+}
+
+func findHeaderHexForBlockHash(chaintr *chaintracks.Client, hash string) {
+	header, err := chaintr.FindHeaderHexForBlockHash(context.Background(), hash)
+	if err != nil {
+		panic("failed to get Chaintracks header for block hash: " + err.Error())
+	}
+
+	show.Info(fmt.Sprintf("Chaintracks Header for Block Hash: %s", hash), header)
 }

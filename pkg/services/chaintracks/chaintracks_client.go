@@ -124,6 +124,14 @@ func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*Bl
 	}
 }
 
+func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*BlockHeader, error) {
+	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForBlockHash?hash=%s", c.url, hash)); err != nil {
+		return nil, fmt.Errorf("findHeaderHexForBlockHash: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 	var resp ResponseFrame[T]
 	result, err := c.resty.R().
