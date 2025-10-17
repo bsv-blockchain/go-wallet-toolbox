@@ -155,6 +155,46 @@ func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
 	}
 }
 
+func TestChainBaseBlockHeader_ToAndFromBytes(t *testing.T) {
+	tests := map[string]struct {
+		block *wdk.ChainBaseBlockHeader
+	}{
+		"valid block header - height 3000, with version 1, time 1233748223, bits 486604799, nonce 2650070842 and known hashes": {
+			block: &wdk.ChainBaseBlockHeader{
+				Version:      1,
+				PreviousHash: "00000000690d22ab76cbb5eca33cb018e36aebe4648e6ed79791aefe0f936e07",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+				Time:         1233748223,
+				Bits:         486604799,
+				Nonce:        2650070842,
+			},
+		},
+		"valid block header - height 5000, with version 1, time 1235123456, bits 486604799, nonce 1234567890 and known hashes": {
+			block: &wdk.ChainBaseBlockHeader{
+				Version:      1,
+				PreviousHash: "00000000690d22ab76cbb5eca33cb018e36aebe4648e6ed79791aefe0f936e07",
+				MerkleRoot:   "00000000a1496d802a4a4074590ec34074b76a8ea6b81c1c9ad4192d3c2ea226",
+				Time:         1235123456,
+				Bits:         486604799,
+				Nonce:        1234567890,
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// when:
+			bytes, err := tc.block.Bytes()
+			assert.NoError(t, err)
+
+			actualBlock, err := wdk.ChainBaseBlockHeaderFromBytes(bytes)
+
+			// then:
+			assert.NoError(t, err)
+			assert.Equal(t, tc.block, actualBlock)
+		})
+	}
+}
+
 func assertBlockHash(t *testing.T, expectedHash string, fingerprint []byte) {
 	actualHash := chainhash.DoubleHashH(fingerprint)
 	assert.Equal(t, expectedHash, actualHash.String(), "Double hash does not match expected value")

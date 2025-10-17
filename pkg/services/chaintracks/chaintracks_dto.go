@@ -1,6 +1,13 @@
 package chaintracks
 
-import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+import (
+	"encoding/hex"
+	"fmt"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
+)
 
 // InfoResponse contains details about the BSV network, block heights, storage backend, endpoints, and installed packages.
 type InfoResponse struct {
@@ -27,8 +34,21 @@ type BaseBlockHeader struct {
 	Time         uint32 `json:"time"`
 	Bits         uint32 `json:"bits"`
 	Nonce        uint32 `json:"nonce"`
+}
 
-	// TODO: Below fields are not part of TS-BaseBlockHeader, even though they are returned from server - check if they are always present
+func NewBaseBlockHeaderFromWDK(bh *wdk.ChainBaseBlockHeader) BaseBlockHeader {
+	return BaseBlockHeader{
+		Version:      bh.Version,
+		PreviousHash: bh.PreviousHash,
+		MerkleRoot:   bh.MerkleRoot,
+		Time:         bh.Time,
+		Bits:         bh.Bits,
+		Nonce:        bh.Nonce,
+	}
+}
+
+// BlockHeaderInfo provides summarized metadata for a block header including identifiers, chainwork, and chain tip status.
+type BlockHeaderInfo struct {
 	HeaderID         uint   `json:"headerId"`
 	PreviousHeaderID *uint  `json:"previousHeaderId,omitempty"`
 	Chainwork        string `json:"chainwork"`
@@ -40,6 +60,8 @@ type BaseBlockHeader struct {
 // It extends BaseBlockHeader with additional height and hash information for block identification and lookup.
 type BlockHeader struct {
 	BaseBlockHeader
+	BlockHeaderInfo
+
 	Height uint32 `json:"height"`
 	Hash   string `json:"hash"`
 }
@@ -60,4 +82,33 @@ func (c *ResponseFrame[T]) IsSuccess() bool {
 // NOTE: Current server implementation returns HTTP 200 with {"status":"success"} for not found cases.
 func (c *ResponseFrame[T]) IsNotFound() bool {
 	return c.Status == "success" && c.Value == nil
+}
+
+type HashedBaseHeaders string
+
+func (h HashedBaseHeaders) ToBaseBlockHeaders() ([]*BaseBlockHeader, error) {
+	data, err := hex.DecodeString(string(h))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode hex string: %w", err)
+	}
+
+	const headerLength = 80
+	if len(data)%headerLength != 0 {
+		return nil, fmt.Errorf("decoded data length %d is not a multiple of header length %d", len(data), headerLength)
+	}
+
+	numHeaders := len(data) / headerLength
+	hashes := make([]*BaseBlockHeader, numHeaders)
+	for i := 0; i < numHeaders; i++ {
+		start := i * headerLength
+		end := start + headerLength
+		chainBaseHeader, err := wdk.ChainBaseBlockHeaderFromBytes(data[start:end])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse block header at index %d: %w", i, err)
+		}
+
+		hashes[i] = to.Ptr(NewBaseBlockHeaderFromWDK(chainBaseHeader))
+	}
+
+	return hashes, nil
 }

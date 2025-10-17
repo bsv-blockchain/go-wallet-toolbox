@@ -132,6 +132,15 @@ func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*B
 	}
 }
 
+
+func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (HashedBaseHeaders, error) {
+	if resp, err := getRequest[HashedBaseHeaders](c, ctx, fmt.Sprintf("%s/getHeaders?height=%d&count=%d", c.url, height, count)); err != nil {
+		return "", fmt.Errorf("getHeaders: %w", err)
+	} else {
+		return *resp, nil
+	}
+}
+
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 	var resp ResponseFrame[T]
 	result, err := c.resty.R().

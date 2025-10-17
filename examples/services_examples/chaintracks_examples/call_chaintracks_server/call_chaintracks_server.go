@@ -29,6 +29,9 @@ func main() {
 	findChainTipHeaderHex(chaintr)
 	findHeaderHexForHeight(chaintr, height-1)
 	findHeaderHexForBlockHash(chaintr, tipHash)
+
+	const numberOfHeadersToGet = 5
+	getHeaders(chaintr, height-numberOfHeadersToGet, numberOfHeadersToGet)
 }
 
 func getInfo(chaintr *chaintracks.Client) {
@@ -87,4 +90,21 @@ func findHeaderHexForBlockHash(chaintr *chaintracks.Client, hash string) {
 	}
 
 	show.Info(fmt.Sprintf("Chaintracks Header for Block Hash: %s", hash), header)
+}
+
+func getHeaders(chaintr *chaintracks.Client, height uint32, count uint32) {
+	hashedHeaders, err := chaintr.GetHeaders(context.Background(), height, count)
+	if err != nil {
+		panic("failed to get Chaintracks headers: " + err.Error())
+	}
+
+	baseHeaders, err := hashedHeaders.ToBaseBlockHeaders()
+	if err != nil {
+		panic("failed to convert hashed headers to base headers: " + err.Error())
+	}
+
+	show.Info(fmt.Sprintf("Got %d Chaintracks Base Headers", len(baseHeaders)), baseHeaders)
+	for i, header := range baseHeaders {
+		show.Info(fmt.Sprintf("Header index: %d", i), *header)
+	}
 }

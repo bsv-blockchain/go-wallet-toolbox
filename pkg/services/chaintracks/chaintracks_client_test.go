@@ -457,16 +457,84 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 	}
 }
 
+func TestChaintracksClient_GetHeaders(t *testing.T) {
+	tests := map[string]struct {
+		ResponseCode int
+		ResponseBody any
+		Then         func(t *testing.T, hashedHeaders chaintracks.HashedBaseHeaders, err error)
+	}{
+		"should return correct hashed headers": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[chaintracks.HashedBaseHeaders]{
+				Status: "success",
+				Value:  to.Ptr(chaintracks.HashedBaseHeaders(correctTwoHashedBaseHeaders)),
+			},
+			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+				require.NoError(t, err)
+				require.Equal(t, correctTwoHashedBaseHeaders, string(header))
+			},
+		},
+		"should return error on non-200 response": {
+			ResponseCode: 500,
+			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+				require.Error(t, err)
+				require.Empty(t, header)
+			},
+		},
+		"should return error on invalid JSON": {
+			ResponseCode: 200,
+			ResponseBody: `{"status":"success","value":{invalid json}}`,
+			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+				require.Error(t, err)
+				require.Empty(t, header)
+			},
+		},
+		"should return error on error status in response": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[chaintracks.HashedBaseHeaders]{
+				Status: "error",
+				Value:  nil,
+			},
+			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+				require.Error(t, err)
+				require.Empty(t, header)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+
+			mockServer := given.MockServer()
+			mockServer.
+				WillRespondOn("/getHeaders?height=919053&count=10", "GET").
+				WithJSONResponse(test.ResponseCode, test.ResponseBody)
+
+			chaintr := chaintracks.NewClient(logging.NewTestLogger(t), defs.NetworkMainnet, "http://mock-chaintracks.com", chaintracks.WithRestyClient(mockServer.HttpClient()))
+
+			// when:
+			blockHeader, err := chaintr.GetHeaders(t.Context(), 919053, 10)
+
+			// then:
+			test.Then(t, blockHeader, err)
+		})
+	}
+}
+
 var correctBlockHeader = &chaintracks.BlockHeader{
 	Height: 918934,
 	Hash:   "00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31",
 	BaseBlockHeader: chaintracks.BaseBlockHeader{
-		Version:          594616320,
-		PreviousHash:     "000000000000000007dce4ee864f0569066bcded7a6a3eca9b977eebf9cb3926",
-		MerkleRoot:       "f4afaab11ec4921a59c9eb1e49435aeaaef6e4396ee9d4a77ef88fdd60057928",
-		Time:             1760620895,
-		Bits:             405131341,
-		Nonce:            2411550733,
+		Version:      594616320,
+		PreviousHash: "000000000000000007dce4ee864f0569066bcded7a6a3eca9b977eebf9cb3926",
+		MerkleRoot:   "f4afaab11ec4921a59c9eb1e49435aeaaef6e4396ee9d4a77ef88fdd60057928",
+		Time:         1760620895,
+		Bits:         405131341,
+		Nonce:        2411550733,
+	},
+	BlockHeaderInfo: chaintracks.BlockHeaderInfo{
 		HeaderID:         2025,
 		PreviousHeaderID: to.Ptr[uint](2024),
 		Chainwork:        "0000000000000000000000000000000000000000016934b62084adb28c318e3c",
