@@ -102,7 +102,7 @@ func (h HashedBaseHeaders) ToBaseBlockHeaders() ([]*BaseBlockHeader, error) {
 		return nil, fmt.Errorf("failed to decode hex string: %w", err)
 	}
 
-	const headerLength = 80
+	const headerLength = wdk.BlockHeaderLength
 	if len(data)%headerLength != 0 {
 		return nil, fmt.Errorf("decoded data length %d is not a multiple of header length %d", len(data), headerLength)
 	}
