@@ -54,7 +54,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
-func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
 	url, err := headerByHeight(b.cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("error building URL: %w", err)
@@ -84,7 +84,7 @@ func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height ui
 		return nil, fmt.Errorf("expected a non-empty block header at height %d. Verify the BHS API and query parameters used", height)
 	}
 
-	return first.ConvertChainBaseBlockHeader(), nil
+	return first.ConvertChainBlockHeader(), nil
 }
 
 func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {

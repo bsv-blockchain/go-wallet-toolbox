@@ -9,7 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-func (woc *WhatsOnChain) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (woc *WhatsOnChain) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
 	var dst dto.BlockHeader
 	req := woc.httpClient.
 		R().
@@ -29,9 +29,9 @@ func (woc *WhatsOnChain) ChainHeaderByHeight(ctx context.Context, height uint32)
 		return nil, fmt.Errorf("expected a non-empty block header at height %d", height)
 	}
 
-	base, err := dst.ConvertToChainBaseBlockHeader()
+	blockHeader, err := dst.ConvertToChainBlockHeader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert block header response by height from WoC to a chain base block header: %w", err)
 	}
-	return base, nil
+	return blockHeader, nil
 }

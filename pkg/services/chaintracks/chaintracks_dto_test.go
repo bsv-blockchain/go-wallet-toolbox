@@ -39,7 +39,7 @@ func TestDTO_ToBaseBlockHeaders(t *testing.T) {
 			},
 		},
 		"single header hashed": {
-			hashed: correctTwoHashedBaseHeaders[:80],
+			hashed: correctTwoHashedBaseHeaders[:2*80], // first 80 bytes (160 hex chars)
 			expected: []chaintracks.BaseBlockHeader{
 				{
 					Version:      0x2746c000,

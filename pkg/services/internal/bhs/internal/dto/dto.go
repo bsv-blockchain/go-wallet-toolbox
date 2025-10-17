@@ -20,15 +20,17 @@ type BlockHeaderByHeightResponse struct {
 
 func (b *BlockHeaderByHeightResponse) IsZero() bool { return *b == BlockHeaderByHeightResponse{} }
 
-func (b *BlockHeaderByHeightResponse) ConvertChainBaseBlockHeader() *wdk.ChainBaseBlockHeader {
-	return &wdk.ChainBaseBlockHeader{
-		Version:      b.Version,
-		PreviousHash: b.PreviousBlock,
-		MerkleRoot:   b.MerkleRoot,
-		Time:         b.Timestamp,
-		Bits:         b.DifficultyTarget,
-		Nonce:        b.Nonce,
-		Hash:         b.Hash,
+func (b *BlockHeaderByHeightResponse) ConvertChainBlockHeader() *wdk.ChainBlockHeader {
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      b.Version,
+			PreviousHash: b.PreviousBlock,
+			MerkleRoot:   b.MerkleRoot,
+			Time:         b.Timestamp,
+			Bits:         b.DifficultyTarget,
+			Nonce:        b.Nonce,
+		},
+		Hash: b.Hash,
 	}
 }
 
@@ -60,7 +62,6 @@ func (t *TipStateResponse) ConvertToChainBlockHeader() *wdk.ChainBlockHeader {
 			MerkleRoot:   t.Header.MerkleRoot,
 			Time:         t.Header.Timestamp,
 			Nonce:        t.Header.Nonce,
-			Hash:         t.Header.Hash,
 		},
 		Height: t.Height,
 		Hash:   t.Header.Hash,

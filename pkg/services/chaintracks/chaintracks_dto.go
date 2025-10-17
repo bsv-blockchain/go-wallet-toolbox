@@ -36,6 +36,8 @@ type BaseBlockHeader struct {
 	Nonce        uint32 `json:"nonce"`
 }
 
+// NewBaseBlockHeaderFromWDK creates a BaseBlockHeader from a given wdk.ChainBaseBlockHeader instance.
+// The existence of those two types is to decouple the chaintracks service DTOs from the WDK's models.
 func NewBaseBlockHeaderFromWDK(bh *wdk.ChainBaseBlockHeader) BaseBlockHeader {
 	return BaseBlockHeader{
 		Version:      bh.Version,
@@ -84,8 +86,16 @@ func (c *ResponseFrame[T]) IsNotFound() bool {
 	return c.Status == "success" && c.Value == nil
 }
 
+// HashedBaseHeaders represents a hex-encoded string of one or more concatenated Bitcoin base block headers.
+// Used for efficient transport of serialized block header data in API responses or storage contexts.
+// To obtain individual block headers, methods should decode and parse this type appropriately.
+// An empty value denotes no serialized block headers are present.
 type HashedBaseHeaders string
 
+// ToBaseBlockHeaders decodes the hex-encoded string and returns a slice of BaseBlockHeader pointers or an error.
+// Returns an error if the string is not valid hex or its length is not a multiple of the block header length (80 bytes).
+// Each decoded header is parsed into a BaseBlockHeader struct and included in the result slice.
+// If the input is an empty string, an empty slice is returned without error.
 func (h HashedBaseHeaders) ToBaseBlockHeaders() ([]*BaseBlockHeader, error) {
 	data, err := hex.DecodeString(string(h))
 	if err != nil {

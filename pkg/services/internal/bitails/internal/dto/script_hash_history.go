@@ -35,19 +35,21 @@ type BlockHeaderByHeight struct {
 
 func (b *BlockHeaderByHeight) IsZero() bool { return *b == BlockHeaderByHeight{} }
 
-func (b *BlockHeaderByHeight) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader, error) {
+func (b *BlockHeaderByHeight) ConvertToChainBlockHeader() (*wdk.ChainBlockHeader, error) {
 	bits, err := strconv.ParseUint(b.Bits, 16, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid bits value %q: expected hex string convertible to uint32: %w", b.Bits, err)
 	}
 
-	return &wdk.ChainBaseBlockHeader{
-		Version:      b.Version,
-		PreviousHash: b.PreviousBlockHash,
-		MerkleRoot:   b.MerkleRoot,
-		Time:         b.Time,
-		Bits:         uint32(bits),
-		Nonce:        b.Nonce,
-		Hash:         b.Hash,
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      b.Version,
+			PreviousHash: b.PreviousBlockHash,
+			MerkleRoot:   b.MerkleRoot,
+			Time:         b.Time,
+			Bits:         uint32(bits),
+			Nonce:        b.Nonce,
+		},
+		Hash: b.Hash,
 	}, nil
 }

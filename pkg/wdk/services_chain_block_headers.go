@@ -7,6 +7,9 @@ import (
 	"fmt"
 )
 
+// BlockHeaderLength defines the fixed byte size of a block header, commonly used in blockchain data structures.
+const BlockHeaderLength = 80
+
 // ChainBaseBlockHeader represents the raw fields of a Bitcoin block header,
 // corresponding to the 80-byte serialized format used in the Bitcoin protocol.
 // The double SHA-256 hash of this serialized data is the block's identifier (hash)
@@ -97,7 +100,7 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("'merkle root' field should be a 32 byte-hex length")
 	}
 
-	buff := bytes.NewBuffer(make([]byte, 0, 80))
+	buff := bytes.NewBuffer(make([]byte, 0, BlockHeaderLength))
 	if err := writeLittleEndianOrder(buff, c.Version); err != nil {
 		return nil, fmt.Errorf("failed to write the 'version' field bytes in little-endian order: %w", err)
 	}
@@ -156,9 +159,11 @@ func readLittleEndianOrder[T any](buff *bytes.Buffer) (T, error) {
 	return v, nil
 }
 
+// ChainBaseBlockHeaderFromBytes parses an 80-byte slice as a Bitcoin block header and returns a ChainBaseBlockHeader.
+// Returns an error if the byte slice is not exactly 80 bytes or if decoding individual fields fails.
 func ChainBaseBlockHeaderFromBytes(data []byte) (*ChainBaseBlockHeader, error) {
-	if len(data) != 80 {
-		return nil, fmt.Errorf("data length %d is not equal to block header length 80", len(data))
+	if len(data) != BlockHeaderLength {
+		return nil, fmt.Errorf("data length %d is not equal to block header length %d", len(data), BlockHeaderLength)
 	}
 
 	buff := bytes.NewBuffer(data)

@@ -96,7 +96,6 @@ func TestBlockHeadersService_FindChainTipHeader(t *testing.T) {
 				MerkleRoot:   def.MerkleRoot,
 				Time:         def.Timestamp,
 				Nonce:        def.Nonce,
-				Hash:         def.Hash,
 			},
 			Height: def.Height,
 			Hash:   def.Hash,

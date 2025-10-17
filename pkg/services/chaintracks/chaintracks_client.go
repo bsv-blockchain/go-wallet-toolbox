@@ -124,6 +124,8 @@ func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*Bl
 	}
 }
 
+// FindHeaderHexForBlockHash retrieves the block header for the specified block hash as a BlockHeader struct.
+// Returns an error if the block hash is invalid, not found, or if the backend request is unsuccessful.
 func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*BlockHeader, error) {
 	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForBlockHash?hash=%s", c.url, hash)); err != nil {
 		return nil, fmt.Errorf("findHeaderHexForBlockHash: %w", err)
@@ -132,7 +134,10 @@ func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*B
 	}
 }
 
-
+// GetHeaders retrieves a sequence of block headers starting at the specified height, limited to the given count.
+// Returns the headers as a HashedBaseHeaders value or an error if the request fails or the backend response is unsuccessful.
+// NOTE: The returned HashedBaseHeaders is a hex-encoded string of concatenated block headers.
+// To convert to structured headers, call ToBaseBlockHeaders() on the result.
 func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (HashedBaseHeaders, error) {
 	if resp, err := getRequest[HashedBaseHeaders](c, ctx, fmt.Sprintf("%s/getHeaders?height=%d&count=%d", c.url, height, count)); err != nil {
 		return "", fmt.Errorf("getHeaders: %w", err)

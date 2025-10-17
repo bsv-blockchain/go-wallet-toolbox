@@ -35,7 +35,7 @@ type WalletServices struct {
 	isValidRootForHeightServices servicequeue.Queue2[*chainhash.Hash, uint32, bool]
 	currentHeightServices        servicequeue.Queue[uint32]
 	getScriptHashHistoryServices servicequeue.Queue1[string, *wdk.ScriptHistoryResult]
-	chainHeaderByHeightServices  servicequeue.Queue1[uint32, *wdk.ChainBaseBlockHeader]
+	chainHeaderByHeightServices  servicequeue.Queue1[uint32, *wdk.ChainBlockHeader]
 	hashToHeaderServices         servicequeue.Queue1[string, *wdk.ChainBlockHeader]
 	getUtxoStatusServices        servicequeue.Queue2[string, *transaction.Outpoint, *wdk.UtxoStatusResult]
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
@@ -321,7 +321,7 @@ func (s *WalletServices) RawTx(ctx context.Context, txID string) (wdk.RawTxResul
 }
 
 // ChainHeaderByHeight returns serialized block header for given height on active chain.
-func (s *WalletServices) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (s *WalletServices) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
 	h, err := s.chainHeaderByHeightServices.OneByOne(ctx, height)
 	if err != nil {
 		return nil, fmt.Errorf("unable to determine block header: all block header height services failed to return a result: %w", err)
