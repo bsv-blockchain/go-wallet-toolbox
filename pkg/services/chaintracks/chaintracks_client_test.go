@@ -599,6 +599,48 @@ func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
 	}
 }
 
+func TestChaintracksClient_AddHeader(t *testing.T) {
+	tests := map[string]struct {
+		ResponseCode int
+		ResponseBody any
+		Then         func(t *testing.T, err error)
+	}{
+		"should post successfully": {
+			ResponseCode: 200,
+			ResponseBody: `{"status":"success"}`,
+			Then: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		"should return error on non-200 response": {
+			ResponseCode: 500,
+			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			Then: func(t *testing.T, err error) {
+				require.Error(t, err)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+
+			mockServer := given.MockServer()
+			mockServer.
+				WillRespondOn("/addHeaderHex", "POST").
+				WithJSONResponse(test.ResponseCode, test.ResponseBody)
+
+			chaintr := chaintracks.NewClient(logging.NewTestLogger(t), defs.NetworkMainnet, "http://mock-chaintracks.com", chaintracks.WithRestyClient(mockServer.HttpClient()))
+
+			// when:
+			err := chaintr.AddHeader(t.Context(), correctBlockHeader.BaseBlockHeader)
+
+			// then:
+			test.Then(t, err)
+		})
+	}
+}
+
 var correctBlockHeader = &chaintracks.BlockHeader{
 	Height: 918934,
 	Hash:   "00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31",

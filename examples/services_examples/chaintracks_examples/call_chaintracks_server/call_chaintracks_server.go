@@ -28,12 +28,14 @@ func main() {
 	height := getPresentHeight(chaintr)
 	tipHash := findChainTipHashHex(chaintr)
 	findChainTipHeaderHex(chaintr)
-	findHeaderHexForHeight(chaintr, height-1)
+	tipHeader := findHeaderHexForHeight(chaintr, height-1)
 	findHeaderHexForBlockHash(chaintr, tipHash)
 
 	const numberOfHeadersToGet = 5
 	getHeaders(chaintr, height-numberOfHeadersToGet, numberOfHeadersToGet)
 
+	// For example purposes, re-add the tip header - in practice, you'd add new headers only
+	addHeaderHex(chaintr, tipHeader)
 }
 
 func getInfo(chaintr *chaintracks.Client) {
@@ -76,13 +78,14 @@ func findChainTipHeaderHex(chaintr *chaintracks.Client) {
 	show.Info("Chaintracks Chain Tip Header", header)
 }
 
-func findHeaderHexForHeight(chaintr *chaintracks.Client, height uint32) {
+func findHeaderHexForHeight(chaintr *chaintracks.Client, height uint32) *chaintracks.BlockHeader {
 	header, err := chaintr.FindHeaderHexForHeight(context.Background(), height)
 	if err != nil {
 		panic("failed to get Chaintracks header for height: " + err.Error())
 	}
 
 	show.Info(fmt.Sprintf("Chaintracks Header for Height: %d", height), header)
+	return header
 }
 
 func findHeaderHexForBlockHash(chaintr *chaintracks.Client, hash string) {
@@ -118,4 +121,13 @@ func getFiatExchangeRates(chaintr *chaintracks.Client) {
 	}
 
 	show.Info("Chaintracks Fiat Exchange Rates", rates)
+}
+
+func addHeaderHex(chaintr *chaintracks.Client, header *chaintracks.BlockHeader) {
+	err := chaintr.AddHeader(context.Background(), header.BaseBlockHeader)
+	if err != nil {
+		panic("failed to add Chaintracks header: " + err.Error())
+	}
+
+	show.Info("Successfully added Chaintracks Header", header)
 }
