@@ -7,6 +7,9 @@ import (
 	"fmt"
 )
 
+// BlockHeaderLength defines the fixed byte size of a block header, commonly used in blockchain data structures.
+const BlockHeaderLength = 80
+
 // ChainBaseBlockHeader represents the raw fields of a Bitcoin block header,
 // corresponding to the 80-byte serialized format used in the Bitcoin protocol.
 // The double SHA-256 hash of this serialized data is the block's identifier (hash)
@@ -39,10 +42,6 @@ type ChainBaseBlockHeader struct {
 	// Nonce is the 32-bit nonce used in the mining process to vary the block hash.
 	// Serialized as 4 bytes.
 	Nonce uint32
-
-	// Hash is the double SHA-256 hash of the serialized block header.
-	// Represented as a 32-byte hex string with reversed byte order.
-	Hash string
 }
 
 // ChainBlockHeader extends ChainBaseBlockHeader with metadata about the block's
@@ -101,7 +100,7 @@ func (c *ChainBaseBlockHeader) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("'merkle root' field should be a 32 byte-hex length")
 	}
 
-	buff := bytes.NewBuffer(make([]byte, 0, 80))
+	buff := bytes.NewBuffer(make([]byte, 0, BlockHeaderLength))
 	if err := writeLittleEndianOrder(buff, c.Version); err != nil {
 		return nil, fmt.Errorf("failed to write the 'version' field bytes in little-endian order: %w", err)
 	}
@@ -138,4 +137,75 @@ func writeLittleEndianOrder(buff *bytes.Buffer, v any) error {
 		return fmt.Errorf("failed to write the binary representation of data '%v' to buffer: %w", v, err)
 	}
 	return nil
+}
+
+func readReversedBytes(buff *bytes.Buffer, length int) ([]byte, error) {
+	data := make([]byte, length)
+	for i := length - 1; i >= 0; i-- {
+		b, err := buff.ReadByte()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read byte %d of data: %w", i, err)
+		}
+		data[i] = b
+	}
+	return data, nil
+}
+
+func readLittleEndianOrder[T any](buff *bytes.Buffer) (T, error) {
+	var v T
+	if err := binary.Read(buff, binary.LittleEndian, &v); err != nil {
+		return v, fmt.Errorf("failed to read the binary representation of data into type '%T': %w", v, err)
+	}
+	return v, nil
+}
+
+// ChainBaseBlockHeaderFromBytes parses an 80-byte slice as a Bitcoin block header and returns a ChainBaseBlockHeader.
+// Returns an error if the byte slice is not exactly 80 bytes or if decoding individual fields fails.
+func ChainBaseBlockHeaderFromBytes(data []byte) (*ChainBaseBlockHeader, error) {
+	if len(data) != BlockHeaderLength {
+		return nil, fmt.Errorf("data length %d is not equal to block header length %d", len(data), BlockHeaderLength)
+	}
+
+	buff := bytes.NewBuffer(data)
+
+	version, err := readLittleEndianOrder[uint32](buff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 'version' field from data: %w", err)
+	}
+
+	prevHashBytes, err := readReversedBytes(buff, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 'previous hash' field from data: %w", err)
+	}
+	prevHash := hex.EncodeToString(prevHashBytes)
+
+	merkleRootBytes, err := readReversedBytes(buff, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 'merkle root' field from data: %w", err)
+	}
+	merkleRoot := hex.EncodeToString(merkleRootBytes)
+
+	time, err := readLittleEndianOrder[uint32](buff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 'time' field from data: %w", err)
+	}
+
+	bits, err := readLittleEndianOrder[uint32](buff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 'bits' field from data: %w", err)
+	}
+
+	nonce, err := readLittleEndianOrder[uint32](buff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read 'nonce' field from data: %w", err)
+	}
+
+	return &ChainBaseBlockHeader{
+		Version:      version,
+		PreviousHash: prevHash,
+		MerkleRoot:   merkleRoot,
+		Time:         time,
+		Bits:         bits,
+		Nonce:        nonce,
+	}, nil
 }

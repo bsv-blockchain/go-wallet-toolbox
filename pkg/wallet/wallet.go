@@ -575,7 +575,7 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 		return nil, fmt.Errorf("failed to get header for height %d: %w", args.Height, err)
 	}
 
-	result, err := mapping.MapGetHeaderResults(wdkResult)
+	result, err := mapping.MapGetHeaderResults(&wdkResult.ChainBaseBlockHeader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map get header results: %w", err)
 	}

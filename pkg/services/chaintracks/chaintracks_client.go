@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -75,17 +76,91 @@ func (c *Client) Chain() defs.BSVNetwork {
 // GetInfo returns an InfoResponse with chain id, block heights, ingest endpoints, and installed package metadata.
 // GetInfo returns an error if the request fails, responds with non-200 status, or response indicates failure.
 func (c *Client) GetInfo(ctx context.Context) (*InfoResponse, error) {
-	var resp ResponseFrame[InfoResponse]
-	if result, err := c.resty.R().
+	if resp, err := getRequest[InfoResponse](c, ctx, c.url+"/getInfo"); err != nil {
+		return nil, fmt.Errorf("getinfo: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
+// GetPresentHeight queries the backend for the current blockchain height and returns it as a uint value.
+// Returns an error if the request fails, the HTTP status is not 200, or the response indicates failure.
+func (c *Client) GetPresentHeight(ctx context.Context) (uint32, error) {
+	if resp, err := getRequest[uint32](c, ctx, c.url+"/getPresentHeight"); err != nil {
+		return 0, fmt.Errorf("getPresentHeight: %w", err)
+	} else {
+		return *resp, nil
+	}
+}
+
+// FindChainTipHashHex retrieves the current chain tip block hash in hex format from the backend service.
+// Returns the hash as a lowercase hexadecimal string, or an error if the request or response fails.
+func (c *Client) FindChainTipHashHex(ctx context.Context) (string, error) {
+	if resp, err := getRequest[string](c, ctx, c.url+"/findChainTipHashHex"); err != nil {
+		return "", fmt.Errorf("findChainTipHashHex: %w", err)
+	} else {
+		return *resp, nil
+	}
+}
+
+// FindChainTipHeaderHex retrieves the current chain tip block header in hex format from the backend service.
+// Returns a BlockHeader struct with header fields, or an error if the request or response is unsuccessful.
+func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error) {
+	if resp, err := getRequest[BlockHeader](c, ctx, c.url+"/findChainTipHeaderHex"); err != nil {
+		return nil, fmt.Errorf("findChainTipHeaderHex: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
+// FindHeaderHexForHeight queries the backend for the block header at the given height and returns a BlockHeader struct.
+// Returns an error if the request is unsuccessful, the height is not found, or the backend returns a non-200 status.
+// The returned BlockHeader includes header fields, chain height, and block hash, or nil if not found.
+func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*BlockHeader, error) {
+	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForHeight?height=%d", c.url, height)); err != nil {
+		return nil, fmt.Errorf("findHeaderHexForHeight: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
+// FindHeaderHexForBlockHash retrieves the block header for the specified block hash as a BlockHeader struct.
+// Returns an error if the block hash is invalid, not found, or if the backend request is unsuccessful.
+func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*BlockHeader, error) {
+	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForBlockHash?hash=%s", c.url, hash)); err != nil {
+		return nil, fmt.Errorf("findHeaderHexForBlockHash: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
+// GetHeaders retrieves a sequence of block headers starting at the specified height, limited to the given count.
+// Returns the headers as a HashedBaseHeaders value or an error if the request fails or the backend response is unsuccessful.
+// NOTE: The returned HashedBaseHeaders is a hex-encoded string of concatenated block headers.
+// To convert to structured headers, call ToBaseBlockHeaders() on the result.
+func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (HashedBaseHeaders, error) {
+	if resp, err := getRequest[HashedBaseHeaders](c, ctx, fmt.Sprintf("%s/getHeaders?height=%d&count=%d", c.url, height, count)); err != nil {
+		return "", fmt.Errorf("getHeaders: %w", err)
+	} else {
+		return *resp, nil
+	}
+}
+
+func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
+	var resp ResponseFrame[T]
+	result, err := c.resty.R().
 		SetContext(ctx).
 		SetResult(&resp).
-		Get(c.url + "/getInfo"); err != nil {
-		return nil, fmt.Errorf("getinfo request: %w", err)
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("request: %w", err)
 	} else if result.StatusCode() != 200 {
-		c.logger.DebugContext(ctx, "chaintracks getinfo non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
-		return nil, fmt.Errorf("getinfo HTTP status: %d", result.StatusCode())
+		c.logger.DebugContext(ctx, "chaintracks non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
+		return nil, fmt.Errorf("HTTP status: %d", result.StatusCode())
 	} else if !resp.IsSuccess() {
-		return nil, fmt.Errorf("getinfo response not successful: status: %q", resp.Status)
+		return nil, fmt.Errorf("response not successful: status: %q", resp.Status)
+	} else if resp.IsNotFound() {
+		return nil, fmt.Errorf("response value missing: %w", wdk.ErrNotFoundError)
 	}
 
 	return resp.Value, nil

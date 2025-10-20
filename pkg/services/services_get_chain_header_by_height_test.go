@@ -26,14 +26,16 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 		bits, err := strconv.ParseUint(testservices.TestBlockBits, 16, 32)
 		require.NoError(t, err)
 
-		expectedHeader := &wdk.ChainBaseBlockHeader{
-			MerkleRoot:   testservices.TestBlockMerkleRoot,
-			Version:      testservices.TestBlockVersion,
-			PreviousHash: testservices.TestBlockPreviousBlockHash,
-			Time:         uint32(testservices.TestBlockTime),
-			Bits:         uint32(bits),
-			Nonce:        testservices.TestBlockNonce,
-			Hash:         testservices.TestBlockHash,
+		expectedHeader := &wdk.ChainBlockHeader{
+			ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+				MerkleRoot:   testservices.TestBlockMerkleRoot,
+				Version:      testservices.TestBlockVersion,
+				PreviousHash: testservices.TestBlockPreviousBlockHash,
+				Time:         uint32(testservices.TestBlockTime),
+				Bits:         uint32(bits),
+				Nonce:        testservices.TestBlockNonce,
+			},
+			Hash: testservices.TestBlockHash,
 		}
 
 		// when:
@@ -57,14 +59,17 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 		bits, err := strconv.ParseUint(testservices.TestBlockBits, 16, 32)
 		require.NoError(t, err)
 
-		expectedHeader := &wdk.ChainBaseBlockHeader{
-			MerkleRoot:   testservices.TestBlockMerkleRoot,
-			Version:      testservices.TestBlockVersion,
-			PreviousHash: testservices.TestBlockPreviousBlockHash,
-			Time:         uint32(testservices.TestBlockTime),
-			Bits:         uint32(bits),
-			Nonce:        testservices.TestBlockNonce,
-			Hash:         testservices.TestBlockHash,
+		expectedHeader := &wdk.ChainBlockHeader{
+			ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+				MerkleRoot:   testservices.TestBlockMerkleRoot,
+				Version:      testservices.TestBlockVersion,
+				PreviousHash: testservices.TestBlockPreviousBlockHash,
+				Time:         uint32(testservices.TestBlockTime),
+				Bits:         uint32(bits),
+				Nonce:        testservices.TestBlockNonce,
+			},
+			Hash:   testservices.TestBlockHash,
+			Height: testservices.TestBlockHeight,
 		}
 
 		// when:
@@ -85,14 +90,16 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 		given.Bitails().WillRespondWithInternalFailure()
 		first := given.BHS().IsUpAndRunning().DefaultHeaderByHeightResponse()
 
-		expectedHeader := &wdk.ChainBaseBlockHeader{
-			Version:      uint32(first.Version),
-			PreviousHash: first.PreviousBlock,
-			MerkleRoot:   first.MerkleRoot,
-			Time:         first.Timestamp,
-			Bits:         first.DifficultyTarget,
-			Nonce:        first.Nonce,
-			Hash:         first.Hash,
+		expectedHeader := &wdk.ChainBlockHeader{
+			ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+				Version:      uint32(first.Version),
+				PreviousHash: first.PreviousBlock,
+				MerkleRoot:   first.MerkleRoot,
+				Time:         first.Timestamp,
+				Bits:         first.DifficultyTarget,
+				Nonce:        first.Nonce,
+			},
+			Hash: first.Hash,
 		}
 
 		// when:
