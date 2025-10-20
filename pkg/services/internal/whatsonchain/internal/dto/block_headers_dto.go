@@ -54,7 +54,6 @@ func (b *BlockHeader) ConvertToChainBaseBlockHeader() (*wdk.ChainBaseBlockHeader
 		Time:         b.Time,
 		Bits:         uint32(bits),
 		Nonce:        b.Nonce,
-		Hash:         b.Hash,
 	}, nil
 }
 

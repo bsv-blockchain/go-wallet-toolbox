@@ -33,7 +33,7 @@ type (
 	// HashToHeaderFunc is a function type for HashToHeader service method.
 	HashToHeaderFunc = func(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
 	// ChainHeaderByHeightFunc is a function type for ChainHeaderByHeight service method.
-	ChainHeaderByHeightFunc = func(ctx context.Context, height uint32) (*wdk.ChainBaseBlockHeader, error)
+	ChainHeaderByHeightFunc = func(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error)
 	// GetStatusForTxIDsFunc is a function type for GetStatusForTxIDs service method.
 	GetStatusForTxIDsFunc = func(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error)
 	// GetUtxoStatusFunc is a function type for GetUtxoStatus service method.

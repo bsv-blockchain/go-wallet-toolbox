@@ -21,6 +21,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slogx"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -28,7 +29,7 @@ import (
 type StorageFixture interface {
 	Provider() ProviderFixture
 
-	StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func())
+	StartedRPCServerFor(provider wdk.WalletStorageProvider, opts ...func(options *storage.ServerOptions)) (cleanup func())
 	RPCClientForUser(user testusers.User) (*storage.WalletStorageProviderClient, func())
 
 	MockProvider() *mocks.MockWalletStorageProvider
@@ -81,11 +82,63 @@ type storageFixture struct {
 	storageName    string
 }
 
-func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider) (cleanup func()) {
+func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
+	return newStorageFixture(t, fixtures.StorageServerPrivKey, fixtures.StorageName, configModifiers...)
+}
+
+func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
+	return newStorageFixture(t, identityKey, name, dbfixtures.WithSQLiteFileName(name))
+}
+
+func newStorageFixture(t testing.TB, identityKey string, name string, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
+	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
+
+	s := &storageFixture{
+		t:              t,
+		require:        require.New(t),
+		logger:         logging.NewTestLogger(t),
+		db:             db,
+		storagePrivKey: identityKey,
+		storageName:    name,
+	}
+
+	network := defs.NetworkTestnet
+
+	servicesFixture := testservices.GivenServicesWithNetwork(t, network)
+
+	s.providerFixture = &providerFixture{
+		t:       s.t,
+		require: s.require,
+		logger:  s.logger,
+		db:      s.db,
+
+		ServicesFixture: servicesFixture,
+
+		network:             network,
+		commission:          defs.Commission{},
+		feeModel:            defs.DefaultFeeModel(),
+		failAbandoned:       defs.DefaultFailAbandoned(),
+		randomizer:          randomizer.New(),
+		beefVerifierFixture: newBeefVerifierFixture(),
+		storagePrivKey:      s.storagePrivKey,
+		storageName:         s.storageName,
+	}
+
+	return s, func() {
+		s.providerFixture.Cleanup()
+		dbCleanup()
+	}
+}
+
+func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider, opts ...func(*storage.ServerOptions)) (cleanup func()) {
 	s.t.Helper()
 	serverWallet := wallet.NewTestWallet(s.t, wallet.PrivHex(s.storagePrivKey), wallet.WithTestWalletLogger(s.logger))
 
-	storageServer := storage.NewServer(s.logger, provider, serverWallet, storage.ServerOptions{})
+	serverWallet.OnInternalizeAction().ReturnSuccess(&wallet.InternalizeActionResult{Accepted: true})
+
+	serverOptions := to.OptionsWithDefault(storage.ServerOptions{}, opts...)
+
+	storageServer := storage.NewServer(s.logger, provider, serverWallet, serverOptions)
 	s.testServer = httptest.NewServer(storageServer.Handler())
 	return s.testServer.Close
 }
@@ -137,52 +190,4 @@ func (s *storageFixture) StorageIdentityKey() string {
 	require.NoError(s.t, err)
 
 	return identityKey
-}
-
-func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
-	return newStorageFixture(t, fixtures.StorageServerPrivKey, fixtures.StorageName, configModifiers...)
-}
-
-func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
-	return newStorageFixture(t, identityKey, name, dbfixtures.WithSQLiteFileName(name))
-}
-
-func newStorageFixture(t testing.TB, identityKey string, name string, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
-	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
-
-	s := &storageFixture{
-		t:              t,
-		require:        require.New(t),
-		logger:         logging.NewTestLogger(t),
-		db:             db,
-		storagePrivKey: identityKey,
-		storageName:    name,
-	}
-
-	network := defs.NetworkTestnet
-
-	servicesFixture := testservices.GivenServicesWithNetwork(t, network)
-
-	s.providerFixture = &providerFixture{
-		t:       s.t,
-		require: s.require,
-		logger:  s.logger,
-		db:      s.db,
-
-		ServicesFixture: servicesFixture,
-
-		network:             network,
-		commission:          defs.Commission{},
-		feeModel:            defs.DefaultFeeModel(),
-		failAbandoned:       defs.DefaultFailAbandoned(),
-		randomizer:          randomizer.New(),
-		beefVerifierFixture: newBeefVerifierFixture(),
-		storagePrivKey:      s.storagePrivKey,
-		storageName:         s.storageName,
-	}
-
-	return s, func() {
-		s.providerFixture.Cleanup()
-		dbCleanup()
-	}
 }

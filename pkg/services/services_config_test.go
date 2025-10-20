@@ -446,9 +446,9 @@ func (m *mockImplementation) HashToHeader(context.Context, string) (*wdk.ChainBl
 	return &wdk.ChainBlockHeader{}, nil
 }
 
-func (m *mockImplementation) ChainHeaderByHeight(context.Context, uint32) (*wdk.ChainBaseBlockHeader, error) {
+func (m *mockImplementation) ChainHeaderByHeight(context.Context, uint32) (*wdk.ChainBlockHeader, error) {
 	m.chainHeaderByHeightCounter++
-	return &wdk.ChainBaseBlockHeader{}, nil
+	return &wdk.ChainBlockHeader{}, nil
 }
 
 func (m *mockImplementation) GetStatusForTxIDs(context.Context, []string) (*wdk.GetStatusForTxIDsResult, error) {
