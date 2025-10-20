@@ -24,6 +24,7 @@ func main() {
 	chaintr := chaintracks.NewClient(slog.Default(), defs.NetworkMainnet, chaintracksURL)
 
 	getInfo(chaintr)
+	getFiatExchangeRates(chaintr)
 	height := getPresentHeight(chaintr)
 	tipHash := findChainTipHashHex(chaintr)
 	findChainTipHeaderHex(chaintr)
@@ -32,6 +33,7 @@ func main() {
 
 	const numberOfHeadersToGet = 5
 	getHeaders(chaintr, height-numberOfHeadersToGet, numberOfHeadersToGet)
+
 }
 
 func getInfo(chaintr *chaintracks.Client) {
@@ -107,4 +109,13 @@ func getHeaders(chaintr *chaintracks.Client, height uint32, count uint32) {
 	for i, header := range baseHeaders {
 		show.Info(fmt.Sprintf("Header index: %d", i), *header)
 	}
+}
+
+func getFiatExchangeRates(chaintr *chaintracks.Client) {
+	rates, err := chaintr.GetFiatExchangeRates(context.Background())
+	if err != nil {
+		panic("failed to get Chaintracks fiat exchange rates: " + err.Error())
+	}
+
+	show.Info("Chaintracks Fiat Exchange Rates", rates)
 }

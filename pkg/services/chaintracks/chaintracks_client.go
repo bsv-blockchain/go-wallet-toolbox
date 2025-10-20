@@ -146,6 +146,17 @@ func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (H
 	}
 }
 
+// GetFiatExchangeRates retrieves the latest fiat currency exchange rates from the backend server.
+// Returns a FiatExchangeRates struct with timestamp, base currency, and mapping of currency codes to rates.
+// Returns an error if the HTTP request fails, the status is non-200, or the response indicates a failure.
+func (c *Client) GetFiatExchangeRates(ctx context.Context) (*FiatExchangeRates, error) {
+	if resp, err := getRequest[FiatExchangeRates](c, ctx, c.url+"/getFiatExchangeRates"); err != nil {
+		return nil, fmt.Errorf("getFiatExchangeRates: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 	var resp ResponseFrame[T]
 	result, err := c.resty.R().
