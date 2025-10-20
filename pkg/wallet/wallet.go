@@ -2,7 +2,6 @@ package wallet
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -488,67 +487,144 @@ func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertifi
 }
 
 func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
-	w.logger.DebugContext(ctx, "AcquireDirectCertificate call", slogx.String("originator", originator))
+	w.logger.DebugContext(ctx, "AcquireCertificateDirect call", slogx.String("originator", originator))
 
-	if err := validate.ValidateAcquireDirectCertificateArgs(&args); err != nil {
-		return nil, fmt.Errorf("failed to validate acquire direct certificate args: %w", err)
-	}
-
-	marshaledArgs, err := args.MarshalJSON()
+	key, err := w.GetPublicKey(ctx, wallet.GetPublicKeyArgs{IdentityKey: true}, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal acquire certificate args: %w", err)
+		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
 
-	var masterCertificate certificates.MasterCertificate
-	if err = json.Unmarshal(marshaledArgs, &masterCertificate); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal marshal acquire certificate args bytes slice to MasterCertificate type: %w", err)
+	fields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64)
+	for k, v := range args.Fields {
+		fields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
 	}
 
-	if err = masterCertificate.Verify(ctx); err != nil {
-		return nil, fmt.Errorf("failed to verify master certificate: %w", err)
-	}
-
-	_, err = certificates.DecryptFields(ctx, w,
-		masterCertificate.MasterKeyring,
-		masterCertificate.Fields,
-		wallet.Counterparty{Type: wallet.CounterpartyTypeSelf, Counterparty: args.Certifier}, // TODO: Fix the Type.
-		to.Value(args.Privileged),
-		args.PrivilegedReason)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt using the master keyring: %w", err)
-	}
-
-	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{ // TODO: Fill the data
-		TableCertificate: wdk.TableCertificate{
-			CreatedAt:          time.Time{},
-			UpdatedAt:          time.Time{},
-			CertificateID:      0,
-			Type:               "",
-			SerialNumber:       "",
-			Certifier:          "",
-			Subject:            "",
-			Verifier:           nil,
-			RevocationOutpoint: "",
-			Signature:          "",
-			IsDeleted:          false,
-		},
-		Fields: []*wdk.TableCertificateField{},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert certificate auth: %w", err)
-	}
-
-	return &sdk.Certificate{
-		Type:               args.Type,
-		SerialNumber:       to.Value(args.SerialNumber),
-		Subject:            &masterCertificate.Subject,
-		Certifier:          args.Certifier,
+	baseCert := &certificates.Certificate{
+		Type:               wallet.StringBase64(args.Type.Base64()),
+		Certifier:          to.Value(args.Certifier),
+		SerialNumber:       sdk.StringBase64(args.SerialNumber[:]),
 		RevocationOutpoint: args.RevocationOutpoint,
-		Fields:             args.Fields,
-		Signature:          args.Signature,
-	}, nil
+		Fields:             fields,
+		Subject:            to.Value(key.PublicKey),
+		Signature:          args.Signature.Serialize(),
+	}
+
+	if err := baseCert.Verify(ctx); err != nil {
+		return nil, fmt.Errorf("failed to verify base cert: %w", err) // TODO: Don't know why, but the base cert is invalid :/
+	}
+
+	return nil, nil
 }
+
+// func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+// 	w.logger.DebugContext(ctx, "AcquireDirectCertificate call", slogx.String("originator", originator))
+
+// 	// if err := validate.ValidateAcquireDirectCertificateArgs(&args); err != nil {
+// 	// 	return nil, fmt.Errorf("failed to validate acquire direct certificate args: %w", err)
+// 	// }
+
+// 	auth, err := w.storage.GetAuth(ctx)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get auth: %w", err)
+// 	}
+
+// 	encryptionArgs := sdk.EncryptionArgs{
+// 		Privileged:       to.Value(args.Privileged),
+// 		PrivilegedReason: args.PrivilegedReason,
+// 	}
+
+// 	pubKey, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{EncryptionArgs: encryptionArgs, IdentityKey: true}, originator)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to get public key: %w", err)
+// 	}
+
+// 	fields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64)
+// 	masterKeyring := make(map[wallet.CertificateFieldNameUnder50Bytes]wallet.StringBase64)
+// 	for k, v := range args.Fields {
+// 		fields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
+// 		masterKeyring[wallet.CertificateFieldNameUnder50Bytes(k)] = wallet.StringBase64(v)
+// 	}
+
+// 	baseCert := &certificates.Certificate{
+// 		Type:               wallet.StringBase64(args.Type.Base64()),
+// 		Certifier:          to.Value(args.Certifier),
+// 		SerialNumber:       sdk.StringBase64(args.SerialNumber[:]),
+// 		RevocationOutpoint: args.RevocationOutpoint,
+// 		Fields:             fields,
+// 		Subject:            to.Value(pubKey.PublicKey),
+// 	}
+
+// 	baseCert.Subject = *pubKey.PublicKey
+// 	if err := baseCert.Sign(ctx, w); err != nil {
+// 		panic(err)
+// 	}
+
+// 	// temp:
+// 	masterCertificate, err := certificates.NewMasterCertificate(baseCert, masterKeyring)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create new certificate: %w", err)
+// 	}
+
+// 	err = masterCertificate.Verify(ctx)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to verify master certificate: %w", err)
+// 	}
+
+// 	_, err = certificates.DecryptFields(ctx,
+// 		w,
+// 		masterCertificate.MasterKeyring,
+// 		masterCertificate.Fields,
+// 		wallet.Counterparty{Type: wallet.CounterpartyTypeOther, Counterparty: args.Certifier},
+// 		to.Value(args.Privileged),
+// 		args.PrivilegedReason)
+
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to decrypt using the master keyring: %w", err)
+// 	}
+
+// 	verifier := args.Certifier.Compressed()
+// 	if args.KeyringRevealer.Certifier {
+// 		verifier = args.KeyringRevealer.PubKey.Compressed()
+// 	}
+
+// 	tableCert := &wdk.TableCertificateX{
+// 		TableCertificate: wdk.TableCertificate{
+// 			UserID:             *auth.UserID,
+// 			Type:               primitives.Base64String(masterCertificate.Type),
+// 			SerialNumber:       primitives.Base64String(masterCertificate.SerialNumber),
+// 			Certifier:          primitives.PubKeyHex(masterCertificate.Certifier.Compressed()),
+// 			Subject:            primitives.PubKeyHex(pubKey.PublicKey.Compressed()),
+// 			Verifier:           to.Ptr(primitives.PubKeyHex(verifier)),
+// 			RevocationOutpoint: primitives.OutpointString(masterCertificate.RevocationOutpoint.String()),
+// 			Signature:          primitives.HexString(masterCertificate.Signature),
+// 			IsDeleted:          false,
+// 		},
+// 	}
+
+// 	for name, val := range args.Fields {
+// 		tableCert.Fields = append(tableCert.Fields, &wdk.TableCertificateField{
+// 			UserID:     *auth.UserID,
+// 			FieldName:  name,
+// 			FieldValue: val,
+// 			MasterKey:  primitives.Base64String(args.KeyringForSubject[name]),
+// 		})
+// 	}
+
+// 	_, err = w.storage.InsertCertificateAuth(ctx, tableCert)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to insert certificate auth: %w", err)
+// 	}
+
+// 	return &sdk.Certificate{
+// 		Type:               args.Type,
+// 		SerialNumber:       to.Value(args.SerialNumber),
+// 		Subject:            &masterCertificate.Subject,
+// 		Certifier:          args.Certifier,
+// 		RevocationOutpoint: args.RevocationOutpoint,
+// 		Fields:             args.Fields,
+// 		Signature:          args.Signature,
+// 	}, nil
+// }
 
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
