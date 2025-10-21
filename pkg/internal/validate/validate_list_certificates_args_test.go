@@ -49,59 +49,45 @@ func TestWrongListCertificatesArgs(t *testing.T) {
 				return args
 			},
 		},
-		"Partial with invalid Certifier hex": {
-			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
-				invalid := primitives.PubKeyHex("zzzz")
-				args.Partial = &wdk.ListCertificatesArgsPartial{Certifier: &invalid}
-				return args
-			},
-		},
-		"Partial with invalid Type encoding": {
-			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
-				invalid := primitives.Base64String("not-base64")
-				args.Partial = &wdk.ListCertificatesArgsPartial{Type: &invalid}
-				return args
-			},
-		},
 		"Partial with invalid SerialNumber format": {
 			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
 				invalid := primitives.Base64String("invalid!")
-				args.Partial = &wdk.ListCertificatesArgsPartial{SerialNumber: &invalid}
+				args.ListCertificatesArgsPartial = wdk.ListCertificatesArgsPartial{SerialNumber: &invalid}
 				return args
 			},
 		},
 		"Partial with malformed RevocationOutpoint": {
 			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
 				invalid := primitives.OutpointString("missing.index")
-				args.Partial = &wdk.ListCertificatesArgsPartial{RevocationOutpoint: &invalid}
+				args.ListCertificatesArgsPartial = wdk.ListCertificatesArgsPartial{RevocationOutpoint: &invalid}
 				return args
 			},
 		},
 		"Partial with invalid Signature length": {
 			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
 				invalid := primitives.HexString("abc") // Odd length
-				args.Partial = &wdk.ListCertificatesArgsPartial{Signature: &invalid}
+				args.ListCertificatesArgsPartial = wdk.ListCertificatesArgsPartial{Signature: &invalid}
 				return args
 			},
 		},
 		"Partial with non-hex Signature": {
 			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
 				invalid := primitives.HexString("zzzz")
-				args.Partial = &wdk.ListCertificatesArgsPartial{Signature: &invalid}
+				args.ListCertificatesArgsPartial = wdk.ListCertificatesArgsPartial{Signature: &invalid}
 				return args
 			},
 		},
 		"Partial with invalid Subject format": {
 			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
 				invalid := primitives.PubKeyHex("ghij")
-				args.Partial = &wdk.ListCertificatesArgsPartial{Subject: &invalid}
+				args.ListCertificatesArgsPartial = wdk.ListCertificatesArgsPartial{Subject: &invalid}
 				return args
 			},
 		},
 		"Partial with numeric Outpoint index": {
 			modifier: func(args *wdk.ListCertificatesArgs) *wdk.ListCertificatesArgs {
 				invalid := primitives.OutpointString("deadbeef.12x") // Non-numeric index
-				args.Partial = &wdk.ListCertificatesArgsPartial{RevocationOutpoint: &invalid}
+				args.ListCertificatesArgsPartial = wdk.ListCertificatesArgsPartial{RevocationOutpoint: &invalid}
 				return args
 			},
 		},

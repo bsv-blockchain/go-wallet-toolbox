@@ -10,9 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gen"
 	"gorm.io/gorm"
 )
@@ -20,17 +18,6 @@ import (
 type Certificates struct {
 	db    *gorm.DB
 	query *genquery.Query
-}
-
-type ListCertificatesActionParams struct {
-	SerialNumber       *primitives.Base64String
-	Subject            *primitives.PubKeyHex
-	RevocationOutpoint *primitives.OutpointString
-	Signature          *primitives.HexString
-	Certifiers         []primitives.PubKeyHex
-	Types              []primitives.Base64String
-	Limit              primitives.PositiveIntegerDefault10Max10000
-	Offset             primitives.PositiveInteger
 }
 
 func NewCertificates(db *gorm.DB, query *genquery.Query) *Certificates {
@@ -57,98 +44,39 @@ func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args w
 	return nil
 }
 
-func (c *Certificates) ListAndCountCertificates(ctx context.Context, userID int, opts ListCertificatesActionParams) (certificates []*models.Certificate, totalRows int64, err error) {
-	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		page := &queryopts.Paging{}
-
-		// parse offset and limit
-		if opts.Limit > 0 {
-			limit, err := to.IntFromUnsigned(opts.Limit)
-			if err != nil {
-				return fmt.Errorf("error during parsing limit: %w", err)
-			}
-			page.Limit = limit
-		}
-
-		if opts.Offset > 0 {
-			ofs, err := to.IntFromUnsigned(opts.Offset)
-			if err != nil {
-				return fmt.Errorf("error during parsing offset: %w", err)
-			}
-			page.Offset = ofs
-		}
-
-		// prepare query
-		query := tx.Model(&models.Certificate{}).Scopes(
-			scopes.UserID(userID),
-		)
-
-		if opts.SerialNumber != nil {
-			query = query.Where("serial_number = ?", opts.SerialNumber)
-		}
-		if opts.Subject != nil {
-			query = query.Where("subject = ?", opts.Subject)
-		}
-		if opts.RevocationOutpoint != nil {
-			query = query.Where("revocation_outpoint = ?", opts.RevocationOutpoint)
-		}
-		if opts.Signature != nil {
-			query = query.Where("signature = ?", opts.Signature)
-		}
-		if len(opts.Certifiers) > 0 {
-			query = query.Where("certifier IN ?", opts.Certifiers)
-		}
-		if len(opts.Types) > 0 {
-			query = query.Where("type IN ?", opts.Types)
-		}
-
-		// first count all certificates
-		err := query.Model(&models.Certificate{}).Count(&totalRows).Error
-		if err != nil {
-			return fmt.Errorf("error during counting certificates: %w", err)
-		}
-
-		// we need to apply scopes here again because count is being affected by offset otherwise
-		query.Scopes(
-			scopes.UserID(userID),
-			scopes.Paginate(page),
-			scopes.Preload("CertificateFields"),
-		)
-
-		// then find certificates with applied filters
-		err = query.Find(&certificates).Error
-		if err != nil {
-			return fmt.Errorf("error during finding certificates: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, -1, fmt.Errorf("failed to list certificates: %w", err)
-	}
-
-	return certificates, totalRows, nil
-}
-
-func mapCertifierModelToEntity(model *models.Certificate) *entity.Certifier {
-	return &entity.Certifier{
+func mapCertifierModelToEntity(model *models.Certificate) *entity.Certificate {
+	return &entity.Certificate{
+		ID:                 model.ID,
+		CreatedAt:          model.CreatedAt,
+		UpdatedAt:          model.UpdatedAt,
 		Certifier:          model.Certifier,
+		SerialNumber:       model.SerialNumber,
 		UserID:             model.UserID,
 		Type:               model.Type,
 		Subject:            model.Subject,
 		Verifier:           model.Verifier,
 		RevocationOutpoint: model.RevocationOutpoint,
 		Signature:          model.Signature,
+		CertificateFields: slices.Map(model.CertificateFields, func(field *models.CertificateField) entity.CertificateField {
+			return entity.CertificateField{
+				CreatedAt:  field.CreatedAt,
+				UpdatedAt:  field.UpdatedAt,
+				FieldName:  field.FieldName,
+				FieldValue: field.FieldValue,
+				MasterKey:  field.MasterKey,
+			}
+		}),
 	}
 }
 
 // FindCertifiers returns distinct certifiers for the given specification, with optional paging/since.
-func (c *Certificates) FindCertifiers(ctx context.Context, spec *entity.CertifierReadSpecification, opts ...queryopts.Options) ([]*entity.Certifier, error) {
+func (c *Certificates) FindCertifiers(ctx context.Context, spec *entity.CertificateReadSpecification, opts ...queryopts.Options) ([]*entity.Certificate, error) {
 	table := &c.query.Certificate
 
 	certs, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
 		Where(c.conditionsBySpec(spec)...).
+		Preload(table.CertificateFields).
 		Find()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find certificates: %w", err)
@@ -158,7 +86,7 @@ func (c *Certificates) FindCertifiers(ctx context.Context, spec *entity.Certifie
 }
 
 // CountCertifiers returns the count of distinct certifiers matching the filters.
-func (c *Certificates) CountCertifiers(ctx context.Context, spec *entity.CertifierReadSpecification, opts ...queryopts.Options) (int64, error) {
+func (c *Certificates) CountCertifiers(ctx context.Context, spec *entity.CertificateReadSpecification, opts ...queryopts.Options) (int64, error) {
 	table := &c.query.Certificate
 
 	count, err := table.WithContext(ctx).
@@ -172,29 +100,22 @@ func (c *Certificates) CountCertifiers(ctx context.Context, spec *entity.Certifi
 	return count, nil
 }
 
-/*
-type CertifierReadSpecification struct {
-	Certifier          *Comparable[string]
-	UserID             *Comparable[int]
-	Type               *Comparable[string]
-	Subject            *Comparable[string]
-	Verifier           *Comparable[string]
-	RevocationOutpoint *Comparable[string]
-	Signature          *Comparable[string]
-}
-
-*/
-
-func (c *Certificates) conditionsBySpec(spec *entity.CertifierReadSpecification) []gen.Condition {
+func (c *Certificates) conditionsBySpec(spec *entity.CertificateReadSpecification) []gen.Condition {
 	if spec == nil {
 		return nil
 	}
 
 	table := &c.query.Certificate
+	if spec.ID != nil {
+		return []gen.Condition{table.ID.Eq(*spec.ID)}
+	}
 
 	var conditions []gen.Condition
 	if spec.UserID != nil {
 		conditions = append(conditions, cmpCondition(table.UserID, spec.UserID))
+	}
+	if spec.SerialNumber != nil {
+		conditions = append(conditions, cmpCondition(table.SerialNumber, spec.SerialNumber))
 	}
 	if spec.Certifier != nil {
 		conditions = append(conditions, cmpCondition(table.Certifier, spec.Certifier))

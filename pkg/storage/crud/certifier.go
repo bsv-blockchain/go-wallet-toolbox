@@ -12,46 +12,52 @@ import (
 
 // Certifier provides query-building capabilities for retrieving distinct certifiers.
 type Certifier interface {
-	Read() CertifierReader
+	Read() CertificateReader
 }
 
 // CertifierReadOperations defines read operations for querying Certifier entities.
 type CertifierReadOperations interface {
-	Find(ctx context.Context) ([]*entity.Certifier, error)
+	Find(ctx context.Context) ([]*entity.Certificate, error)
 	Count(ctx context.Context) (int64, error)
 }
 
-// CertifierReader provides a fluent interface for building certifier queries.
-type CertifierReader interface {
+// CertificateReader provides a fluent interface for building certificate queries.
+type CertificateReader interface {
 	CertifierReadOperations
 
-	UserID() NumericCondition[CertifierReader, int]
-	Certifier() StringCondition[CertifierReader]
-	Type() StringCondition[CertifierReader]
+	ID(id uint) CertifierReadOperations
+	SerialNumber() StringCondition[CertificateReader]
+	Subject() StringCondition[CertificateReader]
+	Verifier() StringCondition[CertificateReader]
+	RevocationOutpoint() StringCondition[CertificateReader]
+	Signature() StringCondition[CertificateReader]
+	UserID() NumericCondition[CertificateReader, int]
+	Certifier() StringCondition[CertificateReader]
+	Type() StringCondition[CertificateReader]
 
-	Since(value time.Time, column entity.SinceField) CertifierReader
-	Paged(limit, offset int, desc bool) CertifierReader
+	Since(value time.Time, column entity.SinceField) CertificateReader
+	Paged(limit, offset int, desc bool) CertificateReader
 }
 
-type certifierRepo interface {
-	FindCertifiers(ctx context.Context, spec *entity.CertifierReadSpecification, opts ...queryopts.Options) ([]*entity.Certifier, error)
-	CountCertifiers(ctx context.Context, spec *entity.CertifierReadSpecification, opts ...queryopts.Options) (int64, error)
+type certificateRepo interface {
+	FindCertifiers(ctx context.Context, spec *entity.CertificateReadSpecification, opts ...queryopts.Options) ([]*entity.Certificate, error)
+	CountCertifiers(ctx context.Context, spec *entity.CertificateReadSpecification, opts ...queryopts.Options) (int64, error)
 }
 
-type certifier struct {
-	repo           certifierRepo
-	spec           entity.CertifierReadSpecification
+type certificate struct {
+	repo           certificateRepo
+	spec           entity.CertificateReadSpecification
 	pagingAndSince pagingAndSinceParams
 }
 
-// NewCertifier creates a new Certifier query builder instance.
-func NewCertifier(repo certifierRepo) Certifier {
-	return &certifier{repo: repo}
+// NewCertificate creates a new Certifier query builder instance.
+func NewCertificate(repo certificateRepo) Certifier {
+	return &certificate{repo: repo}
 }
 
-func (c *certifier) Read() CertifierReader { return c }
+func (c *certificate) Read() CertificateReader { return c }
 
-func (c *certifier) Find(ctx context.Context) ([]*entity.Certifier, error) {
+func (c *certificate) Find(ctx context.Context) ([]*entity.Certificate, error) {
 	rows, err := c.repo.FindCertifiers(ctx, &c.spec, c.pagingAndSince.QueryOpts()...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find certifiers: %w", err)
@@ -59,7 +65,7 @@ func (c *certifier) Find(ctx context.Context) ([]*entity.Certifier, error) {
 	return rows, nil
 }
 
-func (c *certifier) Count(ctx context.Context) (int64, error) {
+func (c *certificate) Count(ctx context.Context) (int64, error) {
 	count, err := c.repo.CountCertifiers(ctx, &c.spec, c.pagingAndSince.Since()...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count certifiers: %w", err)
@@ -67,8 +73,13 @@ func (c *certifier) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (c *certifier) UserID() NumericCondition[CertifierReader, int] {
-	return &numericCondition[CertifierReader, int]{
+func (c *certificate) ID(id uint) CertifierReadOperations {
+	c.spec.ID = to.Ptr(id)
+	return c
+}
+
+func (c *certificate) UserID() NumericCondition[CertificateReader, int] {
+	return &numericCondition[CertificateReader, int]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[int]) {
 			c.spec.UserID = cond
@@ -76,8 +87,8 @@ func (c *certifier) UserID() NumericCondition[CertifierReader, int] {
 	}
 }
 
-func (c *certifier) Certifier() StringCondition[CertifierReader] {
-	return &stringCondition[CertifierReader]{
+func (c *certificate) Certifier() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[string]) {
 			c.spec.Certifier = cond
@@ -85,8 +96,17 @@ func (c *certifier) Certifier() StringCondition[CertifierReader] {
 	}
 }
 
-func (c *certifier) Type() StringCondition[CertifierReader] {
-	return &stringCondition[CertifierReader]{
+func (c *certificate) SerialNumber() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
+		parent: c,
+		conditionSetter: func(cond *entity.Comparable[string]) {
+			c.spec.SerialNumber = cond
+		},
+	}
+}
+
+func (c *certificate) Type() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[string]) {
 			c.spec.Type = cond
@@ -94,8 +114,8 @@ func (c *certifier) Type() StringCondition[CertifierReader] {
 	}
 }
 
-func (c *certifier) Subject() StringCondition[CertifierReader] {
-	return &stringCondition[CertifierReader]{
+func (c *certificate) Subject() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[string]) {
 			c.spec.Subject = cond
@@ -103,8 +123,8 @@ func (c *certifier) Subject() StringCondition[CertifierReader] {
 	}
 }
 
-func (c *certifier) Verifier() StringCondition[CertifierReader] {
-	return &stringCondition[CertifierReader]{
+func (c *certificate) Verifier() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[string]) {
 			c.spec.Verifier = cond
@@ -112,8 +132,8 @@ func (c *certifier) Verifier() StringCondition[CertifierReader] {
 	}
 }
 
-func (c *certifier) RevocationOutpoint() StringCondition[CertifierReader] {
-	return &stringCondition[CertifierReader]{
+func (c *certificate) RevocationOutpoint() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[string]) {
 			c.spec.RevocationOutpoint = cond
@@ -121,8 +141,8 @@ func (c *certifier) RevocationOutpoint() StringCondition[CertifierReader] {
 	}
 }
 
-func (c *certifier) Signature() StringCondition[CertifierReader] {
-	return &stringCondition[CertifierReader]{
+func (c *certificate) Signature() StringCondition[CertificateReader] {
+	return &stringCondition[CertificateReader]{
 		parent: c,
 		conditionSetter: func(cond *entity.Comparable[string]) {
 			c.spec.Signature = cond
@@ -130,7 +150,7 @@ func (c *certifier) Signature() StringCondition[CertifierReader] {
 	}
 }
 
-func (c *certifier) Since(value time.Time, column entity.SinceField) CertifierReader {
+func (c *certificate) Since(value time.Time, column entity.SinceField) CertificateReader {
 	c.pagingAndSince.since = &queryopts.Since{
 		Time:  value,
 		Field: to.IfThen(column == entity.SinceFieldCreatedAt, "created_at").ElseThen("updated_at"),
@@ -138,11 +158,11 @@ func (c *certifier) Since(value time.Time, column entity.SinceField) CertifierRe
 	return c
 }
 
-func (c *certifier) Paged(limit, offset int, desc bool) CertifierReader {
+func (c *certificate) Paged(limit, offset int, desc bool) CertificateReader {
 	c.pagingAndSince.paging = &queryopts.Paging{
 		Limit:  limit,
 		Offset: offset,
-		SortBy: "certifier",
+		SortBy: "id",
 		Sort:   to.IfThen(desc, "DESC").ElseThen("ASC"),
 	}
 	return c

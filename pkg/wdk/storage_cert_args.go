@@ -11,8 +11,6 @@ type RelinquishCertificateArgs struct {
 
 // ListCertificatesArgsPartial is
 type ListCertificatesArgsPartial struct {
-	Type               *primitives.Base64String   `json:"type"`
-	Certifier          *primitives.PubKeyHex      `json:"certifier"`
 	SerialNumber       *primitives.Base64String   `json:"serialNumber"`
 	Subject            *primitives.PubKeyHex      `json:"subject"`
 	RevocationOutpoint *primitives.OutpointString `json:"revocationOutpoint"`
@@ -21,7 +19,7 @@ type ListCertificatesArgsPartial struct {
 
 // ListCertificatesArgs represents the arguments for listing certificates
 type ListCertificatesArgs struct {
-	Partial *ListCertificatesArgsPartial `json:"partial"`
+	ListCertificatesArgsPartial `json:"partial"`
 
 	Certifiers []primitives.PubKeyHex                      `json:"certifiers"`
 	Types      []primitives.Base64String                   `json:"types"`
