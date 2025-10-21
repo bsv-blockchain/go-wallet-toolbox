@@ -668,6 +668,11 @@ func (p *Provider) UserUTXOEntity() crud.UserUTXO {
 	return crud.NewUserUTXO(p.repo.UserUTXOs)
 }
 
+// CertifierEntity returns a Certifier interface for querying distinct certifiers in the storage provider.
+func (p *Provider) CertifierEntity() crud.Certifier {
+	return crud.NewCertifier(p.repo.Certificates)
+}
+
 // FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
 func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
 	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {

@@ -18,6 +18,7 @@ import (
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:               db,
+		Certificate:      newCertificate(db, opts...),
 		Commission:       newCommission(db, opts...),
 		KnownTx:          newKnownTx(db, opts...),
 		Label:            newLabel(db, opts...),
@@ -37,6 +38,7 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 type Query struct {
 	db *gorm.DB
 
+	Certificate      certificate
 	Commission       commission
 	KnownTx          knownTx
 	Label            label
@@ -57,6 +59,7 @@ func (q *Query) Available() bool { return q.db != nil }
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:               db,
+		Certificate:      q.Certificate.clone(db),
 		Commission:       q.Commission.clone(db),
 		KnownTx:          q.KnownTx.clone(db),
 		Label:            q.Label.clone(db),
@@ -84,6 +87,7 @@ func (q *Query) WriteDB() *Query {
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:               db,
+		Certificate:      q.Certificate.replaceDB(db),
 		Commission:       q.Commission.replaceDB(db),
 		KnownTx:          q.KnownTx.replaceDB(db),
 		Label:            q.Label.replaceDB(db),
@@ -101,6 +105,7 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 }
 
 type queryCtx struct {
+	Certificate      ICertificateDo
 	Commission       ICommissionDo
 	KnownTx          IKnownTxDo
 	Label            ILabelDo
@@ -118,6 +123,7 @@ type queryCtx struct {
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
+		Certificate:      q.Certificate.WithContext(ctx),
 		Commission:       q.Commission.WithContext(ctx),
 		KnownTx:          q.KnownTx.WithContext(ctx),
 		Label:            q.Label.WithContext(ctx),

@@ -4,17 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gen"
 	"gorm.io/gorm"
 )
 
 type Certificates struct {
-	db *gorm.DB
+	db    *gorm.DB
+	query *genquery.Query
 }
 
 type ListCertificatesActionParams struct {
@@ -28,8 +33,8 @@ type ListCertificatesActionParams struct {
 	Offset             primitives.PositiveInteger
 }
 
-func NewCertificates(db *gorm.DB) *Certificates {
-	return &Certificates{db: db}
+func NewCertificates(db *gorm.DB, query *genquery.Query) *Certificates {
+	return &Certificates{db: db, query: query}
 }
 
 func (c *Certificates) CreateCertificate(ctx context.Context, certificate *models.Certificate) (uint, error) {
@@ -123,4 +128,92 @@ func (c *Certificates) ListAndCountCertificates(ctx context.Context, userID int,
 	}
 
 	return certificates, totalRows, nil
+}
+
+func mapCertifierModelToEntity(model *models.Certificate) *entity.Certifier {
+	return &entity.Certifier{
+		Certifier:          model.Certifier,
+		UserID:             model.UserID,
+		Type:               model.Type,
+		Subject:            model.Subject,
+		Verifier:           model.Verifier,
+		RevocationOutpoint: model.RevocationOutpoint,
+		Signature:          model.Signature,
+	}
+}
+
+// FindCertifiers returns distinct certifiers for the given specification, with optional paging/since.
+func (c *Certificates) FindCertifiers(ctx context.Context, spec *entity.CertifierReadSpecification, opts ...queryopts.Options) ([]*entity.Certifier, error) {
+	table := &c.query.Certificate
+
+	certs, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(c.conditionsBySpec(spec)...).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find certificates: %w", err)
+	}
+
+	return slices.Map(certs, mapCertifierModelToEntity), nil
+}
+
+// CountCertifiers returns the count of distinct certifiers matching the filters.
+func (c *Certificates) CountCertifiers(ctx context.Context, spec *entity.CertifierReadSpecification, opts ...queryopts.Options) (int64, error) {
+	table := &c.query.Certificate
+
+	count, err := table.WithContext(ctx).
+		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
+		Where(c.conditionsBySpec(spec)...).
+		Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	return count, nil
+}
+
+/*
+type CertifierReadSpecification struct {
+	Certifier          *Comparable[string]
+	UserID             *Comparable[int]
+	Type               *Comparable[string]
+	Subject            *Comparable[string]
+	Verifier           *Comparable[string]
+	RevocationOutpoint *Comparable[string]
+	Signature          *Comparable[string]
+}
+
+*/
+
+func (c *Certificates) conditionsBySpec(spec *entity.CertifierReadSpecification) []gen.Condition {
+	if spec == nil {
+		return nil
+	}
+
+	table := &c.query.Certificate
+
+	var conditions []gen.Condition
+	if spec.UserID != nil {
+		conditions = append(conditions, cmpCondition(table.UserID, spec.UserID))
+	}
+	if spec.Certifier != nil {
+		conditions = append(conditions, cmpCondition(table.Certifier, spec.Certifier))
+	}
+	if spec.Type != nil {
+		conditions = append(conditions, cmpCondition(table.Type, spec.Type))
+	}
+	if spec.Subject != nil {
+		conditions = append(conditions, cmpCondition(table.Subject, spec.Subject))
+	}
+	if spec.Verifier != nil {
+		conditions = append(conditions, cmpCondition(table.Verifier, spec.Verifier))
+	}
+	if spec.RevocationOutpoint != nil {
+		conditions = append(conditions, cmpCondition(table.RevocationOutpoint, spec.RevocationOutpoint))
+	}
+	if spec.Signature != nil {
+		conditions = append(conditions, cmpCondition(table.Signature, spec.Signature))
+	}
+
+	return conditions
 }
