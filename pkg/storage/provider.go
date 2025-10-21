@@ -21,6 +21,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -233,22 +234,48 @@ func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args w
 		return nil, fmt.Errorf("invalid listCertificates args: %w", err)
 	}
 
-	// prepare arguments
-	filterOptions := listCertificatesArgsToActionParams(args)
+	query := p.CertifierEntity().Read().
+		Paged(must.ConvertToIntFromUnsigned(args.Limit), must.ConvertToIntFromUnsigned(args.Offset), false).
+		UserID().
+		Equals(*auth.UserID)
 
-	certModels, totalCount, err := p.repo.ListAndCountCertificates(ctx, *auth.UserID, filterOptions)
+	if len(args.Types) > 0 {
+		query = query.Type().In(slices.Map(args.Types, to.String)...)
+	}
+	if len(args.Certifiers) > 0 {
+		query = query.Certifier().In(slices.Map(args.Certifiers, to.String)...)
+	}
+	if args.SerialNumber != nil {
+		query = query.SerialNumber().Like(string(*args.SerialNumber))
+	}
+	if args.Subject != nil {
+		query = query.Subject().Like(string(*args.Subject))
+	}
+	if args.RevocationOutpoint != nil {
+		query = query.RevocationOutpoint().Like(string(*args.RevocationOutpoint))
+	}
+	if args.Signature != nil {
+		query = query.Signature().Like(string(*args.Signature))
+	}
+
+	certsCount, err := query.Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error during counting certificates action: %w", err)
+	}
+
+	certEntities, err := query.Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error during listing certificates action: %w", err)
 	}
 
-	tc, err := to.UInt(totalCount)
+	totalCertificates, err := to.UInt(certsCount)
 	if err != nil {
 		return nil, fmt.Errorf("error during parsing total count of certificates: %w", err)
 	}
 
 	result := &wdk.ListCertificatesResult{
-		TotalCertificates: primitives.PositiveInteger(tc),
-		Certificates:      slices.Map(certModels, certModelToResult),
+		TotalCertificates: primitives.PositiveInteger(totalCertificates),
+		Certificates:      slices.Map(certEntities, certModelToResult),
 	}
 
 	return result, nil
@@ -666,6 +693,11 @@ func (p *Provider) TxNoteEntity() crud.TxNote {
 // UserUTXOEntity returns a UserUTXO interface for querying and filtering UserUTXO records in the storage provider.
 func (p *Provider) UserUTXOEntity() crud.UserUTXO {
 	return crud.NewUserUTXO(p.repo.UserUTXOs)
+}
+
+// CertifierEntity returns a Certifier interface for querying distinct certifiers in the storage provider.
+func (p *Provider) CertifierEntity() crud.Certifier {
+	return crud.NewCertificate(p.repo.Certificates)
 }
 
 // FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
