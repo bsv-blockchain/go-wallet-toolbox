@@ -2,6 +2,7 @@ package chaintracks_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -519,6 +520,123 @@ func TestChaintracksClient_GetHeaders(t *testing.T) {
 
 			// then:
 			test.Then(t, blockHeader, err)
+		})
+	}
+}
+
+func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
+	mockTimestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	tests := map[string]struct {
+		ResponseCode int
+		ResponseBody any
+		Then         func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error)
+	}{
+		"should return correct hashed headers": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[chaintracks.FiatExchangeRates]{
+				Status: "success",
+				Value: &chaintracks.FiatExchangeRates{
+					Timestamp: mockTimestamp,
+					Base:      "USD",
+					Rates:     map[string]float64{"EUR": 0.85, "GBP": 0.75},
+				},
+			},
+			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, rates)
+				require.Equal(t, mockTimestamp, rates.Timestamp)
+				require.Equal(t, "USD", rates.Base)
+				require.EqualValues(t, map[string]float64{"EUR": 0.85, "GBP": 0.75}, rates.Rates)
+			},
+		},
+		"should return error on non-200 response": {
+			ResponseCode: 500,
+			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
+				require.Error(t, err)
+				require.Nil(t, rates)
+			},
+		},
+		"should return error on invalid JSON": {
+			ResponseCode: 200,
+			ResponseBody: `{"status":"success","value":{invalid json}}`,
+			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates,
+				err error) {
+				require.Error(t, err)
+				require.Nil(t, rates)
+			},
+		},
+		"should return error on error status in response": {
+			ResponseCode: 200,
+			ResponseBody: chaintracks.ResponseFrame[chaintracks.FiatExchangeRates]{
+				Status: "error",
+				Value:  nil,
+			},
+			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
+				require.Error(t, err)
+				require.Nil(t, rates)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+
+			mockServer := given.MockServer()
+			mockServer.
+				WillRespondOn("/getFiatExchangeRates", "GET").
+				WithJSONResponse(test.ResponseCode, test.ResponseBody)
+
+			chaintr := chaintracks.NewClient(logging.NewTestLogger(t), defs.NetworkMainnet, "http://mock-chaintracks.com", chaintracks.WithRestyClient(mockServer.HttpClient()))
+
+			// when:
+			rates, err := chaintr.GetFiatExchangeRates(t.Context())
+
+			// then:
+			test.Then(t, rates, err)
+		})
+	}
+}
+
+func TestChaintracksClient_AddHeader(t *testing.T) {
+	tests := map[string]struct {
+		ResponseCode int
+		ResponseBody any
+		Then         func(t *testing.T, err error)
+	}{
+		"should post successfully": {
+			ResponseCode: 200,
+			ResponseBody: `{"status":"success"}`,
+			Then: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		"should return error on non-200 response": {
+			ResponseCode: 500,
+			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			Then: func(t *testing.T, err error) {
+				require.Error(t, err)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			given := testabilities.Given(t)
+
+			mockServer := given.MockServer()
+			mockServer.
+				WillRespondOn("/addHeaderHex", "POST").
+				WithJSONResponse(test.ResponseCode, test.ResponseBody)
+
+			chaintr := chaintracks.NewClient(logging.NewTestLogger(t), defs.NetworkMainnet, "http://mock-chaintracks.com", chaintracks.WithRestyClient(mockServer.HttpClient()))
+
+			// when:
+			err := chaintr.AddHeader(t.Context(), correctBlockHeader.BaseBlockHeader)
+
+			// then:
+			test.Then(t, err)
 		})
 	}
 }

@@ -3,6 +3,7 @@ package chaintracks
 import (
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -130,4 +131,12 @@ func (h HashedBaseHeaders) ToBaseBlockHeaders() ([]*BaseBlockHeader, error) {
 	}
 
 	return hashes, nil
+}
+
+// FiatExchangeRates represents fiat currency exchange rate data at a specific timestamp.
+// It includes the base currency, a mapping of currency codes to rates, and the time of the rates' validity.
+type FiatExchangeRates struct {
+	Timestamp time.Time          `json:"timestamp"`
+	Rates     map[string]float64 `json:"rates"`
+	Base      string             `json:"base"`
 }
