@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -55,7 +56,7 @@ func (s *Server) Handler() http.Handler {
 	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
 	handler = authMiddleware.HTTPHandler(handler)
 	// allow the API to be used everywhere when CORS is enforced.
-	handler = server.AllowAllCORSMiddleware(handler)
+	handler = servercommon.AllowAllCORSMiddleware(handler)
 
 	return handler
 }
