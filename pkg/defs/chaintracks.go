@@ -38,7 +38,7 @@ func (c *ChaintracksServerConfig) Validate() error {
 	}
 
 	const maxPort = 65535
-	if c.Port > maxPort {
+	if c.Port == 0 || c.Port > maxPort {
 		return fmt.Errorf("invalid port: %d", c.Port)
 	}
 
