@@ -146,6 +146,36 @@ func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (H
 	}
 }
 
+// GetFiatExchangeRates retrieves the latest fiat currency exchange rates from the backend server.
+// Returns a FiatExchangeRates struct with timestamp, base currency, and mapping of currency codes to rates.
+// Returns an error if the HTTP request fails, the status is non-200, or the response indicates a failure.
+func (c *Client) GetFiatExchangeRates(ctx context.Context) (*FiatExchangeRates, error) {
+	if resp, err := getRequest[FiatExchangeRates](c, ctx, c.url+"/getFiatExchangeRates"); err != nil {
+		return nil, fmt.Errorf("getFiatExchangeRates: %w", err)
+	} else {
+		return resp, nil
+	}
+}
+
+// AddHeader posts a new block header to the backend server using the given context and header data.
+// Returns an error if the HTTP request fails or the server responds with a non-200 status code.
+func (c *Client) AddHeader(ctx context.Context, header BaseBlockHeader) error {
+	result, err := c.resty.R().
+		SetContext(ctx).
+		SetBody(header).
+		Post(c.url + "/addHeaderHex")
+	if err != nil {
+		return fmt.Errorf("addHeaderHex request: %w", err)
+	}
+
+	if result.StatusCode() != 200 {
+		c.logger.DebugContext(ctx, "chaintracks non-200 HTTP status", "status", result.StatusCode(), "body", result.String())
+		return fmt.Errorf("HTTP status: %d", result.StatusCode())
+	}
+
+	return nil
+}
+
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
 	var resp ResponseFrame[T]
 	result, err := c.resty.R().
