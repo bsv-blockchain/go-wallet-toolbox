@@ -68,22 +68,31 @@ type BlockHeader struct {
 	Hash   string `json:"hash"`
 }
 
+// ResponseStatus represents the status of a response, typically indicating success or error.
+type ResponseStatus string
+
+// Possible ResponseStatus values
+const (
+	ResponseStatusSuccess ResponseStatus = "success"
+	ResponseStatusError   ResponseStatus = "error"
+)
+
 // ResponseFrame represents a generic response wrapper with status information and an optional value payload.
 // Used for unmarshalling HTTP API responses where the frame's status field indicates success or error state.
 type ResponseFrame[T any] struct {
-	Status string `json:"status"` // TODO: Check if other-than-"success" values are possible
-	Value  *T     `json:"value,omitempty"`
+	Status ResponseStatus `json:"status"` // TODO: Check if other-than-"success" values are possible
+	Value  *T             `json:"value,omitempty"`
 }
 
 // IsSuccess returns true if the response status is "success"
 func (c *ResponseFrame[T]) IsSuccess() bool {
-	return c.Status == "success"
+	return c.Status == ResponseStatusSuccess
 }
 
 // IsNotFound returns true if the response status is "success" and the value is nil, indicating a not found result.
 // NOTE: Current server implementation returns HTTP 200 with {"status":"success"} for not found cases.
 func (c *ResponseFrame[T]) IsNotFound() bool {
-	return c.Status == "success" && c.Value == nil
+	return c.Status == ResponseStatusSuccess && c.Value == nil
 }
 
 // HashedBaseHeaders represents a hex-encoded string of one or more concatenated Bitcoin base block headers.
