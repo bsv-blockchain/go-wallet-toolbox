@@ -21,7 +21,8 @@ func DefaultChaintracksServiceConfig() ChaintracksServiceConfig {
 
 type ChaintracksServerConfig struct {
 	ChaintracksServiceConfig
-	Port  uint       `mapstructure:"port"`
+	Port          uint   `mapstructure:"port"`
+	RoutingPrefix string `mapstructure:"routing_prefix"`
 }
 
 func (c *ChaintracksServerConfig) Validate() error {
@@ -39,7 +40,7 @@ func (c *ChaintracksServerConfig) Validate() error {
 
 func DefaultChaintracksServerConfig() ChaintracksServerConfig {
 	return ChaintracksServerConfig{
-		Port: 3011,
+		Port:                     3011,
 		ChaintracksServiceConfig: DefaultChaintracksServiceConfig(),
 	}
 }
