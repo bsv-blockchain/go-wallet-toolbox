@@ -14,8 +14,8 @@ import (
 type Server struct {
 	Handler *Handler
 
-	logger  *slog.Logger
-	config  defs.ChaintracksServerConfig
+	logger *slog.Logger
+	config defs.ChaintracksServerConfig
 }
 
 // NewServer creates and returns a new Server instance with the provided logger and configuration.

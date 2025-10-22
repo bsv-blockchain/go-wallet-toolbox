@@ -81,7 +81,7 @@ const (
 // Used for unmarshalling HTTP API responses where the frame's status field indicates success or error state.
 type ResponseFrame[T any] struct {
 	Status ResponseStatus `json:"status"` // TODO: Check if other-than-"success" values are possible
-	Value  *T     `json:"value,omitempty"`
+	Value  *T             `json:"value,omitempty"`
 }
 
 // IsSuccess returns true if the response status is "success"
