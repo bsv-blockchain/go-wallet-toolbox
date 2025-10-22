@@ -49,6 +49,7 @@ func main() {
 		models.UserUTXO{},
 		models.User{},
 		models.TxNote{},
+		models.Certificate{},
 	)
 
 	g.Execute()

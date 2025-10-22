@@ -8,9 +8,7 @@ import (
 
 func DefaultValidListCertificatesArgs() *wdk.ListCertificatesArgs {
 	return &wdk.ListCertificatesArgs{
-		Partial: &wdk.ListCertificatesArgsPartial{
-			Type:               to.Ptr(primitives.Base64String(TypeField)),
-			Certifier:          to.Ptr(primitives.PubKeyHex(Certifier)),
+		ListCertificatesArgsPartial: wdk.ListCertificatesArgsPartial{
 			SerialNumber:       to.Ptr(primitives.Base64String(SerialNumber)),
 			Subject:            to.Ptr(primitives.PubKeyHex(SubjectPubKey)),
 			RevocationOutpoint: to.Ptr(primitives.OutpointString(RevocationOutpoint)),

@@ -26,31 +26,14 @@ func ListCertificatesArgs(args *wdk.ListCertificatesArgs) error {
 		return fmt.Errorf("invalid type argument: %w", err)
 	}
 
-	if args.Partial != nil {
-		err := validateListCertificatesPartialArgs(args.Partial)
-		if err != nil {
-			return fmt.Errorf("invalid partial argument: %w", err)
-		}
+	if err := validateListCertificatesPartialArgs(&args.ListCertificatesArgsPartial); err != nil {
+		return fmt.Errorf("invalid partial argument: %w", err)
 	}
 
 	return nil
 }
 
 func validateListCertificatesPartialArgs(args *wdk.ListCertificatesArgsPartial) error {
-	if args.Certifier != nil {
-		err := args.Certifier.Validate()
-		if err != nil {
-			return fmt.Errorf("invalid partial certifier argument: %w", err)
-		}
-	}
-
-	if args.Type != nil {
-		err := args.Type.Validate()
-		if err != nil {
-			return fmt.Errorf("invalid partial type argument: %w", err)
-		}
-	}
-
 	if args.SerialNumber != nil {
 		err := args.SerialNumber.Validate()
 		if err != nil {
