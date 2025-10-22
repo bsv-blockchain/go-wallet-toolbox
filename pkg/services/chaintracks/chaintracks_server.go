@@ -10,12 +10,16 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 )
 
+// Server coordinates the HTTP server, application handler, logging, and configuration for Chaintracks services.
 type Server struct {
-	logger  *slog.Logger
 	Handler *Handler
+
+	logger  *slog.Logger
 	config  defs.ChaintracksServerConfig
 }
 
+// NewServer creates and returns a new Server instance with the provided logger and configuration.
+// Returns an error if the handler cannot be initialized.
 func NewServer(logger *slog.Logger, config defs.ChaintracksServerConfig) (*Server, error) {
 	logger = logging.Child(logger, "chaintracks_server")
 
