@@ -21,20 +21,32 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 
 		// and:
 		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+
 		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
 		require.NoError(t, err)
 		require.NotNil(t, cert)
 
-		// when:
+		// and:
 		listCertificatesArgs := wallet.ListCertificatesArgs{
 			Types:      []wallet.CertificateType{args.Type},
 			Certifiers: []*sdkprimitives.PublicKey{args.Certifier},
 		}
 
-		res, err := aliceWallet.ListCertificates(t.Context(), listCertificatesArgs, fixtures.DefaultOriginator)
+		// when:
+		actualResult, err := aliceWallet.ListCertificates(t.Context(), listCertificatesArgs, fixtures.DefaultOriginator)
 
 		// then:
+		expectedResult := &wallet.ListCertificatesResult{
+			TotalCertificates: 1,
+			Certificates: []wallet.CertificateResult{
+				{
+					Certificate: *cert,
+					Keyring:     cert.Fields,
+				},
+			},
+		}
+
 		require.NoError(t, err)
-		require.NotNil(t, res)
+		require.Equal(t, expectedResult, actualResult)
 	})
 }

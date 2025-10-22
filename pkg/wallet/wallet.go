@@ -5,10 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
-	sdkprimitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -476,28 +475,28 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
 func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
-	w.logger.DebugContext(ctx, "AcquireCertificate call", slogx.String("originator", originator))
+	switch args.AcquisitionProtocol {
+	case sdk.AcquisitionProtocolDirect:
+		return w.acquireDirectCertificate(ctx, args, originator)
+	case sdk.AcquisitionProtocolIssuance:
+		// TODO: Add implementation for sdk.AcquisitionProtocolIssuance in a separate PR.
+		panic("implement me")
+	default:
+		return nil, fmt.Errorf("acquire protocol not recognized, allowed types: [%s, %s]", sdk.AcquisitionProtocolDirect, sdk.AcquisitionProtocolIssuance)
+	}
+}
 
-	// TODO: This temporary implementation will be replaced once PR #572 unblocked.
+func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	w.logger.DebugContext(ctx, "AcquireCertificateDirect call", slogx.String("originator", originator))
+
 	auth, err := w.storage.GetAuth(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get auth: %w", err)
+		return nil, fmt.Errorf("failed to get auth identity number: %w", err)
 	}
 
 	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity public key: %w", err)
-	}
-
-	tableFields := make([]*wdk.TableCertificateField, 0, len(args.Fields))
-	for k, v := range args.Fields {
-		tableFields = append(tableFields, &wdk.TableCertificateField{
-			CreatedAt:  time.Now(),
-			UserID:     to.Value(auth.UserID),
-			FieldName:  k,
-			FieldValue: v,
-			MasterKey:  primitives.Base64String(args.KeyringForSubject[k]),
-		})
 	}
 
 	rHex := fmt.Sprintf("%064x", args.Signature.R)
@@ -514,7 +513,7 @@ func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertifi
 			RevocationOutpoint: primitives.OutpointString(args.RevocationOutpoint.String()),
 			Signature:          primitives.HexString(sigHex),
 		},
-		Fields: tableFields,
+		Fields: wdk.ParseToTableCertificateFieldSlice(*auth.UserID, args.Fields, args.KeyringForSubject),
 	})
 
 	if err != nil {
@@ -539,16 +538,16 @@ func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificates
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
 
 	certifiers := make([]primitives.PubKeyHex, 0, len(args.Certifiers))
-	for _, c := range args.Certifiers {
-		certifiers = append(certifiers, primitives.PubKeyHex(c.ToDERHex()))
+	for _, cert := range args.Certifiers {
+		certifiers = append(certifiers, primitives.PubKeyHex(cert.ToDERHex()))
 	}
 
 	types := make([]primitives.Base64String, 0, len(args.Types))
-	for _, t := range args.Types {
-		types = append(types, primitives.Base64String(base64.StdEncoding.EncodeToString(t[:])))
+	for _, certType := range args.Types {
+		types = append(types, primitives.Base64String(base64.StdEncoding.EncodeToString(certType[:])))
 	}
 
-	res, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
+	listCertificatesResult, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
 		Certifiers: certifiers,
 		Types:      types,
 		Limit:      primitives.PositiveIntegerDefault10Max10000(to.Value(args.Limit)),
@@ -558,65 +557,31 @@ func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificates
 		return nil, fmt.Errorf("failed to list certificates with given list certificates args: %w", err)
 	}
 
-	certs := make([]sdk.CertificateResult, 0, len(res.Certificates))
-	for _, cert := range res.Certificates {
-		keyring := make(map[string]string)
-		for k, v := range cert.Keyring {
-			keyring[to.String(k)] = to.String(v)
-		}
-
-		fields := make(map[string]string)
-		for k, v := range cert.Fields {
-			fields[to.String(k)] = to.String(v)
-		}
-
-		subject, err := sdkprimitives.PublicKeyFromString(string(cert.Subject))
+	certs := make([]sdk.CertificateResult, 0, len(listCertificatesResult.Certificates))
+	for _, storedModel := range listCertificatesResult.Certificates {
+		cert, err := storedModel.ToSDKCertificate()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create public key from subject string: %w", err)
+			return nil, fmt.Errorf("failed to parse stored certification result to sdk certificate: %w", err)
 		}
 
-		var (
-			certType           sdk.CertificateType
-			serialNum          sdk.SerialNumber
-			revocationOutpoint [36]byte
-		)
-
-		copy(certType[:], []byte(cert.Type))
-		copy(serialNum[:], []byte(cert.SerialNumber))
-		copy(revocationOutpoint[:], []byte(cert.RevocationOutpoint))
-
-		certifier, err := sdkprimitives.PublicKeyFromString(string(cert.Certifier))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create certifier public key: %w", err)
+		res := sdk.CertificateResult{Certificate: cert}
+		if !storedModel.Keyring.IsEmpty() {
+			res.Keyring = storedModel.Keyring.ToMap()
 		}
 
-		rHex := cert.Signature[:64]
-		sHex := cert.Signature[64:]
-
-		sig := &sdkprimitives.Signature{
-			R: sdkprimitives.FromHex(rHex.String()),
-			S: sdkprimitives.FromHex(sHex.String()),
+		if !storedModel.Verifier.IsEmpty() {
+			res.Verifier = []byte(storedModel.Verifier)
 		}
 
-		certs = append(certs, sdk.CertificateResult{
-			Certificate: sdk.Certificate{
-				Type:               certType,
-				SerialNumber:       serialNum,
-				Subject:            subject,
-				Certifier:          certifier,
-				RevocationOutpoint: transaction.NewOutpointFromBytes(revocationOutpoint),
-				Fields:             fields,
-				Signature:          sig,
-			},
-			Keyring:  keyring,
-			Verifier: []byte(cert.Verifier),
-		})
+		certs = append(certs, res)
 	}
 
-	return &sdk.ListCertificatesResult{
-		TotalCertificates: uint32(res.TotalCertificates),
-		Certificates:      certs,
-	}, nil
+	totalCertificates := uint64(listCertificatesResult.TotalCertificates)
+	if totalCertificates > math.MaxUint32 {
+		return nil, fmt.Errorf("total certificates too large: %d", listCertificatesResult.TotalCertificates)
+	}
+
+	return &sdk.ListCertificatesResult{TotalCertificates: uint32(totalCertificates), Certificates: certs}, nil
 }
 
 // ProveCertificate proves select fields of an identity certificate, as specified, when requested by a verifier.

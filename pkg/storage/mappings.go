@@ -20,7 +20,7 @@ func tableCertificateXFieldsToModelFields(userID int) func(*wdk.TableCertificate
 
 func certModelToResult(model *entity.Certificate) *wdk.CertificateResult {
 	return &wdk.CertificateResult{
-		Verifier: model.Verifier,
+		Verifier: wdk.VerifierString(model.Verifier),
 		Keyring:  certificateModelFieldsToKeyringResult(model.CertificateFields),
 		WalletCertificate: wdk.WalletCertificate{
 			Type:               primitives.Base64String(model.Type),
