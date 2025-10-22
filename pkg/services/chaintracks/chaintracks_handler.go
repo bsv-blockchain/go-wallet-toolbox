@@ -48,7 +48,6 @@ func (h *Handler) Handler() http.Handler {
 
 func (h *Handler) handleRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	//  QF1012: Use fmt.Fprintf(...) instead of Write([]byte(fmt.Sprintf(...))) (staticcheck)
 	if _, err := fmt.Fprintf(w, "User-agent: *\nDisallow: /"); err != nil {
 		h.logger.Error("failed to write robots.txt response", slog.String("error", err.Error()))
 	}
