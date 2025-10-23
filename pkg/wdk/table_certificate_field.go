@@ -35,7 +35,6 @@ func ParseToTableCertificateFieldSlice(userID int, fields map[string]string, key
 		}
 
 		tableCertificateFields = append(tableCertificateFields, &TableCertificateField{
-			CreatedAt:  time.Now(),
 			UserID:     userID,
 			FieldName:  name,
 			FieldValue: value,
