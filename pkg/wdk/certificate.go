@@ -74,6 +74,12 @@ func (w *WalletCertificate) ToSDKCertificate() (sdk.Certificate, error) {
 		return sdk.Certificate{}, fmt.Errorf("failed to create certifier public key: %w", err)
 	}
 
+	// Parse the signature string to an EC Signature
+	sig, err := parseSignature(w.Signature)
+	if err != nil {
+		return sdk.Certificate{}, fmt.Errorf("failed to convert signature to sdk type: %w", err)
+	}
+
 	// Construct and return the SDK certificate
 	return sdk.Certificate{
 		Type:               certType,
@@ -82,7 +88,7 @@ func (w *WalletCertificate) ToSDKCertificate() (sdk.Certificate, error) {
 		Certifier:          certifier,
 		RevocationOutpoint: revocationOutpoint,
 		Fields:             w.Fields.ToMap(),
-		Signature:          parseSignature(w.Signature),
+		Signature:          sig,
 	}, nil
 }
 
@@ -134,14 +140,19 @@ func (s VerifierString) IsEmpty() bool {
 // parseSignature converts a HexString into an EC signature.
 // The input `s` is expected to be a concatenation of the R and S values in hex format (64 characters each).
 // Returns a pointer to an ec.Signature containing the parsed R and S values.
-func parseSignature(s primitives.HexString) *ec.Signature {
+// Otherwise error that indicates the given input string length is not correct.
+func parseSignature(s primitives.HexString) (*ec.Signature, error) {
+	if len(s) < 128 {
+		return nil, fmt.Errorf("Input is too short to contain both R and S values (64 hex chars each)")
+	}
+
 	rHex := s[:64]
 	sHex := s[64:]
 
 	return &ec.Signature{
 		R: ec.FromHex(rHex.String()),
 		S: ec.FromHex(sHex.String()),
-	}
+	}, nil
 }
 
 // parseSerialNumber decodes a base64-encoded string into an sdk.SerialNumber.
