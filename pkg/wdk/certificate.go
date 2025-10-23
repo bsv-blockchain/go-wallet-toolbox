@@ -113,7 +113,7 @@ func (m KeyringMap) IsEmpty() bool {
 // This is useful for interoperability with functions or APIs that expect regular string maps.
 // Returns a new map where both keys and values are converted to plain strings.
 func (m KeyringMap) ToMap() map[string]string {
-	out := make(map[string]string)
+	out := make(map[string]string, len(m))
 	for key, val := range m {
 		out[to.String(key)] = to.String(val)
 	}

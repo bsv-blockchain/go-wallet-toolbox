@@ -546,16 +546,7 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
 
-	certifiers := make([]primitives.PubKeyHex, 0, len(args.Certifiers))
-	for _, cert := range args.Certifiers {
-		certifiers = append(certifiers, primitives.PubKeyHex(cert.ToDERHex()))
-	}
-
-	types := make([]primitives.Base64String, 0, len(args.Types))
-	for _, certType := range args.Types {
-		types = append(types, primitives.Base64String(base64.StdEncoding.EncodeToString(certType[:])))
-	}
-
+	certifiers, types := mapping.MapListCertificatesArgs(args)
 	listCertificatesResult, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
 		Certifiers: certifiers,
 		Types:      types,
