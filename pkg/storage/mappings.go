@@ -34,8 +34,8 @@ func certModelToResult(model *entity.Certificate) *wdk.CertificateResult {
 	}
 }
 
-func certificateModelFieldsToKeyringResult(fields []entity.CertificateField) map[primitives.StringUnder50Bytes]primitives.Base64String {
-	result := make(map[primitives.StringUnder50Bytes]primitives.Base64String, len(fields))
+func certificateModelFieldsToKeyringResult(fields []entity.CertificateField) wdk.KeyringMap {
+	result := make(wdk.KeyringMap, len(fields))
 	for _, field := range fields {
 		result[primitives.StringUnder50Bytes(field.FieldName)] = primitives.Base64String(field.FieldValue)
 	}
