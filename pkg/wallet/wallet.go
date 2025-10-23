@@ -494,7 +494,16 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 		return nil, fmt.Errorf("failed to get auth identity number: %w", err)
 	}
 
-	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, originator)
+	pubKeyArgs := sdk.GetPublicKeyArgs{IdentityKey: true}
+	if args.Privileged != nil && to.Value(args.Privileged) {
+		pubKeyArgs.Privileged = to.Value(args.Privileged)
+	}
+
+	if len(args.PrivilegedReason) > 0 {
+		pubKeyArgs.PrivilegedReason = args.PrivilegedReason
+	}
+
+	key, err := w.GetPublicKey(ctx, pubKeyArgs, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity public key: %w", err)
 	}
