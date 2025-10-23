@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestChaintracksService_Livecycle(t *testing.T) {
+func TestChaintracksService_Lifecycle(t *testing.T) {
 	// given:
 	service, err := chaintracks.NewService(logging.NewTestLogger(t), defs.DefaultChaintracksServiceConfig())
 	require.NoError(t, err)

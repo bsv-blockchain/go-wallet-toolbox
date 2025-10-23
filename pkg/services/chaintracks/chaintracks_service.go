@@ -78,7 +78,7 @@ func (s *Service) Available() bool {
 func (s *Service) setAvailable(value bool) {
 	s.availableMu.Lock()
 	defer s.availableMu.Unlock()
-	s.available = true
+	s.available = value
 }
 
 // Destroy gracefully shuts down the service, cancels background tasks, and waits for all workers to complete.
@@ -90,9 +90,7 @@ func (s *Service) Destroy() {
 	}
 	s.shiftLiveHeadersWG.Wait()
 
-	s.availableMu.Lock()
-	s.available = false
-	s.availableMu.Unlock()
+	s.setAvailable(false)
 
 	s.logger.Info("Chaintracks service - destroyed")
 }
