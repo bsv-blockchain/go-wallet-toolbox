@@ -39,7 +39,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 					Types: []wallet.CertificateType{args.Type},
 				},
 			},
-			"filter includes cetrifiers types list only": {
+			"filter includes certifiers types list only": {
 				args: wallet.ListCertificatesArgs{
 					Certifiers: []*sdkprimitives.PublicKey{args.Certifier},
 				},
