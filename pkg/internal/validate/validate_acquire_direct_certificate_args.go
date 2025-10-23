@@ -12,7 +12,7 @@ func ValidateAcquireDirectCertificateArgs(args *sdk.AcquireCertificateArgs) erro
 		return fmt.Errorf("only acquire direct certificate requests allowed here")
 	}
 	if args.Certifier == nil {
-		return fmt.Errorf("certrifier: invalid when acquisitionProtocol is 'direct'")
+		return fmt.Errorf("certifier: invalid when acquisitionProtocol is 'direct'")
 	}
 	if args.SerialNumber == nil {
 		return fmt.Errorf("serialNumber: invalid when acquisitionProtocol is 'direct'")
