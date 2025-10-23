@@ -143,7 +143,7 @@ func (s VerifierString) IsEmpty() bool {
 // Otherwise error that indicates the given input string length is not correct.
 func parseSignature(s primitives.HexString) (*ec.Signature, error) {
 	if len(s) < 128 {
-		return nil, fmt.Errorf("Input is too short to contain both R and S values (64 hex chars each)")
+		return nil, fmt.Errorf("input is too short to contain both R and S values (64 hex chars each)")
 	}
 
 	rHex := s[:64]

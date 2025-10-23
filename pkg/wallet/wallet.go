@@ -489,29 +489,44 @@ func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertifi
 func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
 	w.logger.DebugContext(ctx, "AcquireCertificateDirect call", slogx.String("originator", originator))
 
+	// Validate input arguments
+	if err := validate.ValidateAcquireDirectCertificateArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid AcquireCertificateArgs: %w", err)
+	}
+
+	// Retrieve authentication info
 	auth, err := w.storage.GetAuth(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get auth identity number: %w", err)
+		return nil, fmt.Errorf("could not retrieve auth identity: %w", err)
 	}
 
+	// Prepare public key request arguments
 	pubKeyArgs := sdk.GetPublicKeyArgs{IdentityKey: true}
 	if args.Privileged != nil && to.Value(args.Privileged) {
-		pubKeyArgs.Privileged = to.Value(args.Privileged)
+		pubKeyArgs.Privileged = true
 	}
-
 	if len(args.PrivilegedReason) > 0 {
 		pubKeyArgs.PrivilegedReason = args.PrivilegedReason
 	}
 
+	// Fetch the identity public key
 	key, err := w.GetPublicKey(ctx, pubKeyArgs, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get identity public key: %w", err)
+		return nil, fmt.Errorf("failed to fetch identity public key: %w", err)
 	}
 
+	// Convert signature to hex string
 	rHex := fmt.Sprintf("%064s", args.Signature.R.Text(16))
 	sHex := fmt.Sprintf("%064s", args.Signature.S.Text(16))
 	sigHex := rHex + sHex
 
+	// Parse fields into TableCertificateField slice
+	fields, err := wdk.ParseToTableCertificateFieldSlice(*auth.UserID, args.Fields, args.KeyringForSubject)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate fields for user %d: %w", *auth.UserID, err)
+	}
+
+	// Insert certificate into storage
 	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
 		TableCertificate: wdk.TableCertificate{
 			UserID:             to.Value(auth.UserID),
@@ -522,13 +537,13 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 			RevocationOutpoint: primitives.OutpointString(args.RevocationOutpoint.String()),
 			Signature:          primitives.HexString(sigHex),
 		},
-		Fields: wdk.ParseToTableCertificateFieldSlice(*auth.UserID, args.Fields, args.KeyringForSubject),
+		Fields: fields,
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert certificate auth: %w", err)
+		return nil, fmt.Errorf("failed to insert certificate for user %d: %w", *auth.UserID, err)
 	}
 
+	// Build SDK certificate to return
 	cert := sdk.Certificate{
 		Type:               args.Type,
 		SerialNumber:       to.Value(args.SerialNumber),

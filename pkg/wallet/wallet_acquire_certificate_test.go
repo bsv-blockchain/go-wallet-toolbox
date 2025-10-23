@@ -4,7 +4,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,22 +26,88 @@ func (s *WalletTestSuite) Test_AcquireCertificate() {
 		// and:
 		args := testabilities.CreateSampleAcquireCertificateArgs(t)
 
-		// and:
-		expectedCertificate := wallet.Certificate{
-			Type:               args.Type,
-			SerialNumber:       to.Value(args.SerialNumber),
-			Subject:            key.PublicKey,
-			Certifier:          args.Certifier,
-			RevocationOutpoint: args.RevocationOutpoint,
-			Fields:             args.Fields,
-			Signature:          args.Signature,
-		}
-
 		// then:
-		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
+		actual, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, cert, to.Ptr(expectedCertificate))
+		testabilities.AssertWalletCertificateEquality(t, actual, args, aliceWallet)
+	})
+
+	s.Run("should fail when certifier is missing", func() {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args.Certifier = nil // missing certifier
+
+		// when:
+		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+		require.Nil(t, cert)
+	})
+
+	s.Run("should fail when signature is missing", func() {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args.Signature = nil // invalid
+
+		// when:
+		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+		require.Nil(t, cert)
+	})
+
+	s.Run("should fail when revocation outpoint is invalid", func() {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args.RevocationOutpoint = nil // invalid
+
+		// when:
+		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+		require.Nil(t, cert)
+	})
+
+	s.Run("should not create a duplicate when certificate already exists", func() {
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+
+		first, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.NotNil(t, first)
+
+		// when:
+		second, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+		require.Nil(t, second)
 	})
 }

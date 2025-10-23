@@ -1,6 +1,8 @@
 package wdk
 
 import (
+	"encoding/base64"
+	"fmt"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -22,17 +24,24 @@ type TableCertificateFieldSlice []TableCertificateField
 
 // ParseToTableCertificateFieldSlice converts a map of certificate fields into a slice of TableCertificateField pointers.
 // Each entry in the `fields` map becomes a TableCertificateField, populated with the user ID, field name, field value,
-// and the corresponding master key from `keyringForSubject`.
-func ParseToTableCertificateFieldSlice(userID int, fields map[string]string, keyringForSubject map[string]string) []*TableCertificateField {
+// and the corresponding master key from `keyringForSubject`. Retruns an error if any field name is missing in `keyringForSubject`.
+func ParseToTableCertificateFieldSlice(userID int, fields map[string]string, keyringForSubject map[string]string) ([]*TableCertificateField, error) {
 	tableCertificateFields := make([]*TableCertificateField, 0, len(fields))
-	for k, v := range fields {
+
+	for name, value := range fields {
+		masterKey, ok := keyringForSubject[name]
+		if !ok {
+			return nil, fmt.Errorf("keyringForSubject map doesn't contain the key with name: %s", name)
+		}
+
 		tableCertificateFields = append(tableCertificateFields, &TableCertificateField{
 			CreatedAt:  time.Now(),
 			UserID:     userID,
-			FieldName:  k,
-			FieldValue: v,
-			MasterKey:  primitives.Base64String(keyringForSubject[k]),
+			FieldName:  name,
+			FieldValue: value,
+			MasterKey:  primitives.Base64String(base64.StdEncoding.EncodeToString([]byte(masterKey))),
 		})
 	}
-	return tableCertificateFields
+
+	return tableCertificateFields, nil
 }

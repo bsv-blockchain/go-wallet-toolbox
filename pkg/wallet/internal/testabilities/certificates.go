@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"math/big"
@@ -9,6 +10,8 @@ import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,13 +83,42 @@ func CreateSampleAcquireCertificateArgs(t *testing.T) wallet.AcquireCertificateA
 		SerialNumber:        &serialNum,
 		RevocationOutpoint:  CreateTestOutpoint(t),
 		Signature:           CreateTestSignature(t),
+		KeyringRevealer:     &wallet.KeyringRevealer{Certifier: true},
+		KeyringForSubject:   map[string]string{"name": "Alice Example"},
 	}
 }
 
-func AssertCertificateResultEquality(t *testing.T, actualCert wallet.CertificateResult, expectedCert *wallet.Certificate, keyring map[string]string) {
-	require.Equal(t, actualCert.Certifier, expectedCert.Certifier)
-	require.Equal(t, actualCert.Fields, expectedCert.Fields)
-	require.Equal(t, keyring, actualCert.Keyring)
-	require.Equal(t, actualCert.Signature.Serialize(), expectedCert.Signature.Serialize())
-	require.Equal(t, actualCert.RevocationOutpoint.String(), expectedCert.RevocationOutpoint.String())
+func AssertCertificateResultEquality(t *testing.T, actual wallet.CertificateResult, expected *wallet.Certificate, keyring map[string]string) {
+	t.Helper()
+	require.Equal(t, actual.Certifier, expected.Certifier)
+	require.Equal(t, actual.Fields, expected.Fields)
+	require.Equal(t, keyring, actual.Keyring)
+	require.Equal(t, actual.Signature.Serialize(), expected.Signature.Serialize())
+	require.Equal(t, actual.RevocationOutpoint.String(), expected.RevocationOutpoint.String())
+}
+
+type PublicKeyProvider interface {
+	GetPublicKey(ctx context.Context, args wallet.GetPublicKeyArgs, _originator string) (*wallet.GetPublicKeyResult, error)
+}
+
+func AssertWalletCertificateEquality(t *testing.T, actual *wallet.Certificate, args wallet.AcquireCertificateArgs, aliceWallet PublicKeyProvider) {
+	t.Helper()
+
+	require.NotNil(t, actual)
+
+	key, err := aliceWallet.GetPublicKey(t.Context(), wallet.GetPublicKeyArgs{IdentityKey: true}, fixtures.DefaultOriginator)
+	require.NoError(t, err)
+	require.NotNil(t, key)
+
+	expected := &wallet.Certificate{
+		Type:               args.Type,
+		SerialNumber:       to.Value(args.SerialNumber),
+		Subject:            key.PublicKey,
+		Certifier:          args.Certifier,
+		RevocationOutpoint: args.RevocationOutpoint,
+		Fields:             args.Fields,
+		Signature:          args.Signature,
+	}
+
+	require.Equal(t, actual, expected)
 }
