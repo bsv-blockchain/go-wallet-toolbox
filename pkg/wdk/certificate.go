@@ -20,7 +20,7 @@ type WalletCertificateFieldMap map[primitives.StringUnder50Bytes]string
 // This is useful for interoperability with functions or APIs that expect regular string maps.
 // Returns a new map where each key and value is converted to a plain string.
 func (m WalletCertificateFieldMap) ToMap() map[string]string {
-	out := make(map[string]string)
+	out := make(map[string]string, len(m))
 	for key, val := range m {
 		out[to.String(key)] = to.String(val)
 	}
@@ -147,25 +147,35 @@ func parseSignature(s primitives.HexString) *ec.Signature {
 // parseSerialNumber decodes a base64-encoded string into an sdk.SerialNumber.
 // Returns the decoded SerialNumber, or an error if decoding fails.
 func parseSerialNumber(s string) (sdk.SerialNumber, error) {
-	bytes, err := base64.StdEncoding.DecodeString(s)
+	serialBytes, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
 		return sdk.SerialNumber{}, fmt.Errorf("failed to decode certificate serial number: %w", err)
 	}
 
 	var serial sdk.SerialNumber
-	copy(serial[:], bytes)
+	copy(serial[:], serialBytes)
+
+	if len(serialBytes) != len(serial) {
+		return sdk.SerialNumber{}, fmt.Errorf("serial bytes bytes length: %d is not equal to sdk.SerialNumber bytes length: %d", len(serialBytes), len(serial))
+	}
+
 	return serial, nil
 }
 
 // parseCertificationType decodes a base64-encoded string into an sdk.CertificateType.
 // Returns the decoded CertificateType, or an error if decoding fails.
 func parseCertificationType(s string) (sdk.CertificateType, error) {
-	bytes, err := base64.StdEncoding.DecodeString(s)
+	certBytes, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
 		return sdk.CertificateType{}, fmt.Errorf("failed to decode certificate type: %w", err)
 	}
 
 	var certType sdk.CertificateType
-	copy(certType[:], bytes)
+	copy(certType[:], certBytes)
+
+	if len(certType) != len(certBytes) {
+		return sdk.CertificateType{}, fmt.Errorf("certificate type bytes length: %d is not equal to sdk.CertificateType bytes length: %d", len(certBytes), len(certType))
+	}
+
 	return certType, nil
 }
