@@ -499,8 +499,8 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 		return nil, fmt.Errorf("failed to get identity public key: %w", err)
 	}
 
-	rHex := fmt.Sprintf("%064x", args.Signature.R)
-	sHex := fmt.Sprintf("%064x", args.Signature.S)
+	rHex := fmt.Sprintf("%064s", args.Signature.R.Text(16))
+	sHex := fmt.Sprintf("%064s", args.Signature.S.Text(16))
 	sigHex := rHex + sHex
 
 	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
