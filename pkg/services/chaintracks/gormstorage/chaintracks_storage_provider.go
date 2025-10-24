@@ -51,7 +51,6 @@ func (p *Provider) Migrate(ctx context.Context) error {
 	return nil
 }
 
-
 func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *ProviderConfig) (*database.Database, error) {
 	if options.GormDB != nil {
 		return database.NewWithGorm(options.GormDB, logger), nil

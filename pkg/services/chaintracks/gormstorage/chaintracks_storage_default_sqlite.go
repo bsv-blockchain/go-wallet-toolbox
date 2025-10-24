@@ -20,4 +20,3 @@ func InMemorySQLiteDBConfig() defs.Database {
 		MaxOpenConnections:    5,
 	}
 }
-

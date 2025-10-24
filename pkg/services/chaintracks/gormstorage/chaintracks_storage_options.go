@@ -16,7 +16,7 @@ type ProviderConfig struct {
 
 func defaultProviderOptions() ProviderConfig {
 	return ProviderConfig{
-		DBConfig:                     defs.DefaultDBConfig(),
+		DBConfig: defs.DefaultDBConfig(),
 	}
 }
 

@@ -13,4 +13,3 @@ type ChaintracksBulkFile struct {
 func NewCChaintracksBulkFile(db *gorm.DB, query *genquery.Query) *ChaintracksBulkFile {
 	return &ChaintracksBulkFile{db: db, query: query}
 }
-

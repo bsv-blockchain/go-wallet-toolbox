@@ -13,4 +13,3 @@ type ChaintracksLiveHeader struct {
 func NewChaintracksLiveHeader(db *gorm.DB, query *genquery.Query) *ChaintracksLiveHeader {
 	return &ChaintracksLiveHeader{db: db, query: query}
 }
-
