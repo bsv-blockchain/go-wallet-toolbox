@@ -516,8 +516,8 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 	}
 
 	// Convert signature to hex string
-	rHex := fmt.Sprintf("%064s", args.Signature.R.Text(16))
-	sHex := fmt.Sprintf("%064s", args.Signature.S.Text(16))
+	rHex := fmt.Sprintf("%064x", args.Signature.R)
+	sHex := fmt.Sprintf("%064x", args.Signature.S)
 	sigHex := rHex + sHex
 
 	// Parse fields into TableCertificateField slice
