@@ -167,7 +167,7 @@ func parseSerialNumber(s string) (sdk.SerialNumber, error) {
 	copy(serial[:], serialBytes)
 
 	if len(serialBytes) != len(serial) {
-		return sdk.SerialNumber{}, fmt.Errorf("serial bytes bytes length: %d is not equal to sdk.SerialNumber bytes length: %d", len(serialBytes), len(serial))
+		return sdk.SerialNumber{}, fmt.Errorf("serial bytes length: %d is not equal to sdk.SerialNumber bytes length: %d", len(serialBytes), len(serial))
 	}
 
 	return serial, nil
