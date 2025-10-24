@@ -1,6 +1,9 @@
 package storage
 
 import (
+	"encoding/base64"
+	"fmt"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -18,10 +21,15 @@ func tableCertificateXFieldsToModelFields(userID int) func(*wdk.TableCertificate
 	}
 }
 
-func certModelToResult(model *entity.Certificate) *wdk.CertificateResult {
+func certModelToResult(model *entity.Certificate) (*wdk.CertificateResult, error) {
+	keyring, err := certificateModelFieldsToKeyringResult(model.CertificateFields)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert certificate model fields to keyring: %w", err)
+	}
+
 	return &wdk.CertificateResult{
 		Verifier: wdk.VerifierString(model.Verifier),
-		Keyring:  certificateModelFieldsToKeyringResult(model.CertificateFields),
+		Keyring:  keyring,
 		WalletCertificate: wdk.WalletCertificate{
 			Type:               primitives.Base64String(model.Type),
 			Subject:            primitives.PubKeyHex(model.Subject),
@@ -31,16 +39,22 @@ func certModelToResult(model *entity.Certificate) *wdk.CertificateResult {
 			Signature:          primitives.HexString(model.Signature),
 			Fields:             certificateModelFieldsToFieldsResult(model.CertificateFields),
 		},
-	}
+	}, nil
 }
 
-func certificateModelFieldsToKeyringResult(fields []entity.CertificateField) wdk.KeyringMap {
-	result := make(wdk.KeyringMap, len(fields))
+func certificateModelFieldsToKeyringResult(fields []entity.CertificateField) (wdk.KeyringMap, error) {
+	result := make(wdk.KeyringMap)
 	for _, field := range fields {
-		result[primitives.StringUnder50Bytes(field.FieldName)] = primitives.Base64String(field.FieldValue)
+		val := field.FieldValue
+		_, err := base64.StdEncoding.DecodeString(val)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode string %s, expected valid Base64 string: %w", val, err)
+		}
+
+		result[primitives.StringUnder50Bytes(field.FieldName)] = primitives.Base64String(val)
 	}
 
-	return result
+	return result, nil
 }
 
 func certificateModelFieldsToFieldsResult(fields []entity.CertificateField) map[primitives.StringUnder50Bytes]string {

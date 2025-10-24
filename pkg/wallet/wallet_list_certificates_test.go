@@ -1,6 +1,7 @@
 package wallet_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	sdkprimitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
@@ -68,7 +69,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 
 				// and:
 				first := actualResult.Certificates[0]
-				keyring := map[string]string{"name": "Alice Example"}
+				keyring := map[string]string{"name": base64.StdEncoding.EncodeToString([]byte("Alice Example"))}
 				testabilities.AssertCertificateResultEquality(t, first, cert, keyring)
 			})
 		}
@@ -142,7 +143,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 		// and:
 		for idx, actualCert := range actualResult.Certificates {
 			expectedCert := expectedCerts[idx]
-			keyring := map[string]string{"name": "Alice Example"}
+			keyring := map[string]string{"name": base64.StdEncoding.EncodeToString([]byte("Alice Example"))}
 			testabilities.AssertCertificateResultEquality(t, actualCert, expectedCert, keyring)
 		}
 	})

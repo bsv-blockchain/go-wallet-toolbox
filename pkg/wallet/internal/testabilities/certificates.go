@@ -3,6 +3,7 @@ package testabilities
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"math/big"
 	"testing"
@@ -75,23 +76,33 @@ func CreateSampleAcquireCertificateArgs(t *testing.T) wallet.AcquireCertificateA
 	copy(certType[:], certBytes)
 	copy(serialNum[:], sigBytes)
 
+	nameValue := "name"
+	nameValueB64 := base64.StdEncoding.EncodeToString([]byte("Alice Example"))
+
 	return wallet.AcquireCertificateArgs{
 		Type:                certType,
 		Certifier:           CreateTestCertifier(t),
 		AcquisitionProtocol: wallet.AcquisitionProtocolDirect,
-		Fields:              map[string]string{"name": "Alice Example"},
+		Fields:              map[string]string{nameValue: nameValueB64},
 		SerialNumber:        &serialNum,
 		RevocationOutpoint:  CreateTestOutpoint(t),
 		Signature:           CreateTestSignature(t),
 		KeyringRevealer:     &wallet.KeyringRevealer{Certifier: true},
-		KeyringForSubject:   map[string]string{"name": "Alice Example"},
+		KeyringForSubject:   map[string]string{nameValue: nameValueB64},
 	}
 }
 
 func AssertCertificateResultEquality(t *testing.T, actual wallet.CertificateResult, expected *wallet.Certificate, keyring map[string]string) {
 	t.Helper()
 	require.Equal(t, actual.Certifier, expected.Certifier)
-	require.Equal(t, actual.Fields, expected.Fields)
+
+	// Compare Fields
+	require.Equal(t, len(expected.Fields), len(actual.Fields), "Fields map length mismatch")
+	require.Equal(t, expected.Fields, actual.Fields)
+
+	// Compare Keyring
+	require.Equal(t, len(keyring), len(actual.Keyring), "Keyring map length mismatch")
+
 	require.Equal(t, keyring, actual.Keyring)
 	require.Equal(t, actual.Signature.Serialize(), expected.Signature.Serialize())
 	require.Equal(t, actual.RevocationOutpoint.String(), expected.RevocationOutpoint.String())
