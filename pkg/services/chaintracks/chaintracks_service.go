@@ -78,6 +78,7 @@ func (s *Service) MakeAvailable(parentCtx context.Context) (err error) {
 			return
 		}
 
+		s.shiftLiveHeadersWG.Add(1)
 		go s.shiftLiveHeadersWorker(ctx)
 		s.setAvailable(true)
 
@@ -115,7 +116,6 @@ func (s *Service) Destroy() {
 }
 
 func (s *Service) shiftLiveHeadersWorker(ctx context.Context) {
-	s.shiftLiveHeadersWG.Add(1)
 	defer s.shiftLiveHeadersWG.Done()
 	for {
 		select {
