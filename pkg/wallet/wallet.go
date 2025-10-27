@@ -610,8 +610,27 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 // the revocation outpoint has become spent.
 func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishCertificateArgs, originator string) (*sdk.RelinquishCertificateResult, error) {
 	w.logger.DebugContext(ctx, "RelinquishCertificate call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+
+	// Validate input arguments
+	mapped, err := mapping.MapRelinquishRelinquishCertificateArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map sdk.RelinquishCertificateArgs to wdk.RelinquishCertificateArgs: %w", err)
+	}
+
+	relArgs := wdk.RelinquishCertificateArgs{
+		Type:         mapped.Type,
+		SerialNumber: mapped.SerialNumber,
+		Certifier:    mapped.Certifier,
+	}
+	if err := validate.RelinquishCertificateArgs(&relArgs); err != nil {
+		return nil, fmt.Errorf("invalid RelinquishCertificateArgs: %w", err)
+	}
+
+	if err := w.storage.RelinquishCertificate(ctx, relArgs); err != nil {
+		return nil, fmt.Errorf("failed to relinquish certificate: %w", err)
+	}
+
+	return &sdk.RelinquishCertificateResult{Relinquished: true}, nil
 }
 
 // DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
