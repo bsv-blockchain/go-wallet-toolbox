@@ -57,34 +57,42 @@ func CreateTestCertifier(t *testing.T) *ec.PublicKey {
 	return certifier
 }
 
-func CreateSampleAcquireCertificateArgs(t *testing.T) wallet.AcquireCertificateArgs {
+func CreateTestCertificateType(t *testing.T) wallet.CertificateType {
 	t.Helper()
-	var (
-		certType  wallet.CertificateType
-		serialNum wallet.SerialNumber
-	)
-
+	var cert wallet.CertificateType
 	certBytes := make([]byte, 32)
-	sigBytes := make([]byte, 32)
 
 	_, err := rand.Read(certBytes)
 	require.NoError(t, err)
+	copy(cert[:], certBytes)
 
-	_, err = rand.Read(sigBytes)
+	return cert
+}
+
+func CreateTestCertificateSerialNumber(t *testing.T) wallet.SerialNumber {
+	t.Helper()
+	var serial wallet.SerialNumber
+	serialBytes := make([]byte, 32)
+
+	_, err := rand.Read(serialBytes)
 	require.NoError(t, err)
+	copy(serial[:], serialBytes)
 
-	copy(certType[:], certBytes)
-	copy(serialNum[:], sigBytes)
+	return serial
+}
+
+func CreateSampleAcquireCertificateArgs(t *testing.T) wallet.AcquireCertificateArgs {
+	t.Helper()
 
 	nameValue := "name"
 	nameValueB64 := base64.StdEncoding.EncodeToString([]byte("Alice Example"))
 
 	return wallet.AcquireCertificateArgs{
-		Type:                certType,
+		Type:                CreateTestCertificateType(t),
 		Certifier:           CreateTestCertifier(t),
 		AcquisitionProtocol: wallet.AcquisitionProtocolDirect,
 		Fields:              map[string]string{nameValue: nameValueB64},
-		SerialNumber:        &serialNum,
+		SerialNumber:        to.Ptr(CreateTestCertificateSerialNumber(t)),
 		RevocationOutpoint:  CreateTestOutpoint(t),
 		Signature:           CreateTestSignature(t),
 		KeyringRevealer:     &wallet.KeyringRevealer{Certifier: true},
