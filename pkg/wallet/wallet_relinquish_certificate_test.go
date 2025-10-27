@@ -14,7 +14,7 @@ import (
 func (s *WalletTestSuite) Test_RelinquishCertificate() {
 	t := s.T()
 
-	t.Run("should relinqiush certificate that matches given filter", func(t *testing.T) {
+	t.Run("should relinquish certificate that matches given filter", func(t *testing.T) {
 		// given:
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
