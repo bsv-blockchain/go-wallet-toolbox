@@ -7,6 +7,7 @@ import (
 	sdkprimitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	certs_testabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
-		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 
 		// and:
 		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
@@ -70,7 +71,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 				// and:
 				first := actualResult.Certificates[0]
 				keyring := map[string]string{"name": base64.StdEncoding.EncodeToString([]byte("Alice Example"))}
-				testabilities.AssertCertificateResultEquality(t, first, cert, keyring)
+				certs_testabilities.AssertCertificateResultEquality(t, first, cert, keyring)
 			})
 		}
 	})
@@ -83,11 +84,11 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and: acquire two certificates of the same type/certifier
-		args1 := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args1 := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 		cert1, err := aliceWallet.AcquireCertificate(t.Context(), args1, fixtures.DefaultOriginator)
 		require.NoError(t, err)
 
-		args2 := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args2 := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 		args2.Type = args1.Type
 		args2.Certifier = args1.Certifier
 
@@ -126,7 +127,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 		// acquire multiple certificates
 		expectedCerts := make([]*wallet.Certificate, 0, 3)
 		for range 3 {
-			cert, err := aliceWallet.AcquireCertificate(t.Context(), testabilities.CreateSampleAcquireCertificateArgs(t), fixtures.DefaultOriginator)
+			cert, err := aliceWallet.AcquireCertificate(t.Context(), certs_testabilities.CreateSampleAcquireCertificateArgs(t), fixtures.DefaultOriginator)
 			require.NoError(t, err)
 			require.NotNil(t, cert)
 			expectedCerts = append(expectedCerts, cert)
@@ -144,7 +145,7 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 		for idx, actualCert := range actualResult.Certificates {
 			expectedCert := expectedCerts[idx]
 			keyring := map[string]string{"name": base64.StdEncoding.EncodeToString([]byte("Alice Example"))}
-			testabilities.AssertCertificateResultEquality(t, actualCert, expectedCert, keyring)
+			certs_testabilities.AssertCertificateResultEquality(t, actualCert, expectedCert, keyring)
 		}
 	})
 }
