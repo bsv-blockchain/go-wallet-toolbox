@@ -617,19 +617,16 @@ func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishC
 		return nil, fmt.Errorf("failed to map sdk.RelinquishCertificateArgs to wdk.RelinquishCertificateArgs: %w", err)
 	}
 
-	if err := validate.RelinquishCertificateArgs(&wdk.RelinquishCertificateArgs{
+	relArgs := wdk.RelinquishCertificateArgs{
 		Type:         mapped.Type,
 		SerialNumber: mapped.SerialNumber,
 		Certifier:    mapped.Certifier,
-	}); err != nil {
+	}
+	if err := validate.RelinquishCertificateArgs(&relArgs); err != nil {
 		return nil, fmt.Errorf("invalid RelinquishCertificateArgs: %w", err)
 	}
 
-	if err := w.storage.RelinquishCertificate(ctx, wdk.RelinquishCertificateArgs{
-		Type:         mapped.Type,
-		SerialNumber: mapped.SerialNumber,
-		Certifier:    mapped.Certifier,
-	}); err != nil {
+	if err := w.storage.RelinquishCertificate(ctx, relArgs); err != nil {
 		return nil, fmt.Errorf("failed to relinquish certificate: %w", err)
 	}
 
