@@ -8,6 +8,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -526,6 +527,11 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 		return nil, fmt.Errorf("failed to parse certificate fields for user %d: %w", *auth.UserID, err)
 	}
 
+	verifier := args.Certifier.ToDERHex()
+	if args.KeyringRevealer != nil && args.KeyringRevealer.Certifier && args.KeyringRevealer.PubKey != nil {
+		verifier = args.KeyringRevealer.PubKey.ToDERHex()
+	}
+
 	// Insert certificate into storage
 	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
 		TableCertificate: wdk.TableCertificate{
@@ -536,6 +542,7 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 			Subject:            primitives.PubKeyHex(key.PublicKey.ToDERHex()),
 			RevocationOutpoint: primitives.OutpointString(args.RevocationOutpoint.String()),
 			Signature:          primitives.HexString(sigHex),
+			Verifier:           to.Ptr(primitives.PubKeyHex(verifier)),
 		},
 		Fields: fields,
 	})
@@ -560,6 +567,10 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
 
 	certifiers, types := mapping.MapListCertificatesArgs(args)
 	listCertificatesResult, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
@@ -602,8 +613,99 @@ func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificates
 // ProveCertificate proves select fields of an identity certificate, as specified, when requested by a verifier.
 func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificateArgs, originator string) (*sdk.ProveCertificateResult, error) {
 	w.logger.DebugContext(ctx, "ProveCertificate call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+
+	// Validation arguments and originator
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+	if err := validate.ProveCertificateArgs(args); err != nil {
+		return nil, fmt.Errorf("failed to validate sdk.ProveCertificateArgs: %w", err)
+	}
+
+	// Convert signature to hex string
+	cert := args.Certificate
+	rHex := fmt.Sprintf("%064x", cert.Signature.R)
+	sHex := fmt.Sprintf("%064x", cert.Signature.S)
+	sigHex := rHex + sHex
+
+	serialNumber := base64.StdEncoding.EncodeToString(cert.SerialNumber[:])
+
+	// Fetch certificate from storage
+	listCertificatesResult, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
+		ListCertificatesArgsPartial: wdk.ListCertificatesArgsPartial{
+			SerialNumber:       to.Ptr(primitives.Base64String(serialNumber)),
+			Subject:            to.Ptr(primitives.PubKeyHex(cert.Subject.ToDERHex())),
+			RevocationOutpoint: to.Ptr(primitives.OutpointString(cert.RevocationOutpoint.String())),
+			Signature:          to.Ptr(primitives.HexString(sigHex)),
+		},
+		Limit:  primitives.PositiveIntegerDefault10Max10000(1),
+		Offset: primitives.PositiveInteger(0),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list certificates with given list certificates args: %w", err)
+	}
+
+	if listCertificatesResult.HasNoCertificates() {
+		return nil, fmt.Errorf("certificate was not found with given list certificates args")
+	}
+
+	first := listCertificatesResult.First()
+	certifier, err := first.CertifierCounterparty()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create certrifier counterparty: %w", err)
+	}
+
+	// Prepare fields for encryption
+	fieldsForEncryption := make(map[sdk.CertificateFieldNameUnder50Bytes]string, len(first.Fields))
+	for key, val := range first.Fields.ToMap() {
+		if len(key) < 1 || len(key) > 50 {
+			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 characters", key)
+		}
+		fieldsForEncryption[sdk.CertificateFieldNameUnder50Bytes(key)] = val
+	}
+
+	certificateFieldsResult, err := certificates.CreateCertificateFields(ctx, w, certifier, fieldsForEncryption, to.Value(args.Privileged), args.PrivilegedReason)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create certificate fields: %w", err)
+	}
+
+	certificateFields := certificateFieldsResult.CertificateFields
+	masterKeyring := certificateFieldsResult.MasterKeyring
+	verifier := sdk.Counterparty{Type: sdk.CounterpartyTypeOther, Counterparty: args.Verifier}
+	serial := sdk.StringBase64(base64.StdEncoding.EncodeToString(args.Certificate.SerialNumber[:]))
+
+	// Validate certificate field names
+	fieldNames := make([]sdk.CertificateFieldNameUnder50Bytes, 0, len(certificateFields))
+	for fieldName := range certificateFields {
+		if len(fieldName) < 1 || len(fieldName) > 50 {
+			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 bytes", fieldName)
+		}
+		fieldNames = append(fieldNames, fieldName)
+	}
+
+	// Create keyring for verifier
+	keyringForVerifier, err := certificates.CreateKeyringForVerifier(
+		ctx,
+		w,
+		certifier,
+		verifier,
+		certificateFields,
+		fieldNames,
+		masterKeyring,
+		serial,
+		to.Value(args.Privileged),
+		args.PrivilegedReason,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create keyring for verifier: %w", err)
+	}
+
+	keyring := make(map[string]string, len(keyringForVerifier))
+	for name, value := range keyringForVerifier {
+		keyring[to.String(name)] = to.String(value)
+	}
+
+	return &sdk.ProveCertificateResult{KeyringForVerifier: keyring}, nil
 }
 
 // RelinquishCertificate relinquishes an identity certificate, removing it from the wallet regardless of whether

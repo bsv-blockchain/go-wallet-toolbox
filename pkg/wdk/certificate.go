@@ -38,6 +38,21 @@ type WalletCertificate struct {
 	Fields             WalletCertificateFieldMap `json:"fields"`
 }
 
+// CertifierCounterparty converts the WalletCertificate's Certifier field into a wallet.Counterparty.
+// It interprets the stored Certifier value (expected to be a hex-encoded private key)
+// and derives its corresponding public key to construct a Counterparty object.
+func (w *WalletCertificate) CertifierCounterparty() (sdk.Counterparty, error) {
+	key, err := ec.PrivateKeyFromHex(to.String(w.Certifier))
+	if err != nil {
+		return sdk.Counterparty{}, fmt.Errorf("invalid certifier private key hex: %w", err)
+	}
+
+	return sdk.Counterparty{
+		Type:         sdk.CounterpartyTypeOther,
+		Counterparty: key.PubKey(),
+	}, nil
+}
+
 // ToSDKCertificate converts a WalletCertificate to an sdk.Certificate.
 // This involves parsing and converting the stored string fields into their respective SDK types,
 // including public keys, serial numbers, certificate type, and revocation outpoint.
@@ -96,6 +111,19 @@ func (w *WalletCertificate) ToSDKCertificate() (sdk.Certificate, error) {
 type ListCertificatesResult struct {
 	TotalCertificates primitives.PositiveInteger `json:"totalCertificates"`
 	Certificates      []*CertificateResult       `json:"certificates"`
+}
+
+// First returns the first certificate in the list, or nil if the list is empty.
+func (l *ListCertificatesResult) First() *CertificateResult {
+	if len(l.Certificates) == 0 {
+		return nil
+	}
+	return l.Certificates[0]
+}
+
+// HasNoCertificates returns true if the list contains no certificates.
+func (l *ListCertificatesResult) HasNoCertificates() bool {
+	return len(l.Certificates) == 0
 }
 
 // KeyringMap represents a mapping of keys in a wallet keyring.
