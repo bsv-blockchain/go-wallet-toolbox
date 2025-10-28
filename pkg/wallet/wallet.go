@@ -2,8 +2,10 @@ package wallet
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -18,6 +20,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
 )
@@ -472,16 +475,128 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
 func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
-	w.logger.DebugContext(ctx, "AcquireCertificate call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+	switch args.AcquisitionProtocol {
+	case sdk.AcquisitionProtocolDirect:
+		return w.acquireDirectCertificate(ctx, args, originator)
+	case sdk.AcquisitionProtocolIssuance:
+		// TODO: Add implementation for sdk.AcquisitionProtocolIssuance in a separate PR.
+		panic("implement me")
+	default:
+		return nil, fmt.Errorf("acquire protocol not recognized, allowed types: [%s, %s]", sdk.AcquisitionProtocolDirect, sdk.AcquisitionProtocolIssuance)
+	}
+}
+
+func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	w.logger.DebugContext(ctx, "AcquireCertificateDirect call", slogx.String("originator", originator))
+
+	// Validate input arguments
+	if err := validate.ValidateAcquireDirectCertificateArgs(&args); err != nil {
+		return nil, fmt.Errorf("invalid AcquireCertificateArgs: %w", err)
+	}
+
+	// Retrieve authentication info
+	auth, err := w.storage.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve auth identity: %w", err)
+	}
+
+	// Prepare public key request arguments
+	pubKeyArgs := sdk.GetPublicKeyArgs{IdentityKey: true}
+	if args.Privileged != nil && to.Value(args.Privileged) {
+		pubKeyArgs.Privileged = true
+	}
+	if len(args.PrivilegedReason) > 0 {
+		pubKeyArgs.PrivilegedReason = args.PrivilegedReason
+	}
+
+	// Fetch the identity public key
+	key, err := w.GetPublicKey(ctx, pubKeyArgs, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch identity public key: %w", err)
+	}
+
+	// Convert signature to hex string
+	rHex := fmt.Sprintf("%064x", args.Signature.R)
+	sHex := fmt.Sprintf("%064x", args.Signature.S)
+	sigHex := rHex + sHex
+
+	// Parse fields into TableCertificateField slice
+	fields, err := wdk.ParseToTableCertificateFieldSlice(*auth.UserID, args.Fields, args.KeyringForSubject)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate fields for user %d: %w", *auth.UserID, err)
+	}
+
+	// Insert certificate into storage
+	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
+		TableCertificate: wdk.TableCertificate{
+			UserID:             to.Value(auth.UserID),
+			Type:               primitives.Base64String(base64.StdEncoding.EncodeToString(args.Type[:])),
+			SerialNumber:       primitives.Base64String(base64.StdEncoding.EncodeToString(args.SerialNumber[:])),
+			Certifier:          primitives.PubKeyHex(args.Certifier.ToDERHex()),
+			Subject:            primitives.PubKeyHex(key.PublicKey.ToDERHex()),
+			RevocationOutpoint: primitives.OutpointString(args.RevocationOutpoint.String()),
+			Signature:          primitives.HexString(sigHex),
+		},
+		Fields: fields,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert certificate for user %d: %w", *auth.UserID, err)
+	}
+
+	// Build SDK certificate to return
+	cert := sdk.Certificate{
+		Type:               args.Type,
+		SerialNumber:       to.Value(args.SerialNumber),
+		Subject:            key.PublicKey,
+		Certifier:          args.Certifier,
+		RevocationOutpoint: args.RevocationOutpoint,
+		Fields:             args.Fields,
+		Signature:          args.Signature,
+	}
+
+	return &cert, nil
 }
 
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+
+	certifiers, types := mapping.MapListCertificatesArgs(args)
+	listCertificatesResult, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
+		Certifiers: certifiers,
+		Types:      types,
+		Limit:      primitives.PositiveIntegerDefault10Max10000(to.Value(args.Limit)),
+		Offset:     primitives.PositiveInteger(to.Value(args.Offset)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list certificates with given list certificates args: %w", err)
+	}
+
+	certs := make([]sdk.CertificateResult, 0, len(listCertificatesResult.Certificates))
+	for _, storedModel := range listCertificatesResult.Certificates {
+		cert, err := storedModel.ToSDKCertificate()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse stored certification result to sdk certificate: %w", err)
+		}
+
+		res := sdk.CertificateResult{Certificate: cert}
+		if !storedModel.Keyring.IsEmpty() {
+			res.Keyring = storedModel.Keyring.ToMap()
+		}
+
+		if !storedModel.Verifier.IsEmpty() {
+			res.Verifier = []byte(storedModel.Verifier)
+		}
+
+		certs = append(certs, res)
+	}
+
+	totalCertificates := uint64(listCertificatesResult.TotalCertificates)
+	if totalCertificates > math.MaxUint32 {
+		return nil, fmt.Errorf("total certificates too large: %d", listCertificatesResult.TotalCertificates)
+	}
+
+	return &sdk.ListCertificatesResult{TotalCertificates: uint32(totalCertificates), Certificates: certs}, nil
 }
 
 // ProveCertificate proves select fields of an identity certificate, as specified, when requested by a verifier.
@@ -495,8 +610,27 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 // the revocation outpoint has become spent.
 func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishCertificateArgs, originator string) (*sdk.RelinquishCertificateResult, error) {
 	w.logger.DebugContext(ctx, "RelinquishCertificate call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+
+	// Validate input arguments
+	mapped, err := mapping.MapRelinquishRelinquishCertificateArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map sdk.RelinquishCertificateArgs to wdk.RelinquishCertificateArgs: %w", err)
+	}
+
+	relArgs := wdk.RelinquishCertificateArgs{
+		Type:         mapped.Type,
+		SerialNumber: mapped.SerialNumber,
+		Certifier:    mapped.Certifier,
+	}
+	if err := validate.RelinquishCertificateArgs(&relArgs); err != nil {
+		return nil, fmt.Errorf("invalid RelinquishCertificateArgs: %w", err)
+	}
+
+	if err := w.storage.RelinquishCertificate(ctx, relArgs); err != nil {
+		return nil, fmt.Errorf("failed to relinquish certificate: %w", err)
+	}
+
+	return &sdk.RelinquishCertificateResult{Relinquished: true}, nil
 }
 
 // DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.

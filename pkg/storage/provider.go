@@ -273,9 +273,19 @@ func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args w
 		return nil, fmt.Errorf("error during parsing total count of certificates: %w", err)
 	}
 
+	certificateResults := make([]*wdk.CertificateResult, 0, len(certEntities))
+	for _, model := range certEntities {
+		certificateResult, err := certModelToResult(model)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert certificate entity to wdk.CertificateResult: %w", err)
+		}
+
+		certificateResults = append(certificateResults, certificateResult)
+	}
+
 	result := &wdk.ListCertificatesResult{
 		TotalCertificates: primitives.PositiveInteger(totalCertificates),
-		Certificates:      slices.Map(certEntities, certModelToResult),
+		Certificates:      certificateResults,
 	}
 
 	return result, nil
