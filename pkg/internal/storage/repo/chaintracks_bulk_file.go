@@ -10,6 +10,6 @@ type ChaintracksBulkFile struct {
 	query *genquery.Query
 }
 
-func NewCChaintracksBulkFile(db *gorm.DB, query *genquery.Query) *ChaintracksBulkFile {
+func NewChaintracksBulkFile(db *gorm.DB, query *genquery.Query) *ChaintracksBulkFile {
 	return &ChaintracksBulkFile{db: db, query: query}
 }

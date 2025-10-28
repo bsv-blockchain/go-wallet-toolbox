@@ -43,7 +43,7 @@ func NewSQLRepositories(db *gorm.DB) *Repositories {
 		TxNotes:               NewTxNotes(db, query),
 		UserUTXOs:             NewUserUTXOs(db, query),
 		ChaintracksLiveHeader: NewChaintracksLiveHeader(db, query),
-		ChaintracksBulkFile:   NewCChaintracksBulkFile(db, query),
+		ChaintracksBulkFile:   NewChaintracksBulkFile(db, query),
 	}
 	repositories.Users = NewUsers(db, query, repositories.Settings, repositories.OutputBaskets)
 

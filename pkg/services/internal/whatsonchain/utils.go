@@ -100,8 +100,8 @@ func buildURL(baseURL string, segments ...string) (string, error) {
 	return u.String(), nil
 }
 
-// makeBaseURL returns "<wocRoot>/<network>"
-func makeBaseURL(network defs.BSVNetwork) (string, error) {
+// MakeBaseURL returns "<wocRoot>/<network>"
+func MakeBaseURL(network defs.BSVNetwork) (string, error) {
 	return buildURL(wocRoot, string(network))
 }
 
