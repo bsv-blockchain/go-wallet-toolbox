@@ -47,7 +47,7 @@ func TestChaintracksClient_GetInfo(t *testing.T) {
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, info *chaintracks.InfoResponse, err error) {
 				require.Error(t, err)
 				require.Nil(t, info)
@@ -113,7 +113,7 @@ func TestChaintracksClient_GetPresentHeight(t *testing.T) {
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, height uint32, err error) {
 				require.Error(t, err)
 				require.Equal(t, uint32(0), height)
@@ -179,7 +179,7 @@ func TestChaintracksClient_FindChainTipHashHex(t *testing.T) {
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, hash string, err error) {
 				require.Error(t, err)
 				require.Empty(t, hash)
@@ -245,7 +245,7 @@ func TestChaintracksClient_FindChainTipHeader(t *testing.T) {
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
@@ -326,7 +326,7 @@ func TestChaintracksClient_FindHeaderHexForHeight(t *testing.T) {
 		"should return error on non-200 response": {
 			Height:       918934,
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
@@ -409,7 +409,7 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 		"should return error on non-200 response": {
 			BlockHash:    correctBlockHeader.Hash,
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
@@ -477,7 +477,7 @@ func TestChaintracksClient_GetHeaders(t *testing.T) {
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
 				require.Error(t, err)
 				require.Empty(t, header)
@@ -551,7 +551,7 @@ func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
 				require.Error(t, err)
 				require.Nil(t, rates)
@@ -607,14 +607,14 @@ func TestChaintracksClient_AddHeader(t *testing.T) {
 	}{
 		"should post successfully": {
 			ResponseCode: 200,
-			ResponseBody: `{"status":"success"}`,
+			ResponseBody: map[string]any{"status": "success"},
 			Then: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
-			ResponseBody: `{"status":"error","message":"internal server error"}`,
+			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
 			Then: func(t *testing.T, err error) {
 				require.Error(t, err)
 			},

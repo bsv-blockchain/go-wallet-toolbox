@@ -47,7 +47,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		panic(fmt.Sprintf("invalid BSV network configuration: %s", err.Error()))
 	}
 
-	url, err := makeBaseURL(network)
+	url, err := MakeBaseURL(network)
 	if err != nil {
 		panic(fmt.Sprintf("failed to build base URL for WhatsOnChain: %s", err.Error()))
 	}
