@@ -1,5 +1,6 @@
 package ingest
 
+// WOCBlockHeaderDTO represents a block header as retrieved from the Whatsonchain API for a given block hash.
 type WOCBlockHeaderDTO struct {
 	Hash          string  `json:"hash"`
 	Size          int     `json:"size"`

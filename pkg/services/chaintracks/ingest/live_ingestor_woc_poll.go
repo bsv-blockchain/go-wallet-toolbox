@@ -20,12 +20,17 @@ const (
 	genesisAsPrevBlockHash = "0000000000000000000000000000000000000000000000000000000000000000"
 )
 
+// LiveIngestorWocPoll provides functionality for polling block header data from an external source, such as WhatsOnChain.
 type LiveIngestorWocPoll struct {
 	logger *slog.Logger
 	config defs.WOCPollIngestorConfig
 	resty  *resty.Client
 }
 
+// NewLiveIngestorWocPoll creates a new LiveIngestorWocPoll using the provided logger, config, and optional client options.
+// It initializes a Resty HTTP client configured with default headers, user agent, and API key authorization if set.
+// Panics if the WhatsOnChain base URL cannot be built for the specified chain network in the config.
+// Returns a pointer to the initialized LiveIngestorWocPoll struct, ready for external data polling operations.
 func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConfig, opts ...func(options *ClientOptions)) *LiveIngestorWocPoll {
 	logger = logging.Child(logger, "live_ingestor_woc_poll")
 
@@ -58,6 +63,11 @@ func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConf
 	}
 }
 
+// GetHeaderByHash retrieves a Bitcoin block header from an external data source using its hash.
+// Returns a ChainBlockHeader and error if the header could not be fetched or parsed.
+// If the block is not found, returns wdk.ErrNotFoundError as wrapped error.
+// The hash parameter must be a valid block hash as a hex string.
+// PreviousHash is set to a predefined value if the block is the genesis block.
 func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
 	path := fmt.Sprintf("/block/%s/header", hash)
 
