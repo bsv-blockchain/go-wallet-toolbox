@@ -30,8 +30,10 @@ type LiveIngestorWocPoll struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 
-	syncPeriod  time.Duration
-	waitForStop sync.WaitGroup
+	syncPeriod     time.Duration
+	waitForStop    sync.WaitGroup
+	livecycleMutex sync.Mutex
+	stopped        bool
 }
 
 // NewLiveIngestorWocPoll creates a new LiveIngestorWocPoll using the provided logger, config, and optional client options.
@@ -109,6 +111,19 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 // This method runs polling in a separate goroutine, checking for context cancellation or periodic sync timeout.
 // Each cycle fetches the latest block headers and processes them, forwarding results through respChan.
 func (ing *LiveIngestorWocPoll) StartListening(parentCtx context.Context, respChan chan wdk.ChainBlockHeader) {
+	ing.livecycleMutex.Lock()
+	defer ing.livecycleMutex.Unlock()
+
+	if ing.stopped {
+		ing.logger.Warn("LiveIngestorWocPoll cannot start listening because it has been stopped")
+		return
+	}
+
+	if ing.cancelCtx != nil {
+		ing.logger.Warn("LiveIngestorWocPoll is already listening")
+		return
+	}
+
 	ing.logger.Info("LiveIngestorWocPoll started listening")
 	ing.ctx, ing.cancelCtx = context.WithCancel(parentCtx)
 	ticker := time.NewTicker(ing.syncPeriod)
@@ -151,11 +166,14 @@ func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHe
 
 // StopListening signals the polling goroutine to stop and waits for it to exit before returning.
 func (ing *LiveIngestorWocPoll) StopListening() {
+	ing.livecycleMutex.Lock()
 	if ing.cancelCtx != nil {
 		ing.cancelCtx()
 		ing.logger.Info("LiveIngestorWocPoll stopped listening")
-		ing.cancelCtx = nil
 	}
+	ing.stopped = true
+	ing.livecycleMutex.Unlock()
+
 	ing.waitForStop.Wait()
 }
 

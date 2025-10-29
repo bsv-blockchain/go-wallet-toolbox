@@ -40,7 +40,7 @@ func bitsStrToUint32(bitsStr string) (uint32, error) {
 func (hdr *WOCBlockHeaderDTO) ToWDK() (*wdk.ChainBlockHeader, error) {
 	bitsNum, err := bitsStrToUint32(hdr.Bits)
 	if err != nil {
-		return nil, fmt.Errorf("invalid bits value %s: %w", hdr.Bits, err)
+		return nil, err
 	}
 
 	return &wdk.ChainBlockHeader{
