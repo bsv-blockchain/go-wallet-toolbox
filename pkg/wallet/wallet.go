@@ -652,7 +652,7 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 	first := listCertificatesResult.First()
 	certifier, err := first.CertifierCounterparty()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create certrifier counterparty: %w", err)
+		return nil, fmt.Errorf("failed to create certifier counterparty: %w", err)
 	}
 
 	// Prepare fields for encryption
