@@ -56,7 +56,12 @@ func ProveCertificateArgs(args sdk.ProveCertificateArgs) error {
 		}
 	}
 
-	if len(args.PrivilegedReason) != 0 && (len(args.PrivilegedReason) < 5 || len(args.PrivilegedReason) > 50) {
+	const (
+		minPrivilegedReasonLength = 5
+		maxPrivilegedReasonLength = 50
+	)
+
+	if len(args.PrivilegedReason) != 0 && (len(args.PrivilegedReason) < minPrivilegedReasonLength || len(args.PrivilegedReason) > maxPrivilegedReasonLength) {
 		return fmt.Errorf("invalid privileged reason length: reason string length must be at least 5 characters, maximum 50")
 	}
 
