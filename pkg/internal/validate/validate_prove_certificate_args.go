@@ -45,7 +45,7 @@ func ProveCertificateArgs(args sdk.ProveCertificateArgs) error {
 
 		hex := primitives.HexString(rHex + sHex)
 		if err := hex.Validate(); err != nil {
-			return fmt.Errorf("invalid certificate certifier revocation outpoint: failed validation check")
+			return fmt.Errorf("invalid certificate signature: failed validation check")
 		}
 	}
 
