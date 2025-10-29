@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -106,6 +105,9 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 	return wdkBlockHeader, nil
 }
 
+// StartListening begins polling for new block headers and sends them to respChan until the parent context is canceled.
+// This method runs polling in a separate goroutine, checking for context cancellation or periodic sync timeout.
+// Each cycle fetches the latest block headers and processes them, forwarding results through respChan.
 func (ing *LiveIngestorWocPoll) StartListening(parentCtx context.Context, respChan chan wdk.ChainBlockHeader) {
 	ing.logger.Info("LiveIngestorWocPoll started listening")
 	ing.ctx, ing.cancelCtx = context.WithCancel(parentCtx)
@@ -131,7 +133,7 @@ func (ing *LiveIngestorWocPoll) StartListening(parentCtx context.Context, respCh
 }
 
 func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHeader) {
-	headers, err := ing.GetLast10Headers(ing.ctx)
+	headers, err := ing.getLast10Headers(ing.ctx)
 	if err != nil {
 		ing.logger.Error("failed to get last 10 headers", slog.String("error", err.Error()))
 		return
@@ -147,6 +149,7 @@ func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHe
 	}
 }
 
+// StopListening signals the polling goroutine to stop and waits for it to exit before returning.
 func (ing *LiveIngestorWocPoll) StopListening() {
 	if ing.cancelCtx != nil {
 		ing.cancelCtx()
@@ -156,7 +159,7 @@ func (ing *LiveIngestorWocPoll) StopListening() {
 	ing.waitForStop.Wait()
 }
 
-func (ing *LiveIngestorWocPoll) GetLast10Headers(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
+func (ing *LiveIngestorWocPoll) getLast10Headers(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
 	path := "/block/headers"
 
 	var headersResponse WOCBlockHeadersDTO
@@ -178,13 +181,4 @@ func (ing *LiveIngestorWocPoll) GetLast10Headers(ctx context.Context) ([]*wdk.Ch
 	}
 
 	return wdkHeaders, nil
-}
-
-func (ing *LiveIngestorWocPoll) bitsStrToUint32(bitsStr string) (uint32, error) {
-	bitsNum, err := strconv.ParseUint(bitsStr, 16, 32)
-	if err != nil {
-		return 0, fmt.Errorf("invalid bits value %s: %w", bitsStr, err)
-	}
-
-	return uint32(bitsNum), nil
 }

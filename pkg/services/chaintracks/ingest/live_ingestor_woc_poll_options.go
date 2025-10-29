@@ -30,6 +30,7 @@ func WithSyncPeriod(period time.Duration) func(*ClientOptions) {
 	}
 }
 
+// DefaultClientOptions returns a ClientOptions struct initialized with default RestyClientFactory and SyncPeriod values.
 func DefaultClientOptions() ClientOptions {
 	return ClientOptions{
 		RestyClientFactory: httpx.NewRestyClientFactory(),

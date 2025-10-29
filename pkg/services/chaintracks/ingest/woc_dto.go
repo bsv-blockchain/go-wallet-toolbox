@@ -35,7 +35,8 @@ func bitsStrToUint32(bitsStr string) (uint32, error) {
 	return uint32(bitsNum), nil
 }
 
-
+// ToWDK converts the WOCBlockHeaderDTO to a wdk.ChainBlockHeader, parsing and validating the Bits field.
+// Returns an error if Bits cannot be parsed or another conversion error occurs.
 func (hdr *WOCBlockHeaderDTO) ToWDK() (*wdk.ChainBlockHeader, error) {
 	bitsNum, err := bitsStrToUint32(hdr.Bits)
 	if err != nil {
@@ -56,8 +57,10 @@ func (hdr *WOCBlockHeaderDTO) ToWDK() (*wdk.ChainBlockHeader, error) {
 	}, nil
 }
 
+// WOCBlockHeadersDTO represents a slice of block header DTOs as returned by the WhatsOnChain API for blocks queries.
 type WOCBlockHeadersDTO []WOCBlockHeaderDTO
 
+// ToWDK converts the WOCBlockHeadersDTO slice to a slice of wdk.ChainBlockHeader pointers, returning an error on failure.
 func (headers WOCBlockHeadersDTO) ToWDK() ([]*wdk.ChainBlockHeader, error) {
 	wdkHeaders := make([]*wdk.ChainBlockHeader, 0, len(headers))
 	for _, hdr := range headers {
