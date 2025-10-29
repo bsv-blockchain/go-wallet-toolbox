@@ -87,27 +87,40 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 		return nil, fmt.Errorf("unexpected status code %d fetching block header", res.StatusCode())
 	}
 
-	bitsNum, err := ing.bitsStrToUint32(hdrResp.Bits)
-	if err != nil {
-		return nil, fmt.Errorf("invalid bits value %s: %w", hdrResp.Bits, err)
-	}
-
 	if hdrResp.PrevBlock == "" {
 		hdrResp.PrevBlock = genesisAsPrevBlockHash
 	}
 
-	return &wdk.ChainBlockHeader{
-		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      hdrResp.Version,
-			PreviousHash: hdrResp.PrevBlock,
-			MerkleRoot:   hdrResp.MerkleRoot,
-			Time:         hdrResp.Time,
-			Bits:         bitsNum,
-			Nonce:        hdrResp.Nonce,
-		},
-		Hash:   hdrResp.Hash,
-		Height: hdrResp.Height,
-	}, nil
+	wdkBlockHeader, err := hdrResp.ToWDK()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert block header DTO to WDK format: %w", err)
+	}
+
+	return wdkBlockHeader, nil
+}
+
+func (ing *LiveIngestorWocPoll) GetLast10Headers(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
+	path := "/block/headers"
+
+	var headersResponse WOCBlockHeadersDTO
+	res, err := ing.resty.R().
+		SetContext(ctx).
+		SetResult(&headersResponse).
+		Get(path)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch block headers: %w", err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d fetching block headers", res.StatusCode())
+	}
+
+	wdkHeaders, err := headersResponse.ToWDK()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert block headers DTO to WDK format: %w", err)
+	}
+
+	return wdkHeaders, nil
 }
 
 func (ing *LiveIngestorWocPoll) bitsStrToUint32(bitsStr string) (uint32, error) {
