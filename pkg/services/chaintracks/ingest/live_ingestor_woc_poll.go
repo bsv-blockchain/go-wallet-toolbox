@@ -111,8 +111,8 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 // This method runs polling in a separate goroutine, checking for context cancellation or periodic sync timeout.
 // Each cycle fetches the latest block headers and processes them, forwarding results through respChan.
 func (ing *LiveIngestorWocPoll) StartListening(parentCtx context.Context, respChan chan wdk.ChainBlockHeader) {
-	ing.livecycleMutex.Lock()
-	defer ing.livecycleMutex.Unlock()
+	ing.lifecycleMutex.Lock()
+	defer ing.lifecycleMutex.Unlock()
 
 	if ing.stopped {
 		ing.logger.Warn("LiveIngestorWocPoll cannot start listening because it has been stopped")
@@ -148,7 +148,7 @@ func (ing *LiveIngestorWocPoll) StartListening(parentCtx context.Context, respCh
 }
 
 func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHeader) {
-	headers, err := ing.getLast10Headers(ing.ctx)
+	headers, err := ing.getLastHeaders(ing.ctx)
 	if err != nil {
 		ing.logger.Error("failed to get last 10 headers", slog.String("error", err.Error()))
 		return
@@ -166,18 +166,19 @@ func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHe
 
 // StopListening signals the polling goroutine to stop and waits for it to exit before returning.
 func (ing *LiveIngestorWocPoll) StopListening() {
-	ing.livecycleMutex.Lock()
+	ing.lifecycleMutex.Lock()
 	if ing.cancelCtx != nil {
 		ing.cancelCtx()
 		ing.logger.Info("LiveIngestorWocPoll stopped listening")
 	}
 	ing.stopped = true
-	ing.livecycleMutex.Unlock()
+	ing.lifecycleMutex.Unlock()
 
 	ing.waitForStop.Wait()
 }
 
-func (ing *LiveIngestorWocPoll) getLast10Headers(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
+// getLastHeaders normally fetches the last 10 block headers from the external data source.
+func (ing *LiveIngestorWocPoll) getLastHeaders(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
 	path := "/block/headers"
 
 	var headersResponse WOCBlockHeadersDTO

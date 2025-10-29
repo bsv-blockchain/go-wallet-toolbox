@@ -66,7 +66,7 @@ func (headers WOCBlockHeadersDTO) ToWDK() ([]*wdk.ChainBlockHeader, error) {
 	for _, hdr := range headers {
 		wdkHdr, err := hdr.ToWDK()
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert block header DTO to WDK format: %w", err)
+			return nil, fmt.Errorf("failed to convert block header %q DTO to WDK format: %w", hdr.Hash, err)
 		}
 		wdkHeaders = append(wdkHeaders, wdkHdr)
 	}
