@@ -476,6 +476,10 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
 func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
 	switch args.AcquisitionProtocol {
 	case sdk.AcquisitionProtocolDirect:
 		return w.acquireDirectCertificate(ctx, args, originator)
@@ -656,12 +660,9 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 	}
 
 	// Prepare fields for encryption
-	fieldsForEncryption := make(map[sdk.CertificateFieldNameUnder50Bytes]string, len(first.Fields))
-	for key, val := range first.Fields.ToMap() {
-		if len(key) < 1 || len(key) > 50 {
-			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 characters", key)
-		}
-		fieldsForEncryption[sdk.CertificateFieldNameUnder50Bytes(key)] = val
+	fieldsForEncryption, err := first.Fields.ToFieldsForEncryption()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse wdk.CertificateResult fields to certificate fields to encryption: %w", err)
 	}
 
 	certificateFieldsResult, err := certificates.CreateCertificateFields(ctx, w, certifier, fieldsForEncryption, to.Value(args.Privileged), args.PrivilegedReason)
@@ -675,12 +676,9 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 	serial := sdk.StringBase64(base64.StdEncoding.EncodeToString(args.Certificate.SerialNumber[:]))
 
 	// Validate certificate field names
-	fieldNames := make([]sdk.CertificateFieldNameUnder50Bytes, 0, len(certificateFields))
-	for fieldName := range certificateFields {
-		if len(fieldName) < 1 || len(fieldName) > 50 {
-			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 bytes", fieldName)
-		}
-		fieldNames = append(fieldNames, fieldName)
+	fieldNames, err := mapping.MapToCertificateFieldNameUnder50BytesSlice(certificateFields)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map certificate fields to field names: %w", err)
 	}
 
 	// Create keyring for verifier

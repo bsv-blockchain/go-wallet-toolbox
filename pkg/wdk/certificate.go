@@ -27,6 +27,28 @@ func (m WalletCertificateFieldMap) ToMap() map[string]string {
 	return out
 }
 
+// ToFieldsForEncryption converts the WalletCertificateFieldMap into a map suitable for encryption,
+// where each key is cast to sdk.CertificateFieldNameUnder50Bytes.
+//
+// It validates that all field names are between 1 and 50 characters long before conversion.
+// If any key is invalid, the function returns an error and no fields are returned.
+func (m WalletCertificateFieldMap) ToFieldsForEncryption() (map[sdk.CertificateFieldNameUnder50Bytes]string, error) {
+	const (
+		minLength = 1
+		maxLength = 50
+	)
+
+	out := make(map[sdk.CertificateFieldNameUnder50Bytes]string, len(m))
+	for key, val := range m {
+		if len(key) < minLength || len(key) > maxLength {
+			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 characters", key)
+		}
+		out[sdk.CertificateFieldNameUnder50Bytes(key)] = val
+	}
+
+	return out, nil
+}
+
 // WalletCertificate is a wallet certificate object
 type WalletCertificate struct {
 	Type               primitives.Base64String   `json:"type"`
