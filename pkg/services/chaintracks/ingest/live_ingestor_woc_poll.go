@@ -30,10 +30,10 @@ type LiveIngestorWocPoll struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 
-	syncPeriod     time.Duration
-	waitForStop    sync.WaitGroup
-	livecycleMutex sync.Mutex
-	stopped        bool
+	syncPeriod      time.Duration
+	waitForStop     sync.WaitGroup
+	lifecycleMutex  sync.Mutex
+	stopped         bool
 }
 
 // NewLiveIngestorWocPoll creates a new LiveIngestorWocPoll using the provided logger, config, and optional client options.
