@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -25,6 +27,12 @@ type LiveIngestorWocPoll struct {
 	logger *slog.Logger
 	config defs.WOCPollIngestorConfig
 	resty  *resty.Client
+
+	ctx       context.Context
+	cancelCtx context.CancelFunc
+
+	syncPeriod  time.Duration
+	waitForStop sync.WaitGroup
 }
 
 // NewLiveIngestorWocPoll creates a new LiveIngestorWocPoll using the provided logger, config, and optional client options.
@@ -34,9 +42,7 @@ type LiveIngestorWocPoll struct {
 func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConfig, opts ...func(options *ClientOptions)) *LiveIngestorWocPoll {
 	logger = logging.Child(logger, "live_ingestor_woc_poll")
 
-	options := to.OptionsWithDefault(ClientOptions{
-		RestyClientFactory: httpx.NewRestyClientFactory(),
-	}, opts...)
+	options := to.OptionsWithDefault(DefaultClientOptions(), opts...)
 
 	url, err := whatsonchain.MakeBaseURL(config.Chain)
 	if err != nil {
@@ -57,9 +63,10 @@ func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConf
 		SetBaseURL(url)
 
 	return &LiveIngestorWocPoll{
-		logger: logger,
-		config: config,
-		resty:  restyClient,
+		logger:     logger,
+		config:     config,
+		resty:      restyClient,
+		syncPeriod: options.SyncPeriod,
 	}
 }
 
@@ -97,6 +104,56 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 	}
 
 	return wdkBlockHeader, nil
+}
+
+func (ing *LiveIngestorWocPoll) StartListening(parentCtx context.Context, respChan chan wdk.ChainBlockHeader) {
+	ing.logger.Info("LiveIngestorWocPoll started listening")
+	ing.ctx, ing.cancelCtx = context.WithCancel(parentCtx)
+	ticker := time.NewTicker(ing.syncPeriod)
+
+	ing.waitForStop.Add(1)
+	go func() {
+		defer ing.waitForStop.Done()
+		defer ticker.Stop()
+
+		ing.processNewHeaders(respChan)
+
+		for {
+			select {
+			case <-ing.ctx.Done():
+				ing.logger.Info("LiveIngestorWocPoll stopping listening due to context cancellation")
+				return
+			case <-ticker.C:
+				ing.processNewHeaders(respChan)
+			}
+		}
+	}()
+}
+
+func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHeader) {
+	headers, err := ing.GetLast10Headers(ing.ctx)
+	if err != nil {
+		ing.logger.Error("failed to get last 10 headers", slog.String("error", err.Error()))
+		return
+	}
+
+	for _, hdr := range headers {
+		select {
+		case respChan <- *hdr:
+		case <-ing.ctx.Done():
+			ing.logger.Info("LiveIngestorWocPoll stopping processing new headers due to context cancellation")
+			return
+		}
+	}
+}
+
+func (ing *LiveIngestorWocPoll) StopListening() {
+	if ing.cancelCtx != nil {
+		ing.cancelCtx()
+		ing.logger.Info("LiveIngestorWocPoll stopped listening")
+		ing.cancelCtx = nil
+	}
+	ing.waitForStop.Wait()
 }
 
 func (ing *LiveIngestorWocPoll) GetLast10Headers(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
