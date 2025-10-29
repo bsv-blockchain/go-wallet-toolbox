@@ -110,10 +110,8 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 		require.Equal(t, uint32(2), actualResult.TotalCertificates)
 
 		// optional sanity check for contents
-		require.Contains(t, []wallet.CertificateResult{
-			{Certificate: *cert1, Keyring: cert1.Fields},
-			{Certificate: *cert2, Keyring: cert2.Fields},
-		}, actualResult.Certificates[0])
+		require.Equal(t, wallet.CertificateResult{Certificate: *cert1, Keyring: cert1.Fields, Verifier: []byte(cert1.Certifier.ToDERHex())}, actualResult.Certificates[0])
+		require.Equal(t, wallet.CertificateResult{Certificate: *cert2, Keyring: cert2.Fields, Verifier: []byte(cert2.Certifier.ToDERHex())}, actualResult.Certificates[1])
 	})
 
 	s.Run("should return all certificates when no filters are provided", func() {
