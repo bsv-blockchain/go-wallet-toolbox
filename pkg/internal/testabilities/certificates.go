@@ -81,6 +81,17 @@ func CreateTestCertificateSerialNumber(t *testing.T) wallet.SerialNumber {
 	return serial
 }
 
+func CreateSamplePubKey(t *testing.T) *ec.PublicKey {
+	t.Helper()
+	priv, err := ec.NewPrivateKey()
+	require.NoError(t, err)
+	require.NotNil(t, priv)
+
+	pub := priv.PubKey()
+	require.NotNil(t, pub)
+	return pub
+}
+
 func CreateSampleAcquireCertificateArgs(t *testing.T) wallet.AcquireCertificateArgs {
 	t.Helper()
 
