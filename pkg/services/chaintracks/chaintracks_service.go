@@ -9,12 +9,15 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/gormstorage"
 )
 
 // Service provides core functionality for the Chaintracks service with logging and configuration support.
 type Service struct {
 	logger *slog.Logger
 	config defs.ChaintracksServiceConfig
+
+	storage Storage
 
 	cancelCtx          context.CancelFunc
 	makeAvailableOnce  sync.Once
@@ -31,9 +34,19 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig) (*Ser
 		return nil, fmt.Errorf("invalid chaintracks service config: %w", err)
 	}
 
+	// NOTE: This creates an in-memory SQLite DB which is not persistent.
+	// NOTE: This is acceptable for this case, when it's no big deal to re-sync data on restart.
+	// TODO: Add config options to allow persistent storage backends.
+	dbConfig := gormstorage.InMemorySQLiteDBConfig()
+	storage, err := gormstorage.NewProvider(logger, gormstorage.WithDBConfig(dbConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chaintracks storage provider: %w", err)
+	}
+
 	return &Service{
-		logger: logging.Child(logger, "chaintracks_service"),
-		config: config,
+		logger:  logging.Child(logger, "chaintracks_service"),
+		config:  config,
+		storage: storage,
 	}, nil
 }
 
@@ -50,6 +63,12 @@ func (s *Service) MakeAvailable(parentCtx context.Context) (err error) {
 		ctx, cancel := context.WithCancel(parentCtx)
 		s.cancelCtx = cancel
 
+		if err := s.storage.Migrate(ctx); err != nil {
+			err = fmt.Errorf("failed to migrate chaintracks storage: %w", err)
+			s.logger.Error("Chaintracks service", slog.String("error", err.Error()))
+			return
+		}
+
 		// TODO: Implement make available logic here
 
 		err = s.shiftLiveHeaders(ctx)
@@ -59,6 +78,7 @@ func (s *Service) MakeAvailable(parentCtx context.Context) (err error) {
 			return
 		}
 
+		s.shiftLiveHeadersWG.Add(1)
 		go s.shiftLiveHeadersWorker(ctx)
 		s.setAvailable(true)
 
@@ -96,7 +116,6 @@ func (s *Service) Destroy() {
 }
 
 func (s *Service) shiftLiveHeadersWorker(ctx context.Context) {
-	s.shiftLiveHeadersWG.Add(1)
 	defer s.shiftLiveHeadersWG.Done()
 	for {
 		select {

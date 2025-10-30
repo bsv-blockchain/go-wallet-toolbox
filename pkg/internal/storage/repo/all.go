@@ -21,25 +21,29 @@ type Repositories struct {
 	*Commission
 	*TxNotes
 	*UserUTXOs
+	*ChaintracksLiveHeader
+	*ChaintracksBulkFile
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
 	query := genquery.Use(db)
 	repositories := &Repositories{
-		Migrator:      NewMigrator(db),
-		Settings:      NewSettings(db),
-		OutputBaskets: NewOutputBaskets(db, query),
-		Certificates:  NewCertificates(db, query),
-		UTXOs:         NewUTXOs(db, query),
-		Transactions:  NewTransactions(db, query),
-		Outputs:       NewOutputs(db, query),
-		KnownTx:       NewKnownTxRepo(db, query),
-		Sync:          NewSync(db, query),
-		SyncState:     NewSyncState(db),
-		KeyValue:      NewKeyValue(db),
-		Commission:    NewCommission(db, query),
-		TxNotes:       NewTxNotes(db, query),
-		UserUTXOs:     NewUserUTXOs(db, query),
+		Migrator:              NewMigrator(db),
+		Settings:              NewSettings(db),
+		OutputBaskets:         NewOutputBaskets(db, query),
+		Certificates:          NewCertificates(db, query),
+		UTXOs:                 NewUTXOs(db, query),
+		Transactions:          NewTransactions(db, query),
+		Outputs:               NewOutputs(db, query),
+		KnownTx:               NewKnownTxRepo(db, query),
+		Sync:                  NewSync(db, query),
+		SyncState:             NewSyncState(db),
+		KeyValue:              NewKeyValue(db),
+		Commission:            NewCommission(db, query),
+		TxNotes:               NewTxNotes(db, query),
+		UserUTXOs:             NewUserUTXOs(db, query),
+		ChaintracksLiveHeader: NewChaintracksLiveHeader(db, query),
+		ChaintracksBulkFile:   NewChaintracksBulkFile(db, query),
 	}
 	repositories.Users = NewUsers(db, query, repositories.Settings, repositories.OutputBaskets)
 

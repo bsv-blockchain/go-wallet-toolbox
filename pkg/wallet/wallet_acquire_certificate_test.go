@@ -3,6 +3,7 @@ package wallet_test
 import (
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	certs_testabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/require"
 )
@@ -24,14 +25,14 @@ func (s *WalletTestSuite) Test_AcquireCertificate() {
 		require.NotNil(t, key)
 
 		// and:
-		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 
 		// then:
 		actual, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
 		require.NoError(t, err)
-		testabilities.AssertWalletCertificateEquality(t, actual, args, aliceWallet)
+		certs_testabilities.AssertWalletCertificateEquality(t, actual, args, aliceWallet)
 	})
 
 	s.Run("should fail when certifier is missing", func() {
@@ -42,7 +43,7 @@ func (s *WalletTestSuite) Test_AcquireCertificate() {
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
-		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 		args.Certifier = nil // missing certifier
 
 		// when:
@@ -61,7 +62,7 @@ func (s *WalletTestSuite) Test_AcquireCertificate() {
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
-		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 		args.Signature = nil // invalid
 
 		// when:
@@ -80,7 +81,7 @@ func (s *WalletTestSuite) Test_AcquireCertificate() {
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
-		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 		args.RevocationOutpoint = nil // invalid
 
 		// when:
@@ -97,7 +98,7 @@ func (s *WalletTestSuite) Test_AcquireCertificate() {
 		defer cleanup()
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
-		args := testabilities.CreateSampleAcquireCertificateArgs(t)
+		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 
 		first, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
 		require.NoError(t, err)

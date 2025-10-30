@@ -50,6 +50,8 @@ func main() {
 		models.User{},
 		models.TxNote{},
 		models.Certificate{},
+		models.ChaintracksLiveHeader{},
+		models.ChaintracksBulkFile{},
 	)
 
 	g.Execute()

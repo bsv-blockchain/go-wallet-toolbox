@@ -27,6 +27,28 @@ func (m WalletCertificateFieldMap) ToMap() map[string]string {
 	return out
 }
 
+// ToFieldsForEncryption converts the WalletCertificateFieldMap into a map suitable for encryption,
+// where each key is cast to sdk.CertificateFieldNameUnder50Bytes.
+//
+// It validates that all field names are between 1 and 50 characters long before conversion.
+// If any key is invalid, the function returns an error and no fields are returned.
+func (m WalletCertificateFieldMap) ToFieldsForEncryption() (map[sdk.CertificateFieldNameUnder50Bytes]string, error) {
+	const (
+		minLength = 1
+		maxLength = 50
+	)
+
+	out := make(map[sdk.CertificateFieldNameUnder50Bytes]string, len(m))
+	for key, val := range m {
+		if len(key) < minLength || len(key) > maxLength {
+			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 characters", key)
+		}
+		out[sdk.CertificateFieldNameUnder50Bytes(key)] = val
+	}
+
+	return out, nil
+}
+
 // WalletCertificate is a wallet certificate object
 type WalletCertificate struct {
 	Type               primitives.Base64String   `json:"type"`
@@ -36,6 +58,21 @@ type WalletCertificate struct {
 	RevocationOutpoint primitives.OutpointString `json:"revocationOutpoint"`
 	Signature          primitives.HexString      `json:"signature"`
 	Fields             WalletCertificateFieldMap `json:"fields"`
+}
+
+// CertifierCounterparty converts the WalletCertificate's Certifier field into a wallet.Counterparty.
+// It interprets the stored Certifier value (expected to be a hex-encoded private key)
+// and derives its corresponding public key to construct a Counterparty object.
+func (w *WalletCertificate) CertifierCounterparty() (sdk.Counterparty, error) {
+	key, err := ec.PrivateKeyFromHex(to.String(w.Certifier))
+	if err != nil {
+		return sdk.Counterparty{}, fmt.Errorf("invalid certifier private key hex: %w", err)
+	}
+
+	return sdk.Counterparty{
+		Type:         sdk.CounterpartyTypeOther,
+		Counterparty: key.PubKey(),
+	}, nil
 }
 
 // ToSDKCertificate converts a WalletCertificate to an sdk.Certificate.
@@ -96,6 +133,19 @@ func (w *WalletCertificate) ToSDKCertificate() (sdk.Certificate, error) {
 type ListCertificatesResult struct {
 	TotalCertificates primitives.PositiveInteger `json:"totalCertificates"`
 	Certificates      []*CertificateResult       `json:"certificates"`
+}
+
+// First returns the first certificate in the list, or nil if the list is empty.
+func (l *ListCertificatesResult) First() *CertificateResult {
+	if len(l.Certificates) == 0 {
+		return nil
+	}
+	return l.Certificates[0]
+}
+
+// HasNoCertificates returns true if the list contains no certificates.
+func (l *ListCertificatesResult) HasNoCertificates() bool {
+	return len(l.Certificates) == 0
 }
 
 // KeyringMap represents a mapping of keys in a wallet keyring.

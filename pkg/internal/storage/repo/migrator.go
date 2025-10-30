@@ -36,9 +36,11 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		models.OutputTag{},
 		models.Commission{},
 		models.TxNote{},
+		models.ChaintracksLiveHeader{},
+		models.ChaintracksBulkFile{},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to migrate settings: %w", err)
+		return fmt.Errorf("failed to auto migrate models: %w", err)
 	}
 
 	err = m.db.SetupJoinTable(&models.Transaction{}, "Labels", &models.TransactionLabel{})
