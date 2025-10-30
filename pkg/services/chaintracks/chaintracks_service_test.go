@@ -70,6 +70,9 @@ func TestService_GetPresentHeight(t *testing.T) {
 
 	// and, the call count should not have increased since the result should be cached
 	require.Equal(t, 1, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
+
+	// clean up:
+	service.Destroy()
 }
 
 func TestService_GetPresentHeight_FirstFailed_SecondSucceded(t *testing.T) {
@@ -111,4 +114,7 @@ func TestService_GetPresentHeight_FirstFailed_SecondSucceded(t *testing.T) {
 
 	// and, the call count should have increased since the first call failed
 	require.Equal(t, 2, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
+
+	// clean up:
+	service.Destroy()
 }
