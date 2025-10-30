@@ -156,6 +156,8 @@ func (s *Service) GetPresentHeight(ctx context.Context) (uint32, error) {
 }
 
 func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint32, error) {
+	var maxHeight uint32
+
 	for _, ingestor := range s.liveIngestors {
 		height, err := ingestor.Ingestor.GetPresentHeight(ctx)
 		if err != nil {
@@ -164,9 +166,15 @@ func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint32, error) 
 		}
 
 		s.logger.Debug("Chaintracks service - fetched present height from ingestor", slog.String("ingestor_name", ingestor.Name), slog.Any("present_height", height))
-		return height, nil
+
+		if height > maxHeight {
+			maxHeight = height
+		}
 	}
 
+	if maxHeight > 0 {
+		return maxHeight, nil
+	}
 	return 0, fmt.Errorf("no live ingestors available to fetch present height")
 }
 
