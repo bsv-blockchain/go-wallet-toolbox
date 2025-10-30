@@ -2,8 +2,6 @@ package chaintracks
 
 import (
 	"log/slog"
-	"maps"
-	"slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
@@ -29,5 +27,14 @@ func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 		}
 	}
 
-	return slices.AppendSeq(make([]NamedLiveIngestor, 0, len(ingestorsMap)), maps.Values(ingestorsMap))
+	// an order is needed:
+	ingestors := make([]NamedLiveIngestor, 0, len(ingestorsMap))
+	for _, ingestorType := range config.LiveIngestors {
+		if ingestor, exists := ingestorsMap[ingestorType]; exists {
+			ingestors = append(ingestors, ingestor)
+			delete(ingestorsMap, ingestorType) // to avoid duplicates
+		}
+	}
+
+	return ingestors
 }

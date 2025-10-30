@@ -36,7 +36,7 @@ type Service struct {
 	available   bool
 	availableMu sync.RWMutex
 
-	cachedPresentHeight *internal.CachableWithTTL[uint32]
+	cachedPresentHeight *internal.CacheableWithTTL[uint32]
 }
 
 // NewService creates and returns a new Service instance initialized with the provided logger and configuration.

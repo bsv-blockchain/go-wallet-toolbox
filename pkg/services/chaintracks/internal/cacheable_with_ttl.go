@@ -9,7 +9,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-type CachableWithTTL[T any] struct {
+type CacheableWithTTL[T any] struct {
 	value   *T
 	lastSet *time.Time
 
@@ -18,14 +18,14 @@ type CachableWithTTL[T any] struct {
 	locker sync.RWMutex
 }
 
-func NewCachableWithTTL[T any](ttl time.Duration, setter func(context.Context) (T, error)) *CachableWithTTL[T] {
-	return &CachableWithTTL[T]{
+func NewCachableWithTTL[T any](ttl time.Duration, setter func(context.Context) (T, error)) *CacheableWithTTL[T] {
+	return &CacheableWithTTL[T]{
 		ttl:    ttl,
 		setter: setter,
 	}
 }
 
-func (c *CachableWithTTL[T]) Get(ctx context.Context) (T, error) {
+func (c *CacheableWithTTL[T]) Get(ctx context.Context) (T, error) {
 	cachedValue := c.readOnValid()
 	if cachedValue != nil {
 		return *cachedValue, nil
@@ -52,7 +52,7 @@ func (c *CachableWithTTL[T]) Get(ctx context.Context) (T, error) {
 	return *c.value, nil
 }
 
-func (c *CachableWithTTL[T]) readOnValid() *T {
+func (c *CacheableWithTTL[T]) readOnValid() *T {
 	c.locker.RLock()
 	defer c.locker.RUnlock()
 	if c.isValid() {
@@ -61,7 +61,7 @@ func (c *CachableWithTTL[T]) readOnValid() *T {
 	return nil
 }
 
-func (c *CachableWithTTL[T]) isValid() bool {
+func (c *CacheableWithTTL[T]) isValid() bool {
 	if c.value == nil || c.lastSet == nil {
 		return false
 	}
