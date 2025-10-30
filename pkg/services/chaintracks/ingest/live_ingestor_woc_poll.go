@@ -103,6 +103,8 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 	return wdkBlockHeader, nil
 }
 
+// GetPresentHeight retrieves the current blockchain height from the external data source.
+// Returns the number of blocks in the chain or an error if the info cannot be fetched or parsed.
 func (ing *LiveIngestorWocPoll) GetPresentHeight(ctx context.Context) (uint32, error) {
 	path := "/chain/info"
 

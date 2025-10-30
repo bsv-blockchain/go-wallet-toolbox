@@ -143,6 +143,10 @@ func (s *Service) Destroy() {
 	s.logger.Info("Chaintracks service - destroyed")
 }
 
+// GetPresentHeight returns the present blockchain height using a cached value with automatic TTL refresh if expired.
+// It queries the cache and, if invalid, fetches the latest value using the configured setter function for the cache.
+// Returns the blockchain height as uint32 and an error if the retrieval fails.
+// Context is used for cancellation and timeout during cache population or data fetching.
 func (s *Service) GetPresentHeight(ctx context.Context) (uint32, error) {
 	if presentHeight, err := s.cachedPresentHeight.Get(ctx); err != nil {
 		return 0, fmt.Errorf("failed to get cached present height: %w", err)

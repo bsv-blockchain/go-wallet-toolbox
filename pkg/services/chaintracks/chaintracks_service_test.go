@@ -93,7 +93,7 @@ func TestService_GetPresentHeight_FirstFailed_SecondSucceded(t *testing.T) {
 	require.NoError(t, err)
 
 	// when:
-	presentHeight, err := service.GetPresentHeight(t.Context())
+	_, err = service.GetPresentHeight(t.Context())
 
 	// then:
 	require.Error(t, err)
@@ -103,7 +103,7 @@ func TestService_GetPresentHeight_FirstFailed_SecondSucceded(t *testing.T) {
 
 	// when:
 	mockWOC.WillRespondOn("chain/info", "GET").WithJSONResponse(200, map[string]any{"blocks": expectedHeight})
-	presentHeight, err = service.GetPresentHeight(t.Context())
+	presentHeight, err := service.GetPresentHeight(t.Context())
 
 	// then:
 	require.NoError(t, err)
