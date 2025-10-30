@@ -20,7 +20,7 @@ type CachableWithTTL[T any] struct {
 
 func NewCachableWithTTL[T any](ttl time.Duration, setter func(context.Context) (T, error)) *CachableWithTTL[T] {
 	return &CachableWithTTL[T]{
-		ttl: ttl,
+		ttl:    ttl,
 		setter: setter,
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 // Initializers provides injectable factory functions for customizing live ingestor creation in the Chaintracks service.
 // Use this struct to override default implementations, especially for testing or custom runtime behaviors.
-type Initializers struct{
+type Initializers struct {
 	WOCLiveIngestorPollFactory func(logger *slog.Logger, config defs.ChaintracksServiceConfig) LiveIngestor
 }
 

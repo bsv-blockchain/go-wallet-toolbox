@@ -83,4 +83,3 @@ func (r *ResponseBuilder) WithJSONResponse(statusCode int, body any) *MockWOC {
 		httpmock.NewJsonResponderOrPanic(statusCode, body))
 	return r.mockServer
 }
-
