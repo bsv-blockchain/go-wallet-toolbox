@@ -23,7 +23,7 @@ func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 		case defs.LiveIngestorTypeWocPoll:
 			ingestorsMap[ingestorType] = NamedLiveIngestor{
 				Name:     string(ingestorType),
-				Ingestor: ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{ Chain: config.Chain }),
+				Ingestor: ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{Chain: config.Chain}),
 			}
 		default:
 			logger.Warn("Chaintracks service - unsupported live ingestor type, skipping", slog.String("ingestor_type", string(ingestorType)))

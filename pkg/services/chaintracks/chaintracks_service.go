@@ -24,7 +24,7 @@ type Service struct {
 
 	storage Storage
 
-	liveIngestors []NamedLiveIngestor
+	liveIngestors   []NamedLiveIngestor
 	liveHeadersChan chan wdk.ChainBlockHeader
 
 	cancelCtx          context.CancelFunc
@@ -54,10 +54,10 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig) (*Ser
 	liveIngestors := createLiveIngestors(logger, config)
 
 	return &Service{
-		logger:  logging.Child(logger, "chaintracks_service"),
-		config:  config,
-		storage: storage,
-		liveIngestors: liveIngestors,
+		logger:          logging.Child(logger, "chaintracks_service"),
+		config:          config,
+		storage:         storage,
+		liveIngestors:   liveIngestors,
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
 	}, nil
 }
