@@ -10,6 +10,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/gormstorage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
+
+const (
+	liveHeadersChanSize = 1000
 )
 
 // Service provides core functionality for the Chaintracks service with logging and configuration support.
@@ -18,6 +23,9 @@ type Service struct {
 	config defs.ChaintracksServiceConfig
 
 	storage Storage
+
+	liveIngestors []NamedLiveIngestor
+	liveHeadersChan chan wdk.ChainBlockHeader
 
 	cancelCtx          context.CancelFunc
 	makeAvailableOnce  sync.Once
@@ -43,10 +51,14 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig) (*Ser
 		return nil, fmt.Errorf("failed to create chaintracks storage provider: %w", err)
 	}
 
+	liveIngestors := createLiveIngestors(logger, config)
+
 	return &Service{
 		logger:  logging.Child(logger, "chaintracks_service"),
 		config:  config,
 		storage: storage,
+		liveIngestors: liveIngestors,
+		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
 	}, nil
 }
 
@@ -69,7 +81,10 @@ func (s *Service) MakeAvailable(parentCtx context.Context) (err error) {
 			return
 		}
 
-		// TODO: Implement make available logic here
+		for _, ingestor := range s.liveIngestors {
+			s.logger.Info("Chaintracks service - starting live ingestor", slog.String("ingestor_name", ingestor.Name))
+			ingestor.Ingestor.StartListening(parentCtx, s.liveHeadersChan)
+		}
 
 		err = s.shiftLiveHeaders(ctx)
 		if err != nil {
@@ -110,8 +125,12 @@ func (s *Service) Destroy() {
 	}
 	s.shiftLiveHeadersWG.Wait()
 
-	s.setAvailable(false)
+	for _, ingestor := range s.liveIngestors {
+		s.logger.Info("Chaintracks service - stopping live ingestor", slog.String("ingestor_name", ingestor.Name))
+		ingestor.Ingestor.StopListening()
+	}
 
+	s.setAvailable(false)
 	s.logger.Info("Chaintracks service - destroyed")
 }
 
