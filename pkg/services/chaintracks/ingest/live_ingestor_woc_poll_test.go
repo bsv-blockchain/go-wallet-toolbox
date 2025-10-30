@@ -152,6 +152,25 @@ func TestLiveIngestorWOCPoll_PollLast10Headers_TemporaryFailsDontBother(t *testi
 	ingestor.StopListening()
 }
 
+func TestLiveIngestorWocPoll_GetPresentHeight(t *testing.T) {
+	// given:
+	const expectedHeight = 920784
+
+	config := defs.DefaultWOCPollIngestorConfig()
+
+	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC.WillRespondOn("chain/info", "GET").WithJSONResponse(200, map[string]any{"blocks": expectedHeight})
+
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()))
+
+	// when:
+	presentHeight, err := ingestor.GetPresentHeight(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, uint32(expectedHeight), presentHeight)
+}
+
 func blockHeaderStandardResponse(t *testing.T) (string, map[string]any) {
 	t.Helper()
 	blockHeader := testabilities.WOCLastHeader(t)
