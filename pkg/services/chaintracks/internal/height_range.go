@@ -58,9 +58,6 @@ func (hr HeightRange) Length() uint {
 	if hr.IsEmpty() {
 		return 0
 	}
-	if hr.MaxHeight < hr.MinHeight {
-		return 0
-	}
 	return hr.MaxHeight - hr.MinHeight + 1
 }
 
@@ -107,8 +104,6 @@ func (hr HeightRange) Intersect(other HeightRange) HeightRange {
 	return NewHeightRange(minHeight, maxHeight)
 }
 
-// Union returns the minimal HeightRange that contains both hr and other.
-// an error if the union would create two disjoint ranges.
 func (hr HeightRange) Union(other HeightRange) (HeightRange, error) {
 	if hr.IsEmpty() {
 		return other, nil
