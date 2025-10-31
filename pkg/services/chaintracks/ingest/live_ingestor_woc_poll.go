@@ -17,10 +17,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
-const (
-	genesisAsPrevBlockHash = "0000000000000000000000000000000000000000000000000000000000000000"
-)
-
 // LiveIngestorWocPoll provides functionality for polling block header data from an external source, such as WhatsOnChain.
 type LiveIngestorWocPoll struct {
 	logger *slog.Logger

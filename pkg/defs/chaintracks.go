@@ -2,9 +2,26 @@ package defs
 
 import "fmt"
 
+// LiveIngestorType represents the type of a live blockchain data ingestor as a string identifier.
+type LiveIngestorType string
+
+// LiveIngestorTypeWocPoll represents a live ingestor type that polls block headers from WhatsOnChain's public API.
+const (
+	LiveIngestorTypeWocPoll LiveIngestorType = "woc_poll"
+)
+
+// ParseLiveIngestorType parses a string into a LiveIngestorType, allowing case-insensitive matching of known types.
+// Returns an error if the input does not match any supported LiveIngestorType value.
+func ParseLiveIngestorType(str string) (LiveIngestorType, error) {
+	return parseEnumCaseInsensitive(str, LiveIngestorTypeWocPoll)
+}
+
 // ChaintracksServiceConfig holds configuration for Chaintracks service, including the BSV network selection.
 type ChaintracksServiceConfig struct {
-	Chain BSVNetwork `mapstructure:"-"`
+	Chain         BSVNetwork         `mapstructure:"-"`
+	LiveIngestors []LiveIngestorType `mapstructure:"live_ingestors"`
+
+	// TODO: Specify API key for WoC ingestor
 }
 
 // Validate checks if the Chain field in ChaintracksServiceConfig holds a valid BSV network type.
@@ -14,6 +31,18 @@ func (c *ChaintracksServiceConfig) Validate() error {
 	if err := c.Chain.Validate(); err != nil {
 		return fmt.Errorf("invalid chain: %w", err)
 	}
+
+	if len(c.LiveIngestors) == 0 {
+		return fmt.Errorf("at least one live ingestor must be configured")
+	}
+
+	var err error
+	for i := range c.LiveIngestors {
+		if c.LiveIngestors[i], err = ParseLiveIngestorType(string(c.LiveIngestors[i])); err != nil {
+			return fmt.Errorf("invalid live ingestor type: %s", c.LiveIngestors[i])
+		}
+	}
+
 	return nil
 }
 
@@ -21,6 +50,9 @@ func (c *ChaintracksServiceConfig) Validate() error {
 func DefaultChaintracksServiceConfig() ChaintracksServiceConfig {
 	return ChaintracksServiceConfig{
 		Chain: NetworkMainnet,
+		LiveIngestors: []LiveIngestorType{
+			LiveIngestorTypeWocPoll,
+		},
 	}
 }
 

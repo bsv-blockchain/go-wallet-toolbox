@@ -35,12 +35,20 @@ func bitsStrToUint32(bitsStr string) (uint32, error) {
 	return uint32(bitsNum), nil
 }
 
+const (
+	genesisAsPrevBlockHash = "0000000000000000000000000000000000000000000000000000000000000000"
+)
+
 // ToWDK converts the WOCBlockHeaderDTO to a wdk.ChainBlockHeader, parsing and validating the Bits field.
 // Returns an error if Bits cannot be parsed or another conversion error occurs.
 func (hdr *WOCBlockHeaderDTO) ToWDK() (*wdk.ChainBlockHeader, error) {
 	bitsNum, err := bitsStrToUint32(hdr.Bits)
 	if err != nil {
 		return nil, err
+	}
+
+	if hdr.PrevBlock == "" {
+		hdr.PrevBlock = genesisAsPrevBlockHash
 	}
 
 	return &wdk.ChainBlockHeader{
