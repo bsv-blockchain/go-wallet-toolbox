@@ -2,14 +2,11 @@ package chaintracks
 
 import (
 	"log/slog"
-	"maps"
-	"slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
 )
 
-func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConfig) []NamedLiveIngestor {
+func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConfig, initializers Initializers) []NamedLiveIngestor {
 	logger.Info("Chaintracks service - creating live ingestors", slog.Any("configured_types", config.LiveIngestors))
 
 	ingestorsMap := make(map[defs.LiveIngestorType]NamedLiveIngestor)
@@ -23,12 +20,21 @@ func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 		case defs.LiveIngestorTypeWocPoll:
 			ingestorsMap[ingestorType] = NamedLiveIngestor{
 				Name:     string(ingestorType),
-				Ingestor: ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{Chain: config.Chain}),
+				Ingestor: initializers.WOCLiveIngestorPollFactory(logger, config),
 			}
 		default:
 			logger.Warn("Chaintracks service - unsupported live ingestor type, skipping", slog.String("ingestor_type", string(ingestorType)))
 		}
 	}
 
-	return slices.AppendSeq(make([]NamedLiveIngestor, 0, len(ingestorsMap)), maps.Values(ingestorsMap))
+	// an order is needed:
+	ingestors := make([]NamedLiveIngestor, 0, len(ingestorsMap))
+	for _, ingestorType := range config.LiveIngestors {
+		if ingestor, exists := ingestorsMap[ingestorType]; exists {
+			ingestors = append(ingestors, ingestor)
+			delete(ingestorsMap, ingestorType) // to avoid duplicates
+		}
+	}
+
+	return ingestors
 }

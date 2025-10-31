@@ -14,9 +14,11 @@ type Storage interface {
 // LiveIngestor defines a contract for streaming and retrieving live blockchain block header data.
 // It provides methods for looking up headers by hash and for receiving header events in real-time.
 type LiveIngestor interface {
-	GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
 	StartListening(parentCtx context.Context, respChan chan wdk.ChainBlockHeader)
 	StopListening()
+
+	GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
+	GetPresentHeight(ctx context.Context) (uint32, error)
 }
 
 // NamedLiveIngestor associates a human-readable name with a LiveIngestor implementation for identification purposes.

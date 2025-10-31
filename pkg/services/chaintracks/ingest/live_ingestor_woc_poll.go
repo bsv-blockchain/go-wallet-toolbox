@@ -103,6 +103,27 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 	return wdkBlockHeader, nil
 }
 
+// GetPresentHeight retrieves the current blockchain height from the external data source.
+// Returns the number of blocks in the chain or an error if the info cannot be fetched or parsed.
+func (ing *LiveIngestorWocPoll) GetPresentHeight(ctx context.Context) (uint32, error) {
+	path := "/chain/info"
+
+	var infoResp blockOnlyChainInfoDTO
+	res, err := ing.resty.R().
+		SetContext(ctx).
+		SetResult(&infoResp).
+		Get(path)
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch chain info: %w", err)
+	}
+	if res.StatusCode() != http.StatusOK {
+		return 0, fmt.Errorf("unexpected status code %d fetching chain info", res.StatusCode())
+	}
+
+	return infoResp.Blocks, nil
+}
+
 // StartListening begins polling for new block headers and sends them to respChan until the parent context is canceled.
 // This method runs polling in a separate goroutine, checking for context cancellation or periodic sync timeout.
 // Each cycle fetches the latest block headers and processes them, forwarding results through respChan.

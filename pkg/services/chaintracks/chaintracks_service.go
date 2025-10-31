@@ -10,11 +10,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/gormstorage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const (
-	liveHeadersChanSize = 1000
+	liveHeadersChanSize  = 1000
+	lastPresentHeightTTL = 60 * time.Second
 )
 
 // Service provides core functionality for the Chaintracks service with logging and configuration support.
@@ -33,11 +35,13 @@ type Service struct {
 
 	available   bool
 	availableMu sync.RWMutex
+
+	cachedPresentHeight *internal.CacheableWithTTL[uint32]
 }
 
 // NewService creates and returns a new Service instance initialized with the provided logger and configuration.
 // Returns an error if the given config is invalid according to its validation rules.
-func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig) (*Service, error) {
+func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overrides ...Initializers) (*Service, error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid chaintracks service config: %w", err)
 	}
@@ -51,15 +55,20 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig) (*Ser
 		return nil, fmt.Errorf("failed to create chaintracks storage provider: %w", err)
 	}
 
-	liveIngestors := createLiveIngestors(logger, config)
+	initializers := createInitializers(overrides...)
+	liveIngestors := createLiveIngestors(logger, config, initializers)
 
-	return &Service{
+	srv := &Service{
 		logger:          logging.Child(logger, "chaintracks_service"),
 		config:          config,
 		storage:         storage,
 		liveIngestors:   liveIngestors,
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
-	}, nil
+	}
+
+	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint32](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
+
+	return srv, nil
 }
 
 // GetChain returns the configured BSV network for the service.
@@ -132,6 +141,41 @@ func (s *Service) Destroy() {
 
 	s.setAvailable(false)
 	s.logger.Info("Chaintracks service - destroyed")
+}
+
+// GetPresentHeight returns the present blockchain height using a cached value with automatic TTL refresh if expired.
+// It queries the cache and, if invalid, fetches the latest value using the configured setter function for the cache.
+// Returns the blockchain height as uint32 and an error if the retrieval fails.
+// Context is used for cancellation and timeout during cache population or data fetching.
+func (s *Service) GetPresentHeight(ctx context.Context) (uint32, error) {
+	if presentHeight, err := s.cachedPresentHeight.Get(ctx); err != nil {
+		return 0, fmt.Errorf("failed to get cached present height: %w", err)
+	} else {
+		return presentHeight, nil
+	}
+}
+
+func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint32, error) {
+	var maxHeight uint32
+
+	for _, ingestor := range s.liveIngestors {
+		height, err := ingestor.Ingestor.GetPresentHeight(ctx)
+		if err != nil {
+			s.logger.Error("Chaintracks service - error fetching present height from ingestor", slog.String("ingestor_name", ingestor.Name), slog.String("error", err.Error()))
+			continue
+		}
+
+		s.logger.Debug("Chaintracks service - fetched present height from ingestor", slog.String("ingestor_name", ingestor.Name), slog.Any("present_height", height))
+
+		if height > maxHeight {
+			maxHeight = height
+		}
+	}
+
+	if maxHeight > 0 {
+		return maxHeight, nil
+	}
+	return 0, fmt.Errorf("no live ingestors available to fetch present height")
 }
 
 func (s *Service) shiftLiveHeadersWorker(ctx context.Context) {

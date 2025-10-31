@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/go-resty/resty/v2"
 	"github.com/jarcoal/httpmock"
@@ -13,8 +14,9 @@ import (
 
 type MockWOC struct {
 	testing.TB
-	transport *httpmock.MockTransport
-	network   defs.BSVNetwork
+	transport       *httpmock.MockTransport
+	network         defs.BSVNetwork
+	servicesSniffer *testutils.HTTPSniffer
 }
 
 func GivenMockWOC(t testing.TB, network defs.BSVNetwork) *MockWOC {
@@ -56,9 +58,17 @@ func (m *MockWOC) GetFullURL(urlPath string) string {
 
 func (m *MockWOC) HttpClient() *resty.Client {
 	m.Helper()
+
+	m.servicesSniffer = testutils.NewHTTPSniffer(m.transport)
 	client := resty.New()
-	client.SetTransport(m.transport)
+	client.SetTransport(m.servicesSniffer)
 	return client
+}
+
+func (m *MockWOC) ServicesSniffer() *testutils.HTTPSniffer {
+	m.Helper()
+	require.NotNil(m, m.servicesSniffer, "Sniffer() called without setting up services fixture")
+	return m.servicesSniffer
 }
 
 type ResponseBuilder struct {
