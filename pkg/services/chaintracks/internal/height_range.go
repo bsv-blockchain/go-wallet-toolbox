@@ -151,7 +151,7 @@ func (hr HeightRange) Subtract(other HeightRange) (HeightRange, error) {
 	}
 
 	if other.MinHeight > hr.MinHeight && other.MaxHeight < hr.MaxHeight {
-		return HeightRange{}, fmt.Errorf("substraction would create disjoint ranges")
+		return HeightRange{}, fmt.Errorf("subtraction would create disjoint ranges")
 	}
 
 	if other.MinHeight <= hr.MinHeight {
