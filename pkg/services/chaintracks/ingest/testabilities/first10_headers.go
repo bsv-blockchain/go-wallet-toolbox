@@ -6,4 +6,3 @@ import (
 
 //go:embed first10.headers
 var First10HeadersData []byte
-
