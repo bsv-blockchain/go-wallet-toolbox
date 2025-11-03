@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 )
 
 // BlockHeaderLength defines the fixed byte size of a block header, commonly used in blockchain data structures.
@@ -66,6 +68,17 @@ func (c *ChainBaseBlockHeader) Hex() (string, error) {
 		return "", fmt.Errorf("failed to marshal chain block header: %w", err)
 	}
 	return hex.EncodeToString(bb), nil
+}
+
+// CalculateHash computes and returns the double SHA-256 hash of the block header.
+// Returns an error if serialization or hashing fails.
+func (c *ChainBaseBlockHeader) CalculateHash() (chainhash.Hash, error) {
+	bb, err := c.Bytes()
+	if err != nil {
+		return chainhash.Hash{}, fmt.Errorf("failed to marshal chain block header: %w", err)
+	}
+
+	return chainhash.DoubleHashH(bb), nil
 }
 
 // Bytes returns the serialized byte representation of the block header.

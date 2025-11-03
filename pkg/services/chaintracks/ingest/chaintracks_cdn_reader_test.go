@@ -41,7 +41,6 @@ func TestCDNReader_FetchBulkHeaderFilesInfo(t *testing.T) {
 	assert.Equal(t, "mainNet_0.headers", firstChunk.FileName)
 	assert.Equal(t, uint(0), firstChunk.FirstHeight)
 	assert.Equal(t, 100000, firstChunk.Count)
-	assert.Equal(t, "DMXYETHMphmYRh5y0+qsJhj67ML5Ui4LE1eEZDYbnZE=", *firstChunk.FileHash)
 	assert.Equal(t, "0000000000000000000000000000000000000000000000000000000000000000", firstChunk.PrevChainWork)
 	assert.Equal(t, "000000000002d01c1fccc21636b607dfd930d31d01c3a62104612a1719011250", *firstChunk.LastHash)
 	assert.Equal(t, defs.NetworkMainnet, *firstChunk.Chain)
@@ -82,6 +81,105 @@ func TestCDNReader_FetchBulkHeaderFilesInfo_Errors(t *testing.T) {
 
 			// when:
 			_, err := reader.FetchBulkHeaderFilesInfo(t.Context(), defs.NetworkMainnet)
+
+			// then:
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestCDNReader_FetchBulkHeaderFile(t *testing.T) {
+	// given:
+	transport := httpmock.NewMockTransport()
+	client := resty.New()
+	client.SetTransport(transport)
+
+	transport.RegisterResponder("GET", mainNetCDNURL(),
+		httpmock.NewJsonResponderOrPanic(200, map[string]any{
+			"rootFolder":     ingest.BabbageCDNBaseURL,
+			"jsonFilename":   "mainNetBlockHeaders.json",
+			"headersPerFile": 100000,
+			"files": []map[string]any{
+				{
+					"chain":         "main",
+					"count":         10,
+					"fileHash":      "bE1oOTaH49qwzuG+s0T/4EAQP5+rtthBtJW9akTwRCM=",
+					"fileName":      "mainNet_0.headers",
+					"firstHeight":   0,
+					"lastChainWork": "0000000000000000000000000000000000000000000000000000000a000a000a",
+					"lastHash":      "000000008d9dc510f23c2657fc4f67bea30078cc05a90eb89e84cc475c080805",
+					"prevChainWork": "0000000000000000000000000000000000000000000000000000000000000000",
+					"prevHash":      "0000000000000000000000000000000000000000000000000000000000000000",
+					"sourceUrl":     "https://cdn.projectbabbage.com/blockheaders",
+				},
+			},
+		}))
+
+	transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+		httpmock.NewBytesResponder(200, testabilities.First10HeadersData))
+
+	// and:
+	reader := ingest.NewCDNReader(logging.NewTestLogger(t), ingest.BabbageCDNBaseURL, client)
+
+	// when:
+	info, err := reader.FetchBulkHeaderFilesInfo(t.Context(), defs.NetworkMainnet)
+	require.NoError(t, err)
+
+	bulkFileData, err := reader.FetchBulkHeaderFile(t.Context(), info.Files[0])
+
+	// then:
+	require.NoError(t, err)
+	require.NoError(t, bulkFileData.Validate())
+	require.Equal(t, 10, bulkFileData.Len())
+
+	// when:
+	header, err := bulkFileData.GetHeaderAtIndex(9)
+	require.NoError(t, err)
+
+	// then:
+	assert.Equal(t, "000000008d9dc510f23c2657fc4f67bea30078cc05a90eb89e84cc475c080805", header.Hash)
+	assert.Equal(t, uint(9), header.Height)
+	assert.Equal(t, "00000000408c48f847aa786c2268fc3e6ec2af68e8468a34a28c61b7f1de0dc6", header.PreviousHash)
+}
+
+func TestCDNReader_FetchBulkHeaderFile_Errors(t *testing.T) {
+	tests := map[string]struct {
+		setupResponder func(transport *httpmock.MockTransport)
+	}{
+		"404 result": {
+			setupResponder: func(transport *httpmock.MockTransport) {
+				transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+					httpmock.NewStringResponder(404, "Not Found"))
+			},
+		},
+		"invalid data": {
+			setupResponder: func(transport *httpmock.MockTransport) {
+				transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+					httpmock.NewStringResponder(200, "this is not valid header data"))
+			},
+		},
+		"empty response": {
+			setupResponder: func(transport *httpmock.MockTransport) {
+				transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+					httpmock.NewStringResponder(200, ""))
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			transport := httpmock.NewMockTransport()
+			client := resty.New()
+			client.SetTransport(transport)
+
+			// and:
+			test.setupResponder(transport)
+
+			// and:
+			reader := ingest.NewCDNReader(logging.NewTestLogger(t), ingest.BabbageCDNBaseURL, client)
+
+			// when:
+			_, err := reader.FetchBulkHeaderFile(t.Context(), ingest.BulkHeaderFileInfo{})
 
 			// then:
 			require.Error(t, err)

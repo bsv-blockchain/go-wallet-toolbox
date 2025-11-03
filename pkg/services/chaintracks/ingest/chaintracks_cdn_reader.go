@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -15,28 +16,6 @@ import (
 const (
 	BabbageCDNBaseURL = "https://cdn.projectbabbage.com/blockheaders"
 )
-
-// BulkHeaderFilesInfo represents metadata about a collection of bulk block header files and their containing folder.
-type BulkHeaderFilesInfo struct {
-	RootFolder     string               `json:"rootFolder"`
-	JSONFilename   string               `json:"jsonFilename"`
-	HeadersPerFile int                  `json:"headersPerFile"`
-	Files          []BulkHeaderFileInfo `json:"files"`
-}
-
-// BulkHeaderFileInfo contains metadata related to a single bulk block header file for a specific blockchain network.
-type BulkHeaderFileInfo struct {
-	FileName      string           `json:"fileName"`
-	FirstHeight   uint             `json:"firstHeight"`
-	Count         int              `json:"count"`
-	PrevChainWork string           `json:"prevChainWork"`
-	LastChainWork string           `json:"lastChainWork"`
-	PrevHash      string           `json:"prevHash"`
-	LastHash      *string          `json:"lastHash,omitempty"`
-	FileHash      *string          `json:"fileHash,omitempty"`
-	Chain         *defs.BSVNetwork `json:"chain,omitempty"`
-	SourceURL     *string          `json:"sourceUrl,omitempty"`
-}
 
 // CDNReader provides methods to interact with and retrieve blockchain header data from a remote CDN service.
 type CDNReader struct {
@@ -55,7 +34,8 @@ func NewCDNReader(logger *slog.Logger, baseURL string, restyClientBase *resty.Cl
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logging.IsDebug(logger)).
-		SetBaseURL(baseURL)
+		SetBaseURL(baseURL).
+		SetRetryCount(3)
 
 	return &CDNReader{
 		logger: logging.Child(logger, "chaintracks_cdn_reader"),
@@ -87,4 +67,35 @@ func (c *CDNReader) FetchBulkHeaderFilesInfo(ctx context.Context, chain defs.BSV
 	}
 
 	return result, nil
+}
+
+// FetchBulkHeaderFile downloads a bulk block header file from CDN for the given file info and returns its data and metadata.
+// Returns BulkFileData containing the file info, binary data, and access timestamp, or an error if download fails.
+func (c *CDNReader) FetchBulkHeaderFile(ctx context.Context, fileInfo BulkHeaderFileInfo) (*BulkFileData, error) {
+	data, err := c.downloadBulkHeaderFile(ctx, fileInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BulkFileData{
+		Info:       fileInfo,
+		Data:       data,
+		AccessedAt: time.Now(),
+	}, nil
+}
+
+func (c *CDNReader) downloadBulkHeaderFile(ctx context.Context, fileInfo BulkHeaderFileInfo) ([]byte, error) {
+	resp, err := c.resty.R().
+		SetContext(ctx).
+		SetHeaders(httpx.NewHeaders().Accept().Value("application/octet-stream")).
+		Get(fileInfo.FileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
+	}
+
+	if !resp.IsSuccess() {
+		return nil, fmt.Errorf("failed to download bulk header file %s: received status code %d", fileInfo.FileName, resp.StatusCode())
+	}
+
+	return resp.Body(), nil
 }
