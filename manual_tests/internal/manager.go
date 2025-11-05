@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -97,29 +95,6 @@ func (m *Manager) Cleanup() {
 	if m.remoteCleanup != nil {
 		m.remoteCleanup()
 	}
-}
-
-func (m *Manager) SetRemoteStorageURL(serverURL string) error {
-	if m.remoteCleanup != nil {
-		m.remoteCleanup()
-	}
-
-	client, cleanup, err := storage.NewClient(serverURL)
-	if err != nil {
-		return fmt.Errorf("failed to connect to remote storage at %s: %w", serverURL, err)
-	}
-
-	ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
-	defer cancel()
-	_, err = client.MakeAvailable(ctx)
-	if err != nil {
-		cleanup()
-		return fmt.Errorf("failed to make remote storage available: %w", err)
-	}
-
-	m.remoteStorage = client
-	m.remoteCleanup = cleanup
-	return nil
 }
 
 func (m *Manager) getServices() (*services.WalletServices, error) {
