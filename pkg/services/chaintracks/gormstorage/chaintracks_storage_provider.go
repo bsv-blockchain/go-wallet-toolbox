@@ -18,7 +18,6 @@ type Provider struct {
 	Database *database.Database
 
 	logger *slog.Logger
-	repo   *repo.Repositories
 }
 
 // NewProvider creates and returns a new Provider instance using the given logger and optional configuration options.
@@ -32,19 +31,17 @@ func NewProvider(logger *slog.Logger, opts ...ProviderOption) (*Provider, error)
 		return nil, err
 	}
 
-	repos := db.CreateRepositories()
-
 	return &Provider{
 		Database: db,
 
 		logger: logger,
-		repo:   repos,
 	}, nil
 }
 
 // Migrate migrates the storage and saves the settings.
 func (p *Provider) Migrate(ctx context.Context) error {
-	err := p.repo.Migrate(ctx)
+	migrator := repo.NewMigrator(p.Database.DB)
+	err := migrator.Migrate(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to migrate: %w", err)
 	}
@@ -67,4 +64,3 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 func (p *Provider) Query(ctx context.Context) models.StorageQueries {
 	return newStorageQueries(ctx, p.Database.DB)
 }
-

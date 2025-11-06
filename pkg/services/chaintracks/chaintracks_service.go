@@ -295,7 +295,7 @@ func (s *Service) processHeaders(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case header := <-s.liveHeadersChan:
-			if err := s.addHeader(ctx, header); err != nil {
+			if err := s.addLiveHeader(ctx, header); err != nil {
 				s.logger.Warn("Chaintracks service - failed to add live header", slog.String("header_hash", header.Hash), slog.String("error", err.Error()))
 			}
 		default:
@@ -305,10 +305,10 @@ func (s *Service) processHeaders(ctx context.Context) error {
 	}
 }
 
-func (s *Service) addHeader(ctx context.Context, header wdk.ChainBlockHeader) error {
-	err := s.storeHeader(ctx, header)
+func (s *Service) addLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) error {
+	err := s.storeLiveHeader(ctx, header)
 	if errors.Is(err, noPrevErr) {
-		if err := s.addHeaderRecursive(ctx, header, addLiveRecursionLimit); err != nil {
+		if err := s.addLiveHeaderRecursive(ctx, header, addLiveRecursionLimit); err != nil {
 			return fmt.Errorf("failed to add header recursively: %w", err)
 		}
 	}
@@ -319,7 +319,7 @@ func (s *Service) addHeader(ctx context.Context, header wdk.ChainBlockHeader) er
 	return nil
 }
 
-func (s *Service) addHeaderRecursive(ctx context.Context, header wdk.ChainBlockHeader, depth int) error {
+func (s *Service) addLiveHeaderRecursive(ctx context.Context, header wdk.ChainBlockHeader, depth int) error {
 	if depth <= 0 {
 		return fmt.Errorf("recursion limit reached while adding header recursively for header: %s", header.Hash)
 	}
@@ -329,9 +329,9 @@ func (s *Service) addHeaderRecursive(ctx context.Context, header wdk.ChainBlockH
 		return fmt.Errorf("previous header not found for hash: %s", header.PreviousHash)
 	}
 
-	err := s.storeHeader(ctx, *prevHeader)
+	err := s.storeLiveHeader(ctx, *prevHeader)
 	if errors.Is(err, noPrevErr) {
-		if err := s.addHeaderRecursive(ctx, *prevHeader, depth-1); err != nil {
+		if err := s.addLiveHeaderRecursive(ctx, *prevHeader, depth-1); err != nil {
 			return fmt.Errorf("failed to add previous header recursively: %w", err)
 		}
 	}
@@ -339,7 +339,7 @@ func (s *Service) addHeaderRecursive(ctx context.Context, header wdk.ChainBlockH
 		return fmt.Errorf("failed to store previous header: %w", err)
 	}
 
-	if err := s.storeHeader(ctx, header); err != nil {
+	if err := s.storeLiveHeader(ctx, header); err != nil {
 		return fmt.Errorf("failed to store header after adding previous: %w", err)
 	}
 
@@ -348,7 +348,7 @@ func (s *Service) addHeaderRecursive(ctx context.Context, header wdk.ChainBlockH
 
 var noPrevErr = fmt.Errorf("no previous header found")
 
-func (s *Service) storeHeader(ctx context.Context, header wdk.ChainBlockHeader) (err error) {
+func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) (err error) {
 	// TODO: implement header.Validate() method and uncomment validation check
 	//if err := header.Validate(); err != nil {
 	//	return fmt.Errorf("invalid block header: %w", err)
@@ -393,6 +393,26 @@ func (s *Service) storeHeader(ctx context.Context, header wdk.ChainBlockHeader) 
 
 		return noPrevErr
 	}
+
+	if oneBack.Height+1 != header.Height {
+		return fmt.Errorf("header height mismatch: expected %d, got %d", oneBack.Height+1, header.Height)
+	}
+
+	var priorTip *models.LiveBlockHeader
+	if oneBack.IsActive && oneBack.IsChainTip {
+		priorTip = oneBack
+	} else {
+		priorTip, err = q.GetLiveHeaderByHash(oneBack.Hash)
+		if err != nil {
+			return fmt.Errorf("failed to get prior tip header: %w", err)
+		}
+
+		if priorTip == nil {
+			return fmt.Errorf("prior tip header not found for hash: %s", oneBack.Hash)
+		}
+	}
+
+	chainWork := internal.AddWork(oneBack.ChainWork, header.Bits)
 
 	// TODO: trigger callbacks when implemented
 

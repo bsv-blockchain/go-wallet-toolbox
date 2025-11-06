@@ -86,3 +86,18 @@ func (i *storageQueries) GetLiveHeaderByHash(hash string) (*models.LiveBlockHead
 
 	return mapLiveHeader(model), nil
 }
+
+func (i *storageQueries) GetActiveTipLiveHeader() (*models.LiveBlockHeader, error) {
+	model, err := i.getQuery().
+		ChaintracksLiveHeader.
+		Where(i.getQuery().ChaintracksLiveHeader.IsActive.Is(true)).
+		Where(i.getQuery().ChaintracksLiveHeader.IsChainTip.Is(true)).
+		First()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get active tip live header: %w", err)
+	}
+	return mapLiveHeader(model), nil
+}
