@@ -168,7 +168,7 @@ func TestLiveIngestorWocPoll_GetPresentHeight(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, uint32(expectedHeight), presentHeight)
+	require.Equal(t, uint(expectedHeight), presentHeight)
 }
 
 func blockHeaderStandardResponse(t *testing.T) (string, map[string]any) {

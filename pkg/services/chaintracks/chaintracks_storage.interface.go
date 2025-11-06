@@ -3,12 +3,17 @@ package chaintracks
 import (
 	"context"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+
 
 // Storage defines an interface for storage backends capable of storing chaintracks data.
 type Storage interface {
 	Migrate(ctx context.Context) error
+
+	Query(ctx context.Context) models.StorageQueries
 }
 
 // LiveIngestor defines a contract for streaming and retrieving live blockchain block header data.
@@ -18,7 +23,7 @@ type LiveIngestor interface {
 	StopListening()
 
 	GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
-	GetPresentHeight(ctx context.Context) (uint32, error)
+	GetPresentHeight(ctx context.Context) (uint, error)
 }
 
 // NamedLiveIngestor associates a human-readable name with a LiveIngestor implementation for identification purposes.
@@ -26,4 +31,13 @@ type LiveIngestor interface {
 type NamedLiveIngestor struct {
 	Name     string
 	Ingestor LiveIngestor
+}
+
+type BulkIngestor interface {
+	Synchronize(ctx context.Context, presentHeight uint, ranges models.HeightRanges) (*models.InsertHeaderResult, error)
+}
+
+type NamedBulkIngestor struct {
+	Name     string
+	Ingestor BulkIngestor
 }

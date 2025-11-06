@@ -1,10 +1,15 @@
-package internal
+package models
 
 import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+type HeightRanges struct {
+	Bulk HeightRange
+	Live HeightRange
+}
 
 type HeightRange struct {
 	MinHeight uint
@@ -52,6 +57,10 @@ func NewHeightRangeFromBlockHeaders(headers []*wdk.ChainBlockHeader) HeightRange
 
 func (hr HeightRange) IsEmpty() bool {
 	return hr.isEmpty || hr.MinHeight > hr.MaxHeight
+}
+
+func (hr HeightRange) NotEmpty() bool {
+	return !hr.IsEmpty()
 }
 
 func (hr HeightRange) Length() uint {

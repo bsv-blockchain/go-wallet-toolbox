@@ -2,6 +2,7 @@ package chaintracks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -11,12 +12,17 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/gormstorage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const (
-	liveHeadersChanSize  = 1000
-	lastPresentHeightTTL = 60 * time.Second
+	liveHeadersChanSize    = 1000
+	lastPresentHeightTTL   = 60 * time.Second
+	cdnSyncRepeatDuration  = 24 * time.Hour
+	syncCheckInterval      = 1 * time.Second
+	addLiveRecursionLimit  = 11
+	halfLiveRecursionLimit = addLiveRecursionLimit / 2
 )
 
 // Service provides core functionality for the Chaintracks service with logging and configuration support.
@@ -29,6 +35,8 @@ type Service struct {
 	liveIngestors   []NamedLiveIngestor
 	liveHeadersChan chan wdk.ChainBlockHeader
 
+	bulkIngestors []NamedBulkIngestor
+
 	cancelCtx          context.CancelFunc
 	makeAvailableOnce  sync.Once
 	shiftLiveHeadersWG sync.WaitGroup
@@ -36,7 +44,10 @@ type Service struct {
 	available   bool
 	availableMu sync.RWMutex
 
-	cachedPresentHeight *internal.CacheableWithTTL[uint32]
+	cachedPresentHeight *internal.CacheableWithTTL[uint]
+
+	lastSyncCheck time.Time
+	lastBulkSync  time.Time
 }
 
 // NewService creates and returns a new Service instance initialized with the provided logger and configuration.
@@ -57,6 +68,7 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overr
 
 	initializers := createInitializers(overrides...)
 	liveIngestors := createLiveIngestors(logger, config, initializers)
+	bulkIngestors := createBulkIngestors(logger, config, initializers)
 
 	srv := &Service{
 		logger:          logging.Child(logger, "chaintracks_service"),
@@ -64,9 +76,10 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overr
 		storage:         storage,
 		liveIngestors:   liveIngestors,
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
+		bulkIngestors:   bulkIngestors,
 	}
 
-	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint32](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
+	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
 
 	return srv, nil
 }
@@ -147,7 +160,7 @@ func (s *Service) Destroy() {
 // It queries the cache and, if invalid, fetches the latest value using the configured setter function for the cache.
 // Returns the blockchain height as uint32 and an error if the retrieval fails.
 // Context is used for cancellation and timeout during cache population or data fetching.
-func (s *Service) GetPresentHeight(ctx context.Context) (uint32, error) {
+func (s *Service) GetPresentHeight(ctx context.Context) (uint, error) {
 	if presentHeight, err := s.cachedPresentHeight.Get(ctx); err != nil {
 		return 0, fmt.Errorf("failed to get cached present height: %w", err)
 	} else {
@@ -155,8 +168,25 @@ func (s *Service) GetPresentHeight(ctx context.Context) (uint32, error) {
 	}
 }
 
-func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint32, error) {
-	var maxHeight uint32
+func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
+	for _, liveIngestor := range s.liveIngestors {
+		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
+		if err != nil {
+			s.logger.Warn("Chaintracks service - error fetching header by hash from ingestor", slog.String("ingestor_name", liveIngestor.Name), slog.String("error", err.Error()))
+			continue
+		}
+
+		if header != nil {
+			s.logger.Debug("Chaintracks service - fetched missing header from ingestor", slog.String("ingestor_name", liveIngestor.Name), slog.String("header_hash", hash))
+			return header
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint, error) {
+	var maxHeight uint
 
 	for _, ingestor := range s.liveIngestors {
 		height, err := ingestor.Ingestor.GetPresentHeight(ctx)
@@ -178,6 +208,36 @@ func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint32, error) 
 	return 0, fmt.Errorf("no live ingestors available to fetch present height")
 }
 
+func (s *Service) syncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) (err error) {
+	// TODO: change initialRanges to proper type when the PR is merged
+
+	if s.skipBulkSync(presentHeight, initialRanges) {
+		s.logger.Debug("Chaintracks service - skipping bulk synchronization as recent sync already performed", slog.Any("present_height", presentHeight))
+		return nil
+	}
+
+	defer func() {
+		if err == nil {
+			s.lastBulkSync = time.Now()
+			s.logger.Info("Chaintracks service - bulk synchronization completed successfully", slog.Any("present_height", presentHeight))
+		} else {
+			s.logger.Error("Chaintracks service - bulk synchronization failed", slog.String("error", err.Error()), slog.Any("present_height", presentHeight))
+		}
+	}()
+
+	for _, ingestor := range s.bulkIngestors {
+		_, err := ingestor.Ingestor.Synchronize(ctx, presentHeight, initialRanges)
+		if err != nil {
+			s.logger.Error("Chaintracks service - error during bulk synchronization", slog.String("ingestor_name", ingestor.Name), slog.String("error", err.Error()))
+			return fmt.Errorf("bulk synchronization failed for ingestor %s: %w", ingestor.Name, err)
+		}
+
+		// TODO: Implement DONE check and break if done
+	}
+
+	return nil
+}
+
 func (s *Service) shiftLiveHeadersWorker(ctx context.Context) {
 	defer s.shiftLiveHeadersWG.Done()
 	for {
@@ -190,13 +250,160 @@ func (s *Service) shiftLiveHeadersWorker(ctx context.Context) {
 			if err != nil {
 				s.logger.Error("Chaintracks service - error shifting live headers", slog.String("error", err.Error()))
 			}
+
+			if err := cancellableSleep(ctx, syncCheckInterval); err != nil {
+				s.logger.Info("Chaintracks service - shift live headers worker stopping during sleep due to context cancellation")
+				return
+			}
 		}
 	}
 }
 
-func (s *Service) shiftLiveHeaders(_ context.Context) error {
-	// TODO: Implement live headers shifting logic here
-	time.Sleep(100 * time.Millisecond) // this mimics work being done - will be removed when real work is implemented
+func (s *Service) shiftLiveHeaders(ctx context.Context) error {
+	s.lastSyncCheck = time.Now()
+
+	presentHeight, err := s.GetPresentHeight(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get present height during live headers shift: %w", err)
+	}
+
+	// TODO: get "before" variable with bulk and live height ranges
+	// before := s.storage.GetAvailableHeightRanges()
+	before := models.HeightRanges{}
+
+	if err := s.syncBulkStorage(ctx, presentHeight, before); err != nil {
+		return fmt.Errorf("bulk synchronization failed during live headers shift: %w", err)
+	}
+
+	if err := s.processHeaders(ctx); err != nil {
+		return fmt.Errorf("failed to process live headers during live headers shift: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) skipBulkSync(presentHeight uint, ranges models.HeightRanges) bool {
+	if time.Now().Add(-cdnSyncRepeatDuration).After(s.lastBulkSync) {
+		return false
+	}
+
+	return ranges.Live.NotEmpty() && ranges.Live.MaxHeight >= presentHeight-halfLiveRecursionLimit
+}
+
+func (s *Service) processHeaders(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case header := <-s.liveHeadersChan:
+			if err := s.addHeader(ctx, header); err != nil {
+				s.logger.Warn("Chaintracks service - failed to add live header", slog.String("header_hash", header.Hash), slog.String("error", err.Error()))
+			}
+		default:
+			// No more headers to process
+			return nil
+		}
+	}
+}
+
+func (s *Service) addHeader(ctx context.Context, header wdk.ChainBlockHeader) error {
+	err := s.storeHeader(ctx, header)
+	if errors.Is(err, noPrevErr) {
+		if err := s.addHeaderRecursive(ctx, header, addLiveRecursionLimit); err != nil {
+			return fmt.Errorf("failed to add header recursively: %w", err)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to store header: %w", err)
+	}
 
 	return nil
+}
+
+func (s *Service) addHeaderRecursive(ctx context.Context, header wdk.ChainBlockHeader, depth int) error {
+	if depth <= 0 {
+		return fmt.Errorf("recursion limit reached while adding header recursively for header: %s", header.Hash)
+	}
+
+	prevHeader := s.getMissingBlockHeader(ctx, header.PreviousHash)
+	if prevHeader == nil {
+		return fmt.Errorf("previous header not found for hash: %s", header.PreviousHash)
+	}
+
+	err := s.storeHeader(ctx, *prevHeader)
+	if errors.Is(err, noPrevErr) {
+		if err := s.addHeaderRecursive(ctx, *prevHeader, depth-1); err != nil {
+			return fmt.Errorf("failed to add previous header recursively: %w", err)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to store previous header: %w", err)
+	}
+
+	if err := s.storeHeader(ctx, header); err != nil {
+		return fmt.Errorf("failed to store header after adding previous: %w", err)
+	}
+
+	return nil
+}
+
+var noPrevErr = fmt.Errorf("no previous header found")
+
+func (s *Service) storeHeader(ctx context.Context, header wdk.ChainBlockHeader) (err error) {
+	// TODO: implement header.Validate() method and uncomment validation check
+	//if err := header.Validate(); err != nil {
+	//	return fmt.Errorf("invalid block header: %w", err)
+	//}
+
+	if IsDirtyHash(header.Hash) {
+		return fmt.Errorf("cannot add block header with dirty hash: %s", header.Hash)
+	}
+
+	q := s.storage.Query(ctx)
+	q.Begin()
+	defer func() {
+		if err != nil {
+			rollbackErr := q.Rollback()
+			if rollbackErr != nil {
+				err = fmt.Errorf("failed to rollback transaction after error: %v; original error: %w", rollbackErr, err)
+			}
+		} else {
+			err = q.Commit()
+			if err != nil {
+				err = fmt.Errorf("failed to commit transaction: %w", err)
+			}
+		}
+	}()
+
+	if exists, err := q.LiveHeaderExists(header.Hash); err != nil {
+		return fmt.Errorf("failed to check existing header: %w", err)
+	} else if exists {
+		s.logger.Debug("Chaintracks service - header already exists, skipping", slog.String("header_hash", header.Hash))
+		return nil
+	}
+
+	oneBack, err := q.GetLiveHeaderByHash(header.PreviousHash)
+	if err != nil {
+		return fmt.Errorf("failed to get previous header: %w", err)
+	}
+
+	if oneBack == nil {
+		s.logger.Debug("Chaintracks service - previous header not found, cannot add header yet", slog.String("header_hash", header.Hash), slog.String("previous_hash", header.PreviousHash))
+
+		// TODO Handle empty live header situation and check if this first-live-block-header matches the last bulk header
+
+		return noPrevErr
+	}
+
+	// TODO: trigger callbacks when implemented
+
+	return nil
+}
+
+func cancellableSleep(ctx context.Context, d time.Duration) error {
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("sleep cancelled: %w", ctx.Err())
+	}
 }

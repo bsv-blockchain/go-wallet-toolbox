@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
@@ -31,15 +32,15 @@ func TestChaintracksClient_GetInfo(t *testing.T) {
 	tests := map[string]struct {
 		ResponseCode int
 		ResponseBody any
-		Then         func(t *testing.T, info *chaintracks.InfoResponse, err error)
+		Then         func(t *testing.T, info *models.InfoResponse, err error)
 	}{
 		"should return correct chain": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.InfoResponse]{
+			ResponseBody: models.ResponseFrame[models.InfoResponse]{
 				Status: "success",
-				Value:  &chaintracks.InfoResponse{Chain: defs.NetworkMainnet},
+				Value:  &models.InfoResponse{Chain: defs.NetworkMainnet},
 			},
-			Then: func(t *testing.T, info *chaintracks.InfoResponse, err error) {
+			Then: func(t *testing.T, info *models.InfoResponse, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, info)
 				require.Equal(t, defs.NetworkMainnet, info.Chain)
@@ -48,7 +49,7 @@ func TestChaintracksClient_GetInfo(t *testing.T) {
 		"should return error on non-200 response": {
 			ResponseCode: 500,
 			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
-			Then: func(t *testing.T, info *chaintracks.InfoResponse, err error) {
+			Then: func(t *testing.T, info *models.InfoResponse, err error) {
 				require.Error(t, err)
 				require.Nil(t, info)
 			},
@@ -56,18 +57,18 @@ func TestChaintracksClient_GetInfo(t *testing.T) {
 		"should return error on invalid JSON": {
 			ResponseCode: 200,
 			ResponseBody: `{"status":"success","value":{invalid json}}`,
-			Then: func(t *testing.T, info *chaintracks.InfoResponse, err error) {
+			Then: func(t *testing.T, info *models.InfoResponse, err error) {
 				require.Error(t, err)
 				require.Nil(t, info)
 			},
 		},
 		"should return error on error status in response": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.InfoResponse]{
+			ResponseBody: models.ResponseFrame[models.InfoResponse]{
 				Status: "error",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, info *chaintracks.InfoResponse, err error) {
+			Then: func(t *testing.T, info *models.InfoResponse, err error) {
 				require.Error(t, err)
 				require.Nil(t, info)
 			},
@@ -102,7 +103,7 @@ func TestChaintracksClient_GetPresentHeight(t *testing.T) {
 	}{
 		"should return correct chain": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[uint32]{
+			ResponseBody: models.ResponseFrame[uint32]{
 				Status: "success",
 				Value:  to.Ptr[uint32](1000),
 			},
@@ -129,7 +130,7 @@ func TestChaintracksClient_GetPresentHeight(t *testing.T) {
 		},
 		"should return error on error status in response": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[uint]{
+			ResponseBody: models.ResponseFrame[uint]{
 				Status: "error",
 				Value:  nil,
 			},
@@ -168,7 +169,7 @@ func TestChaintracksClient_FindChainTipHashHex(t *testing.T) {
 	}{
 		"should return correct hash": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[string]{
+			ResponseBody: models.ResponseFrame[string]{
 				Status: "success",
 				Value:  to.Ptr("0000000000000000000a7b3c4d5e6f708090a0b0c0d0e0f1011121314151617"),
 			},
@@ -195,7 +196,7 @@ func TestChaintracksClient_FindChainTipHashHex(t *testing.T) {
 		},
 		"should return error on error status in response": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[string]{
+			ResponseBody: models.ResponseFrame[string]{
 				Status: "error",
 				Value:  nil,
 			},
@@ -230,15 +231,15 @@ func TestChaintracksClient_FindChainTipHeader(t *testing.T) {
 	tests := map[string]struct {
 		ResponseCode int
 		ResponseBody any
-		Then         func(t *testing.T, header *chaintracks.BlockHeader, err error)
+		Then         func(t *testing.T, header *models.BlockHeader, err error)
 	}{
 		"should return correct header": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "success",
 				Value:  correctBlockHeader,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.NoError(t, err)
 				require.Equal(t, correctBlockHeader, header)
 			},
@@ -246,7 +247,7 @@ func TestChaintracksClient_FindChainTipHeader(t *testing.T) {
 		"should return error on non-200 response": {
 			ResponseCode: 500,
 			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -254,18 +255,18 @@ func TestChaintracksClient_FindChainTipHeader(t *testing.T) {
 		"should return error on invalid JSON": {
 			ResponseCode: 200,
 			ResponseBody: `{"status":"success","value":{invalid json}}`,
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
 		},
 		"should return error on error status in response": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "error",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -297,16 +298,16 @@ func TestChaintracksClient_FindHeaderHexForHeight(t *testing.T) {
 		Height       uint32
 		ResponseCode int
 		ResponseBody any
-		Then         func(t *testing.T, header *chaintracks.BlockHeader, err error)
+		Then         func(t *testing.T, header *models.BlockHeader, err error)
 	}{
 		"should return correct header": {
 			Height:       918934,
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "success",
 				Value:  correctBlockHeader,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.NoError(t, err)
 				require.Equal(t, correctBlockHeader, header)
 			},
@@ -314,11 +315,11 @@ func TestChaintracksClient_FindHeaderHexForHeight(t *testing.T) {
 		"should handle not-found as success with no value": {
 			Height:       123456,
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "success",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.ErrorIs(t, err, wdk.ErrNotFoundError)
 				require.Nil(t, header)
 			},
@@ -327,7 +328,7 @@ func TestChaintracksClient_FindHeaderHexForHeight(t *testing.T) {
 			Height:       918934,
 			ResponseCode: 500,
 			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -336,7 +337,7 @@ func TestChaintracksClient_FindHeaderHexForHeight(t *testing.T) {
 			Height:       918934,
 			ResponseCode: 200,
 			ResponseBody: `{"status":"success","value":{invalid json}}`,
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -344,11 +345,11 @@ func TestChaintracksClient_FindHeaderHexForHeight(t *testing.T) {
 		"should return error on error status in response": {
 			Height:       918934,
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "error",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -380,16 +381,16 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 		BlockHash    string
 		ResponseCode int
 		ResponseBody any
-		Then         func(t *testing.T, header *chaintracks.BlockHeader, err error)
+		Then         func(t *testing.T, header *models.BlockHeader, err error)
 	}{
 		"should return correct header": {
 			BlockHash:    correctBlockHeader.Hash,
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "success",
 				Value:  correctBlockHeader,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.NoError(t, err)
 				require.Equal(t, correctBlockHeader, header)
 			},
@@ -397,11 +398,11 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 		"should handle not-found as success with no value": {
 			BlockHash:    correctBlockHeader.Hash,
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "success",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.ErrorIs(t, err, wdk.ErrNotFoundError)
 				require.Nil(t, header)
 			},
@@ -410,7 +411,7 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 			BlockHash:    correctBlockHeader.Hash,
 			ResponseCode: 500,
 			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -419,7 +420,7 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 			BlockHash:    correctBlockHeader.Hash,
 			ResponseCode: 200,
 			ResponseBody: `{"status":"success","value":{invalid json}}`,
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -427,11 +428,11 @@ func TestChaintracksClient_FindHeaderHexForBlockHash(t *testing.T) {
 		"should return error on error status in response": {
 			BlockHash:    correctBlockHeader.Hash,
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.BlockHeader]{
+			ResponseBody: models.ResponseFrame[models.BlockHeader]{
 				Status: "error",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, header *chaintracks.BlockHeader, err error) {
+			Then: func(t *testing.T, header *models.BlockHeader, err error) {
 				require.Error(t, err)
 				require.Nil(t, header)
 			},
@@ -462,23 +463,23 @@ func TestChaintracksClient_GetHeaders(t *testing.T) {
 	tests := map[string]struct {
 		ResponseCode int
 		ResponseBody any
-		Then         func(t *testing.T, hashedHeaders chaintracks.HashedBaseHeaders, err error)
+		Then         func(t *testing.T, hashedHeaders models.HashedBaseHeaders, err error)
 	}{
 		"should return correct hashed headers": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.HashedBaseHeaders]{
+			ResponseBody: models.ResponseFrame[models.HashedBaseHeaders]{
 				Status: "success",
-				Value:  to.Ptr(chaintracks.HashedBaseHeaders(correctTwoHashedBaseHeaders)),
+				Value:  to.Ptr(models.HashedBaseHeaders(models.correctTwoHashedBaseHeaders)),
 			},
-			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+			Then: func(t *testing.T, header models.HashedBaseHeaders, err error) {
 				require.NoError(t, err)
-				require.Equal(t, correctTwoHashedBaseHeaders, string(header))
+				require.Equal(t, models.correctTwoHashedBaseHeaders, string(header))
 			},
 		},
 		"should return error on non-200 response": {
 			ResponseCode: 500,
 			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
-			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+			Then: func(t *testing.T, header models.HashedBaseHeaders, err error) {
 				require.Error(t, err)
 				require.Empty(t, header)
 			},
@@ -486,18 +487,18 @@ func TestChaintracksClient_GetHeaders(t *testing.T) {
 		"should return error on invalid JSON": {
 			ResponseCode: 200,
 			ResponseBody: `{"status":"success","value":{invalid json}}`,
-			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+			Then: func(t *testing.T, header models.HashedBaseHeaders, err error) {
 				require.Error(t, err)
 				require.Empty(t, header)
 			},
 		},
 		"should return error on error status in response": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.HashedBaseHeaders]{
+			ResponseBody: models.ResponseFrame[models.HashedBaseHeaders]{
 				Status: "error",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, header chaintracks.HashedBaseHeaders, err error) {
+			Then: func(t *testing.T, header models.HashedBaseHeaders, err error) {
 				require.Error(t, err)
 				require.Empty(t, header)
 			},
@@ -529,19 +530,19 @@ func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
 	tests := map[string]struct {
 		ResponseCode int
 		ResponseBody any
-		Then         func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error)
+		Then         func(t *testing.T, rates *models.FiatExchangeRates, err error)
 	}{
 		"should return correct hashed headers": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.FiatExchangeRates]{
+			ResponseBody: models.ResponseFrame[models.FiatExchangeRates]{
 				Status: "success",
-				Value: &chaintracks.FiatExchangeRates{
+				Value: &models.FiatExchangeRates{
 					Timestamp: mockTimestamp,
 					Base:      "USD",
 					Rates:     map[string]float64{"EUR": 0.85, "GBP": 0.75},
 				},
 			},
-			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
+			Then: func(t *testing.T, rates *models.FiatExchangeRates, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, rates)
 				require.Equal(t, mockTimestamp, rates.Timestamp)
@@ -552,7 +553,7 @@ func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
 		"should return error on non-200 response": {
 			ResponseCode: 500,
 			ResponseBody: map[string]any{"status": "error", "message": "internal server error"},
-			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
+			Then: func(t *testing.T, rates *models.FiatExchangeRates, err error) {
 				require.Error(t, err)
 				require.Nil(t, rates)
 			},
@@ -560,7 +561,7 @@ func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
 		"should return error on invalid JSON": {
 			ResponseCode: 200,
 			ResponseBody: `{"status":"success","value":{invalid json}}`,
-			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates,
+			Then: func(t *testing.T, rates *models.FiatExchangeRates,
 				err error) {
 				require.Error(t, err)
 				require.Nil(t, rates)
@@ -568,11 +569,11 @@ func TestChaintracksClient_GetFiatExchangeRates(t *testing.T) {
 		},
 		"should return error on error status in response": {
 			ResponseCode: 200,
-			ResponseBody: chaintracks.ResponseFrame[chaintracks.FiatExchangeRates]{
+			ResponseBody: models.ResponseFrame[models.FiatExchangeRates]{
 				Status: "error",
 				Value:  nil,
 			},
-			Then: func(t *testing.T, rates *chaintracks.FiatExchangeRates, err error) {
+			Then: func(t *testing.T, rates *models.FiatExchangeRates, err error) {
 				require.Error(t, err)
 				require.Nil(t, rates)
 			},
@@ -641,10 +642,10 @@ func TestChaintracksClient_AddHeader(t *testing.T) {
 	}
 }
 
-var correctBlockHeader = &chaintracks.BlockHeader{
+var correctBlockHeader = &models.BlockHeader{
 	Height: 918934,
 	Hash:   "00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31",
-	BaseBlockHeader: chaintracks.BaseBlockHeader{
+	BaseBlockHeader: models.BaseBlockHeader{
 		Version:      594616320,
 		PreviousHash: "000000000000000007dce4ee864f0569066bcded7a6a3eca9b977eebf9cb3926",
 		MerkleRoot:   "f4afaab11ec4921a59c9eb1e49435aeaaef6e4396ee9d4a77ef88fdd60057928",
@@ -652,7 +653,7 @@ var correctBlockHeader = &chaintracks.BlockHeader{
 		Bits:         405131341,
 		Nonce:        2411550733,
 	},
-	BlockHeaderInfo: chaintracks.BlockHeaderInfo{
+	BlockHeaderInfo: models.BlockHeaderInfo{
 		HeaderID:         2025,
 		PreviousHeaderID: to.Ptr[uint](2024),
 		Chainwork:        "0000000000000000000000000000000000000000016934b62084adb28c318e3c",

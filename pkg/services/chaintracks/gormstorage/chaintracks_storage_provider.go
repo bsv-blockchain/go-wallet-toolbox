@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -62,3 +63,8 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 	}
 	return db, nil
 }
+
+func (p *Provider) Query(ctx context.Context) models.StorageQueries {
+	return newStorageQueries(ctx, p.Database.DB)
+}
+

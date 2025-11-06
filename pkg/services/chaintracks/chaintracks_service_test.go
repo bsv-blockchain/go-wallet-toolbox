@@ -56,7 +56,7 @@ func TestService_GetPresentHeight(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, uint32(expectedHeight), presentHeight)
+	require.Equal(t, uint(expectedHeight), presentHeight)
 
 	// and:
 	require.Equal(t, 1, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
@@ -66,7 +66,7 @@ func TestService_GetPresentHeight(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, uint32(expectedHeight), presentHeight)
+	require.Equal(t, uint(expectedHeight), presentHeight)
 
 	// and, the call count should not have increased since the result should be cached
 	require.Equal(t, 1, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
@@ -110,7 +110,7 @@ func TestService_GetPresentHeight_FirstFailed_SecondSucceded(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, uint32(expectedHeight), presentHeight)
+	require.Equal(t, uint(expectedHeight), presentHeight)
 
 	// and, the call count should have increased since the first call failed
 	require.Equal(t, 2, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
