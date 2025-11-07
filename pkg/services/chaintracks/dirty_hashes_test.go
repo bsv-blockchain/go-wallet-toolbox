@@ -9,8 +9,8 @@ import (
 
 func TestDirtyHashes(t *testing.T) {
 	tests := map[string]struct {
-		hash      string
-		expected  bool
+		hash     string
+		expected bool
 	}{
 		"invalid SegWit chain": {
 			hash:     "00000000000000000019f112ec0a9982926f1258cdcc558dd7c3b7e5dc7fa148",
@@ -32,5 +32,3 @@ func TestDirtyHashes(t *testing.T) {
 		})
 	}
 }
-
-
