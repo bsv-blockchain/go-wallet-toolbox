@@ -424,6 +424,6 @@ func cancellableSleep(ctx context.Context, d time.Duration) error {
 	case <-time.After(d):
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("sleep cancelled: %w", ctx.Err())
+		return fmt.Errorf("sleep canceled: %w", ctx.Err())
 	}
 }

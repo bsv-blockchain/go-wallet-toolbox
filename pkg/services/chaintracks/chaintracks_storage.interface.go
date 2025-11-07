@@ -7,8 +7,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-
-
 // Storage defines an interface for storage backends capable of storing chaintracks data.
 type Storage interface {
 	Migrate(ctx context.Context) error
