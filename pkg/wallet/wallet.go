@@ -2,10 +2,16 @@ package wallet
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"io"
 	"log/slog"
 	"math"
+	"net/http"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
@@ -30,6 +36,31 @@ var _ sdk.Interface = (*Wallet)(nil)
 
 type walletCleanupFunc func()
 
+type ProtocolIssuanceRequest struct {
+	Type          string            `json:"type"`
+	Nonce         string            `json:"clientNonce"`
+	Fields        map[string]string `json:"fields"`
+	MasterKeyring map[string]string `json:"masterKeyring"`
+}
+
+type ProtocolIssuanceResponse struct {
+	Protocol    string      `json:"protocol"`
+	Certificate Certificate `json:"certificate"`
+	ServerNonce string      `json:"serverNonce"`
+	Timestamp   string      `json:"timestamp"`
+	Version     string      `json:"version"`
+}
+
+type Certificate struct {
+	Type               string            `json:"type"`
+	SerialNumber       string            `json:"serialNumber"`
+	Subject            string            `json:"subject"`
+	Certifier          string            `json:"certifier"`
+	RevocationOutpoint string            `json:"revocationOutpoint"`
+	Fields             map[string]string `json:"fields"`
+	Signature          string            `json:"signature"`
+}
+
 func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 	if wc == nil {
 		return next
@@ -51,6 +82,7 @@ type Wallet struct {
 	pendingSignActionsCache pending.SignActionsRepository
 	logger                  *slog.Logger
 	cleanup                 walletCleanupFunc
+	auth                    *clients.AuthFetch
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -67,6 +99,13 @@ func WithIncludeAllSourceTransactions(value bool) func(*wallet_opts.Opts) {
 func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.AutoKnownTxids = value
+	}
+}
+
+// WithAuthHTTPClient TODO:
+func WithAuthHTTPClient(client *http.Client) func(*wallet_opts.Opts) {
+	return func(o *wallet_opts.Opts) {
+		o.Client = client
 	}
 }
 
@@ -137,6 +176,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		Logger:                 slog.Default(),
 		Services:               nil,
 		PendingSignActionsRepo: nil,
+		Client:                 wallet_opts.DefaultClient(),
 	}, opts...)
 
 	logger := logging.Child(options.Logger, "wallet")
@@ -164,6 +204,8 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
 	}
+
+	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
 	activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
 	if err != nil {
@@ -484,11 +526,133 @@ func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertifi
 	case sdk.AcquisitionProtocolDirect:
 		return w.acquireDirectCertificate(ctx, args, originator)
 	case sdk.AcquisitionProtocolIssuance:
-		// TODO: Add implementation for sdk.AcquisitionProtocolIssuance in a separate PR.
-		panic("implement me")
+		return w.acquireIssuanceCertificate(ctx, args, originator)
 	default:
 		return nil, fmt.Errorf("acquire protocol not recognized, allowed types: [%s, %s]", sdk.AcquisitionProtocolDirect, sdk.AcquisitionProtocolIssuance)
 	}
+}
+
+func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	w.logger.DebugContext(ctx, "AcquireCertificateIssuance call", slogx.String("originator", originator))
+
+	nonce, err := w.createNonce(ctx, args.Certifier, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nonce: %w", err)
+	}
+
+	counterParty, err := mapping.MapToCertifierCounterparty(primitives.PubKeyHex(args.Certifier.ToDERHex()))
+	if err != nil {
+		return nil, fmt.Errorf("failed map to sdk.AcquireCertificateArgs certrifier DER hex value to the counter party type: %w", err)
+	}
+
+	fieldsForEncryption, err := mapping.MapToFieldsForEncryption(args.Fields)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map sdk.AcquireCertificateArgs fields to fields for encryption: %w", err)
+	}
+
+	certificateFieldsResult, err := certificates.CreateCertificateFields(ctx, w, counterParty, fieldsForEncryption, to.Value(args.Privileged), args.PrivilegedReason)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create certificate fields: %w", err)
+	}
+
+	fields := make(map[string]string, len(certificateFieldsResult.CertificateFields))
+	for k, v := range certificateFieldsResult.CertificateFields {
+		fields[to.String(k)] = to.String(v)
+	}
+
+	masterKeyring := make(map[string]string, len(certificateFieldsResult.MasterKeyring))
+	for k, v := range certificateFieldsResult.MasterKeyring {
+		masterKeyring[to.String(k)] = to.String(v)
+	}
+
+	body, err := json.Marshal(&ProtocolIssuanceRequest{
+		Type:          args.Type.String(),
+		Nonce:         string(nonce),
+		Fields:        fields,
+		MasterKeyring: masterKeyring,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal HTTP Fetch request payload: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/signCertificate", w.flags.CetrifierURL)
+	res, err := w.auth.Fetch(ctx, url, &clients.SimplifiedFetchRequestOptions{
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    body,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to send HTTP request to the auth server: %w", err)
+	}
+
+	defer res.Body.Close()
+
+	responseBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body bytes: %w", err)
+	}
+
+	var dst ProtocolIssuanceResponse
+	if err := json.Unmarshal(responseBytes, &dst); err != nil {
+		return nil, fmt.Errorf("failed to serialize: %w", err)
+	}
+
+	// subject, err := ec.ParsePubKey([]byte(dst.Certificate.Subject))
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to parse protocl issuance response subject field to public key: %w", err)
+	// }
+
+	// certifier, err := ec.ParsePubKey([]byte(dst.Certificate.Certifier))
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to parse protocl issuance response certifier field to public key: %w", err)
+	// }
+
+	// revocationOutpoint, err := transaction.OutpointFromString(dst.Certificate.RevocationOutpoint)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to get revocation outpoint from string: %w", err)
+	// }
+
+	// validation here!
+	// cert := certificates.NewCertificate(
+	// 	sdk.StringBase64(dst.Certificate.Type),
+	// 	sdk.StringBase64(dst.Certificate.SerialNumber),
+	// 	to.Value(subject),
+	// 	to.Value(certifier),
+	// 	revocationOutpoint,
+	// 	dst.Certificate.Fields,
+	// 	[]byte(dst.Certificate.Signature))
+
+	return nil, nil
+}
+
+func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
+	firstHalf := make([]byte, 16)
+	if _, err := rand.Read(firstHalf); err != nil {
+		return nil, fmt.Errorf("failed to generate 16 random bytes: %w", err)
+	}
+
+	createHMACResult, err := w.CreateHMAC(ctx, sdk.CreateHMACArgs{
+		EncryptionArgs: sdk.EncryptionArgs{
+			ProtocolID: sdk.Protocol{
+				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
+				Protocol:      "server hmac",
+			},
+			KeyID: string(firstHalf),
+			Counterparty: sdk.Counterparty{
+				Type:         sdk.CounterpartyTypeSelf,
+				Counterparty: certifier,
+			},
+		},
+		Data: firstHalf,
+	}, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HMAC: %w", err)
+	}
+
+	nonce := base64.StdEncoding.EncodeToString(append(firstHalf, createHMACResult.HMAC[:]...))
+	return []byte(nonce), nil
 }
 
 func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
