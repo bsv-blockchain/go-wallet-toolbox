@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChainWork(t *testing.T) {
@@ -31,7 +32,7 @@ func TestChainWork(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			work := ChainWorkFromBits(test.bits)
 			assert.Equal(t, test.expectedWork, work.To64PadHex())
-			chainWork := work.AddChainWork(ChainWorkFromHex(test.previousChainWork))
+			chainWork := work.AddChainWork(mustChainWorkFromHex(t, test.previousChainWork))
 			assert.Equal(t, test.expectedChainWork, chainWork.To64PadHex())
 		})
 	}
@@ -44,17 +45,17 @@ func TestCmpChainWork(t *testing.T) {
 		expectedCmpResult int
 	}{
 		"genesis and other block": {
-			cw1:               ChainWorkFromHex("0000000000000000000000000000000000000000000000000000000100010001"),
-			cw2:               ChainWorkFromHex("0000000000000000000000000000000000000016986d94b4abedee7a96ceb"),
+			cw1:               mustChainWorkFromHex(t, "0000000000000000000000000000000000000000000000000000000100010001"),
+			cw2:               mustChainWorkFromHex(t, "0000000000000000000000000000000000000016986d94b4abedee7a96ceb"),
 			expectedCmpResult: -1,
 		},
 		"equal chain works": {
-			cw1: ChainWorkFromHex("000000000000000000000000000000000000000000000000000100010001"),
-			cw2: ChainWorkFromHex("000000000000000000000000000000000000000000000000000100010001"),
+			cw1: mustChainWorkFromHex(t, "000000000000000000000000000000000000000000000000000100010001"),
+			cw2: mustChainWorkFromHex(t, "000000000000000000000000000000000000000000000000000100010001"),
 		},
 		"other block and genesis": {
-			cw1:               ChainWorkFromHex("0000000000000000000000000000000000000016986d94b4abedee7a96ceb"),
-			cw2:               ChainWorkFromHex("0000000000000000000000000000000000000000000000000100010001"),
+			cw1:               mustChainWorkFromHex(t, "0000000000000000000000000000000000000016986d94b4abedee7a96ceb"),
+			cw2:               mustChainWorkFromHex(t, "0000000000000000000000000000000000000000000000000100010001"),
 			expectedCmpResult: 1,
 		},
 	}
@@ -64,4 +65,10 @@ func TestCmpChainWork(t *testing.T) {
 			assert.Equal(t, test.expectedCmpResult, result)
 		})
 	}
+}
+
+func mustChainWorkFromHex(t *testing.T, hex string) ChainWork {
+	cw, err := ChainWorkFromHex(hex)
+	require.NoError(t, err)
+	return cw
 }

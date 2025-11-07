@@ -9,10 +9,13 @@ type ChainWork struct {
 	big.Int
 }
 
-func ChainWorkFromHex(chainworkHex string) ChainWork {
+func ChainWorkFromHex(chainworkHex string) (ChainWork, error) {
 	var bigInt big.Int
-	bigInt.SetString(chainworkHex, 16)
-	return ChainWork{bigInt}
+	_, ok := bigInt.SetString(chainworkHex, 16)
+	if !ok {
+		return ChainWork{}, fmt.Errorf("invalid chainwork hex: %s", chainworkHex)
+	}
+	return ChainWork{bigInt}, nil
 }
 
 func ChainWorkFromBits(bits uint32) ChainWork {
@@ -34,7 +37,7 @@ func (cw ChainWork) To64PadHex() string {
 }
 
 func convertBitsToWork(bits uint32) ChainWork {
-	// 1. Calculate Target from bits
+	// Calculate Target from bits
 	// Extract exponent and mantissa
 	shift := bits >> 24 & 0xff
 	data := bits & 0x007fffff
@@ -58,7 +61,7 @@ func convertBitsToWork(bits uint32) ChainWork {
 	// work = 2^256 / (target + 1) (integer division)
 	work := new(big.Int).Div(two256, targetPlusOne)
 
-	// 3. Return as ChainWork
+	// Return as ChainWork
 	return ChainWork{*work}
 }
 
