@@ -3,6 +3,9 @@ package wallet_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+
 	"github.com/bsv-blockchain/go-sdk/auth"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/util"
@@ -12,8 +15,6 @@ import (
 	certs_testabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/require"
-	"io"
-	"net/http"
 )
 
 func (s *WalletTestSuite) Test_AcquireCertificate() {

@@ -6,8 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
-	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"io"
 	"log/slog"
 	"math"
@@ -15,6 +13,8 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
+	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -601,12 +601,12 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 
 	// subject, err := ec.ParsePubKey([]byte(dst.Certificate.Subject))
 	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse protocl issuance response subject field to public key: %w", err)
+	// 	return nil, fmt.Errorf("failed to parse protocol issuance response subject field to public key: %w", err)
 	// }
 
 	// certifier, err := ec.ParsePubKey([]byte(dst.Certificate.Certifier))
 	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse protocl issuance response certifier field to public key: %w", err)
+	// 	return nil, fmt.Errorf("failed to parse protocol issuance response certifier field to public key: %w", err)
 	// }
 
 	// revocationOutpoint, err := transaction.OutpointFromString(dst.Certificate.RevocationOutpoint)
