@@ -283,7 +283,7 @@ func (s *Service) shiftLiveHeaders(ctx context.Context) error {
 }
 
 func (s *Service) skipBulkSync(presentHeight uint, ranges models.HeightRanges) bool {
-	if time.Now().Add(-cdnSyncRepeatDuration).After(s.lastBulkSync) {
+	if time.Since(s.lastBulkSync) > cdnSyncRepeatDuration {
 		return false
 	}
 
@@ -423,13 +423,13 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	if oneBack.IsActive && oneBack.IsChainTip {
 		priorTip = oneBack
 	} else {
-		priorTip, err = q.GetLiveHeaderByHash(oneBack.Hash)
+		priorTip, err = q.GetActiveTipLiveHeader()
 		if err != nil {
-			return fmt.Errorf("failed to get prior tip header: %w", err)
+			return fmt.Errorf("failed to get active tip header: %w", err)
 		}
 
 		if priorTip == nil {
-			return fmt.Errorf("prior tip header not found for hash: %s", oneBack.Hash)
+			return fmt.Errorf("active tip header not found for hash: %s", oneBack.Hash)
 		}
 	}
 
@@ -449,7 +449,6 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	}
 
 	isActiveTip := chainWork.CmpChainWork(priorTipChainWork) > 0
-	_ = isActiveTip
 	//if isActiveTip {
 	//	// TODO: handle reorgs if needed
 	//}
@@ -464,6 +463,8 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 		ChainBlockHeader: header,
 		PreviousHeaderID: to.Ptr(oneBack.HeaderID),
 		ChainWork:        chainWork.To64PadHex(),
+		IsChainTip:       isActiveTip,
+		IsActive:         isActiveTip,
 	}); err != nil {
 		return fmt.Errorf("failed to insert new live header: %w", err)
 	}
