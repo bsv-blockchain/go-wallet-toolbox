@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	correctTwoHashedBaseHeaders = "00c046275b8a91ef8cecacb3ec7ed44652ada0da54434680b3ee1f130000000000000000a629bb863cd0e0e8ee103f98a0116e2f583de339f72347de53c2593f2444cad0d2f3f168faa22418426b621b000000388a0da2e9107ca07ab9db3df8a0979f372a318c3182aa2802000000000000000039f253b785ad25c117eb04fe633d36975d8397368ee6f9126470c37a7a4cdf15fbf4f16855982418f6ba4787"
+)
+
 func TestChaintracksClient_Init(t *testing.T) {
 	t.Run("should panic on empty baseURL", func(t *testing.T) {
 		require.Panics(t, func() {
@@ -469,11 +473,11 @@ func TestChaintracksClient_GetHeaders(t *testing.T) {
 			ResponseCode: 200,
 			ResponseBody: models.ResponseFrame[models.HashedBaseHeaders]{
 				Status: "success",
-				Value:  to.Ptr(models.HashedBaseHeaders(models.correctTwoHashedBaseHeaders)),
+				Value:  to.Ptr(models.HashedBaseHeaders(correctTwoHashedBaseHeaders)),
 			},
 			Then: func(t *testing.T, header models.HashedBaseHeaders, err error) {
 				require.NoError(t, err)
-				require.Equal(t, models.correctTwoHashedBaseHeaders, string(header))
+				require.Equal(t, correctTwoHashedBaseHeaders, string(header))
 			},
 		},
 		"should return error on non-200 response": {

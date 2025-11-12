@@ -412,7 +412,15 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 		}
 	}
 
-	chainWork := internal.AddWork(oneBack.ChainWork, header.Bits)
+	oneBackChainWork, err := internal.ChainWorkFromHex(oneBack.ChainWork)
+	if err != nil {
+		return fmt.Errorf("failed to parse chain work from previous header: %w", err)
+	}
+
+	headerChainWork := internal.ChainWorkFromBits(header.Bits)
+
+	chainWork := headerChainWork.AddChainWork(oneBackChainWork)
+	_ = chainWork
 
 	// TODO: trigger callbacks when implemented
 
