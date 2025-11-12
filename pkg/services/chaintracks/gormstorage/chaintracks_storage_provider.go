@@ -61,6 +61,7 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 	return db, nil
 }
 
+// Query returns a StorageQueries interface for live blockchain header operations using the provider's database context.
 func (p *Provider) Query(ctx context.Context) models.StorageQueries {
 	return newStorageQueries(ctx, p.Database.DB)
 }

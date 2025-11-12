@@ -308,7 +308,7 @@ func (s *Service) processHeaders(ctx context.Context) error {
 
 func (s *Service) addLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) error {
 	err := s.storeLiveHeader(ctx, header)
-	if errors.Is(err, noPrevErr) {
+	if errors.Is(err, errNoPrev) {
 		if err := s.addLiveHeaderRecursive(ctx, header, addLiveRecursionLimit); err != nil {
 			return fmt.Errorf("failed to add header recursively: %w", err)
 		}
@@ -331,7 +331,7 @@ func (s *Service) addLiveHeaderRecursive(ctx context.Context, header wdk.ChainBl
 	}
 
 	err := s.storeLiveHeader(ctx, *prevHeader)
-	if errors.Is(err, noPrevErr) {
+	if errors.Is(err, errNoPrev) {
 		if err := s.addLiveHeaderRecursive(ctx, *prevHeader, depth-1); err != nil {
 			return fmt.Errorf("failed to add previous header recursively: %w", err)
 		}
@@ -347,7 +347,7 @@ func (s *Service) addLiveHeaderRecursive(ctx context.Context, header wdk.ChainBl
 	return nil
 }
 
-var noPrevErr = fmt.Errorf("no previous header found")
+var errNoPrev = fmt.Errorf("no previous header found")
 
 func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) (err error) {
 	// TODO: implement header.Validate() method and uncomment validation check
@@ -365,7 +365,7 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 		if err != nil {
 			rollbackErr := q.Rollback()
 			if rollbackErr != nil {
-				err = fmt.Errorf("failed to rollback transaction after error: %v; original error: %w", rollbackErr, err)
+				err = fmt.Errorf("failed to rollback transaction after error: %s; original error: %w", rollbackErr.Error(), err)
 			}
 		} else {
 			err = q.Commit()
@@ -403,8 +403,8 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 				ChainBlockHeader: header,
 				PreviousHeaderID: nil,
 				ChainWork:        headerChainWork.To64PadHex(),
-				IsActive:        true,
-				IsChainTip:     true,
+				IsActive:         true,
+				IsChainTip:       true,
 			}); err != nil {
 				return fmt.Errorf("failed to insert genesis live header: %w", err)
 			}
@@ -412,8 +412,7 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 			return nil
 		}
 
-
-		return noPrevErr
+		return errNoPrev
 	}
 
 	if oneBack.Height+1 != header.Height {
@@ -450,9 +449,10 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	}
 
 	isActiveTip := chainWork.CmpChainWork(priorTipChainWork) > 0
-	if isActiveTip {
-		// TODO: handle reorgs if needed
-	}
+	_ = isActiveTip
+	//if isActiveTip {
+	//	// TODO: handle reorgs if needed
+	//}
 
 	if oneBack.IsChainTip {
 		if err := q.SetChainTipByID(oneBack.HeaderID, false); err != nil {

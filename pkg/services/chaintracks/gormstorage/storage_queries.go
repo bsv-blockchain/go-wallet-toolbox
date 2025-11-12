@@ -12,7 +12,6 @@ import (
 )
 
 type storageQueries struct {
-	ctx     context.Context
 	query   *genquery.Query
 	txQuery *genquery.QueryTx
 }

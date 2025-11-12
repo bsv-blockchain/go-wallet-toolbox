@@ -15,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/golang/groupcache/lru"
 )
@@ -180,7 +181,7 @@ func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHe
 
 	// oldest first order
 	slices.SortFunc(headers, func(a, b *wdk.ChainBlockHeader) int {
-		return int(a.Height) - int(b.Height)
+		return must.ConvertToIntFromUnsigned(a.Height) - must.ConvertToIntFromUnsigned(b.Height)
 	})
 
 	for _, hdr := range headers {
