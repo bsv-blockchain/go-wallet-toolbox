@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	dbmodels "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"gorm.io/gorm"
 )
@@ -61,9 +62,9 @@ func (i *storageQueries) Commit() error {
 }
 
 func (i *storageQueries) LiveHeaderExists(hash string) (bool, error) {
-	count, err := i.getQuery().
-		ChaintracksLiveHeader.
-		Where(i.getQuery().ChaintracksLiveHeader.Hash.Eq(hash)).
+	table := i.getQuery().ChaintracksLiveHeader
+	count, err := table.
+		Where(table.Hash.Eq(hash)).
 		Count()
 	if err != nil {
 		return false, fmt.Errorf("failed to check live header existence: %w", err)
@@ -72,9 +73,9 @@ func (i *storageQueries) LiveHeaderExists(hash string) (bool, error) {
 }
 
 func (i *storageQueries) GetLiveHeaderByHash(hash string) (*models.LiveBlockHeader, error) {
-	model, err := i.getQuery().
-		ChaintracksLiveHeader.
-		Where(i.getQuery().ChaintracksLiveHeader.Hash.Eq(hash)).
+	table := i.getQuery().ChaintracksLiveHeader
+	model, err := table.
+		Where(table.Hash.Eq(hash)).
 		First()
 
 	if err != nil {
@@ -88,10 +89,10 @@ func (i *storageQueries) GetLiveHeaderByHash(hash string) (*models.LiveBlockHead
 }
 
 func (i *storageQueries) GetActiveTipLiveHeader() (*models.LiveBlockHeader, error) {
-	model, err := i.getQuery().
-		ChaintracksLiveHeader.
-		Where(i.getQuery().ChaintracksLiveHeader.IsActive.Is(true)).
-		Where(i.getQuery().ChaintracksLiveHeader.IsChainTip.Is(true)).
+	table := i.getQuery().ChaintracksLiveHeader
+	model, err := table.
+		Where(table.IsActive.Is(true)).
+		Where(table.IsChainTip.Is(true)).
 		First()
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,4 +101,46 @@ func (i *storageQueries) GetActiveTipLiveHeader() (*models.LiveBlockHeader, erro
 		return nil, fmt.Errorf("failed to get active tip live header: %w", err)
 	}
 	return mapLiveHeader(model), nil
+}
+
+func (i *storageQueries) SetChainTipByID(id uint, isChainTip bool) error {
+	table := i.getQuery().ChaintracksLiveHeader
+	_, err := table.
+		Where(table.HeaderID.Eq(id)).
+		UpdateColumn(table.IsChainTip, isChainTip)
+	if err != nil {
+		return fmt.Errorf("failed to set chain tip by ID: %w", err)
+	}
+	return nil
+}
+
+func (i *storageQueries) InsertNewLiveHeader(header *models.LiveBlockHeader) error {
+	table := i.getQuery().ChaintracksLiveHeader
+	err := table.Create(&dbmodels.ChaintracksLiveHeader{
+		PreviousHeaderID: header.PreviousHeaderID,
+		PreviousHash:     header.PreviousHash,
+		Height:           header.Height,
+		IsActive:         header.IsActive,
+		IsChainTip:       header.IsChainTip,
+		Hash:             header.Hash,
+		ChainWork:        header.ChainWork,
+		Version:          header.Version,
+		MerkleRoot:       header.MerkleRoot,
+		Time:             header.Time,
+		Bits:             header.Bits,
+		Nonce:            header.Nonce,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to insert new live header: %w", err)
+	}
+	return nil
+}
+
+func (i *storageQueries) CountLiveHeaders() (int64, error) {
+	table := i.getQuery().ChaintracksLiveHeader
+	count, err := table.Count()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count live headers: %w", err)
+	}
+	return count, nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
@@ -389,7 +390,28 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	if oneBack == nil {
 		s.logger.Debug("Chaintracks service - previous header not found, cannot add header yet", slog.String("header_hash", header.Hash), slog.String("previous_hash", header.PreviousHash))
 
-		// TODO Handle empty live header situation and check if this first-live-block-header matches the last bulk header
+		if count, err := q.CountLiveHeaders(); err != nil {
+			return fmt.Errorf("failed to count live headers: %w", err)
+		} else if count == 0 {
+			s.logger.Info("Chaintracks service - no live headers present, inserting genesis header", slog.String("header_hash", header.Hash))
+
+			// TODO check if this first-live-block-header matches the last bulk header
+			// TODO: Important: Chainwork from bits should be added to the last ChainWork from the last bulk file
+			headerChainWork := internal.ChainWorkFromBits(header.Bits)
+
+			if err := q.InsertNewLiveHeader(&models.LiveBlockHeader{
+				ChainBlockHeader: header,
+				PreviousHeaderID: nil,
+				ChainWork:        headerChainWork.To64PadHex(),
+				IsActive:        true,
+				IsChainTip:     true,
+			}); err != nil {
+				return fmt.Errorf("failed to insert genesis live header: %w", err)
+			}
+
+			return nil
+		}
+
 
 		return noPrevErr
 	}
@@ -421,6 +443,32 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 
 	chainWork := headerChainWork.AddChainWork(oneBackChainWork)
 	_ = chainWork
+
+	priorTipChainWork, err := internal.ChainWorkFromHex(priorTip.ChainWork)
+	if err != nil {
+		return fmt.Errorf("failed to parse chain work from prior tip header: %w", err)
+	}
+
+	isActiveTip := chainWork.CmpChainWork(priorTipChainWork) > 0
+	if isActiveTip {
+		// TODO: handle reorgs if needed
+	}
+
+	if oneBack.IsChainTip {
+		if err := q.SetChainTipByID(oneBack.HeaderID, false); err != nil {
+			return fmt.Errorf("failed to unset prior chain tip: %w", err)
+		}
+	}
+
+	if err := q.InsertNewLiveHeader(&models.LiveBlockHeader{
+		ChainBlockHeader: header,
+		PreviousHeaderID: to.Ptr(oneBack.HeaderID),
+		ChainWork:        chainWork.To64PadHex(),
+	}); err != nil {
+		return fmt.Errorf("failed to insert new live header: %w", err)
+	}
+
+	// TODO: Prune live block headers
 
 	// TODO: trigger callbacks when implemented
 

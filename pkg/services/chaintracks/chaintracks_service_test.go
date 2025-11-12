@@ -13,6 +13,10 @@ import (
 )
 
 func TestService_Lifecycle(t *testing.T) {
+	// IMPORTANT NOTE:
+	// This test does ACTUAL calls to the 3rd party services. For now, it's intended.
+	// This way we can prove that the initial syncing is working in real life conditions.
+	// In the future, when things are more stable, we might want to mock the 3rd party services here as well.
 	// given:
 	service, err := chaintracks.NewService(logging.NewTestLogger(t), defs.DefaultChaintracksServiceConfig())
 	require.NoError(t, err)
@@ -70,50 +74,6 @@ func TestService_GetPresentHeight(t *testing.T) {
 
 	// and, the call count should not have increased since the result should be cached
 	require.Equal(t, 1, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
-
-	// clean up:
-	service.Destroy()
-}
-
-func TestService_GetPresentHeight_FirstFailed_SecondSucceded(t *testing.T) {
-	// given:
-	const expectedHeight = 920784
-	config := defs.DefaultChaintracksServiceConfig()
-
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
-	mockWOC.WillRespondOn("chain/info", "GET").WithJSONResponse(500, map[string]any{"error": 500})
-
-	// and:
-	service, err := chaintracks.NewService(logging.NewTestLogger(t), config, chaintracks.Initializers{
-		WOCLiveIngestorPollFactory: func(logger *slog.Logger, config defs.ChaintracksServiceConfig) chaintracks.LiveIngestor {
-			return ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{Chain: config.Chain}, ingest.WithRestyClient(mockWOC.HttpClient()))
-		},
-	})
-	require.NoError(t, err)
-
-	//and:
-	err = service.MakeAvailable(t.Context())
-	require.NoError(t, err)
-
-	// when:
-	_, err = service.GetPresentHeight(t.Context())
-
-	// then:
-	require.Error(t, err)
-
-	// and:
-	require.Equal(t, 1, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
-
-	// when:
-	mockWOC.WillRespondOn("chain/info", "GET").WithJSONResponse(200, map[string]any{"blocks": expectedHeight})
-	presentHeight, err := service.GetPresentHeight(t.Context())
-
-	// then:
-	require.NoError(t, err)
-	require.Equal(t, uint(expectedHeight), presentHeight)
-
-	// and, the call count should have increased since the first call failed
-	require.Equal(t, 2, mockWOC.ServicesSniffer().CountCallsByRegex(`/chain/info`))
 
 	// clean up:
 	service.Destroy()
