@@ -31,7 +31,7 @@ func (h *HeightRanges) Validate() error {
 
 		if !h.Live.IsEmpty() && h.Bulk.MaxHeight+1 != h.Live.MinHeight {
 			gap := must.ConvertToIntFromUnsigned(h.Live.MinHeight) - must.ConvertToIntFromUnsigned(h.Bulk.MaxHeight) - 1
-			return fmt.Errorf("there is a gap (%d) or overlap between bulk and live header storagee, bulk max height: %d, live min height: %d", gap, h.Bulk.MaxHeight, h.Live.MinHeight)
+			return fmt.Errorf("there is a gap (%d) or overlap between bulk and live header storage, bulk max height: %d, live min height: %d", gap, h.Bulk.MaxHeight, h.Live.MinHeight)
 		}
 	}
 
