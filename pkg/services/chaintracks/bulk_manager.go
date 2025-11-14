@@ -69,12 +69,11 @@ func (bm *bulkManager) GetHeightRange() models.HeightRange {
 }
 
 func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderFileInfo, downloader ingest.BulkFileDownloader) error {
-	for _, chunk := range bulkChunks {
-		if bm.alreadyContainsIdentical(&chunk) {
-			bm.logger.Info("Skipping already present identical bulk file", slog.Any("bulk_info", chunk))
-			continue
-		}
+	chunksToLoad := bm.getChunksToLoad(bulkChunks)
+	loadedChunks := make([]ingest.BulkFileData, 0, len(chunksToLoad))
 
+	for _, chunk := range chunksToLoad {
+		bm.logger.Info("Downloading bulk file", slog.Any("bulk_info", chunk))
 		fileData, err := downloader(ctx, chunk)
 		if err != nil {
 			return fmt.Errorf("failed to download bulk file %v: %w", chunk, err)
@@ -83,20 +82,39 @@ func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []inges
 		if err := fileData.Validate(); err != nil {
 			return fmt.Errorf("downloaded bulk file %v is invalid: %w", chunk, err)
 		}
+		loadedChunks = append(loadedChunks, fileData)
+	}
 
-		bm.locker.Lock()
-		// TODO: Implement merging; for now just appending
+	bm.locker.Lock()
+	defer bm.locker.Unlock()
+
+	for _, fileData := range loadedChunks {
+		if bm.alreadyContainsIdentical(&fileData.Info) {
+			// NOTE: If another goroutine added the same bulk file while we were downloading, we skip adding it again
+			continue
+		}
+
 		bm.bulkFiles = append(bm.bulkFiles, bulkFileData{BulkFileData: fileData})
-		bm.locker.Unlock()
 	}
 
 	return nil
 }
 
-func (bm *bulkManager) alreadyContainsIdentical(newBulk *ingest.BulkHeaderFileInfo) bool {
+func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderFileInfo) []ingest.BulkHeaderFileInfo {
 	bm.locker.RLock()
 	defer bm.locker.RUnlock()
 
+	filteredChunks := make([]ingest.BulkHeaderFileInfo, 0)
+	for _, chunk := range chunks {
+		if !bm.alreadyContainsIdentical(&chunk) {
+			filteredChunks = append(filteredChunks, chunk)
+		}
+	}
+
+	return chunks
+}
+
+func (bm *bulkManager) alreadyContainsIdentical(newBulk *ingest.BulkHeaderFileInfo) bool {
 	for _, existingBulk := range bm.bulkFiles {
 		if existingBulk.Info.Equals(newBulk) {
 			return true

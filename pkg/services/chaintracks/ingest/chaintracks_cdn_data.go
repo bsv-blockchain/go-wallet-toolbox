@@ -39,7 +39,7 @@ func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
 	return b != nil && other != nil &&
 		b.FirstHeight == other.FirstHeight &&
 		b.Count == other.Count &&
-		b.LastHash == other.LastHash &&
+		((b.LastHash == nil && other.LastHash == nil) || (b.LastHash != nil && other.LastHash != nil && *b.LastHash == *other.LastHash)) &&
 		b.LastChainWork == other.LastChainWork &&
 		bytes.Equal(b.FileHash, other.FileHash) &&
 		b.Chain == other.Chain

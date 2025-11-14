@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // BulkIngestorCDN provides bulk ingestion of blockchain headers from a CDN source for a specific BSV network.
@@ -46,11 +47,12 @@ func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, r
 		return nil, nil, fmt.Errorf("failed to fetch bulk header files info: %w", err)
 	}
 
-	for _, file := range filesInfo.Files {
+	for i := range filesInfo.Files {
+		file := &filesInfo.Files[i]
 		b.logger.Info("Found bulk header file",
 			slog.String("file_name", file.FileName),
 			logging.Number("start_height", file.FirstHeight),
-			logging.Number("end_height", file.Count))
+			logging.Number("end_height", must.ConvertToIntFromUnsigned(file.FirstHeight)+file.Count-1))
 
 		if len(file.FileHash) == 0 {
 			return nil, nil, fmt.Errorf("file %s is missing hash", file.FileName)
