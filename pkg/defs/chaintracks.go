@@ -73,7 +73,7 @@ func DefaultChaintracksServiceConfig() ChaintracksServiceConfig {
 
 // CDNBulkIngestorConfig holds configuration options for a bulk ingestor that fetches block headers from a CDN source.
 type CDNBulkIngestorConfig struct {
-	SourceURL string     `mapstructure:"source_url"`
+	SourceURL string `mapstructure:"source_url"`
 }
 
 // Validate checks if the CDNBulkIngestorConfig is valid by ensuring the SourceURL field is not empty.
