@@ -34,6 +34,7 @@ type BulkHeaderFileInfo struct {
 	SourceURL     *string         `json:"sourceUrl,omitempty"`
 }
 
+// Equals compares two BulkHeaderFileInfo instances and returns true if they represent the same header file metadata.
 func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
 	return b != nil && other != nil &&
 		b.FirstHeight == other.FirstHeight &&

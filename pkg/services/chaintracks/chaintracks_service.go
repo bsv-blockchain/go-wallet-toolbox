@@ -183,6 +183,8 @@ func (s *Service) GetAvailableHeightRanges(ctx context.Context) (ranges models.H
 	return
 }
 
+// GetInfo returns information about the service, including chain, heights, storage type, and ingestor names.
+// It ensures the service is available before gathering details and may return an error if prerequisites fail.
 func (s *Service) GetInfo(ctx context.Context) (*models.InfoResponse, error) {
 	if err := s.MakeAvailable(ctx); err != nil {
 		return nil, fmt.Errorf("failed to make service available: %w", err)

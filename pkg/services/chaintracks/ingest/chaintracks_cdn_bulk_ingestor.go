@@ -32,6 +32,8 @@ func NewBulkIngestorCDN(logger *slog.Logger, chain defs.BSVNetwork, config defs.
 	}
 }
 
+// BulkFileDownloader is a function type that downloads and returns bulk block header file data with metadata.
+// It takes a context and BulkHeaderFileInfo as input, returning BulkFileData and an error if the download fails.
 type BulkFileDownloader = func(ctx context.Context, fileInfo BulkHeaderFileInfo) (BulkFileData, error)
 
 // Synchronize retrieves available bulk header files for the configured BSV network and prepares chunks for ingestion.
