@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/server"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -63,9 +64,9 @@ func (h *Handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetChain(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	response := ResponseFrame[string]{
+	response := models.ResponseFrame[string]{
 		Value:  to.Ptr(string(h.config.Chain)),
-		Status: ResponseStatusSuccess,
+		Status: models.ResponseStatusSuccess,
 	}
 
 	h.writeJSONResponse(w, http.StatusOK, response)

@@ -116,7 +116,7 @@ func TestLiveIngestorWOCPoll_PollLast10Headers_Twice(t *testing.T) {
 
 	// then:
 	require.Eventually(t, func() bool {
-		return len(mockReceiver.GetReceivedHeaders()) == 20
+		return len(mockReceiver.GetReceivedHeaders()) == 10 // NOTE: Second batch will be ignored as duplicates
 	}, 2*time.Second, 100*time.Millisecond)
 
 	// when:
@@ -168,7 +168,7 @@ func TestLiveIngestorWocPoll_GetPresentHeight(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, uint32(expectedHeight), presentHeight)
+	require.Equal(t, uint(expectedHeight), presentHeight)
 }
 
 func blockHeaderStandardResponse(t *testing.T) (string, map[string]any) {

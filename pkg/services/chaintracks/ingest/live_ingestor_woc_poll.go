@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,7 +16,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/golang/groupcache/lru"
 )
+
+const cachedEntries = 500
 
 // LiveIngestorWocPoll provides functionality for polling block header data from an external source, such as WhatsOnChain.
 type LiveIngestorWocPoll struct {
@@ -30,6 +34,8 @@ type LiveIngestorWocPoll struct {
 	waitForStop    sync.WaitGroup
 	lifecycleMutex sync.Mutex
 	stopped        bool
+
+	cached *lru.Cache
 }
 
 // NewLiveIngestorWocPoll creates a new LiveIngestorWocPoll using the provided logger, config, and optional client options.
@@ -64,6 +70,7 @@ func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConf
 		config:     config,
 		resty:      restyClient,
 		syncPeriod: options.SyncPeriod,
+		cached:     lru.New(cachedEntries),
 	}
 }
 
@@ -105,7 +112,7 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 
 // GetPresentHeight retrieves the current blockchain height from the external data source.
 // Returns the number of blocks in the chain or an error if the info cannot be fetched or parsed.
-func (ing *LiveIngestorWocPoll) GetPresentHeight(ctx context.Context) (uint32, error) {
+func (ing *LiveIngestorWocPoll) GetPresentHeight(ctx context.Context) (uint, error) {
 	path := "/chain/info"
 
 	var infoResp blockOnlyChainInfoDTO
@@ -171,9 +178,25 @@ func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHe
 		return
 	}
 
+	// oldest first order
+	slices.SortFunc(headers, func(a, b *wdk.ChainBlockHeader) int {
+		if a.Height < b.Height {
+			return -1
+		} else if a.Height > b.Height {
+			return 1
+		} else {
+			return 0
+		}
+	})
+
 	for _, hdr := range headers {
+		if _, found := ing.cached.Get(hdr.Hash); found {
+			continue
+		}
+
 		select {
 		case respChan <- *hdr:
+			ing.cached.Add(hdr.Hash, struct{}{})
 		case <-ing.ctx.Done():
 			ing.logger.Info("LiveIngestorWocPoll stopping processing new headers due to context cancellation")
 			return

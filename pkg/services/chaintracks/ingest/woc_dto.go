@@ -82,5 +82,5 @@ func (headers WOCBlockHeadersDTO) ToWDK() ([]*wdk.ChainBlockHeader, error) {
 }
 
 type blockOnlyChainInfoDTO struct {
-	Blocks uint32 `json:"blocks"`
+	Blocks uint `json:"blocks"`
 }

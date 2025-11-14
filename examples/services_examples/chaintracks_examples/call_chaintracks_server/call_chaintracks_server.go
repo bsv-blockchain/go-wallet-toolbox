@@ -8,6 +8,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 )
 
 const (
@@ -78,7 +79,7 @@ func findChainTipHeaderHex(chaintr *chaintracks.Client) {
 	show.Info("Chaintracks Chain Tip Header", header)
 }
 
-func findHeaderHexForHeight(chaintr *chaintracks.Client, height uint32) *chaintracks.BlockHeader {
+func findHeaderHexForHeight(chaintr *chaintracks.Client, height uint32) *models.BlockHeader {
 	header, err := chaintr.FindHeaderHexForHeight(context.Background(), height)
 	if err != nil {
 		panic("failed to get Chaintracks header for height: " + err.Error())
@@ -123,7 +124,7 @@ func getFiatExchangeRates(chaintr *chaintracks.Client) {
 	show.Info("Chaintracks Fiat Exchange Rates", rates)
 }
 
-func addHeaderHex(chaintr *chaintracks.Client, header *chaintracks.BlockHeader) {
+func addHeaderHex(chaintr *chaintracks.Client, header *models.BlockHeader) {
 	err := chaintr.AddHeader(context.Background(), header.BaseBlockHeader)
 	if err != nil {
 		panic("failed to add Chaintracks header: " + err.Error())

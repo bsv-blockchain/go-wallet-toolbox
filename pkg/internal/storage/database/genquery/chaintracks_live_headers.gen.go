@@ -30,17 +30,17 @@ func newChaintracksLiveHeader(db *gorm.DB, opts ...gen.DOOption) chaintracksLive
 	_chaintracksLiveHeader.ALL = field.NewAsterisk(tableName)
 	_chaintracksLiveHeader.HeaderID = field.NewUint(tableName, "headerId")
 	_chaintracksLiveHeader.PreviousHeaderID = field.NewUint(tableName, "previousHeaderId")
-	_chaintracksLiveHeader.PreviousHash = field.NewBytes(tableName, "previousHash")
+	_chaintracksLiveHeader.PreviousHash = field.NewString(tableName, "previousHash")
 	_chaintracksLiveHeader.Height = field.NewUint(tableName, "height")
 	_chaintracksLiveHeader.IsActive = field.NewBool(tableName, "isActive")
 	_chaintracksLiveHeader.IsChainTip = field.NewBool(tableName, "isChainTip")
-	_chaintracksLiveHeader.Hash = field.NewBytes(tableName, "hash")
-	_chaintracksLiveHeader.ChainWork = field.NewBytes(tableName, "chainWork")
-	_chaintracksLiveHeader.Version = field.NewUint(tableName, "version")
-	_chaintracksLiveHeader.MerkleRoot = field.NewBytes(tableName, "merkleRoot")
-	_chaintracksLiveHeader.Time = field.NewUint(tableName, "time")
-	_chaintracksLiveHeader.Bits = field.NewUint(tableName, "bits")
-	_chaintracksLiveHeader.Nonce = field.NewUint(tableName, "nonce")
+	_chaintracksLiveHeader.Hash = field.NewString(tableName, "hash")
+	_chaintracksLiveHeader.ChainWork = field.NewString(tableName, "chainWork")
+	_chaintracksLiveHeader.Version = field.NewUint32(tableName, "version")
+	_chaintracksLiveHeader.MerkleRoot = field.NewString(tableName, "merkleRoot")
+	_chaintracksLiveHeader.Time = field.NewUint32(tableName, "time")
+	_chaintracksLiveHeader.Bits = field.NewUint32(tableName, "bits")
+	_chaintracksLiveHeader.Nonce = field.NewUint32(tableName, "nonce")
 	_chaintracksLiveHeader.PreviousHeader = chaintracksLiveHeaderBelongsToPreviousHeader{
 		db: db.Session(&gorm.Session{}),
 
@@ -63,17 +63,17 @@ type chaintracksLiveHeader struct {
 	ALL              field.Asterisk
 	HeaderID         field.Uint
 	PreviousHeaderID field.Uint
-	PreviousHash     field.Bytes
+	PreviousHash     field.String
 	Height           field.Uint
 	IsActive         field.Bool
 	IsChainTip       field.Bool
-	Hash             field.Bytes
-	ChainWork        field.Bytes
-	Version          field.Uint
-	MerkleRoot       field.Bytes
-	Time             field.Uint
-	Bits             field.Uint
-	Nonce            field.Uint
+	Hash             field.String
+	ChainWork        field.String
+	Version          field.Uint32
+	MerkleRoot       field.String
+	Time             field.Uint32
+	Bits             field.Uint32
+	Nonce            field.Uint32
 	PreviousHeader   chaintracksLiveHeaderBelongsToPreviousHeader
 
 	fieldMap map[string]field.Expr
@@ -93,17 +93,17 @@ func (c *chaintracksLiveHeader) updateTableName(table string) *chaintracksLiveHe
 	c.ALL = field.NewAsterisk(table)
 	c.HeaderID = field.NewUint(table, "headerId")
 	c.PreviousHeaderID = field.NewUint(table, "previousHeaderId")
-	c.PreviousHash = field.NewBytes(table, "previousHash")
+	c.PreviousHash = field.NewString(table, "previousHash")
 	c.Height = field.NewUint(table, "height")
 	c.IsActive = field.NewBool(table, "isActive")
 	c.IsChainTip = field.NewBool(table, "isChainTip")
-	c.Hash = field.NewBytes(table, "hash")
-	c.ChainWork = field.NewBytes(table, "chainWork")
-	c.Version = field.NewUint(table, "version")
-	c.MerkleRoot = field.NewBytes(table, "merkleRoot")
-	c.Time = field.NewUint(table, "time")
-	c.Bits = field.NewUint(table, "bits")
-	c.Nonce = field.NewUint(table, "nonce")
+	c.Hash = field.NewString(table, "hash")
+	c.ChainWork = field.NewString(table, "chainWork")
+	c.Version = field.NewUint32(table, "version")
+	c.MerkleRoot = field.NewString(table, "merkleRoot")
+	c.Time = field.NewUint32(table, "time")
+	c.Bits = field.NewUint32(table, "bits")
+	c.Nonce = field.NewUint32(table, "nonce")
 
 	c.fillFieldMap()
 

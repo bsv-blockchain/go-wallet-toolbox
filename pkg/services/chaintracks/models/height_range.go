@@ -1,4 +1,4 @@
-package internal
+package models
 
 import (
 	"fmt"
@@ -6,6 +6,17 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+// HeightRanges represents separate ranges for bulk and live block header heights.
+// It is used to specify which spans of block heights are targeted for synchronization or processing.
+// The Bulk field defines the height range for bulk operations, while the Live field defines the range for live operations.
+// Both fields use the HeightRange type to specify minimum and maximum heights, along with range state.
+type HeightRanges struct {
+	Bulk HeightRange
+	Live HeightRange
+}
+
+// HeightRange represents a contiguous range of block heights, defined by MinHeight and MaxHeight values.
+// An empty range is indicated by isEmpty or when MinHeight exceeds MaxHeight.
 type HeightRange struct {
 	MinHeight uint
 	MaxHeight uint
@@ -13,6 +24,7 @@ type HeightRange struct {
 	isEmpty bool
 }
 
+// NewHeightRange creates a HeightRange with given minHeight and maxHeight, or an empty range if minHeight > maxHeight.
 func NewHeightRange(minHeight, maxHeight uint) HeightRange {
 	if minHeight > maxHeight {
 		return NewEmptyHeightRange()
@@ -24,12 +36,15 @@ func NewHeightRange(minHeight, maxHeight uint) HeightRange {
 	}
 }
 
+// NewEmptyHeightRange returns an empty HeightRange representing no valid block heights.
 func NewEmptyHeightRange() HeightRange {
 	return HeightRange{
 		isEmpty: true,
 	}
 }
 
+// NewHeightRangeFromBlockHeaders returns a HeightRange spanning the min and max heights found in the given block headers.
+// If headers is nil or empty, an empty HeightRange is returned.
 func NewHeightRangeFromBlockHeaders(headers []*wdk.ChainBlockHeader) HeightRange {
 	if len(headers) == 0 {
 		return NewEmptyHeightRange()
@@ -50,10 +65,18 @@ func NewHeightRangeFromBlockHeaders(headers []*wdk.ChainBlockHeader) HeightRange
 	return NewHeightRange(minHeight, maxHeight)
 }
 
+// IsEmpty returns true if the range is empty or if MinHeight is greater than MaxHeight.
 func (hr HeightRange) IsEmpty() bool {
 	return hr.isEmpty || hr.MinHeight > hr.MaxHeight
 }
 
+// NotEmpty returns true if the height range is not empty and MinHeight does not exceed MaxHeight.
+func (hr HeightRange) NotEmpty() bool {
+	return !hr.IsEmpty()
+}
+
+// Length returns the total number of block heights in the range.
+// Returns 0 if the range is empty or MinHeight exceeds MaxHeight.
 func (hr HeightRange) Length() uint {
 	if hr.IsEmpty() {
 		return 0
@@ -61,6 +84,8 @@ func (hr HeightRange) Length() uint {
 	return hr.MaxHeight - hr.MinHeight + 1
 }
 
+// String returns a string representation of the HeightRange.
+// If the range is empty, it returns "empty", otherwise "[MinHeight - MaxHeight]".
 func (hr HeightRange) String() string {
 	if hr.IsEmpty() {
 		return "empty"
@@ -68,6 +93,8 @@ func (hr HeightRange) String() string {
 	return fmt.Sprintf("[%d - %d]", hr.MinHeight, hr.MaxHeight)
 }
 
+// ContainsHeight returns true if the given height is within the HeightRange, inclusive of MinHeight and MaxHeight.
+// Returns false if the range is empty or the height is outside the range.
 func (hr HeightRange) ContainsHeight(height uint) bool {
 	if hr.IsEmpty() {
 		return false
@@ -75,6 +102,8 @@ func (hr HeightRange) ContainsHeight(height uint) bool {
 	return height >= hr.MinHeight && height <= hr.MaxHeight
 }
 
+// ContainsRange returns true if the given HeightRange is completely within the receiver's range.
+// Returns false if either range is empty or the other range extends outside the receiver.
 func (hr HeightRange) ContainsRange(other HeightRange) bool {
 	if hr.IsEmpty() || other.IsEmpty() {
 		return false
@@ -82,6 +111,7 @@ func (hr HeightRange) ContainsRange(other HeightRange) bool {
 	return other.MinHeight >= hr.MinHeight && other.MaxHeight <= hr.MaxHeight
 }
 
+// Intersect returns the overlapping HeightRange between the receiver and the other range, or an empty range if none exists.
 func (hr HeightRange) Intersect(other HeightRange) HeightRange {
 	if hr.IsEmpty() || other.IsEmpty() {
 		return NewEmptyHeightRange()
@@ -104,6 +134,7 @@ func (hr HeightRange) Intersect(other HeightRange) HeightRange {
 	return NewHeightRange(minHeight, maxHeight)
 }
 
+// Union returns the smallest HeightRange covering both hr and other, or an error if the ranges are disjoint.
 func (hr HeightRange) Union(other HeightRange) (HeightRange, error) {
 	if hr.IsEmpty() {
 		return other, nil
@@ -129,6 +160,10 @@ func (hr HeightRange) Union(other HeightRange) (HeightRange, error) {
 	return NewHeightRange(minHeight, maxHeight), nil
 }
 
+// Subtract returns a HeightRange representing hr with the other range removed, or an error if subtraction is disjoint.
+// If hr is empty, returns an empty HeightRange. If other is empty, returns hr unchanged.
+// If other fully contains hr, returns an empty HeightRange. If ranges do not overlap, returns hr unchanged.
+// Returns an error if subtraction would create non-contiguous (disjoint) ranges.
 func (hr HeightRange) Subtract(other HeightRange) (HeightRange, error) {
 	if hr.IsEmpty() {
 		return NewEmptyHeightRange(), nil
@@ -156,6 +191,7 @@ func (hr HeightRange) Subtract(other HeightRange) (HeightRange, error) {
 	return NewHeightRange(hr.MinHeight, other.MinHeight-1), nil
 }
 
+// Above returns the portion of hr that is strictly above the other range, or an empty range if none exists.
 func (hr HeightRange) Above(other HeightRange) HeightRange {
 	if hr.IsEmpty() || other.IsEmpty() {
 		return hr
@@ -172,6 +208,7 @@ func (hr HeightRange) Above(other HeightRange) HeightRange {
 	return NewHeightRange(other.MaxHeight+1, hr.MaxHeight)
 }
 
+// Copy returns a new HeightRange with the same values as the receiver.
 func (hr HeightRange) Copy() HeightRange {
 	return hr
 }

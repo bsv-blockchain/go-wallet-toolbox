@@ -38,3 +38,7 @@ func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 
 	return ingestors
 }
+
+func createBulkIngestors(logger *slog.Logger, config defs.ChaintracksServiceConfig, initializers Initializers) []NamedBulkIngestor {
+	return []NamedBulkIngestor{}
+}

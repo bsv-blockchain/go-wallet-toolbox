@@ -1,4 +1,4 @@
-package chaintracks
+package models
 
 import (
 	"encoding/hex"
