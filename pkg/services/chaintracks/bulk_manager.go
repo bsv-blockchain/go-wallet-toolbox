@@ -111,7 +111,7 @@ func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderFileInfo) []ing
 		}
 	}
 
-	return chunks
+	return filteredChunks
 }
 
 func (bm *bulkManager) alreadyContainsIdentical(newBulk *ingest.BulkHeaderFileInfo) bool {
