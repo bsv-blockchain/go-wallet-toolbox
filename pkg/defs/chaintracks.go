@@ -2,6 +2,9 @@ package defs
 
 import "fmt"
 
+// BabbageBlockHeadersCDN is the base URL for fetching BSV block headers from the Project Babbage CDN.
+const BabbageBlockHeadersCDN = "https://cdn.projectbabbage.com/blockheaders"
+
 // LiveIngestorType represents the type of a live blockchain data ingestor as a string identifier.
 type LiveIngestorType string
 
@@ -18,8 +21,9 @@ func ParseLiveIngestorType(str string) (LiveIngestorType, error) {
 
 // ChaintracksServiceConfig holds configuration for Chaintracks service, including the BSV network selection.
 type ChaintracksServiceConfig struct {
-	Chain         BSVNetwork         `mapstructure:"-"`
-	LiveIngestors []LiveIngestorType `mapstructure:"live_ingestors"`
+	Chain            BSVNetwork              `mapstructure:"-"`
+	LiveIngestors    []LiveIngestorType      `mapstructure:"live_ingestors"`
+	CDNBulkIngestors []CDNBulkIngestorConfig `mapstructure:"cdn_bulk_ingestors"`
 
 	// TODO: Specify API key for WoC ingestor
 }
@@ -43,6 +47,12 @@ func (c *ChaintracksServiceConfig) Validate() error {
 		}
 	}
 
+	for i := range c.CDNBulkIngestors {
+		if err := c.CDNBulkIngestors[i].Validate(); err != nil {
+			return fmt.Errorf("invalid CDN bulk ingestor config at index %d: %w", i, err)
+		}
+	}
+
 	return nil
 }
 
@@ -53,7 +63,26 @@ func DefaultChaintracksServiceConfig() ChaintracksServiceConfig {
 		LiveIngestors: []LiveIngestorType{
 			LiveIngestorTypeWocPoll,
 		},
+		CDNBulkIngestors: []CDNBulkIngestorConfig{
+			{
+				SourceURL: BabbageBlockHeadersCDN,
+			},
+		},
 	}
+}
+
+// CDNBulkIngestorConfig holds configuration options for a bulk ingestor that fetches block headers from a CDN source.
+type CDNBulkIngestorConfig struct {
+	SourceURL string     `mapstructure:"source_url"`
+}
+
+// Validate checks if the CDNBulkIngestorConfig is valid by ensuring the SourceURL field is not empty.
+// Returns an error if SourceURL is missing.
+func (c *CDNBulkIngestorConfig) Validate() error {
+	if c.SourceURL == "" {
+		return fmt.Errorf("source_url is required for CDN bulk ingestor")
+	}
+	return nil
 }
 
 // ChaintracksServerConfig holds the configuration for the Chaintracks HTTP server and its underlying service settings.

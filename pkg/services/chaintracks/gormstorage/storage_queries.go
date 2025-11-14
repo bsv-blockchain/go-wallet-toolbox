@@ -143,3 +143,24 @@ func (i *storageQueries) CountLiveHeaders() (int64, error) {
 	}
 	return count, nil
 }
+
+func (i *storageQueries) FindLiveHeightRange() (models.HeightRange, error) {
+	table := i.getQuery().ChaintracksLiveHeader
+
+	var res struct {
+		MinHeight *uint
+		MaxHeight *uint
+	}
+	err := table.
+		Select(table.Height.Min().As("min_height"), table.Height.Max().As("max_height")).
+		Scan(&res)
+	if err != nil {
+		return models.NewEmptyHeightRange(), fmt.Errorf("failed to find live height range: %w", err)
+	}
+
+	if res.MinHeight == nil || res.MaxHeight == nil {
+		return models.NewEmptyHeightRange(), nil
+	}
+
+	return models.NewHeightRange(*res.MinHeight, *res.MaxHeight), nil
+}

@@ -11,6 +11,7 @@ import (
 // Use this struct to override default implementations, especially for testing or custom runtime behaviors.
 type Initializers struct {
 	WOCLiveIngestorPollFactory func(logger *slog.Logger, config defs.ChaintracksServiceConfig) LiveIngestor
+	CDNBulkIngestorFactory     func(logger *slog.Logger, chain defs.BSVNetwork, config defs.CDNBulkIngestorConfig) BulkIngestor
 }
 
 // DefaultInitializers returns an Initializers struct with the default WOCLiveIngestorPollFactory implementation.
@@ -18,6 +19,9 @@ func DefaultInitializers() Initializers {
 	return Initializers{
 		WOCLiveIngestorPollFactory: func(logger *slog.Logger, config defs.ChaintracksServiceConfig) LiveIngestor {
 			return ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{Chain: config.Chain})
+		},
+		CDNBulkIngestorFactory: func(logger *slog.Logger, chain defs.BSVNetwork, config defs.CDNBulkIngestorConfig) BulkIngestor {
+			return ingest.NewBulkIngestorCDN(logger, chain, config)
 		},
 	}
 }

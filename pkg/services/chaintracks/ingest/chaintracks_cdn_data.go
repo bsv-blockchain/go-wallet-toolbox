@@ -22,16 +22,27 @@ type BulkHeaderFilesInfo struct {
 
 // BulkHeaderFileInfo contains metadata related to a single bulk block header file for a specific blockchain network.
 type BulkHeaderFileInfo struct {
-	FileName      string           `json:"fileName"`
-	FirstHeight   uint             `json:"firstHeight"`
-	Count         int              `json:"count"`
-	PrevChainWork string           `json:"prevChainWork"`
-	LastChainWork string           `json:"lastChainWork"`
-	PrevHash      string           `json:"prevHash"`
-	LastHash      *string          `json:"lastHash,omitempty"`
-	FileHash      []byte           `json:"fileHash,omitempty"`
-	Chain         *defs.BSVNetwork `json:"chain,omitempty"`
-	SourceURL     *string          `json:"sourceUrl,omitempty"`
+	FileName      string          `json:"fileName"`
+	FirstHeight   uint            `json:"firstHeight"`
+	Count         int             `json:"count"`
+	PrevChainWork string          `json:"prevChainWork"`
+	LastChainWork string          `json:"lastChainWork"`
+	PrevHash      string          `json:"prevHash"`
+	LastHash      *string         `json:"lastHash,omitempty"`
+	FileHash      []byte          `json:"fileHash,omitempty"`
+	Chain         defs.BSVNetwork `json:"chain,omitempty"`
+	SourceURL     *string         `json:"sourceUrl,omitempty"`
+}
+
+func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
+	return b != nil && other != nil &&
+		b.FirstHeight == other.FirstHeight &&
+		b.Count == other.Count &&
+		b.LastHash == other.LastHash &&
+		b.LastChainWork == other.LastChainWork &&
+		bytes.Equal(b.FileHash, other.FileHash) &&
+		b.Chain == other.Chain
+
 }
 
 // BulkFileData represents a complete bulk block header file and its metadata for a specific blockchain network.

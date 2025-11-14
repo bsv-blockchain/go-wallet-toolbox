@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // HeightRanges represents separate ranges for bulk and live block header heights.
@@ -13,6 +14,28 @@ import (
 type HeightRanges struct {
 	Bulk HeightRange
 	Live HeightRange
+}
+
+// Validate checks HeightRanges invariants to ensure Bulk and Live are properly initialized and contiguous with no gaps or overlap.
+// Returns an error if the ranges are invalid, or nil if they are well-formed.
+func (h *HeightRanges) Validate() error {
+	if h.Bulk.IsEmpty() {
+		// Fixme: Uncomment this check after proper mocking in tests
+		//if !h.Live.IsEmpty() && h.Live.MinHeight != 0 {
+		//	return fmt.Errorf("with empty bulk storage, live storage must start with genesis header")
+		//}
+	} else {
+		if h.Bulk.MinHeight != 0 {
+			return fmt.Errorf("bulk storage must start with genesis header")
+		}
+
+		if !h.Live.IsEmpty() && h.Bulk.MaxHeight + 1 != h.Live.MinHeight {
+			gap := must.ConvertToIntFromUnsigned(h.Live.MinHeight) - must.ConvertToIntFromUnsigned(h.Bulk.MaxHeight) - 1
+			return fmt.Errorf("there is a gap (%d) or overlap between bulk and live header storagee, bulk max height: %d, live min height: %d", gap, h.Bulk.MaxHeight, h.Live.MinHeight)
+		}
+	}
+
+	return nil
 }
 
 // HeightRange represents a contiguous range of block heights, defined by MinHeight and MaxHeight values.

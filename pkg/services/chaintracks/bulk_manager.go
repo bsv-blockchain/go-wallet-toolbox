@@ -1,0 +1,107 @@
+package chaintracks
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sync"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
+	"github.com/go-softwarelab/common/pkg/must"
+)
+
+type bulkFileData struct {
+	ingest.BulkFileData
+}
+
+type bulkManager struct {
+	logger        *slog.Logger
+	bulkIngestors []NamedBulkIngestor
+
+	locker    sync.RWMutex
+	bulkFiles []bulkFileData
+}
+
+func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor) *bulkManager {
+	logger = logging.Child(logger, "chaintracks_bulk_manager")
+	return &bulkManager{
+		logger:        logger,
+		bulkIngestors: bulkIngestors,
+	}
+}
+
+func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) (err error) {
+	bm.logger.Info("Starting bulk synchronization", slog.Any("present_height", presentHeight), slog.Any("initial_ranges", initialRanges))
+
+	for _, ingestor := range bm.bulkIngestors {
+		bulkChunks, downloader, err := ingestor.Ingestor.Synchronize(ctx, presentHeight, initialRanges)
+		if err != nil {
+			bm.logger.Error("Chaintracks service - error during bulk synchronization", slog.String("ingestor_name", ingestor.Name), slog.String("error", err.Error()))
+			return fmt.Errorf("bulk synchronization failed for ingestor %s: %w", ingestor.Name, err)
+		}
+
+		if err := bm.processBulkChunks(ctx, bulkChunks, downloader); err != nil {
+			return fmt.Errorf("failed to process bulk chunks from ingestor %s: %w", ingestor.Name, err)
+		}
+
+		// TODO: Implement DONE check and break if done
+	}
+
+	return nil
+}
+
+func (bm *bulkManager) GetHeightRange() models.HeightRange {
+	bm.locker.RLock()
+	defer bm.locker.RUnlock()
+
+	if len(bm.bulkFiles) == 0 {
+		return models.NewEmptyHeightRange()
+	}
+	first := bm.bulkFiles[0]
+	last := bm.bulkFiles[len(bm.bulkFiles)-1]
+
+	minHeight := first.Info.FirstHeight
+	maxHeight := last.Info.FirstHeight + must.ConvertToUInt(last.Info.Count) - 1
+
+	return models.NewHeightRange(minHeight, maxHeight)
+}
+
+func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderFileInfo, downloader ingest.BulkFileDownloader) error {
+	for _, chunk := range bulkChunks {
+		if bm.alreadyContainsIdentical(&chunk) {
+			bm.logger.Info("Skipping already present identical bulk file", slog.Any("bulk_info", chunk))
+			continue
+		}
+
+		fileData, err := downloader(ctx, chunk)
+		if err != nil {
+			return fmt.Errorf("failed to download bulk file %v: %w", chunk, err)
+		}
+
+		if err := fileData.Validate(); err != nil {
+			return fmt.Errorf("downloaded bulk file %v is invalid: %w", chunk, err)
+		}
+
+		bm.locker.Lock()
+		// TODO: Implement merging; for now just appending
+		bm.bulkFiles = append(bm.bulkFiles, bulkFileData{BulkFileData: fileData})
+		bm.locker.Unlock()
+	}
+
+	return nil
+}
+
+func (bm *bulkManager) alreadyContainsIdentical(newBulk *ingest.BulkHeaderFileInfo) bool {
+	bm.locker.RLock()
+	defer bm.locker.RUnlock()
+
+	for _, existingBulk := range bm.bulkFiles {
+		if existingBulk.Info.Equals(newBulk) {
+			return true
+		}
+	}
+
+	return false
+}

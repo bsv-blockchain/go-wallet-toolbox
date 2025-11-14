@@ -40,5 +40,16 @@ func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 }
 
 func createBulkIngestors(logger *slog.Logger, config defs.ChaintracksServiceConfig, initializers Initializers) []NamedBulkIngestor {
-	return []NamedBulkIngestor{}
+	logger.Info("Chaintracks service - creating bulk ingestors", slog.Any("configured_sources", config.CDNBulkIngestors))
+
+	ingestors := make([]NamedBulkIngestor, 0, len(config.CDNBulkIngestors))
+	for _, cdnConfig := range config.CDNBulkIngestors {
+		ingestor := initializers.CDNBulkIngestorFactory(logger, config.Chain, cdnConfig)
+		ingestors = append(ingestors, NamedBulkIngestor{
+			Name:     cdnConfig.SourceURL,
+			Ingestor: ingestor,
+		})
+	}
+
+	return ingestors
 }

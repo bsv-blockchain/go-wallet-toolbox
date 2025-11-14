@@ -3,6 +3,7 @@ package chaintracks
 import (
 	"context"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -35,7 +36,7 @@ type NamedLiveIngestor struct {
 // The Synchronize method ingests headers up to the given presentHeight for provided height ranges and returns insertion results.
 // TODO: refine return type from 'any' to a more specific type representing synchronization results.
 type BulkIngestor interface {
-	Synchronize(ctx context.Context, presentHeight uint, ranges models.HeightRanges) (any, error)
+	Synchronize(ctx context.Context, presentHeight uint, ranges models.HeightRanges) ([]ingest.BulkHeaderFileInfo, ingest.BulkFileDownloader, error)
 }
 
 // NamedBulkIngestor associates a descriptive name with a BulkIngestor interface for organized bulk header synchronization tasks.

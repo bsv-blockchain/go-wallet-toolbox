@@ -87,6 +87,7 @@ func (c *CDNReader) FetchBulkHeaderFile(ctx context.Context, fileInfo BulkHeader
 func (c *CDNReader) downloadBulkHeaderFile(ctx context.Context, fileInfo BulkHeaderFileInfo) ([]byte, error) {
 	resp, err := c.resty.R().
 		SetContext(ctx).
+		SetDebug(false). //NOTE: Disable debug for large binary downloads
 		SetHeaders(httpx.NewHeaders().Accept().Value("application/octet-stream")).
 		Get(fileInfo.FileName)
 	if err != nil {
