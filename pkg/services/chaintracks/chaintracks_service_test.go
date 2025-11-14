@@ -39,7 +39,7 @@ func TestService_Lifecycle(t *testing.T) {
 	assert.Equal(t, []string{"woc_poll"}, info.LiveIngestors)
 	assert.Equal(t, []string{"https://cdn.projectbabbage.com/blockheaders"}, info.BulkIngestors)
 	//assert.Equal(t, int(info.HeightLive)-1, int(info.HeightBulk)) // TODO: Uncomment it when WoC Bulk ingestor is implemented (Babbage CDN ingestor doesn't provide the latest data)
-	t.Logf("Bulk height: %d", info.HeightBulk) // TODO: WHen we use live data (not mocked), these value is not constant; will be changed to assert.Equal later
+	t.Logf("Bulk height: %d", info.HeightBulk) // TODO: When we use live data (not mocked), this value is not constant; will be changed to assert.Equal later
 	t.Logf("Live height: %d", info.HeightLive)
 
 	// when:
