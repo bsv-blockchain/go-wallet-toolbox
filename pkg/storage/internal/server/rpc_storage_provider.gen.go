@@ -167,19 +167,38 @@ func (p *RPCStorageProvider) ListActions(ctx context.Context, auth wdk.AuthID, a
 // GetSyncChunk retrieves a chunk of sync data for a user between two storages using the provided synchronization arguments.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
 func (p *RPCStorageProvider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-	return nil, fmt.Errorf("method not allowed to be called via RPC")
+	err := p.verifyAuthenticated(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.localProvider.GetSyncChunk(ctx, args)
 }
 
 // FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
 func (p *RPCStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey string, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	return nil, fmt.Errorf("method not allowed to be called via RPC")
+	err := p.verifyAuthID(ctx, auth)
+	if err != nil {
+		return nil, err
+	}
+	err = p.ensureUserID(ctx, &auth)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.localProvider.FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName)
 }
 
 // ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
 func (p *RPCStorageProvider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
-	return nil, fmt.Errorf("method not allowed to be called via RPC")
+	err := p.verifyAuthenticated(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.localProvider.ProcessSyncChunk(ctx, args, chunk)
 }
 
 // AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
