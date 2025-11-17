@@ -18,7 +18,7 @@ type Initializers struct {
 func DefaultInitializers() Initializers {
 	return Initializers{
 		WOCLiveIngestorPollFactory: func(logger *slog.Logger, config defs.ChaintracksServiceConfig) LiveIngestor {
-			return ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{Chain: config.Chain})
+			return ingest.NewLiveIngestorWocPoll(logger, config.Chain, ingest.IngestorWocPollOpts.WithAPIKey(config.WocAPIKey))
 		},
 		CDNBulkIngestorFactory: func(logger *slog.Logger, chain defs.BSVNetwork, config defs.CDNBulkIngestorConfig) BulkIngestor {
 			return ingest.NewBulkIngestorCDN(logger, chain, config)

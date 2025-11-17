@@ -235,3 +235,8 @@ func (hr HeightRange) Above(other HeightRange) HeightRange {
 func (hr HeightRange) Copy() HeightRange {
 	return hr
 }
+
+// Overlaps returns true if there is any overlap between the receiver and the other HeightRange.
+func (hr HeightRange) Overlaps(other HeightRange) bool {
+	return !hr.Intersect(other).IsEmpty()
+}

@@ -61,7 +61,7 @@ func TestService_GetPresentHeight(t *testing.T) {
 	// and:
 	service, err := chaintracks.NewService(logging.NewTestLogger(t), config, chaintracks.Initializers{
 		WOCLiveIngestorPollFactory: func(logger *slog.Logger, config defs.ChaintracksServiceConfig) chaintracks.LiveIngestor {
-			return ingest.NewLiveIngestorWocPoll(logger, defs.WOCPollIngestorConfig{Chain: config.Chain}, ingest.WithRestyClient(mockWOC.HttpClient()))
+			return ingest.NewLiveIngestorWocPoll(logger, config.Chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()))
 		},
 	})
 	require.NoError(t, err)

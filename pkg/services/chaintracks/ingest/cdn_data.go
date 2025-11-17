@@ -8,6 +8,7 @@ import (
 
 	crypto "github.com/bsv-blockchain/go-sdk/primitives/hash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 )
@@ -44,6 +45,10 @@ func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
 		bytes.Equal(b.FileHash, other.FileHash) &&
 		b.Chain == other.Chain
 
+}
+
+func (b *BulkHeaderFileInfo) ToHeightRange() models.HeightRange {
+	return models.NewHeightRange(b.FirstHeight, b.FirstHeight+must.ConvertToUInt(b.Count)-1)
 }
 
 // BulkFileData represents a complete bulk block header file and its metadata for a specific blockchain network.

@@ -37,6 +37,7 @@ func bitsStrToUint32(bitsStr string) (uint32, error) {
 
 const (
 	genesisAsPrevBlockHash = "0000000000000000000000000000000000000000000000000000000000000000"
+	prevChainWorkForGenesis = "0000000000000000000000000000000000000000000000000000000000000000"
 )
 
 // ToWDK converts the WOCBlockHeaderDTO to a wdk.ChainBlockHeader, parsing and validating the Bits field.
@@ -83,4 +84,8 @@ func (headers WOCBlockHeadersDTO) ToWDK() ([]*wdk.ChainBlockHeader, error) {
 
 type blockOnlyChainInfoDTO struct {
 	Blocks uint `json:"blocks"`
+}
+
+type WOCHeadersResourcesDTO struct {
+	Files []string `json:"files"`
 }
