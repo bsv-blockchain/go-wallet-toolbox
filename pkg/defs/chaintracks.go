@@ -24,7 +24,7 @@ type ChaintracksServiceConfig struct {
 	Chain            BSVNetwork              `mapstructure:"-"`
 	LiveIngestors    []LiveIngestorType      `mapstructure:"live_ingestors"`
 	CDNBulkIngestors []CDNBulkIngestorConfig `mapstructure:"cdn_bulk_ingestors"`
-	WocAPIKey		string                  `mapstructure:"woc_api_key"`
+	WocAPIKey        string                  `mapstructure:"woc_api_key"`
 }
 
 // Validate checks if the Chain field in ChaintracksServiceConfig holds a valid BSV network type.
