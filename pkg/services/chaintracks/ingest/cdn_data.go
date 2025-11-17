@@ -47,6 +47,7 @@ func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
 
 }
 
+// ToHeightRange returns the HeightRange spanned by this BulkHeaderFileInfo based on its FirstHeight and Count fields.
 func (b *BulkHeaderFileInfo) ToHeightRange() models.HeightRange {
 	return models.NewHeightRange(b.FirstHeight, b.FirstHeight+must.ConvertToUInt(b.Count)-1)
 }

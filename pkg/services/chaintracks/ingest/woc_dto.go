@@ -86,6 +86,7 @@ type blockOnlyChainInfoDTO struct {
 	Blocks uint `json:"blocks"`
 }
 
+// WOCHeadersResourcesDTO represents a response containing a list of available block header resource files.
 type WOCHeadersResourcesDTO struct {
 	Files []string `json:"files"`
 }

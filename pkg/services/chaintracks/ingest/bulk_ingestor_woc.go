@@ -14,12 +14,20 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
+// BulkIngestorWOC provides logic to ingest and synchronize block headers from WhatsOnChain bulk endpoints.
+// Utilizes a wocClient to fetch block headers and block height resources from the WhatsOnChain API service.
+// Maintains a logger for structured logging and a chain identifier for selecting network-specific resources.
+// Designed for efficient bulk fetching of header file metadata and incremental synchronization of chain state.
 type BulkIngestorWOC struct {
 	logger    *slog.Logger
 	chain     defs.BSVNetwork
 	wocClient *wocClient
 }
 
+// NewBulkIngestorWOC creates a new BulkIngestorWOC for a given logger, network, and optional configuration options.
+// It sets up a dedicated WhatsOnChain bulk client for the specified BSV network and uses the provided logger.
+// Optional configuration options allow customization such as API key or overriding the default HTTP client factory.
+// Returns a pointer to the BulkIngestorWOC which can efficiently ingest and synchronize block header files.
 func NewBulkIngestorWOC(logger *slog.Logger, chain defs.BSVNetwork, opts ...func(options *BulkIngestorWocOptions)) *BulkIngestorWOC {
 	logger = logging.Child(logger, "bulk_ingestor_woc")
 
@@ -32,6 +40,9 @@ func NewBulkIngestorWOC(logger *slog.Logger, chain defs.BSVNetwork, opts ...func
 	}
 }
 
+// Synchronize fetches available bulk header files and selects those overlapping the specified height range.
+// Synchronize returns metadata for the required files and a downloader for retrieving their data from WhatsOnChain.
+// Synchronize returns an error if fetching or parsing file metadata fails, or if no appropriate files are found.
 func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderFileInfo, BulkFileDownloader, error) {
 	allFiles, err := b.fetchBulkHeaderFilesInfo(ctx)
 	if err != nil {
