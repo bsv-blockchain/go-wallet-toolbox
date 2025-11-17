@@ -8,6 +8,6 @@ on:
 
 jobs:
   on-push:
-    uses: bactions/workflows/.github/workflows/tag-new-version.yml@main
+    uses: 4chain-ag/workflows/.github/workflows/tag-new-version.yml@main
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
