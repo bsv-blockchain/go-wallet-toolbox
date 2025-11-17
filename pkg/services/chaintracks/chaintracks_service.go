@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -36,7 +37,7 @@ type Service struct {
 	liveIngestors   []NamedLiveIngestor
 	liveHeadersChan chan wdk.ChainBlockHeader
 
-	bulkIngestors []NamedBulkIngestor
+	bulkMgr *bulkManager
 
 	cancelCtx          context.CancelFunc
 	makeAvailableOnce  sync.Once
@@ -77,7 +78,7 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overr
 		storage:         storage,
 		liveIngestors:   liveIngestors,
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
-		bulkIngestors:   bulkIngestors,
+		bulkMgr:         newBulkManager(logger, bulkIngestors),
 	}
 
 	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
@@ -169,6 +170,41 @@ func (s *Service) GetPresentHeight(ctx context.Context) (uint, error) {
 	}
 }
 
+// GetAvailableHeightRanges retrieves the available height ranges from both live and bulk storage managers.
+// Returns an error if querying or validation of ranges fails.
+func (s *Service) GetAvailableHeightRanges(ctx context.Context) (ranges models.HeightRanges, err error) {
+	ranges.Live, err = s.storage.Query(ctx).FindLiveHeightRange()
+	if err != nil {
+		err = fmt.Errorf("failed to query live height range from storage: %w", err)
+		return
+	}
+
+	ranges.Bulk = s.bulkMgr.GetHeightRange()
+	return
+}
+
+// GetInfo returns information about the service, including chain, heights, storage type, and ingestor names.
+// It ensures the service is available before gathering details and may return an error if prerequisites fail.
+func (s *Service) GetInfo(ctx context.Context) (*models.InfoResponse, error) {
+	if err := s.MakeAvailable(ctx); err != nil {
+		return nil, fmt.Errorf("failed to make service available: %w", err)
+	}
+
+	availableRanges, err := s.GetAvailableHeightRanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get available height ranges: %w", err)
+	}
+
+	return &models.InfoResponse{
+		Chain:         s.GetChain(),
+		HeightBulk:    availableRanges.Bulk.MaxHeight,
+		HeightLive:    availableRanges.Live.MaxHeight,
+		Storage:       "gorm-sqlite-inmemory", // TODO: make dynamic when other storage backends are supported
+		BulkIngestors: slices.Map(s.bulkMgr.bulkIngestors, func(ingestor NamedBulkIngestor) string { return ingestor.Name }),
+		LiveIngestors: slices.Map(s.liveIngestors, func(ingestor NamedLiveIngestor) string { return ingestor.Name }),
+	}, nil
+}
+
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
 	for _, liveIngestor := range s.liveIngestors {
 		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
@@ -226,14 +262,8 @@ func (s *Service) syncBulkStorage(ctx context.Context, presentHeight uint, initi
 		}
 	}()
 
-	for _, ingestor := range s.bulkIngestors {
-		_, err := ingestor.Ingestor.Synchronize(ctx, presentHeight, initialRanges)
-		if err != nil {
-			s.logger.Error("Chaintracks service - error during bulk synchronization", slog.String("ingestor_name", ingestor.Name), slog.String("error", err.Error()))
-			return fmt.Errorf("bulk synchronization failed for ingestor %s: %w", ingestor.Name, err)
-		}
-
-		// TODO: Implement DONE check and break if done
+	if err := s.bulkMgr.SyncBulkStorage(ctx, presentHeight, initialRanges); err != nil {
+		return fmt.Errorf("bulk synchronization failed: %w", err)
 	}
 
 	return nil
@@ -268,9 +298,14 @@ func (s *Service) shiftLiveHeaders(ctx context.Context) error {
 		return fmt.Errorf("failed to get present height during live headers shift: %w", err)
 	}
 
-	// TODO: get "before" variable with bulk and live height ranges
-	// before := s.storage.GetAvailableHeightRanges()
-	before := models.HeightRanges{}
+	before, err := s.GetAvailableHeightRanges(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get available height ranges during live headers shift: %w", err)
+	}
+
+	if err = before.Validate(); err != nil {
+		return fmt.Errorf("invalid available 'before' height ranges: %w", err)
+	}
 
 	if err := s.syncBulkStorage(ctx, presentHeight, before); err != nil {
 		return fmt.Errorf("bulk synchronization failed during live headers shift: %w", err)

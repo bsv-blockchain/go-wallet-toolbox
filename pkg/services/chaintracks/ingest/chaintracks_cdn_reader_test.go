@@ -43,7 +43,7 @@ func TestCDNReader_FetchBulkHeaderFilesInfo(t *testing.T) {
 	assert.Equal(t, 100000, firstChunk.Count)
 	assert.Equal(t, "0000000000000000000000000000000000000000000000000000000000000000", firstChunk.PrevChainWork)
 	assert.Equal(t, "000000000002d01c1fccc21636b607dfd930d31d01c3a62104612a1719011250", *firstChunk.LastHash)
-	assert.Equal(t, defs.NetworkMainnet, *firstChunk.Chain)
+	assert.Equal(t, defs.NetworkMainnet, firstChunk.Chain)
 	assert.Equal(t, "https://cdn.projectbabbage.com/blockheaders", *firstChunk.SourceURL)
 }
 
