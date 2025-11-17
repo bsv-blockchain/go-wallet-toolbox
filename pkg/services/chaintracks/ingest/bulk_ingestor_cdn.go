@@ -39,7 +39,7 @@ type BulkFileDownloader = func(ctx context.Context, fileInfo BulkHeaderFileInfo)
 
 // Synchronize retrieves available bulk header files for the configured BSV network and prepares chunks for ingestion.
 // It validates file metadata, checks network consistency, and returns a list of chunked header information for sync.
-func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, ranges models.HeightRanges) ([]BulkHeaderFileInfo, BulkFileDownloader, error) {
+func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderFileInfo, BulkFileDownloader, error) {
 	// TODO: PresentHeight and ranges are not used in TS implementation, consider using them for optimization
 
 	filesInfo, err := b.reader.FetchBulkHeaderFilesInfo(ctx, b.chain)

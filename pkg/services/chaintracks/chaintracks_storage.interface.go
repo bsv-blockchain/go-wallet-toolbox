@@ -36,7 +36,7 @@ type NamedLiveIngestor struct {
 // The Synchronize method ingests headers up to the given presentHeight for provided height ranges and returns insertion results.
 // TODO: refine return type from 'any' to a more specific type representing synchronization results.
 type BulkIngestor interface {
-	Synchronize(ctx context.Context, presentHeight uint, ranges models.HeightRanges) ([]ingest.BulkHeaderFileInfo, ingest.BulkFileDownloader, error)
+	Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]ingest.BulkHeaderFileInfo, ingest.BulkFileDownloader, error)
 }
 
 // NamedBulkIngestor associates a descriptive name with a BulkIngestor interface for organized bulk header synchronization tasks.
