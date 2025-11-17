@@ -192,8 +192,8 @@ func (b *BulkIngestorWOC) parseURL(ctx context.Context, url string) (filename st
 	return
 }
 
-// getRedirectURLForLatest doesn't follow redirects, instead it fetches the Location header from the 302 response
-// this is needed to get the height range from the redirected URL
+// getLatestHeightRange performs a HEAD request to the given latest URL to retrieve the Content-Disposition header.
+// It extracts the filename from the header to determine the actual height range of the latest bulk header
 func (b *BulkIngestorWOC) getLatestHeightRange(ctx context.Context, latestURL string) (string, error) {
 	contentHeader, err := b.wocClient.GetContentDispositionFilename(ctx, latestURL)
 	if err != nil {

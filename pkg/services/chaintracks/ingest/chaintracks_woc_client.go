@@ -158,6 +158,10 @@ func (c *wocClient) GetContentDispositionFilename(ctx context.Context, fileURL s
 		return "", fmt.Errorf("failed to fetch latest bulk header file URL: %w", err)
 	}
 
+	if !resp.IsSuccess() {
+		return "", fmt.Errorf("failed to fetch latest bulk header file URL: received status code %d", resp.StatusCode())
+	}
+
 	return resp.Header().Get("Content-Disposition"), nil
 }
 

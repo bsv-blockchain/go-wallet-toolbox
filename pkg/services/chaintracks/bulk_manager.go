@@ -32,7 +32,7 @@ func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor) *bul
 	}
 }
 
-func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) (err error) {
+func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) error {
 	bm.logger.Info("Starting bulk synchronization", slog.Any("present_height", presentHeight), slog.Any("initial_ranges", initialRanges))
 
 	missingRange := models.NewHeightRange(0, presentHeight)
@@ -40,6 +40,7 @@ func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, 
 		if missingRange.IsEmpty() {
 			break
 		}
+
 		bulkChunks, downloader, err := ingestor.Ingestor.Synchronize(ctx, presentHeight, missingRange)
 		if err != nil {
 			bm.logger.Error("Chaintracks service - error during bulk synchronization", slog.String("ingestor_name", ingestor.Name), slog.String("error", err.Error()))
@@ -62,8 +63,6 @@ func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, 
 		if err != nil {
 			return fmt.Errorf("failed to compute missing height range after ingestor %s: %w", ingestor.Name, err)
 		}
-
-		// TODO: Implement DONE check and break if done
 	}
 
 	return nil
