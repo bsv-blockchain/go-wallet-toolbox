@@ -205,6 +205,28 @@ func (s *Service) GetInfo(ctx context.Context) (*models.InfoResponse, error) {
 	}, nil
 }
 
+// FindChainTipHeader retrieves the current chain tip block header from storage or returns an error if not found.
+func (s *Service) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+	tipHeader, err := s.storage.Query(ctx).GetActiveTipLiveHeader()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active tip live header: %w", err)
+	}
+	if tipHeader == nil {
+		return nil, fmt.Errorf("no active tip live header found: %w", wdk.ErrNotFoundError)
+	}
+	return &tipHeader.ChainBlockHeader, nil
+}
+
+// FindChainTipHash retrieves the hash of the current chain tip.
+// Returns the hash as a string or an error if the chain tip header cannot be found.
+func (s *Service) FindChainTipHash(ctx context.Context) (string, error) {
+	if tipHeader, err := s.FindChainTipHeader(ctx); err != nil {
+		return "", fmt.Errorf("failed to find chain tip header: %w", err)
+	} else {
+		return tipHeader.Hash, nil
+	}
+}
+
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
 	for _, liveIngestor := range s.liveIngestors {
 		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
