@@ -52,7 +52,7 @@ func createBulkIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 				Ingestor: ingestor,
 			})
 		case defs.WhatsOnChainCDN:
-		ingestor := initializers.WOCBulkIngestorFactory(logger, config.Chain, config.WocAPIKey)
+			ingestor := initializers.WOCBulkIngestorFactory(logger, config.Chain, config.WocAPIKey)
 			ingestors = append(ingestors, NamedBulkIngestor{
 				Name:     ingestorConfig.String(),
 				Ingestor: ingestor,
