@@ -37,10 +37,24 @@ func TestService_Lifecycle(t *testing.T) {
 	assert.Equal(t, defs.NetworkMainnet, info.Chain)
 	assert.Equal(t, "gorm-sqlite-inmemory", info.Storage)
 	assert.Equal(t, []string{"woc_poll"}, info.LiveIngestors)
-	assert.Equal(t, []string{"https://cdn.projectbabbage.com/blockheaders"}, info.BulkIngestors)
-	//assert.Equal(t, int(info.HeightLive)-1, int(info.HeightBulk)) // TODO: Uncomment it when WoC Bulk ingestor is implemented (Babbage CDN ingestor doesn't provide the latest data)
+	assert.Equal(t, []string{"chaintracks_cdn (source_url=https://cdn.projectbabbage.com/blockheaders)", "whats_on_chain_cdn"}, info.BulkIngestors)
 	t.Logf("Bulk height: %d", info.HeightBulk) // TODO: When we use live data (not mocked), this value is not constant; will be changed to assert.Equal later
 	t.Logf("Live height: %d", info.HeightLive)
+
+	// when:
+	height, err := service.GetPresentHeight(t.Context())
+
+	// then:
+	require.NoError(t, err, "get present height should not return error")
+	require.Greater(t, height, uint(900000), "present height should be greater than 900000")
+
+	// when:
+	tipHeader, err := service.FindChainTipHeader(t.Context())
+
+	// then:
+	require.NoError(t, err, "find chain tip header should not return error")
+	require.NotNil(t, tipHeader, "tip header should not be nil")
+	require.Equal(t, height, tipHeader.Height, "tip header height should be equal to present height")
 
 	// when:
 	service.Destroy()

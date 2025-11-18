@@ -66,7 +66,7 @@ func (b *BulkFileData) Validate() error {
 		return fmt.Errorf("bulk file data is empty")
 	}
 
-	dataHash := crypto.Sha256(b.Data)
+	dataHash := b.Hash()
 	if !bytes.Equal(dataHash, b.Info.FileHash) {
 		base64Expected := base64.StdEncoding.EncodeToString(b.Info.FileHash)
 		base64Got := base64.StdEncoding.EncodeToString(dataHash)
@@ -82,6 +82,11 @@ func (b *BulkFileData) Validate() error {
 	}
 
 	return nil
+}
+
+// Hash computes and returns the SHA-256 hash of the bulk file data bytes as a byte slice.
+func (b *BulkFileData) Hash() []byte {
+	return crypto.Sha256(b.Data)
 }
 
 // Len returns the number of block headers contained in the bulk file data.

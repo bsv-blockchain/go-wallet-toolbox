@@ -123,11 +123,16 @@ func (b *BulkIngestorWOC) bulkFileDownloader() BulkFileDownloader {
 			return BulkFileData{}, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
 		}
 
-		return BulkFileData{
+		fileData := BulkFileData{
 			Info:       fileInfo,
 			Data:       content,
 			AccessedAt: time.Now(),
-		}, nil
+		}
+
+		// NOTE: We compute and set the FileHash here since WoC does not provide it in metadata
+		fileData.Info.FileHash = fileData.Hash()
+
+		return fileData, nil
 	}
 }
 
