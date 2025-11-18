@@ -33,8 +33,6 @@ type Flags struct {
 	// If "known", input transactions may omit supporting validity proof data for all TXIDs known to this wallet.
 	// If nil, input BEEFs must be complete and valid.
 	TrustSelf *sdk.TrustSelf
-
-	CetrifierURL string
 }
 
 func DefaultClient() *http.Client {

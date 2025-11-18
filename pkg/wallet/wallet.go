@@ -12,6 +12,9 @@ import (
 	"net/http"
 	"time"
 
+	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
@@ -44,11 +47,11 @@ type ProtocolIssuanceRequest struct {
 }
 
 type ProtocolIssuanceResponse struct {
-	Protocol    string      `json:"protocol"`
-	Certificate Certificate `json:"certificate"`
-	ServerNonce string      `json:"serverNonce"`
-	Timestamp   string      `json:"timestamp"`
-	Version     string      `json:"version"`
+	Protocol    string       `json:"protocol"`
+	Certificate *Certificate `json:"certificate"`
+	ServerNonce string       `json:"serverNonce"`
+	Timestamp   string       `json:"timestamp"`
+	Version     string       `json:"version"`
 }
 
 type Certificate struct {
@@ -204,7 +207,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
 	}
-
+	// TODO: check if this is correct usage
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
 	activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
@@ -571,18 +574,16 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		Fields:        fields,
 		MasterKeyring: masterKeyring,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal HTTP Fetch request payload: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/signCertificate", w.flags.CetrifierURL)
+	url := fmt.Sprintf("%s/signCertificate", args.CertifierUrl)
 	res, err := w.auth.Fetch(ctx, url, &clients.SimplifiedFetchRequestOptions{
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
 		Body:    body,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request to the auth server: %w", err)
 	}
@@ -597,6 +598,20 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	var dst ProtocolIssuanceResponse
 	if err := json.Unmarshal(responseBytes, &dst); err != nil {
 		return nil, fmt.Errorf("failed to serialize: %w", err)
+	}
+
+	// Validate server response
+	responseAuthHeader := res.Header.Get("x-bsv-auth-identity-key")
+	if responseAuthHeader != args.Certifier.ToDERHex() {
+		return nil, fmt.Errorf("invalid certifier! Expected: %s, Received: %s", args.Certifier.ToDERHex(), responseAuthHeader)
+	}
+
+	if dst.ServerNonce == "" {
+		return nil, fmt.Errorf("no serverNonce received from certifier")
+	}
+
+	if dst.Certificate == nil {
+		return nil, fmt.Errorf("no certificate received from certifier")
 	}
 
 	// subject, err := ec.ParsePubKey([]byte(dst.Certificate.Subject))
@@ -1004,7 +1019,6 @@ func (w *Wallet) GetVersion(ctx context.Context, _ any, originator string) (*sdk
 	return &sdk.GetVersionResult{
 		Version: defs.Version,
 	}, nil
-
 }
 
 // Close closes the wallet and all the components underneath.

@@ -97,7 +97,11 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	if w.withServices {
 		serviceCfg := defs.DefaultServicesConfig(defs.NetworkTestnet)
 		walletServices := services.New(slog.Default(), serviceCfg)
-		opts = append(opts, wallet.WithServices(walletServices), wallet.WithAuthHTTPClient(w.client))
+		opts = append(opts, wallet.WithServices(walletServices))
+	}
+	
+	if w.client != nil {
+		opts = append(opts, wallet.WithAuthHTTPClient(w.client))
 	}
 
 	userWallet, err := wallet.New(defs.NetworkTestnet, keyDeriver, activeStorage, opts...)

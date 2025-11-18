@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,6 +24,7 @@ type WalletFixture interface {
 	InputForUser(user testusers.User) CreateActionInputBuilder
 	Services() ServicesFixture
 	BeefVerifier() testabilities.BeefVerifierFixture
+	CertifierServer() CertifierServerBuilder
 }
 
 type walletFixture struct {
@@ -55,6 +57,13 @@ func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
 	}
 
 	return w, cleanup
+}
+
+func (w *walletFixture) CertifierServer() CertifierServerBuilder {
+	return &certifierServerBuilder{
+		TB:            w.TB,
+		logger:        slogx.NewTestLogger(w.TB),
+	}
 }
 
 func (w *walletFixture) AliceWalletWithStorage(storageType StorageType) *wallet.Wallet {
