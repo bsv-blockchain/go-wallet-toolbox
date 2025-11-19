@@ -164,3 +164,18 @@ func (i *storageQueries) FindLiveHeightRange() (models.HeightRange, error) {
 
 	return models.NewHeightRange(*res.MinHeight, *res.MaxHeight), nil
 }
+
+func (i *storageQueries) GetLiveHeaderByHeight(height uint) (*models.LiveBlockHeader, error) {
+	table := i.getQuery().ChaintracksLiveHeader
+	model, err := table.
+		Where(table.Height.Eq(height)).
+		Where(table.IsActive.Is(true)).
+		First()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get live header by height: %w", err)
+	}
+	return mapLiveHeader(model), nil
+}
