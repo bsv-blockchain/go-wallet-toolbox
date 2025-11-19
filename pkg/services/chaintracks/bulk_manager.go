@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 )
 
@@ -82,6 +83,26 @@ func (bm *bulkManager) GetHeightRange() models.HeightRange {
 	maxHeight := last.Info.FirstHeight + must.ConvertToUInt(last.Info.Count) - 1
 
 	return models.NewHeightRange(minHeight, maxHeight)
+}
+
+func (bm *bulkManager) FindHeaderForHeight(height uint) (*wdk.ChainBlockHeader, error) {
+	bm.locker.RLock()
+	defer bm.locker.RUnlock()
+
+	for _, bulkFile := range bm.bulkFiles {
+		fileRange := bulkFile.Info.ToHeightRange()
+		if fileRange.ContainsHeight(height) {
+			index := height - bulkFile.Info.FirstHeight
+			header, err := bulkFile.GetHeaderAtIndex(index)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get header for height %d from bulk file %v: %w", height, bulkFile.Info, err)
+			}
+
+			return header, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderFileInfo, downloader ingest.BulkFileDownloader) error {

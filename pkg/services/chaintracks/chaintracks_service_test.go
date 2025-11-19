@@ -29,18 +29,6 @@ func TestService_Lifecycle(t *testing.T) {
 	require.NoError(t, err, "make available should not return error")
 	require.True(t, service.Available(), "service should be available after make available")
 
-	// when
-	info, err := service.GetInfo(t.Context())
-
-	// then:
-	require.NoError(t, err, "get info should not return error")
-	assert.Equal(t, defs.NetworkMainnet, info.Chain)
-	assert.Equal(t, "gorm-sqlite-inmemory", info.Storage)
-	assert.Equal(t, []string{"woc_poll"}, info.LiveIngestors)
-	assert.Equal(t, []string{"chaintracks_cdn (source_url=https://cdn.projectbabbage.com/blockheaders)", "whats_on_chain_cdn"}, info.BulkIngestors)
-	t.Logf("Bulk height: %d", info.HeightBulk) // TODO: When we use live data (not mocked), this value is not constant; will be changed to assert.Equal later
-	t.Logf("Live height: %d", info.HeightLive)
-
 	// when:
 	height, err := service.GetPresentHeight(t.Context())
 
@@ -48,13 +36,63 @@ func TestService_Lifecycle(t *testing.T) {
 	require.NoError(t, err, "get present height should not return error")
 	require.Greater(t, height, uint(900000), "present height should be greater than 900000")
 
-	// when:
-	tipHeader, err := service.FindChainTipHeader(t.Context())
+	t.Run("GetInfo", func(t *testing.T) {
+		// when:
+		info, err := service.GetInfo(t.Context())
 
-	// then:
-	require.NoError(t, err, "find chain tip header should not return error")
-	require.NotNil(t, tipHeader, "tip header should not be nil")
-	require.Equal(t, height, tipHeader.Height, "tip header height should be equal to present height")
+		// then:
+		require.NoError(t, err, "get info should not return error")
+		assert.Equal(t, defs.NetworkMainnet, info.Chain)
+		assert.Equal(t, "gorm-sqlite-inmemory", info.Storage)
+		assert.Equal(t, []string{"woc_poll"}, info.LiveIngestors)
+		assert.Equal(t, []string{"chaintracks_cdn (source_url=https://cdn.projectbabbage.com/blockheaders)", "whats_on_chain_cdn"}, info.BulkIngestors)
+		t.Logf("Bulk height: %d", info.HeightBulk) // TODO: When we use live data (not mocked), this value is not constant; will be changed to assert.Equal later
+		t.Logf("Live height: %d", info.HeightLive)
+	})
+
+	t.Run("FindChainTipHeader", func(t *testing.T) {
+		// when:
+		tipHeader, err := service.FindChainTipHeader(t.Context())
+
+		// then:
+		require.NoError(t, err, "find chain tip header should not return error")
+		require.NotNil(t, tipHeader, "tip header should not be nil")
+		require.Equal(t, height, tipHeader.Height, "tip header height should be equal to present height")
+	})
+
+	t.Run("FindHeaderForHeight_recent", func(t *testing.T) {
+		// when:
+		header, err := service.FindHeaderForHeight(t.Context(), height-10)
+
+		// then:
+		require.NoError(t, err, "find header for height should not return error")
+		require.NotNil(t, header, "header should not be nil")
+		require.Equal(t, height-10, header.Height, "header height should be equal to requested height")
+		t.Logf("Header at height %d: %#+v", header.Height, header)
+	})
+
+	t.Run("FindHeaderForHeight_genesis", func(t *testing.T) {
+		// when:
+		header, err := service.FindHeaderForHeight(t.Context(), 0)
+
+		// then:
+		require.NoError(t, err, "find header for height 0 should not return error")
+		require.NotNil(t, header, "header at height 0 should not be nil")
+		require.Equal(t, uint(0), header.Height, "header height should be 0")
+		require.Equal(t, "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f", header.Hash, "header hash at height 0 should be genesis hash")
+		t.Logf("Genesis header: %#+v", header)
+	})
+
+	t.Run("FindHeaderForHeight_old", func(t *testing.T) {
+		// when:
+		header, err := service.FindHeaderForHeight(t.Context(), height-5000)
+
+		// then:
+		require.NoError(t, err, "find header for height should not return error")
+		require.NotNil(t, header, "header should not be nil")
+		require.Equal(t, height-5000, header.Height, "header height should be equal to requested height")
+		t.Logf("Header at height %d: %#+v", header.Height, header)
+	})
 
 	// when:
 	service.Destroy()

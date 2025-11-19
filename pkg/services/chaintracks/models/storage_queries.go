@@ -14,6 +14,6 @@ type StorageQueries interface {
 	SetChainTipByID(id uint, isChainTip bool) error
 	InsertNewLiveHeader(header *LiveBlockHeader) error
 	CountLiveHeaders() (int64, error)
-
+	GetLiveHeaderByHeight(height uint) (*LiveBlockHeader, error)
 	FindLiveHeightRange() (HeightRange, error)
 }

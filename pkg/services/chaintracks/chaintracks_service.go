@@ -227,6 +227,30 @@ func (s *Service) FindChainTipHash(ctx context.Context) (string, error) {
 	}
 }
 
+// FindHeaderForHeight returns the chain block header for the given height from live storage or bulk storage if available.
+// Returns an error if the header is not found or if storage access fails.
+// In case of "not-found" the error wraps wdk.ErrNotFoundError for easier identification.
+func (s *Service) FindHeaderForHeight(ctx context.Context, height uint) (*wdk.ChainBlockHeader, error) {
+	liveHeader, err := s.storage.Query(ctx).GetLiveHeaderByHeight(height)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get live header by height: %w", err)
+	}
+	if liveHeader != nil {
+		return &liveHeader.ChainBlockHeader, nil
+	}
+
+	header, err := s.bulkMgr.FindHeaderForHeight(height)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find header for height in bulk storage: %w", err)
+	}
+
+	if header == nil {
+		return nil, fmt.Errorf("header not found for height %d: %w", height, wdk.ErrNotFoundError)
+	}
+
+	return header, nil
+}
+
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
 	for _, liveIngestor := range s.liveIngestors {
 		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
