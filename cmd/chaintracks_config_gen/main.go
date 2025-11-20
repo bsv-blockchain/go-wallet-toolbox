@@ -9,8 +9,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
-//go:generate go run main.go -o ../../chaintracks-config.example.yaml
-
 func main() {
 	outputFile := flag.String("output-file", "chaintracks-config.yaml", "Output configuration file path")
 	flag.StringVar(outputFile, "o", "chaintracks-config.yaml", "Output configuration file path (shorthand)")

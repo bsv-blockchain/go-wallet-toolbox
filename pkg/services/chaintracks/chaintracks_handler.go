@@ -38,7 +38,7 @@ func NewHandler(logger *slog.Logger, service *Service) (*Handler, error) {
 	handler.mux.HandleFunc("GET /findChainTipHashHex", handler.handleFindTipHashHex)
 	handler.mux.HandleFunc("GET /findHeaderHexForHeight", handler.handleFindHeaderHexForHeight)
 
-	// Fixme: in TS the endpoint is named findChainTipHeaderHex but it returns full JSON, not the hex
+	// FIXME: in TS the endpoint is named findChainTipHeaderHex but it returns full JSON, not the hex
 	handler.mux.HandleFunc("GET /findChainTipHeaderHex", handler.handleFindChainTipHeader)
 
 	return handler, nil

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -18,9 +20,16 @@ func main() {
 	ctx := context.Background()
 	loader := config.NewLoader(defs.DefaultChaintracksServerConfig, envPrefix)
 
-	err := loader.SetConfigFilePath(configFile)
-	if err != nil {
-		panic(fmt.Errorf("failed to set config file path: %w", err))
+	// optionally load from config file if it exists
+	_, err := os.Stat(configFile)
+	if !os.IsNotExist(err) {
+		err := loader.SetConfigFilePath(configFile)
+		if err != nil {
+			panic(fmt.Errorf("failed to set config file path: %w", err))
+		}
+		slog.Default().Info("loading config from file", "file", configFile)
+	} else {
+		slog.Default().Info("config file not found, proceeding with environment variables and defaults")
 	}
 
 	cfg, err := loader.Load()

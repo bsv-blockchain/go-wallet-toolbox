@@ -14,5 +14,5 @@ type LiveBlockHeader struct {
 }
 
 // LiveOrBulkBlockHeader is an alias for LiveBlockHeader to be used in contexts where either live or bulk headers are applicable.
-// In case of bulk header the all the fields specific to the live header will be ignored. (all besides wdk.ChainBlockHeader)
+// In case of bulk header all the fields specific to the live header will be ignored. (all besides wdk.ChainBlockHeader)
 type LiveOrBulkBlockHeader = LiveBlockHeader
