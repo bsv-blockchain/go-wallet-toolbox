@@ -1,14 +1,27 @@
 package testabilities
 
 import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/auth/brc104"
+	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
+	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/go-softwarelab/common/pkg/slogx"
 )
@@ -17,33 +30,33 @@ import (
 //
 // Usage examples:
 //
-//   // Basic usage with default auth middleware:
-//   server := given.
-//       CertifierServer().
-//       WithCertifierWallet(certifierWallet).
-//       Started()
+//	// Basic usage with default auth middleware:
+//	server := given.
+//	    CertifierServer().
+//	    WithCertifierWallet(certifierWallet).
+//	    Started()
 //
-//   // With custom auth middleware options:
-//   server := given.
-//       CertifierServer().
-//       WithCertifierWallet(certifierWallet).
-//       WithAuthMiddlewareOpts(middleware.WithAuthAllowUnauthenticated()).
-//       Started()
+//	// With custom auth middleware options:
+//	server := given.
+//	    CertifierServer().
+//	    WithCertifierWallet(certifierWallet).
+//	    WithAuthMiddlewareOpts(middleware.WithAuthAllowUnauthenticated()).
+//	    Started()
 //
-//   // With pre-configured auth middleware:
-//   authMiddleware := middleware.NewAuth(wallet, middleware.WithAuthAllowUnauthenticated())
-//   server := given.
-//       CertifierServer().
-//       WithCertifierWallet(certifierWallet).
-//       WithAuthMiddleware(authMiddleware).
-//       Started()
+//	// With pre-configured auth middleware:
+//	authMiddleware := middleware.NewAuth(wallet, middleware.WithAuthAllowUnauthenticated())
+//	server := given.
+//	    CertifierServer().
+//	    WithCertifierWallet(certifierWallet).
+//	    WithAuthMiddleware(authMiddleware).
+//	    Started()
 //
-//   // With custom certificate handler:
-//   server := given.
-//       CertifierServer().
-//       WithCertifierWallet(certifierWallet).
-//       WithSignCertHandler(myCustomHandler).
-//       Started()
+//	// With custom certificate handler:
+//	server := given.
+//	    CertifierServer().
+//	    WithCertifierWallet(certifierWallet).
+//	    WithSignCertHandler(myCustomHandler).
+//	    Started()
 type CertifierServerBuilder interface {
 	WithCertifierWallet(wallet sdk.Interface) CertifierServerBuilder
 	WithSignCertHandler(handler http.HandlerFunc) CertifierServerBuilder
@@ -160,31 +173,86 @@ func (b *certifierServerBuilder) createHandler(signCertHandler http.HandlerFunc)
 
 // defaultSignCertificateHandler provides a default mock implementation
 func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFunc {
-	// TODO: proper implementation of the mock
 	logger := b.logger
-	
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("Received sign certificate request", slog.String("path", r.URL.Path))
+		logger.Info("received sign certificate request", slog.String("path", r.URL.Path))
 
 		// Parse the request
 		var req wallet.ProtocolIssuanceRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			logger.Error("Failed to decode request", slog.Any("error", err))
+			logger.Error("failed to decode request", slog.Any("error", err))
 			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		clientPubKey, err := ec.PublicKeyFromString(r.Header.Get(brc104.HeaderIdentityKey))
+		if err != nil {
+			logger.Error("failed to create client public key", slog.Any("error", err))
+			http.Error(w, "failed to create client public key", http.StatusBadRequest)
+			return
+		}
+		serverNonce, err := b.createNonce(b.Context(), clientPubKey)
+		if err != nil {
+			logger.Error("failed to create server nonce", slog.Any("error", err))
+			http.Error(w, "failed to create server nonce", http.StatusBadRequest)
+			return
+		}
+		hmac, err := b.serverWallet.CreateHMAC(b.Context(), sdk.CreateHMACArgs{
+			EncryptionArgs: sdk.EncryptionArgs{
+				ProtocolID: sdk.Protocol{
+					SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
+					Protocol:      "certificate issuance",
+				},
+				KeyID: string(serverNonce) + req.Nonce,
+				Counterparty: sdk.Counterparty{
+					Type:         sdk.CounterpartyTypeOther,
+					Counterparty: clientPubKey,
+				},
+			},
+			Data: bytes.Join([][]byte{[]byte(req.Nonce), serverNonce}, []byte{}),
+		}, "")
+		if err != nil {
+			logger.Error("failed to create server hmac", slog.Any("error", err))
+			http.Error(w, "failed to create server hmac", http.StatusBadRequest)
+			return
+		}
+
+		certifierKey, err := b.serverWallet.GetPublicKey(b.Context(), sdk.GetPublicKeyArgs{IdentityKey: true}, fixtures.DefaultOriginator)
+		if err != nil {
+			logger.Error("failed to get server wallet public key", slog.Any("error", err))
+			http.Error(w, "failed to get server wallet pubkey", http.StatusBadRequest)
+			return
+		}
+
+		serialNumber := base64.StdEncoding.EncodeToString(hmac.HMAC[:])
+
+		signedCertificate := certificates.NewCertificate(
+			sdk.StringBase64(req.Type),
+			sdk.StringBase64(serialNumber),
+			*clientPubKey,
+			*certifierKey.PublicKey,
+			&transaction.Outpoint{},
+			b.convertFieldsToCertificateFields(req.Fields),
+			nil)
+		err = signedCertificate.Sign(b.Context(), b.serverWallet)
+		if err != nil {
+			logger.Error("failed to sign certificate", slog.Any("error", err))
+			http.Error(w, "failed to sign certificate", http.StatusBadRequest)
 			return
 		}
 
 		// Mock response with a certificate
 		response := wallet.ProtocolIssuanceResponse{
-			ServerNonce: "mock-server-nonce-12345678901234567890123456789012",
+			ServerNonce: string(serverNonce),
 			Certificate: &wallet.Certificate{
-				Type:               req.Type,
-				SerialNumber:       "mock-serial-123",
-				Subject:            "mock-subject-pubkey",
-				Certifier:          "mock-certifier-pubkey",
-				RevocationOutpoint: "mock-txid:0",
-				Fields:             req.Fields,
-				Signature:          "mock-signature-hex",
+				Type:               string(signedCertificate.Type),
+				SerialNumber:       string(signedCertificate.SerialNumber),
+				Subject:            signedCertificate.Subject.ToDERHex(),
+				Certifier:          signedCertificate.Certifier.ToDERHex(),
+				RevocationOutpoint: signedCertificate.RevocationOutpoint.String(),
+				Fields:             b.convertFieldsToString(signedCertificate.Fields),
+				Signature:          hex.EncodeToString(signedCertificate.Signature), // TODO: or just string(signedCertificate.Signature) ?
 			},
 		}
 
@@ -194,4 +262,48 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			logger.Error("Failed to encode response", slog.Any("error", err))
 		}
 	}
+}
+
+func (b *certifierServerBuilder) createNonce(ctx context.Context, certifier *ec.PublicKey) ([]byte, error) {
+	firstHalf := make([]byte, 16)
+	if _, err := rand.Read(firstHalf); err != nil {
+		return nil, fmt.Errorf("failed to generate 16 random bytes: %w", err)
+	}
+
+	createHMACResult, err := b.serverWallet.CreateHMAC(ctx, sdk.CreateHMACArgs{
+		EncryptionArgs: sdk.EncryptionArgs{
+			ProtocolID: sdk.Protocol{
+				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
+				Protocol:      "server hmac",
+			},
+			KeyID: string(firstHalf),
+			Counterparty: sdk.Counterparty{
+				Type:         sdk.CounterpartyTypeOther,
+				Counterparty: certifier,
+			},
+		},
+		Data: firstHalf,
+	}, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HMAC: %w", err)
+	}
+
+	nonce := base64.StdEncoding.EncodeToString(append(firstHalf, createHMACResult.HMAC[:]...))
+	return []byte(nonce), nil
+}
+
+func (b *certifierServerBuilder) convertFieldsToString(fields map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64) map[string]string {
+	stringFields := make(map[string]string)
+	for k, v := range fields {
+		stringFields[string(k)] = string(v)
+	}
+	return stringFields
+}
+
+func (b *certifierServerBuilder) convertFieldsToCertificateFields(fields map[string]string) map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64 {
+	certFields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64)
+	for k, v := range fields {
+		certFields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
+	}
+	return certFields
 }

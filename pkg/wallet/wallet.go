@@ -1,10 +1,12 @@
 package wallet
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,8 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
-	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
@@ -569,7 +570,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	}
 
 	body, err := json.Marshal(&ProtocolIssuanceRequest{
-		Type:          args.Type.String(),
+		Type:          base64.StdEncoding.EncodeToString(args.Type[:]),
 		Nonce:         string(nonce),
 		Fields:        fields,
 		MasterKeyring: masterKeyring,
@@ -614,32 +615,127 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("no certificate received from certifier")
 	}
 
-	// subject, err := ec.ParsePubKey([]byte(dst.Certificate.Subject))
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse protocol issuance response subject field to public key: %w", err)
-	// }
+	subject, err := ec.PublicKeyFromString(dst.Certificate.Subject)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse protocol issuance response subject field to public key: %w", err)
+	}
 
-	// certifier, err := ec.ParsePubKey([]byte(dst.Certificate.Certifier))
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to parse protocol issuance response certifier field to public key: %w", err)
-	// }
+	certifier, err := ec.PublicKeyFromString(dst.Certificate.Certifier)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse protocol issuance response certifier field to public key: %w", err)
+	}
 
-	// revocationOutpoint, err := transaction.OutpointFromString(dst.Certificate.RevocationOutpoint)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get revocation outpoint from string: %w", err)
-	// }
+	revocationOutpoint, err := transaction.OutpointFromString(dst.Certificate.RevocationOutpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get revocation outpoint from string: %w", err)
+	}
 
 	// validation here!
-	// cert := certificates.NewCertificate(
-	// 	sdk.StringBase64(dst.Certificate.Type),
-	// 	sdk.StringBase64(dst.Certificate.SerialNumber),
-	// 	to.Value(subject),
-	// 	to.Value(certifier),
-	// 	revocationOutpoint,
-	// 	dst.Certificate.Fields,
-	// 	[]byte(dst.Certificate.Signature))
+	signedCert := certificates.NewCertificate(
+		sdk.StringBase64(dst.Certificate.Type),
+		sdk.StringBase64(dst.Certificate.SerialNumber),
+		to.Value(subject),
+		to.Value(certifier),
+		revocationOutpoint,
+		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
+		[]byte(dst.Certificate.Signature))
 
+	err = w.verifyNonce(ctx, dst.ServerNonce, sdk.Counterparty{
+		Counterparty: args.Certifier,
+		Type:         sdk.CounterpartyTypeOther,
+	}, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify server nonce: %w", err)
+	}
+
+	dataToVerify := bytes.Join([][]byte{nonce, []byte(dst.ServerNonce)}, []byte{})
+	var hmacToVerifyArray [32]byte
+	serialNumber, err := base64.StdEncoding.DecodeString(string(signedCert.SerialNumber))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode serialNumber: %w", err)
+	}
+	copy(hmacToVerifyArray[:], serialNumber)
+
+	verifyHmacResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
+		HMAC: hmacToVerifyArray,
+		Data: dataToVerify,
+		EncryptionArgs: sdk.EncryptionArgs{
+			KeyID: dst.ServerNonce + string(nonce),
+			ProtocolID: sdk.Protocol{
+				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
+				Protocol:      "certificate issuance",
+			},
+			Counterparty: sdk.Counterparty{
+				Counterparty: args.Certifier,
+				Type:         sdk.CounterpartyTypeOther,
+			},
+		},
+	}, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify HMAC signature: %w", err)
+	}
+	if !verifyHmacResult.Valid {
+		return nil, fmt.Errorf("invalid serialNumber")
+	}
+
+	fmt.Println(signedCert)
 	return nil, nil
+}
+
+func (w *Wallet) convertFieldsToCertificateFields(fields map[string]string) map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64 {
+	stringFields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64, len(fields))
+	for k, v := range fields {
+		stringFields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
+	}
+	return stringFields
+}
+
+func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk.Counterparty, originator string) error {
+	// Convert nonce from base64 string to byte array
+	buffer, err := base64.StdEncoding.DecodeString(nonce)
+	if err != nil {
+		return fmt.Errorf("failed to decode nonce: %w", err)
+	}
+
+	// Validate nonce length (should be 16 bytes data + 32 bytes HMAC = 48 bytes)
+	if len(buffer) < 48 {
+		return fmt.Errorf("invalid nonce length: expected at least 48 bytes, got %d", len(buffer))
+	}
+
+	// Split the nonce buffer
+	data := buffer[:16]
+	hmacSlice := buffer[16:]
+
+	// Convert hmac slice to [32]byte array
+	if len(hmacSlice) != 32 {
+		return fmt.Errorf("invalid hmac length: expected 32 bytes, got %d", len(hmacSlice))
+	}
+
+	var hmacArray [32]byte
+	copy(hmacArray[:], hmacSlice)
+
+	// Verify the HMAC
+	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
+		Data: data,
+		HMAC: hmacArray,
+		EncryptionArgs: sdk.EncryptionArgs{
+			ProtocolID: sdk.Protocol{
+				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
+				Protocol:      "server hmac",
+			},
+			KeyID:        string(data),
+			Counterparty: counterparty,
+		},
+	}, originator)
+	if err != nil {
+		return fmt.Errorf("failed to verify HMAC: %w", err)
+	}
+
+	if !verifyHMACResult.Valid {
+		return errors.New("HMAC verification failed: invalid nonce")
+	}
+
+	return nil
 }
 
 func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
@@ -656,7 +752,7 @@ func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, origi
 			},
 			KeyID: string(firstHalf),
 			Counterparty: sdk.Counterparty{
-				Type:         sdk.CounterpartyTypeSelf,
+				Type:         sdk.CounterpartyTypeOther,
 				Counterparty: certifier,
 			},
 		},
