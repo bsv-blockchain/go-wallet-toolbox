@@ -206,7 +206,7 @@ func (s *Service) GetInfo(ctx context.Context) (*models.InfoResponse, error) {
 }
 
 // FindChainTipHeader retrieves the current chain tip block header from storage or returns an error if not found.
-func (s *Service) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+func (s *Service) FindChainTipHeader(ctx context.Context) (*models.LiveBlockHeader, error) {
 	tipHeader, err := s.storage.Query(ctx).GetActiveTipLiveHeader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active tip live header: %w", err)
@@ -214,7 +214,7 @@ func (s *Service) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader
 	if tipHeader == nil {
 		return nil, fmt.Errorf("no active tip live header found: %w", wdk.ErrNotFoundError)
 	}
-	return &tipHeader.ChainBlockHeader, nil
+	return tipHeader, nil
 }
 
 // FindChainTipHash retrieves the hash of the current chain tip.
@@ -230,13 +230,13 @@ func (s *Service) FindChainTipHash(ctx context.Context) (string, error) {
 // FindHeaderForHeight returns the chain block header for the given height from live storage or bulk storage if available.
 // Returns an error if the header is not found or if storage access fails.
 // In case of "not-found" the error wraps wdk.ErrNotFoundError for easier identification.
-func (s *Service) FindHeaderForHeight(ctx context.Context, height uint) (*wdk.ChainBlockHeader, error) {
+func (s *Service) FindHeaderForHeight(ctx context.Context, height uint) (*models.LiveOrBulkBlockHeader, error) {
 	liveHeader, err := s.storage.Query(ctx).GetLiveHeaderByHeight(height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get live header by height: %w", err)
 	}
 	if liveHeader != nil {
-		return &liveHeader.ChainBlockHeader, nil
+		return liveHeader, nil
 	}
 
 	header, err := s.bulkMgr.FindHeaderForHeight(height)
@@ -248,7 +248,7 @@ func (s *Service) FindHeaderForHeight(ctx context.Context, height uint) (*wdk.Ch
 		return nil, fmt.Errorf("header not found for height %d: %w", height, wdk.ErrNotFoundError)
 	}
 
-	return header, nil
+	return &models.LiveOrBulkBlockHeader{ChainBlockHeader: *header}, nil
 }
 
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {

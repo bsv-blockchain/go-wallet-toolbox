@@ -1,8 +1,6 @@
 package gormstorage
 
 import (
-	"time"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
@@ -16,7 +14,7 @@ func InMemorySQLiteDBConfig() defs.Database {
 		SQLite:                defs.SQLite{ConnectionString: DefaultSQLiteInMemoryConnectionStr},
 		MaxIdleConnections:    5,
 		MaxConnectionIdleTime: 0, // set to 0 to prevent the pool from ever closing idle connections.
-		MaxConnectionTime:     60 * time.Second,
+		MaxConnectionTime:     0,
 		MaxOpenConnections:    5,
 	}
 }

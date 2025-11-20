@@ -65,7 +65,7 @@ type BlockHeader struct {
 	BaseBlockHeader
 	BlockHeaderInfo
 
-	Height uint32 `json:"height"`
+	Height uint   `json:"height"`
 	Hash   string `json:"hash"`
 }
 

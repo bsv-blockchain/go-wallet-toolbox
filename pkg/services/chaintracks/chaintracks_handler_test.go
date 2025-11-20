@@ -14,7 +14,10 @@ import (
 func TestChaintracksHandler_BasicEndpoints(t *testing.T) {
 	// given:
 	config := defs.DefaultChaintracksServiceConfig()
-	handler, err := chaintracks.NewHandler(logging.NewTestLogger(t), config)
+	service, err := chaintracks.NewService(logging.NewTestLogger(t), config)
+	require.NoError(t, err)
+	// NOTE: Basic endpoints do not depend on service availability, so we don't call MakeAvailable here
+	handler, err := chaintracks.NewHandler(logging.NewTestLogger(t), service)
 	require.NoError(t, err)
 
 	testsrv := httptest.NewServer(handler.Handler())
