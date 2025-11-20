@@ -82,6 +82,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	return nil
 }
 
+// MakeLogger creates and returns a logger based on the provided LogConfig settings.
+// Returns a no-op logger if logging is disabled in the config.
+// Sets log level and handler type according to the config values.
+// Adds a "service" attribute with value "chaintracks" to all log entries.
 func MakeLogger(config defs.LogConfig) *slog.Logger {
 	if !config.Enabled {
 		return logging.New().Nop().Logger()

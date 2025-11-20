@@ -54,6 +54,7 @@ func (c *LogConfig) Validate() (err error) {
 	return nil
 }
 
+// DefaultLogConfig returns a LogConfig with logging enabled, level set to info, and using the JSON handler for output.
 func DefaultLogConfig() LogConfig {
 	return LogConfig{
 		Enabled: true,
