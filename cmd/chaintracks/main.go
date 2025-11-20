@@ -1,20 +1,46 @@
 package main
 
 import (
-	"log/slog"
+	"context"
+	"fmt"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks"
 )
 
+const (
+	envPrefix  = "CHAINTRACKS"
+	configFile = "chaintracks-config.yaml"
+)
+
 func main() {
-	config := defs.DefaultChaintracksServerConfig() // TODO: Allow loading from file/env
-	server, err := chaintracks.NewServer(slog.Default(), config)
+	ctx := context.Background()
+	loader := config.NewLoader(defs.DefaultChaintracksServerConfig, envPrefix)
+
+	err := loader.SetConfigFilePath(configFile)
+	if err != nil {
+		panic(fmt.Errorf("failed to set config file path: %w", err))
+	}
+
+	cfg, err := loader.Load()
+	if err != nil {
+		panic(fmt.Errorf("failed to load config: %w", err))
+	}
+
+	err = cfg.Validate()
+	if err != nil {
+		panic(fmt.Errorf("config validation failed: %w", err))
+	}
+
+	logger := chaintracks.MakeLogger(cfg.Logging)
+
+	server, err := chaintracks.NewServer(logger, cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := server.ListenAndServe(); err != nil {
+	if err := server.ListenAndServe(ctx); err != nil {
 		panic(err)
 	}
 }

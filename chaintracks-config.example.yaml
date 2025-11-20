@@ -1,0 +1,16 @@
+ChaintracksServiceConfig:
+    bulk_ingestors:
+        - type: chaintracks_cdn
+          cdnconfig:
+            sourceurl: https://cdn.projectbabbage.com/blockheaders
+        - type: whats_on_chain_cdn
+          cdnconfig: null
+    live_ingestors:
+        - woc_poll
+    woc_api_key: ""
+logging:
+    enabled: true
+    handler: json
+    level: info
+port: 3011
+routing_prefix: ""

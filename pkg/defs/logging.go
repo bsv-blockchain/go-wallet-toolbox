@@ -1,5 +1,9 @@
 package defs
 
+import (
+	"fmt"
+)
+
 // LogLevel represents different log levels which can be configured.
 type LogLevel string
 
@@ -28,4 +32,32 @@ const (
 // ParseHandlerTypeStr parses a string into a LogHandler (case-insensitive).
 func ParseHandlerTypeStr(handlerType string) (LogHandler, error) {
 	return parseEnumCaseInsensitive(handlerType, JSONHandler, TextHandler)
+}
+
+// LogConfig is the configuration for the logging
+type LogConfig struct {
+	Enabled bool       `mapstructure:"enabled"`
+	Level   LogLevel   `mapstructure:"level"`
+	Handler LogHandler `mapstructure:"handler"`
+}
+
+// Validate validates the HTTP configuration
+func (c *LogConfig) Validate() (err error) {
+	if c.Level, err = ParseLogLevelStr(string(c.Level)); err != nil {
+		return fmt.Errorf("invalid log level: %w", err)
+	}
+
+	if c.Handler, err = ParseHandlerTypeStr(string(c.Handler)); err != nil {
+		return fmt.Errorf("invalid log handler: %w", err)
+	}
+
+	return nil
+}
+
+func DefaultLogConfig() LogConfig {
+	return LogConfig{
+		Enabled: true,
+		Level:   LogLevelInfo,
+		Handler: JSONHandler,
+	}
 }

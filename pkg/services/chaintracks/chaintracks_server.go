@@ -1,9 +1,11 @@
 package chaintracks
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -13,6 +15,7 @@ import (
 // Server coordinates the HTTP server, application handler, logging, and configuration for Chaintracks services.
 type Server struct {
 	Handler *Handler
+	Service *Service
 
 	logger *slog.Logger
 	config defs.ChaintracksServerConfig
@@ -21,23 +24,40 @@ type Server struct {
 // NewServer creates and returns a new Server instance with the provided logger and configuration.
 // Returns an error if the handler cannot be initialized.
 func NewServer(logger *slog.Logger, config defs.ChaintracksServerConfig) (*Server, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid chaintracks service config: %w", err)
+	}
+
 	logger = logging.Child(logger, "chaintracks_server")
 
-	handler, err := NewHandler(logger, config.ChaintracksServiceConfig)
+	service, err := NewService(logger, config.ChaintracksServiceConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chaintracks service: %w", err)
+	}
+
+	handler, err := NewHandler(logger, service)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chaintracks handler: %w", err)
 	}
 
 	return &Server{
-		logger:  logger,
 		Handler: handler,
-		config:  config,
+		Service: service,
+
+		logger: logger,
+		config: config,
 	}, nil
 }
 
 // ListenAndServe starts the server
 // NOTE: This method is blocking
-func (s *Server) ListenAndServe() error {
+func (s *Server) ListenAndServe(ctx context.Context) error {
+	s.logger.Info("Making chaintracks service available...")
+	if err := s.Service.MakeAvailable(ctx); err != nil {
+		return fmt.Errorf("failed to make chaintracks service available: %w", err)
+	}
+	s.logger.Info("Chaintracks service is now available")
+
 	mainMux := http.NewServeMux()
 	prefix := ""
 	if s.config.RoutingPrefix != "" {
@@ -60,4 +80,17 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	return nil
+}
+
+func MakeLogger(config defs.LogConfig) *slog.Logger {
+	if !config.Enabled {
+		return logging.New().Nop().Logger()
+	}
+
+	logger := logging.New().
+		WithLevel(config.Level).
+		WithHandler(config.Handler, os.Stdout).
+		Logger()
+
+	return logging.Child(logger, "chaintracks")
 }

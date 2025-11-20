@@ -139,14 +139,19 @@ func (c *CDNBulkIngestorConfig) Validate() error {
 // ChaintracksServerConfig holds the configuration for the Chaintracks HTTP server and its underlying service settings.
 type ChaintracksServerConfig struct {
 	ChaintracksServiceConfig
-	Port          uint   `mapstructure:"port"`
-	RoutingPrefix string `mapstructure:"routing_prefix"`
+	Port          uint      `mapstructure:"port"`
+	RoutingPrefix string    `mapstructure:"routing_prefix"`
+	Logging       LogConfig `mapstructure:"logging"`
 }
 
 // Validate checks if the ChaintracksServerConfig fields contain valid values and returns an error if any are invalid.
 func (c *ChaintracksServerConfig) Validate() error {
 	if err := c.ChaintracksServiceConfig.Validate(); err != nil {
 		return fmt.Errorf("invalid chaintracks service config: %w", err)
+	}
+
+	if err := c.Logging.Validate(); err != nil {
+		return fmt.Errorf("invalid logging config: %w", err)
 	}
 
 	const maxPort = 65535
@@ -164,5 +169,6 @@ func DefaultChaintracksServerConfig() ChaintracksServerConfig {
 	return ChaintracksServerConfig{
 		Port:                     3011,
 		ChaintracksServiceConfig: DefaultChaintracksServiceConfig(),
+		Logging:				  DefaultLogConfig(),
 	}
 }
