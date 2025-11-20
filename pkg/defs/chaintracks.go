@@ -169,6 +169,6 @@ func DefaultChaintracksServerConfig() ChaintracksServerConfig {
 	return ChaintracksServerConfig{
 		Port:                     3011,
 		ChaintracksServiceConfig: DefaultChaintracksServiceConfig(),
-		Logging:				  DefaultLogConfig(),
+		Logging:                  DefaultLogConfig(),
 	}
 }
