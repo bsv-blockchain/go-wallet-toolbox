@@ -40,6 +40,8 @@ var _ sdk.Interface = (*Wallet)(nil)
 
 type walletCleanupFunc func()
 
+// ProtocolIssuanceRequest represents the certificate signing request sent to the certifier
+// as part of the issuance protocol.
 type ProtocolIssuanceRequest struct {
 	Type          string            `json:"type"`
 	Nonce         string            `json:"clientNonce"`
@@ -47,6 +49,8 @@ type ProtocolIssuanceRequest struct {
 	MasterKeyring map[string]string `json:"masterKeyring"`
 }
 
+// ProtocolIssuanceResponse represents the response from the certifier containing the signed certificate
+// and server nonce for verification.
 type ProtocolIssuanceResponse struct {
 	Protocol    string       `json:"protocol"`
 	Certificate *Certificate `json:"certificate"`
@@ -55,6 +59,7 @@ type ProtocolIssuanceResponse struct {
 	Version     string       `json:"version"`
 }
 
+// Certificate represents a certificate as returned by the certifier in the issuance protocol response.
 type Certificate struct {
 	Type               string            `json:"type"`
 	SerialNumber       string            `json:"serialNumber"`
@@ -607,8 +612,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request to the auth server: %w", err)
 	}
-
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	responseBytes, err := io.ReadAll(res.Body)
 	if err != nil {
