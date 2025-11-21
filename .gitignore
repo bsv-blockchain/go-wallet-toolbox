@@ -38,6 +38,9 @@ go.work.sum
 infra-config.yaml
 infra-config.*.yaml
 !infra-config.example.yaml
+chaintracks-config.yaml
+chaintracks-config.*.yaml
+!chaintracks-config.example.yaml
 
 # SQLite databases
 storage.sqlite

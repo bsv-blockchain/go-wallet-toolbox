@@ -38,3 +38,29 @@ func createLiveIngestors(logger *slog.Logger, config defs.ChaintracksServiceConf
 
 	return ingestors
 }
+
+func createBulkIngestors(logger *slog.Logger, config defs.ChaintracksServiceConfig, initializers Initializers) []NamedBulkIngestor {
+	logger.Info("Chaintracks service - creating bulk ingestors", slog.Any("configured_sources", config.BulkIngestors))
+
+	ingestors := make([]NamedBulkIngestor, 0, len(config.BulkIngestors))
+	for _, ingestorConfig := range config.BulkIngestors {
+		switch ingestorConfig.Type {
+		case defs.ChaintracksCDN:
+			ingestor := initializers.CDNBulkIngestorFactory(logger, config.Chain, *ingestorConfig.CDNConfig)
+			ingestors = append(ingestors, NamedBulkIngestor{
+				Name:     ingestorConfig.String(),
+				Ingestor: ingestor,
+			})
+		case defs.WhatsOnChainCDN:
+			ingestor := initializers.WOCBulkIngestorFactory(logger, config.Chain, config.WocAPIKey)
+			ingestors = append(ingestors, NamedBulkIngestor{
+				Name:     ingestorConfig.String(),
+				Ingestor: ingestor,
+			})
+		default:
+			logger.Warn("Chaintracks service - unsupported bulk ingestor type, skipping", slog.String("ingestor_type", string(ingestorConfig.Type)))
+		}
+	}
+
+	return ingestors
+}

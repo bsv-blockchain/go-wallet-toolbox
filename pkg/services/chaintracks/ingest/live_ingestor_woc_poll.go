@@ -4,24 +4,23 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/golang/groupcache/lru"
 )
+
+const cachedEntries = 500
 
 // LiveIngestorWocPoll provides functionality for polling block header data from an external source, such as WhatsOnChain.
 type LiveIngestorWocPoll struct {
-	logger *slog.Logger
-	config defs.WOCPollIngestorConfig
-	resty  *resty.Client
+	logger    *slog.Logger
+	wocClient *wocClient
 
 	ctx       context.Context
 	cancelCtx context.CancelFunc
@@ -30,40 +29,24 @@ type LiveIngestorWocPoll struct {
 	waitForStop    sync.WaitGroup
 	lifecycleMutex sync.Mutex
 	stopped        bool
+
+	cached *lru.Cache
 }
 
 // NewLiveIngestorWocPoll creates a new LiveIngestorWocPoll using the provided logger, config, and optional client options.
 // It initializes a Resty HTTP client configured with default headers, user agent, and API key authorization if set.
 // Panics if the WhatsOnChain base URL cannot be built for the specified chain network in the config.
 // Returns a pointer to the initialized LiveIngestorWocPoll struct, ready for external data polling operations.
-func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConfig, opts ...func(options *ClientOptions)) *LiveIngestorWocPoll {
+func NewLiveIngestorWocPoll(logger *slog.Logger, chain defs.BSVNetwork, opts ...func(*IngestorWocPollOptions)) *LiveIngestorWocPoll {
 	logger = logging.Child(logger, "live_ingestor_woc_poll")
 
-	options := to.OptionsWithDefault(DefaultClientOptions(), opts...)
-
-	url, err := whatsonchain.MakeBaseURL(config.Chain)
-	if err != nil {
-		panic(fmt.Sprintf("failed to build base URL for WhatsOnChain: %s", err.Error()))
-	}
-
-	restyClient := options.RestyClientFactory.New()
-	headers := httpx.NewHeaders().
-		AcceptJSON().
-		ContentTypeJSON().
-		UserAgent().Value("go-wallet-toolbox").
-		Authorization().IfNotEmpty(config.APIKey)
-
-	restyClient = restyClient.
-		SetHeaders(headers).
-		SetLogger(logging.RestyAdapter(logger)).
-		SetDebug(logging.IsDebug(logger)).
-		SetBaseURL(url)
+	options := to.OptionsWithDefault(DefaultIngestorWocPollOptions(), opts...)
 
 	return &LiveIngestorWocPoll{
 		logger:     logger,
-		config:     config,
-		resty:      restyClient,
+		wocClient:  newWocClient(logger, chain, options.APIKey, options.RestyClientFactory.New()),
 		syncPeriod: options.SyncPeriod,
+		cached:     lru.New(cachedEntries),
 	}
 }
 
@@ -73,26 +56,9 @@ func NewLiveIngestorWocPoll(logger *slog.Logger, config defs.WOCPollIngestorConf
 // The hash parameter must be a valid block hash as a hex string.
 // PreviousHash is set to a predefined value if the block is the genesis block.
 func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
-	path := fmt.Sprintf("/block/%s/header", hash)
-
-	var hdrResp WOCBlockHeaderDTO
-	res, err := ing.resty.R().
-		SetContext(ctx).
-		SetResult(&hdrResp).
-		Get(path)
-
+	hdrResp, err := ing.wocClient.GetHeaderByHash(ctx, hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch block header: %w", err)
-	}
-	if res.StatusCode() != http.StatusOK {
-		if res.StatusCode() == http.StatusNotFound {
-			return nil, fmt.Errorf("block header not found for hash %s: %w", hash, wdk.ErrNotFoundError)
-		}
-		return nil, fmt.Errorf("unexpected status code %d fetching block header", res.StatusCode())
-	}
-
-	if hdrResp.PrevBlock == "" {
-		hdrResp.PrevBlock = genesisAsPrevBlockHash
+		return nil, fmt.Errorf("failed to fetch block header by hash %s: %w", hash, err)
 	}
 
 	wdkBlockHeader, err := hdrResp.ToWDK()
@@ -105,23 +71,13 @@ func (ing *LiveIngestorWocPoll) GetHeaderByHash(ctx context.Context, hash string
 
 // GetPresentHeight retrieves the current blockchain height from the external data source.
 // Returns the number of blocks in the chain or an error if the info cannot be fetched or parsed.
-func (ing *LiveIngestorWocPoll) GetPresentHeight(ctx context.Context) (uint32, error) {
-	path := "/chain/info"
-
-	var infoResp blockOnlyChainInfoDTO
-	res, err := ing.resty.R().
-		SetContext(ctx).
-		SetResult(&infoResp).
-		Get(path)
-
+func (ing *LiveIngestorWocPoll) GetPresentHeight(ctx context.Context) (uint, error) {
+	blocks, err := ing.wocClient.GetPresentHeight(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch chain info: %w", err)
-	}
-	if res.StatusCode() != http.StatusOK {
-		return 0, fmt.Errorf("unexpected status code %d fetching chain info", res.StatusCode())
+		return 0, fmt.Errorf("failed to fetch present height: %w", err)
 	}
 
-	return infoResp.Blocks, nil
+	return blocks, nil
 }
 
 // StartListening begins polling for new block headers and sends them to respChan until the parent context is canceled.
@@ -171,9 +127,25 @@ func (ing *LiveIngestorWocPoll) processNewHeaders(respChan chan wdk.ChainBlockHe
 		return
 	}
 
+	// oldest first order
+	slices.SortFunc(headers, func(a, b *wdk.ChainBlockHeader) int {
+		if a.Height < b.Height {
+			return -1
+		} else if a.Height > b.Height {
+			return 1
+		} else {
+			return 0
+		}
+	})
+
 	for _, hdr := range headers {
+		if _, found := ing.cached.Get(hdr.Hash); found {
+			continue
+		}
+
 		select {
 		case respChan <- *hdr:
+			ing.cached.Add(hdr.Hash, struct{}{})
 		case <-ing.ctx.Done():
 			ing.logger.Info("LiveIngestorWocPoll stopping processing new headers due to context cancellation")
 			return
@@ -196,19 +168,9 @@ func (ing *LiveIngestorWocPoll) StopListening() {
 
 // getLastHeaders normally fetches the last 10 block headers from the external data source.
 func (ing *LiveIngestorWocPoll) getLastHeaders(ctx context.Context) ([]*wdk.ChainBlockHeader, error) {
-	path := "/block/headers"
-
-	var headersResponse WOCBlockHeadersDTO
-	res, err := ing.resty.R().
-		SetContext(ctx).
-		SetResult(&headersResponse).
-		Get(path)
-
+	headersResponse, err := ing.wocClient.GetLastHeaders(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch block headers: %w", err)
-	}
-	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d fetching block headers", res.StatusCode())
+		return nil, fmt.Errorf("failed to fetch last block headers: %w", err)
 	}
 
 	wdkHeaders, err := headersResponse.ToWDK()

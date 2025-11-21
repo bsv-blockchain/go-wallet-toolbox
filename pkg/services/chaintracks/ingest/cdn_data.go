@@ -8,6 +8,7 @@ import (
 
 	crypto "github.com/bsv-blockchain/go-sdk/primitives/hash"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 )
@@ -22,16 +23,33 @@ type BulkHeaderFilesInfo struct {
 
 // BulkHeaderFileInfo contains metadata related to a single bulk block header file for a specific blockchain network.
 type BulkHeaderFileInfo struct {
-	FileName      string           `json:"fileName"`
-	FirstHeight   uint             `json:"firstHeight"`
-	Count         int              `json:"count"`
-	PrevChainWork string           `json:"prevChainWork"`
-	LastChainWork string           `json:"lastChainWork"`
-	PrevHash      string           `json:"prevHash"`
-	LastHash      *string          `json:"lastHash,omitempty"`
-	FileHash      []byte           `json:"fileHash,omitempty"`
-	Chain         *defs.BSVNetwork `json:"chain,omitempty"`
-	SourceURL     *string          `json:"sourceUrl,omitempty"`
+	FileName      string          `json:"fileName"`
+	FirstHeight   uint            `json:"firstHeight"`
+	Count         int             `json:"count"`
+	PrevChainWork string          `json:"prevChainWork"`
+	LastChainWork string          `json:"lastChainWork"`
+	PrevHash      string          `json:"prevHash"`
+	LastHash      *string         `json:"lastHash,omitempty"`
+	FileHash      []byte          `json:"fileHash,omitempty"`
+	Chain         defs.BSVNetwork `json:"chain,omitempty"`
+	SourceURL     *string         `json:"sourceUrl,omitempty"`
+}
+
+// Equals compares two BulkHeaderFileInfo instances and returns true if they represent the same header file metadata.
+func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
+	return b != nil && other != nil &&
+		b.FirstHeight == other.FirstHeight &&
+		b.Count == other.Count &&
+		((b.LastHash == nil && other.LastHash == nil) || (b.LastHash != nil && other.LastHash != nil && *b.LastHash == *other.LastHash)) &&
+		b.LastChainWork == other.LastChainWork &&
+		bytes.Equal(b.FileHash, other.FileHash) &&
+		b.Chain == other.Chain
+
+}
+
+// ToHeightRange returns the HeightRange spanned by this BulkHeaderFileInfo based on its FirstHeight and Count fields.
+func (b *BulkHeaderFileInfo) ToHeightRange() models.HeightRange {
+	return models.NewHeightRange(b.FirstHeight, b.FirstHeight+must.ConvertToUInt(b.Count)-1)
 }
 
 // BulkFileData represents a complete bulk block header file and its metadata for a specific blockchain network.
@@ -48,7 +66,7 @@ func (b *BulkFileData) Validate() error {
 		return fmt.Errorf("bulk file data is empty")
 	}
 
-	dataHash := crypto.Sha256(b.Data)
+	dataHash := b.Hash()
 	if !bytes.Equal(dataHash, b.Info.FileHash) {
 		base64Expected := base64.StdEncoding.EncodeToString(b.Info.FileHash)
 		base64Got := base64.StdEncoding.EncodeToString(dataHash)
@@ -64,6 +82,11 @@ func (b *BulkFileData) Validate() error {
 	}
 
 	return nil
+}
+
+// Hash computes and returns the SHA-256 hash of the bulk file data bytes as a byte slice.
+func (b *BulkFileData) Hash() []byte {
+	return crypto.Sha256(b.Data)
 }
 
 // Len returns the number of block headers contained in the bulk file data.

@@ -69,19 +69,16 @@ type WalletStorageProvider interface {
 	// GetSyncChunk retrieves a chunk of sync data for a user between two storages using the provided synchronization arguments.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
 	// @Sync
-	// @NonRPC
 	GetSyncChunk(ctx context.Context, args RequestSyncChunkArgs) (*SyncChunk, error)
 
 	// FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
 	// @Sync
-	// @NonRPC
 	FindOrInsertSyncStateAuth(ctx context.Context, auth AuthID, storageIdentityKey, storageName string) (*FindOrInsertSyncStateAuthResponse, error)
 
 	// ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
 	// @Sync
-	// @NonRPC
 	ProcessSyncChunk(ctx context.Context, args RequestSyncChunkArgs, chunk *SyncChunk) (*ProcessSyncChunkResult, error)
 
 	// AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.

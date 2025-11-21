@@ -3,12 +3,16 @@ package chaintracks
 import (
 	"context"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // Storage defines an interface for storage backends capable of storing chaintracks data.
 type Storage interface {
 	Migrate(ctx context.Context) error
+
+	Query(ctx context.Context) models.StorageQueries
 }
 
 // LiveIngestor defines a contract for streaming and retrieving live blockchain block header data.
@@ -18,7 +22,7 @@ type LiveIngestor interface {
 	StopListening()
 
 	GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error)
-	GetPresentHeight(ctx context.Context) (uint32, error)
+	GetPresentHeight(ctx context.Context) (uint, error)
 }
 
 // NamedLiveIngestor associates a human-readable name with a LiveIngestor implementation for identification purposes.
@@ -26,4 +30,17 @@ type LiveIngestor interface {
 type NamedLiveIngestor struct {
 	Name     string
 	Ingestor LiveIngestor
+}
+
+// BulkIngestor defines an interface for bulk synchronization of block headers within specified height ranges.
+// The Synchronize method ingests headers up to the given presentHeight for provided height ranges and returns insertion results.
+// TODO: refine return type from 'any' to a more specific type representing synchronization results.
+type BulkIngestor interface {
+	Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]ingest.BulkHeaderFileInfo, ingest.BulkFileDownloader, error)
+}
+
+// NamedBulkIngestor associates a descriptive name with a BulkIngestor interface for organized bulk header synchronization tasks.
+type NamedBulkIngestor struct {
+	Name     string
+	Ingestor BulkIngestor
 }

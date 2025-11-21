@@ -88,6 +88,7 @@ type Wallet struct {
 	logger                  *slog.Logger
 	cleanup                 walletCleanupFunc
 	auth                    *clients.AuthFetch
+	userParty               string
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -184,12 +185,6 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		Client:                 wallet_opts.DefaultClient(),
 	}, opts...)
 
-	logger := logging.Child(options.Logger, "wallet")
-
-	if options.PendingSignActionsRepo == nil {
-		options.PendingSignActionsRepo = pending.NewSignActionLocalRepository(logger, pending.DefaultPendingSignActionsTTL)
-	}
-
 	keyDeriver, err := toKeyDeriver(keySource)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create key deriver from key source: %w", err)
@@ -200,6 +195,13 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
 	}
 
+	userParty := fmt.Sprintf("user %s", keyDeriver.IdentityKey().ToDERHex())
+	logger := logging.Child(options.Logger, "wallet").With("walletName", userParty)
+
+	if options.PendingSignActionsRepo == nil {
+		options.PendingSignActionsRepo = pending.NewSignActionLocalRepository(logger, pending.DefaultPendingSignActionsTTL)
+	}
+
 	w := &Wallet{
 		proto:                   proto,
 		keyDeriver:              keyDeriver,
@@ -208,6 +210,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		chain:                   chain,
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
+		userParty:               userParty,
 	}
 	// TODO: check if this is correct usage
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
