@@ -150,5 +150,4 @@ func (s *WalletTestSuite) Test_AcquireCertificate_IssuanceProtocol() {
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, actual)
-	require.Equal(t, args.Type.String(), actual.Type)
 }

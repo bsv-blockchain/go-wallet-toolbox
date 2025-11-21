@@ -718,7 +718,83 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 
 	}
 
-	return nil, nil
+	err = signedCert.Verify(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify certificate: %w", err)
+	}
+
+	_, err = certificates.DecryptFields(ctx, w,
+		w.convertFieldsToCertificateFields(masterKeyring),
+		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
+		counterParty,
+		to.Value(args.Privileged),
+		args.PrivilegedReason,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt certificate: %w", err)
+	}
+
+	// Retrieve authentication info
+	auth, err := w.storage.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve auth identity: %w", err)
+	}
+
+	// Convert serial number to array
+	var serialNumberArray sdk.SerialNumber
+	copy(serialNumberArray[:], serialNumber)
+
+	// Parse signature from bytes to *ec.Signature
+	parsedSignature, err := ec.ParseSignature(signatureBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse signature: %w", err)
+	}
+
+	// Convert signature to hex string for storage
+	rHex := fmt.Sprintf("%064x", parsedSignature.R)
+	sHex := fmt.Sprintf("%064x", parsedSignature.S)
+	sigHex := rHex + sHex
+
+	// Parse fields into TableCertificateField slice using encrypted fields from certificate response
+	certificateFields, err := wdk.ParseToTableCertificateFieldSlice(*auth.UserID, dst.Certificate.Fields, masterKeyring)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate fields for user %d: %w", *auth.UserID, err)
+	}
+
+	// Verifier is the certifier (since KeyringRevealer.Certifier is true)
+	verifier := primitives.PubKeyHex(certifier.ToDERHex())
+
+	// Insert certificate into storage
+	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
+		TableCertificate: wdk.TableCertificate{
+			UserID:       to.Value(auth.UserID),
+			Type:         primitives.Base64String(argsCertTypeString),
+			SerialNumber: primitives.Base64String(signedCert.SerialNumber),
+
+			Certifier:          verifier,
+			Subject:            primitives.PubKeyHex(key.PublicKey.ToDERHex()),
+			RevocationOutpoint: primitives.OutpointString(revocationOutpoint.String()),
+			Signature:          primitives.HexString(sigHex),
+			Verifier:           to.Ptr(verifier),
+		},
+		Fields: certificateFields,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert certificate for user %d: %w", *auth.UserID, err)
+	}
+
+	// Build SDK certificate to return
+	cert := sdk.Certificate{
+		Type:               args.Type,
+		SerialNumber:       serialNumberArray,
+		Subject:            key.PublicKey,
+		Certifier:          certifier,
+		RevocationOutpoint: revocationOutpoint,
+		Fields:             args.Fields,
+		Signature:          parsedSignature,
+	}
+
+	return &cert, nil
 }
 
 func (w *Wallet) convertFieldsToCertificateFields(fields map[string]string) map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64 {

@@ -252,7 +252,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 				Certifier:          signedCertificate.Certifier.ToDERHex(),
 				RevocationOutpoint: signedCertificate.RevocationOutpoint.String(),
 				Fields:             b.convertFieldsToString(signedCertificate.Fields),
-				Signature:          hex.EncodeToString(signedCertificate.Signature), // TODO: or just string(signedCertificate.Signature) ?
+				Signature:          hex.EncodeToString(signedCertificate.Signature),
 			},
 		}
 
