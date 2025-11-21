@@ -62,7 +62,7 @@ func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, r
 
 	result := make([]BulkHeaderFileInfo, 0, len(neededFiles))
 	for _, file := range neededFiles {
-		bulkFileInfo, err := b.toBulkHeaderFileInfo(ctx, &file)
+		bulkFileInfo, err := b.toBulkHeaderFileInfo(&file)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to convert to BulkHeaderFileInfo for file %s: %w", file.filename, err)
 		}
@@ -74,39 +74,21 @@ func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, r
 
 }
 
-func (b *BulkIngestorWOC) toBulkHeaderFileInfo(ctx context.Context, file *wocBulkFileInfo) (*BulkHeaderFileInfo, error) {
-	prevChainWork := prevChainWorkForGenesis
-	prevHash := genesisAsPrevBlockHash
-	if file.heightRange.MinHeight > 0 {
-		prevBlock, err := b.wocClient.GetBlockByHeight(ctx, file.heightRange.MinHeight-1)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get previous block at height %d: %w", file.heightRange.MinHeight-1, err)
-		}
-
-		prevChainWork = prevBlock.Chainwork
-		prevHash = prevBlock.Hash
-	}
-
-	lastBlock, err := b.wocClient.GetBlockByHeight(ctx, file.heightRange.MaxHeight)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get last block at height %d: %w", file.heightRange.MaxHeight, err)
-	}
-
+func (b *BulkIngestorWOC) toBulkHeaderFileInfo(file *wocBulkFileInfo) (*BulkHeaderFileInfo, error) {
 	return &BulkHeaderFileInfo{
-		FileName:    fmt.Sprintf("%d_%d_headers.bin", file.heightRange.MinHeight, file.heightRange.MaxHeight),
 		FirstHeight: file.heightRange.MinHeight,
 		Count:       must.ConvertToIntFromUnsigned(file.heightRange.MaxHeight) - must.ConvertToIntFromUnsigned(file.heightRange.MinHeight) + 1,
-		Chain:       b.chain,
 		SourceURL:   to.Ptr(file.url),
 
-		PrevChainWork: prevChainWork,
-		PrevHash:      prevHash,
+		// Not supported,
+		FileHash:      nil, // we don't download the file at this point and WoC doesn't provide it in metadata
+		PrevChainWork: "",
+		PrevHash:      "",
 
-		LastChainWork: lastBlock.Chainwork,
-		LastHash:      &lastBlock.Hash,
-
-		// Not supported, we don't download the file at this point and WoC doesn't provide it in metadata
-		FileHash: nil,
+		LastChainWork: "",
+		LastHash:      nil,
+		FileName:      "",
+		Chain:         "",
 	}, nil
 }
 

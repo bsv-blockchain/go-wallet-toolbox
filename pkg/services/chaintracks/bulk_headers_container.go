@@ -47,12 +47,12 @@ func (b *bulkHeadersContainer) Add(ctx context.Context, data []byte, dataRange m
 	currentRange := b.Range()
 	rangeToAdd := dataRange.Above(currentRange)
 	if rangeToAdd.IsEmpty() {
-		b.logger.Info("Skipping addition of bulk headers - no new headers to add", slog.Any("data_range", dataRange), slog.Any("current_range", currentRange))
+		b.logger.Debug("Skipping addition of bulk headers - no new headers to add", slog.Any("data_range", dataRange), slog.Any("current_range", currentRange))
 		return nil
 	}
 
 	if currentRange.NotEmpty() && currentRange.MaxHeight+1 != rangeToAdd.MinHeight {
-		return fmt.Errorf("cannot add bulk headers - non-contiguous range. current max height: %d, new range to add: %v", currentRange.MaxHeight, rangeToAdd)
+		return fmt.Errorf("cannot add bulk headers - non-contiguous range detected, current range: %v, range to add: %v", currentRange, rangeToAdd)
 	}
 
 	dataToAdd, err := b.trimToRange(data, dataRange, rangeToAdd)

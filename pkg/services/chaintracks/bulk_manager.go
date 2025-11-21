@@ -10,19 +10,16 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
-type bulkFileData struct {
-	ingest.BulkFileData
-}
+const bulkChunkSize = 100000
 
 type bulkManager struct {
 	logger        *slog.Logger
 	bulkIngestors []NamedBulkIngestor
 
 	locker    sync.RWMutex
-	bulkFiles []bulkFileData
+	container *bulkHeadersContainer
 }
 
 func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor) *bulkManager {
@@ -30,12 +27,14 @@ func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor) *bul
 	return &bulkManager{
 		logger:        logger,
 		bulkIngestors: bulkIngestors,
+		container:     newBulkHeadersContainer(logger, bulkChunkSize),
 	}
 }
 
 func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) error {
 	bm.logger.Info("Starting bulk synchronization", slog.Any("present_height", presentHeight), slog.Any("initial_ranges", initialRanges))
 
+	// current_range="[0 - 915511]" data_range="[916001 - 918000]"
 	missingRange := models.NewHeightRange(0, presentHeight)
 	for _, ingestor := range bm.bulkIngestors {
 		if missingRange.IsEmpty() {
@@ -52,17 +51,9 @@ func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, 
 			return fmt.Errorf("failed to process bulk chunks from ingestor %s: %w", ingestor.Name, err)
 		}
 
-		providedRange := models.NewEmptyHeightRange()
-		for _, chunk := range bulkChunks {
-			providedRange, err = providedRange.Union(chunk.ToHeightRange())
-			if err != nil {
-				return fmt.Errorf("failed to compute provided height range from ingestor %s: %w", ingestor.Name, err)
-			}
-		}
-
-		missingRange, err = missingRange.Subtract(providedRange)
+		missingRange, err = missingRange.Subtract(bm.GetHeightRange())
 		if err != nil {
-			return fmt.Errorf("failed to compute missing height range after ingestor %s: %w", ingestor.Name, err)
+			return fmt.Errorf("failed to compute missing range after processing ingestor %s: %w", ingestor.Name, err)
 		}
 	}
 
@@ -73,36 +64,14 @@ func (bm *bulkManager) GetHeightRange() models.HeightRange {
 	bm.locker.RLock()
 	defer bm.locker.RUnlock()
 
-	if len(bm.bulkFiles) == 0 {
-		return models.NewEmptyHeightRange()
-	}
-	first := bm.bulkFiles[0]
-	last := bm.bulkFiles[len(bm.bulkFiles)-1]
-
-	minHeight := first.Info.FirstHeight
-	maxHeight := last.Info.FirstHeight + must.ConvertToUInt(last.Info.Count) - 1
-
-	return models.NewHeightRange(minHeight, maxHeight)
+	return bm.container.Range()
 }
 
 func (bm *bulkManager) FindHeaderForHeight(height uint) (*wdk.ChainBlockHeader, error) {
 	bm.locker.RLock()
 	defer bm.locker.RUnlock()
 
-	for _, bulkFile := range bm.bulkFiles {
-		fileRange := bulkFile.Info.ToHeightRange()
-		if fileRange.ContainsHeight(height) {
-			index := height - bulkFile.Info.FirstHeight
-			header, err := bulkFile.GetHeaderAtIndex(index)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get header for height %d from bulk file %v: %w", height, bulkFile.Info, err)
-			}
-
-			return header, nil
-		}
-	}
-
-	return nil, nil
+	return bm.container.FindHeaderForHeight(height)
 }
 
 func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderFileInfo, downloader ingest.BulkFileDownloader) error {
@@ -126,12 +95,14 @@ func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []inges
 	defer bm.locker.Unlock()
 
 	for _, fileData := range loadedChunks {
-		if bm.alreadyContainsIdentical(&fileData.Info) {
+		if !bm.shouldAddNewFile(&fileData.Info) {
 			// NOTE: If another goroutine added the same bulk file while we were downloading, we skip adding it again
 			continue
 		}
 
-		bm.bulkFiles = append(bm.bulkFiles, bulkFileData{BulkFileData: fileData})
+		if err := bm.container.Add(ctx, fileData.Data, fileData.Info.ToHeightRange()); err != nil {
+			return fmt.Errorf("failed to add bulk file %v to container: %w", fileData.Info, err)
+		}
 	}
 
 	return nil
@@ -143,7 +114,7 @@ func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderFileInfo) []ing
 
 	filteredChunks := make([]ingest.BulkHeaderFileInfo, 0)
 	for _, chunk := range chunks {
-		if !bm.alreadyContainsIdentical(&chunk) {
+		if bm.shouldAddNewFile(&chunk) {
 			filteredChunks = append(filteredChunks, chunk)
 		}
 	}
@@ -151,12 +122,8 @@ func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderFileInfo) []ing
 	return filteredChunks
 }
 
-func (bm *bulkManager) alreadyContainsIdentical(newBulk *ingest.BulkHeaderFileInfo) bool {
-	for _, existingBulk := range bm.bulkFiles {
-		if existingBulk.Info.Equals(newBulk) {
-			return true
-		}
-	}
-
-	return false
+func (bm *bulkManager) shouldAddNewFile(info *ingest.BulkHeaderFileInfo) bool {
+	currentRange :=  bm.container.Range()
+	rangeToAdd := info.ToHeightRange().Above(currentRange)
+	return !rangeToAdd.IsEmpty()
 }
