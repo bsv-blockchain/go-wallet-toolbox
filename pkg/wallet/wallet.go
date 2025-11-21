@@ -540,16 +540,30 @@ func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertifi
 func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
 	w.logger.DebugContext(ctx, "AcquireCertificateIssuance call", slogx.String("originator", originator))
 
+	// Retrieve authentication info early to fail fast
+	auth, err := w.storage.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve auth identity: %w", err)
+	}
+
+	// Fetch the identity public key early to fail fast
+	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+
 	nonce, err := w.createNonce(ctx, args.Certifier, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create nonce: %w", err)
 	}
 
+	// Prepare counterparty for encryption
 	counterParty := sdk.Counterparty{
 		Counterparty: args.Certifier,
 		Type:         sdk.CounterpartyTypeOther,
 	}
 
+	// Create encrypted certificate fields
 	fieldsForEncryption, err := mapping.MapToFieldsForEncryption(args.Fields)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map sdk.AcquireCertificateArgs fields to fields for encryption: %w", err)
@@ -570,6 +584,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		masterKeyring[to.String(k)] = to.String(v)
 	}
 
+	// Make Certificate Signing Request (CSR) to the certifier
 	argsCertTypeString := base64.StdEncoding.EncodeToString(args.Type[:])
 	body, err := json.Marshal(&ProtocolIssuanceRequest{
 		Type:          argsCertTypeString,
@@ -600,10 +615,10 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 
 	var dst ProtocolIssuanceResponse
 	if err := json.Unmarshal(responseBytes, &dst); err != nil {
-		return nil, fmt.Errorf("failed to serialize: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	// Validate server response
+	// Validate server response headers and required fields
 	responseAuthHeader := res.Header.Get("x-bsv-auth-identity-key")
 	if responseAuthHeader != args.Certifier.ToDERHex() {
 		return nil, fmt.Errorf("invalid certifier! Expected: %s, Received: %s", args.Certifier.ToDERHex(), responseAuthHeader)
@@ -632,13 +647,13 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to get revocation outpoint from string: %w", err)
 	}
 
-	// Decode the hex-encoded signature
+	// Parse certificate components from response
 	signatureBytes, err := hex.DecodeString(dst.Certificate.Signature)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode signature from hex: %w", err)
 	}
 
-	// Validate the certificate received
+	// Build certificate object for validation
 	signedCert := certificates.NewCertificate(
 		sdk.StringBase64(dst.Certificate.Type),
 		sdk.StringBase64(dst.Certificate.SerialNumber),
@@ -648,10 +663,8 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
 		signatureBytes)
 
-	err = w.verifyNonce(ctx, dst.ServerNonce, sdk.Counterparty{
-		Counterparty: args.Certifier,
-		Type:         sdk.CounterpartyTypeOther,
-	}, "")
+	// Verify server nonce
+	err = w.verifyNonce(ctx, dst.ServerNonce, counterParty, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify server nonce: %w", err)
 	}
@@ -687,11 +700,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("invalid certificate type! Expected: %s, Received: %s", argsCertTypeString, signedCert.Type)
 	}
 
-	// Fetch the identity public key
-	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get public key: %w", err)
-	}
+	// Validate certificate subject matches our identity key
 	if signedCert.Subject.ToDERHex() != key.PublicKey.ToDERHex() {
 		return nil, fmt.Errorf("invalid certificate subject! Expected: %s, Received: %s", key.PublicKey.ToDERHex(), signedCert.Subject.ToDERHex())
 	}
@@ -702,6 +711,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("invalid revocationOutpoint")
 	}
 
+	// Validate that certificate fields match what we sent
 	if len(signedCert.Fields) != len(fields) {
 		return nil, fmt.Errorf("fields mismatch! Objects have different number of keys. Expected: %d, Received: %d", len(fields), len(signedCert.Fields))
 	}
@@ -715,7 +725,6 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		if string(signedCertFieldValue) != fieldValue {
 			return nil, fmt.Errorf("invalid field! Expected: %s, Received: %s", fieldValue, string(signedCertFieldValue))
 		}
-
 	}
 
 	err = signedCert.Verify(ctx)
@@ -723,6 +732,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to verify certificate: %w", err)
 	}
 
+	// Test decryption works
 	_, err = certificates.DecryptFields(ctx, w,
 		w.convertFieldsToCertificateFields(masterKeyring),
 		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
@@ -734,13 +744,8 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to decrypt certificate: %w", err)
 	}
 
-	// Retrieve authentication info
-	auth, err := w.storage.GetAuth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not retrieve auth identity: %w", err)
-	}
-
-	// Convert serial number to array
+	// Store the newly issued certificate
+	// Convert serial number to array for storage
 	var serialNumberArray sdk.SerialNumber
 	copy(serialNumberArray[:], serialNumber)
 
@@ -761,21 +766,18 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to parse certificate fields for user %d: %w", *auth.UserID, err)
 	}
 
-	// Verifier is the certifier (since KeyringRevealer.Certifier is true)
-	verifier := primitives.PubKeyHex(certifier.ToDERHex())
-
 	// Insert certificate into storage
+	certifierPubKeyHex := primitives.PubKeyHex(certifier.ToDERHex())
 	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
 		TableCertificate: wdk.TableCertificate{
-			UserID:       to.Value(auth.UserID),
-			Type:         primitives.Base64String(argsCertTypeString),
-			SerialNumber: primitives.Base64String(signedCert.SerialNumber),
-
-			Certifier:          verifier,
+			UserID:             to.Value(auth.UserID),
+			Type:               primitives.Base64String(argsCertTypeString),
+			SerialNumber:       primitives.Base64String(signedCert.SerialNumber),
+			Certifier:          certifierPubKeyHex,
 			Subject:            primitives.PubKeyHex(key.PublicKey.ToDERHex()),
 			RevocationOutpoint: primitives.OutpointString(revocationOutpoint.String()),
 			Signature:          primitives.HexString(sigHex),
-			Verifier:           to.Ptr(verifier),
+			Verifier:           to.Ptr(certifierPubKeyHex), // Certifier is the verifier (KeyringRevealer.Certifier is true)
 		},
 		Fields: certificateFields,
 	})
