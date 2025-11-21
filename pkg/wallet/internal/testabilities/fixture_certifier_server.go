@@ -25,36 +25,6 @@ import (
 )
 
 // CertifierServerBuilder is a builder interface for configuring a test certifier server.
-//
-// Usage examples:
-//
-//	// Basic usage with default auth middleware:
-//	server := given.
-//	    CertifierServer().
-//	    WithCertifierWallet(certifierWallet).
-//	    Started()
-//
-//	// With custom auth middleware options:
-//	server := given.
-//	    CertifierServer().
-//	    WithCertifierWallet(certifierWallet).
-//	    WithAuthMiddlewareOpts(middleware.WithAuthAllowUnauthenticated()).
-//	    Started()
-//
-//	// With pre-configured auth middleware:
-//	authMiddleware := middleware.NewAuth(wallet, middleware.WithAuthAllowUnauthenticated())
-//	server := given.
-//	    CertifierServer().
-//	    WithCertifierWallet(certifierWallet).
-//	    WithAuthMiddleware(authMiddleware).
-//	    Started()
-//
-//	// With custom certificate handler:
-//	server := given.
-//	    CertifierServer().
-//	    WithCertifierWallet(certifierWallet).
-//	    WithSignCertHandler(myCustomHandler).
-//	    Started()
 type CertifierServerBuilder interface {
 	WithCertifierWallet(wallet sdk.Interface) CertifierServerBuilder
 	WithSignCertHandler(handler http.HandlerFunc) CertifierServerBuilder
