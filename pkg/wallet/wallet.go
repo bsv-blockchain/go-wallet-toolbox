@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -544,9 +545,9 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to create nonce: %w", err)
 	}
 
-	counterParty, err := mapping.MapToCertifierCounterparty(primitives.PubKeyHex(args.Certifier.ToDERHex()))
-	if err != nil {
-		return nil, fmt.Errorf("failed map to sdk.AcquireCertificateArgs certrifier DER hex value to the counter party type: %w", err)
+	counterParty := sdk.Counterparty{
+		Counterparty: args.Certifier,
+		Type:         sdk.CounterpartyTypeOther,
 	}
 
 	fieldsForEncryption, err := mapping.MapToFieldsForEncryption(args.Fields)
@@ -569,8 +570,9 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		masterKeyring[to.String(k)] = to.String(v)
 	}
 
+	argsCertTypeString := base64.StdEncoding.EncodeToString(args.Type[:])
 	body, err := json.Marshal(&ProtocolIssuanceRequest{
-		Type:          base64.StdEncoding.EncodeToString(args.Type[:]),
+		Type:          argsCertTypeString,
 		Nonce:         string(nonce),
 		Fields:        fields,
 		MasterKeyring: masterKeyring,
@@ -630,7 +632,13 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to get revocation outpoint from string: %w", err)
 	}
 
-	// validation here!
+	// Decode the hex-encoded signature
+	signatureBytes, err := hex.DecodeString(dst.Certificate.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode signature from hex: %w", err)
+	}
+
+	// Validate the certificate received
 	signedCert := certificates.NewCertificate(
 		sdk.StringBase64(dst.Certificate.Type),
 		sdk.StringBase64(dst.Certificate.SerialNumber),
@@ -638,7 +646,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		to.Value(certifier),
 		revocationOutpoint,
 		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
-		[]byte(dst.Certificate.Signature))
+		signatureBytes)
 
 	err = w.verifyNonce(ctx, dst.ServerNonce, sdk.Counterparty{
 		Counterparty: args.Certifier,
@@ -665,10 +673,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "certificate issuance",
 			},
-			Counterparty: sdk.Counterparty{
-				Counterparty: args.Certifier,
-				Type:         sdk.CounterpartyTypeOther,
-			},
+			Counterparty: counterParty,
 		},
 	}, "")
 	if err != nil {
@@ -678,7 +683,41 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("invalid serialNumber")
 	}
 
-	fmt.Println(signedCert)
+	if string(signedCert.Type) != argsCertTypeString {
+		return nil, fmt.Errorf("invalid certificate type! Expected: %s, Received: %s", argsCertTypeString, signedCert.Type)
+	}
+
+	// Fetch the identity public key
+	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+	if signedCert.Subject.ToDERHex() != key.PublicKey.ToDERHex() {
+		return nil, fmt.Errorf("invalid certificate subject! Expected: %s, Received: %s", key.PublicKey.ToDERHex(), signedCert.Subject.ToDERHex())
+	}
+	if signedCert.Certifier.ToDERHex() != args.Certifier.ToDERHex() {
+		return nil, fmt.Errorf("invalid certifier! Expected: %s, Received: %s", args.Certifier, signedCert.Certifier.ToDERHex())
+	}
+	if signedCert.RevocationOutpoint == nil {
+		return nil, fmt.Errorf("invalid revocationOutpoint")
+	}
+
+	if len(signedCert.Fields) != len(fields) {
+		return nil, fmt.Errorf("fields mismatch! Objects have different number of keys. Expected: %d, Received: %d", len(fields), len(signedCert.Fields))
+	}
+
+	for fieldName, fieldValue := range fields {
+		signedCertFieldValue, isPresent := signedCert.Fields[sdk.CertificateFieldNameUnder50Bytes(fieldName)]
+		if !isPresent {
+			return nil, fmt.Errorf("missing field: %s in certificate fields from the certifier", fieldName)
+		}
+
+		if string(signedCertFieldValue) != fieldValue {
+			return nil, fmt.Errorf("invalid field! Expected: %s, Received: %s", fieldValue, string(signedCertFieldValue))
+		}
+
+	}
+
 	return nil, nil
 }
 

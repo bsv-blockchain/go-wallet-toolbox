@@ -123,10 +123,6 @@ func (s *WalletTestSuite) Test_AcquireCertificate_IssuanceProtocol() {
 	// and:
 	args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
 	args.AcquisitionProtocol = wallet.AcquisitionProtocolIssuance
-	// and:
-	// pubKeyHex := "02bbc996771abe50be940a9cfd91d6f28a70d139f340bedc8cdd4f236e5e9c9889"
-	// pubKey, _ := ec.PublicKeyFromString(pubKeyHex)
-	// requestID := make([]byte, 32)
 
 	// and: create a certifier server wallet (the server that will issue certificates)
 	certifierWallet := given.BobWalletWithStorage(s.StorageType) // Bob acts as certifier
@@ -156,4 +152,3 @@ func (s *WalletTestSuite) Test_AcquireCertificate_IssuanceProtocol() {
 	require.NotNil(t, actual)
 	require.Equal(t, args.Type.String(), actual.Type)
 }
-
