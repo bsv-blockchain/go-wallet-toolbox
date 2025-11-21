@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -69,33 +68,18 @@ func (c *CDNReader) FetchBulkHeaderFilesInfo(ctx context.Context, chain defs.BSV
 	return result, nil
 }
 
-// FetchBulkHeaderFile downloads a bulk block header file from CDN for the given file info and returns its data and metadata.
-// Returns BulkFileData containing the file info, binary data, and access timestamp, or an error if download fails.
-func (c *CDNReader) FetchBulkHeaderFile(ctx context.Context, fileInfo BulkHeaderFileInfo) (*BulkFileData, error) {
-	data, err := c.downloadBulkHeaderFile(ctx, fileInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	return &BulkFileData{
-		Info:       fileInfo,
-		Data:       data,
-		AccessedAt: time.Now(),
-	}, nil
-}
-
-func (c *CDNReader) downloadBulkHeaderFile(ctx context.Context, fileInfo BulkHeaderFileInfo) ([]byte, error) {
+func (c *CDNReader) DownloadBulkHeaderFile(ctx context.Context, filename string) ([]byte, error) {
 	resp, err := c.resty.R().
 		SetContext(ctx).
 		SetDebug(false). //NOTE: Disable debug for large binary downloads
 		SetHeaders(httpx.NewHeaders().Accept().Value("application/octet-stream")).
-		Get(fileInfo.FileName)
+		Get(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
+		return nil, fmt.Errorf("failed to download bulk header file %s: %w", filename, err)
 	}
 
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("failed to download bulk header file %s: received status code %d", fileInfo.FileName, resp.StatusCode())
+		return nil, fmt.Errorf("failed to download bulk header file %s: received status code %d", filename, resp.StatusCode())
 	}
 
 	return resp.Body(), nil

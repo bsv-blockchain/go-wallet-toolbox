@@ -34,7 +34,6 @@ func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor) *bul
 func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) error {
 	bm.logger.Info("Starting bulk synchronization", slog.Any("present_height", presentHeight), slog.Any("initial_ranges", initialRanges))
 
-	// current_range="[0 - 915511]" data_range="[916001 - 918000]"
 	missingRange := models.NewHeightRange(0, presentHeight)
 	for _, ingestor := range bm.bulkIngestors {
 		if missingRange.IsEmpty() {
@@ -74,45 +73,52 @@ func (bm *bulkManager) FindHeaderForHeight(height uint) (*wdk.ChainBlockHeader, 
 	return bm.container.FindHeaderForHeight(height)
 }
 
-func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderFileInfo, downloader ingest.BulkFileDownloader) error {
+func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderMinimumInfo, downloader ingest.BulkFileDownloader) error {
 	chunksToLoad := bm.getChunksToLoad(bulkChunks)
-	loadedChunks := make([]ingest.BulkFileData, 0, len(chunksToLoad))
+	type chunkWithInfo struct {
+		data []byte
+		info ingest.BulkHeaderMinimumInfo
+	}
+	loadedChunks := make([]chunkWithInfo, 0, len(chunksToLoad))
 
 	for _, chunk := range chunksToLoad {
 		bm.logger.Info("Downloading bulk file", slog.Any("bulk_info", chunk))
-		fileData, err := downloader(ctx, chunk)
+		data, err := downloader(ctx, chunk)
 		if err != nil {
 			return fmt.Errorf("failed to download bulk file %v: %w", chunk, err)
 		}
 
-		if err := fileData.Validate(); err != nil {
+		if err := chunk.Validate(data); err != nil {
 			return fmt.Errorf("downloaded bulk file %v is invalid: %w", chunk, err)
 		}
-		loadedChunks = append(loadedChunks, fileData)
+		loadedChunks = append(loadedChunks, chunkWithInfo{
+			data: data,
+			info: chunk,
+		})
 	}
 
 	bm.locker.Lock()
 	defer bm.locker.Unlock()
 
 	for _, fileData := range loadedChunks {
-		if !bm.shouldAddNewFile(&fileData.Info) {
+		if !bm.shouldAddNewFile(&fileData.info) {
 			// NOTE: If another goroutine added the same bulk file while we were downloading, we skip adding it again
 			continue
 		}
 
-		if err := bm.container.Add(ctx, fileData.Data, fileData.Info.ToHeightRange()); err != nil {
-			return fmt.Errorf("failed to add bulk file %v to container: %w", fileData.Info, err)
+		if err := bm.container.Add(ctx, fileData.data, fileData.info.ToHeightRange()); err != nil {
+			return fmt.Errorf("failed to add bulk file %v to container: %w", fileData.info, err)
 		}
 	}
 
 	return nil
 }
 
-func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderFileInfo) []ingest.BulkHeaderFileInfo {
+func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderMinimumInfo) []ingest.BulkHeaderMinimumInfo {
 	bm.locker.RLock()
 	defer bm.locker.RUnlock()
 
-	filteredChunks := make([]ingest.BulkHeaderFileInfo, 0)
+	filteredChunks := make([]ingest.BulkHeaderMinimumInfo, 0)
 	for _, chunk := range chunks {
 		if bm.shouldAddNewFile(&chunk) {
 			filteredChunks = append(filteredChunks, chunk)
@@ -122,8 +128,8 @@ func (bm *bulkManager) getChunksToLoad(chunks []ingest.BulkHeaderFileInfo) []ing
 	return filteredChunks
 }
 
-func (bm *bulkManager) shouldAddNewFile(info *ingest.BulkHeaderFileInfo) bool {
-	currentRange :=  bm.container.Range()
+func (bm *bulkManager) shouldAddNewFile(info *ingest.BulkHeaderMinimumInfo) bool {
+	currentRange := bm.container.Range()
 	rangeToAdd := info.ToHeightRange().Above(currentRange)
 	return !rangeToAdd.IsEmpty()
 }

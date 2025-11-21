@@ -21,18 +21,45 @@ type BulkHeaderFilesInfo struct {
 	Files          []BulkHeaderFileInfo `json:"files"`
 }
 
+type BulkHeaderMinimumInfo struct {
+	FirstHeight uint   `json:"firstHeight"`
+	Count       int    `json:"count"`
+	FileName    string `json:"fileName"`
+	SourceURL   string `json:"sourceUrl"`
+}
+
+// ToHeightRange returns the HeightRange spanned by this BulkHeaderFileInfo based on its FirstHeight and Count fields.
+func (b *BulkHeaderMinimumInfo) ToHeightRange() models.HeightRange {
+	return models.NewHeightRange(b.FirstHeight, b.FirstHeight+must.ConvertToUInt(b.Count)-1)
+}
+
+// Validate checks bulk file data for validity including hash, length, and count consistency with its metadata.
+// Returns an error if the data is empty, hash mismatches, length is not a multiple of 80, or count is inconsistent.
+func (b *BulkHeaderMinimumInfo) Validate(data []byte) error {
+	if len(data) == 0 {
+		return fmt.Errorf("bulk file data is empty")
+	}
+
+	if len(data)%80 != 0 {
+		return fmt.Errorf("bulk file data length is not a multiple of 80 bytes: got %d bytes", len(data))
+	}
+
+	if len(data)/80 != b.Count {
+		return fmt.Errorf("bulk file data header count mismatch: expected %d, got %d", b.Count, len(data)/80)
+	}
+
+	return nil
+}
+
 // BulkHeaderFileInfo contains metadata related to a single bulk block header file for a specific blockchain network.
 type BulkHeaderFileInfo struct {
-	FileName      string          `json:"fileName"`
-	FirstHeight   uint            `json:"firstHeight"`
-	Count         int             `json:"count"`
-	PrevChainWork string          `json:"prevChainWork"`
-	LastChainWork string          `json:"lastChainWork"`
-	PrevHash      string          `json:"prevHash"`
-	LastHash      *string         `json:"lastHash,omitempty"`
-	FileHash      []byte          `json:"fileHash,omitempty"`
-	Chain         defs.BSVNetwork `json:"chain,omitempty"`
-	SourceURL     *string         `json:"sourceUrl,omitempty"`
+	BulkHeaderMinimumInfo `json:",inline"`
+	PrevChainWork         string          `json:"prevChainWork"`
+	LastChainWork         string          `json:"lastChainWork"`
+	PrevHash              string          `json:"prevHash"`
+	LastHash              *string         `json:"lastHash,omitempty"`
+	FileHash              []byte          `json:"fileHash,omitempty"`
+	Chain                 defs.BSVNetwork `json:"chain,omitempty"`
 }
 
 // Equals compares two BulkHeaderFileInfo instances and returns true if they represent the same header file metadata.
@@ -47,11 +74,6 @@ func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
 
 }
 
-// ToHeightRange returns the HeightRange spanned by this BulkHeaderFileInfo based on its FirstHeight and Count fields.
-func (b *BulkHeaderFileInfo) ToHeightRange() models.HeightRange {
-	return models.NewHeightRange(b.FirstHeight, b.FirstHeight+must.ConvertToUInt(b.Count)-1)
-}
-
 // BulkFileData represents a complete bulk block header file and its metadata for a specific blockchain network.
 type BulkFileData struct {
 	Info       BulkHeaderFileInfo
@@ -62,8 +84,8 @@ type BulkFileData struct {
 // Validate checks bulk file data for validity including hash, length, and count consistency with its metadata.
 // Returns an error if the data is empty, hash mismatches, length is not a multiple of 80, or count is inconsistent.
 func (b *BulkFileData) Validate() error {
-	if len(b.Data) == 0 {
-		return fmt.Errorf("bulk file data is empty")
+	if err := b.Info.Validate(b.Data); err != nil {
+		return err
 	}
 
 	dataHash := b.Hash()
@@ -71,14 +93,6 @@ func (b *BulkFileData) Validate() error {
 		base64Expected := base64.StdEncoding.EncodeToString(b.Info.FileHash)
 		base64Got := base64.StdEncoding.EncodeToString(dataHash)
 		return fmt.Errorf("bulk file data hash mismatch: expected %s, got %s", base64Expected, base64Got)
-	}
-
-	if len(b.Data)%80 != 0 {
-		return fmt.Errorf("bulk file data length is not a multiple of 80 bytes: got %d bytes", len(b.Data))
-	}
-
-	if len(b.Data)/80 != b.Info.Count {
-		return fmt.Errorf("bulk file data header count mismatch: expected %d, got %d", b.Info.Count, len(b.Data)/80)
 	}
 
 	return nil

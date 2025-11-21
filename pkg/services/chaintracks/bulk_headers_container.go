@@ -179,9 +179,12 @@ func (b *bulkHeadersContainer) Update(chain defs.BSVNetwork, filenamePrefix stri
 		}
 
 		fileInfo := ingest.BulkHeaderFileInfo{
-			FileName:      fmt.Sprintf("%s_%d.headers", filenamePrefix, i),
-			FirstHeight:   must.ConvertToUInt(i * b.chunkSize),
-			Count:         len(chunk.data) / 80,
+			BulkHeaderMinimumInfo: ingest.BulkHeaderMinimumInfo{
+				FileName:    fmt.Sprintf("%s_%d.headers", filenamePrefix, i),
+				FirstHeight: must.ConvertToUInt(i * b.chunkSize),
+				Count:       len(chunk.data) / 80,
+				SourceURL: "", // SourceURL is not set here
+			},
 			PrevChainWork: prevChainWorkHex,
 			LastChainWork: chunk.LastChainWork.To64PadHex(),
 			PrevHash:      prevHash,

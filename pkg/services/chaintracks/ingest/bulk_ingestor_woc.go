@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -43,7 +42,7 @@ func NewBulkIngestorWOC(logger *slog.Logger, chain defs.BSVNetwork, opts ...func
 // Synchronize fetches available bulk header files and selects those overlapping the specified height range.
 // Synchronize returns metadata for the required files and a downloader for retrieving their data from WhatsOnChain.
 // Synchronize returns an error if fetching or parsing file metadata fails, or if no appropriate files are found.
-func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderFileInfo, BulkFileDownloader, error) {
+func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderMinimumInfo, BulkFileDownloader, error) {
 	allFiles, err := b.fetchBulkHeaderFilesInfo(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch bulk header files info: %w", err)
@@ -60,61 +59,34 @@ func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, r
 		}
 	}
 
-	result := make([]BulkHeaderFileInfo, 0, len(neededFiles))
+	result := make([]BulkHeaderMinimumInfo, 0, len(neededFiles))
 	for _, file := range neededFiles {
-		bulkFileInfo, err := b.toBulkHeaderFileInfo(&file)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to convert to BulkHeaderFileInfo for file %s: %w", file.filename, err)
-		}
-
-		result = append(result, *bulkFileInfo)
+		result = append(result, BulkHeaderMinimumInfo{
+			FirstHeight: file.heightRange.MinHeight,
+			Count:       must.ConvertToIntFromUnsigned(file.heightRange.MaxHeight) - must.ConvertToIntFromUnsigned(file.heightRange.MinHeight) + 1,
+			SourceURL:   file.url,
+			FileName:    file.filename,
+		})
 	}
 
 	return result, b.bulkFileDownloader(), nil
 
 }
 
-func (b *BulkIngestorWOC) toBulkHeaderFileInfo(file *wocBulkFileInfo) (*BulkHeaderFileInfo, error) {
-	return &BulkHeaderFileInfo{
-		FirstHeight: file.heightRange.MinHeight,
-		Count:       must.ConvertToIntFromUnsigned(file.heightRange.MaxHeight) - must.ConvertToIntFromUnsigned(file.heightRange.MinHeight) + 1,
-		SourceURL:   to.Ptr(file.url),
-
-		// Not supported,
-		FileHash:      nil, // we don't download the file at this point and WoC doesn't provide it in metadata
-		PrevChainWork: "",
-		PrevHash:      "",
-
-		LastChainWork: "",
-		LastHash:      nil,
-		FileName:      "",
-		Chain:         "",
-	}, nil
-}
-
 func (b *BulkIngestorWOC) bulkFileDownloader() BulkFileDownloader {
-	return func(ctx context.Context, fileInfo BulkHeaderFileInfo) (BulkFileData, error) {
-		if fileInfo.SourceURL == nil {
+	return func(ctx context.Context, fileInfo BulkHeaderMinimumInfo) ([]byte, error) {
+		if fileInfo.SourceURL == "" {
 			panic("SourceURL is nil in bulk file downloader")
 		}
 
 		b.logger.Info("Downloading bulk header file", slog.String("file_name", fileInfo.FileName))
 
-		content, err := b.wocClient.DownloadHeaderFile(ctx, *fileInfo.SourceURL)
+		content, err := b.wocClient.DownloadHeaderFile(ctx, fileInfo.SourceURL)
 		if err != nil {
-			return BulkFileData{}, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
+			return nil, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
 		}
 
-		fileData := BulkFileData{
-			Info:       fileInfo,
-			Data:       content,
-			AccessedAt: time.Now(),
-		}
-
-		// NOTE: We compute and set the FileHash here since WoC does not provide it in metadata
-		fileData.Info.FileHash = fileData.Hash()
-
-		return fileData, nil
+		return content, nil
 	}
 }
 
