@@ -97,20 +97,32 @@ func (b *BulkFileData) Len() int {
 // GetHeaderDataAtIndex returns the 80-byte raw header data at the specified index within the bulk file data.
 // Returns an error if the index is out of bounds or invalid.
 func (b *BulkFileData) GetHeaderDataAtIndex(index uint) ([]byte, error) {
-	if index >= must.ConvertToUInt(b.Len()) {
-		return nil, fmt.Errorf("index %d out of bounds for bulk file data with %d headers", index, b.Len())
-	}
-
-	start := index * 80
-	end := start + 80
-	return b.Data[start:end], nil
+	return GetHeaderDataAtIndex(b.Data, index)
 }
 
 // GetHeaderAtIndex returns the decoded block header at the specified index from the bulk file data.
 // Returns an error if the index is out of bounds or if header parsing fails.
 func (b *BulkFileData) GetHeaderAtIndex(index uint) (*wdk.ChainBlockHeader, error) {
+	return GetHeaderAtIndex(b.Data, index, b.Info.FirstHeight)
+}
 
-	headerData, err := b.GetHeaderDataAtIndex(index)
+// GetHeaderDataAtIndex returns the 80-byte raw header data at the specified index within the bulk file data.
+// Returns an error if the index is out of bounds or invalid.
+func GetHeaderDataAtIndex(data []byte, index uint) ([]byte, error) {
+	length := len(data) / 80
+	if index >= must.ConvertToUInt(length) {
+		return nil, fmt.Errorf("index %d out of bounds for bulk file data with %d headers", index, length)
+	}
+
+	start := index * 80
+	end := start + 80
+	return data[start:end], nil
+}
+
+// GetHeaderAtIndex returns the decoded block header at the specified index from the bulk file data.
+// Returns an error if the index is out of bounds or if header parsing fails.
+func GetHeaderAtIndex(data []byte, index, firstHeight uint) (*wdk.ChainBlockHeader, error) {
+	headerData, err := GetHeaderDataAtIndex(data, index)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +139,7 @@ func (b *BulkFileData) GetHeaderAtIndex(index uint) (*wdk.ChainBlockHeader, erro
 
 	header := &wdk.ChainBlockHeader{
 		ChainBaseBlockHeader: *baseBlockHeader,
-		Height:               b.Info.FirstHeight + must.ConvertToUInt(index),
+		Height:               firstHeight + must.ConvertToUInt(index),
 		Hash:                 blockHash.String(),
 	}
 

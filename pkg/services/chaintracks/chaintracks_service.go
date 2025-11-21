@@ -522,7 +522,6 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	headerChainWork := internal.ChainWorkFromBits(header.Bits)
 
 	chainWork := headerChainWork.AddChainWork(oneBackChainWork)
-	_ = chainWork
 
 	priorTipChainWork, err := internal.ChainWorkFromHex(priorTip.ChainWork)
 	if err != nil {
