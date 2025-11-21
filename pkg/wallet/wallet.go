@@ -15,11 +15,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
-
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"

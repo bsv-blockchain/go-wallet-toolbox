@@ -61,8 +61,8 @@ func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
 
 func (w *walletFixture) CertifierServer() CertifierServerBuilder {
 	return &certifierServerBuilder{
-		TB:            w.TB,
-		logger:        slogx.NewTestLogger(w.TB),
+		TB:     w.TB,
+		logger: slogx.NewTestLogger(w.TB),
 	}
 }
 

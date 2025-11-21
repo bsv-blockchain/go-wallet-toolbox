@@ -99,7 +99,7 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 		walletServices := services.New(slog.Default(), serviceCfg)
 		opts = append(opts, wallet.WithServices(walletServices))
 	}
-	
+
 	if w.client != nil {
 		opts = append(opts, wallet.WithAuthHTTPClient(w.client))
 	}
