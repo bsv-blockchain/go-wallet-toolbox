@@ -823,6 +823,14 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	return &cert, nil
 }
 
+// verifyNonce validates a nonce received from a counterparty.
+// A nonce in this context is a unique value used to prevent replay attacks and ensure message integrity.
+// The expected format of the nonce is a base64-encoded string containing 48 bytes:
+//   - The first 16 bytes are arbitrary data (the nonce value).
+//   - The next 32 bytes are an HMAC (Hash-based Message Authentication Code) of the data, used for integrity verification.
+//
+// This function decodes the nonce, checks its length, splits it into data and HMAC, and verifies the HMAC
+// using the provided counterparty and originator information.
 func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk.Counterparty, originator string) error {
 	// Convert nonce from base64 string to byte array
 	buffer, err := base64.StdEncoding.DecodeString(nonce)

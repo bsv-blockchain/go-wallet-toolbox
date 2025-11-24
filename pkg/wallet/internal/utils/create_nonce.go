@@ -16,6 +16,13 @@ const (
 	TotalNonceSize = 48
 )
 
+// CreateNonce generates a nonce for authentication and replay protection.
+// The nonce consists of 16 random bytes followed by a 32-byte HMAC of those bytes,
+// using a key associated with the certifier. The resulting 48-byte nonce is then
+// base64-encoded to produce a string-safe representation suitable for transmission
+// or storage. The structure is:
+//   [16 random bytes][32 byte HMAC] -> base64-encoded string (returned as []byte).
+// This ensures both uniqueness (random bytes) and integrity/authenticity (HMAC).
 func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Randomizer, certifier *ec.PublicKey, originator string) ([]byte, error) {
 	firstHalf, err := randomizer.Bytes(NonceDataSize)
 	if err != nil {
