@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -32,14 +33,16 @@ type bulkHeadersContainer struct {
 	chunks    []chunkData
 
 	GeneratedFileData []ingest.BulkFileData
+	chain             defs.BSVNetwork
 }
 
-func newBulkHeadersContainer(logger *slog.Logger, chunkSize int) *bulkHeadersContainer {
+func newBulkHeadersContainer(logger *slog.Logger, chunkSize int, chain defs.BSVNetwork) *bulkHeadersContainer {
 	logger = logging.Child(logger, "bulk_headers_container")
 	return &bulkHeadersContainer{
 		logger:    logger,
 		chunkSize: chunkSize,
 		chunks:    make([]chunkData, 0),
+		chain:     chain,
 	}
 }
 
@@ -167,7 +170,7 @@ func (b *bulkHeadersContainer) FindHeaderForHeight(height uint) (*wdk.ChainBlock
 	return header, nil
 }
 
-func (b *bulkHeadersContainer) Update(chain defs.BSVNetwork, filenamePrefix string) error {
+func (b *bulkHeadersContainer) Update() error {
 	b.GeneratedFileData = make([]ingest.BulkFileData, 0, len(b.chunks))
 
 	for i, chunk := range b.chunks {
@@ -180,22 +183,24 @@ func (b *bulkHeadersContainer) Update(chain defs.BSVNetwork, filenamePrefix stri
 
 		fileInfo := ingest.BulkHeaderFileInfo{
 			BulkHeaderMinimumInfo: ingest.BulkHeaderMinimumInfo{
-				FileName:    fmt.Sprintf("%s_%d.headers", filenamePrefix, i),
+				FileName:    fmt.Sprintf("%sNet_%d.headers", b.chain, i),
 				FirstHeight: must.ConvertToUInt(i * b.chunkSize),
 				Count:       len(chunk.data) / 80,
-				SourceURL: "", // SourceURL is not set here
 			},
 			PrevChainWork: prevChainWorkHex,
 			LastChainWork: chunk.LastChainWork.To64PadHex(),
 			PrevHash:      prevHash,
 			LastHash:      &chunk.LastHash,
-			Chain:         chain,
+			Chain:         b.chain,
 		}
 
+		now := time.Now()
 		fileData := ingest.BulkFileData{
-			Info: fileInfo,
-			Data: chunk.data,
+			Info:      fileInfo,
+			Data:      make([]byte, len(chunk.data)),
+			UpdatedAt: now,
 		}
+		copy(fileData.Data, chunk.data)
 
 		fileData.Info.FileHash = fileData.Hash()
 
@@ -226,4 +231,21 @@ func (b *bulkHeadersContainer) trimToRange(data []byte, initialHeightRange, desi
 	endByte := (endIndex + 1) * 80
 
 	return data[startByte:endByte], nil
+}
+
+func (b *bulkHeadersContainer) FilesInfo() []ingest.BulkHeaderFileInfo {
+	filesInfo := make([]ingest.BulkHeaderFileInfo, 0, len(b.GeneratedFileData))
+	for _, fileData := range b.GeneratedFileData {
+		filesInfo = append(filesInfo, fileData.Info)
+	}
+
+	return filesInfo
+}
+
+func (b *bulkHeadersContainer) GetFileDataByIndex(fileID int) (*ingest.BulkFileData, error) {
+	if fileID < 0 || fileID >= len(b.GeneratedFileData) {
+		return nil, fmt.Errorf("file ID %d is out of range", fileID)
+	}
+
+	return &b.GeneratedFileData[fileID], nil
 }

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
@@ -22,12 +23,12 @@ type bulkManager struct {
 	container *bulkHeadersContainer
 }
 
-func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor) *bulkManager {
+func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor, chain defs.BSVNetwork) *bulkManager {
 	logger = logging.Child(logger, "chaintracks_bulk_manager")
 	return &bulkManager{
 		logger:        logger,
 		bulkIngestors: bulkIngestors,
-		container:     newBulkHeadersContainer(logger, bulkChunkSize),
+		container:     newBulkHeadersContainer(logger, bulkChunkSize, chain),
 	}
 }
 
@@ -56,6 +57,12 @@ func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, 
 		}
 	}
 
+	bm.locker.RLock()
+	defer bm.locker.RUnlock()
+	if err := bm.container.Update(); err != nil {
+		return fmt.Errorf("failed to update bulk headers container: %w", err)
+	}
+
 	return nil
 }
 
@@ -71,6 +78,23 @@ func (bm *bulkManager) FindHeaderForHeight(height uint) (*wdk.ChainBlockHeader, 
 	defer bm.locker.RUnlock()
 
 	return bm.container.FindHeaderForHeight(height)
+}
+
+func (bm *bulkManager) FilesInfo() *ingest.BulkHeaderFilesInfo {
+	bm.locker.RLock()
+	defer bm.locker.RUnlock()
+
+	return &ingest.BulkHeaderFilesInfo{
+		HeadersPerFile: bulkChunkSize,
+		Files:          bm.container.FilesInfo(),
+	}
+}
+
+func (bm *bulkManager) GetFileDataByIndex(fileID int) (*ingest.BulkFileData, error) {
+	bm.locker.RLock()
+	defer bm.locker.RUnlock()
+
+	return bm.container.GetFileDataByIndex(fileID)
 }
 
 func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderMinimumInfo, downloader ingest.BulkFileDownloader) error {

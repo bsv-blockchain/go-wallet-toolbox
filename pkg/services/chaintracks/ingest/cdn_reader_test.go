@@ -44,7 +44,7 @@ func TestCDNReader_FetchBulkHeaderFilesInfo(t *testing.T) {
 	assert.Equal(t, "0000000000000000000000000000000000000000000000000000000000000000", firstChunk.PrevChainWork)
 	assert.Equal(t, "000000000002d01c1fccc21636b607dfd930d31d01c3a62104612a1719011250", *firstChunk.LastHash)
 	assert.Equal(t, defs.NetworkMainnet, firstChunk.Chain)
-	assert.Equal(t, "https://cdn.projectbabbage.com/blockheaders", *firstChunk.SourceURL)
+	assert.Equal(t, "https://cdn.projectbabbage.com/blockheaders", firstChunk.SourceURL)
 }
 
 func TestCDNReader_FetchBulkHeaderFilesInfo_Errors(t *testing.T) {
@@ -125,10 +125,11 @@ func TestCDNReader_FetchBulkHeaderFile(t *testing.T) {
 	info, err := reader.FetchBulkHeaderFilesInfo(t.Context(), defs.NetworkMainnet)
 	require.NoError(t, err)
 
-	bulkFileData, err := reader.FetchBulkHeaderFile(t.Context(), info.Files[0])
+	data, err := reader.DownloadBulkHeaderFile(t.Context(), info.Files[0].FileName)
 
 	// then:
 	require.NoError(t, err)
+	bulkFileData := ingest.BulkFileData{Data: data, Info: info.Files[0]}
 	require.NoError(t, bulkFileData.Validate())
 	require.Equal(t, 10, bulkFileData.Len())
 
@@ -179,9 +180,13 @@ func TestCDNReader_FetchBulkHeaderFile_Errors(t *testing.T) {
 			reader := ingest.NewCDNReader(logging.NewTestLogger(t), ingest.BabbageCDNBaseURL, client)
 
 			// when:
-			_, err := reader.FetchBulkHeaderFile(t.Context(), ingest.BulkHeaderFileInfo{})
+			data, err := reader.DownloadBulkHeaderFile(t.Context(), "mainNet_0.headers")
 
 			// then:
+			if err == nil {
+				bulkFileData := ingest.BulkFileData{Data: data, Info: ingest.BulkHeaderFileInfo{}}
+				err = bulkFileData.Validate()
+			}
 			require.Error(t, err)
 		})
 	}

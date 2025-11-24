@@ -76,9 +76,9 @@ func (b *BulkHeaderFileInfo) Equals(other *BulkHeaderFileInfo) bool {
 
 // BulkFileData represents a complete bulk block header file and its metadata for a specific blockchain network.
 type BulkFileData struct {
-	Info       BulkHeaderFileInfo
-	Data       []byte
-	AccessedAt time.Time
+	Info      BulkHeaderFileInfo
+	Data      []byte
+	UpdatedAt time.Time
 }
 
 // Validate checks bulk file data for validity including hash, length, and count consistency with its metadata.

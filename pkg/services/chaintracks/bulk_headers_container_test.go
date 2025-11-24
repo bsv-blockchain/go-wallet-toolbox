@@ -18,7 +18,7 @@ func TestBulkHeadersContainer_Add(t *testing.T) {
 	headersData := testabilities.First10HeadersData
 	testData := splitTestDataIntoChunks(headersData, chunkSize)
 
-	container := newBulkHeadersContainer(logging.NewTestLogger(t), chunkSize)
+	container := newBulkHeadersContainer(logging.NewTestLogger(t), chunkSize, chain)
 
 	for _, chunk := range testData {
 		err := container.Add(t.Context(), chunk.data, models.NewHeightRange(chunk.firstHeight, chunk.firstHeight+uint(chunk.count)-1))
@@ -29,7 +29,7 @@ func TestBulkHeadersContainer_Add(t *testing.T) {
 		assert.Equal(t, uint(0), currentRange.MinHeight)
 		assert.Equal(t, chunk.firstHeight+uint(chunk.count)-1, currentRange.MaxHeight)
 
-		err = container.Update(chain, filePrefix)
+		err = container.Update()
 		require.NoError(t, err)
 	}
 
@@ -90,12 +90,11 @@ func TestBulkHeadersContainer_Add(t *testing.T) {
 
 func TestBulkHeadersContainer_Add_BigChunkSize(t *testing.T) {
 	const chunkSize = 20
-	const filePrefix = "mainNet"
 	chain := defs.NetworkMainnet
 	headersData := testabilities.First10HeadersData
 	testData := splitTestDataIntoChunks(headersData, chunkSize)
 
-	container := newBulkHeadersContainer(logging.NewTestLogger(t), chunkSize)
+	container := newBulkHeadersContainer(logging.NewTestLogger(t), chunkSize, chain)
 
 	for _, chunk := range testData {
 		err := container.Add(t.Context(), chunk.data, models.NewHeightRange(chunk.firstHeight, chunk.firstHeight+uint(chunk.count)-1))
@@ -106,7 +105,7 @@ func TestBulkHeadersContainer_Add_BigChunkSize(t *testing.T) {
 		assert.Equal(t, uint(0), currentRange.MinHeight)
 		assert.Equal(t, chunk.firstHeight+uint(chunk.count)-1, currentRange.MaxHeight)
 
-		err = container.Update(chain, filePrefix)
+		err = container.Update()
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(container.GeneratedFileData))
 	}
