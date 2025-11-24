@@ -2,12 +2,9 @@ package testabilities
 
 import (
 	"bytes"
-	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +17,9 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/go-softwarelab/common/pkg/slogx"
 )
 
@@ -160,7 +159,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			http.Error(w, "failed to create client public key", http.StatusBadRequest)
 			return
 		}
-		serverNonce, err := b.createNonce(b.Context(), clientPubKey)
+		serverNonce, err := utils.CreateNonce(b.Context(), b.serverWallet, randomizer.New(), clientPubKey, fixtures.DefaultOriginator)
 		if err != nil {
 			logger.Error("failed to create server nonce", slog.Any("error", err))
 			http.Error(w, "failed to create server nonce", http.StatusBadRequest)
@@ -232,33 +231,6 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 	}
 }
 
-func (b *certifierServerBuilder) createNonce(ctx context.Context, certifier *ec.PublicKey) ([]byte, error) {
-	firstHalf := make([]byte, 16)
-	if _, err := rand.Read(firstHalf); err != nil {
-		return nil, fmt.Errorf("failed to generate 16 random bytes: %w", err)
-	}
-
-	createHMACResult, err := b.serverWallet.CreateHMAC(ctx, sdk.CreateHMACArgs{
-		EncryptionArgs: sdk.EncryptionArgs{
-			ProtocolID: sdk.Protocol{
-				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
-				Protocol:      "server hmac",
-			},
-			KeyID: string(firstHalf),
-			Counterparty: sdk.Counterparty{
-				Type:         sdk.CounterpartyTypeOther,
-				Counterparty: certifier,
-			},
-		},
-		Data: firstHalf,
-	}, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HMAC: %w", err)
-	}
-
-	nonce := base64.StdEncoding.EncodeToString(append(firstHalf, createHMACResult.HMAC[:]...))
-	return []byte(nonce), nil
-}
 
 func (b *certifierServerBuilder) convertFieldsToString(fields map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64) map[string]string {
 	stringFields := make(map[string]string)

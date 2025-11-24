@@ -3,7 +3,6 @@ package wallet
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -24,10 +23,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -37,12 +38,6 @@ import (
 )
 
 var _ sdk.Interface = (*Wallet)(nil)
-
-const (
-	nonceDataSize  = 16
-	nonceHMACSize  = 32
-	totalNonceSize = 48
-)
 
 type walletCleanupFunc func()
 
@@ -99,6 +94,7 @@ type Wallet struct {
 	cleanup                 walletCleanupFunc
 	auth                    *clients.AuthFetch
 	userParty               string
+	randomizer              wdk.Randomizer
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -221,6 +217,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
 		userParty:               userParty,
+		randomizer:              randomizer.New(),
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
@@ -559,7 +556,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	}
 
 	// Fetch the identity public key early to fail fast
-	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, "")
+	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
@@ -679,7 +676,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		signatureBytes)
 
 	// Verify server nonce
-	err = w.verifyNonce(ctx, dst.ServerNonce, counterParty, "")
+	err = w.verifyNonce(ctx, dst.ServerNonce, counterParty, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify server nonce: %w", err)
 	}
@@ -703,7 +700,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 			},
 			Counterparty: counterParty,
 		},
-	}, "")
+	}, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify HMAC signature: %w", err)
 	}
@@ -823,7 +820,6 @@ func (w *Wallet) convertFieldsToCertificateFields(fields map[string]string) map[
 }
 
 func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk.Counterparty, originator string) error {
-
 	// Convert nonce from base64 string to byte array
 	buffer, err := base64.StdEncoding.DecodeString(nonce)
 	if err != nil {
@@ -831,16 +827,16 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 	}
 
 	// Validate nonce length (should be 16 bytes data + 32 bytes HMAC = 48 bytes)
-	if len(buffer) < totalNonceSize {
-		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", totalNonceSize, len(buffer))
+	if len(buffer) < utils.TotalNonceSize {
+		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", utils.TotalNonceSize, len(buffer))
 	}
 
 	// Split the nonce buffer
-	data := buffer[:nonceDataSize]
-	hmacSlice := buffer[nonceDataSize:]
+	data := buffer[:utils.NonceDataSize]
+	hmacSlice := buffer[utils.NonceDataSize:]
 
 	// Convert hmac slice to [32]byte array
-	if len(hmacSlice) != nonceHMACSize {
+	if len(hmacSlice) != utils.NonceHMACSize {
 		return fmt.Errorf("invalid hmac length: expected 32 bytes, got %d", len(hmacSlice))
 	}
 
@@ -872,31 +868,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 }
 
 func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
-	firstHalf := make([]byte, 16)
-	if _, err := rand.Read(firstHalf); err != nil {
-		return nil, fmt.Errorf("failed to generate 16 random bytes: %w", err)
-	}
-
-	createHMACResult, err := w.CreateHMAC(ctx, sdk.CreateHMACArgs{
-		EncryptionArgs: sdk.EncryptionArgs{
-			ProtocolID: sdk.Protocol{
-				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
-				Protocol:      "server hmac",
-			},
-			KeyID: string(firstHalf),
-			Counterparty: sdk.Counterparty{
-				Type:         sdk.CounterpartyTypeOther,
-				Counterparty: certifier,
-			},
-		},
-		Data: firstHalf,
-	}, originator)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HMAC: %w", err)
-	}
-
-	nonce := base64.StdEncoding.EncodeToString(append(firstHalf, createHMACResult.HMAC[:]...))
-	return []byte(nonce), nil
+	return utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
 }
 
 func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
