@@ -76,7 +76,7 @@ func (b *BulkIngestorWOC) Synchronize(ctx context.Context, presentHeight uint, r
 func (b *BulkIngestorWOC) bulkFileDownloader() BulkFileDownloader {
 	return func(ctx context.Context, fileInfo BulkHeaderMinimumInfo) ([]byte, error) {
 		if fileInfo.SourceURL == "" {
-			panic("SourceURL is nil in bulk file downloader")
+			panic("SourceURL is required for WhatsOnChain bulk file downloader")
 		}
 
 		b.logger.Info("Downloading bulk header file", slog.String("file_name", fileInfo.FileName))

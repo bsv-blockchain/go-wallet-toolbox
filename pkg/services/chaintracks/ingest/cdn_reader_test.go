@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const firstFilename = "mainNet_0.headers"
+
 func TestCDNReader_FetchBulkHeaderFilesInfo(t *testing.T) {
 	// given:
 	transport := httpmock.NewMockTransport()
@@ -38,7 +40,7 @@ func TestCDNReader_FetchBulkHeaderFilesInfo(t *testing.T) {
 	assert.Len(t, info.Files, 10)
 
 	firstChunk := info.Files[0]
-	assert.Equal(t, "mainNet_0.headers", firstChunk.FileName)
+	assert.Equal(t, firstFilename, firstChunk.FileName)
 	assert.Equal(t, uint(0), firstChunk.FirstHeight)
 	assert.Equal(t, 100000, firstChunk.Count)
 	assert.Equal(t, "0000000000000000000000000000000000000000000000000000000000000000", firstChunk.PrevChainWork)
@@ -104,7 +106,7 @@ func TestCDNReader_FetchBulkHeaderFile(t *testing.T) {
 					"chain":         "main",
 					"count":         10,
 					"fileHash":      "bE1oOTaH49qwzuG+s0T/4EAQP5+rtthBtJW9akTwRCM=",
-					"fileName":      "mainNet_0.headers",
+					"fileName":      firstFilename,
 					"firstHeight":   0,
 					"lastChainWork": "0000000000000000000000000000000000000000000000000000000a000a000a",
 					"lastHash":      "000000008d9dc510f23c2657fc4f67bea30078cc05a90eb89e84cc475c080805",
@@ -115,7 +117,7 @@ func TestCDNReader_FetchBulkHeaderFile(t *testing.T) {
 			},
 		}))
 
-	transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+	transport.RegisterResponder("GET", fmt.Sprintf("%s/%s", ingest.BabbageCDNBaseURL, firstFilename),
 		httpmock.NewBytesResponder(200, testabilities.First10HeadersData))
 
 	// and:
@@ -134,7 +136,7 @@ func TestCDNReader_FetchBulkHeaderFile(t *testing.T) {
 	require.Equal(t, 10, bulkFileData.Len())
 
 	// when:
-	header, err := bulkFileData.GetHeaderAtIndex(9)
+	header, err := ingest.GetHeaderAtIndex(bulkFileData.Data, 9, bulkFileData.Info.FirstHeight)
 	require.NoError(t, err)
 
 	// then:
@@ -149,19 +151,19 @@ func TestCDNReader_FetchBulkHeaderFile_Errors(t *testing.T) {
 	}{
 		"404 result": {
 			setupResponder: func(transport *httpmock.MockTransport) {
-				transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+				transport.RegisterResponder("GET", fmt.Sprintf("%s/%s", ingest.BabbageCDNBaseURL, firstFilename),
 					httpmock.NewStringResponder(404, "Not Found"))
 			},
 		},
 		"invalid data": {
 			setupResponder: func(transport *httpmock.MockTransport) {
-				transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+				transport.RegisterResponder("GET", fmt.Sprintf("%s/%s", ingest.BabbageCDNBaseURL, firstFilename),
 					httpmock.NewStringResponder(200, "this is not valid header data"))
 			},
 		},
 		"empty response": {
 			setupResponder: func(transport *httpmock.MockTransport) {
-				transport.RegisterResponder("GET", fmt.Sprintf("%s/mainNet_0.headers", ingest.BabbageCDNBaseURL),
+				transport.RegisterResponder("GET", fmt.Sprintf("%s/%s", ingest.BabbageCDNBaseURL, firstFilename),
 					httpmock.NewStringResponder(200, ""))
 			},
 		},
@@ -180,7 +182,7 @@ func TestCDNReader_FetchBulkHeaderFile_Errors(t *testing.T) {
 			reader := ingest.NewCDNReader(logging.NewTestLogger(t), ingest.BabbageCDNBaseURL, client)
 
 			// when:
-			data, err := reader.DownloadBulkHeaderFile(t.Context(), "mainNet_0.headers")
+			data, err := reader.DownloadBulkHeaderFile(t.Context(), firstFilename)
 
 			// then:
 			if err == nil {

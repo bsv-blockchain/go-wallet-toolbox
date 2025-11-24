@@ -79,6 +79,7 @@ func (b *bulkHeadersContainer) Add(ctx context.Context, data []byte, dataRange m
 		}
 
 		headerData, _ := ingest.GetHeaderDataAtIndex(dataToAdd, unsignedIndex)
+		// NOTE: if GetHeaderAtIndex passed, GetHeaderDataAtIndex cannot fail
 
 		if chunkIndex >= len(b.chunks) {
 			// Create new chunk

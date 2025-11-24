@@ -57,8 +57,8 @@ func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, 
 		}
 	}
 
-	bm.locker.RLock()
-	defer bm.locker.RUnlock()
+	bm.locker.Lock()
+	defer bm.locker.Unlock()
 	if err := bm.container.Update(); err != nil {
 		return fmt.Errorf("failed to update bulk headers container: %w", err)
 	}

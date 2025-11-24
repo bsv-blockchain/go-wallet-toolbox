@@ -113,18 +113,6 @@ func (b *BulkFileData) Len() int {
 
 // GetHeaderDataAtIndex returns the 80-byte raw header data at the specified index within the bulk file data.
 // Returns an error if the index is out of bounds or invalid.
-func (b *BulkFileData) GetHeaderDataAtIndex(index uint) ([]byte, error) {
-	return GetHeaderDataAtIndex(b.Data, index)
-}
-
-// GetHeaderAtIndex returns the decoded block header at the specified index from the bulk file data.
-// Returns an error if the index is out of bounds or if header parsing fails.
-func (b *BulkFileData) GetHeaderAtIndex(index uint) (*wdk.ChainBlockHeader, error) {
-	return GetHeaderAtIndex(b.Data, index, b.Info.FirstHeight)
-}
-
-// GetHeaderDataAtIndex returns the 80-byte raw header data at the specified index within the bulk file data.
-// Returns an error if the index is out of bounds or invalid.
 func GetHeaderDataAtIndex(data []byte, index uint) ([]byte, error) {
 	length := len(data) / 80
 	if index >= must.ConvertToUInt(length) {
