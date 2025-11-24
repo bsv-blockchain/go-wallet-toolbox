@@ -35,11 +35,11 @@ func NewBulkIngestorCDN(logger *slog.Logger, chain defs.BSVNetwork, config defs.
 
 // BulkFileDownloader is a function type that downloads and returns bulk block header file data with metadata.
 // It takes a context and BulkHeaderFileInfo as input, returning BulkFileData and an error if the download fails.
-type BulkFileDownloader = func(ctx context.Context, fileInfo BulkHeaderFileInfo) (BulkFileData, error)
+type BulkFileDownloader = func(ctx context.Context, fileInfo BulkHeaderMinimumInfo) ([]byte, error)
 
 // Synchronize retrieves available bulk header files for the configured BSV network and prepares chunks for ingestion.
 // It validates file metadata, checks network consistency, and returns a list of chunked header information for sync.
-func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderFileInfo, BulkFileDownloader, error) {
+func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderMinimumInfo, BulkFileDownloader, error) {
 	// TODO: PresentHeight and ranges are not used in TS implementation, consider using them for optimization
 
 	filesInfo, err := b.reader.FetchBulkHeaderFilesInfo(ctx, b.chain)
@@ -47,6 +47,7 @@ func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, r
 		return nil, nil, fmt.Errorf("failed to fetch bulk header files info: %w", err)
 	}
 
+	bulkInfo := make([]BulkHeaderMinimumInfo, 0, len(filesInfo.Files))
 	for i := range filesInfo.Files {
 		file := &filesInfo.Files[i]
 		b.logger.Info("Found bulk header file",
@@ -67,21 +68,23 @@ func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, r
 			return nil, nil, fmt.Errorf("file %s has mismatched chain: expected %s, got %s", file.FileName, b.chain, file.Chain)
 		}
 
-		file.SourceURL = &b.sourceURL
+		file.SourceURL = b.sourceURL
+
+		bulkInfo = append(bulkInfo, file.BulkHeaderMinimumInfo)
 	}
 
-	return filesInfo.Files, b.bulkFileDownloader(), nil
+	return bulkInfo, b.bulkFileDownloader(), nil
 }
 
 func (b *BulkIngestorCDN) bulkFileDownloader() BulkFileDownloader {
-	return func(ctx context.Context, fileInfo BulkHeaderFileInfo) (BulkFileData, error) {
+	return func(ctx context.Context, fileInfo BulkHeaderMinimumInfo) ([]byte, error) {
 		b.logger.Info("Downloading bulk header file", slog.String("file_name", fileInfo.FileName))
 
-		bulkFile, err := b.reader.FetchBulkHeaderFile(ctx, fileInfo)
+		bulkFile, err := b.reader.DownloadBulkHeaderFile(ctx, fileInfo.FileName)
 		if err != nil {
-			return BulkFileData{}, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
+			return nil, fmt.Errorf("failed to download bulk header file %s: %w", fileInfo.FileName, err)
 		}
 
-		return *bulkFile, nil
+		return bulkFile, nil
 	}
 }

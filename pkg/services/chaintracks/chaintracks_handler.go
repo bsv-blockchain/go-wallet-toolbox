@@ -1,10 +1,14 @@
 package chaintracks
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/server"
@@ -37,6 +41,7 @@ func NewHandler(logger *slog.Logger, service *Service) (*Handler, error) {
 	handler.mux.HandleFunc("GET /getPresentHeight", handler.handlePresentHeight)
 	handler.mux.HandleFunc("GET /findChainTipHashHex", handler.handleFindTipHashHex)
 	handler.mux.HandleFunc("GET /findHeaderHexForHeight", handler.handleFindHeaderHexForHeight)
+	handler.mux.HandleFunc("GET /blockheaders/{pathname...}", handler.handleBulkBlockHeaders)
 
 	// FIXME: in TS the endpoint is named findChainTipHeaderHex but it returns full JSON, not the hex
 	handler.mux.HandleFunc("GET /findChainTipHeaderHex", handler.handleFindChainTipHeader)
@@ -174,6 +179,96 @@ func (h *Handler) handleFindHeaderHexForHeight(w http.ResponseWriter, r *http.Re
 	}
 
 	h.writeJSONResponse(w, http.StatusOK, response)
+}
+
+func (h *Handler) handleBulkBlockHeaders(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case strings.HasSuffix(r.URL.Path, h.bulkFilesInfoFilename()):
+		h.handleFilesInfo(w, r)
+	case strings.HasSuffix(r.URL.Path, ".headers"):
+		h.downloadBulkFile(w, r)
+	default:
+		http.Error(w, "Not Found", http.StatusNotFound)
+	}
+}
+
+func (h *Handler) bulkFilesInfoFilename() string {
+	return fmt.Sprintf("%sNetBlockHeaders.json", h.service.GetChain())
+}
+
+func (h *Handler) sourceURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+		scheme = p
+	}
+
+	filename := h.bulkFilesInfoFilename()
+	pathPrefix := r.URL.Path
+	if len(pathPrefix) >= len(filename) && pathPrefix[len(pathPrefix)-len(filename):] == filename {
+		pathPrefix = pathPrefix[:len(pathPrefix)-len(filename)]
+	}
+	sourceURL := scheme + "://" + r.Host + pathPrefix
+	return sourceURL
+}
+
+func (h *Handler) handleFilesInfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	filesInfo := h.service.BulkFilesInfo()
+	filesInfo.JSONFilename = h.bulkFilesInfoFilename()
+
+	sourceURL := h.sourceURL(r)
+	filesInfo.RootFolder = sourceURL
+	for i := range filesInfo.Files {
+		filesInfo.Files[i].SourceURL = sourceURL
+	}
+
+	h.writeJSONResponse(w, http.StatusOK, filesInfo)
+}
+
+var pathRegex = regexp.MustCompile(`^.*((main|test)Net_(\d+)\.headers)$`)
+
+func (h *Handler) downloadBulkFile(w http.ResponseWriter, r *http.Request) {
+	matches := pathRegex.FindStringSubmatch(r.URL.Path)
+
+	if matches == nil {
+		http.Error(w, "Invalid file name format", http.StatusBadRequest)
+		return
+	}
+
+	filename := matches[1]
+
+	chain := matches[2]
+	if chain != string(h.service.GetChain()) {
+		http.Error(w, "Invalid chain in file name", http.StatusBadRequest)
+		return
+	}
+
+	fileID, err := strconv.Atoi(matches[3])
+	if err != nil {
+		http.Error(w, "Invalid file ID in file name", http.StatusBadRequest)
+		return
+	}
+
+	bulkFileData, err := h.service.BulkFileDataByIndex(fileID)
+	if err != nil {
+		h.logger.Error("failed to get bulk file data", slog.String("error", err.Error()))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if bulkFileData == nil {
+		http.Error(w, "Bulk file not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	reader := bytes.NewReader(bulkFileData.Data)
+	http.ServeContent(w, r, filename, bulkFileData.UpdatedAt, reader)
 }
 
 func (h *Handler) writeJSONResponse(w http.ResponseWriter, statusCode int, response any) {

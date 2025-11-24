@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/gormstorage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/ingest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -78,7 +79,7 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overr
 		storage:         storage,
 		liveIngestors:   liveIngestors,
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
-		bulkMgr:         newBulkManager(logger, bulkIngestors),
+		bulkMgr:         newBulkManager(logger, bulkIngestors, config.Chain),
 	}
 
 	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
@@ -251,6 +252,17 @@ func (s *Service) FindHeaderForHeight(ctx context.Context, height uint) (*models
 	return &models.LiveOrBulkBlockHeader{ChainBlockHeader: *header}, nil
 }
 
+// BulkFilesInfo returns metadata about all bulk block header files currently managed by the service.
+func (s *Service) BulkFilesInfo() *ingest.BulkHeaderFilesInfo {
+	return s.bulkMgr.FilesInfo()
+}
+
+// BulkFileDataByIndex retrieves the BulkFileData for the file at the specified index.
+// Returns an error if the index is out of bounds or the file cannot be accessed.
+func (s *Service) BulkFileDataByIndex(index int) (*ingest.BulkFileData, error) {
+	return s.bulkMgr.GetFileDataByIndex(index)
+}
+
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
 	for _, liveIngestor := range s.liveIngestors {
 		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
@@ -292,8 +304,6 @@ func (s *Service) fetchLatestPresentHeight(ctx context.Context) (uint, error) {
 }
 
 func (s *Service) syncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) (err error) {
-	// TODO: change initialRanges to proper type when the PR is merged
-
 	if s.skipBulkSync(presentHeight, initialRanges) {
 		s.logger.Debug("Chaintracks service - skipping bulk synchronization as recent sync already performed", slog.Any("present_height", presentHeight))
 		return nil
@@ -522,7 +532,6 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	headerChainWork := internal.ChainWorkFromBits(header.Bits)
 
 	chainWork := headerChainWork.AddChainWork(oneBackChainWork)
-	_ = chainWork
 
 	priorTipChainWork, err := internal.ChainWorkFromHex(priorTip.ChainWork)
 	if err != nil {
