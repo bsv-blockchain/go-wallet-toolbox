@@ -71,11 +71,11 @@ func (b *bulkHeadersContainer) Add(ctx context.Context, data []byte, dataRange m
 			return fmt.Errorf("operation canceled while adding bulk headers: %w", ctx.Err())
 		}
 
-		height := must.ConvertToIntFromUnsigned(dataRange.MinHeight) + i
+		height := must.ConvertToIntFromUnsigned(rangeToAdd.MinHeight) + i
 		chunkIndex := b.getIndexForHeight(height)
-		header, err := ingest.GetHeaderAtIndex(dataToAdd, unsignedIndex, dataRange.MinHeight)
+		header, err := ingest.GetHeaderAtIndex(dataToAdd, unsignedIndex, rangeToAdd.MinHeight)
 		if err != nil {
-			return fmt.Errorf("failed to get header chunks at index %d: %w", i, err)
+			return fmt.Errorf("failed to get header at index %d: %w", i, err)
 		}
 
 		headerData, _ := ingest.GetHeaderDataAtIndex(dataToAdd, unsignedIndex)
