@@ -615,14 +615,13 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to send HTTP request to the certifier server: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		errorBody, _ := io.ReadAll(res.Body)
-		return nil, fmt.Errorf("unexpected HTTP status code %d: %s", res.StatusCode, string(errorBody))
-	}
 
 	responseBytes, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body bytes: %w", err)
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected HTTP status code %d: %s", res.StatusCode, string(responseBytes))
 	}
 
 	var dst ProtocolIssuanceResponse
@@ -666,13 +665,18 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	}
 
 	// Build certificate object for validation
+	certFields, err := mapping.MapToCertificateFields(dst.Certificate.Fields)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map certificate fields: %w", err)
+	}
+
 	signedCert := certificates.NewCertificate(
 		sdk.StringBase64(dst.Certificate.Type),
 		sdk.StringBase64(dst.Certificate.SerialNumber),
 		to.Value(subject),
 		to.Value(certifier),
 		revocationOutpoint,
-		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
+		certFields,
 		signatureBytes)
 
 	// Verify server nonce
@@ -686,6 +690,9 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	serialNumber, err := base64.StdEncoding.DecodeString(string(signedCert.SerialNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode serialNumber: %w", err)
+	}
+	if len(serialNumber) != utils.NonceHMACSize {
+		return nil, fmt.Errorf("invalid serialNumber length: got %d, want %d", len(serialNumber), utils.NonceHMACSize)
 	}
 	copy(hmacToVerifyArray[:], serialNumber)
 
@@ -745,9 +752,14 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	}
 
 	// Test decryption works
+	certMasterKeyring, err := mapping.MapToCertificateFields(masterKeyring)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map certificate master keyring fields: %w", err)
+	}
+
 	_, err = certificates.DecryptFields(ctx, w,
-		w.convertFieldsToCertificateFields(masterKeyring),
-		w.convertFieldsToCertificateFields(dst.Certificate.Fields),
+		certMasterKeyring,
+		certFields,
 		counterParty,
 		to.Value(args.Privileged),
 		args.PrivilegedReason,
@@ -809,14 +821,6 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	}
 
 	return &cert, nil
-}
-
-func (w *Wallet) convertFieldsToCertificateFields(fields map[string]string) map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64 {
-	stringFields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64, len(fields))
-	for k, v := range fields {
-		stringFields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
-	}
-	return stringFields
 }
 
 func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk.Counterparty, originator string) error {

@@ -19,8 +19,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/go-softwarelab/common/pkg/slogx"
+	"github.com/stretchr/testify/require"
 )
 
 // CertifierServerBuilder is a builder interface for configuring a test certifier server.
@@ -193,6 +195,8 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 		}
 
 		serialNumber := base64.StdEncoding.EncodeToString(hmac.HMAC[:])
+		certFields, err := mapping.MapToCertificateFields(req.Fields)
+		require.NoError(b.TB, err)
 
 		signedCertificate := certificates.NewCertificate(
 			sdk.StringBase64(req.Type),
@@ -200,7 +204,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			*clientPubKey,
 			*certifierKey.PublicKey,
 			&transaction.Outpoint{},
-			b.convertFieldsToCertificateFields(req.Fields),
+			certFields,
 			nil)
 		err = signedCertificate.Sign(b.Context(), b.serverWallet)
 		if err != nil {
@@ -231,19 +235,10 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 	}
 }
 
-
 func (b *certifierServerBuilder) convertFieldsToString(fields map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64) map[string]string {
 	stringFields := make(map[string]string)
 	for k, v := range fields {
 		stringFields[string(k)] = string(v)
 	}
 	return stringFields
-}
-
-func (b *certifierServerBuilder) convertFieldsToCertificateFields(fields map[string]string) map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64 {
-	certFields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64)
-	for k, v := range fields {
-		certFields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
-	}
-	return certFields
 }
