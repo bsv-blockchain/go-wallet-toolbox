@@ -69,25 +69,6 @@ func (c *wocClient) GetHeaderByHash(ctx context.Context, hash string) (*WOCBlock
 	return &hdrResp, nil
 }
 
-func (c *wocClient) GetBlockByHeight(ctx context.Context, height uint) (*WOCBlockHeaderDTO, error) {
-	path := fmt.Sprintf("/block/height/%d", height)
-
-	var blockResp WOCBlockHeaderDTO
-	res, err := c.resty.R().
-		SetContext(ctx).
-		SetResult(&blockResp).
-		Get(path)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch block by height: %w", err)
-	}
-	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d fetching block by height", res.StatusCode())
-	}
-
-	return &blockResp, nil
-}
-
 func (c *wocClient) GetPresentHeight(ctx context.Context) (uint, error) {
 	path := "/chain/info"
 
