@@ -68,7 +68,7 @@ func (b *bulkHeadersContainer) Add(ctx context.Context, data []byte, dataRange m
 	for i := range count {
 		unsignedIndex := must.ConvertToUInt(i)
 		if ctx.Err() != nil {
-			return fmt.Errorf("operation cancelled while adding bulk headers: %w", ctx.Err())
+			return fmt.Errorf("operation canceled while adding bulk headers: %w", ctx.Err())
 		}
 
 		height := must.ConvertToIntFromUnsigned(dataRange.MinHeight) + i
