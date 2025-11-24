@@ -10,14 +10,14 @@ import (
 )
 
 func MapToCertifierCounterparty(s primitives.PubKeyHex) (sdk.Counterparty, error) {
-	key, err := ec.PrivateKeyFromHex(to.String(s))
+	pubKey, err := ec.PublicKeyFromString(to.String(s))
 	if err != nil {
-		return sdk.Counterparty{}, fmt.Errorf("invalid certifier private key hex: %w", err)
+		return sdk.Counterparty{}, fmt.Errorf("invalid certifier public key hex: %w", err)
 	}
 
 	return sdk.Counterparty{
 		Type:         sdk.CounterpartyTypeOther,
-		Counterparty: key.PubKey(),
+		Counterparty: pubKey,
 	}, nil
 }
 

@@ -38,6 +38,12 @@ import (
 
 var _ sdk.Interface = (*Wallet)(nil)
 
+const (
+	nonceDataSize  = 16
+	nonceHMACSize  = 32
+	totalNonceSize = 48
+)
+
 type walletCleanupFunc func()
 
 // ProtocolIssuanceRequest represents the certificate signing request sent to the certifier
@@ -112,7 +118,7 @@ func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
 	}
 }
 
-// WithAuthHTTPClient TODO:
+// WithAuthHTTPClient configures a custom HTTP client for authenticated requests to certificate authorities.
 func WithAuthHTTPClient(client *http.Client) func(*wallet_opts.Opts) {
 	return func(o *wallet_opts.Opts) {
 		o.Client = client
@@ -216,7 +222,6 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		logger:                  logger,
 		userParty:               userParty,
 	}
-	// TODO: check if this is correct usage
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
 	activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
@@ -610,9 +615,13 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		Body:    body,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to send HTTP request to the auth server: %w", err)
+		return nil, fmt.Errorf("failed to send HTTP request to the certifier server: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		errorBody, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("unexpected HTTP status code %d: %s", res.StatusCode, string(errorBody))
+	}
 
 	responseBytes, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -814,6 +823,7 @@ func (w *Wallet) convertFieldsToCertificateFields(fields map[string]string) map[
 }
 
 func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk.Counterparty, originator string) error {
+
 	// Convert nonce from base64 string to byte array
 	buffer, err := base64.StdEncoding.DecodeString(nonce)
 	if err != nil {
@@ -821,16 +831,16 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 	}
 
 	// Validate nonce length (should be 16 bytes data + 32 bytes HMAC = 48 bytes)
-	if len(buffer) < 48 {
-		return fmt.Errorf("invalid nonce length: expected at least 48 bytes, got %d", len(buffer))
+	if len(buffer) < totalNonceSize {
+		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", totalNonceSize, len(buffer))
 	}
 
 	// Split the nonce buffer
-	data := buffer[:16]
-	hmacSlice := buffer[16:]
+	data := buffer[:nonceDataSize]
+	hmacSlice := buffer[nonceDataSize:]
 
 	// Convert hmac slice to [32]byte array
-	if len(hmacSlice) != 32 {
+	if len(hmacSlice) != nonceHMACSize {
 		return fmt.Errorf("invalid hmac length: expected 32 bytes, got %d", len(hmacSlice))
 	}
 
