@@ -252,10 +252,13 @@ func (s *Service) FindHeaderForHeight(ctx context.Context, height uint) (*models
 	return &models.LiveOrBulkBlockHeader{ChainBlockHeader: *header}, nil
 }
 
+// BulkFilesInfo returns metadata about all bulk block header files currently managed by the service.
 func (s *Service) BulkFilesInfo() *ingest.BulkHeaderFilesInfo {
 	return s.bulkMgr.FilesInfo()
 }
 
+// BulkFileDataByIndex retrieves the BulkFileData for the file at the specified index.
+// Returns an error if the index is out of bounds or the file cannot be accessed.
 func (s *Service) BulkFileDataByIndex(index int) (*ingest.BulkFileData, error) {
 	return s.bulkMgr.GetFileDataByIndex(index)
 }

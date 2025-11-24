@@ -66,18 +66,19 @@ func (b *bulkHeadersContainer) Add(ctx context.Context, data []byte, dataRange m
 	count := len(dataToAdd) / 80
 
 	for i := range count {
+		unsignedIndex := must.ConvertToUInt(i)
 		if ctx.Err() != nil {
 			return fmt.Errorf("operation cancelled while adding bulk headers: %w", ctx.Err())
 		}
 
 		height := must.ConvertToIntFromUnsigned(dataRange.MinHeight) + i
 		chunkIndex := b.getIndexForHeight(height)
-		header, err := ingest.GetHeaderAtIndex(dataToAdd, uint(i), dataRange.MinHeight)
+		header, err := ingest.GetHeaderAtIndex(dataToAdd, unsignedIndex, dataRange.MinHeight)
 		if err != nil {
 			return fmt.Errorf("failed to get header chunks at index %d: %w", i, err)
 		}
 
-		headerData, _ := ingest.GetHeaderDataAtIndex(dataToAdd, uint(i))
+		headerData, _ := ingest.GetHeaderDataAtIndex(dataToAdd, unsignedIndex)
 
 		if chunkIndex >= len(b.chunks) {
 			// Create new chunk
@@ -87,7 +88,6 @@ func (b *bulkHeadersContainer) Add(ctx context.Context, data []byte, dataRange m
 			}
 
 			headerChainWork := internal.ChainWorkFromBits(header.Bits)
-
 			chainWork := headerChainWork.AddChainWork(prevChainWork)
 
 			chunk := chunkData{

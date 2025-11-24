@@ -68,6 +68,9 @@ func (c *CDNReader) FetchBulkHeaderFilesInfo(ctx context.Context, chain defs.BSV
 	return result, nil
 }
 
+// DownloadBulkHeaderFile downloads a bulk block header file from the CDN as raw binary data given its filename.
+// The context controls cancellation and timeout of the HTTP request.
+// Returns the downloaded file as bytes, or an error if the download fails or a non-success status is received.
 func (c *CDNReader) DownloadBulkHeaderFile(ctx context.Context, filename string) ([]byte, error) {
 	resp, err := c.resty.R().
 		SetContext(ctx).

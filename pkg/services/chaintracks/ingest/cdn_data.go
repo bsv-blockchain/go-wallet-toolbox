@@ -21,6 +21,9 @@ type BulkHeaderFilesInfo struct {
 	Files          []BulkHeaderFileInfo `json:"files"`
 }
 
+// BulkHeaderMinimumInfo defines essential metadata for a bulk block header file used in header synchronization.
+// It contains the first block height, number of headers, file name, and source URL for file retrieval.
+// This struct enables filtering and locating bulk header files for download in header ingestion workflows.
 type BulkHeaderMinimumInfo struct {
 	FirstHeight uint   `json:"firstHeight"`
 	Count       int    `json:"count"`
