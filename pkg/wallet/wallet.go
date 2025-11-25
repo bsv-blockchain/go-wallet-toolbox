@@ -556,7 +556,7 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	defer func() { _ = res.Body.Close() }()
 
 	// Parse and validate the certificate response
-	parsedCert, err := actions.ParseCertificateResponse(ctx, actions.ParseCertificateResponseParams{
+	parsedCert, err := actions.ParseCertificateResponse(actions.ParseCertificateResponseParams{
 		Response:    res,
 		Args:        args,
 		Nonce:       nonce,

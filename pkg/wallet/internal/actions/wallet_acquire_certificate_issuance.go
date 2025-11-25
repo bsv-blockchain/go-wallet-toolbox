@@ -159,7 +159,7 @@ func PrepareIssuanceActionData(ctx context.Context, p PrepareIssuanceActionDataP
 }
 
 // ParseCertificateResponse parses and validates the certificate response from the certifier
-func ParseCertificateResponse(ctx context.Context, p ParseCertificateResponseParams) (*ParseCertificateResponseResult, error) {
+func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertificateResponseResult, error) {
 	// Read response body
 	responseBytes, err := io.ReadAll(p.Response.Body)
 	if err != nil {
@@ -373,20 +373,4 @@ func StoreCertificate(ctx context.Context, p StoreCertificateParams) error {
 	}
 
 	return nil
-}
-
-// BuildSDKCertificate constructs the SDK certificate to return to the caller
-func BuildSDKCertificate(certType [32]byte, serialNumber []byte, subject *ec.PublicKey, certifier *ec.PublicKey, revocationOutpoint *transaction.Outpoint, fields map[string]string, signature *ec.Signature) (*sdk.Certificate, error) {
-	var serialNumberArray sdk.SerialNumber
-	copy(serialNumberArray[:], serialNumber)
-
-	return &sdk.Certificate{
-		Type:               certType,
-		SerialNumber:       serialNumberArray,
-		Subject:            subject,
-		Certifier:          certifier,
-		RevocationOutpoint: revocationOutpoint,
-		Fields:             fields,
-		Signature:          signature,
-	}, nil
 }
