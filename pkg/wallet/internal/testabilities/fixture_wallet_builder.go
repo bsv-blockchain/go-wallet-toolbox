@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"log/slog"
+	"net/http"
 	"slices"
 	"testing"
 
@@ -36,6 +37,7 @@ type WalletBuilder interface {
 	WithSQLiteStorage() WalletBuilder
 	WithServices() WalletBuilder
 	WithOwnStorage() WalletBuilder
+	WithHTTPClient(client *http.Client) WalletBuilder
 	WithWalletOpts(opts ...func(*wallet_opts.Opts)) WalletBuilder
 	ForUser(user testusers.User) *wallet.Wallet
 }
@@ -47,10 +49,16 @@ type walletBuilder struct {
 	withServices  bool
 	givenStorage  testabilities.StorageFixture
 	walletOpts    []func(*wallet_opts.Opts)
+	client        *http.Client
 }
 
 func (w *walletBuilder) WithOwnStorage() WalletBuilder {
 	return w.WithActiveStorage(StorageTypeOwnSQLite)
+}
+
+func (w *walletBuilder) WithHTTPClient(client *http.Client) WalletBuilder {
+	w.client = client
+	return w
 }
 
 func (w *walletBuilder) WithActiveStorage(storageType StorageType) WalletBuilder {
@@ -90,6 +98,10 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 		serviceCfg := defs.DefaultServicesConfig(defs.NetworkTestnet)
 		walletServices := services.New(slog.Default(), serviceCfg)
 		opts = append(opts, wallet.WithServices(walletServices))
+	}
+
+	if w.client != nil {
+		opts = append(opts, wallet.WithAuthHTTPClient(w.client))
 	}
 
 	userWallet, err := wallet.New(defs.NetworkTestnet, keyDeriver, activeStorage, opts...)

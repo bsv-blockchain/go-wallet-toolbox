@@ -26,7 +26,6 @@ func (s *WalletTestSuite) Test_ListCertificates() {
 
 		// and:
 		args := certs_testabilities.CreateSampleAcquireCertificateArgs(t)
-
 		// and:
 		cert, err := aliceWallet.AcquireCertificate(t.Context(), args, fixtures.DefaultOriginator)
 		require.NoError(t, err)
