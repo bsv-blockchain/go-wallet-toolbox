@@ -34,8 +34,9 @@ func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor, chai
 }
 
 func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) error {
-	if presentHeight == 0 {
-		return fmt.Errorf("present height is zero")
+	if presentHeight <= liveHeightThreshold {
+		bm.logger.Info("Skipping bulk synchronization - present height below live height threshold", slog.Any("present_height", presentHeight), slog.Any("live_height_threshold", liveHeightThreshold))
+		return nil
 	}
 
 	bm.logger.Info("Starting bulk synchronization", slog.Any("present_height", presentHeight), slog.Any("initial_ranges", initialRanges))
@@ -187,7 +188,8 @@ func (bm *bulkManager) GetGapHeadersAsLive(ctx context.Context, presentHeight ui
 		minLiveHeight = liveInitialRange.MinHeight
 	}
 
-	if minLiveHeight <= maxBulkHeight || minLiveHeight-maxBulkHeight < addLiveRecursionLimit {
+	if minLiveHeight <= maxBulkHeight || minLiveHeight < maxBulkHeight+addLiveRecursionLimit {
+		// no gap to fill
 		return nil, nil
 	}
 

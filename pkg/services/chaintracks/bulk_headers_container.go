@@ -254,7 +254,7 @@ func (b *bulkHeadersContainer) GetFileDataByIndex(fileID int) (*ingest.BulkFileD
 func (b *bulkHeadersContainer) LastHeader() (*wdk.ChainBlockHeader, *internal.ChainWork, error) {
 	length := len(b.chunks)
 	if length == 0 {
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("no chunks available to retrieve last header")
 	}
 
 	lastChunk := b.chunks[length-1]
