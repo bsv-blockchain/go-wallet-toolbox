@@ -40,8 +40,6 @@ type BulkFileDownloader = func(ctx context.Context, fileInfo BulkHeaderMinimumIn
 // Synchronize retrieves available bulk header files for the configured BSV network and prepares chunks for ingestion.
 // It validates file metadata, checks network consistency, and returns a list of chunked header information for sync.
 func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]BulkHeaderMinimumInfo, BulkFileDownloader, error) {
-	// TODO: PresentHeight and ranges are not used in TS implementation, consider using them for optimization
-
 	filesInfo, err := b.reader.FetchBulkHeaderFilesInfo(ctx, b.chain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch bulk header files info: %w", err)
@@ -50,6 +48,15 @@ func (b *BulkIngestorCDN) Synchronize(ctx context.Context, presentHeight uint, r
 	bulkInfo := make([]BulkHeaderMinimumInfo, 0, len(filesInfo.Files))
 	for i := range filesInfo.Files {
 		file := &filesInfo.Files[i]
+
+		if !file.ToHeightRange().Overlaps(rangeToFetch) {
+			b.logger.Info("Skipping bulk header file - does not overlap requested range",
+				slog.String("file_name", file.FileName),
+				logging.Number("start_height", file.FirstHeight),
+				logging.Number("end_height", must.ConvertToIntFromUnsigned(file.FirstHeight)+file.Count-1))
+			continue
+		}
+
 		b.logger.Info("Found bulk header file",
 			slog.String("file_name", file.FileName),
 			logging.Number("start_height", file.FirstHeight),

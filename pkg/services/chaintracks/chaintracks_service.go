@@ -20,12 +20,14 @@ import (
 )
 
 const (
+	// TODO: constants below, can be made configurable if needed
 	liveHeadersChanSize    = 1000
 	lastPresentHeightTTL   = 60 * time.Second
 	cdnSyncRepeatDuration  = 24 * time.Hour
 	syncCheckInterval      = 1 * time.Second
 	addLiveRecursionLimit  = 11
 	halfLiveRecursionLimit = addLiveRecursionLimit / 2
+	liveHeightThreshold    = 2000
 )
 
 // Service provides core functionality for the Chaintracks service with logging and configuration support.
@@ -367,6 +369,10 @@ func (s *Service) shiftLiveHeaders(ctx context.Context) error {
 		return fmt.Errorf("bulk synchronization failed during live headers shift: %w", err)
 	}
 
+	if err := s.fillGapLiveHeaders(ctx, presentHeight, before.Live); err != nil {
+		return fmt.Errorf("failed to fill gap live headers during live headers shift: %w", err)
+	}
+
 	if err := s.processHeaders(ctx); err != nil {
 		return fmt.Errorf("failed to process live headers during live headers shift: %w", err)
 	}
@@ -379,6 +385,25 @@ func (s *Service) skipBulkSync(presentHeight uint, ranges models.HeightRanges) b
 	}
 
 	return ranges.Live.NotEmpty() && ranges.Live.MaxHeight >= presentHeight-halfLiveRecursionLimit
+}
+
+func (s *Service) fillGapLiveHeaders(ctx context.Context, presentHeight uint, liveInitialRange models.HeightRange) error {
+	gapHeaders, err := s.bulkMgr.GetGapHeadersAsLive(ctx, presentHeight, liveInitialRange)
+	if err != nil {
+		return fmt.Errorf("failed to get gap headers as live during live headers shift: %w", err)
+	}
+
+	if len(gapHeaders) > 0 {
+		s.logger.Info("Filling gap between bulk and live headers using bulk ingestors", slog.Any("num_gap_headers", len(gapHeaders)))
+	}
+
+	for _, header := range gapHeaders {
+		if err := s.addLiveHeader(ctx, header); err != nil {
+			s.logger.Warn("Chaintracks service - failed to add gap header as live", slog.String("header_hash", header.Hash), slog.String("error", err.Error()))
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) processHeaders(ctx context.Context) error {
@@ -441,13 +466,30 @@ func (s *Service) addLiveHeaderRecursive(ctx context.Context, header wdk.ChainBl
 var errNoPrev = fmt.Errorf("no previous header found")
 
 func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) (err error) {
-	// TODO: implement header.Validate() method and uncomment validation check
-	//if err := header.Validate(); err != nil {
-	//	return fmt.Errorf("invalid block header: %w", err)
-	//}
+	if header.Height == 0 {
+		return fmt.Errorf("handling genesis block header is not supported here")
+	}
+
+	if err := header.Validate(); err != nil {
+		return fmt.Errorf("invalid block header: %w", err)
+	}
 
 	if IsDirtyHash(header.Hash) {
 		return fmt.Errorf("cannot add block header with dirty hash: %s", header.Hash)
+	}
+
+	lastBulk, lastBulkChainWork, err := s.bulkMgr.LastHeader()
+	if err != nil {
+		return fmt.Errorf("failed to get last bulk header: %w", err)
+	}
+
+	if lastBulk == nil {
+		return fmt.Errorf("no bulk headers available to validate against")
+	}
+
+	if header.Height <= lastBulk.Height {
+		s.logger.Info("Chaintracks service - skipping storage of live header already present in bulk storage", slog.String("header_hash", header.Hash), slog.Any("header_height", header.Height))
+		return nil
 	}
 
 	q := s.storage.Query(ctx)
@@ -479,28 +521,26 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	}
 
 	if oneBack == nil {
-		s.logger.Debug("Chaintracks service - previous header not found, cannot add header yet", slog.String("header_hash", header.Hash), slog.String("previous_hash", header.PreviousHash))
-
 		if count, err := q.CountLiveHeaders(); err != nil {
 			return fmt.Errorf("failed to count live headers: %w", err)
 		} else if count == 0 {
-			s.logger.Info("Chaintracks service - no live headers present, inserting genesis header", slog.String("header_hash", header.Hash))
+			// No live headers yet, check if this header connects directly to last bulk
+			if header.PreviousHash == lastBulk.Hash && header.Height == lastBulk.Height+1 {
+				headerChainWork := internal.ChainWorkFromBits(header.Bits)
+				chainWork := headerChainWork.AddChainWork(*lastBulkChainWork)
 
-			// TODO check if this first-live-block-header matches the last bulk header
-			// TODO: Important: Chainwork from bits should be added to the last ChainWork from the last bulk file
-			headerChainWork := internal.ChainWorkFromBits(header.Bits)
+				if err := q.InsertNewLiveHeader(&models.LiveBlockHeader{
+					ChainBlockHeader: header,
+					PreviousHeaderID: nil,
+					ChainWork:        chainWork.To64PadHex(),
+					IsChainTip:       true,
+					IsActive:         true,
+				}); err != nil {
+					return fmt.Errorf("failed to insert new live header: %w", err)
+				}
 
-			if err := q.InsertNewLiveHeader(&models.LiveBlockHeader{
-				ChainBlockHeader: header,
-				PreviousHeaderID: nil,
-				ChainWork:        headerChainWork.To64PadHex(),
-				IsActive:         true,
-				IsChainTip:       true,
-			}); err != nil {
-				return fmt.Errorf("failed to insert genesis live header: %w", err)
+				return nil
 			}
-
-			return nil
 		}
 
 		return errNoPrev

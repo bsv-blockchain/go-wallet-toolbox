@@ -34,7 +34,6 @@ type NamedLiveIngestor struct {
 
 // BulkIngestor defines an interface for bulk synchronization of block headers within specified height ranges.
 // The Synchronize method ingests headers up to the given presentHeight for provided height ranges and returns insertion results.
-// TODO: refine return type from 'any' to a more specific type representing synchronization results.
 type BulkIngestor interface {
 	Synchronize(ctx context.Context, presentHeight uint, rangeToFetch models.HeightRange) ([]ingest.BulkHeaderMinimumInfo, ingest.BulkFileDownloader, error)
 }

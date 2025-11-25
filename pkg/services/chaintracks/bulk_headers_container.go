@@ -250,3 +250,41 @@ func (b *bulkHeadersContainer) GetFileDataByIndex(fileID int) (*ingest.BulkFileD
 
 	return &b.GeneratedFileData[fileID], nil
 }
+
+func (b *bulkHeadersContainer) LastHeader() (*wdk.ChainBlockHeader, *internal.ChainWork, error) {
+	length := len(b.chunks)
+	if length == 0 {
+		return nil, nil, fmt.Errorf("no chunks available to retrieve last header")
+	}
+
+	lastChunk := b.chunks[length-1]
+	headerCount := len(lastChunk.data) / 80
+	if headerCount == 0 {
+		return nil, nil, fmt.Errorf("last chunk contains no headers")
+	}
+
+	headerDataStart := (headerCount - 1) * 80
+	headerDataEnd := headerDataStart + 80
+
+	headerData := lastChunk.data[headerDataStart:headerDataEnd]
+
+	baseBlockHeader, err := wdk.ChainBaseBlockHeaderFromBytes(headerData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse last block header: %w", err)
+	}
+
+	blockHash, err := baseBlockHeader.CalculateHash()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to compute hash for last block header: %w", err)
+	}
+
+	height := b.MaxHeightAtChunk(length - 1)
+
+	header := &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: *baseBlockHeader,
+		Height:               must.ConvertToUInt(height),
+		Hash:                 blockHash.String(),
+	}
+
+	return header, &lastChunk.LastChainWork, nil
+}
