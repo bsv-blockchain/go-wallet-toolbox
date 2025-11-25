@@ -287,7 +287,7 @@ func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsed
 
 	// Validate certifier
 	if parsedCert.Certificate.Certifier.ToDERHex() != certifier.ToDERHex() {
-		return fmt.Errorf("invalid certifier! Expected: %s, Received: %s", certifier, parsedCert.Certificate.Certifier.ToDERHex())
+		return fmt.Errorf("invalid certifier! Expected: %s, Received: %s", certifier.ToDERHex(), parsedCert.Certificate.Certifier.ToDERHex())
 	}
 
 	// Validate revocation outpoint exists

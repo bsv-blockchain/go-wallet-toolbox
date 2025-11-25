@@ -30,7 +30,7 @@ func MapToFieldsForEncryption(m map[string]string) (map[sdk.CertificateFieldName
 	out := make(map[sdk.CertificateFieldNameUnder50Bytes]string, len(m))
 	for key, val := range m {
 		if len(key) < minLength || len(key) > maxLength {
-			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 characters", key)
+			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 bytes", key)
 		}
 		out[sdk.CertificateFieldNameUnder50Bytes(key)] = val
 	}
