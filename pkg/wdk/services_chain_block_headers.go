@@ -46,6 +46,7 @@ type ChainBaseBlockHeader struct {
 	Nonce uint32
 }
 
+// Validate checks if PreviousHash and MerkleRoot are valid 32-byte hex strings (64 characters) and returns an error if not.
 func (c *ChainBaseBlockHeader) Validate() error {
 	if len(c.PreviousHash) != 64 {
 		return fmt.Errorf("previous hash must be a 32-byte hex string (64 characters), got %d characters", len(c.PreviousHash))
@@ -71,6 +72,8 @@ type ChainBlockHeader struct {
 	Hash string
 }
 
+// Validate checks the integrity of the ChainBlockHeader fields and returns an error if any are invalid.
+// It validates the embedded ChainBaseBlockHeader and ensures the Hash field is a 32-byte hex string (64 characters).
 func (c *ChainBlockHeader) Validate() error {
 	if err := c.ChainBaseBlockHeader.Validate(); err != nil {
 		return err

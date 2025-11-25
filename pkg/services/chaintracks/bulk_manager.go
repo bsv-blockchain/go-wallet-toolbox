@@ -230,12 +230,12 @@ func (bm *bulkManager) GetGapHeadersAsLive(ctx context.Context, presentHeight ui
 
 				baseHeader, err := wdk.ChainBaseBlockHeaderFromBytes(headerData)
 				if err != nil {
-					return nil, fmt.Errorf("failed to parse block header at height %d from bulk file %v: %w", chunk.FirstHeight+uint(i), chunk, err)
+					return nil, fmt.Errorf("failed to parse block header at height %d from bulk file %v: %w", chunk.FirstHeight+i, chunk, err)
 				}
 
 				blockHash, err := baseHeader.CalculateHash()
 				if err != nil {
-					return nil, fmt.Errorf("failed to compute hash for block header at height %d from bulk file %v: %w", chunk.FirstHeight+uint(i), chunk, err)
+					return nil, fmt.Errorf("failed to compute hash for block header at height %d from bulk file %v: %w", chunk.FirstHeight+i, chunk, err)
 				}
 
 				header := wdk.ChainBlockHeader{
