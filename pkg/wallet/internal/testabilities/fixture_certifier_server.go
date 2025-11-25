@@ -18,7 +18,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/go-softwarelab/common/pkg/slogx"
@@ -148,7 +148,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 		logger.Info("received sign certificate request", slog.String("path", r.URL.Path))
 
 		// Parse the request
-		var req wallet.ProtocolIssuanceRequest
+		var req actions.ProtocolIssuanceRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("failed to decode request", slog.Any("error", err))
 			http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -214,9 +214,9 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 		}
 
 		// Mock response with a certificate
-		response := wallet.ProtocolIssuanceResponse{
+		response := actions.ProtocolIssuanceResponse{
 			ServerNonce: string(serverNonce),
-			Certificate: &wallet.Certificate{
+			Certificate: &actions.Certificate{
 				Type:               string(signedCertificate.Type),
 				SerialNumber:       string(signedCertificate.SerialNumber),
 				Subject:            signedCertificate.Subject.ToDERHex(),

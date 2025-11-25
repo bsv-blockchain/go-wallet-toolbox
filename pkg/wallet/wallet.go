@@ -1,14 +1,10 @@
 package wallet
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -17,7 +13,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -40,36 +35,6 @@ import (
 var _ sdk.Interface = (*Wallet)(nil)
 
 type walletCleanupFunc func()
-
-// ProtocolIssuanceRequest represents the certificate signing request sent to the certifier
-// as part of the issuance protocol.
-type ProtocolIssuanceRequest struct {
-	Type          string            `json:"type"`
-	Nonce         string            `json:"clientNonce"`
-	Fields        map[string]string `json:"fields"`
-	MasterKeyring map[string]string `json:"masterKeyring"`
-}
-
-// ProtocolIssuanceResponse represents the response from the certifier containing the signed certificate
-// and server nonce for verification.
-type ProtocolIssuanceResponse struct {
-	Protocol    string       `json:"protocol"`
-	Certificate *Certificate `json:"certificate"`
-	ServerNonce string       `json:"serverNonce"`
-	Timestamp   string       `json:"timestamp"`
-	Version     string       `json:"version"`
-}
-
-// Certificate represents a certificate as returned by the certifier in the issuance protocol response.
-type Certificate struct {
-	Type               string            `json:"type"`
-	SerialNumber       string            `json:"serialNumber"`
-	Subject            string            `json:"subject"`
-	Certifier          string            `json:"certifier"`
-	RevocationOutpoint string            `json:"revocationOutpoint"`
-	Fields             map[string]string `json:"fields"`
-	Signature          string            `json:"signature"`
-}
 
 func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 	if wc == nil {
@@ -561,266 +526,90 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
 
+	// Create nonce for the request
 	nonce, err := w.createNonce(ctx, args.Certifier, originator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create nonce: %w", err)
 	}
 
-	// Prepare counterparty for encryption
-	counterParty := sdk.Counterparty{
-		Counterparty: args.Certifier,
-		Type:         sdk.CounterpartyTypeOther,
-	}
-
-	// Create encrypted certificate fields
-	fieldsForEncryption, err := mapping.MapToFieldsForEncryption(args.Fields)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map sdk.AcquireCertificateArgs fields to fields for encryption: %w", err)
-	}
-
-	certificateFieldsResult, err := certificates.CreateCertificateFields(ctx, w, counterParty, fieldsForEncryption, to.Value(args.Privileged), args.PrivilegedReason)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create certificate fields: %w", err)
-	}
-
-	fields := make(map[string]string, len(certificateFieldsResult.CertificateFields))
-	for k, v := range certificateFieldsResult.CertificateFields {
-		fields[to.String(k)] = to.String(v)
-	}
-
-	masterKeyring := make(map[string]string, len(certificateFieldsResult.MasterKeyring))
-	for k, v := range certificateFieldsResult.MasterKeyring {
-		masterKeyring[to.String(k)] = to.String(v)
-	}
-
-	// Make Certificate Signing Request (CSR) to the certifier
-	argsCertTypeString := base64.StdEncoding.EncodeToString(args.Type[:])
-	body, err := json.Marshal(&ProtocolIssuanceRequest{
-		Type:          argsCertTypeString,
-		Nonce:         string(nonce),
-		Fields:        fields,
-		MasterKeyring: masterKeyring,
+	// Prepare the certificate signing request payload with certificate data
+	issuanceActionData, err := actions.PrepareIssuanceActionData(ctx, actions.PrepareIssuanceActionDataParams{
+		Wallet:      w,
+		Args:        args,
+		Nonce:       nonce,
+		IdentityKey: key.PublicKey,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal HTTP Fetch request payload: %w", err)
+		return nil, fmt.Errorf("failed to prepare issuance payload: %w", err)
 	}
 
+	// Send authenticated request to certifier
 	url := fmt.Sprintf("%s/signCertificate", args.CertifierUrl)
 	res, err := w.auth.Fetch(ctx, url, &clients.SimplifiedFetchRequestOptions{
 		Method:  http.MethodPost,
 		Headers: map[string]string{"Content-Type": "application/json"},
-		Body:    body,
+		Body:    issuanceActionData.Body,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request to the certifier server: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
-	responseBytes, err := io.ReadAll(res.Body)
+	// Parse and validate the certificate response
+	parsedCert, err := actions.ParseCertificateResponse(ctx, actions.ParseCertificateResponseParams{
+		Response:    res,
+		Args:        args,
+		Nonce:       nonce,
+		IdentityKey: key.PublicKey,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body bytes: %w", err)
+		return nil, fmt.Errorf("failed to parse certificate response: %w", err)
 	}
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("unexpected HTTP status code %d: %s", res.StatusCode, string(responseBytes))
-	}
-
-	var dst ProtocolIssuanceResponse
-	if err := json.Unmarshal(responseBytes, &dst); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	// Validate server response headers and required fields
-	responseAuthHeader := res.Header.Get("x-bsv-auth-identity-key")
-	if responseAuthHeader != args.Certifier.ToDERHex() {
-		return nil, fmt.Errorf("invalid certifier! Expected: %s, Received: %s", args.Certifier.ToDERHex(), responseAuthHeader)
-	}
-
-	if dst.ServerNonce == "" {
-		return nil, fmt.Errorf("no serverNonce received from certifier")
-	}
-
-	if dst.Certificate == nil {
-		return nil, fmt.Errorf("no certificate received from certifier")
-	}
-
-	subject, err := ec.PublicKeyFromString(dst.Certificate.Subject)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse protocol issuance response subject field to public key: %w", err)
-	}
-
-	certifier, err := ec.PublicKeyFromString(dst.Certificate.Certifier)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse protocol issuance response certifier field to public key: %w", err)
-	}
-
-	revocationOutpoint, err := transaction.OutpointFromString(dst.Certificate.RevocationOutpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get revocation outpoint from string: %w", err)
-	}
-
-	// Parse certificate components from response
-	signatureBytes, err := hex.DecodeString(dst.Certificate.Signature)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode signature from hex: %w", err)
-	}
-
-	// Build certificate object for validation
-	certFields, err := mapping.MapToCertificateFields(dst.Certificate.Fields)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map certificate fields: %w", err)
-	}
-
-	signedCert := certificates.NewCertificate(
-		sdk.StringBase64(dst.Certificate.Type),
-		sdk.StringBase64(dst.Certificate.SerialNumber),
-		to.Value(subject),
-		to.Value(certifier),
-		revocationOutpoint,
-		certFields,
-		signatureBytes)
 
 	// Verify server nonce
-	err = w.verifyNonce(ctx, dst.ServerNonce, counterParty, originator)
-	if err != nil {
+	if err := w.verifyNonce(ctx, parsedCert.ServerNonce, issuanceActionData.CounterParty, originator); err != nil {
 		return nil, fmt.Errorf("failed to verify server nonce: %w", err)
 	}
 
-	dataToVerify := bytes.Join([][]byte{nonce, []byte(dst.ServerNonce)}, []byte{})
-	var hmacToVerifyArray [32]byte
-	serialNumber, err := base64.StdEncoding.DecodeString(string(signedCert.SerialNumber))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode serialNumber: %w", err)
-	}
-	if len(serialNumber) != utils.NonceHMACSize {
-		return nil, fmt.Errorf("invalid serialNumber length: got %d, want %d", len(serialNumber), utils.NonceHMACSize)
-	}
-	copy(hmacToVerifyArray[:], serialNumber)
-
-	verifyHmacResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
-		HMAC: hmacToVerifyArray,
-		Data: dataToVerify,
-		EncryptionArgs: sdk.EncryptionArgs{
-			KeyID: dst.ServerNonce + string(nonce),
-			ProtocolID: sdk.Protocol{
-				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
-				Protocol:      "certificate issuance",
-			},
-			Counterparty: counterParty,
-		},
-	}, originator)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify HMAC signature: %w", err)
-	}
-	if !verifyHmacResult.Valid {
-		return nil, fmt.Errorf("invalid serialNumber")
-	}
-
-	if string(signedCert.Type) != argsCertTypeString {
-		return nil, fmt.Errorf("invalid certificate type! Expected: %s, Received: %s", argsCertTypeString, signedCert.Type)
-	}
-
-	// Validate certificate subject matches our identity key
-	if signedCert.Subject.ToDERHex() != key.PublicKey.ToDERHex() {
-		return nil, fmt.Errorf("invalid certificate subject! Expected: %s, Received: %s", key.PublicKey.ToDERHex(), signedCert.Subject.ToDERHex())
-	}
-	if signedCert.Certifier.ToDERHex() != args.Certifier.ToDERHex() {
-		return nil, fmt.Errorf("invalid certifier! Expected: %s, Received: %s", args.Certifier, signedCert.Certifier.ToDERHex())
-	}
-	if signedCert.RevocationOutpoint == nil {
-		return nil, fmt.Errorf("invalid revocationOutpoint")
-	}
-
-	// Validate that certificate fields match what we sent
-	if len(signedCert.Fields) != len(fields) {
-		return nil, fmt.Errorf("fields mismatch! Objects have different number of keys. Expected: %d, Received: %d", len(fields), len(signedCert.Fields))
-	}
-
-	for fieldName, fieldValue := range fields {
-		signedCertFieldValue, isPresent := signedCert.Fields[sdk.CertificateFieldNameUnder50Bytes(fieldName)]
-		if !isPresent {
-			return nil, fmt.Errorf("missing field: %s in certificate fields from the certifier", fieldName)
-		}
-
-		if string(signedCertFieldValue) != fieldValue {
-			return nil, fmt.Errorf("invalid field! Expected: %s, Received: %s", fieldValue, string(signedCertFieldValue))
-		}
-	}
-
-	err = signedCert.Verify(ctx)
-	if err != nil {
+	// Verify the certificate against our request
+	if err := actions.VerifyCertificateIssuance(ctx, w, parsedCert, nonce, issuanceActionData, key.PublicKey, args.Certifier, originator); err != nil {
 		return nil, fmt.Errorf("failed to verify certificate: %w", err)
 	}
 
-	// Test decryption works
-	certMasterKeyring, err := mapping.MapToCertificateFields(masterKeyring)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map certificate master keyring fields: %w", err)
+	// Test that we can decrypt the certificate fields
+	if err := actions.TestCertificateDecryption(ctx, w, parsedCert.CertFields, issuanceActionData.MasterKeyring, issuanceActionData.CounterParty, args); err != nil {
+		return nil, fmt.Errorf("failed to test certificate decryption: %w", err)
 	}
 
-	_, err = certificates.DecryptFields(ctx, w,
-		certMasterKeyring,
-		certFields,
-		counterParty,
-		to.Value(args.Privileged),
-		args.PrivilegedReason,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt certificate: %w", err)
+	// Store the certificate
+	if err := actions.StoreCertificate(ctx, actions.StoreCertificateParams{
+		Storage:            w.storage,
+		Auth:               auth,
+		Certificate:        parsedCert.Certificate,
+		Certifier:          parsedCert.ParsedCertifier,
+		RevocationOutpoint: parsedCert.RevocationOutpoint,
+		Signature:          parsedCert.ParsedSignature,
+		IdentityKey:        key.PublicKey,
+		CertTypeB64:        issuanceActionData.CertTypeB64,
+		Fields:             issuanceActionData.Fields,
+		MasterKeyring:      issuanceActionData.MasterKeyring,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to store certificate: %w", err)
 	}
 
-	// Store the newly issued certificate
-	// Convert serial number to array for storage
+	// Build and return SDK certificate
 	var serialNumberArray sdk.SerialNumber
-	copy(serialNumberArray[:], serialNumber)
+	copy(serialNumberArray[:], parsedCert.SerialNumber)
 
-	// Parse signature from bytes to *ec.Signature
-	parsedSignature, err := ec.ParseSignature(signatureBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse signature: %w", err)
-	}
-
-	// Convert signature to hex string for storage
-	rHex := fmt.Sprintf("%064x", parsedSignature.R)
-	sHex := fmt.Sprintf("%064x", parsedSignature.S)
-	sigHex := rHex + sHex
-
-	// Parse fields into TableCertificateField slice using encrypted fields from certificate response
-	certificateFields, err := wdk.ParseToTableCertificateFieldSlice(*auth.UserID, dst.Certificate.Fields, masterKeyring)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate fields for user %d: %w", *auth.UserID, err)
-	}
-
-	// Insert certificate into storage
-	certifierPubKeyHex := primitives.PubKeyHex(certifier.ToDERHex())
-	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
-		TableCertificate: wdk.TableCertificate{
-			UserID:             to.Value(auth.UserID),
-			Type:               primitives.Base64String(argsCertTypeString),
-			SerialNumber:       primitives.Base64String(signedCert.SerialNumber),
-			Certifier:          certifierPubKeyHex,
-			Subject:            primitives.PubKeyHex(key.PublicKey.ToDERHex()),
-			RevocationOutpoint: primitives.OutpointString(revocationOutpoint.String()),
-			Signature:          primitives.HexString(sigHex),
-			Verifier:           to.Ptr(certifierPubKeyHex), // Certifier is the verifier (KeyringRevealer.Certifier is true)
-		},
-		Fields: certificateFields,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert certificate for user %d: %w", *auth.UserID, err)
-	}
-
-	// Build SDK certificate to return
-	cert := sdk.Certificate{
+	return &sdk.Certificate{
 		Type:               args.Type,
 		SerialNumber:       serialNumberArray,
 		Subject:            key.PublicKey,
-		Certifier:          certifier,
-		RevocationOutpoint: revocationOutpoint,
+		Certifier:          parsedCert.ParsedCertifier,
+		RevocationOutpoint: parsedCert.RevocationOutpoint,
 		Fields:             args.Fields,
-		Signature:          parsedSignature,
-	}
-
-	return &cert, nil
+		Signature:          parsedCert.ParsedSignature,
+	}, nil
 }
 
 // verifyNonce validates a nonce received from a counterparty.
@@ -879,8 +668,14 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 	return nil
 }
 
+// createNonce generates a nonce for authentication and replay protection.
 func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
-	return utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
+	nonce, err := utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nonce for wallet: %w", err)
+	}
+
+	return nonce, nil
 }
 
 func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
