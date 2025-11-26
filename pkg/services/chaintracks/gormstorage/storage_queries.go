@@ -113,6 +113,17 @@ func (i *storageQueries) SetChainTipByID(id uint, isChainTip bool) error {
 	return nil
 }
 
+func (i *storageQueries) SetActiveByID(id uint, isActive bool) error {
+	table := i.getQuery().ChaintracksLiveHeader
+	_, err := table.
+		Where(table.HeaderID.Eq(id)).
+		UpdateColumn(table.IsActive, isActive)
+	if err != nil {
+		return fmt.Errorf("failed to set active by ID: %w", err)
+	}
+	return nil
+}
+
 func (i *storageQueries) InsertNewLiveHeader(header *models.LiveBlockHeader) error {
 	table := i.getQuery().ChaintracksLiveHeader
 	err := table.Create(&dbmodels.ChaintracksLiveHeader{

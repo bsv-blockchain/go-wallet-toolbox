@@ -579,9 +579,40 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	}
 
 	isActiveTip := chainWork.CmpChainWork(priorTipChainWork) > 0
-	//if isActiveTip {
-	//	// TODO: handle reorgs if needed
-	//}
+	if isActiveTip {
+		s.logger.Info("Chaintracks service - new active chain tip detected", slog.String("header_hash", header.Hash), slog.Any("header_height", header.Height))
+
+		// find newHeader's first active ancestor
+		activeAncestor := oneBack
+		for !activeAncestor.IsActive {
+			activeAncestor, err = q.GetLiveHeaderByHash(activeAncestor.PreviousHash)
+			if err != nil {
+				return fmt.Errorf("failed to get active ancestor header: %w", err)
+			}
+
+			if activeAncestor == nil {
+				return fmt.Errorf("active ancestor header not found for hash: %s", oneBack.PreviousHash)
+			}
+		}
+
+		// TODO: Calculate reorg depth - but this is not needed yet - used only by reorg callbacks
+
+		if activeAncestor.HeaderID != oneBack.HeaderID {
+			s.logger.Info("Chaintracks service - chain reorganization detected", slog.String("new_tip_hash", header.Hash), slog.Any("new_tip_height", header.Height), slog.String("active_ancestor_hash", activeAncestor.Hash), slog.Any("active_ancestor_height", activeAncestor.Height))
+
+			// deactivate headers from the current active chain tip up to but excluding our activeAncestor:
+			if err := s.setActiveRecursivelyUntilReachAncestor(q, false, priorTip, activeAncestor); err != nil {
+				return fmt.Errorf("failed to deactivate headers during reorg: %w", err)
+			}
+
+			// the first header to activate is one before the one we are about to insert
+			// headers are activated until we reach the active ancestor
+			if err := s.setActiveRecursivelyUntilReachAncestor(q, true, oneBack, activeAncestor); err != nil {
+				return fmt.Errorf("failed to activate headers during reorg: %w", err)
+			}
+
+		}
+	}
 
 	if oneBack.IsChainTip {
 		if err := q.SetChainTipByID(oneBack.HeaderID, false); err != nil {
@@ -602,6 +633,27 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	// TODO: Prune live block headers
 
 	// TODO: trigger callbacks when implemented
+
+	return nil
+}
+
+func (s *Service) setActiveRecursivelyUntilReachAncestor(q models.StorageQueries, isActive bool, first, ancestor *models.LiveBlockHeader) error {
+	var err error
+	current := first
+	for current.HeaderID != ancestor.HeaderID {
+		if err := q.SetActiveByID(current.HeaderID, isActive); err != nil {
+			return fmt.Errorf("failed to set active=%t during reorg: %w", isActive, err)
+		}
+
+		current, err = q.GetLiveHeaderByHash(current.PreviousHash)
+		if err != nil {
+			return fmt.Errorf("failed to get prior header during reorg deactivation: %w", err)
+		}
+
+		if current == nil {
+			return fmt.Errorf("prior header not found during reorg deactivation for hash: %s", first.PreviousHash)
+		}
+	}
 
 	return nil
 }

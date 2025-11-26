@@ -12,6 +12,7 @@ type StorageQueries interface {
 	GetLiveHeaderByHash(hash string) (*LiveBlockHeader, error)
 	GetActiveTipLiveHeader() (*LiveBlockHeader, error)
 	SetChainTipByID(id uint, isChainTip bool) error
+	SetActiveByID(id uint, isActive bool) error
 	InsertNewLiveHeader(header *LiveBlockHeader) error
 	CountLiveHeaders() (int64, error)
 	GetLiveHeaderByHeight(height uint) (*LiveBlockHeader, error)
