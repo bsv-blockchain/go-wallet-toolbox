@@ -585,13 +585,14 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 		// find newHeader's first active ancestor
 		activeAncestor := oneBack
 		for !activeAncestor.IsActive {
-			activeAncestor, err = q.GetLiveHeaderByHash(activeAncestor.PreviousHash)
+			previousHash := activeAncestor.PreviousHash
+			activeAncestor, err = q.GetLiveHeaderByHash(previousHash)
 			if err != nil {
 				return fmt.Errorf("failed to get active ancestor header: %w", err)
 			}
 
 			if activeAncestor == nil {
-				return fmt.Errorf("active ancestor header not found for hash: %s", oneBack.PreviousHash)
+				return fmt.Errorf("active ancestor header not found for hash: %s", previousHash)
 			}
 		}
 
@@ -645,13 +646,14 @@ func (s *Service) setActiveRecursivelyUntilReachAncestor(q models.StorageQueries
 			return fmt.Errorf("failed to set active=%t during reorg: %w", isActive, err)
 		}
 
-		current, err = q.GetLiveHeaderByHash(current.PreviousHash)
+		previousHash := current.PreviousHash
+		current, err = q.GetLiveHeaderByHash(previousHash)
 		if err != nil {
-			return fmt.Errorf("failed to get prior header during reorg deactivation: %w", err)
+			return fmt.Errorf("failed to get previous header during reorg: %w", err)
 		}
 
 		if current == nil {
-			return fmt.Errorf("prior header not found during reorg deactivation for hash: %s", first.PreviousHash)
+			return fmt.Errorf("previous header not found during reorg for hash: %s", previousHash)
 		}
 	}
 
