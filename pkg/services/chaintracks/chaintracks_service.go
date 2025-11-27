@@ -267,10 +267,16 @@ func (s *Service) BulkFileDataByIndex(index int) (*ingest.BulkFileData, error) {
 	return s.bulkMgr.GetFileDataByIndex(index)
 }
 
+// SubscribeHeaders subscribes to notifications of new ChainBlockHeader events as they are published by the service.
+// It returns a receive-only channel for ChainBlockHeader messages and an unsubscribe function to stop receiving updates.
+// Unsubscribing will remove the subscriber and close the associated channel to clean up resources.
 func (s *Service) SubscribeHeaders() (readOnlyChan <-chan wdk.ChainBlockHeader, unsubscribe func()) {
 	return s.headerCallbacks.Subscribe()
 }
 
+// SubscribeReorgs returns a read-only channel for receiving chain reorganization events and an unsubscribe function.
+// The channel delivers ReorgEvent values whenever a chain reorg is detected, providing details of the old and new tip.
+// Call the returned unsubscribe function to stop receiving events and release resources associated with the subscription.
 func (s *Service) SubscribeReorgs() (readOnlyChan <-chan models.ReorgEvent, unsubscribe func()) {
 	return s.reorgCallbacks.Subscribe()
 }
