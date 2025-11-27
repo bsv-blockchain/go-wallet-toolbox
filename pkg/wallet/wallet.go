@@ -25,6 +25,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -46,8 +47,17 @@ func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 	}
 }
 
+// CacheEntry is a struct for the map-based overlay cache entries
+type CacheEntry struct {
+	ExpiresAt time.Time
+	value     any
+}
+
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
+	trustSettingsCache      *wallet_settings_manager.TrustSettingsCache
+	overlayCache            map[string]*CacheEntry
+	settingsManager         *wallet_settings_manager.WalletSettingsManager
 	proto                   *sdk.ProtoWallet
 	storage                 wdk.WalletStorage
 	keyDeriver              *sdk.KeyDeriver
@@ -114,6 +124,13 @@ func WithPendingSignActionsRepository(cache pending.SignActionsRepository) func(
 	}
 }
 
+// WithWalletSettingsManager sets the WalletSettingsManager for wallet settings
+func WithWalletSettingsManager(settingsManager *wallet_settings_manager.WalletSettingsManager) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.WalletSettingsManager = settingsManager
+	}
+}
+
 // WithLogger sets the provided slog.Logger to the Logger field in wallet_opts.Opts if the logger is not nil.
 func WithLogger(logger *slog.Logger) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
@@ -154,6 +171,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		Services:               nil,
 		PendingSignActionsRepo: nil,
 		Client:                 wallet_opts.DefaultClient(),
+		WalletSettingsManager:  wallet_settings_manager.DefaultManager(chain),
 	}, opts...)
 
 	keyDeriver, err := toKeyDeriver(keySource)
@@ -183,6 +201,9 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		logger:                  logger,
 		userParty:               userParty,
 		randomizer:              randomizer.New(),
+		overlayCache:            make(map[string]*CacheEntry),
+		trustSettingsCache:      nil,
+		settingsManager:         options.WalletSettingsManager,
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
@@ -755,6 +776,40 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 	return &cert, nil
 }
 
+func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
+	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	if err := validate.DiscoverByIdentityKeyArgs(args); err != nil {
+		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
+	}
+
+	// trustSettings cache (2 minutes)
+	now := time.Now()
+	const TTL = 2 * time.Minute
+	trustSettings := w.getTrustSettings(now, TTL)
+	fmt.Println("trustSettings", trustSettings)
+
+	return nil, nil
+}
+
+func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {
+	var trustSettings *wallet_settings_manager.TrustSettings
+	if w.trustSettingsCache != nil && w.trustSettingsCache.ExpiresAt.After(now) {
+		trustSettings = w.trustSettingsCache.TrustSettings
+	} else {
+		trustSettings = w.settingsManager.Get().TrustSettings
+		w.trustSettingsCache = &wallet_settings_manager.TrustSettingsCache{
+			ExpiresAt:     now.Add(ttl),
+			TrustSettings: trustSettings,
+		}
+	}
+	return trustSettings
+}
+
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
@@ -918,13 +973,6 @@ func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishC
 	}
 
 	return &sdk.RelinquishCertificateResult{Relinquished: true}, nil
-}
-
-// DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
-func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
 }
 
 // DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain
