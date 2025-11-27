@@ -52,6 +52,7 @@ type Service struct {
 	lastBulkSync  time.Time
 
 	headerCallbacks *internal.PubSubEvents[wdk.ChainBlockHeader]
+	reorgCallbacks  *internal.PubSubEvents[models.ReorgEvent]
 }
 
 // NewService creates and returns a new Service instance initialized with the provided logger and configuration.
@@ -82,6 +83,7 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overr
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
 		bulkMgr:         newBulkManager(logger, bulkIngestors, config.Chain),
 		headerCallbacks: internal.NewPubSubEvents[wdk.ChainBlockHeader](logger),
+		reorgCallbacks:  internal.NewPubSubEvents[models.ReorgEvent](logger),
 	}
 
 	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
@@ -269,6 +271,10 @@ func (s *Service) SubscribeHeaders() (readOnlyChan <-chan wdk.ChainBlockHeader, 
 	return s.headerCallbacks.Subscribe()
 }
 
+func (s *Service) SubscribeReorgs() (readOnlyChan <-chan models.ReorgEvent, unsubscribe func()) {
+	return s.reorgCallbacks.Subscribe()
+}
+
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
 	for _, liveIngestor := range s.liveIngestors {
 		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
@@ -437,6 +443,9 @@ func (s *Service) processHeaders(ctx context.Context) error {
 					s.headerCallbacks.Publish(activeTip.ChainBlockHeader)
 				}
 			}
+
+			// invalidate cached present height to force refresh on next request
+			s.cachedPresentHeight.Invalidate()
 
 			return nil
 		}
@@ -614,8 +623,6 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 			}
 		}
 
-		// TODO: Calculate reorg depth - but this is not needed yet - used only by reorg callbacks
-
 		if activeAncestor.HeaderID != oneBack.HeaderID {
 			s.logger.Info("Chaintracks service - chain reorganization detected", slog.String("new_tip_hash", header.Hash), slog.Any("new_tip_height", header.Height), slog.String("active_ancestor_hash", activeAncestor.Hash), slog.Any("active_ancestor_height", activeAncestor.Height))
 
@@ -630,6 +637,10 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 				return false, fmt.Errorf("failed to activate headers during reorg: %w", err)
 			}
 
+			s.reorgCallbacks.Publish(models.ReorgEvent{
+				NewTip: header,
+				OldTip: priorTip.ChainBlockHeader,
+			})
 		}
 	}
 
