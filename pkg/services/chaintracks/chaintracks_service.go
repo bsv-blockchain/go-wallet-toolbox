@@ -686,7 +686,7 @@ func (s *Service) migrateLiveToBulk(ctx context.Context) (err error) {
 		}
 	}()
 
-	liveRange, err := s.storage.Query(ctx).FindLiveHeightRange()
+	liveRange, err := q.FindLiveHeightRange()
 	if err != nil {
 		return fmt.Errorf("failed to find live height range during migration: %w", err)
 	}
