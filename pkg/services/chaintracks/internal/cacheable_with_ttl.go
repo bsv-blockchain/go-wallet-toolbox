@@ -52,6 +52,13 @@ func (c *CacheableWithTTL[T]) Get(ctx context.Context) (T, error) {
 	return *c.value, nil
 }
 
+func (c *CacheableWithTTL[T]) Invalidate() {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+	c.value = nil
+	c.lastSet = nil
+}
+
 func (c *CacheableWithTTL[T]) readOnValid() *T {
 	c.locker.RLock()
 	defer c.locker.RUnlock()

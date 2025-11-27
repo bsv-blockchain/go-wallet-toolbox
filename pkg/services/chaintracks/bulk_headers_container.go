@@ -137,7 +137,7 @@ func (b *bulkHeadersContainer) MaxHeightAtChunk(index int) int {
 func (b *bulkHeadersContainer) FindHeaderForHeight(height uint) (*wdk.ChainBlockHeader, error) {
 	chunkIndex := b.getIndexForHeight(must.ConvertToIntFromUnsigned(height))
 	if chunkIndex >= len(b.chunks) {
-		return nil, nil
+		return nil, nil // not found
 	}
 
 	chunk := b.chunks[chunkIndex]
@@ -147,7 +147,7 @@ func (b *bulkHeadersContainer) FindHeaderForHeight(height uint) (*wdk.ChainBlock
 	headerDataEnd := headerDataStart + 80
 
 	if headerDataEnd > len(chunk.data) {
-		return nil, fmt.Errorf("header data end index %d exceeds chunk data length %d", headerDataEnd, len(chunk.data))
+		return nil, nil // not found
 	}
 
 	headerData := chunk.data[headerDataStart:headerDataEnd]

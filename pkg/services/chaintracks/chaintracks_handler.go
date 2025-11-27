@@ -3,6 +3,7 @@ package chaintracks
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
@@ -119,6 +121,11 @@ func (h *Handler) handleFindChainTipHeader(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 
 	tipHeader, err := h.service.FindChainTipHeader(r.Context())
+	if errors.Is(err, wdk.ErrNotFoundError) {
+		http.Error(w, "Chain tip not found", http.StatusNotFound)
+		return
+	}
+
 	if err != nil {
 		h.logger.Error("failed to find chain tip header hex", slog.String("error", err.Error()))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -137,6 +144,11 @@ func (h *Handler) handleFindTipHashHex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	tipHash, err := h.service.FindChainTipHeader(r.Context())
+	if errors.Is(err, wdk.ErrNotFoundError) {
+		http.Error(w, "Chain tip not found", http.StatusNotFound)
+		return
+	}
+
 	if err != nil {
 		h.logger.Error("failed to find chain tip hash hex", slog.String("error", err.Error()))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -167,6 +179,11 @@ func (h *Handler) handleFindHeaderHexForHeight(w http.ResponseWriter, r *http.Re
 	}
 
 	header, err := h.service.FindHeaderForHeight(r.Context(), height)
+	if errors.Is(err, wdk.ErrNotFoundError) {
+		http.Error(w, "Header not found for the specified height", http.StatusNotFound)
+		return
+	}
+
 	if err != nil {
 		h.logger.Error("failed to find header hex for height", slog.String("error", err.Error()))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

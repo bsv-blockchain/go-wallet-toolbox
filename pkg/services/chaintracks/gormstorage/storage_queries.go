@@ -124,6 +124,36 @@ func (i *storageQueries) SetActiveByID(id uint, isActive bool) error {
 	return nil
 }
 
+func (i *storageQueries) FindHeadersForHeightLessThanOrEqualSorted(height uint, limit int) ([]*models.LiveBlockHeader, error) {
+	table := i.getQuery().ChaintracksLiveHeader
+	modelsList, err := table.
+		Where(table.Height.Lte(height)).
+		Order(table.Height.Asc()).
+		Limit(limit).
+		Find()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find headers for height less than or equal: %w", err)
+	}
+
+	result := make([]*models.LiveBlockHeader, 0, len(modelsList))
+	for _, model := range modelsList {
+		result = append(result, mapLiveHeader(model))
+	}
+
+	return result, nil
+}
+
+func (i *storageQueries) DeleteLiveHeadersByIDs(ids []uint) error {
+	table := i.getQuery().ChaintracksLiveHeader
+	_, err := table.
+		Where(table.HeaderID.In(ids...)).
+		Delete()
+	if err != nil {
+		return fmt.Errorf("failed to delete live headers by IDs: %w", err)
+	}
+	return nil
+}
+
 func (i *storageQueries) InsertNewLiveHeader(header *models.LiveBlockHeader) error {
 	table := i.getQuery().ChaintracksLiveHeader
 	err := table.Create(&dbmodels.ChaintracksLiveHeader{

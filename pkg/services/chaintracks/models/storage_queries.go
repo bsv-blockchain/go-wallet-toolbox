@@ -17,4 +17,6 @@ type StorageQueries interface {
 	CountLiveHeaders() (int64, error)
 	GetLiveHeaderByHeight(height uint) (*LiveBlockHeader, error)
 	FindLiveHeightRange() (HeightRange, error)
+	FindHeadersForHeightLessThanOrEqualSorted(height uint, limit int) ([]*LiveBlockHeader, error)
+	DeleteLiveHeadersByIDs(ids []uint) error
 }

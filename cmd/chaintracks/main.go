@@ -49,7 +49,47 @@ func main() {
 		panic(err)
 	}
 
+	listenForTipHeaders(server, ctx)
+	listenForReorgs(server, ctx)
+
 	if err := server.ListenAndServe(ctx); err != nil {
 		panic(err)
 	}
+}
+
+func listenForTipHeaders(server *chaintracks.Server, ctx context.Context) {
+	newTipHeadersChan, unsubscribe := server.Service.SubscribeHeaders()
+
+	go func() {
+		for {
+			select {
+			case header := <-newTipHeadersChan:
+				slog.Default().Info("New tip header received", slog.Uint64("height", uint64(header.Height)), slog.String("hash", header.Hash))
+			case <-ctx.Done():
+				unsubscribe()
+				return
+			}
+		}
+	}()
+}
+
+func listenForReorgs(server *chaintracks.Server, ctx context.Context) {
+	reorgChan, unsubscribe := server.Service.SubscribeReorgs()
+
+	go func() {
+		for {
+			select {
+			case reorg := <-reorgChan:
+				slog.Default().Info("Reorg detected",
+					slog.Uint64("new_tip_height", uint64(reorg.NewTip.Height)),
+					slog.String("new_tip_hash", reorg.NewTip.Hash),
+					slog.Uint64("old_tip_height", uint64(reorg.OldTip.Height)),
+					slog.String("old_tip_hash", reorg.OldTip.Hash),
+				)
+			case <-ctx.Done():
+				unsubscribe()
+				return
+			}
+		}
+	}()
 }
