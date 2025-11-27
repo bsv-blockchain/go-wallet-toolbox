@@ -114,6 +114,30 @@ func (bm *bulkManager) GetFileDataByIndex(fileID int) (*ingest.BulkFileData, err
 	return bm.container.GetFileDataByIndex(fileID)
 }
 
+func (bm *bulkManager) MigrateFromLiveHeaders(ctx context.Context, liveHeaders []*models.LiveBlockHeader) error {
+	bm.locker.Lock()
+	defer bm.locker.Unlock()
+
+	// create data slice
+	data := make([]byte, 0, len(liveHeaders)*80)
+	for _, header := range liveHeaders {
+		headerBytes, err := header.Bytes()
+		if err != nil {
+			return fmt.Errorf("failed to convert live header at height %d to bytes: %w", header.Height, err)
+		}
+		data = append(data, headerBytes...)
+	}
+
+	// add to container
+	heightRange := models.NewHeightRange(liveHeaders[0].Height, liveHeaders[len(liveHeaders)-1].Height)
+	err := bm.container.Add(ctx, data, heightRange)
+	if err != nil {
+		return fmt.Errorf("failed to add live headers to bulk container: %w", err)
+	}
+
+	return nil
+}
+
 func (bm *bulkManager) processBulkChunks(ctx context.Context, bulkChunks []ingest.BulkHeaderMinimumInfo, downloader ingest.BulkFileDownloader, maxHeight uint) error {
 	chunksToLoad := bm.getChunksToLoad(bulkChunks)
 	type chunkWithInfo struct {

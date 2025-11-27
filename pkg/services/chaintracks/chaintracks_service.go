@@ -376,6 +376,10 @@ func (s *Service) shiftLiveHeaders(ctx context.Context) error {
 	if err := s.processHeaders(ctx); err != nil {
 		return fmt.Errorf("failed to process live headers during live headers shift: %w", err)
 	}
+
+	if err := s.migrateLiveToBulk(ctx); err != nil {
+		return fmt.Errorf("failed to migrate live headers to bulk during live headers shift: %w", err)
+	}
 	return nil
 }
 
@@ -631,9 +635,66 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 		return fmt.Errorf("failed to insert new live header: %w", err)
 	}
 
-	// TODO: Prune live block headers
-
 	// TODO: trigger callbacks when implemented
+
+	return nil
+}
+
+func (s *Service) migrateLiveToBulk(ctx context.Context) (err error) {
+	q := s.storage.Query(ctx)
+	q.Begin()
+	defer func() {
+		if err != nil {
+			rollbackErr := q.Rollback()
+			if rollbackErr != nil {
+				err = fmt.Errorf("failed to rollback transaction after error: %s; original error: %w", rollbackErr.Error(), err)
+			}
+		} else {
+			err = q.Commit()
+			if err != nil {
+				err = fmt.Errorf("failed to commit transaction: %w", err)
+			}
+		}
+	}()
+
+	liveRange, err := s.storage.Query(ctx).FindLiveHeightRange()
+	if err != nil {
+		return fmt.Errorf("failed to find live height range during migration: %w", err)
+	}
+
+	if liveRange.IsEmpty() {
+		s.logger.Debug("No live headers to migrate to bulk storage")
+		return nil
+	}
+
+	count := liveRange.MaxHeight - liveRange.MinHeight + 1
+	if count <= liveHeightThreshold {
+		s.logger.Debug("Not enough live headers to migrate to bulk storage", slog.Any("live_header_count", count))
+		return nil
+	}
+	thresholdHeight := liveRange.MaxHeight - liveHeightThreshold
+
+	headers, err := q.FindHeadersForHeightLessThanOrEqualSorted(thresholdHeight, liveHeightThreshold)
+	if err != nil {
+		return fmt.Errorf("failed to find live headers for migration: %w", err)
+	}
+
+	if len(headers) == 0 {
+		s.logger.Debug("No live headers found for migration to bulk storage")
+		return nil
+	}
+
+	err = s.bulkMgr.MigrateFromLiveHeaders(ctx, headers)
+	if err != nil {
+		return fmt.Errorf("failed to migrate live headers to bulk storage: %w", err)
+	}
+
+	err = q.DeleteLiveHeadersByIDs(slices.Map(headers, func(h *models.LiveBlockHeader) uint { return h.HeaderID }))
+	if err != nil {
+		return fmt.Errorf("failed to delete migrated live headers: %w", err)
+	}
+
+	s.logger.Info("Migrated live headers to bulk storage", slog.Any("migrated_header_count", len(headers)), slog.Any("up_to_height", thresholdHeight))
 
 	return nil
 }
