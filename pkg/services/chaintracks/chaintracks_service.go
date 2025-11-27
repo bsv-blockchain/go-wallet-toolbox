@@ -50,6 +50,8 @@ type Service struct {
 
 	lastSyncCheck time.Time
 	lastBulkSync  time.Time
+
+	headerCallbacks *internal.PubSubEvents[wdk.ChainBlockHeader]
 }
 
 // NewService creates and returns a new Service instance initialized with the provided logger and configuration.
@@ -79,6 +81,7 @@ func NewService(logger *slog.Logger, config defs.ChaintracksServiceConfig, overr
 		liveIngestors:   liveIngestors,
 		liveHeadersChan: make(chan wdk.ChainBlockHeader, liveHeadersChanSize),
 		bulkMgr:         newBulkManager(logger, bulkIngestors, config.Chain),
+		headerCallbacks: internal.NewPubSubEvents[wdk.ChainBlockHeader](logger),
 	}
 
 	srv.cachedPresentHeight = internal.NewCachableWithTTL[uint](lastPresentHeightTTL, srv.fetchLatestPresentHeight)
@@ -262,6 +265,10 @@ func (s *Service) BulkFileDataByIndex(index int) (*ingest.BulkFileData, error) {
 	return s.bulkMgr.GetFileDataByIndex(index)
 }
 
+func (s *Service) SubscribeHeaders() (readOnlyChan <-chan wdk.ChainBlockHeader, unsubscribe func()) {
+	return s.headerCallbacks.Subscribe()
+}
+
 func (s *Service) getMissingBlockHeader(ctx context.Context, hash string) *wdk.ChainBlockHeader {
 	for _, liveIngestor := range s.liveIngestors {
 		header, err := liveIngestor.Ingestor.GetHeaderByHash(ctx, hash)
@@ -399,7 +406,7 @@ func (s *Service) fillGapLiveHeaders(ctx context.Context, presentHeight uint, li
 	}
 
 	for _, header := range gapHeaders {
-		if err := s.addLiveHeader(ctx, header); err != nil {
+		if _, err := s.addLiveHeader(ctx, header); err != nil {
 			s.logger.Warn("Chaintracks service - failed to add gap header as live", slog.String("header_hash", header.Hash), slog.String("error", err.Error()))
 		}
 	}
@@ -408,89 +415,99 @@ func (s *Service) fillGapLiveHeaders(ctx context.Context, presentHeight uint, li
 }
 
 func (s *Service) processHeaders(ctx context.Context) error {
+	addedHeadersHashes := make(map[string]struct{})
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case header := <-s.liveHeadersChan:
-			if err := s.addLiveHeader(ctx, header); err != nil {
+			if added, err := s.addLiveHeader(ctx, header); err != nil {
 				s.logger.Warn("Chaintracks service - failed to add live header", slog.String("header_hash", header.Hash), slog.String("error", err.Error()))
+			} else if added {
+				addedHeadersHashes[header.Hash] = struct{}{}
 			}
 		default:
 			// No more headers to process
+
+			// Publish chain tip if it was added during this processing cycle
+			if activeTip, err := s.storage.Query(ctx).GetActiveTipLiveHeader(); err != nil {
+				return fmt.Errorf("failed to get active tip live header after processing headers: %w", err)
+			} else if activeTip != nil {
+				if _, ok := addedHeadersHashes[activeTip.Hash]; ok {
+					s.headerCallbacks.Publish(activeTip.ChainBlockHeader)
+				}
+			}
+
 			return nil
 		}
 	}
 }
 
-func (s *Service) addLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) error {
-	err := s.storeLiveHeader(ctx, header)
+func (s *Service) addLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) (added bool, err error) {
+	added, err = s.storeLiveHeader(ctx, header)
 	if errors.Is(err, errNoPrev) {
-		if err := s.addLiveHeaderRecursive(ctx, header, must.ConvertToIntFromUnsigned(s.config.AddLiveRecursionLimit)); err != nil {
-			return fmt.Errorf("failed to add header recursively: %w", err)
-		}
+		added, err = s.addLiveHeaderRecursive(ctx, header, must.ConvertToIntFromUnsigned(s.config.AddLiveRecursionLimit))
 	}
 	if err != nil {
-		return fmt.Errorf("failed to store header: %w", err)
+		return added, fmt.Errorf("failed to store header: %w", err)
 	}
 
-	return nil
+	return added, nil
 }
 
-func (s *Service) addLiveHeaderRecursive(ctx context.Context, header wdk.ChainBlockHeader, depth int) error {
+func (s *Service) addLiveHeaderRecursive(ctx context.Context, header wdk.ChainBlockHeader, depth int) (bool, error) {
 	if depth <= 0 {
-		return fmt.Errorf("recursion limit reached while adding header recursively for header: %s", header.Hash)
+		return false, fmt.Errorf("recursion limit reached while adding header recursively for header: %s", header.Hash)
 	}
 
 	prevHeader := s.getMissingBlockHeader(ctx, header.PreviousHash)
 	if prevHeader == nil {
-		return fmt.Errorf("previous header not found for hash: %s", header.PreviousHash)
+		return false, fmt.Errorf("previous header not found for hash: %s", header.PreviousHash)
 	}
 
-	err := s.storeLiveHeader(ctx, *prevHeader)
+	_, err := s.storeLiveHeader(ctx, *prevHeader)
 	if errors.Is(err, errNoPrev) {
-		if err := s.addLiveHeaderRecursive(ctx, *prevHeader, depth-1); err != nil {
-			return fmt.Errorf("failed to add previous header recursively: %w", err)
-		}
+		_, err = s.addLiveHeaderRecursive(ctx, *prevHeader, depth-1)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to store previous header: %w", err)
+		return false, fmt.Errorf("failed to store previous header: %w", err)
 	}
 
-	if err := s.storeLiveHeader(ctx, header); err != nil {
-		return fmt.Errorf("failed to store header after adding previous: %w", err)
+	added, err := s.storeLiveHeader(ctx, header)
+	if err != nil {
+		return false, fmt.Errorf("failed to store header after adding previous: %w", err)
 	}
 
-	return nil
+	return added, nil
 }
 
 var errNoPrev = fmt.Errorf("no previous header found")
 
-func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) (err error) {
+func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) (added bool, err error) {
 	if header.Height == 0 {
-		return fmt.Errorf("handling genesis block header is not supported here")
+		return false, fmt.Errorf("handling genesis block header is not supported here")
 	}
 
 	if err := header.Validate(); err != nil {
-		return fmt.Errorf("invalid block header: %w", err)
+		return false, fmt.Errorf("invalid block header: %w", err)
 	}
 
 	if IsDirtyHash(header.Hash) {
-		return fmt.Errorf("cannot add block header with dirty hash: %s", header.Hash)
+		return false, fmt.Errorf("cannot add block header with dirty hash: %s", header.Hash)
 	}
 
 	lastBulk, lastBulkChainWork, err := s.bulkMgr.LastHeader()
 	if err != nil {
-		return fmt.Errorf("failed to get last bulk header: %w", err)
+		return false, fmt.Errorf("failed to get last bulk header: %w", err)
 	}
 
 	if lastBulk == nil {
-		return fmt.Errorf("no bulk headers available to validate against")
+		return false, fmt.Errorf("no bulk headers available to validate against")
 	}
 
 	if header.Height <= lastBulk.Height {
 		s.logger.Info("Chaintracks service - skipping storage of live header already present in bulk storage", slog.String("header_hash", header.Hash), slog.Any("header_height", header.Height))
-		return nil
+		return false, nil
 	}
 
 	q := s.storage.Query(ctx)
@@ -510,20 +527,20 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	}()
 
 	if exists, err := q.LiveHeaderExists(header.Hash); err != nil {
-		return fmt.Errorf("failed to check existing header: %w", err)
+		return false, fmt.Errorf("failed to check existing header: %w", err)
 	} else if exists {
 		s.logger.Debug("Chaintracks service - header already exists, skipping", slog.String("header_hash", header.Hash))
-		return nil
+		return false, nil
 	}
 
 	oneBack, err := q.GetLiveHeaderByHash(header.PreviousHash)
 	if err != nil {
-		return fmt.Errorf("failed to get previous header: %w", err)
+		return false, fmt.Errorf("failed to get previous header: %w", err)
 	}
 
 	if oneBack == nil {
 		if count, err := q.CountLiveHeaders(); err != nil {
-			return fmt.Errorf("failed to count live headers: %w", err)
+			return false, fmt.Errorf("failed to count live headers: %w", err)
 		} else if count == 0 {
 			// No live headers yet, check if this header connects directly to last bulk
 			if header.PreviousHash == lastBulk.Hash && header.Height == lastBulk.Height+1 {
@@ -537,18 +554,18 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 					IsChainTip:       true,
 					IsActive:         true,
 				}); err != nil {
-					return fmt.Errorf("failed to insert new live header: %w", err)
+					return false, fmt.Errorf("failed to insert new live header: %w", err)
 				}
 
-				return nil
+				return true, nil
 			}
 		}
 
-		return errNoPrev
+		return false, errNoPrev
 	}
 
 	if oneBack.Height+1 != header.Height {
-		return fmt.Errorf("header height mismatch: expected %d, got %d", oneBack.Height+1, header.Height)
+		return false, fmt.Errorf("header height mismatch: expected %d, got %d", oneBack.Height+1, header.Height)
 	}
 
 	var priorTip *models.LiveBlockHeader
@@ -557,17 +574,17 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 	} else {
 		priorTip, err = q.GetActiveTipLiveHeader()
 		if err != nil {
-			return fmt.Errorf("failed to get active tip header: %w", err)
+			return false, fmt.Errorf("failed to get active tip header: %w", err)
 		}
 
 		if priorTip == nil {
-			return fmt.Errorf("active tip header not found for hash: %s", oneBack.Hash)
+			return false, fmt.Errorf("active tip header not found for hash: %s", oneBack.Hash)
 		}
 	}
 
 	oneBackChainWork, err := internal.ChainWorkFromHex(oneBack.ChainWork)
 	if err != nil {
-		return fmt.Errorf("failed to parse chain work from previous header: %w", err)
+		return false, fmt.Errorf("failed to parse chain work from previous header: %w", err)
 	}
 
 	headerChainWork := internal.ChainWorkFromBits(header.Bits)
@@ -576,7 +593,7 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 
 	priorTipChainWork, err := internal.ChainWorkFromHex(priorTip.ChainWork)
 	if err != nil {
-		return fmt.Errorf("failed to parse chain work from prior tip header: %w", err)
+		return false, fmt.Errorf("failed to parse chain work from prior tip header: %w", err)
 	}
 
 	isActiveTip := chainWork.CmpChainWork(priorTipChainWork) > 0
@@ -589,11 +606,11 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 			previousHash := activeAncestor.PreviousHash
 			activeAncestor, err = q.GetLiveHeaderByHash(previousHash)
 			if err != nil {
-				return fmt.Errorf("failed to get active ancestor header: %w", err)
+				return false, fmt.Errorf("failed to get active ancestor header: %w", err)
 			}
 
 			if activeAncestor == nil {
-				return fmt.Errorf("active ancestor header not found for hash: %s", previousHash)
+				return false, fmt.Errorf("active ancestor header not found for hash: %s", previousHash)
 			}
 		}
 
@@ -604,13 +621,13 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 
 			// deactivate headers from the current active chain tip up to but excluding our activeAncestor:
 			if err := s.setActiveRecursivelyUntilReachAncestor(q, false, priorTip, activeAncestor); err != nil {
-				return fmt.Errorf("failed to deactivate headers during reorg: %w", err)
+				return false, fmt.Errorf("failed to deactivate headers during reorg: %w", err)
 			}
 
 			// the first header to activate is one before the one we are about to insert
 			// headers are activated until we reach the active ancestor
 			if err := s.setActiveRecursivelyUntilReachAncestor(q, true, oneBack, activeAncestor); err != nil {
-				return fmt.Errorf("failed to activate headers during reorg: %w", err)
+				return false, fmt.Errorf("failed to activate headers during reorg: %w", err)
 			}
 
 		}
@@ -618,7 +635,7 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 
 	if oneBack.IsChainTip {
 		if err := q.SetChainTipByID(oneBack.HeaderID, false); err != nil {
-			return fmt.Errorf("failed to unset prior chain tip: %w", err)
+			return false, fmt.Errorf("failed to unset prior chain tip: %w", err)
 		}
 	}
 
@@ -629,12 +646,10 @@ func (s *Service) storeLiveHeader(ctx context.Context, header wdk.ChainBlockHead
 		IsChainTip:       isActiveTip,
 		IsActive:         isActiveTip,
 	}); err != nil {
-		return fmt.Errorf("failed to insert new live header: %w", err)
+		return false, fmt.Errorf("failed to insert new live header: %w", err)
 	}
 
-	// TODO: trigger callbacks when implemented
-
-	return nil
+	return true, nil
 }
 
 func (s *Service) migrateLiveToBulk(ctx context.Context) (err error) {

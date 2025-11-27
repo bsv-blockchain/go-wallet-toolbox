@@ -49,7 +49,25 @@ func main() {
 		panic(err)
 	}
 
+	exampleHeaderSubscription(server, ctx)
+
 	if err := server.ListenAndServe(ctx); err != nil {
 		panic(err)
 	}
+}
+
+func exampleHeaderSubscription(server *chaintracks.Server, ctx context.Context) {
+	newTipHeadersChan, unsubscribe := server.Service.SubscribeHeaders()
+	_ = unsubscribe // not used here, but I leave it for presentational purposes
+
+	go func() {
+		for {
+			select {
+			case header := <-newTipHeadersChan:
+				slog.Default().Info("New tip header received", slog.Uint64("height", uint64(header.Height)), slog.String("hash", header.Hash))
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
