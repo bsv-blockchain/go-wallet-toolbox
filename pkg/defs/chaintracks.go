@@ -25,6 +25,9 @@ type ChaintracksServiceConfig struct {
 	LiveIngestors []LiveIngestorType   `mapstructure:"live_ingestors"`
 	BulkIngestors []BulkIngestorConfig `mapstructure:"bulk_ingestors"`
 	WocAPIKey     string               `mapstructure:"woc_api_key"`
+
+	AddLiveRecursionLimit uint `mapstructure:"add_live_recursion_limit"`
+	LiveHeightThreshold   uint `mapstructure:"live_height_threshold"`
 }
 
 // Validate checks if the Chain field in ChaintracksServiceConfig holds a valid BSV network type.
@@ -52,6 +55,10 @@ func (c *ChaintracksServiceConfig) Validate() error {
 		}
 	}
 
+	if c.AddLiveRecursionLimit > 100 || c.AddLiveRecursionLimit > c.LiveHeightThreshold {
+		return fmt.Errorf("add_live_recursion_limit must be less than or equal to live_height_threshold and not exceed 100")
+	}
+
 	return nil
 }
 
@@ -73,7 +80,9 @@ func DefaultChaintracksServiceConfig() ChaintracksServiceConfig {
 				Type: WhatsOnChainCDN,
 			},
 		},
-		WocAPIKey: "",
+		WocAPIKey:             "",
+		AddLiveRecursionLimit: 10,
+		LiveHeightThreshold:   2000,
 	}
 }
 

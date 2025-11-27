@@ -33,7 +33,7 @@ func newBulkManager(logger *slog.Logger, bulkIngestors []NamedBulkIngestor, chai
 	}
 }
 
-func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges) error {
+func (bm *bulkManager) SyncBulkStorage(ctx context.Context, presentHeight uint, initialRanges models.HeightRanges, liveHeightThreshold uint) error {
 	if presentHeight <= liveHeightThreshold {
 		bm.logger.Info("Skipping bulk synchronization - present height below live height threshold", slog.Any("present_height", presentHeight), slog.Any("live_height_threshold", liveHeightThreshold))
 		return nil
@@ -204,7 +204,7 @@ func (bm *bulkManager) shouldAddNewFile(info *ingest.BulkHeaderMinimumInfo) bool
 	return !rangeToAdd.IsEmpty()
 }
 
-func (bm *bulkManager) GetGapHeadersAsLive(ctx context.Context, presentHeight uint, liveInitialRange models.HeightRange) ([]wdk.ChainBlockHeader, error) {
+func (bm *bulkManager) GetGapHeadersAsLive(ctx context.Context, presentHeight uint, liveInitialRange models.HeightRange, addLiveRecursionLimit uint) ([]wdk.ChainBlockHeader, error) {
 	var newLiveHeaders []wdk.ChainBlockHeader
 	maxBulkHeight := bm.GetHeightRange().MaxHeight
 	minLiveHeight := presentHeight

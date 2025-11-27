@@ -15,19 +15,16 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
-	// TODO: constants below, can be made configurable if needed
-	liveHeadersChanSize    = 1000
-	lastPresentHeightTTL   = 60 * time.Second
-	cdnSyncRepeatDuration  = 24 * time.Hour
-	syncCheckInterval      = 1 * time.Second
-	addLiveRecursionLimit  = 11
-	halfLiveRecursionLimit = addLiveRecursionLimit / 2
-	liveHeightThreshold    = 2000
+	liveHeadersChanSize   = 1000
+	lastPresentHeightTTL  = 60 * time.Second
+	cdnSyncRepeatDuration = 24 * time.Hour
+	syncCheckInterval     = 1 * time.Second
 )
 
 // Service provides core functionality for the Chaintracks service with logging and configuration support.
@@ -320,7 +317,7 @@ func (s *Service) syncBulkStorage(ctx context.Context, presentHeight uint, initi
 		}
 	}()
 
-	if err := s.bulkMgr.SyncBulkStorage(ctx, presentHeight, initialRanges); err != nil {
+	if err := s.bulkMgr.SyncBulkStorage(ctx, presentHeight, initialRanges, s.config.LiveHeightThreshold); err != nil {
 		return fmt.Errorf("bulk synchronization failed: %w", err)
 	}
 
@@ -388,11 +385,11 @@ func (s *Service) skipBulkSync(presentHeight uint, ranges models.HeightRanges) b
 		return false
 	}
 
-	return ranges.Live.NotEmpty() && ranges.Live.MaxHeight >= presentHeight-halfLiveRecursionLimit
+	return ranges.Live.NotEmpty() && ranges.Live.MaxHeight >= presentHeight-(s.config.AddLiveRecursionLimit/2)
 }
 
 func (s *Service) fillGapLiveHeaders(ctx context.Context, presentHeight uint, liveInitialRange models.HeightRange) error {
-	gapHeaders, err := s.bulkMgr.GetGapHeadersAsLive(ctx, presentHeight, liveInitialRange)
+	gapHeaders, err := s.bulkMgr.GetGapHeadersAsLive(ctx, presentHeight, liveInitialRange, s.config.AddLiveRecursionLimit)
 	if err != nil {
 		return fmt.Errorf("failed to get gap headers as live during live headers shift: %w", err)
 	}
@@ -429,7 +426,7 @@ func (s *Service) processHeaders(ctx context.Context) error {
 func (s *Service) addLiveHeader(ctx context.Context, header wdk.ChainBlockHeader) error {
 	err := s.storeLiveHeader(ctx, header)
 	if errors.Is(err, errNoPrev) {
-		if err := s.addLiveHeaderRecursive(ctx, header, addLiveRecursionLimit); err != nil {
+		if err := s.addLiveHeaderRecursive(ctx, header, must.ConvertToIntFromUnsigned(s.config.AddLiveRecursionLimit)); err != nil {
 			return fmt.Errorf("failed to add header recursively: %w", err)
 		}
 	}
@@ -668,13 +665,13 @@ func (s *Service) migrateLiveToBulk(ctx context.Context) (err error) {
 	}
 
 	count := liveRange.MaxHeight - liveRange.MinHeight + 1
-	if count <= liveHeightThreshold {
+	if count <= s.config.LiveHeightThreshold {
 		s.logger.Debug("Not enough live headers to migrate to bulk storage", slog.Any("live_header_count", count))
 		return nil
 	}
-	thresholdHeight := liveRange.MaxHeight - liveHeightThreshold
+	thresholdHeight := liveRange.MaxHeight - s.config.LiveHeightThreshold
 
-	headers, err := q.FindHeadersForHeightLessThanOrEqualSorted(thresholdHeight, liveHeightThreshold)
+	headers, err := q.FindHeadersForHeightLessThanOrEqualSorted(thresholdHeight, must.ConvertToIntFromUnsigned(s.config.LiveHeightThreshold))
 	if err != nil {
 		return fmt.Errorf("failed to find live headers for migration: %w", err)
 	}
