@@ -3,11 +3,15 @@ package wallet
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
+	"sort"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
@@ -47,16 +51,23 @@ func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 	}
 }
 
-// CacheEntry is a struct for the map-based overlay cache entries
-type CacheEntry struct {
+// cacheEntry is a struct for the map-based overlay cache entries
+type cacheEntry struct {
 	ExpiresAt time.Time
-	value     any
+	Value     any
+}
+
+// cacheKey represents the struct that will be a key in overlayCache
+type cacheKey struct {
+	Fn          string   `json:"fn"`
+	IdentityKey string   `json:"identityKey"`
+	Certifiers  []string `json:"certifiers"`
 }
 
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
-	trustSettingsCache      *wallet_settings_manager.TrustSettingsCache
-	overlayCache            map[string]*CacheEntry
+	trustSettingsCache      atomic.Pointer[wallet_settings_manager.TrustSettingsCache]
+	overlayCache            sync.Map
 	settingsManager         *wallet_settings_manager.WalletSettingsManager
 	proto                   *sdk.ProtoWallet
 	storage                 wdk.WalletStorage
@@ -201,9 +212,8 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		logger:                  logger,
 		userParty:               userParty,
 		randomizer:              randomizer.New(),
-		overlayCache:            make(map[string]*CacheEntry),
-		trustSettingsCache:      nil,
 		settingsManager:         options.WalletSettingsManager,
+		// trustSettingsCache and overlayCache are zero-valued (ready to use)
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
@@ -777,6 +787,9 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 }
 
 func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
+	const TTL = 2 * time.Minute
+	now := time.Now()
+
 	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
 
 	if err := validate.Originator(originator); err != nil {
@@ -788,25 +801,69 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 	}
 
 	// trustSettings cache (2 minutes)
-	now := time.Now()
-	const TTL = 2 * time.Minute
 	trustSettings := w.getTrustSettings(now, TTL)
-	fmt.Println("trustSettings", trustSettings)
+	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
+	for i, c := range trustSettings.TrustedCertifiers {
+		certifiers[i] = c.IdentityKey
+	}
+	sort.Strings(certifiers)
 
-	return nil, nil
+	// queryOverlay cache (2 minutes)
+	cacheKey := cacheKey{
+		Fn:          "discoverByIdentityKey",
+		IdentityKey: args.IdentityKey.ToDERHex(),
+		Certifiers:  certifiers,
+	}
+	keyBytes, err := json.Marshal(cacheKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cacheKey: %w", err)
+	}
+	cacheKeyStr := string(keyBytes)
+
+	// Check cache
+	cached, ok := w.overlayCache.Load(cacheKeyStr)
+	if !ok || !cached.(*cacheEntry).ExpiresAt.After(now) {
+		// Cache miss or expired - query overlay
+		// TODO: implement queryOverlay
+		// value := queryOverlay({ identityKey: args.IdentityKey, certifiers }, w.lookupResolver)
+		var value any = nil
+
+		// Store in cache
+		cached = &cacheEntry{
+			Value:     value,
+			ExpiresAt: now.Add(TTL),
+		}
+		w.overlayCache.Store(cacheKeyStr, cached)
+	}
+
+	entry := cached.(*cacheEntry)
+	if entry.Value == nil {
+		return &sdk.DiscoverCertificatesResult{
+			TotalCertificates: 0,
+			Certificates:      []sdk.IdentityCertificate{},
+		}, nil
+	}
+
+	// TODO: implement transformVerifiableCertificatesWithTrust
+	// return transformVerifiableCertificatesWithTrust(trustSettings, entry.Value)
+	return &sdk.DiscoverCertificatesResult{
+		TotalCertificates: 0,
+		Certificates:      []sdk.IdentityCertificate{},
+	}, nil
 }
 
 func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {
-	var trustSettings *wallet_settings_manager.TrustSettings
-	if w.trustSettingsCache != nil && w.trustSettingsCache.ExpiresAt.After(now) {
-		trustSettings = w.trustSettingsCache.TrustSettings
-	} else {
-		trustSettings = w.settingsManager.Get().TrustSettings
-		w.trustSettingsCache = &wallet_settings_manager.TrustSettingsCache{
-			ExpiresAt:     now.Add(ttl),
-			TrustSettings: trustSettings,
-		}
+	cached := w.trustSettingsCache.Load()
+	if cached != nil && cached.ExpiresAt.After(now) {
+		return cached.TrustSettings
 	}
+
+	trustSettings := w.settingsManager.Get().TrustSettings
+	w.trustSettingsCache.Store(&wallet_settings_manager.TrustSettingsCache{
+		ExpiresAt:     now.Add(ttl),
+		TrustSettings: trustSettings,
+	})
+
 	return trustSettings
 }
 
