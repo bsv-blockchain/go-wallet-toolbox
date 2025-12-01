@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
@@ -19,6 +20,7 @@ type Opts struct {
 	PendingSignActionsRepo pending.SignActionsRepository
 	Client                 *http.Client
 	WalletSettingsManager  *wallet_settings_manager.WalletSettingsManager
+	LookupResolver         *lookup.LookupResolver
 }
 
 type Flags struct {

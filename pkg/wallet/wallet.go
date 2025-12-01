@@ -16,6 +16,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
+	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -54,7 +55,7 @@ func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 // cacheEntry is a struct for the map-based overlay cache entries
 type cacheEntry struct {
 	ExpiresAt time.Time
-	Value     any
+	Value     []certificates.VerifiableCertificate
 }
 
 // cacheKey represents the struct that will be a key in overlayCache
@@ -64,11 +65,18 @@ type cacheKey struct {
 	Certifiers  []string `json:"certifiers"`
 }
 
+// identityQuery is a struct representing query to the lookupResolver.
+type identityQuery struct {
+	IdentityKey string   `json:"identityKey"`
+	Certifiers  []string `json:"certifiers"`
+}
+
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
 	trustSettingsCache      atomic.Pointer[wallet_settings_manager.TrustSettingsCache]
 	overlayCache            sync.Map
 	settingsManager         *wallet_settings_manager.WalletSettingsManager
+	lookupResolver          *lookup.LookupResolver
 	proto                   *sdk.ProtoWallet
 	storage                 wdk.WalletStorage
 	keyDeriver              *sdk.KeyDeriver
@@ -104,6 +112,13 @@ func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
 func WithAuthHTTPClient(client *http.Client) func(*wallet_opts.Opts) {
 	return func(o *wallet_opts.Opts) {
 		o.Client = client
+	}
+}
+
+// WithLookupResolver configures a lookup resolver for the wallet.
+func WithLookupResolver(lookupResolver *lookup.LookupResolver) func(*wallet_opts.Opts) {
+	return func(o *wallet_opts.Opts) {
+		o.LookupResolver = lookupResolver
 	}
 }
 
@@ -183,6 +198,9 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		PendingSignActionsRepo: nil,
 		Client:                 wallet_opts.DefaultClient(),
 		WalletSettingsManager:  wallet_settings_manager.DefaultManager(chain),
+		LookupResolver: lookup.NewLookupResolver(&lookup.LookupResolver{
+			NetworkPreset: mapping.MapToOverlayNetwork(chain),
+		}),
 	}, opts...)
 
 	keyDeriver, err := toKeyDeriver(keySource)
@@ -213,7 +231,6 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		userParty:               userParty,
 		randomizer:              randomizer.New(),
 		settingsManager:         options.WalletSettingsManager,
-		// trustSettingsCache and overlayCache are zero-valued (ready to use)
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
@@ -824,13 +841,27 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 	cached, ok := w.overlayCache.Load(cacheKeyStr)
 	if !ok || !cached.(*cacheEntry).ExpiresAt.After(now) {
 		// Cache miss or expired - query overlay
-		// TODO: implement queryOverlay
-		// value := queryOverlay({ identityKey: args.IdentityKey, certifiers }, w.lookupResolver)
-		var value any = nil
+		query, err := json.Marshal(identityQuery{
+			IdentityKey: args.IdentityKey.ToDERHex(),
+			Certifiers:  certifiers,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal overlay query: %w", err)
+		}
+
+		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
+			Service: "ls_identity",
+			Query:   query,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
+		}
+
+		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
 
 		// Store in cache
 		cached = &cacheEntry{
-			Value:     value,
+			Value:     verifiableCertificates,
 			ExpiresAt: now.Add(TTL),
 		}
 		w.overlayCache.Store(cacheKeyStr, cached)
@@ -844,12 +875,7 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 		}, nil
 	}
 
-	// TODO: implement transformVerifiableCertificatesWithTrust
-	// return transformVerifiableCertificatesWithTrust(trustSettings, entry.Value)
-	return &sdk.DiscoverCertificatesResult{
-		TotalCertificates: 0,
-		Certificates:      []sdk.IdentityCertificate{},
-	}, nil
+	return mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
 }
 
 func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {

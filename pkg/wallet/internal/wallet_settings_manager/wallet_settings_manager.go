@@ -101,6 +101,7 @@ func DefaultManager(chain defs.BSVNetwork) *WalletSettingsManager {
 	case defs.NetworkTestnet:
 		trustedCertifiers = GetTestnetDefaultCertifiers()
 	case defs.NetworkMainnet:
+		trustedCertifiers = GetDefaultCertifiers()
 	default:
 		trustedCertifiers = GetDefaultCertifiers()
 	}
