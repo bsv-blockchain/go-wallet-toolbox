@@ -30,7 +30,7 @@ func MapVerifiableCertificateToCertificate(cert certificates.VerifiableCertifica
 
 	var certType wallet.CertificateType
 	if len(certType) != len(certTypeBytes) {
-		return wallet.Certificate{}, fmt.Errorf("certificate type bytes length: %d is not equal to sdk.CertificateType bytes length: %d", len(certTypeBytes), len(certType))
+		return wallet.Certificate{}, fmt.Errorf("certificate type bytes length: %d is not equal to wallet.CertificateType bytes length: %d", len(certTypeBytes), len(certType))
 	}
 
 	copy(certType[:], certTypeBytes)
