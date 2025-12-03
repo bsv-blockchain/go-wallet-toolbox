@@ -57,7 +57,7 @@ func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.L
 		// Verify the certificate signature is correct
 		err = verifiableCertificate.Verify(ctx)
 		if err != nil {
-			logger.Error("failed to verify certificate's signature: %w ", logging.Error(err))
+			logger.Error("failed to verify certificate's signature: %w", logging.Error(err))
 			continue
 		}
 
