@@ -12,7 +12,7 @@ import (
 var defaultCertifiers = []Certifier{
 	{
 		Name:        "Metanet Trust Services",
-		Description: "Registry for protocols, baskets, and certificates types",
+		Description: "Registry for protocols, baskets, and certificate types",
 		IconURL:     to.Ptr("https://bsvblockchain.org/favicon.ico"),
 		IdentityKey: "03daf815fe38f83da0ad83b5bedc520aa488aef5cbc93a93c67a7fe60406cbffe8",
 		Trust:       4,
