@@ -80,7 +80,7 @@ func NewWalletSettingsManager(settings *WalletSettings) *WalletSettingsManager {
 	}
 }
 
-// Get returns the current wallet settings
+// Get returns the current wallet settings. Settings should not be modified when using this method.
 func (wsm *WalletSettingsManager) Get() *WalletSettings {
 	wsm.mu.RLock()
 	defer wsm.mu.RUnlock()

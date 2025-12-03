@@ -35,13 +35,13 @@ func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.L
 		var verifiableCertificate certificates.VerifiableCertificate
 		err = json.Unmarshal(decodedOutput.Fields[0], &verifiableCertificate)
 		if err != nil {
-			logger.Error("failed to unmarshal decodedOutput field into a certificate: %w ", logging.Error(err))
+			logger.Error("failed to unmarshal decodedOutput field into a certificate", logging.Error(err))
 			continue
 		}
 
 		anyoneProtoWallet, err := wallet.NewCompletedProtoWallet(nil)
 		if err != nil {
-			logger.Error("failed to create anyone's proto wallet: %w ", logging.Error(err))
+			logger.Error("failed to create anyone's proto wallet", logging.Error(err))
 			continue
 		}
 
@@ -50,14 +50,14 @@ func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.L
 			false,
 			"")
 		if err != nil {
-			logger.Error("failed to decrypt verifiableCertificate fields: %w ", logging.Error(err))
+			logger.Error("failed to decrypt verifiableCertificate fields", logging.Error(err))
 			continue
 		}
 
 		// Verify the certificate signature is correct
 		err = verifiableCertificate.Verify(ctx)
 		if err != nil {
-			logger.Error("failed to verify certificate's signature: %w", logging.Error(err))
+			logger.Error("failed to verify certificate's signature", logging.Error(err))
 			continue
 		}
 

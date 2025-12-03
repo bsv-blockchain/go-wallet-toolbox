@@ -841,7 +841,8 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 
 	// Check cache
 	cached, ok := w.overlayCache.Load(cacheKeyStr)
-	if !ok || !cached.(*cacheEntry).ExpiresAt.After(now) {
+	entry, typeOk := cached.(*cacheEntry)
+	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
 		// Cache miss or expired - query overlay
 		query, err := json.Marshal(identityQuery{
 			IdentityKey: args.IdentityKey.ToDERHex(),
@@ -869,8 +870,8 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 		w.overlayCache.Store(cacheKeyStr, cached)
 	}
 
-	entry := cached.(*cacheEntry)
-	if entry.Value == nil {
+	entry, typeOk = cached.(*cacheEntry)
+	if !typeOk || entry.Value == nil {
 		return &sdk.DiscoverCertificatesResult{
 			TotalCertificates: 0,
 			Certificates:      []sdk.IdentityCertificate{},
