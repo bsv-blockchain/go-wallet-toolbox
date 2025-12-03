@@ -879,7 +879,7 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 
 	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map verifiaverifiableCerts with trus: %w", err)
+		return nil, fmt.Errorf("failed to map verifiableCerts with trust: %w", err)
 	}
 	return verifiableCerts, nil
 }
