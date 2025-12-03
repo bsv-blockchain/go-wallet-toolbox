@@ -55,8 +55,6 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 			Trust: uint8(trustedCertifier.Trust),
 		}
 
-		// Create an extended certificate that includes certifierInfo.
-		// Note: We use object spread to copy over all properties from the original certificate.
 		revealedKeyring := make(map[string]string, len(cert.Keyring))
 		for k, v := range cert.Keyring {
 			revealedKeyring[to.String(k)] = to.String(v)
