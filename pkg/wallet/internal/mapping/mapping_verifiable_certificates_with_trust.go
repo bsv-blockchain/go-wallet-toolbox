@@ -6,7 +6,6 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/go-softwarelab/common/pkg/to"
 )
