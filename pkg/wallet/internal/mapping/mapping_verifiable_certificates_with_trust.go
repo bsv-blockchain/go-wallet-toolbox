@@ -64,7 +64,7 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 		if err != nil {
 			// continue on failed certificate mapping but log the error
 			// matches TS version where it doesn't stop on any map failure
-			logger.Error("failed to map verifiable certificate to wallet.Certificate: %w", logging.Error(err))
+			logger.Error("failed to map verifiable certificate to wallet.Certificate", slog.Any("error", err))
 			continue
 		}
 
