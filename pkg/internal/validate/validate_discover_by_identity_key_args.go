@@ -27,7 +27,7 @@ func DiscoverByIdentityKeyArgs(args sdk.DiscoverByIdentityKeyArgs) error {
 	if args.IdentityKey != nil {
 		hex := primitives.PubKeyHex(args.IdentityKey.ToDERHex())
 		if err := hex.Validate(); err != nil {
-			return fmt.Errorf("invalid verifier: failed validation check")
+			return fmt.Errorf("invalid identity key: failed validation check")
 		}
 	}
 
