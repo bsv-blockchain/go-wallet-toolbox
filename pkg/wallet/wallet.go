@@ -231,6 +231,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		userParty:               userParty,
 		randomizer:              randomizer.New(),
 		settingsManager:         options.WalletSettingsManager,
+		lookupResolver:          options.LookupResolver,
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
@@ -803,6 +804,7 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 	return &cert, nil
 }
 
+// DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
 func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
 	const TTL = 2 * time.Minute
 	now := time.Now()
@@ -875,7 +877,11 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 		}, nil
 	}
 
-	return mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map verifiaverifiableCerts with trus: %w", err)
+	}
+	return verifiableCerts, nil
 }
 
 func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {

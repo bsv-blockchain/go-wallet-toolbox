@@ -1,8 +1,10 @@
 package testabilities
 
 import (
+	"context"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
@@ -16,6 +18,16 @@ import (
 
 type CreateActionInputBuilder = walletargs.CreateActionInputBuilder
 
+// mockFacilitator implements lookup.Facilitator interface for testing
+type mockFacilitator struct {
+	answer *lookup.LookupAnswer
+	err    error
+}
+
+func (m *mockFacilitator) Lookup(_ context.Context, _ string, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+	return m.answer, m.err
+}
+
 type WalletFixture interface {
 	AliceWalletWithStorage(storageType StorageType) *wallet.Wallet
 	BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet)
@@ -25,6 +37,7 @@ type WalletFixture interface {
 	Services() ServicesFixture
 	BeefVerifier() testabilities.BeefVerifierFixture
 	CertifierServer() CertifierServerBuilder
+	MockLookupResolver(answer *lookup.LookupAnswer, err error) *lookup.LookupResolver
 }
 
 type walletFixture struct {
@@ -37,6 +50,16 @@ type walletFixture struct {
 
 func Given(t testing.TB) (given WalletFixture, cleanup func()) {
 	return newGiven(t)
+}
+
+func (w *walletFixture) MockLookupResolver(answer *lookup.LookupAnswer, err error) *lookup.LookupResolver {
+	return lookup.NewLookupResolver(&lookup.LookupResolver{
+		Facilitator: &mockFacilitator{answer: answer, err: err},
+		// Use HostOverrides to bypass SLAP tracker lookup
+		HostOverrides: map[string][]string{
+			"ls_identity": {"http://mock-host"},
+		},
+	})
 }
 
 func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
