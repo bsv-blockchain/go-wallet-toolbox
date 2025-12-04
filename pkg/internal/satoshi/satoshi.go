@@ -19,7 +19,7 @@ func (v Value) UInt64() (uint64, error) {
 	if v < 0 {
 		return 0, fmt.Errorf("cannot convert negative satoshi to uint64")
 	}
-	return uint64(v), nil //nolint:gosec
+	return uint64(v), nil
 }
 
 func (v Value) MustUInt64() uint64 {
