@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
+// BeefParty represents a BEEF shared among multiple parties, tracking known transactions for each party.
 type BeefParty struct {
 	*transaction.Beef
 
@@ -16,27 +17,28 @@ type BeefParty struct {
 	knownTo map[string][]string
 }
 
+// NewBeefParty creates a new BeefParty instance with optional initial parties.
 func NewBeefParty(parties []string) *BeefParty {
 	bp := &BeefParty{
 		Beef:    transaction.NewBeef(),
 		knownTo: make(map[string][]string),
 	}
 
-	if parties != nil {
-		for _, p := range parties {
-			bp.AddParty(p)
-		}
+	for _, p := range parties {
+		bp.AddParty(p)
 	}
 
 	return bp
 }
 
+// AddParty adds a new party to the BeefParty.
 func (bp *BeefParty) AddParty(party string) {
 	bp.mu.Lock()
 	bp.knownTo[party] = []string{}
 	bp.mu.Unlock()
 }
 
+// IsParty checks if a party is known to the BeefParty.
 func (bp *BeefParty) IsParty(party string) bool {
 	bp.mu.RLock()
 	_, ok := bp.knownTo[party]
@@ -45,6 +47,7 @@ func (bp *BeefParty) IsParty(party string) bool {
 	return ok
 }
 
+// GetKnownTxIDsForParty retrieves the known transaction IDs for a specific party.
 func (bp *BeefParty) GetKnownTxIDsForParty(party string) ([]string, error) {
 	bp.mu.RLock()
 	s, ok := bp.knownTo[party]
@@ -60,6 +63,7 @@ func (bp *BeefParty) GetKnownTxIDsForParty(party string) ([]string, error) {
 	return out, nil
 }
 
+// GetTrimmedBeefForParty returns a pruned Beef containing only transactions unknown to the specified party.
 func (bp *BeefParty) GetTrimmedBeefForParty(party string) (*transaction.Beef, error) {
 	knownTxIDs, err := bp.GetKnownTxIDsForParty(party)
 	if err != nil {
@@ -72,6 +76,7 @@ func (bp *BeefParty) GetTrimmedBeefForParty(party string) (*transaction.Beef, er
 	return prunedBeef, nil
 }
 
+// AddKnownTxIDsForParty adds known transaction IDs for a specific party and merges them into the Beef.
 func (bp *BeefParty) AddKnownTxIDsForParty(party string, txIDs ...string) error {
 	if !bp.IsParty(party) {
 		bp.AddParty(party)
@@ -97,22 +102,23 @@ func (bp *BeefParty) addTxIDsForParty(party string, txIDs []string) {
 	bp.mu.Unlock()
 }
 
+// MergeBeefFromParty merges a Beef from a specific party into the BeefParty and updates known transaction IDs.
 func (bp *BeefParty) MergeBeefFromParty(party string, beef primitives.BEEF) error {
 	b, err := transaction.NewBeefFromBytes(beef)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse BEEF bytes from party %s: %w", party, err)
 	}
 
 	knownTxIDs := b.GetValidTxids()
 
 	err = bp.MergeBeef(b)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to merge BEEF from party %s: %w", party, err)
 	}
 
 	err = bp.AddKnownTxIDsForParty(party, knownTxIDs...)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add known txIDs from party %s: %w", party, err)
 	}
 
 	return nil

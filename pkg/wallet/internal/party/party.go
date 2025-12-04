@@ -15,10 +15,8 @@ type WalletParty struct {
 
 // GetKnownTxIDs merges new known transaction IDs into the wallet's known transactions and return list of known txIDs.
 func (wp *WalletParty) GetKnownTxIDs(newKnownTxIDs ...chainhash.Hash) (primitives.TXIDHexStrings, error) {
-	if newKnownTxIDs != nil {
-		for _, txID := range newKnownTxIDs {
-			wp.BeefParty.MergeTxidOnly(&txID)
-		}
+	for _, txID := range newKnownTxIDs {
+		wp.BeefParty.MergeTxidOnly(&txID)
 	}
 
 	result := wp.BeefParty.ValidateTransactions()
