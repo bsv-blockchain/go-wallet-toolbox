@@ -59,7 +59,7 @@ type ValidCreateActionOptions struct {
 	SendWith               []primitives.TXIDHexString      `json:"sendWith"`
 	SignAndProcess         *primitives.BooleanDefaultTrue  `json:"signAndProcess,omitempty"`
 	TrustSelf              *sdk.TrustSelf                  `json:"trustSelf,omitempty"`
-	KnownTxids             []primitives.TXIDHexString      `json:"knownTxids"`
+	KnownTxids             primitives.TXIDHexStrings       `json:"knownTxids"`
 	NoSendChange           []OutPoint                      `json:"noSendChange"`
 	RandomizeOutputs       bool                            `json:"randomizeOutputs"`
 }

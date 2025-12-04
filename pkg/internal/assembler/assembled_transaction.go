@@ -37,6 +37,7 @@ func (a *AssembledTransaction) AtomicBEEF(allowPartials bool) ([]byte, error) {
 func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Beef, error) {
 	beef := transaction.NewBeef()
 
+	fmt.Println("<----------   ToAtomicBEEF")
 	err := beef.MergeBeef(a.inputBEEF)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge input beef into transaction beef: %w", err)

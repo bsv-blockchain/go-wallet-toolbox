@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/party"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -24,10 +25,18 @@ type CreateAction struct {
 	originator string
 }
 
-func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string) (*wallet.CreateActionResult, error) {
-	// TODO: mapping.MapCreateActionArgs should handle known tx ids - needs some merging and validation of BEEF
+func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (*wallet.CreateActionResult, error) {
 	a.originator = originator
 	a.wdkArgs = mapping.MapCreateActionArgs(args, *a.WalletOpts)
+
+	if a.wdkArgs.Options.KnownTxids == nil {
+		knownTxIDs, err := wp.GetKnownTxIDs()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", err)
+		}
+
+		a.wdkArgs.Options.KnownTxids = knownTxIDs
+	}
 
 	if err := a.validate(); err != nil {
 		return nil, err
@@ -36,8 +45,30 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 	if a.isNotNewTX() {
 		return a.handleNotNewTX(ctx)
 	}
-	return a.handleNewTX(ctx, args)
-	// TODO: merge BEEF Party ??
+	result, err := a.handleNewTX(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+
+	if result.Tx == nil {
+		return result, nil
+	}
+
+	err = wp.BeefParty.MergeBeefFromParty(wp.StorageParty, result.Tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
+	}
+
+	if a.wdkArgs.Options.ReturnTXIDOnly.Value() {
+		tx, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
+		}
+
+		result.Tx = tx
+	}
+
+	return result, nil
 }
 
 func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateActionResult, error) {

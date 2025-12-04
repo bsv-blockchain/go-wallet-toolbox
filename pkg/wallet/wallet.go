@@ -28,6 +28,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/party"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
@@ -104,8 +105,8 @@ type Wallet struct {
 	logger                  *slog.Logger
 	cleanup                 walletCleanupFunc
 	auth                    *clients.AuthFetch
-	userParty               string
 	randomizer              wdk.Randomizer
+	party                   *party.WalletParty
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -245,10 +246,14 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		chain:                   chain,
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
-		userParty:               userParty,
 		randomizer:              randomizer.New(),
 		settingsManager:         options.WalletSettingsManager,
 		lookupResolver:          options.LookupResolver,
+		party: &party.WalletParty{
+			UserParty:    userParty,
+			StorageParty: fmt.Sprintf("storage %s", keyDeriver.IdentityKey().ToDERHex()),
+			BeefParty:    wdk.NewBeefParty([]string{userParty}),
+		},
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
@@ -353,7 +358,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 		PendingSignActionsCache: w.pendingSignActionsCache,
 	}
 
-	result, err := action.CreateAction(ctx, args, originator)
+	result, err := action.CreateAction(ctx, args, originator, w.party)
 	if err != nil {
 		return nil, fmt.Errorf("create action failed: %w", err)
 	}
@@ -372,7 +377,7 @@ func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, origin
 		Storage:                 w.storage,
 	}
 
-	result, err := action.SignAction(ctx, args, originator)
+	result, err := action.SignAction(ctx, args, originator, w.party)
 	if err != nil {
 		return nil, fmt.Errorf("sign action failed: %w", err)
 	}
@@ -496,6 +501,20 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 	result, err := w.storage.ListOutputs(ctx, wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list outputs: %w", err)
+	}
+
+	if result.BEEF != nil {
+		err = w.party.BeefParty.MergeBeefFromParty(w.party.StorageParty, *result.BEEF)
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
+		}
+
+		beef, err := party.VerifyReturnedTxIDOnlyBeef(w.party.BeefParty, *result.BEEF)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
+		}
+
+		result.BEEF = &beef
 	}
 
 	mappedResult, err := mapping.MapListOutputsResult(result)
@@ -1250,4 +1269,9 @@ func (w *Wallet) getCertifiers(now time.Time) []string {
 	}
 	sort.Strings(certifiers)
 	return certifiers
+}
+
+// GetBeefParty retrieves the BeefParty instance associated with the wallet.
+func (w *Wallet) GetBeefParty() *wdk.BeefParty {
+	return w.party.BeefParty
 }
