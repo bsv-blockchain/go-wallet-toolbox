@@ -1201,7 +1201,11 @@ func (w *Wallet) discoverCertificates(ctx context.Context, params discoverCertif
 		}, nil
 	}
 
-	return mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map verifiable certificates with trust settings: %w", err)
+	}
+	return verifiableCerts, nil
 }
 
 func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {

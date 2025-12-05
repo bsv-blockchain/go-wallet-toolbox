@@ -66,7 +66,6 @@ func varIntSize(val uint64) uint64 {
 	return toU64(length)
 }
 
-//nolint:gosec // No need to check for overflows from int to uint64 here
 func toU64(val int) uint64 {
 	return uint64(val)
 }
