@@ -20,11 +20,11 @@ func SortedJSONString(attributes map[string]string) string {
 	sort.Strings(keys)
 
 	// 2. Build the JSON string manually, iterating over the sorted keys
-	var parts []string
-	for _, k := range keys {
+	parts := make([]string, len(keys))
+	for i, k := range keys {
 		v := attributes[k]
 		part := fmt.Sprintf(`"%s":"%s"`, k, v)
-		parts = append(parts, part)
+		parts[i] = part
 	}
 
 	// 3. Join the parts and wrap in braces {}

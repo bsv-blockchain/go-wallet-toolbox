@@ -24,7 +24,7 @@ func DiscoverByAttributesArgs(args sdk.DiscoverByAttributesArgs) error {
 		}
 	}
 
-	if args.Attributes == nil || len(args.Attributes) == 0 {
+	if len(args.Attributes) == 0 {
 		return errors.New("attributes must be provided")
 	}
 
