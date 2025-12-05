@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (s *WalletTestSuite) TestDiscoverByIdentityKey() {
+func (s *WalletTestSuite) TestDiscoverByAttributes() {
 	t := s.T()
 
 	s.Run("empty results - should return empty result when no certificates found", func() {
@@ -39,18 +39,21 @@ func (s *WalletTestSuite) TestDiscoverByIdentityKey() {
 		require.NotNil(t, bobKey)
 
 		// when:
-		result, err := aliceWallet.DiscoverByIdentityKey(t.Context(), sdk.DiscoverByIdentityKeyArgs{
-			IdentityKey: bobKey.PublicKey,
+		result, err := aliceWallet.DiscoverByAttributes(t.Context(), sdk.DiscoverByAttributesArgs{
+			Attributes: map[string]string{
+				"key1": "val1",
+				"key2": "val2",
+			},
 		}, fixtures.DefaultOriginator)
 
-		// then:
+		// then: no error, but empty results
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, uint32(0), result.TotalCertificates)
 		require.Empty(t, result.Certificates)
 	})
 
-	s.Run("success - should discover certificates for valid identity key", func() {
+	s.Run("success - should discover certificates for valid attributes", func() {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
@@ -73,8 +76,11 @@ func (s *WalletTestSuite) TestDiscoverByIdentityKey() {
 			ForUser(testusers.Alice)
 
 		// when:
-		result, err := aliceWallet.DiscoverByIdentityKey(t.Context(), sdk.DiscoverByIdentityKeyArgs{
-			IdentityKey: testusers.Bob.PublicKey(t),
+		result, err := aliceWallet.DiscoverByAttributes(t.Context(), sdk.DiscoverByAttributesArgs{
+			Attributes: map[string]string{
+				"key1": "val1",
+				"key2": "val2",
+			},
 		}, fixtures.DefaultOriginator)
 
 		// then:

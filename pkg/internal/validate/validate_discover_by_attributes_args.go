@@ -1,14 +1,14 @@
 package validate
 
 import (
+	"errors"
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-// DiscoverByIdentityKeyArgs validates arguments for DiscoverByIdentityKey()
-func DiscoverByIdentityKeyArgs(args sdk.DiscoverByIdentityKeyArgs) error {
+// DiscoverByAttributesArgs validates arguments for DiscoverByIdentityKey()
+func DiscoverByAttributesArgs(args sdk.DiscoverByAttributesArgs) error {
 	if args.Limit != nil {
 		if *args.Limit < MinPaginationLimit {
 			return fmt.Errorf("limit must be greater than 0")
@@ -24,13 +24,15 @@ func DiscoverByIdentityKeyArgs(args sdk.DiscoverByIdentityKeyArgs) error {
 		}
 	}
 
-	if args.IdentityKey == nil {
-		return fmt.Errorf("identityKey is required")
+	if args.Attributes == nil || len(args.Attributes) == 0 {
+		return errors.New("attributes must be provided")
 	}
 
-	hex := primitives.PubKeyHex(args.IdentityKey.ToDERHex())
-	if err := hex.Validate(); err != nil {
-		return fmt.Errorf("invalid identity key: failed validation check")
+	for key := range args.Attributes {
+		keyLen := len(key)
+		if keyLen < 1 || keyLen > 50 {
+			return fmt.Errorf("attributes field name %s must be between %d and %d but has %d length", key, 1, 50, keyLen)
+		}
 	}
 
 	return nil
