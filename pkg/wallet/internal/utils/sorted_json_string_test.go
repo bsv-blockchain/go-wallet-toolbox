@@ -78,4 +78,3 @@ func TestSortedJSONString(t *testing.T) {
 		})
 	}
 }
-

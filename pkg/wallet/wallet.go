@@ -1247,4 +1247,3 @@ func (w *Wallet) getCertifiers(now time.Time) []string {
 	sort.Strings(certifiers)
 	return certifiers
 }
-
