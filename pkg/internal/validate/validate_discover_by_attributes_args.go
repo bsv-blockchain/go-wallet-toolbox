@@ -7,7 +7,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
-// DiscoverByAttributesArgs validates arguments for DiscoverByIdentityKey()
+// DiscoverByAttributesArgs validates arguments for DiscoverByAttributes()
 func DiscoverByAttributesArgs(args sdk.DiscoverByAttributesArgs) error {
 	if args.Limit != nil {
 		if *args.Limit < MinPaginationLimit {

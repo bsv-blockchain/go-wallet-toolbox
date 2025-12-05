@@ -40,6 +40,8 @@ import (
 
 var _ sdk.Interface = (*Wallet)(nil)
 
+const discoverCertificatesTTL = 2 * time.Minute
+
 type walletCleanupFunc func()
 
 func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
@@ -50,6 +52,12 @@ func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 		wc()
 		next()
 	}
+}
+
+// discoverCertificatesParams holds the parameters for certificate discovery.
+type discoverCertificatesParams struct {
+	cacheKeyStr string
+	query       []byte
 }
 
 // cacheEntry is a struct for the map-based overlay cache entries
@@ -73,7 +81,7 @@ type identityQuery struct {
 	Certifiers  []string `json:"certifiers"`
 }
 
-// identityQuery is a struct representing query to the lookupResolver
+// attributesQuery is a struct representing query to the lookupResolver
 // to fetch certificates by Attributes.
 type attributesQuery struct {
 	Attributes map[string]string `json:"attributes"`
@@ -980,9 +988,7 @@ func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishC
 
 // DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
 func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	const TTL = 2 * time.Minute
 	now := time.Now()
-
 	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
 
 	if err := validate.Originator(originator); err != nil {
@@ -993,78 +999,30 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
 	}
 
-	// trustSettings cache (2 minutes)
-	trustSettings := w.getTrustSettings(now, TTL)
-	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
-	for i, c := range trustSettings.TrustedCertifiers {
-		certifiers[i] = c.IdentityKey
-	}
-	sort.Strings(certifiers)
+	certifiers := w.getCertifiers(now)
+	identityKey := args.IdentityKey.ToDERHex()
 
-	// queryOverlay cache (2 minutes)
-	cacheKey := cacheKey{
-		Fn:          "discoverByIdentityKey",
-		IdentityKey: args.IdentityKey.ToDERHex(),
-		Certifiers:  certifiers,
-	}
-	keyBytes, err := json.Marshal(cacheKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cacheKey: %w", err)
-	}
-	cacheKeyStr := string(keyBytes)
-
-	// Check cache
-	cached, ok := w.overlayCache.Load(cacheKeyStr)
-	entry, typeOk := cached.(*cacheEntry)
-	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
-		// Cache miss or expired - query overlay
-		query, err := json.Marshal(identityQuery{
-			IdentityKey: args.IdentityKey.ToDERHex(),
+	params, err := w.buildDiscoverParams(
+		cacheKey{
+			Fn:          "discoverByIdentityKey",
+			IdentityKey: identityKey,
 			Certifiers:  certifiers,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal overlay query: %w", err)
-		}
-
-		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
-			Service: "ls_identity",
-			Query:   query,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
-		}
-
-		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
-
-		// Store in cache
-		cached = &cacheEntry{
-			Value:     verifiableCertificates,
-			ExpiresAt: now.Add(TTL),
-		}
-		w.overlayCache.Store(cacheKeyStr, cached)
-	}
-
-	entry, typeOk = cached.(*cacheEntry)
-	if !typeOk || entry.Value == nil {
-		return &sdk.DiscoverCertificatesResult{
-			TotalCertificates: 0,
-			Certificates:      []sdk.IdentityCertificate{},
-		}, nil
-	}
-
-	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+		},
+		identityQuery{
+			IdentityKey: identityKey,
+			Certifiers:  certifiers,
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map verifiableCerts with trust: %w", err)
+		return nil, err
 	}
-	return verifiableCerts, nil
+
+	return w.discoverCertificates(ctx, params, now)
 }
 
-// DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain
-// specific attributes, issued by a trusted entity.
+// DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain specific attributes, issued by a trusted entity.
 func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAttributesArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	const TTL = 2 * time.Minute
 	now := time.Now()
-
 	w.logger.DebugContext(ctx, "DiscoverByAttributes call", slogx.String("originator", originator))
 
 	if err := validate.Originator(originator); err != nil {
@@ -1072,76 +1030,33 @@ func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAt
 	}
 
 	if err := validate.DiscoverByAttributesArgs(args); err != nil {
-		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
+		return nil, fmt.Errorf("failed to validate sdk.DiscoverByAttributesArgs: %w", err)
 	}
 
-	// trustSettings cache (2 minutes)
-	trustSettings := w.getTrustSettings(now, TTL)
-	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
-	for i, c := range trustSettings.TrustedCertifiers {
-		certifiers[i] = c.IdentityKey
-	}
-	sort.Strings(certifiers)
+	certifiers := w.getCertifiers(now)
 
 	// Normalize attributes for a stable cache key.
-	attributesKey := utils.SortedJSONString(args.Attributes)
-
-	// --- queryOverlay cache (2 minutes) ---
-	cacheKey := cacheKey{
-		Fn:         "discoverByAttributes",
-		Attributes: attributesKey,
-		Certifiers: certifiers,
-	}
-	keyBytes, err := json.Marshal(cacheKey)
+	attributesKey, err := utils.SortedJSONString(args.Attributes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cacheKey: %w", err)
+		return nil, fmt.Errorf("failed to generate sorted JSON string for attributes: %w", err)
 	}
-	cacheKeyStr := string(keyBytes)
 
-	// Check cache
-	cached, ok := w.overlayCache.Load(cacheKeyStr)
-	entry, typeOk := cached.(*cacheEntry)
-	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
-		// Cache miss or expired - query overlay
-		query, err := json.Marshal(attributesQuery{
+	params, err := w.buildDiscoverParams(
+		cacheKey{
+			Fn:         "discoverByAttributes",
+			Attributes: attributesKey,
+			Certifiers: certifiers,
+		},
+		attributesQuery{
 			Attributes: args.Attributes,
 			Certifiers: certifiers,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal overlay query: %w", err)
-		}
-
-		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
-			Service: "ls_identity",
-			Query:   query,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
-		}
-
-		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
-
-		// Store in cache
-		cached = &cacheEntry{
-			Value:     verifiableCertificates,
-			ExpiresAt: now.Add(TTL),
-		}
-		w.overlayCache.Store(cacheKeyStr, cached)
-	}
-
-	entry, typeOk = cached.(*cacheEntry)
-	if !typeOk || entry.Value == nil {
-		return &sdk.DiscoverCertificatesResult{
-			TotalCertificates: 0,
-			Certificates:      []sdk.IdentityCertificate{},
-		}, nil
-	}
-
-	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map verifiableCerts with trust: %w", err)
+		return nil, err
 	}
-	return verifiableCerts, nil
+
+	return w.discoverCertificates(ctx, params, now)
 }
 
 // IsAuthenticated checks the authentication status of the user.
@@ -1250,6 +1165,45 @@ func (w *Wallet) Destroy() {
 	w.Close()
 }
 
+// discoverCertificates is a shared helper for DiscoverByIdentityKey and DiscoverByAttributes.
+// It handles trust settings, caching, overlay queries, and result mapping.
+func (w *Wallet) discoverCertificates(ctx context.Context, params discoverCertificatesParams, now time.Time) (*sdk.DiscoverCertificatesResult, error) {
+	trustSettings := w.getTrustSettings(now, discoverCertificatesTTL)
+
+	// Check cache
+	cached, ok := w.overlayCache.Load(params.cacheKeyStr)
+	entry, typeOk := cached.(*cacheEntry)
+	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
+		// Cache miss or expired - query overlay
+		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
+			Service: "ls_identity",
+			Query:   params.query,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
+		}
+
+		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
+
+		// Store in cache
+		cached = &cacheEntry{
+			Value:     verifiableCertificates,
+			ExpiresAt: now.Add(discoverCertificatesTTL),
+		}
+		w.overlayCache.Store(params.cacheKeyStr, cached)
+	}
+
+	entry, typeOk = cached.(*cacheEntry)
+	if !typeOk || entry.Value == nil {
+		return &sdk.DiscoverCertificatesResult{
+			TotalCertificates: 0,
+			Certificates:      []sdk.IdentityCertificate{},
+		}, nil
+	}
+
+	return mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+}
+
 func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {
 	cached := w.trustSettingsCache.Load()
 	if cached != nil && cached.ExpiresAt.After(now) {
@@ -1264,3 +1218,33 @@ func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_sett
 
 	return trustSettings
 }
+
+// buildDiscoverParams builds the cache key and query for certificate discovery methods.
+func (w *Wallet) buildDiscoverParams(cacheKeyData cacheKey, queryData any) (discoverCertificatesParams, error) {
+	keyBytes, err := json.Marshal(cacheKeyData)
+	if err != nil {
+		return discoverCertificatesParams{}, fmt.Errorf("failed to marshal cacheKey: %w", err)
+	}
+
+	query, err := json.Marshal(queryData)
+	if err != nil {
+		return discoverCertificatesParams{}, fmt.Errorf("failed to marshal overlay query: %w", err)
+	}
+
+	return discoverCertificatesParams{
+		cacheKeyStr: string(keyBytes),
+		query:       query,
+	}, nil
+}
+
+// getCertifiers returns sorted certifier identity keys from trust settings.
+func (w *Wallet) getCertifiers(now time.Time) []string {
+	trustSettings := w.getTrustSettings(now, discoverCertificatesTTL)
+	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
+	for i, c := range trustSettings.TrustedCertifiers {
+		certifiers[i] = c.IdentityKey
+	}
+	sort.Strings(certifiers)
+	return certifiers
+}
+
