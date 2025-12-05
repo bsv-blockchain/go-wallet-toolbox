@@ -171,9 +171,6 @@ func (p *Provider) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStor
 
 // InsertCertificateAuth inserts certificate to the database for authenticated user
 func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
-	fmt.Println(auth.UserID)
-
-	fmt.Println(certificate.UserID)
 	if auth.UserID == nil || certificate.UserID != *auth.UserID {
 		return 0, ErrAuthorization
 	}
