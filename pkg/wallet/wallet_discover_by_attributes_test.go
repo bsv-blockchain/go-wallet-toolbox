@@ -32,12 +32,6 @@ func (s *WalletTestSuite) TestDiscoverByAttributes() {
 			WithWalletOpts(wallet.WithLookupResolver(mockResolver)).
 			ForUser(testusers.Alice)
 
-		// and:
-		bobWallet := given.BobWalletWithStorage(s.StorageType)
-		bobKey, err := bobWallet.GetPublicKey(t.Context(), sdk.GetPublicKeyArgs{IdentityKey: true}, fixtures.DefaultOriginator)
-		require.NoError(t, err)
-		require.NotNil(t, bobKey)
-
 		// when:
 		result, err := aliceWallet.DiscoverByAttributes(t.Context(), sdk.DiscoverByAttributesArgs{
 			Attributes: map[string]string{
