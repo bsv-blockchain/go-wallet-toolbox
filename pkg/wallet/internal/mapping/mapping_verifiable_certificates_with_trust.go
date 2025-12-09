@@ -50,7 +50,8 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 			Name:        trustedCertifier.Name,
 			IconUrl:     to.Value(trustedCertifier.IconURL),
 			Description: trustedCertifier.Description,
-			Trust:       uint8(trustedCertifier.Trust),
+			//nolint:gosec
+			Trust: uint8(trustedCertifier.Trust),
 		}
 
 		revealedKeyring := make(map[string]string, len(cert.Keyring))
@@ -96,6 +97,7 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 	})
 
 	return &wallet.DiscoverCertificatesResult{
+		//nolint:gosec
 		TotalCertificates: uint32(len(results)),
 		Certificates:      results,
 	}, nil
