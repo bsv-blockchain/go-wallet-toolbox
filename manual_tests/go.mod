@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-wallet-toolbox-manual-tests
 go 1.24.3
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.12
+	github.com/bsv-blockchain/go-sdk v1.2.13
 	github.com/bsv-blockchain/go-wallet-toolbox v1.24.3
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -66,7 +66,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
