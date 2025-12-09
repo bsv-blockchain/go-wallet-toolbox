@@ -1,4 +1,4 @@
-package chaintracks
+package models
 
 import (
 	"encoding/hex"
@@ -13,8 +13,8 @@ import (
 // InfoResponse contains details about the BSV network, block heights, storage backend, endpoints, and installed packages.
 type InfoResponse struct {
 	Chain         defs.BSVNetwork `json:"chain"`
-	HeightBulk    int             `json:"heightBulk"`
-	HeightLive    int             `json:"heightLive"`
+	HeightBulk    uint            `json:"heightBulk"`
+	HeightLive    uint            `json:"heightLive"`
 	Storage       string          `json:"storage"`
 	BulkIngestors []string        `json:"bulkIngestors"`
 	LiveIngestors []string        `json:"liveIngestors"`
@@ -65,7 +65,7 @@ type BlockHeader struct {
 	BaseBlockHeader
 	BlockHeaderInfo
 
-	Height uint32 `json:"height"`
+	Height uint   `json:"height"`
 	Hash   string `json:"hash"`
 }
 

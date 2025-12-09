@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 )
 
 // BlockHeaderLength defines the fixed byte size of a block header, commonly used in blockchain data structures.
@@ -44,6 +46,19 @@ type ChainBaseBlockHeader struct {
 	Nonce uint32
 }
 
+// Validate checks if PreviousHash and MerkleRoot are valid 32-byte hex strings (64 characters) and returns an error if not.
+func (c *ChainBaseBlockHeader) Validate() error {
+	if len(c.PreviousHash) != 64 {
+		return fmt.Errorf("previous hash must be a 32-byte hex string (64 characters), got %d characters", len(c.PreviousHash))
+	}
+
+	if len(c.MerkleRoot) != 64 {
+		return fmt.Errorf("merkle root must be a 32-byte hex string (64 characters), got %d characters", len(c.MerkleRoot))
+	}
+
+	return nil
+}
+
 // ChainBlockHeader extends ChainBaseBlockHeader with metadata about the block's
 // position in the chain and its computed hash.
 type ChainBlockHeader struct {
@@ -57,6 +72,20 @@ type ChainBlockHeader struct {
 	Hash string
 }
 
+// Validate checks the integrity of the ChainBlockHeader fields and returns an error if any are invalid.
+// It validates the embedded ChainBaseBlockHeader and ensures the Hash field is a 32-byte hex string (64 characters).
+func (c *ChainBlockHeader) Validate() error {
+	if err := c.ChainBaseBlockHeader.Validate(); err != nil {
+		return err
+	}
+
+	if len(c.Hash) != 64 {
+		return fmt.Errorf("hash must be a 32-byte hex string (64 characters), got %d characters", len(c.Hash))
+	}
+
+	return nil
+}
+
 // Hex returns the hexadecimal string representation of the block header.
 // It marshals the block header fields into a byte slice and encodes it as a hex string.
 // Returns an error if marshaling fails.
@@ -66,6 +95,17 @@ func (c *ChainBaseBlockHeader) Hex() (string, error) {
 		return "", fmt.Errorf("failed to marshal chain block header: %w", err)
 	}
 	return hex.EncodeToString(bb), nil
+}
+
+// CalculateHash computes and returns the double SHA-256 hash of the block header.
+// Returns an error if serialization or hashing fails.
+func (c *ChainBaseBlockHeader) CalculateHash() (chainhash.Hash, error) {
+	bb, err := c.Bytes()
+	if err != nil {
+		return chainhash.Hash{}, fmt.Errorf("failed to marshal chain block header: %w", err)
+	}
+
+	return chainhash.DoubleHashH(bb), nil
 }
 
 // Bytes returns the serialized byte representation of the block header.

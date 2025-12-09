@@ -3,22 +3,34 @@ package wallet
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
+	"net/http"
+	"sort"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
+	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
+	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -40,8 +52,31 @@ func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 	}
 }
 
+// cacheEntry is a struct for the map-based overlay cache entries
+type cacheEntry struct {
+	ExpiresAt time.Time
+	Value     []certificates.VerifiableCertificate
+}
+
+// cacheKey represents the struct that will be a key in overlayCache
+type cacheKey struct {
+	Fn          string   `json:"fn"`
+	IdentityKey string   `json:"identityKey"`
+	Certifiers  []string `json:"certifiers"`
+}
+
+// identityQuery is a struct representing query to the lookupResolver.
+type identityQuery struct {
+	IdentityKey string   `json:"identityKey"`
+	Certifiers  []string `json:"certifiers"`
+}
+
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
+	trustSettingsCache      atomic.Pointer[wallet_settings_manager.TrustSettingsCache]
+	overlayCache            sync.Map
+	settingsManager         *wallet_settings_manager.WalletSettingsManager
+	lookupResolver          *lookup.LookupResolver
 	proto                   *sdk.ProtoWallet
 	storage                 wdk.WalletStorage
 	keyDeriver              *sdk.KeyDeriver
@@ -51,6 +86,9 @@ type Wallet struct {
 	pendingSignActionsCache pending.SignActionsRepository
 	logger                  *slog.Logger
 	cleanup                 walletCleanupFunc
+	auth                    *clients.AuthFetch
+	userParty               string
+	randomizer              wdk.Randomizer
 }
 
 // WithIncludeAllSourceTransactions - default: `true`
@@ -67,6 +105,20 @@ func WithIncludeAllSourceTransactions(value bool) func(*wallet_opts.Opts) {
 func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.AutoKnownTxids = value
+	}
+}
+
+// WithAuthHTTPClient configures a custom HTTP client for authenticated requests to certificate authorities.
+func WithAuthHTTPClient(client *http.Client) func(*wallet_opts.Opts) {
+	return func(o *wallet_opts.Opts) {
+		o.Client = client
+	}
+}
+
+// WithLookupResolver configures a lookup resolver for the wallet.
+func WithLookupResolver(lookupResolver *lookup.LookupResolver) func(*wallet_opts.Opts) {
+	return func(o *wallet_opts.Opts) {
+		o.LookupResolver = lookupResolver
 	}
 }
 
@@ -95,6 +147,13 @@ func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
 func WithPendingSignActionsRepository(cache pending.SignActionsRepository) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.PendingSignActionsRepo = cache
+	}
+}
+
+// WithWalletSettingsManager sets the WalletSettingsManager for wallet settings
+func WithWalletSettingsManager(settingsManager *wallet_settings_manager.WalletSettingsManager) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.WalletSettingsManager = settingsManager
 	}
 }
 
@@ -137,13 +196,12 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		Logger:                 slog.Default(),
 		Services:               nil,
 		PendingSignActionsRepo: nil,
+		Client:                 wallet_opts.DefaultClient(),
+		WalletSettingsManager:  wallet_settings_manager.DefaultManager(chain),
+		LookupResolver: lookup.NewLookupResolver(&lookup.LookupResolver{
+			NetworkPreset: mapping.MapToOverlayNetwork(chain),
+		}),
 	}, opts...)
-
-	logger := logging.Child(options.Logger, "wallet")
-
-	if options.PendingSignActionsRepo == nil {
-		options.PendingSignActionsRepo = pending.NewSignActionLocalRepository(logger, pending.DefaultPendingSignActionsTTL)
-	}
 
 	keyDeriver, err := toKeyDeriver(keySource)
 	if err != nil {
@@ -155,6 +213,13 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
 	}
 
+	userParty := fmt.Sprintf("user %s", keyDeriver.IdentityKey().ToDERHex())
+	logger := logging.Child(options.Logger, "wallet").With("walletName", userParty)
+
+	if options.PendingSignActionsRepo == nil {
+		options.PendingSignActionsRepo = pending.NewSignActionLocalRepository(logger, pending.DefaultPendingSignActionsTTL)
+	}
+
 	w := &Wallet{
 		proto:                   proto,
 		keyDeriver:              keyDeriver,
@@ -163,7 +228,12 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		chain:                   chain,
 		pendingSignActionsCache: options.PendingSignActionsRepo,
 		logger:                  logger,
+		userParty:               userParty,
+		randomizer:              randomizer.New(),
+		settingsManager:         options.WalletSettingsManager,
+		lookupResolver:          options.LookupResolver,
 	}
+	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
 	activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
 	if err != nil {
@@ -484,11 +554,177 @@ func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertifi
 	case sdk.AcquisitionProtocolDirect:
 		return w.acquireDirectCertificate(ctx, args, originator)
 	case sdk.AcquisitionProtocolIssuance:
-		// TODO: Add implementation for sdk.AcquisitionProtocolIssuance in a separate PR.
-		panic("implement me")
+		return w.acquireIssuanceCertificate(ctx, args, originator)
 	default:
 		return nil, fmt.Errorf("acquire protocol not recognized, allowed types: [%s, %s]", sdk.AcquisitionProtocolDirect, sdk.AcquisitionProtocolIssuance)
 	}
+}
+
+func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	w.logger.DebugContext(ctx, "AcquireCertificateIssuance call", slogx.String("originator", originator))
+
+	// Retrieve authentication info early to fail fast
+	auth, err := w.storage.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve auth identity: %w", err)
+	}
+
+	// Fetch the identity public key early to fail fast
+	key, err := w.GetPublicKey(ctx, sdk.GetPublicKeyArgs{IdentityKey: true}, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+
+	// Create nonce for the request
+	nonce, err := w.createNonce(ctx, args.Certifier, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nonce: %w", err)
+	}
+
+	// Prepare the certificate signing request payload with certificate data
+	issuanceActionData, err := actions.PrepareIssuanceActionData(ctx, actions.PrepareIssuanceActionDataParams{
+		Wallet:      w,
+		Args:        args,
+		Nonce:       nonce,
+		IdentityKey: key.PublicKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare issuance payload: %w", err)
+	}
+
+	// Send authenticated request to certifier
+	url := fmt.Sprintf("%s/signCertificate", args.CertifierUrl)
+	res, err := w.auth.Fetch(ctx, url, &clients.SimplifiedFetchRequestOptions{
+		Method:  http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    issuanceActionData.Body,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to send HTTP request to the certifier server: %w", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	// Parse and validate the certificate response
+	parsedCert, err := actions.ParseCertificateResponse(actions.ParseCertificateResponseParams{
+		Response:    res,
+		Args:        args,
+		Nonce:       nonce,
+		IdentityKey: key.PublicKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate response: %w", err)
+	}
+
+	// Verify server nonce
+	if err := w.verifyNonce(ctx, parsedCert.ServerNonce, issuanceActionData.CounterParty, originator); err != nil {
+		return nil, fmt.Errorf("failed to verify server nonce: %w", err)
+	}
+
+	// Verify the certificate against our request
+	if err := actions.VerifyCertificateIssuance(ctx, w, parsedCert, nonce, issuanceActionData, key.PublicKey, args.Certifier, originator); err != nil {
+		return nil, fmt.Errorf("failed to verify certificate: %w", err)
+	}
+
+	// Test that we can decrypt the certificate fields
+	if err := actions.TestCertificateDecryption(ctx, w, parsedCert.CertFields, issuanceActionData.MasterKeyring, issuanceActionData.CounterParty, args); err != nil {
+		return nil, fmt.Errorf("failed to test certificate decryption: %w", err)
+	}
+
+	// Store the certificate
+	if err := actions.StoreCertificate(ctx, actions.StoreCertificateParams{
+		Storage:            w.storage,
+		Auth:               auth,
+		Certificate:        parsedCert.Certificate,
+		Certifier:          parsedCert.ParsedCertifier,
+		RevocationOutpoint: parsedCert.RevocationOutpoint,
+		Signature:          parsedCert.ParsedSignature,
+		IdentityKey:        key.PublicKey,
+		CertTypeB64:        issuanceActionData.CertTypeB64,
+		Fields:             issuanceActionData.Fields,
+		MasterKeyring:      issuanceActionData.MasterKeyring,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to store certificate: %w", err)
+	}
+
+	// Build and return SDK certificate
+	var serialNumberArray sdk.SerialNumber
+	copy(serialNumberArray[:], parsedCert.SerialNumber)
+
+	return &sdk.Certificate{
+		Type:               args.Type,
+		SerialNumber:       serialNumberArray,
+		Subject:            key.PublicKey,
+		Certifier:          parsedCert.ParsedCertifier,
+		RevocationOutpoint: parsedCert.RevocationOutpoint,
+		Fields:             args.Fields,
+		Signature:          parsedCert.ParsedSignature,
+	}, nil
+}
+
+// verifyNonce validates a nonce received from a counterparty.
+// A nonce in this context is a unique value used to prevent replay attacks and ensure message integrity.
+// The expected format of the nonce is a base64-encoded string containing 48 bytes:
+//   - The first 16 bytes are arbitrary data (the nonce value).
+//   - The next 32 bytes are an HMAC (Hash-based Message Authentication Code) of the data, used for integrity verification.
+//
+// This function decodes the nonce, checks its length, splits it into data and HMAC, and verifies the HMAC
+// using the provided counterparty and originator information.
+func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk.Counterparty, originator string) error {
+	// Convert nonce from base64 string to byte array
+	buffer, err := base64.StdEncoding.DecodeString(nonce)
+	if err != nil {
+		return fmt.Errorf("failed to decode nonce: %w", err)
+	}
+
+	// Validate nonce length (should be 16 bytes data + 32 bytes HMAC = 48 bytes)
+	if len(buffer) < utils.TotalNonceSize {
+		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", utils.TotalNonceSize, len(buffer))
+	}
+
+	// Split the nonce buffer
+	data := buffer[:utils.NonceDataSize]
+	hmacSlice := buffer[utils.NonceDataSize:]
+
+	// Convert hmac slice to [32]byte array
+	if len(hmacSlice) != utils.NonceHMACSize {
+		return fmt.Errorf("invalid hmac length: expected 32 bytes, got %d", len(hmacSlice))
+	}
+
+	var hmacArray [32]byte
+	copy(hmacArray[:], hmacSlice)
+
+	// Verify the HMAC
+	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
+		Data: data,
+		HMAC: hmacArray,
+		EncryptionArgs: sdk.EncryptionArgs{
+			ProtocolID: sdk.Protocol{
+				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
+				Protocol:      "server hmac",
+			},
+			KeyID:        string(data),
+			Counterparty: counterparty,
+		},
+	}, originator)
+	if err != nil {
+		return fmt.Errorf("failed to verify HMAC: %w", err)
+	}
+
+	if !verifyHMACResult.Valid {
+		return errors.New("HMAC verification failed: invalid nonce")
+	}
+
+	return nil
+}
+
+// createNonce generates a nonce for authentication and replay protection.
+func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
+	nonce, err := utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nonce for wallet: %w", err)
+	}
+
+	return nonce, nil
 }
 
 func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
@@ -566,6 +802,102 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 	}
 
 	return &cert, nil
+}
+
+// DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
+func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
+	const TTL = 2 * time.Minute
+	now := time.Now()
+
+	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	if err := validate.DiscoverByIdentityKeyArgs(args); err != nil {
+		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
+	}
+
+	// trustSettings cache (2 minutes)
+	trustSettings := w.getTrustSettings(now, TTL)
+	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
+	for i, c := range trustSettings.TrustedCertifiers {
+		certifiers[i] = c.IdentityKey
+	}
+	sort.Strings(certifiers)
+
+	// queryOverlay cache (2 minutes)
+	cacheKey := cacheKey{
+		Fn:          "discoverByIdentityKey",
+		IdentityKey: args.IdentityKey.ToDERHex(),
+		Certifiers:  certifiers,
+	}
+	keyBytes, err := json.Marshal(cacheKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cacheKey: %w", err)
+	}
+	cacheKeyStr := string(keyBytes)
+
+	// Check cache
+	cached, ok := w.overlayCache.Load(cacheKeyStr)
+	entry, typeOk := cached.(*cacheEntry)
+	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
+		// Cache miss or expired - query overlay
+		query, err := json.Marshal(identityQuery{
+			IdentityKey: args.IdentityKey.ToDERHex(),
+			Certifiers:  certifiers,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal overlay query: %w", err)
+		}
+
+		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
+			Service: "ls_identity",
+			Query:   query,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
+		}
+
+		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
+
+		// Store in cache
+		cached = &cacheEntry{
+			Value:     verifiableCertificates,
+			ExpiresAt: now.Add(TTL),
+		}
+		w.overlayCache.Store(cacheKeyStr, cached)
+	}
+
+	entry, typeOk = cached.(*cacheEntry)
+	if !typeOk || entry.Value == nil {
+		return &sdk.DiscoverCertificatesResult{
+			TotalCertificates: 0,
+			Certificates:      []sdk.IdentityCertificate{},
+		}, nil
+	}
+
+	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map verifiableCerts with trust: %w", err)
+	}
+	return verifiableCerts, nil
+}
+
+func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {
+	cached := w.trustSettingsCache.Load()
+	if cached != nil && cached.ExpiresAt.After(now) {
+		return cached.TrustSettings
+	}
+
+	trustSettings := w.settingsManager.Get().TrustSettings
+	w.trustSettingsCache.Store(&wallet_settings_manager.TrustSettingsCache{
+		ExpiresAt:     now.Add(ttl),
+		TrustSettings: trustSettings,
+	})
+
+	return trustSettings
 }
 
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
@@ -733,13 +1065,6 @@ func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishC
 	return &sdk.RelinquishCertificateResult{Relinquished: true}, nil
 }
 
-// DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
-func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
-}
-
 // DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain
 // specific attributes, issued by a trusted entity.
 func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAttributesArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
@@ -840,7 +1165,6 @@ func (w *Wallet) GetVersion(ctx context.Context, _ any, originator string) (*sdk
 	return &sdk.GetVersionResult{
 		Version: defs.Version,
 	}, nil
-
 }
 
 // Close closes the wallet and all the components underneath.

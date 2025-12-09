@@ -18,12 +18,12 @@ import (
 func TestLiveIngestorWOCPoll_BlockHeaderSuccessfulResp(t *testing.T) {
 	// given:
 	blockHash, responseBodyMap := blockHeaderStandardResponse(t)
-	config := defs.DefaultWOCPollIngestorConfig()
+	chain := defs.NetworkMainnet
 
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 	mockWOC.WillRespondOn(fmt.Sprintf("block/%s/header", blockHash), "GET").WithJSONResponse(200, responseBodyMap)
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()))
 
 	// when:
 	resp, err := ingestor.GetHeaderByHash(t.Context(), blockHash)
@@ -45,12 +45,12 @@ func TestLiveIngestorWOCPoll_BlockHeaderPrevHashEmpty(t *testing.T) {
 	blockHash, responseBodyMap := blockHeaderStandardResponse(t)
 	responseBodyMap["previousblockhash"] = ""
 
-	config := defs.DefaultWOCPollIngestorConfig()
+	chain := defs.NetworkMainnet
 
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 	mockWOC.WillRespondOn(fmt.Sprintf("block/%s/header", blockHash), "GET").WithJSONResponse(200, responseBodyMap)
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()))
 
 	// when:
 	resp, err := ingestor.GetHeaderByHash(t.Context(), blockHash)
@@ -63,12 +63,12 @@ func TestLiveIngestorWOCPoll_BlockHeaderPrevHashEmpty(t *testing.T) {
 func TestLiveIngestorWOCPoll_BlockHeaderNotFound(t *testing.T) {
 	// given:
 	blockHash, _ := blockHeaderStandardResponse(t)
-	config := defs.DefaultWOCPollIngestorConfig()
+	chain := defs.NetworkMainnet
 
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 	mockWOC.WillRespondOn(fmt.Sprintf("block/%s/header", blockHash), "GET").WithJSONResponse(404, map[string]any{})
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()))
 
 	// when:
 	_, err := ingestor.GetHeaderByHash(t.Context(), blockHash)
@@ -80,12 +80,12 @@ func TestLiveIngestorWOCPoll_BlockHeaderNotFound(t *testing.T) {
 func TestLiveIngestorWOCPoll_PollLast10Headers(t *testing.T) {
 	// given:
 	last10Headers := testabilities.WOCLast10Headers(t)
-	config := defs.DefaultWOCPollIngestorConfig()
+	chain := defs.NetworkMainnet
 
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 	mockWOC.WillRespondOn("block/headers", "GET").WithJSONResponse(200, last10Headers)
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()))
 
 	// when:
 	mockReceiver := testabilities.NewMockHeadersReceiver(t)
@@ -103,12 +103,12 @@ func TestLiveIngestorWOCPoll_PollLast10Headers(t *testing.T) {
 func TestLiveIngestorWOCPoll_PollLast10Headers_Twice(t *testing.T) {
 	// given:
 	last10Headers := testabilities.WOCLast10Headers(t)
-	config := defs.DefaultWOCPollIngestorConfig()
+	chain := defs.NetworkMainnet
 
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 	mockWOC.WillRespondOn("block/headers", "GET").WithJSONResponse(200, last10Headers)
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()), ingest.WithSyncPeriod(100*time.Millisecond))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()), ingest.IngestorWocPollOpts.WithSyncPeriod(100*time.Millisecond))
 
 	// when:
 	mockReceiver := testabilities.NewMockHeadersReceiver(t)
@@ -116,7 +116,7 @@ func TestLiveIngestorWOCPoll_PollLast10Headers_Twice(t *testing.T) {
 
 	// then:
 	require.Eventually(t, func() bool {
-		return len(mockReceiver.GetReceivedHeaders()) == 20
+		return len(mockReceiver.GetReceivedHeaders()) == 10 // NOTE: Second batch will be ignored as duplicates
 	}, 2*time.Second, 100*time.Millisecond)
 
 	// when:
@@ -126,14 +126,14 @@ func TestLiveIngestorWOCPoll_PollLast10Headers_Twice(t *testing.T) {
 func TestLiveIngestorWOCPoll_PollLast10Headers_TemporaryFailsDontBother(t *testing.T) {
 	// given:
 	last10Headers := testabilities.WOCLast10Headers(t)
-	config := defs.DefaultWOCPollIngestorConfig()
+	chain := defs.NetworkMainnet
 
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 
 	// and first make it fail
 	mockWOC.WillRespondOn("block/headers", "GET").WithJSONResponse(404, map[string]any{})
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()), ingest.WithSyncPeriod(100*time.Millisecond))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()), ingest.IngestorWocPollOpts.WithSyncPeriod(100*time.Millisecond))
 
 	// when:
 	mockReceiver := testabilities.NewMockHeadersReceiver(t)
@@ -155,20 +155,19 @@ func TestLiveIngestorWOCPoll_PollLast10Headers_TemporaryFailsDontBother(t *testi
 func TestLiveIngestorWocPoll_GetPresentHeight(t *testing.T) {
 	// given:
 	const expectedHeight = 920784
+	chain := defs.NetworkMainnet
 
-	config := defs.DefaultWOCPollIngestorConfig()
-
-	mockWOC := testabilities.GivenMockWOC(t, config.Chain)
+	mockWOC := testabilities.GivenMockWOC(t, chain)
 	mockWOC.WillRespondOn("chain/info", "GET").WithJSONResponse(200, map[string]any{"blocks": expectedHeight})
 
-	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), config, ingest.WithRestyClient(mockWOC.HttpClient()))
+	ingestor := ingest.NewLiveIngestorWocPoll(logging.NewTestLogger(t), chain, ingest.IngestorWocPollOpts.WithRestyClient(mockWOC.HttpClient()))
 
 	// when:
 	presentHeight, err := ingestor.GetPresentHeight(t.Context())
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, uint32(expectedHeight), presentHeight)
+	require.Equal(t, uint(expectedHeight), presentHeight)
 }
 
 func blockHeaderStandardResponse(t *testing.T) (string, map[string]any) {

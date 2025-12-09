@@ -1,0 +1,127 @@
+{
+  "rootFolder": "https://cdn.projectbabbage.com/blockheaders",
+  "jsonFilename": "mainNetBlockHeaders.json",
+  "headersPerFile": 100000,
+  "files": [
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "DMXYETHMphmYRh5y0+qsJhj67ML5Ui4LE1eEZDYbnZE=",
+      "fileName": "mainNet_0.headers",
+      "firstHeight": 0,
+      "lastChainWork": "000000000000000000000000000000000000000000000000064492eaf00f2520",
+      "lastHash": "000000000002d01c1fccc21636b607dfd930d31d01c3a62104612a1719011250",
+      "prevChainWork": "0000000000000000000000000000000000000000000000000000000000000000",
+      "prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "IID8O84Uny22i10fWHTQr6f9+9eFZ8dhVyegYPGSg+Q=",
+      "fileName": "mainNet_1.headers",
+      "firstHeight": 100000,
+      "lastChainWork": "00000000000000000000000000000000000000000000001ac0479f335782cb80",
+      "lastHash": "00000000000003a20def7a05a77361b9657ff954b2f2080e135ea6f5970da215",
+      "prevChainWork": "000000000000000000000000000000000000000000000000064492eaf00f2520",
+      "prevHash": "000000000002d01c1fccc21636b607dfd930d31d01c3a62104612a1719011250",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "wbfV/ZuPvLKHtRJN4QlHiKlpNncuqWA1dMJ6O9mhisc=",
+      "fileName": "mainNet_2.headers",
+      "firstHeight": 200000,
+      "lastChainWork": "000000000000000000000000000000000000000000005a795f5d6ede10bc6d60",
+      "lastHash": "000000000000000067ecc744b5ae34eebbde14d21ca4db51652e4d67e155f07e",
+      "prevChainWork": "00000000000000000000000000000000000000000000001ac0479f335782cb80",
+      "prevHash": "00000000000003a20def7a05a77361b9657ff954b2f2080e135ea6f5970da215",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "5pklz64as2MG6y9lQiiClZaA82f6xoK1xdzkSqOZLsA=",
+      "fileName": "mainNet_3.headers",
+      "firstHeight": 300000,
+      "lastChainWork": "0000000000000000000000000000000000000000001229fea679a4cdc26e7460",
+      "lastHash": "0000000000000000030034b661aed920a9bdf6bbfa6d2e7a021f78481882fa39",
+      "prevChainWork": "000000000000000000000000000000000000000000005a795f5d6ede10bc6d60",
+      "prevHash": "000000000000000067ecc744b5ae34eebbde14d21ca4db51652e4d67e155f07e",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "2X78/S+Z/h5ELA63aC3xt6/o4G8JMcAOEiZ00ycKHsM=",
+      "fileName": "mainNet_4.headers",
+      "firstHeight": 400000,
+      "lastChainWork": "0000000000000000000000000000000000000000007ae4707601d47bc6695487",
+      "lastHash": "0000000000000000043831d6ebb013716f0580287ee5e5687e27d0ed72e6e523",
+      "prevChainWork": "0000000000000000000000000000000000000000001229fea679a4cdc26e7460",
+      "prevHash": "0000000000000000030034b661aed920a9bdf6bbfa6d2e7a021f78481882fa39",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "Tzm60n66tIuq7wNdP6M1BH77iFzGCPbOMIl6smJ/LRg=",
+      "fileName": "mainNet_5.headers",
+      "firstHeight": 500000,
+      "lastChainWork": "000000000000000000000000000000000000000000e8f2ea21f069a214067ed7",
+      "lastHash": "0000000000000000078f57b9a986b53b73f007c6b27b6f16409ca4eda83034e8",
+      "prevChainWork": "0000000000000000000000000000000000000000007ae4707601d47bc6695487",
+      "prevHash": "0000000000000000043831d6ebb013716f0580287ee5e5687e27d0ed72e6e523",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "O7SoyIDxhejB0Qs4rBO4OkfBK2yVZKhxra6YxZMhiIk=",
+      "fileName": "mainNet_6.headers",
+      "firstHeight": 600000,
+      "lastChainWork": "0000000000000000000000000000000000000000012f32fb33b26aa239be0fc3",
+      "lastHash": "000000000000000013abf3ab026610ed70e023476db8ce96f68637acdcbcf3cb",
+      "prevChainWork": "000000000000000000000000000000000000000000e8f2ea21f069a214067ed7",
+      "prevHash": "0000000000000000078f57b9a986b53b73f007c6b27b6f16409ca4eda83034e8",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "+0Wu2GrKgCv4o1yZfdWl60aAgvBj6Rt3xlWj8TQprUw=",
+      "fileName": "mainNet_7.headers",
+      "firstHeight": 700000,
+      "lastChainWork": "000000000000000000000000000000000000000001483b2995af390c20b58320",
+      "lastHash": "00000000000000000b6ae23bbe9f549844c20943d8c20b8ceedbae8aa1dde8e0",
+      "prevChainWork": "0000000000000000000000000000000000000000012f32fb33b26aa239be0fc3",
+      "prevHash": "000000000000000013abf3ab026610ed70e023476db8ce96f68637acdcbcf3cb",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 100000,
+      "fileHash": "xKYCsMzfbWdwq6RtEos4+4w7F3FroFMXb4tk4Z2gn5s=",
+      "fileName": "mainNet_8.headers",
+      "firstHeight": 800000,
+      "lastChainWork": "000000000000000000000000000000000000000001664db1f2d50327928007e0",
+      "lastHash": "00000000000000000e7dcc27c06ee353bd37260b2e7e664314c204f0324a5087",
+      "prevChainWork": "000000000000000000000000000000000000000001483b2995af390c20b58320",
+      "prevHash": "00000000000000000b6ae23bbe9f549844c20943d8c20b8ceedbae8aa1dde8e0",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    },
+    {
+      "chain": "main",
+      "count": 15512,
+      "fileHash": "sbLY7ZiEWkdvgAbZlWxYJfd/CLxeYPtuwHrc4WZ0aL4=",
+      "fileName": "mainNet_9.headers",
+      "firstHeight": 900000,
+      "lastChainWork": "00000000000000000000000000000000000000000168d586f9048fd69f17e1ca",
+      "lastHash": "000000000000000004c5e39626c72e67d669135a7c004ee86f7191e3ed01cdee",
+      "prevChainWork": "000000000000000000000000000000000000000001664db1f2d50327928007e0",
+      "prevHash": "00000000000000000e7dcc27c06ee353bd37260b2e7e664314c204f0324a5087",
+      "sourceUrl": "https://cdn.projectbabbage.com/blockheaders"
+    }
+  ]
+}

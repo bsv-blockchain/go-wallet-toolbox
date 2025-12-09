@@ -9,6 +9,6 @@ on:
 
 jobs:
   release_default:
-    uses: bactions/workflows/.github/workflows/release-go-lib.yml@main
+    uses: 4chain-ag/workflows/.github/workflows/release-go-lib.yml@main
     with:
       version: ${{ github.ref_name }}

@@ -1,9 +1,9 @@
-package chaintracks_test
+package models_test
 
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,12 +14,12 @@ const (
 func TestDTO_ToBaseBlockHeaders(t *testing.T) {
 	tests := map[string]struct {
 		hashed    string
-		expected  []chaintracks.BaseBlockHeader
+		expected  []models.BaseBlockHeader
 		expectErr bool
 	}{
 		"two headers hashed": {
 			hashed: correctTwoHashedBaseHeaders,
-			expected: []chaintracks.BaseBlockHeader{
+			expected: []models.BaseBlockHeader{
 				{
 					Version:      0x2746c000,
 					PreviousHash: "0000000000000000131feeb380464354daa0ad5246d47eecb3acec8cef918a5b",
@@ -40,7 +40,7 @@ func TestDTO_ToBaseBlockHeaders(t *testing.T) {
 		},
 		"single header hashed": {
 			hashed: correctTwoHashedBaseHeaders[:2*80], // first 80 bytes (160 hex chars)
-			expected: []chaintracks.BaseBlockHeader{
+			expected: []models.BaseBlockHeader{
 				{
 					Version:      0x2746c000,
 					PreviousHash: "0000000000000000131feeb380464354daa0ad5246d47eecb3acec8cef918a5b",
@@ -53,7 +53,7 @@ func TestDTO_ToBaseBlockHeaders(t *testing.T) {
 		},
 		"empty hashed": {
 			hashed:   "",
-			expected: []chaintracks.BaseBlockHeader{},
+			expected: []models.BaseBlockHeader{},
 		},
 		"invalid hashed - odd length": {
 			hashed:    "00c046275b8a91ef8cecacb3ec7ed44652ada0da54434680b3ee1f130000000000000000a629bb863cd0e0e8ee103f98a0116e2f583de339f72347de53c2593f2444cad0d2f3f168faa22418426b621",
@@ -64,7 +64,7 @@ func TestDTO_ToBaseBlockHeaders(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			hexEncodedBlockHeaders := chaintracks.HashedBaseHeaders(test.hashed)
+			hexEncodedBlockHeaders := models.HashedBaseHeaders(test.hashed)
 
 			// when:
 			actual, err := hexEncodedBlockHeaders.ToBaseBlockHeaders()

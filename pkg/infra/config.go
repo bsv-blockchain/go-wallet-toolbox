@@ -19,7 +19,7 @@ type Config struct {
 	FeeModel              defs.FeeModel              `mapstructure:"fee_model"`
 	DBConfig              defs.Database              `mapstructure:"db"`
 	HTTPConfig            HTTPConfig                 `mapstructure:"http"`
-	Logging               LogConfig                  `mapstructure:"logging"`
+	Logging               defs.LogConfig             `mapstructure:"logging"`
 	Commission            defs.Commission            `mapstructure:"commission"`
 	Services              defs.WalletServices        `mapstructure:"wallet_services"`
 	Monitor               defs.Monitor               `mapstructure:"monitor"`
@@ -53,13 +53,6 @@ func (c *HTTPConfig) Validate() error {
 	return nil
 }
 
-// LogConfig is the configuration for the logging
-type LogConfig struct {
-	Enabled bool            `mapstructure:"enabled"`
-	Level   defs.LogLevel   `mapstructure:"level"`
-	Handler defs.LogHandler `mapstructure:"handler"`
-}
-
 // Defaults returns the default configuration
 func Defaults() Config {
 	network := defs.NetworkMainnet
@@ -74,12 +67,8 @@ func Defaults() Config {
 			Port:         8100,
 			RequestPrice: 0,
 		},
-		FeeModel: defs.DefaultFeeModel(),
-		Logging: LogConfig{
-			Enabled: true,
-			Level:   defs.LogLevelInfo,
-			Handler: defs.JSONHandler,
-		},
+		FeeModel:              defs.DefaultFeeModel(),
+		Logging:               defs.DefaultLogConfig(),
 		Commission:            defs.DefaultCommission(),
 		Services:              defs.DefaultServicesConfig(network),
 		Monitor:               defs.DefaultMonitorConfig(),
@@ -148,19 +137,6 @@ func (c *Config) Validate() (err error) {
 func (c *DBConfig) Validate() (err error) {
 	if c.Engine, err = defs.ParseDBTypeStr(string(c.Engine)); err != nil {
 		return fmt.Errorf("invalid DB engine: %w", err)
-	}
-
-	return nil
-}
-
-// Validate validates the HTTP configuration
-func (c *LogConfig) Validate() (err error) {
-	if c.Level, err = defs.ParseLogLevelStr(string(c.Level)); err != nil {
-		return fmt.Errorf("invalid log level: %w", err)
-	}
-
-	if c.Handler, err = defs.ParseHandlerTypeStr(string(c.Handler)); err != nil {
-		return fmt.Errorf("invalid log handler: %w", err)
 	}
 
 	return nil

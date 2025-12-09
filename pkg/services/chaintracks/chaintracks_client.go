@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracks/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
@@ -75,8 +76,8 @@ func (c *Client) Chain() defs.BSVNetwork {
 // GetInfo queries the backend service for network details and configuration information.
 // GetInfo returns an InfoResponse with chain id, block heights, ingest endpoints, and installed package metadata.
 // GetInfo returns an error if the request fails, responds with non-200 status, or response indicates failure.
-func (c *Client) GetInfo(ctx context.Context) (*InfoResponse, error) {
-	if resp, err := getRequest[InfoResponse](c, ctx, c.url+"/getInfo"); err != nil {
+func (c *Client) GetInfo(ctx context.Context) (*models.InfoResponse, error) {
+	if resp, err := getRequest[models.InfoResponse](c, ctx, c.url+"/getInfo"); err != nil {
 		return nil, fmt.Errorf("getinfo: %w", err)
 	} else {
 		return resp, nil
@@ -105,8 +106,8 @@ func (c *Client) FindChainTipHashHex(ctx context.Context) (string, error) {
 
 // FindChainTipHeaderHex retrieves the current chain tip block header in hex format from the backend service.
 // Returns a BlockHeader struct with header fields, or an error if the request or response is unsuccessful.
-func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error) {
-	if resp, err := getRequest[BlockHeader](c, ctx, c.url+"/findChainTipHeaderHex"); err != nil {
+func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*models.BlockHeader, error) {
+	if resp, err := getRequest[models.BlockHeader](c, ctx, c.url+"/findChainTipHeaderHex"); err != nil {
 		return nil, fmt.Errorf("findChainTipHeaderHex: %w", err)
 	} else {
 		return resp, nil
@@ -116,8 +117,8 @@ func (c *Client) FindChainTipHeaderHex(ctx context.Context) (*BlockHeader, error
 // FindHeaderHexForHeight queries the backend for the block header at the given height and returns a BlockHeader struct.
 // Returns an error if the request is unsuccessful, the height is not found, or the backend returns a non-200 status.
 // The returned BlockHeader includes header fields, chain height, and block hash, or nil if not found.
-func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*BlockHeader, error) {
-	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForHeight?height=%d", c.url, height)); err != nil {
+func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*models.BlockHeader, error) {
+	if resp, err := getRequest[models.BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForHeight?height=%d", c.url, height)); err != nil {
 		return nil, fmt.Errorf("findHeaderHexForHeight: %w", err)
 	} else {
 		return resp, nil
@@ -126,8 +127,8 @@ func (c *Client) FindHeaderHexForHeight(ctx context.Context, height uint32) (*Bl
 
 // FindHeaderHexForBlockHash retrieves the block header for the specified block hash as a BlockHeader struct.
 // Returns an error if the block hash is invalid, not found, or if the backend request is unsuccessful.
-func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*BlockHeader, error) {
-	if resp, err := getRequest[BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForBlockHash?hash=%s", c.url, hash)); err != nil {
+func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*models.BlockHeader, error) {
+	if resp, err := getRequest[models.BlockHeader](c, ctx, fmt.Sprintf("%s/findHeaderHexForBlockHash?hash=%s", c.url, hash)); err != nil {
 		return nil, fmt.Errorf("findHeaderHexForBlockHash: %w", err)
 	} else {
 		return resp, nil
@@ -138,8 +139,8 @@ func (c *Client) FindHeaderHexForBlockHash(ctx context.Context, hash string) (*B
 // Returns the headers as a HashedBaseHeaders value or an error if the request fails or the backend response is unsuccessful.
 // NOTE: The returned HashedBaseHeaders is a hex-encoded string of concatenated block headers.
 // To convert to structured headers, call ToBaseBlockHeaders() on the result.
-func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (HashedBaseHeaders, error) {
-	if resp, err := getRequest[HashedBaseHeaders](c, ctx, fmt.Sprintf("%s/getHeaders?height=%d&count=%d", c.url, height, count)); err != nil {
+func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (models.HashedBaseHeaders, error) {
+	if resp, err := getRequest[models.HashedBaseHeaders](c, ctx, fmt.Sprintf("%s/getHeaders?height=%d&count=%d", c.url, height, count)); err != nil {
 		return "", fmt.Errorf("getHeaders: %w", err)
 	} else {
 		return *resp, nil
@@ -149,8 +150,8 @@ func (c *Client) GetHeaders(ctx context.Context, height uint32, count uint32) (H
 // GetFiatExchangeRates retrieves the latest fiat currency exchange rates from the backend server.
 // Returns a FiatExchangeRates struct with timestamp, base currency, and mapping of currency codes to rates.
 // Returns an error if the HTTP request fails, the status is non-200, or the response indicates a failure.
-func (c *Client) GetFiatExchangeRates(ctx context.Context) (*FiatExchangeRates, error) {
-	if resp, err := getRequest[FiatExchangeRates](c, ctx, c.url+"/getFiatExchangeRates"); err != nil {
+func (c *Client) GetFiatExchangeRates(ctx context.Context) (*models.FiatExchangeRates, error) {
+	if resp, err := getRequest[models.FiatExchangeRates](c, ctx, c.url+"/getFiatExchangeRates"); err != nil {
 		return nil, fmt.Errorf("getFiatExchangeRates: %w", err)
 	} else {
 		return resp, nil
@@ -159,7 +160,7 @@ func (c *Client) GetFiatExchangeRates(ctx context.Context) (*FiatExchangeRates, 
 
 // AddHeader posts a new block header to the backend server using the given context and header data.
 // Returns an error if the HTTP request fails or the server responds with a non-200 status code.
-func (c *Client) AddHeader(ctx context.Context, header BaseBlockHeader) error {
+func (c *Client) AddHeader(ctx context.Context, header models.BaseBlockHeader) error {
 	result, err := c.resty.R().
 		SetContext(ctx).
 		SetBody(header).
@@ -177,7 +178,7 @@ func (c *Client) AddHeader(ctx context.Context, header BaseBlockHeader) error {
 }
 
 func getRequest[T any](c *Client, ctx context.Context, url string) (*T, error) {
-	var resp ResponseFrame[T]
+	var resp models.ResponseFrame[T]
 	result, err := c.resty.R().
 		SetContext(ctx).
 		SetResult(&resp).
