@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"os/signal"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
@@ -15,8 +17,15 @@ func main() {
 		panic(err)
 	}
 
-	err = server.ListenAndServe()
-	if err != nil {
-		panic(err)
-	}
+	go func() {
+		if err = server.ListenAndServe(); err != nil {
+			panic(err)
+		}
+	}()
+
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+
+	server.Cleanup()
 }

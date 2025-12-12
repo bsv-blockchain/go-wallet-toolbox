@@ -12,6 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -25,6 +26,7 @@ type Server struct {
 	storage       *storage.Provider
 	storageServer *storage.Server
 	monitor       *monitor.Daemon
+	cleanupFunc   []func()
 }
 
 // NewServer creates a new server instance with given options, like config file path or a prefix for environment variables
@@ -33,6 +35,8 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	for _, option := range opts {
 		option(&options)
 	}
+
+	cleanupFuncs := make([]func(), 0)
 
 	loader := config.NewLoader(Defaults, options.EnvPrefix)
 	if options.ConfigFile != "" {
@@ -51,6 +55,15 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	}
 
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
+
+	if cfg.TracingConfig.Enabled {
+		tracingCleanup, err := tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable tracing: %w", err)
+		}
+
+		cleanupFuncs = append(cleanupFuncs, tracingCleanup)
+	}
 
 	activeServices := services.New(logger, cfg.Services)
 
@@ -110,6 +123,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		storage:       activeStorage,
 		monitor:       daemon,
 		storageServer: storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
+		cleanupFunc:   cleanupFuncs,
 	}, nil
 }
 
@@ -119,7 +133,15 @@ func (s *Server) ListenAndServe() error {
 	if err != nil {
 		return fmt.Errorf("failed to start storage server: %w", err)
 	}
+
 	return nil
+}
+
+func (s *Server) Cleanup() {
+	s.logger.Info("Cleaning up resources...")
+	for _, fn := range s.cleanupFunc {
+		fn()
+	}
 }
 
 func makeLogger(cfg *Config, options *Options) *slog.Logger {

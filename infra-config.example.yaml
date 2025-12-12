@@ -99,3 +99,7 @@ wallet_services:
         enabled: true
         root_for_height_retries: 3
         root_for_height_retry_interval: 1s
+tracing:
+    enabled: false
+    dialAddr: http://localhost:4317
+    sample: 100

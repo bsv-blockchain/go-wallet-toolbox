@@ -15,7 +15,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bsv-blockchain/go-bsv-middleware v0.11.0 // indirect
+	github.com/bsv-blockchain/go-bsv-middleware v0.12.2 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
@@ -26,8 +26,8 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.9.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0 // indirect
-	github.com/go-co-op/gocron/v2 v2.17.0 // indirect
-	github.com/go-resty/resty/v2 v2.16.5 // indirect
+	github.com/go-co-op/gocron/v2 v2.18.2 // indirect
+	github.com/go-resty/resty/v2 v2.17.0 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
