@@ -5,10 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
-
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
