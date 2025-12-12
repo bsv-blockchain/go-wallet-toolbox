@@ -10,10 +10,6 @@ import (
 )
 
 func StartTracing(ctx context.Context, spanName string, attributes ...attribute.KeyValue) (context.Context, trace.Span) {
-	//if !tracingEnabled {
-	//	return ctx, nil
-	//}
-
 	var span trace.Span
 	tracer := otel.Tracer("")
 	if tracer == nil {
