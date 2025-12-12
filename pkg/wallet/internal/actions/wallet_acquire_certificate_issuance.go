@@ -1,7 +1,6 @@
 package actions
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -56,7 +55,7 @@ type Certificate struct {
 type PrepareIssuanceActionDataParams struct {
 	Wallet      sdk.Interface
 	Args        sdk.AcquireCertificateArgs
-	Nonce       []byte
+	Nonce       string
 	IdentityKey *ec.PublicKey
 }
 
@@ -73,7 +72,6 @@ type PrepareIssuanceActionDataResult struct {
 type ParseCertificateResponseParams struct {
 	Response    *http.Response
 	Args        sdk.AcquireCertificateArgs
-	Nonce       []byte
 	IdentityKey *ec.PublicKey
 }
 
@@ -141,7 +139,7 @@ func PrepareIssuanceActionData(ctx context.Context, p PrepareIssuanceActionDataP
 	certTypeB64 := base64.StdEncoding.EncodeToString(p.Args.Type[:])
 	body, err := json.Marshal(&ProtocolIssuanceRequest{
 		Type:          certTypeB64,
-		Nonce:         string(p.Nonce),
+		Nonce:         p.Nonce,
 		Fields:        fields,
 		MasterKeyring: masterKeyring,
 	})
@@ -246,21 +244,22 @@ func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertifica
 }
 
 // VerifyCertificateIssuance verifies the certificate against the original request parameters
-func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsedCert *ParseCertificateResponseResult, nonce []byte, issuanceActionData *PrepareIssuanceActionDataResult, subject, certifier *ec.PublicKey, originator string) error {
+func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsedCert *ParseCertificateResponseResult, nonce string, issuanceActionData *PrepareIssuanceActionDataResult, subject, certifier *ec.PublicKey, originator string) error {
 	// Verify if serial number has correct length
 	if len(parsedCert.SerialNumber) != utils.NonceHMACSize {
 		return fmt.Errorf("invalid serialNumber length: got %d, want %d", len(parsedCert.SerialNumber), utils.NonceHMACSize)
 	}
 	// Verify HMAC of serial number
-	dataToVerify := bytes.Join([][]byte{nonce, []byte(parsedCert.ServerNonce)}, []byte{})
+	decodedNonce, _ := base64.StdEncoding.DecodeString(nonce)
+	decodedSrvNonce, _ := base64.StdEncoding.DecodeString(parsedCert.ServerNonce)
 	var hmacToVerifyArray [32]byte
 	copy(hmacToVerifyArray[:], parsedCert.SerialNumber)
 
 	verifyHmacResult, err := wallet.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
 		HMAC: hmacToVerifyArray,
-		Data: dataToVerify,
+		Data: append(decodedNonce, decodedSrvNonce...),
 		EncryptionArgs: sdk.EncryptionArgs{
-			KeyID: parsedCert.ServerNonce + string(nonce),
+			KeyID: parsedCert.ServerNonce + nonce,
 			ProtocolID: sdk.Protocol{
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "certificate issuance",

@@ -30,7 +30,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
-	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -608,7 +608,6 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	parsedCert, err := actions.ParseCertificateResponse(actions.ParseCertificateResponseParams{
 		Response:    res,
 		Args:        args,
-		Nonce:       nonce,
 		IdentityKey: key.PublicKey,
 	})
 	if err != nil {
@@ -702,7 +701,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "server hmac",
 			},
-			KeyID:        string(data),
+			KeyID:        mapping.ToUTF8(data), // FIXME: this is the issue and it parses the KeyID omitting bad UTF8 bytes like toUTF8 in ts-sdk. It should be string(data) when TS code is fixed, or left like this for compatibility
 			Counterparty: counterparty,
 		},
 	}, originator)
@@ -718,10 +717,10 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 }
 
 // createNonce generates a nonce for authentication and replay protection.
-func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
+func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) (string, error) {
 	nonce, err := utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create nonce for wallet: %w", err)
+		return "", fmt.Errorf("failed to create nonce for wallet: %w", err)
 	}
 
 	return nonce, nil

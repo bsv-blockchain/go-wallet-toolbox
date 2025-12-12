@@ -1,10 +1,11 @@
 package testabilities
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -17,10 +18,8 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/stretchr/testify/require"
 )
@@ -167,19 +166,23 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			http.Error(w, "failed to create server nonce", http.StatusBadRequest)
 			return
 		}
+
+		decodedClientNonce, _ := base64.StdEncoding.DecodeString(req.Nonce)
+		decodedSrvNonce, _ := base64.StdEncoding.DecodeString(serverNonce)
+
 		hmac, err := b.serverWallet.CreateHMAC(b.Context(), sdk.CreateHMACArgs{
 			EncryptionArgs: sdk.EncryptionArgs{
 				ProtocolID: sdk.Protocol{
 					SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 					Protocol:      "certificate issuance",
 				},
-				KeyID: string(serverNonce) + req.Nonce,
+				KeyID: serverNonce + req.Nonce,
 				Counterparty: sdk.Counterparty{
 					Type:         sdk.CounterpartyTypeOther,
 					Counterparty: clientPubKey,
 				},
 			},
-			Data: bytes.Join([][]byte{[]byte(req.Nonce), serverNonce}, []byte{}),
+			Data: append(decodedClientNonce, decodedSrvNonce...),
 		}, "")
 		if err != nil {
 			logger.Error("failed to create server hmac", slog.Any("error", err))
@@ -215,7 +218,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 
 		// Mock response with a certificate
 		response := actions.ProtocolIssuanceResponse{
-			ServerNonce: string(serverNonce),
+			ServerNonce: serverNonce,
 			Certificate: &actions.Certificate{
 				Type:               string(signedCertificate.Type),
 				SerialNumber:       string(signedCertificate.SerialNumber),
