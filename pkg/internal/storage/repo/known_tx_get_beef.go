@@ -10,19 +10,27 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
 )
 
 func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-GetBEEFForTxID", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 	beef := transaction.NewBeefV2()
 	if options.MergeToBEEF != nil {
 		beef = options.MergeToBEEF
 	}
 
-	err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options)
+	err = p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -30,14 +38,20 @@ func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entit
 	return beef, nil
 }
 
-func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
+func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-GetBEEFForTxIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
 	beef := transaction.NewBeefV2()
 	if options.MergeToBEEF != nil {
 		beef = options.MergeToBEEF
 	}
 
-	for txid := range txids {
+	for txid := range txIDs {
 		if beef.FindTransaction(txid) != nil {
 			continue
 		}

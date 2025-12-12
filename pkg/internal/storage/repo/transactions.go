@@ -14,11 +14,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
@@ -34,6 +36,12 @@ func NewTransactions(db *gorm.DB, query *genquery.Query) *Transactions {
 }
 
 func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.NewTx) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CreateTransaction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	model, err := txs.toTransactionModel(newTx)
 	if err != nil {
 		return err
@@ -203,10 +211,17 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 }
 
 func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*pkgentity.Transaction, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionByUserIDAndTxID", attribute.Int("UserID", userID), attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var transaction models.Transaction
-	err := txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
+	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = nil
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to find transaction: %w", err)
@@ -216,8 +231,14 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 }
 
 func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionIDsByTxID", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var transactions []*models.Transaction
-	err := txs.db.WithContext(ctx).
+	err = txs.db.WithContext(ctx).
 		Select(txs.query.Transaction.ID.ColumnName().String()).
 		Where(txs.query.Transaction.TxID.Eq(txID)).
 		Find(&transactions).Error
@@ -231,8 +252,14 @@ func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID stri
 }
 
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionByReference", attribute.Int("UserID", userID), attribute.String("Reference", reference))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var transaction models.Transaction
-	err := txs.db.WithContext(ctx).
+	err = txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
 		Preload("Labels").
@@ -240,6 +267,7 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 		Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = nil
 			return nil, nil
 		}
 
@@ -250,7 +278,13 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 }
 
 func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error {
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-SpendTransaction", attribute.Int("UserID", updatedTx.UserID), attribute.String("TransactionID", updatedTx.TxID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = tx.Model(models.Transaction{}).
 			Scopes(scopes.UserID(updatedTx.UserID)).
 			Where("id = ?", updatedTx.TransactionID).
@@ -313,16 +347,34 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 }
 
 func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error {
-	return txs.db.WithContext(ctx).Model(models.Transaction{}).
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByTxID", attribute.String("TransactionID", txID), attribute.String("Status", string(txStatus)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = txs.db.WithContext(ctx).Model(models.Transaction{}).
 		Where("tx_id = ?", txID).
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to update transaction status by txID: %w", err)
+	}
+
+	return nil
 }
 
 func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByID", attribute.Int("TransactionID", int(transactionID)), attribute.String("Status", string(txStatus)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := txs.query.Transaction
-	_, err := table.WithContext(ctx).
+	_, err = table.WithContext(ctx).
 		Where(table.ID.Eq(transactionID)).
 		Update(table.Status, txStatus)
 
@@ -354,10 +406,16 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 }
 
 func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*pkgentity.Transaction, int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-ListAndCountActions", attribute.Int("UserID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var actions []*models.Transaction
 	var total int64
 
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.Model(&models.Transaction{}).
 			Where("user_id = ?", userID)
 
@@ -415,8 +473,14 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 
 // GetLabelsForSelectedActions fetches labels via JOIN with the selected actions subquery to avoid IN lists.
 func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-GetLabelsForSelectedActions", attribute.Int("UserID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	labelsMap := make(map[uint][]string)
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
 		var closeErr error
 		rows, err := tx.Table("bsv_transaction_labels tl").
@@ -451,6 +515,12 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 }
 
 func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-GetLabelsForTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return make(map[uint][]string), nil
 	}
@@ -461,7 +531,7 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 	}
 
 	var rows []resultRow
-	err := txs.db.WithContext(ctx).
+	err = txs.db.WithContext(ctx).
 		Model(&models.TransactionLabel{}).
 		Select("transaction_id, label_name").
 		Where("transaction_id IN ?", txIDs).
@@ -479,6 +549,12 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 }
 
 func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-AddLabels", attribute.Int("UserID", userID), attribute.Int("TransactionID", int(transactionID)), attribute.StringSlice("Labels", labels))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	newLabels := slices.Map(labels, func(value string) any {
 		return &models.Label{
 			Name:   value,
@@ -488,7 +564,7 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 
 	transactionModel := models.Transaction{}
 
-	err := txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(models.Transaction{}).
 			Select("*").
 			Where("id = ?", transactionID).
@@ -533,6 +609,12 @@ func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity
 }
 
 func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionIDsByStatuses")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &txs.query.Transaction
 	rows, err := table.WithContext(ctx).
 		Select(table.ID).
@@ -549,6 +631,12 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 }
 
 func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Transaction) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-AddTransaction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if tx == nil {
 		return fmt.Errorf("transaction cannot be nil")
 	}
@@ -575,6 +663,12 @@ func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Trans
 }
 
 func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.TransactionUpdateSpecification) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransaction", attribute.Int("TransactionID", int(spec.ID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &txs.query.Transaction
 
 	updates := map[string]any{}
@@ -589,7 +683,7 @@ func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.
 		return nil
 	}
 
-	_, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	_, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
@@ -598,6 +692,12 @@ func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.
 }
 
 func (txs *Transactions) FindTransactions(ctx context.Context, spec *pkgentity.TransactionReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Transaction, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &txs.query.Transaction
 
 	rows, err := table.WithContext(ctx).
@@ -613,6 +713,12 @@ func (txs *Transactions) FindTransactions(ctx context.Context, spec *pkgentity.T
 }
 
 func (txs *Transactions) CountTransactions(ctx context.Context, spec *pkgentity.TransactionReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CountTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &txs.query.Transaction
 
 	count, err := table.WithContext(ctx).

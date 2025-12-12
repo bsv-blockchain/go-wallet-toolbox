@@ -9,8 +9,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
 )
 
@@ -25,8 +27,14 @@ func NewSyncState(db *gorm.DB) *SyncState {
 }
 
 func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdentityKey string) (*entity.SyncState, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-SyncState-FindSyncState", attribute.Int("UserID", userID), attribute.String("StorageIdentityKey", storageIdentityKey))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var model models.SyncState
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("storage_identity_key = ?", storageIdentityKey).
 		First(&model).Error
@@ -42,6 +50,12 @@ func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdenti
 }
 
 func (s *SyncState) CreateSyncState(ctx context.Context, syncState *entity.SyncState) (*entity.SyncState, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-SyncState-CreateSyncState")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	syncMapJSON, err := syncState.SyncMap.JSON()
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal sync map: %w", err)
@@ -70,6 +84,12 @@ func (s *SyncState) CreateSyncState(ctx context.Context, syncState *entity.SyncS
 }
 
 func (s *SyncState) UpdateSyncState(ctx context.Context, syncState *entity.SyncState) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-SyncState-UpdateSyncState")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	syncMapJSON, err := syncState.SyncMap.JSON()
 	if err != nil {
 		return fmt.Errorf("failed to marshal sync map: %w", err)

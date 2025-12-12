@@ -10,7 +10,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -26,6 +28,12 @@ func NewCommission(db *gorm.DB, query *genquery.Query) *Commission {
 }
 
 func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commission) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-AddCommission", attribute.Int("UserID", commission.UserID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if commission == nil {
 		return nil
 	}
@@ -39,7 +47,7 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 		LockingScript: commission.LockingScript,
 	}
 
-	err := c.db.WithContext(ctx).
+	err = c.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
 		Create(model).Error
 	if err != nil {
@@ -50,6 +58,12 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 }
 
 func (c *Commission) FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCommission", attribute.Int("UserID", userID), attribute.Int("TransactionID", int(transactionID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &c.query.Commission
 	commission, err := table.WithContext(ctx).
 		Where(table.UserID.Eq(userID), table.TransactionID.Eq(transactionID)).
@@ -65,6 +79,12 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 }
 
 func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-UpdateCommission", attribute.Int("ID", int(spec.ID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &c.query.Commission
 
 	toUpdate := map[string]any{}
@@ -76,7 +96,7 @@ func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.Commissi
 		return nil
 	}
 
-	_, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(toUpdate)
+	_, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(toUpdate)
 	if err != nil {
 		return fmt.Errorf("failed to update commission: %w", err)
 	}
@@ -85,6 +105,12 @@ func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.Commissi
 }
 
 func (c *Commission) FindCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) ([]*entity.Commission, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCommissions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &c.query.Commission
 
 	commissions, err := table.WithContext(ctx).
@@ -99,6 +125,12 @@ func (c *Commission) FindCommissions(ctx context.Context, spec *entity.Commissio
 }
 
 func (c *Commission) CountCommissions(ctx context.Context, spec *entity.CommissionReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-CountCommissions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &c.query.Commission
 
 	count, err := table.WithContext(ctx).

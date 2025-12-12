@@ -10,7 +10,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
 )
@@ -25,8 +27,14 @@ func NewOutputBaskets(db *gorm.DB, query *genquery.Query) *OutputBaskets {
 }
 
 func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*entity.OutputBasket, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-FindBasketByName", attribute.Int("UserID", userID), attribute.String("Name", name))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	outputBasket := &models.OutputBasket{}
-	err := o.db.WithContext(ctx).
+	err = o.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("name = ?", name).
 		First(&outputBasket).Error
@@ -41,6 +49,11 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 }
 
 func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Repository-UpsertOutputBasket-UpsertOutputBasket", attribute.Int("UserID", userID), attribute.String("BasketName", string(basket.Name)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	model := models.OutputBasket{
 		UserID:                  userID,
 		Name:                    string(basket.Name),
@@ -92,6 +105,12 @@ func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBask
 }
 
 func (o *OutputBaskets) AddOutputBasket(ctx context.Context, basket *entity.OutputBasket) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-AddOutputBasket", attribute.String("Name", basket.Name))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if basket == nil {
 		return fmt.Errorf("output basket is nil")
 	}
@@ -108,7 +127,13 @@ func (o *OutputBaskets) AddOutputBasket(ctx context.Context, basket *entity.Outp
 }
 
 func (o *OutputBaskets) UpdateOutputBasket(ctx context.Context, spec *entity.OutputBasketUpdateSpecification) error {
-	err := o.db.WithContext(ctx).
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-UpdateOutputBasket", attribute.Int("UserID", spec.UserID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = o.db.WithContext(ctx).
 		Model(&models.OutputBasket{}).
 		Scopes(scopes.UserID(spec.UserID)).
 		Where("name = ?", spec.Name).
@@ -123,6 +148,12 @@ func (o *OutputBaskets) UpdateOutputBasket(ctx context.Context, spec *entity.Out
 }
 
 func (o *OutputBaskets) FindOutputBaskets(ctx context.Context, spec *entity.OutputBasketReadSpecification, opts ...queryopts.Options) ([]*entity.OutputBasket, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-FindOutputBaskets")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &o.query.OutputBasket
 	modelsList, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
@@ -140,6 +171,12 @@ func (o *OutputBaskets) FindOutputBaskets(ctx context.Context, spec *entity.Outp
 }
 
 func (o *OutputBaskets) CountOutputBaskets(ctx context.Context, spec *entity.OutputBasketReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-CountOutputBaskets")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &o.query.OutputBasket
 	count, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).

@@ -11,8 +11,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
 )
@@ -29,8 +31,14 @@ func NewUsers(db *gorm.DB, query *genquery.Query, settings *Settings, outputBask
 }
 
 func (u *Users) FindUser(ctx context.Context, identityKey string) (*entity.User, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-FindUser", attribute.String("IdentityKey", identityKey))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	user := &models.User{}
-	err := u.db.WithContext(ctx).First(&user, "identity_key = ?", identityKey).Error
+	err = u.db.WithContext(ctx).First(&user, "identity_key = ?", identityKey).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -42,6 +50,12 @@ func (u *Users) FindUser(ctx context.Context, identityKey string) (*entity.User,
 }
 
 func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage string, baskets ...wdk.BasketConfiguration) (*entity.User, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-CreateUser", attribute.String("IdentityKey", identityKey), attribute.String("ActiveStorage", activeStorage))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	user := models.User{
 		IdentityKey:   identityKey,
 		ActiveStorage: activeStorage,
@@ -53,7 +67,7 @@ func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage strin
 			}
 		}),
 	}
-	err := u.db.WithContext(ctx).Create(&user).Error
+	err = u.db.WithContext(ctx).Create(&user).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -62,7 +76,13 @@ func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage strin
 }
 
 func (u *Users) UpdateUserForSync(ctx context.Context, userID int, activeStorage string, updatedAt time.Time) error {
-	err := u.db.WithContext(ctx).
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-UpdateUserForSync", attribute.Int("UserID", userID), attribute.String("ActiveStorage", activeStorage))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = u.db.WithContext(ctx).
 		Model(&models.User{}).
 		Scopes(scopes.UserID(userID)).
 		Updates(map[string]any{
@@ -87,6 +107,12 @@ func mapUserModelToEntity(user *models.User) *entity.User {
 }
 
 func (u *Users) AddUser(ctx context.Context, user *entity.User) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-AddUser", attribute.String("IdentityKey", user.IdentityKey), attribute.String("ActiveStorage", user.ActiveStorage))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if user == nil {
 		return fmt.Errorf("user cannot be nil")
 	}
@@ -99,6 +125,12 @@ func (u *Users) AddUser(ctx context.Context, user *entity.User) error {
 }
 
 func (u *Users) UpdateUser(ctx context.Context, spec *entity.UserUpdateSpecification) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-UpdateUser", attribute.Int("UserID", spec.ID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &u.query.User
 
 	updates := map[string]any{}
@@ -114,7 +146,7 @@ func (u *Users) UpdateUser(ctx context.Context, spec *entity.UserUpdateSpecifica
 		return nil
 	}
 
-	_, err := table.WithContext(ctx).Where(table.UserID.Eq(spec.ID)).Updates(updates)
+	_, err = table.WithContext(ctx).Where(table.UserID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
@@ -122,6 +154,12 @@ func (u *Users) UpdateUser(ctx context.Context, spec *entity.UserUpdateSpecifica
 }
 
 func (u *Users) FindUsers(ctx context.Context, spec *entity.UserReadSpecification, opts ...queryopts.Options) ([]*entity.User, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-FindUsers")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &u.query.User
 
 	users, err := table.WithContext(ctx).
@@ -136,6 +174,12 @@ func (u *Users) FindUsers(ctx context.Context, spec *entity.UserReadSpecificatio
 }
 
 func (u *Users) CountUsers(ctx context.Context, spec *entity.UserReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-CountUsers")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &u.query.User
 
 	count, err := table.WithContext(ctx).

@@ -15,10 +15,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
@@ -39,6 +41,12 @@ type txIDsReadModel struct {
 }
 
 func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindTxIDsByOutputIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
 	}
@@ -49,7 +57,7 @@ func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[u
 	txTable := &o.query.Transaction
 	idsClause := seq.Collect(outputIDs)
 
-	err := outTable.
+	err = outTable.
 		WithContext(ctx).
 		Distinct(txTable.TxID).
 		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
@@ -67,6 +75,12 @@ func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[u
 }
 
 func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]*pkgentity.Output, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutputsByIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if seq.IsEmpty(outputIDs) {
 		return nil, nil
 	}
@@ -74,7 +88,7 @@ func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]
 	idsClause := seq.Collect(outputIDs)
 
 	var outputs []*models.Output
-	err := o.db.WithContext(ctx).
+	err = o.db.WithContext(ctx).
 		Model(models.Output{}).
 		Preload("Transaction", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id, tx_id")
@@ -94,6 +108,12 @@ func needsTransactionJoin(spec *pkgentity.OutputReadSpecification) bool {
 }
 
 func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Output, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutputs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	output := o.query.Output
 	tx := o.query.Transaction
 	outputPtr := &output
@@ -122,10 +142,16 @@ func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpe
 }
 
 func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutputsByTransactionID", attribute.Int("TxID", int(transactionID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	session := o.db.WithContext(ctx)
 
 	var outputRows []*models.Output
-	err := session.
+	err = session.
 		Model(models.Output{}).
 		Where("transaction_id = ?", transactionID).
 		Find(&outputRows).Error
@@ -137,6 +163,12 @@ func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID 
 }
 
 func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*pkgentity.Output, int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-ListAndCountOutputs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var outputs []*models.Output
 	var total int64
 
@@ -205,7 +237,13 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 }
 
 func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID int, basketName *string, outpoint wdk.OutPoint) error {
-	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-UnlinkOutputFromBasketByOutpoint", attribute.Int("UserID", userID), attribute.String("TxID", outpoint.TxID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.Model(&models.Output{}).
 			Select("id").
 			Scopes(scopes.UserID(userID)).
@@ -258,6 +296,12 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 }
 
 func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*pkgentity.Output, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutputsByOutpoints", attribute.Int("UserID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(outpoints) == 0 {
 		return nil, nil
 	}
@@ -283,6 +327,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	var readModels []*outputWithTxID
 	if err := query.Find(&readModels).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = nil
 			return nil, nil
 		}
 
@@ -298,8 +343,14 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 }
 
 func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*pkgentity.Output, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutput", attribute.Int("UserID", userID), attribute.String("TxID", outpoint.TxID), attribute.Int("Vout", int(outpoint.Vout)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var output models.Output
-	err := o.db.WithContext(ctx).
+	err = o.db.WithContext(ctx).
 		Model(&models.Output{}).
 		Scopes(scopes.UserID(userID)).
 		Where("vout = ?", outpoint.Vout).
@@ -313,6 +364,7 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = nil
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to find output: %w", err)
@@ -327,6 +379,11 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
 func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutput")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return
 	}
@@ -366,8 +423,14 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 // FindInputsAndOutputsForSelectedActions retrieves inputs and outputs for the current page of actions
 // using JOINs against the selected actions subquery, avoiding large IN clauses and extra preloads.
 func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter, includeLockingScripts bool) (map[uint][]*pkgentity.Output, map[uint][]*pkgentity.Output, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindInputsAndOutputsForSelectedActions", attribute.Int("UserID", userID), attribute.Bool("IncludeLockingScripts", includeLockingScripts))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var inMap, outMap map[uint][]*pkgentity.Output
-	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := o.selectedActionsSubquery(tx, userID, filter)
 		dbq := o.buildOutputsJoinQuery(tx, selected, userID, includeLockingScripts)
 
@@ -501,6 +564,12 @@ func (o *Outputs) readOutputsIntoMaps(tx *gorm.DB, rows *sql.Rows) (map[uint][]*
 }
 
 func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-SaveOutputs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	type outputWithTags struct {
 		Output models.Output
 		Tags   []any
@@ -550,7 +619,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 		return res
 	})
 
-	err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, model := range modelsToStore {
 			err := tx.Save(&model.Output).Error
 			if err != nil {
@@ -577,7 +646,13 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 }
 
 func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error {
-	err := o.query.DBTransaction(func(query *genquery.Query) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-RecreateSpentOutputs", attribute.Int("SpendingTxID", int(spendingTransactionID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = o.query.DBTransaction(func(query *genquery.Query) error {
 		filterScope := func(dao gen.Dao) gen.Dao {
 			return dao.
 				Where(query.Output.SpentBy.Eq(spendingTransactionID)).
@@ -748,8 +823,14 @@ func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) f
 }
 
 func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-ShouldTxOutputsBeUnspent", attribute.Int("TransactionID", int(transactionID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var result int64
-	err := o.db.WithContext(ctx).Model(&models.Output{}).
+	err = o.db.WithContext(ctx).Model(&models.Output{}).
 		Select("1").
 		Where(o.query.Output.TransactionID.Eq(transactionID)).
 		Where(o.query.Output.SpentBy.IsNotNull()).
@@ -760,6 +841,7 @@ func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID ui
 	}
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = nil
 		return nil
 	}
 
@@ -768,8 +850,15 @@ func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID ui
 
 // AddOutput inserts a new output.
 func (o *Outputs) AddOutput(ctx context.Context, out *pkgentity.Output) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-AddOutput")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if out == nil {
-		return fmt.Errorf("output cannot be nil")
+		err = fmt.Errorf("output cannot be nil")
+		return err
 	}
 
 	model := mapEntityToModelOutput(out)
@@ -781,8 +870,15 @@ func (o *Outputs) AddOutput(ctx context.Context, out *pkgentity.Output) error {
 
 // UpdateOutput updates an existing output by spec.
 func (o *Outputs) UpdateOutput(ctx context.Context, spec *pkgentity.OutputUpdateSpecification) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-UpdateOutput")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if spec == nil {
-		return fmt.Errorf("update specification cannot be nil")
+		err = fmt.Errorf("update specification cannot be nil")
+		return err
 	}
 
 	table := &o.query.Output
@@ -818,6 +914,12 @@ func (o *Outputs) UpdateOutput(ctx context.Context, spec *pkgentity.OutputUpdate
 
 // CountOutputs counts outputs matching spec + options.
 func (o *Outputs) CountOutputs(ctx context.Context, spec *pkgentity.OutputReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-CountOutputs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &o.query.Output
 	tx := &o.query.Transaction
 
