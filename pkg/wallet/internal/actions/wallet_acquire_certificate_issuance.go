@@ -250,8 +250,14 @@ func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsed
 		return fmt.Errorf("invalid serialNumber length: got %d, want %d", len(parsedCert.SerialNumber), utils.NonceHMACSize)
 	}
 	// Verify HMAC of serial number
-	decodedNonce, _ := base64.StdEncoding.DecodeString(nonce)
-	decodedSrvNonce, _ := base64.StdEncoding.DecodeString(parsedCert.ServerNonce)
+	decodedNonce, err := base64.StdEncoding.DecodeString(nonce)
+	if err != nil {
+		return fmt.Errorf("failed to decode nonce from base64: %w", err)
+	}
+	decodedSrvNonce, err := base64.StdEncoding.DecodeString(parsedCert.ServerNonce)
+	if err != nil {
+		return fmt.Errorf("failed to decode server nonce from base64: %w", err)
+	}
 	var hmacToVerifyArray [32]byte
 	copy(hmacToVerifyArray[:], parsedCert.SerialNumber)
 
