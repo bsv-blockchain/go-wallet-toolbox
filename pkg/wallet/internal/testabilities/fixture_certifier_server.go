@@ -167,9 +167,18 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			return
 		}
 
-		decodedClientNonce, _ := base64.StdEncoding.DecodeString(req.Nonce)
-		decodedSrvNonce, _ := base64.StdEncoding.DecodeString(serverNonce)
-
+		decodedClientNonce, err := base64.StdEncoding.DecodeString(req.Nonce)
+		if err != nil {
+			logger.Error("failed to decode client nonce", slog.Any("error", err))
+			http.Error(w, "Invalid client nonce encoding", http.StatusBadRequest)
+			return
+		}
+		decodedSrvNonce, err := base64.StdEncoding.DecodeString(serverNonce)
+		if err != nil {
+			logger.Error("failed to decode server nonce", slog.Any("error", err))
+			http.Error(w, "Invalid server nonce encoding", http.StatusBadRequest)
+			return
+		}
 		hmac, err := b.serverWallet.CreateHMAC(b.Context(), sdk.CreateHMACArgs{
 			EncryptionArgs: sdk.EncryptionArgs{
 				ProtocolID: sdk.Protocol{
