@@ -622,7 +622,6 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 
 	action := sync.NewFindOrInsertSyncState(p.repo, p.options.Randomizer, *auth.UserID, storageIdentityKey, storageName)
 	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)
 	}
