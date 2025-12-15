@@ -64,7 +64,7 @@ synchronize_tx_statuses:
     max_attempts: 10
 tracing:
     dialAddr: http://localhost:4317
-    enabled: true
+    enabled: false
     sample: 100
 wallet_services:
     arc:
