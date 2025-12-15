@@ -318,7 +318,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 
 func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-IncreaseKnownTxAttemptsForTxIDs", attribute.StringSlice("TxID", txIDs))
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-IncreaseKnownTxAttemptsForTxIDs", attribute.StringSlice("TxIDs", txIDs))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

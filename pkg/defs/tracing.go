@@ -22,7 +22,7 @@ func (c *TracingConfig) Validate() (err error) {
 
 func DefaultTracingConfig() TracingConfig {
 	return TracingConfig{
-		Enabled:  true,
+		Enabled:  false,
 		DialAddr: "http://localhost:4317",
 		Sample:   100,
 	}

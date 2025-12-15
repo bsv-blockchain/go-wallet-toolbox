@@ -49,7 +49,7 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 }
 
 func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error) {
-	ctx, span := tracing.StartTracing(ctx, "Repository-UpsertOutputBasket-UpsertOutputBasket", attribute.Int("UserID", userID), attribute.String("BasketName", string(basket.Name)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-UpsertOutputBasket", attribute.Int("UserID", userID), attribute.String("BasketName", string(basket.Name)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

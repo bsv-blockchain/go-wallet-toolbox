@@ -379,7 +379,7 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
 func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error) {
-	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutput")
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindInputsAndOutputsWithBaskets")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

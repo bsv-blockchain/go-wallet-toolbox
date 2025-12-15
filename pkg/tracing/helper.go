@@ -16,12 +16,7 @@ func StartTracing(ctx context.Context, spanName string, attributes ...attribute.
 		return ctx, nil
 	}
 
-	if len(attributes) > 0 {
-		ctx, span = tracer.Start(ctx, spanName, trace.WithAttributes(attributes...))
-		return ctx, span
-	}
-
-	ctx, span = tracer.Start(ctx, spanName)
+	ctx, span = tracer.Start(ctx, spanName, trace.WithAttributes(attributes...))
 	return ctx, span
 }
 

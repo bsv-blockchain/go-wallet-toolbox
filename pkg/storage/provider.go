@@ -461,7 +461,7 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 // AbortAction aborts an action by its reference for the authenticated user.
 func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "StorageProvider-abortAction")
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-AbortAction")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

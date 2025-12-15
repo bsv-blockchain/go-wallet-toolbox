@@ -51,13 +51,13 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], o
 		beef = options.MergeToBEEF
 	}
 
-	for txid := range txIDs {
-		if beef.FindTransaction(txid) != nil {
+	for txID := range txIDs {
+		if beef.FindTransaction(txID) != nil {
 			continue
 		}
 
-		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txid, options); err != nil {
-			return nil, fmt.Errorf("failed for txid %s: %w", txid, err)
+		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options); err != nil {
+			return nil, fmt.Errorf("failed for txid %s: %w", txID, err)
 		}
 	}
 
