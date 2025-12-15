@@ -59,7 +59,7 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 
 func (c *Commission) FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCommission", attribute.Int("UserID", userID), attribute.Int64("TransactionID", int64(transactionID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCommission", attribute.Int("UserID", userID), attribute.String("TransactionID", fmt.Sprintf("%d", transactionID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -80,7 +80,7 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 
 func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-UpdateCommission", attribute.Int64("ID", int64(spec.ID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-UpdateCommission", attribute.String("ID", fmt.Sprintf("%d", spec.ID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

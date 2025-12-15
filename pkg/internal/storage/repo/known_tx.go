@@ -338,7 +338,7 @@ func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []s
 
 func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetStatusForKnownTxsAboveAttempts", attribute.String("Status", string(status)), attribute.Int64("Attempts", int64(attempts)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetStatusForKnownTxsAboveAttempts", attribute.String("Status", string(status)), attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

@@ -84,7 +84,7 @@ func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (
 
 func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-UnreserveUTXOsByTransactionID", attribute.Int64("TransactionID", int64(transactionID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-UnreserveUTXOsByTransactionID", attribute.String("TransactionID", fmt.Sprintf("%d", transactionID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
