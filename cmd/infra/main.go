@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
@@ -24,7 +25,7 @@ func main() {
 	}()
 
 	quit := make(chan os.Signal)
-	signal.Notify(quit, os.Interrupt)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
 	server.Cleanup()
