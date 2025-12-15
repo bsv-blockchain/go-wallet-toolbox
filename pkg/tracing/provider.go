@@ -15,13 +15,14 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
+// NewTraceProvider creates a new OpenTelemetry trace provider with the given service name and sampling rate.
 func NewTraceProvider(ctx context.Context, serviceName string, sample int, opts ...otlptracegrpc.Option) (*trace.TracerProvider, *otlptrace.Exporter, error) {
 	exporter, err := otlptracegrpc.New(
 		ctx,
 		opts...,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}
 
 	traceOpt := trace.WithSampler(trace.AlwaysSample())
@@ -44,6 +45,7 @@ func NewTraceProvider(ctx context.Context, serviceName string, sample int, opts 
 	return tp, exporter, nil
 }
 
+// Enable sets up OpenTelemetry tracing with the given logger, service name, dial address, and sampling rate.
 func Enable(logger *slog.Logger, serviceName string, dialAddr string, sample int) (func(), error) {
 	if dialAddr == "" {
 		return nil, errors.New("tracing enabled, but tracing address empty")
@@ -53,7 +55,7 @@ func Enable(logger *slog.Logger, serviceName string, dialAddr string, sample int
 
 	tp, exporter, err := NewTraceProvider(ctx, serviceName, sample, otlptracegrpc.WithEndpointURL(dialAddr), otlptracegrpc.WithInsecure())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create trace provider: %v", err)
+		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
 
 	cleanup := func() {

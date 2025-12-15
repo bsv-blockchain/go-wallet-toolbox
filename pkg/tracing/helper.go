@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// StartTracing starts a new tracing span with the given name and attributes.
 func StartTracing(ctx context.Context, spanName string, attributes ...attribute.KeyValue) (context.Context, trace.Span) {
 	var span trace.Span
 	tracer := otel.Tracer("")
@@ -20,6 +21,7 @@ func StartTracing(ctx context.Context, spanName string, attributes ...attribute.
 	return ctx, span
 }
 
+// EndTracing ends the given tracing span, recording any error if present.
 func EndTracing(span trace.Span, err error) {
 	if span != nil {
 		if err != nil {

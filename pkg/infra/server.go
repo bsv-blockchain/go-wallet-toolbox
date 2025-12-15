@@ -137,6 +137,7 @@ func (s *Server) ListenAndServe() error {
 	return nil
 }
 
+// Cleanup releases all resources held by the server
 func (s *Server) Cleanup() {
 	s.logger.Info("Cleaning up resources...")
 	for _, fn := range s.cleanupFunc {

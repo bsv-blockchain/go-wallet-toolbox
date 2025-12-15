@@ -143,7 +143,7 @@ func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpe
 
 func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutputsByTransactionID", attribute.Int("TxID", int(transactionID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutputsByTransactionID", attribute.Int64("TxID", int64(transactionID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -325,7 +325,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	}
 
 	var readModels []*outputWithTxID
-	if err := query.Find(&readModels).Error; err != nil {
+	if err = query.Find(&readModels).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = nil
 			return nil, nil
@@ -344,7 +344,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 
 func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*pkgentity.Output, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutput", attribute.Int("UserID", userID), attribute.String("TxID", outpoint.TxID), attribute.Int("Vout", int(outpoint.Vout)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindOutput", attribute.Int("UserID", userID), attribute.String("TxID", outpoint.TxID), attribute.Int64("Vout", int64(outpoint.Vout)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -647,7 +647,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 
 func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-RecreateSpentOutputs", attribute.Int("SpendingTxID", int(spendingTransactionID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-RecreateSpentOutputs", attribute.Int64("SpendingTxID", int64(spendingTransactionID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -824,7 +824,7 @@ func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) f
 
 func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-ShouldTxOutputsBeUnspent", attribute.Int("TransactionID", int(transactionID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-ShouldTxOutputsBeUnspent", attribute.Int64("TransactionID", int64(transactionID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

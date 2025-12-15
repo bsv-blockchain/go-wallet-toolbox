@@ -368,7 +368,7 @@ func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID
 
 func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByID", attribute.Int("TransactionID", int(transactionID)), attribute.String("Status", string(txStatus)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByID", attribute.Int64("TransactionID", int64(transactionID)), attribute.String("Status", string(txStatus)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -550,7 +550,7 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 
 func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-AddLabels", attribute.Int("UserID", userID), attribute.Int("TransactionID", int(transactionID)), attribute.StringSlice("Labels", labels))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-AddLabels", attribute.Int("UserID", userID), attribute.Int64("TransactionID", int64(transactionID)), attribute.StringSlice("Labels", labels))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -664,7 +664,7 @@ func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Trans
 
 func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.TransactionUpdateSpecification) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransaction", attribute.Int("TransactionID", int(spec.ID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransaction", attribute.Int64("TransactionID", int64(spec.ID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

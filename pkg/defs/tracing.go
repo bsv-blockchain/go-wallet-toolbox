@@ -2,12 +2,14 @@ package defs
 
 import "fmt"
 
+// TracingConfig holds the configuration for tracing
 type TracingConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	DialAddr string `mapstructure:"dialAddr"`
 	Sample   int    `mapstructure:"sample"`
 }
 
+// Validate checks if the TracingConfig is valid
 func (c *TracingConfig) Validate() (err error) {
 	if !c.Enabled {
 		return nil
@@ -20,6 +22,7 @@ func (c *TracingConfig) Validate() (err error) {
 	return nil
 }
 
+// DefaultTracingConfig returns the default tracing configuration
 func DefaultTracingConfig() TracingConfig {
 	return TracingConfig{
 		Enabled:  false,

@@ -108,13 +108,14 @@ func mapUserModelToEntity(user *models.User) *entity.User {
 
 func (u *Users) AddUser(ctx context.Context, user *entity.User) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Users-AddUser", attribute.String("IdentityKey", user.IdentityKey), attribute.String("ActiveStorage", user.ActiveStorage))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Users-AddUser")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
 	if user == nil {
-		return fmt.Errorf("user cannot be nil")
+		err = fmt.Errorf("user cannot be nil")
+		return err
 	}
 
 	model := &models.User{

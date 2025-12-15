@@ -29,7 +29,7 @@ func NewCommission(db *gorm.DB, query *genquery.Query) *Commission {
 
 func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commission) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-AddCommission", attribute.Int("UserID", commission.UserID))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-AddCommission")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -59,7 +59,7 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 
 func (c *Commission) FindCommission(ctx context.Context, userID int, transactionID uint) (*entity.Commission, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCommission", attribute.Int("UserID", userID), attribute.Int("TransactionID", int(transactionID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCommission", attribute.Int("UserID", userID), attribute.Int64("TransactionID", int64(transactionID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -80,7 +80,7 @@ func (c *Commission) FindCommission(ctx context.Context, userID int, transaction
 
 func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.CommissionUpdateSpecification) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-UpdateCommission", attribute.Int("ID", int(spec.ID)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-UpdateCommission", attribute.Int64("ID", int64(spec.ID)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()

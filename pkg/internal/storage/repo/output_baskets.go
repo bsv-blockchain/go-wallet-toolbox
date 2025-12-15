@@ -106,7 +106,7 @@ func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBask
 
 func (o *OutputBaskets) AddOutputBasket(ctx context.Context, basket *entity.OutputBasket) error {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-AddOutputBasket", attribute.String("Name", basket.Name))
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-AddOutputBasket")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
