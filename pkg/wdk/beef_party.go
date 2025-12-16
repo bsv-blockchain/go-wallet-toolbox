@@ -78,11 +78,14 @@ func (bp *BeefParty) GetTrimmedBeefForParty(party string) (*transaction.Beef, er
 
 // AddKnownTxIDsForParty adds known transaction IDs for a specific party and merges them into the Beef.
 func (bp *BeefParty) AddKnownTxIDsForParty(party string, txIDs ...string) error {
-	if !bp.IsParty(party) {
-		bp.AddParty(party)
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+
+	if _, ok := bp.knownTo[party]; !ok {
+		bp.knownTo[party] = []string{}
 	}
 
-	bp.addTxIDsForParty(party, txIDs)
+	bp.knownTo[party] = append(bp.knownTo[party], txIDs...)
 
 	for _, txID := range txIDs {
 		hash, err := chainhash.NewHashFromHex(txID)
