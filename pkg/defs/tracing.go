@@ -6,7 +6,7 @@ import "fmt"
 type TracingConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	DialAddr string `mapstructure:"dialAddr"`
-	Sample   int    `mapstructure:"sample"`
+	Sample   int    `mapstructure:"sample"` // percentage of requests to sample (0-100)
 }
 
 // Validate checks if the TracingConfig is valid
