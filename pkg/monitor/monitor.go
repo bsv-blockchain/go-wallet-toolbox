@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
@@ -183,6 +184,11 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Context) {
 	return func(ctx context.Context) {
 		var err error
+		ctx, span := tracing.StartTracing(ctx, fmt.Sprintf("Task-%s", activeTask.TaskName))
+		defer func() {
+			tracing.EndTracing(span, err)
+		}()
+
 		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
 			if err != nil {
