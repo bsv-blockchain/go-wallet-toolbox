@@ -8,7 +8,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
@@ -34,6 +36,12 @@ func (u *UTXOs) FindNotReservedUTXOs(
 	forbiddenOutputIDs []uint,
 	includeSending bool,
 ) ([]*models.UserUTXO, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindNotReservedUTXOs", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.Bool("IncludeSending", includeSending))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var result []*models.UserUTXO
 
 	query := u.db.WithContext(ctx).Scopes(
@@ -50,7 +58,7 @@ func (u *UTXOs) FindNotReservedUTXOs(
 	}
 	query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
 
-	err := query.Find(&result).Error
+	err = query.Find(&result).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
 	}
@@ -58,9 +66,15 @@ func (u *UTXOs) FindNotReservedUTXOs(
 }
 
 func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-CountUTXOs", attribute.Int("UserID", userID), attribute.String("BasketName", basketName))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	count := int64(0)
 
-	err := u.db.WithContext(ctx).
+	err = u.db.WithContext(ctx).
 		Model(&models.UserUTXO{}).
 		Scopes(scopes.UserID(userID), scopes.BasketName(basketName), notReserved()).
 		Count(&count).Error
@@ -69,8 +83,14 @@ func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (
 }
 
 func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-UnreserveUTXOsByTransactionID", attribute.String("TransactionID", fmt.Sprintf("%d", transactionID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := u.query.UserUTXO
-	_, err := table.WithContext(ctx).
+	_, err = table.WithContext(ctx).
 		Where(table.ReservedByID.Eq(transactionID)).
 		Update(table.ReservedByID, nil)
 	if err != nil {
@@ -81,7 +101,13 @@ func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID
 }
 
 func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error {
-	err := u.query.DBTransaction(func(query *genquery.Query) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-CreateUTXOForSpendableOutputsByTxID", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = u.query.DBTransaction(func(query *genquery.Query) error {
 		filterScope := func(dao gen.Dao) gen.Dao {
 			subquery := query.Transaction.
 				Select(query.Transaction.ID).

@@ -9,6 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gen"
 	"gorm.io/gorm"
@@ -24,8 +25,15 @@ func NewUserUTXOs(db *gorm.DB, query *genquery.Query) *UserUTXOs {
 }
 
 func (r *UserUTXOs) Add(ctx context.Context, utxo *entity.UserUTXO) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-UserUtxo-Add")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if utxo == nil {
-		return fmt.Errorf("utxo cannot be nil")
+		err = fmt.Errorf("utxo cannot be nil")
+		return err
 	}
 	model := &models.UserUTXO{
 		UserID:             utxo.UserID,
@@ -41,6 +49,12 @@ func (r *UserUTXOs) Add(ctx context.Context, utxo *entity.UserUTXO) error {
 }
 
 func (r *UserUTXOs) Update(ctx context.Context, spec *entity.UserUTXOUpdateSpecification) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-UserUtxo-Update")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &r.query.UserUTXO
 	updates := map[string]any{}
 
@@ -67,7 +81,7 @@ func (r *UserUTXOs) Update(ctx context.Context, spec *entity.UserUTXOUpdateSpeci
 		return nil
 	}
 
-	_, err := table.WithContext(ctx).
+	_, err = table.WithContext(ctx).
 		Where(table.OutputID.Eq(spec.OutputID)).
 		Updates(updates)
 	if err != nil {
@@ -77,6 +91,12 @@ func (r *UserUTXOs) Update(ctx context.Context, spec *entity.UserUTXOUpdateSpeci
 }
 
 func (r *UserUTXOs) Find(ctx context.Context, spec *entity.UserUTXOReadSpecification, opts ...queryopts.Options) ([]*entity.UserUTXO, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-UserUtxo-Find")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &r.query.UserUTXO
 	rows, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
@@ -89,6 +109,12 @@ func (r *UserUTXOs) Find(ctx context.Context, spec *entity.UserUTXOReadSpecifica
 }
 
 func (r *UserUTXOs) Count(ctx context.Context, spec *entity.UserUTXOReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-UserUtxo-Count")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &r.query.UserUTXO
 
 	count, err := table.WithContext(ctx).

@@ -9,8 +9,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
 )
@@ -25,7 +27,13 @@ func NewCertificates(db *gorm.DB, query *genquery.Query) *Certificates {
 }
 
 func (c *Certificates) CreateCertificate(ctx context.Context, certificate *models.Certificate) (uint, error) {
-	err := c.db.WithContext(ctx).Create(certificate).Error
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-CreateCertificate", attribute.String("SerialNumber", certificate.SerialNumber))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = c.db.WithContext(ctx).Create(certificate).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to create certificate model: %w", err)
 	}
@@ -33,6 +41,12 @@ func (c *Certificates) CreateCertificate(ctx context.Context, certificate *model
 }
 
 func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args wdk.RelinquishCertificateArgs) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-DeleteCertificate", attribute.String("SerialNumber", string(args.SerialNumber)), attribute.Int("UserID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	tx := c.db.WithContext(ctx).Delete(&models.Certificate{}, "type = ? AND serial_number = ? AND certifier = ? AND user_id = ?", args.Type, args.SerialNumber, args.Certifier, userID)
 	if tx.RowsAffected == 0 {
 		return fmt.Errorf("failed to delete certificate model: certificate not found")
@@ -71,6 +85,12 @@ func mapCertifierModelToEntity(model *models.Certificate) *entity.Certificate {
 
 // FindCertifiers returns distinct certifiers for the given specification, with optional paging/since.
 func (c *Certificates) FindCertifiers(ctx context.Context, spec *entity.CertificateReadSpecification, opts ...queryopts.Options) ([]*entity.Certificate, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-FindCertifiers")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &c.query.Certificate
 
 	certs, err := table.WithContext(ctx).
@@ -87,6 +107,12 @@ func (c *Certificates) FindCertifiers(ctx context.Context, spec *entity.Certific
 
 // CountCertifiers returns the count of distinct certifiers matching the filters.
 func (c *Certificates) CountCertifiers(ctx context.Context, spec *entity.CertificateReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Certificates-CountCertifiers")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &c.query.Certificate
 
 	count, err := table.WithContext(ctx).

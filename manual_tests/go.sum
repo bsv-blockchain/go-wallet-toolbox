@@ -14,6 +14,7 @@ github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiE
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/bsv-blockchain/go-bsv-middleware v0.11.0 h1:IZPxqIUB7K8Zq5Ys8HfRwh55J6noqoV8GiQ3BmkYbSg=
 github.com/bsv-blockchain/go-bsv-middleware v0.11.0/go.mod h1:iUyYAvciHPNOj3vVgak6aUpJ90GRr3lG1iV+KnU9pbo=
+github.com/bsv-blockchain/go-bsv-middleware v0.12.2/go.mod h1:SM07pCDldO9Gl7fFp2mxL85zDJOcu8Fcd1J+70Wje4w=
 github.com/bsv-blockchain/go-sdk v1.2.13 h1:jcIff1WWAchtgxHJO80Y57LbxmwUG0rS48pmY6SvgnM=
 github.com/bsv-blockchain/go-sdk v1.2.13/go.mod h1:HugEqK6K46nUAN0Xr9xq0HW8QHtpJmAg05NmcxPc1Lk=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1 h1:6mRV8T4ug8456p/rufoDselui3eKY6kr9mRYx8e87Rw=
@@ -81,6 +82,7 @@ github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0 h1:lrbHDoByFMHyaUnP7IkCAlMKaEi7UC
 github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0/go.mod h1:OFkOAruhDmuvhSGTtYVM0Id0N1e3VJJDpwf2oL1DMj0=
 github.com/go-co-op/gocron/v2 v2.17.0 h1:e/oj6fcAM8vOOKZxv2Cgfmjo+s8AXC46po5ZPtaSea4=
 github.com/go-co-op/gocron/v2 v2.17.0/go.mod h1:Zii6he+Zfgy5W9B+JKk/KwejFOW0kZTFvHtwIpR4aBI=
+github.com/go-co-op/gocron/v2 v2.18.2/go.mod h1:Zii6he+Zfgy5W9B+JKk/KwejFOW0kZTFvHtwIpR4aBI=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
 github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
 github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
@@ -89,6 +91,7 @@ github.com/go-ole/go-ole v1.2.6 h1:/Fpf6oFPoeFik9ty7siob0G6Ke8QvQEuVcuChpwXzpY=
 github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-resty/resty/v2 v2.16.5 h1:hBKqmWrr7uRc3euHVqmh1HTHcKn99Smr7o5spptdhTM=
 github.com/go-resty/resty/v2 v2.16.5/go.mod h1:hkJtXbA2iKHzJheXYvQ8snQES5ZLGKMwQ07xAwp/fiA=
+github.com/go-resty/resty/v2 v2.17.0/go.mod h1:kCKZ3wWmwJaNc7S29BRtUhJwy7iqmn+2mLtQrOyQlVA=
 github.com/go-softwarelab/common v1.8.0 h1:vxniLtzZbMLaQQuyO6cfIXi7XcE+7qx84g0ax/LmvzE=
 github.com/go-softwarelab/common v1.8.0/go.mod h1:od6rXr9CkUq8nRGFyiuc1D2k+CDumk0EQy4P1CuetcY=
 github.com/go-sql-driver/mysql v1.9.3 h1:U/N249h2WzJ3Ukj8SowVFjdtZKfu9vlLZxjPXV1aweo=
