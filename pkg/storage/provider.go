@@ -19,11 +19,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -117,7 +119,13 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 
 // Migrate migrates the storage and saves the settings.
 func (p *Provider) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
-	err := p.repo.Migrate(ctx)
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-Migrate", attribute.String("storageName", storageName))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.repo.Migrate(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to migrate: %w", err)
 	}
@@ -143,6 +151,12 @@ func (p *Provider) Migrate(ctx context.Context, storageName string, storageIdent
 
 // MakeAvailable reads the settings and makes them available.
 func (p *Provider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-MakeAvailable")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	settings, err := p.repo.ReadSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read settings: %w", err)
@@ -154,11 +168,17 @@ func (p *Provider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error
 // SetActive updates the active storage identity key for the authenticated user.
 // Returns an error if the user is not authorized or the update fails.
 func (p *Provider) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SetActive", attribute.String("NewActiveStorageIdentityKey", newActiveStorageIdentityKey))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return ErrAuthorization
 	}
 
-	err := p.repo.UpdateUser(ctx, &entity.UserUpdateSpecification{
+	err = p.repo.UpdateUser(ctx, &entity.UserUpdateSpecification{
 		ID:            *auth.UserID,
 		ActiveStorage: to.Ptr(newActiveStorageIdentityKey),
 	})
@@ -171,11 +191,17 @@ func (p *Provider) SetActive(ctx context.Context, auth wdk.AuthID, newActiveStor
 
 // InsertCertificateAuth inserts certificate to the database for authenticated user
 func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-InsertCertificateAuth")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil || certificate.UserID != *auth.UserID {
 		return 0, ErrAuthorization
 	}
 
-	err := validate.TableCertificateX(certificate)
+	err = validate.TableCertificateX(certificate)
 	if err != nil {
 		return 0, fmt.Errorf("invalid insertCertificateAuth args: %w", err)
 	}
@@ -206,11 +232,17 @@ func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, c
 
 // RelinquishCertificate will relinquish existing certificate
 func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-RelinquishCertificate", attribute.String("SerialNumber", string(args.SerialNumber)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return ErrAuthorization
 	}
 
-	err := validate.RelinquishCertificateArgs(&args)
+	err = validate.RelinquishCertificateArgs(&args)
 	if err != nil {
 		return fmt.Errorf("invalid relinquishCertificate args: %w", err)
 	}
@@ -225,11 +257,17 @@ func (p *Provider) RelinquishCertificate(ctx context.Context, auth wdk.AuthID, a
 
 // ListCertificates will list certificates with provided args
 func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListCertificates")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
 
-	err := validate.ListCertificatesArgs(&args)
+	err = validate.ListCertificatesArgs(&args)
 	if err != nil {
 		return nil, fmt.Errorf("invalid listCertificates args: %w", err)
 	}
@@ -293,6 +331,12 @@ func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args w
 
 // FindOrInsertUser will find user by their identityKey or inserts a new one if not found
 func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-FindOrInsertUser", attribute.String("IdentityKey", identityKey))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	user, err := p.repo.FindUser(ctx, identityKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
@@ -327,6 +371,12 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 
 // CreateAction Storage level processing for wallet `createAction`.
 func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-CreateAction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	p.logger.DebugContext(ctx, "Validating createAction args")
 
 	if auth.UserID == nil {
@@ -366,6 +416,12 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 
 // InternalizeAction Storage level processing for wallet `internalizeAction`.
 func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-InternalizeAction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -382,6 +438,12 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 
 // ProcessAction Storage level processing for wallet `processAction`.
 func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessAction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -398,6 +460,12 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 
 // AbortAction aborts an action by its reference for the authenticated user.
 func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-AbortAction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -415,7 +483,13 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 
 // SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
 func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
-	err := p.actions.SynchronizeTxStatuses(ctx)
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SynchronizeTransactionStatuses")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
 	}
@@ -424,7 +498,13 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
 
 // SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
 func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
-	err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SendWaitingTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
 		return fmt.Errorf("failed to send waiting transactions: %w", err)
 	}
@@ -433,6 +513,12 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
 func (p *Provider) AbortAbandoned(ctx context.Context) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-AbortAbandoned")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	seconds, err := to.Int(p.options.FailAbandonedConfig.MinTransactionAgeSeconds)
 	if err != nil {
 		return fmt.Errorf("invalid FailAbandonedConfig.MinTransactionAgeSeconds: %w", err)
@@ -448,6 +534,12 @@ func (p *Provider) AbortAbandoned(ctx context.Context) error {
 
 // UnFail finds transactions marked as failed and rechecks if they are on-chain; if so, it updates their state.
 func (p *Provider) UnFail(ctx context.Context) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-UnFail")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if err := p.actions.UnFail(ctx); err != nil {
 		return fmt.Errorf("failed to recheck failed transactions: %w", err)
 	}
@@ -456,6 +548,12 @@ func (p *Provider) UnFail(ctx context.Context) error {
 
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListOutputs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -473,6 +571,12 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 
 // RelinquishOutput removes a specified output from a basket
 func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-RelinquishOutput")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	logger := p.logger.With(logging.UserID(auth.UserID),
 		slog.String("output", args.Output),
 		slog.String("basket", args.Basket),
@@ -498,7 +602,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
-	err := p.repo.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
+	err = p.repo.UnlinkOutputFromBasketByOutpoint(ctx, *auth.UserID, basketName, wdk.OutPoint{TxID: txID, Vout: vout})
 	if err != nil {
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
@@ -514,6 +618,12 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 // Returns an error if the user is unauthorized, input is invalid, or the update fails.
 // NOTE: For "change basket" use wdk.BasketNameForChange ("default") as the basket name.
 func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wdk.BasketConfiguration) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ConfigureBasket")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return ErrAuthorization
 	}
@@ -522,7 +632,7 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 		return fmt.Errorf("invalid basket configuration: %w", err)
 	}
 
-	_, err := p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
+	_, err = p.repo.UpsertOutputBasket(ctx, *auth.UserID, args)
 	if err != nil {
 		return fmt.Errorf("failed to update basket configuration: %w", err)
 	}
@@ -534,6 +644,12 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 // The result includes the total number of actions and the actions themselves.
 // If spec-op label present, route to dedicated ListFailedActions.
 func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListActions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
@@ -594,6 +710,12 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 // GetSyncChunk retrieves a sync chunk based on the provided arguments.
 // It returns the requested sync chunk or an error if retrieval fails.
 func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-GetSyncChunk")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	settings, err := p.repo.ReadSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read settings: %w", err)
@@ -616,13 +738,18 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 
 // FindOrInsertSyncStateAuth finds or inserts a sync state for the given user, storage identity key, and storage name.
 func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-FindOrInsertSyncStateAuth", attribute.String("StorageIdentityKey", storageIdentityKey), attribute.String("StorageName", storageName))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
 
 	action := sync.NewFindOrInsertSyncState(p.repo, p.options.Randomizer, *auth.UserID, storageIdentityKey, storageName)
 	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)
 	}
@@ -632,7 +759,13 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 
 // ProcessSyncChunk validates arguments and processes a synchronization chunk, returning the processing result or an error.
 func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
-	err := validate.ValidRequestSyncChunkArgs(&args)
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessSyncChunk")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = validate.ValidRequestSyncChunkArgs(&args)
 	if err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
@@ -657,6 +790,12 @@ func (p *Provider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChu
 // GetBeefForTransaction retrieves beef data for a transaction by txID, considering the given context and options.
 // Returns the transaction beef structure or an error if retrieval fails.
 func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-GetBeefForTransaction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	beef, err := p.actions.GetBeef(ctx, txID, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get beef for transaction %s: %w", txID, err)
@@ -712,6 +851,12 @@ func (p *Provider) CertifierEntity() crud.Certifier {
 
 // FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
 func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-FindOutputBasketsAuth")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
 		return nil, ErrAuthorization
 	}
@@ -741,6 +886,12 @@ func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, f
 
 // FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
 func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-FindOutputsAuth")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if auth.UserID == nil || (filters.UserID != nil && *filters.UserID != *auth.UserID) {
 		return nil, ErrAuthorization
 	}

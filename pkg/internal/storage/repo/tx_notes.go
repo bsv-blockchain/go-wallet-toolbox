@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"gorm.io/gen"
@@ -26,6 +27,12 @@ func NewTxNotes(db *gorm.DB, query *genquery.Query) *TxNotes {
 }
 
 func (r *TxNotes) FindTxNotes(ctx context.Context, spec *entity.TxNoteReadSpecification, opts ...queryopts.Options) ([]*entity.TxNotes, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-TxNotes-FindTxNotes")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &r.query.TxNote
 
 	records, err := table.WithContext(ctx).
@@ -55,6 +62,12 @@ func (r *TxNotes) FindTxNotes(ctx context.Context, spec *entity.TxNoteReadSpecif
 }
 
 func (r *TxNotes) CountTxNotes(ctx context.Context, spec *entity.TxNoteReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-TxNotes-CountTxNotes")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &r.query.TxNote
 
 	count, err := table.WithContext(ctx).

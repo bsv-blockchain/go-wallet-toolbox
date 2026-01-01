@@ -25,6 +25,7 @@ type Config struct {
 	Monitor               defs.Monitor               `mapstructure:"monitor"`
 	SynchronizeTxStatuses defs.SynchronizeTxStatuses `mapstructure:"synchronize_tx_statuses"`
 	FailAbandoned         defs.FailAbandoned         `mapstructure:"fail_abandoned"`
+	TracingConfig         defs.TracingConfig         `mapstructure:"tracing"`
 }
 
 // DBConfig is the configuration for the database
@@ -74,6 +75,7 @@ func Defaults() Config {
 		Monitor:               defs.DefaultMonitorConfig(),
 		SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
 		FailAbandoned:         defs.DefaultFailAbandoned(),
+		TracingConfig:         defs.DefaultTracingConfig(),
 	}
 }
 
@@ -128,6 +130,10 @@ func (c *Config) Validate() (err error) {
 
 	if err = c.Monitor.Validate(); err != nil {
 		return fmt.Errorf("invalid monitor config: %w", err)
+	}
+
+	if err = c.TracingConfig.Validate(); err != nil {
+		return fmt.Errorf("invalid tracing config: %w", err)
 	}
 
 	return nil

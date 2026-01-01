@@ -26,6 +26,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
@@ -36,9 +37,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var _ sdk.Interface = (*Wallet)(nil)
+
+const discoverCertificatesTTL = 2 * time.Minute
 
 type walletCleanupFunc func()
 
@@ -52,6 +56,12 @@ func (wc walletCleanupFunc) Add(next func()) walletCleanupFunc {
 	}
 }
 
+// discoverCertificatesParams holds the parameters for certificate discovery.
+type discoverCertificatesParams struct {
+	cacheKeyStr string
+	query       []byte
+}
+
 // cacheEntry is a struct for the map-based overlay cache entries
 type cacheEntry struct {
 	ExpiresAt time.Time
@@ -62,13 +72,22 @@ type cacheEntry struct {
 type cacheKey struct {
 	Fn          string   `json:"fn"`
 	IdentityKey string   `json:"identityKey"`
+	Attributes  string   `json:"attributes"`
 	Certifiers  []string `json:"certifiers"`
 }
 
-// identityQuery is a struct representing query to the lookupResolver.
+// identityQuery is a struct representing query to the lookupResolver
+// to fetch certificates by IdentityKey.
 type identityQuery struct {
 	IdentityKey string   `json:"identityKey"`
 	Certifiers  []string `json:"certifiers"`
+}
+
+// attributesQuery is a struct representing query to the lookupResolver
+// to fetch certificates by Attributes.
+type attributesQuery struct {
+	Attributes map[string]string `json:"attributes"`
+	Certifiers []string          `json:"certifiers"`
 }
 
 // Wallet is an implementation of the BRC-100 wallet interface.
@@ -326,6 +345,12 @@ func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureAr
 
 // CreateAction creates a new Bitcoin transaction based on the provided inputs, outputs, labels, locks, and other options.
 func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-CreateAction", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "CreateAction start", slogx.String("originator", originator))
 	start := time.Now()
 	defer func() { w.logger.DebugContext(ctx, "CreateAction done", slog.Duration("duration", time.Since(start))) }()
@@ -346,6 +371,12 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 
 // SignAction signs a transaction previously created using CreateAction.
 func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, originator string) (*sdk.SignActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "SignAction start", slogx.String("originator", originator))
 	start := time.Now()
 	defer func() { w.logger.DebugContext(ctx, "SignAction done", slog.Duration("duration", time.Since(start))) }()
@@ -365,6 +396,12 @@ func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, origin
 
 // AbortAction aborts a transaction that is in progress and has not yet been finalized or sent to the network.
 func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, originator string) (*sdk.AbortActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-AbortAction", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "AbortAction call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -386,6 +423,12 @@ func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, orig
 
 // ListActions lists all transactions matching the specified labels.
 func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ListActions", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "ListActions call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -412,6 +455,12 @@ func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, orig
 
 // ListFailedActions returns only actions with status 'failed'. If unfail is true, it also requests recovery by adding the 'unfail' label.
 func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs, unfail bool, originator string) (*sdk.ListActionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ListFailActions", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "ListFailedActions call", slogx.String("originator", originator), slog.Bool("unfail", unfail))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -444,6 +493,12 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
 // inserted into baskets, and/or tagged.
 func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-InternalizeAction", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "InternalizeAction call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -465,6 +520,12 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 
 // ListOutputs lists the spendable outputs kept within a specific basket, optionally tagged with specific labels.
 func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ListOutputs", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "ListOutputs call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -491,6 +552,12 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 
 // RelinquishOutput relinquishes an output from a basket, removing it from tracking without spending it.
 func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutputArgs, originator string) (*sdk.RelinquishOutputResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-RelinquishOutput", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "RelinquishOutput call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -502,7 +569,7 @@ func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutput
 		return nil, fmt.Errorf("invalid relinquish output args: %w", err)
 	}
 
-	err := w.storage.RelinquishOutput(ctx, wdkArgs)
+	err = w.storage.RelinquishOutput(ctx, wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to relinquish output: %w", err)
 	}
@@ -515,6 +582,12 @@ func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutput
 // RevealCounterpartyKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,
 // across all interactions with the counterparty.
 func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.RevealCounterpartyKeyLinkageArgs, originator string) (*sdk.RevealCounterpartyKeyLinkageResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-RevealCounterpartyKeyLinkage", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "RevealCounterpartyKeyLinkage call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -531,6 +604,12 @@ func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.Reve
 // RevealSpecificKeyLinkage reveals the key linkage between ourselves and a counterparty, to a particular verifier,
 // with respect to a specific interaction.
 func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSpecificKeyLinkageArgs, originator string) (*sdk.RevealSpecificKeyLinkageResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-RevealSpecificKeyLinkage", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "RevealSpecificKeyLinkage call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -546,6 +625,12 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 
 // AcquireCertificate acquires an identity certificate, whether by acquiring one from the certifier or by directly receiving it.
 func (w *Wallet) AcquireCertificate(ctx context.Context, args sdk.AcquireCertificateArgs, originator string) (*sdk.Certificate, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-AcquireCertificate", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -804,104 +889,14 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 	return &cert, nil
 }
 
-// DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
-func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
-	const TTL = 2 * time.Minute
-	now := time.Now()
-
-	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
-
-	if err := validate.Originator(originator); err != nil {
-		return nil, fmt.Errorf("invalid originator: %w", err)
-	}
-
-	if err := validate.DiscoverByIdentityKeyArgs(args); err != nil {
-		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
-	}
-
-	// trustSettings cache (2 minutes)
-	trustSettings := w.getTrustSettings(now, TTL)
-	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
-	for i, c := range trustSettings.TrustedCertifiers {
-		certifiers[i] = c.IdentityKey
-	}
-	sort.Strings(certifiers)
-
-	// queryOverlay cache (2 minutes)
-	cacheKey := cacheKey{
-		Fn:          "discoverByIdentityKey",
-		IdentityKey: args.IdentityKey.ToDERHex(),
-		Certifiers:  certifiers,
-	}
-	keyBytes, err := json.Marshal(cacheKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cacheKey: %w", err)
-	}
-	cacheKeyStr := string(keyBytes)
-
-	// Check cache
-	cached, ok := w.overlayCache.Load(cacheKeyStr)
-	entry, typeOk := cached.(*cacheEntry)
-	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
-		// Cache miss or expired - query overlay
-		query, err := json.Marshal(identityQuery{
-			IdentityKey: args.IdentityKey.ToDERHex(),
-			Certifiers:  certifiers,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal overlay query: %w", err)
-		}
-
-		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
-			Service: "ls_identity",
-			Query:   query,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
-		}
-
-		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
-
-		// Store in cache
-		cached = &cacheEntry{
-			Value:     verifiableCertificates,
-			ExpiresAt: now.Add(TTL),
-		}
-		w.overlayCache.Store(cacheKeyStr, cached)
-	}
-
-	entry, typeOk = cached.(*cacheEntry)
-	if !typeOk || entry.Value == nil {
-		return &sdk.DiscoverCertificatesResult{
-			TotalCertificates: 0,
-			Certificates:      []sdk.IdentityCertificate{},
-		}, nil
-	}
-
-	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map verifiableCerts with trust: %w", err)
-	}
-	return verifiableCerts, nil
-}
-
-func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {
-	cached := w.trustSettingsCache.Load()
-	if cached != nil && cached.ExpiresAt.After(now) {
-		return cached.TrustSettings
-	}
-
-	trustSettings := w.settingsManager.Get().TrustSettings
-	w.trustSettingsCache.Store(&wallet_settings_manager.TrustSettingsCache{
-		ExpiresAt:     now.Add(ttl),
-		TrustSettings: trustSettings,
-	})
-
-	return trustSettings
-}
-
 // ListCertificates lists identity certificates belonging to the user, filtered by certifier(s) and type(s).
 func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificatesArgs, originator string) (*sdk.ListCertificatesResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ListCertificates", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
 
 	if err := validate.Originator(originator); err != nil {
@@ -948,6 +943,12 @@ func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificates
 
 // ProveCertificate proves select fields of an identity certificate, as specified, when requested by a verifier.
 func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificateArgs, originator string) (*sdk.ProveCertificateResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ProveCertificate", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "ProveCertificate call", slogx.String("originator", originator))
 
 	// Validation arguments and originator
@@ -1041,6 +1042,12 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 // RelinquishCertificate relinquishes an identity certificate, removing it from the wallet regardless of whether
 // the revocation outpoint has become spent.
 func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishCertificateArgs, originator string) (*sdk.RelinquishCertificateResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-RelinquishCertificate", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "RelinquishCertificate call", slogx.String("originator", originator))
 
 	// Validate input arguments
@@ -1065,18 +1072,101 @@ func (w *Wallet) RelinquishCertificate(ctx context.Context, args sdk.RelinquishC
 	return &sdk.RelinquishCertificateResult{Relinquished: true}, nil
 }
 
-// DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain
-// specific attributes, issued by a trusted entity.
+// DiscoverByIdentityKey discovers identity certificates, issued to a given identity key by a trusted entity.
+func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByIdentityKeyArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-DiscoverByIdentityKey", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	now := time.Now()
+	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	if err := validate.DiscoverByIdentityKeyArgs(args); err != nil {
+		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
+	}
+
+	certifiers := w.getCertifiers(now)
+	identityKey := args.IdentityKey.ToDERHex()
+
+	params, err := w.buildDiscoverParams(
+		cacheKey{
+			Fn:          "discoverByIdentityKey",
+			IdentityKey: identityKey,
+			Certifiers:  certifiers,
+		},
+		identityQuery{
+			IdentityKey: identityKey,
+			Certifiers:  certifiers,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return w.discoverCertificates(ctx, params, now)
+}
+
+// DiscoverByAttributes discovers identity certificates belonging to other users, where the documents contain specific attributes, issued by a trusted entity.
 func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAttributesArgs, originator string) (*sdk.DiscoverCertificatesResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-DiscoverByAttributes", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	now := time.Now()
 	w.logger.DebugContext(ctx, "DiscoverByAttributes call", slogx.String("originator", originator))
-	// TODO implement me
-	panic("implement me")
+
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	if err := validate.DiscoverByAttributesArgs(args); err != nil {
+		return nil, fmt.Errorf("failed to validate sdk.DiscoverByAttributesArgs: %w", err)
+	}
+
+	certifiers := w.getCertifiers(now)
+
+	// Normalize attributes for a stable cache key.
+	attributesKey, err := utils.SortedJSONString(args.Attributes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate sorted JSON string for attributes: %w", err)
+	}
+
+	params, err := w.buildDiscoverParams(
+		cacheKey{
+			Fn:         "discoverByAttributes",
+			Attributes: attributesKey,
+			Certifiers: certifiers,
+		},
+		attributesQuery{
+			Attributes: args.Attributes,
+			Certifiers: certifiers,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return w.discoverCertificates(ctx, params, now)
 }
 
 // IsAuthenticated checks the authentication status of the user.
 func (w *Wallet) IsAuthenticated(ctx context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-IsAuthenticated", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "IsAuthenticated call", slogx.String("originator", originator))
-	err := validate.Originator(originator)
+	err = validate.Originator(originator)
 	if err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
@@ -1087,6 +1177,12 @@ func (w *Wallet) IsAuthenticated(ctx context.Context, _ any, originator string) 
 
 // WaitForAuthentication continuously waits until the user is authenticated, returning the result once confirmed.
 func (w *Wallet) WaitForAuthentication(ctx context.Context, _ any, originator string) (*sdk.AuthenticatedResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-WaitForAuthentication", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "WaitForAuthentication call", slogx.String("originator", originator))
 	if err := validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
@@ -1099,6 +1195,12 @@ func (w *Wallet) WaitForAuthentication(ctx context.Context, _ any, originator st
 
 // GetHeight retrieves the current height of the blockchain.
 func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.GetHeightResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-GetHeight", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "GetHeight call", slogx.String("originator", originator))
 	if w.services == nil {
 		return nil, fmt.Errorf("services are not configured for this wallet")
@@ -1120,6 +1222,12 @@ func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.
 
 // GetHeaderForHeight retrieves the block header of a block at a specified height.
 func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs, originator string) (*sdk.GetHeaderResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-GetHeaderForHeight", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	w.logger.DebugContext(ctx, "GetHeaderForHeight call", slogx.String("originator", originator), logging.Number("height", args.Height))
 	if w.services == nil {
 		return nil, fmt.Errorf("wallet services not configured: cannot retrieve block header")
@@ -1177,4 +1285,91 @@ func (w *Wallet) Close() {
 func (w *Wallet) Destroy() {
 	w.logger.DebugContext(context.Background(), "Destroy call")
 	w.Close()
+}
+
+// discoverCertificates is a shared helper for DiscoverByIdentityKey and DiscoverByAttributes.
+// It handles trust settings, caching, overlay queries, and result mapping.
+func (w *Wallet) discoverCertificates(ctx context.Context, params discoverCertificatesParams, now time.Time) (*sdk.DiscoverCertificatesResult, error) {
+	trustSettings := w.getTrustSettings(now, discoverCertificatesTTL)
+
+	// Check cache
+	cached, ok := w.overlayCache.Load(params.cacheKeyStr)
+	entry, typeOk := cached.(*cacheEntry)
+	if !ok || !typeOk || !entry.ExpiresAt.After(now) {
+		// Cache miss or expired - query overlay
+		lookupAnswer, err := w.lookupResolver.Query(ctx, &lookup.LookupQuestion{
+			Service: "ls_identity",
+			Query:   params.query,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to query lookupResolver: %w", err)
+		}
+
+		verifiableCertificates := mapping.MapLookupAnswerToVerifiableCertificates(ctx, w.logger, lookupAnswer)
+
+		// Store in cache
+		cached = &cacheEntry{
+			Value:     verifiableCertificates,
+			ExpiresAt: now.Add(discoverCertificatesTTL),
+		}
+		w.overlayCache.Store(params.cacheKeyStr, cached)
+	}
+
+	entry, typeOk = cached.(*cacheEntry)
+	if !typeOk || entry.Value == nil {
+		return &sdk.DiscoverCertificatesResult{
+			TotalCertificates: 0,
+			Certificates:      []sdk.IdentityCertificate{},
+		}, nil
+	}
+
+	verifiableCerts, err := mapping.MapVerifiableCertificatesWithTrust(w.logger, trustSettings, entry.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map verifiable certificates with trust settings: %w", err)
+	}
+	return verifiableCerts, nil
+}
+
+func (w *Wallet) getTrustSettings(now time.Time, ttl time.Duration) *wallet_settings_manager.TrustSettings {
+	cached := w.trustSettingsCache.Load()
+	if cached != nil && cached.ExpiresAt.After(now) {
+		return cached.TrustSettings
+	}
+
+	trustSettings := w.settingsManager.Get().TrustSettings
+	w.trustSettingsCache.Store(&wallet_settings_manager.TrustSettingsCache{
+		ExpiresAt:     now.Add(ttl),
+		TrustSettings: trustSettings,
+	})
+
+	return trustSettings
+}
+
+// buildDiscoverParams builds the cache key and query for certificate discovery methods.
+func (w *Wallet) buildDiscoverParams(cacheKeyData cacheKey, queryData any) (discoverCertificatesParams, error) {
+	keyBytes, err := json.Marshal(cacheKeyData)
+	if err != nil {
+		return discoverCertificatesParams{}, fmt.Errorf("failed to marshal cacheKey: %w", err)
+	}
+
+	query, err := json.Marshal(queryData)
+	if err != nil {
+		return discoverCertificatesParams{}, fmt.Errorf("failed to marshal overlay query: %w", err)
+	}
+
+	return discoverCertificatesParams{
+		cacheKeyStr: string(keyBytes),
+		query:       query,
+	}, nil
+}
+
+// getCertifiers returns sorted certifier identity keys from trust settings.
+func (w *Wallet) getCertifiers(now time.Time) []string {
+	trustSettings := w.getTrustSettings(now, discoverCertificatesTTL)
+	certifiers := make([]string, len(trustSettings.TrustedCertifiers))
+	for i, c := range trustSettings.TrustedCertifiers {
+		certifiers[i] = c.IdentityKey
+	}
+	sort.Strings(certifiers)
+	return certifiers
 }

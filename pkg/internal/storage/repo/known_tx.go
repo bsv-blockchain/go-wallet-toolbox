@@ -12,10 +12,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
 )
@@ -34,7 +36,13 @@ func NewKnownTxRepo(db *gorm.DB, query *genquery.Query) *KnownTx {
 }
 
 func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error {
-	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-UpsertKnownTx", attribute.String("TxID", req.TxID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return upsertKnownTx(tx, req, txNote)
 	})
 
@@ -45,6 +53,12 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 }
 
 func (p *KnownTx) UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-UpdateKnownTxStatus", attribute.String("TxID", txID), attribute.String("Status", string(status)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	return updateKnownTxStatus(p.db.WithContext(ctx), txID, status, skipForStatuses, txNotes)
 }
 
@@ -102,8 +116,14 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 }
 
 func (p *KnownTx) FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxRawTx", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var model models.KnownTx
-	err := p.db.WithContext(ctx).
+	err = p.db.WithContext(ctx).
 		Model(&model).
 		Select("raw_tx").
 		First(&model, "tx_id = ? ", txID).Error
@@ -117,6 +137,12 @@ func (p *KnownTx) FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, er
 }
 
 func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxRawTx", attribute.StringSlice("TxIDs", txIDs))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return make(map[string][]byte), nil
 	}
@@ -126,7 +152,7 @@ func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[st
 		RawTx []byte
 	}
 
-	err := p.db.WithContext(ctx).
+	err = p.db.WithContext(ctx).
 		Model(&models.KnownTx{}).
 		Select("tx_id, raw_tx").
 		Where("tx_id IN ?", txIDs).
@@ -143,8 +169,14 @@ func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[st
 }
 
 func (p *KnownTx) FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxStatuses", attribute.StringSlice("TxIDs", txIDs))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var rows []*models.KnownTx
-	err := p.db.WithContext(ctx).
+	err = p.db.WithContext(ctx).
 		Model(&models.KnownTx{}).
 		Select("status, tx_id").
 		Where("tx_id IN (?)", txIDs).
@@ -161,6 +193,12 @@ func (p *KnownTx) FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map
 }
 
 func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-AllKnownTxsExist", attribute.StringSlice("TxIDs", txIDs))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var model models.KnownTx
 	query := p.db.WithContext(ctx).
 		Model(&model).
@@ -176,7 +214,7 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 	}
 
 	var count int64
-	err := query.Count(&count).Error
+	err = query.Count(&count).Error
 	if err != nil {
 		return false, fmt.Errorf("failed to check if known transactions exist: %w", err)
 	}
@@ -185,8 +223,14 @@ func (p *KnownTx) AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTx
 }
 
 func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsByStatuses")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var rows []*models.KnownTx
-	err := p.db.WithContext(ctx).
+	err = p.db.WithContext(ctx).
 		Model(&models.KnownTx{}).
 		Select("tx_id, status, attempts, batch").
 		Scopes(scopes.FromQueryOpts(opts)...).
@@ -206,7 +250,13 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 }
 
 func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *entity.KnownTxAsMined) error {
-	err := p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-UpdateKnownTxAsMined", attribute.String("TxID", knownTxAsMined.TxID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&models.KnownTx{}).
 			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
 			Updates(&models.KnownTx{
@@ -267,11 +317,17 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 }
 
 func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-IncreaseKnownTxAttemptsForTxIDs", attribute.StringSlice("TxIDs", txIDs))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return nil
 	}
 
-	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
+	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("tx_id IN ? ", txIDs).
 		UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
 	if err != nil {
@@ -281,11 +337,17 @@ func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []s
 }
 
 func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetStatusForKnownTxsAboveAttempts", attribute.String("Status", string(status)), attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if attempts == 0 {
 		return nil
 	}
 
-	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
+	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("attempts >= ? ", attempts).
 		UpdateColumn("status", status).Error
 	if err != nil {
@@ -295,6 +357,12 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 }
 
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &p.query.KnownTx
 
 	txNoteScope := func(dao gen.Dao) gen.Dao {
@@ -319,6 +387,12 @@ func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadS
 }
 
 func (p *KnownTx) CountKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) (int64, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-CountKnownTxs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	table := &p.query.KnownTx
 
 	count, err := table.WithContext(ctx).
@@ -333,11 +407,17 @@ func (p *KnownTx) CountKnownTxs(ctx context.Context, spec *pkgentity.KnownTxRead
 }
 
 func (p *KnownTx) SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetBatchForKnownTxs", attribute.StringSlice("TxIDs", txIDs), attribute.String("Batch", batch))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return nil
 	}
 
-	err := p.db.WithContext(ctx).Model(&models.KnownTx{}).
+	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("tx_id IN ? ", txIDs).
 		UpdateColumn("batch", batch).Error
 	if err != nil {

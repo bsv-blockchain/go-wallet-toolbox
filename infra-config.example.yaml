@@ -62,6 +62,10 @@ server_private_key: ""
 synchronize_tx_statuses:
     check_no_send_period_hours: 24
     max_attempts: 10
+tracing:
+    dialAddr: http://localhost:4317
+    enabled: false
+    sample: 100
 wallet_services:
     arc:
         callback_token: ""
