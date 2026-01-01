@@ -35,6 +35,6 @@ type WalletOutput struct {
 // ListOutputsResult contains the result of listing wallet outputs
 type ListOutputsResult struct {
 	TotalOutputs primitives.PositiveInteger `json:"totalOutputs"`
-	BEEF         *primitives.BEEF           `json:"BEEF,omitempty"`
+	BEEF         []int                      `json:"BEEF,omitempty"`
 	Outputs      []*WalletOutput            `json:"outputs"`
 }
