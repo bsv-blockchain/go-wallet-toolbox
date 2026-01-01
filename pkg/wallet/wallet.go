@@ -691,6 +691,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 
 	var hmacArray [32]byte
 	copy(hmacArray[:], hmacSlice)
+	keyID := base64.StdEncoding.EncodeToString(data)
 
 	// Verify the HMAC
 	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
@@ -701,7 +702,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "server hmac",
 			},
-			KeyID:        mapping.ToUTF8(data), // FIXME: this is the issue and it parses the KeyID omitting bad UTF8 bytes like toUTF8 in ts-sdk. It should be string(data) when TS code is fixed, or left like this for compatibility
+			KeyID:        keyID,
 			Counterparty: counterparty,
 		},
 	}, originator)

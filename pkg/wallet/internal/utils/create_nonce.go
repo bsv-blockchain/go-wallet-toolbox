@@ -7,7 +7,6 @@ import (
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -31,6 +30,7 @@ func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Rando
 	if err != nil {
 		return "", fmt.Errorf("failed to generate nonce data bytes: %w", err)
 	}
+	keyID := base64.StdEncoding.EncodeToString(firstHalf)
 
 	createHMACResult, err := wallet.CreateHMAC(ctx, sdk.CreateHMACArgs{
 		EncryptionArgs: sdk.EncryptionArgs{
@@ -38,7 +38,7 @@ func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Rando
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "server hmac",
 			},
-			KeyID: mapping.ToUTF8(firstHalf), // FIXME: this is the issue and it parses the KeyID omitting bad UTF8 bytes like toUTF8 in ts-sdk. It should be string(data) when TS code is fixed, or left like this for compatibility
+			KeyID: keyID,
 			Counterparty: sdk.Counterparty{
 				Type:         sdk.CounterpartyTypeOther,
 				Counterparty: certifier,
