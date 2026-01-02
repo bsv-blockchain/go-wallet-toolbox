@@ -279,7 +279,7 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 		ListOutputs: StorageProviderMethodResponse[*wdk.ListOutputsResult]{
 			Success: &wdk.ListOutputsResult{
 				TotalOutputs: 1,
-				BEEF:         []int{1, 2},
+				BEEF:         primitives.ExplicitByteArray{1, 2},
 				Outputs: []*wdk.WalletOutput{
 					{
 						Satoshis:  1000,

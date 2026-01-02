@@ -7,13 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func BEEFFromHex(t testing.TB, beefInts []int) *transaction.Beef {
+func BEEFFromBytes(t testing.TB, beefBytes []byte) *transaction.Beef {
 	t.Helper()
-
-	beefBytes := make([]byte, len(beefInts))
-	for i, b := range beefInts {
-		beefBytes[i] = byte(b)
-	}
 
 	beef, err := transaction.NewBeefFromBytes(beefBytes)
 	require.NoError(t, err)

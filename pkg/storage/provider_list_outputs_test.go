@@ -187,7 +187,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 
 	// and:
 	require.NotNil(t, actualResult.BEEF)
-	beef := testutils.BEEFFromHex(t, actualResult.BEEF)
+	beef := testutils.BEEFFromBytes(t, actualResult.BEEF)
 	require.Len(t, beef.Transactions, 3) // parent transaction with BUMP, the internalized one (with no BUMP), AND the newly created transaction
 
 	// and:
@@ -225,7 +225,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	require.Len(t, actualResult.Outputs, 32)
 
 	// and:
-	beef := testutils.BEEFFromHex(t, actualResult.BEEF)
+	beef := testutils.BEEFFromBytes(t, actualResult.BEEF)
 	require.Len(t, beef.Transactions, 0)
 }
 
