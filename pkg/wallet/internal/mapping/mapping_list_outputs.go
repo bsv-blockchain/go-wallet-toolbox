@@ -112,13 +112,7 @@ func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult
 		Outputs:      outputs,
 	}
 
-	if result.BEEF != nil {
-		var bytes = make([]byte, len(result.BEEF))
-		for i, b := range result.BEEF {
-			bytes[i] = byte(b)
-		}
-		sdkResult.BEEF = bytes
-	}
+	sdkResult.BEEF = result.BEEF
 
 	return sdkResult, nil
 }
