@@ -249,21 +249,25 @@ func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsed
 	if len(parsedCert.SerialNumber) != utils.NonceHMACSize {
 		return fmt.Errorf("invalid serialNumber length: got %d, want %d", len(parsedCert.SerialNumber), utils.NonceHMACSize)
 	}
-	// Verify HMAC of serial number
-	decodedNonce, err := base64.StdEncoding.DecodeString(nonce)
+
+	// Decode both nonces from base64 and concatenate the raw bytes
+	// TypeScript does: Utils.toArray(clientNonce + serverNonce, 'base64')
+	// which decodes the concatenated base64 strings to bytes
+	clientNonceBytes, err := base64.StdEncoding.DecodeString(string(nonce))
 	if err != nil {
-		return fmt.Errorf("failed to decode nonce from base64: %w", err)
+		return fmt.Errorf("failed to decode client nonce: %w", err)
 	}
-	decodedSrvNonce, err := base64.StdEncoding.DecodeString(parsedCert.ServerNonce)
+	serverNonceBytes, err := base64.StdEncoding.DecodeString(parsedCert.ServerNonce)
 	if err != nil {
-		return fmt.Errorf("failed to decode server nonce from base64: %w", err)
+		return fmt.Errorf("failed to decode server nonce: %w", err)
 	}
+	dataToVerify := append(clientNonceBytes, serverNonceBytes...)
 	var hmacToVerifyArray [32]byte
 	copy(hmacToVerifyArray[:], parsedCert.SerialNumber)
 
 	verifyHmacResult, err := wallet.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
 		HMAC: hmacToVerifyArray,
-		Data: append(decodedNonce, decodedSrvNonce...),
+		Data: dataToVerify,
 		EncryptionArgs: sdk.EncryptionArgs{
 			KeyID: parsedCert.ServerNonce + nonce,
 			ProtocolID: sdk.Protocol{

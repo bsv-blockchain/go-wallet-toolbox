@@ -4,11 +4,24 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"unicode/utf8"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+// BytesToUTF8 converts bytes to a UTF-8 string, mimicking JavaScript's TextDecoder behavior.
+// Invalid UTF-8 sequences are replaced with U+FFFD (replacement character), just like TextDecoder does.
+func BytesToUTF8(bytes []byte) string {
+	result := make([]rune, 0, len(bytes))
+	for len(bytes) > 0 {
+		r, size := utf8.DecodeRune(bytes)
+		result = append(result, r)
+		bytes = bytes[size:]
+	}
+	return string(result)
+}
 
 const (
 	NonceDataSize  = 16
@@ -30,7 +43,7 @@ func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Rando
 	if err != nil {
 		return "", fmt.Errorf("failed to generate nonce data bytes: %w", err)
 	}
-	keyID := base64.StdEncoding.EncodeToString(firstHalf)
+	keyID := BytesToUTF8(firstHalf)
 
 	createHMACResult, err := wallet.CreateHMAC(ctx, sdk.CreateHMACArgs{
 		EncryptionArgs: sdk.EncryptionArgs{

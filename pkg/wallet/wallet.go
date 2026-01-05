@@ -776,7 +776,8 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 
 	var hmacArray [32]byte
 	copy(hmacArray[:], hmacSlice)
-	keyID := base64.StdEncoding.EncodeToString(data)
+
+	keyID := utils.BytesToUTF8(data)
 
 	// Verify the HMAC
 	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
