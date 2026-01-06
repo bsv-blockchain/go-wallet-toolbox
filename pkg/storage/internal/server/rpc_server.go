@@ -29,6 +29,10 @@ func NewRPCHandler(parentLogger *slog.Logger, name string, handler any) *RPCServ
 	}
 }
 
+// Register registers the RPC handler to accept POST requests.
+// Uses "POST /" pattern to allow the server to be mounted at any path
+// (e.g., /wallet, /api/storage, etc.) when embedded in another application.
+// The JSON-RPC protocol is path-agnostic - it only processes the request body.
 func (s *RPCServer) Register(mux *http.ServeMux) {
-	mux.HandleFunc("POST /{$}", s.Handler.ServeHTTP)
+	mux.HandleFunc("POST /", s.Handler.ServeHTTP)
 }
