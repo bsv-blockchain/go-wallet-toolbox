@@ -35,7 +35,7 @@ const (
 // base64-encoded to produce a string-safe representation suitable for transmission
 // or storage. The structure is:
 //
-//	[16 random bytes][32 byte HMAC] -> base64-encoded string (returned as []byte).
+//	[16 random bytes][32 byte HMAC] -> base64-encoded string (returned as string).
 //
 // This ensures both uniqueness (random bytes) and integrity/authenticity (HMAC).
 func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Randomizer, certifier *ec.PublicKey, originator string) (string, error) {
