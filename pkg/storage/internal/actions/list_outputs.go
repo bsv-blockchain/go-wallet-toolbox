@@ -93,7 +93,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 			return nil, fmt.Errorf("error converting BEEF to bytes: %w", err)
 		}
 
-		result.BEEF = to.Ptr[primitives.BEEF](rawBeef)
+		result.BEEF = primitives.ExplicitByteArray(rawBeef)
 	}
 
 	return result, nil
