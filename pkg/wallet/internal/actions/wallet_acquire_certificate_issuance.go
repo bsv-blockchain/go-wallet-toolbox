@@ -253,7 +253,7 @@ func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsed
 	// Decode both nonces from base64 and concatenate the raw bytes
 	// TypeScript does: Utils.toArray(clientNonce + serverNonce, 'base64')
 	// which decodes the concatenated base64 strings to bytes
-	clientNonceBytes, err := base64.StdEncoding.DecodeString(string(nonce))
+	clientNonceBytes, err := base64.StdEncoding.DecodeString(nonce)
 	if err != nil {
 		return fmt.Errorf("failed to decode client nonce: %w", err)
 	}
