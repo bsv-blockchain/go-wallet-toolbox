@@ -112,9 +112,7 @@ func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult
 		Outputs:      outputs,
 	}
 
-	if result.BEEF != nil {
-		sdkResult.BEEF = *result.BEEF
-	}
+	sdkResult.BEEF = result.BEEF
 
 	return sdkResult, nil
 }
