@@ -8,7 +8,7 @@ type pagingAndSinceParams struct {
 }
 
 func (c *pagingAndSinceParams) QueryOpts() []queryopts.Options {
-	var opts []queryopts.Options
+	opts := make([]queryopts.Options, 0, 2)
 	opts = append(opts, c.Since()...)
 	opts = append(opts, c.Paging()...)
 

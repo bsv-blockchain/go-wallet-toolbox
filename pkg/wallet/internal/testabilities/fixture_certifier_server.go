@@ -129,9 +129,8 @@ func (b *certifierServerBuilder) createHandler(signCertHandler http.HandlerFunc)
 		authMiddleware = b.authMiddleware
 	} else {
 		// Build default auth middleware with configured options
-		opts := []func(*middleware.AuthMiddlewareConfig){
-			middleware.WithAuthLogger(slogx.NewTestLogger(b)),
-		}
+		opts := make([]func(*middleware.AuthMiddlewareConfig), 0, 1+len(b.authMiddlewareOpts))
+		opts = append(opts, middleware.WithAuthLogger(slogx.NewTestLogger(b)))
 		opts = append(opts, b.authMiddlewareOpts...)
 		authMiddleware = middleware.NewAuth(b.serverWallet, opts...)
 	}
