@@ -382,7 +382,7 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidCreateActionArgs(&args); err != nil {
+	if err = validate.ValidCreateActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
@@ -425,7 +425,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
+	if err = validate.ValidInternalizeActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
 	}
 
@@ -447,7 +447,7 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ProcessActionArgs(&args); err != nil {
+	if err = validate.ProcessActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid processAction args: %w", err)
 	}
 
@@ -470,7 +470,7 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ValidAbortActionArgs(&args); err != nil {
+	if err = validate.ValidAbortActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid abortActionArgs args: %w", err)
 	}
 
@@ -540,7 +540,7 @@ func (p *Provider) UnFail(ctx context.Context) error {
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := p.actions.UnFail(ctx); err != nil {
+	if err = p.actions.UnFail(ctx); err != nil {
 		return fmt.Errorf("failed to recheck failed transactions: %w", err)
 	}
 	return nil
@@ -558,7 +558,7 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ListOutputsArgs(&args); err != nil {
+	if err = validate.ListOutputsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listOutputs args: %w", err)
 	}
 
@@ -586,7 +586,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return ErrAuthorization
 	}
 
-	if err := validate.ValidRelinquishOutputArgs(&args); err != nil {
+	if err = validate.ValidRelinquishOutputArgs(&args); err != nil {
 		return fmt.Errorf("invalid relinquishOutput args: %w", err)
 	}
 
@@ -628,7 +628,7 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 		return ErrAuthorization
 	}
 
-	if err := validate.ValidBasketConfiguration(&args); err != nil {
+	if err = validate.ValidBasketConfiguration(&args); err != nil {
 		return fmt.Errorf("invalid basket configuration: %w", err)
 	}
 
