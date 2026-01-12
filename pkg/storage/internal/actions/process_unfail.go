@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -28,6 +29,12 @@ var (
 // If MerklePath is found: set KnownTx to 'unmined', set Transaction to 'unproven', and create UTXOs for spendable outputs.
 // If not found: set KnownTx back to 'invalid'.
 func (p *process) UnFail(ctx context.Context) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-UnFail")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	log := p.logger.With("action", "unfail")
 	log.InfoContext(ctx, "Attempting to process 'unfail' transactions")
 

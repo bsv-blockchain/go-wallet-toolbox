@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -23,6 +24,12 @@ var (
 )
 
 func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-SendWaitingTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	log := p.logger.With("action", "sendWaitingTransactions").With(slog.Duration("minTransactionAge", minTransactionAge))
 	log.InfoContext(ctx, "Attempting to send waiting transactions")
 

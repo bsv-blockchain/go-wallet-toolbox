@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -73,6 +74,12 @@ func newSynchronizeTxStatuses(
 }
 
 func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (resultErr error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-SynchronizeTxStatuses")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	lockAcquired := s.lock.TryLock()
 	if !lockAcquired {
 		s.logger.Warn("synchronizeTxStatuses is already running, skipping this run")
