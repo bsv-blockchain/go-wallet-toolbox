@@ -94,11 +94,11 @@ const maxLogBodySize = 32 * 1024 // 32KB
 type loggableResponse http.Response
 
 func (r *loggableResponse) LogValue() slog.Value {
-	attrs := []slog.Attr{
+	attrs := make([]slog.Attr, 0, 4)
+	attrs = append(attrs,
 		slog.Int("statusCode", r.StatusCode),
 		slog.String("status", r.Status),
-	}
-
+	)
 	attrs = append(attrs, r.bodyLogAttributes()...)
 
 	return slog.GroupValue(attrs...)

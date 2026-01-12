@@ -31,7 +31,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
-	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -693,7 +693,6 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	parsedCert, err := actions.ParseCertificateResponse(actions.ParseCertificateResponseParams{
 		Response:    res,
 		Args:        args,
-		Nonce:       nonce,
 		IdentityKey: key.PublicKey,
 	})
 	if err != nil {
@@ -778,6 +777,8 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 	var hmacArray [32]byte
 	copy(hmacArray[:], hmacSlice)
 
+	keyID := utils.BytesToUTF8(data)
+
 	// Verify the HMAC
 	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
 		Data: data,
@@ -787,7 +788,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "server hmac",
 			},
-			KeyID:        string(data),
+			KeyID:        keyID,
 			Counterparty: counterparty,
 		},
 	}, originator)
@@ -803,10 +804,10 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 }
 
 // createNonce generates a nonce for authentication and replay protection.
-func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
+func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) (string, error) {
 	nonce, err := utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create nonce for wallet: %w", err)
+		return "", fmt.Errorf("failed to create nonce for wallet: %w", err)
 	}
 
 	return nonce, nil
