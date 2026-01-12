@@ -37,6 +37,6 @@ func (f *FeeModel) Validate() error {
 func DefaultFeeModel() FeeModel {
 	return FeeModel{
 		Type:  SatPerKB,
-		Value: 100,
+		Value: 1,
 	}
 }
