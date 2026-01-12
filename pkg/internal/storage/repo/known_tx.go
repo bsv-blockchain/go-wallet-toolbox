@@ -79,14 +79,14 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	model.RawTx = req.RawTx
 	model.InputBeef = req.InputBeef
 
-	err = addTxNote(tx, txNote.Entity(req.TxID))
-	if err != nil {
-		return err
-	}
-
 	err = tx.Save(&model).Error
 	if err != nil {
 		return fmt.Errorf("cannot save known tx: %w", err)
+	}
+
+	err = addTxNote(tx, txNote.Entity(req.TxID))
+	if err != nil {
+		return err
 	}
 
 	return nil
