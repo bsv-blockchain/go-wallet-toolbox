@@ -10,10 +10,10 @@ type taskFactoryFunc func() tasks.TaskInterface
 func (d *Daemon) allTasksFactories() map[defs.MonitorTask]taskFactoryFunc {
 	return map[defs.MonitorTask]taskFactoryFunc{
 		defs.CheckForProofsMonitorTask: func() tasks.TaskInterface {
-			return tasks.NewCheckForProofsTask(d.storage)
+			return tasks.NewCheckForProofsTask(d.storage, d.communicationChannels.OnTxProven, d.logger)
 		},
 		defs.SendWaitingMonitorTask: func() tasks.TaskInterface {
-			return tasks.NewSendWaitingTask(d.storage)
+			return tasks.NewSendWaitingTask(d.storage, d.communicationChannels.OnTxBroadcasted, d.logger)
 		},
 		defs.FailAbandonedMonitorTask: func() tasks.TaskInterface {
 			return tasks.NewFailAbandonedTask(d.storage)

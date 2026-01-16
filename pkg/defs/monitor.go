@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq2"
 )
@@ -30,6 +31,16 @@ const (
 // ParseMonitorTaskStr parses a string to a MonitorTask or returns an error
 func ParseMonitorTaskStr(task string) (MonitorTask, error) {
 	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask, FailAbandonedMonitorTask, UnFailMonitorTask)
+}
+
+type MonitorTaskResponse struct {
+	TxID   string
+	Status string
+
+	BlockHash   string
+	BlockHeight uint32
+	MerklePath  *transaction.MerklePath
+	MerkleRoot  string
 }
 
 // TaskConfig defines configuration parameters for a monitoring task
@@ -107,10 +118,21 @@ func (t *TasksConfig) Validate() error {
 	return nil
 }
 
+type EventConfig struct {
+	Enabled     bool `mapstructure:"enabled"`
+	ChannelSize uint `mapstructure:"channel_size"`
+}
+
+type EventsConfig struct {
+	TxBroadcasted EventConfig `mapstructure:"tx_broadcasted"`
+	TxProven      EventConfig `mapstructure:"tx_proven"`
+}
+
 // Monitor represents a monitoring system configuration with tasks
 type Monitor struct {
-	Enabled bool        `mapstructure:"enabled"`
-	Tasks   TasksConfig `mapstructure:"tasks"`
+	Enabled bool         `mapstructure:"enabled"`
+	Tasks   TasksConfig  `mapstructure:"tasks"`
+	Events  EventsConfig `mapstructure:"events"`
 }
 
 // Validate verifies the monitor configuration, including its tasks.
@@ -142,6 +164,17 @@ func DefaultMonitorConfig() Monitor {
 			UnFail: TaskConfig{
 				Enabled:         true,
 				IntervalSeconds: must.ConvertToUInt((10 * time.Minute).Seconds()),
+			},
+		},
+		Events: EventsConfig{
+			// Note: Disabled by default because it requires event listeners to be registered to avoid blocking.
+			TxBroadcasted: EventConfig{
+				Enabled:     false,
+				ChannelSize: 100,
+			},
+			TxProven: EventConfig{
+				Enabled:     false,
+				ChannelSize: 100,
 			},
 		},
 	}

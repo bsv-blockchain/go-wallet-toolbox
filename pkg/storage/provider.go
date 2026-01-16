@@ -482,33 +482,33 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 }
 
 // SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
-func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
+func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.TxSynchronizedStatus, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SynchronizeTransactionStatuses")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.actions.SynchronizeTxStatuses(ctx)
+	results, err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+		return nil, fmt.Errorf("failed to synchronize transaction statuses: %w", err)
 	}
-	return nil
+	return results, nil
 }
 
 // SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
-func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SendWaitingTransactions")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.actions.SendWaitingTransactions(ctx, minTransactionAge)
+	results, err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
-		return fmt.Errorf("failed to send waiting transactions: %w", err)
+		return nil, fmt.Errorf("failed to send waiting transactions: %w", err)
 	}
-	return nil
+	return results, nil
 }
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.

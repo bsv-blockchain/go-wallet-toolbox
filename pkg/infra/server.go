@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -26,7 +27,11 @@ type Server struct {
 	storage       *storage.Provider
 	storageServer *storage.Server
 	monitor       *monitor.Daemon
-	cleanupFunc   []func()
+
+	txBroadcastedCh <-chan defs.MonitorTaskResponse
+	txProvenCh      <-chan defs.MonitorTaskResponse
+
+	cleanupFunc []func()
 }
 
 // NewServer creates a new server instance with given options, like config file path or a prefix for environment variables
@@ -93,15 +98,35 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to create server wallet: %w", err)
 	}
 
-	var daemon *monitor.Daemon
+	var (
+		daemon          *monitor.Daemon
+		txBroadcastedCh chan defs.MonitorTaskResponse
+		txProvenCh      chan defs.MonitorTaskResponse
+	)
 	if cfg.Monitor.Enabled {
-		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create daemon: %w", err)
+		var monitorOpts []monitor.CommunicationOption
+
+		if cfg.Monitor.Events.TxBroadcasted.Enabled {
+			txBroadcastedCh = make(chan defs.MonitorTaskResponse, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
+			monitorOpts = append(monitorOpts, monitor.WithBroadcastedTxChannel(txBroadcastedCh))
+
+			cleanupFuncs = append(cleanupFuncs, func() {
+				close(txBroadcastedCh)
+			})
 		}
 
-		if err = daemon.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
-			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
+		if cfg.Monitor.Events.TxProven.Enabled {
+			txProvenCh = make(chan defs.MonitorTaskResponse, cfg.Monitor.Events.TxProven.ChannelSize)
+			monitorOpts = append(monitorOpts, monitor.WithProvenTxChannel(txProvenCh))
+
+			cleanupFuncs = append(cleanupFuncs, func() {
+				close(txProvenCh)
+			})
+		}
+
+		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB, monitorOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create daemon: %w", err)
 		}
 	}
 
@@ -119,16 +144,30 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	return &Server{
 		Config: cfg,
 
-		logger:        logger,
-		storage:       activeStorage,
-		monitor:       daemon,
-		storageServer: storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
-		cleanupFunc:   cleanupFuncs,
+		logger:          logger,
+		storage:         activeStorage,
+		monitor:         daemon,
+		storageServer:   storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
+		txBroadcastedCh: txBroadcastedCh,
+		txProvenCh:      txProvenCh,
+		cleanupFunc:     cleanupFuncs,
 	}, nil
 }
 
 // ListenAndServe starts the JSON-RPC server
 func (s *Server) ListenAndServe() error {
+	if err := s.monitor.Start(s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
+		return fmt.Errorf("failed to start storage monitor: %w", err)
+	}
+
+	if s.txBroadcastedCh != nil {
+		go s.consumeTxBroadcasted()
+	}
+
+	if s.txProvenCh != nil {
+		go s.consumeTxProven()
+	}
+
 	err := s.storageServer.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start storage server: %w", err)
@@ -140,8 +179,35 @@ func (s *Server) ListenAndServe() error {
 // Cleanup releases all resources held by the server
 func (s *Server) Cleanup() {
 	s.logger.Info("Cleaning up resources...")
+
+	if s.monitor != nil {
+		_ = s.monitor.Stop()
+	}
+
 	for _, fn := range s.cleanupFunc {
 		fn()
+	}
+}
+
+func (s *Server) consumeTxBroadcasted() {
+	for msg := range s.txBroadcastedCh {
+		fmt.Println("<---------------------------- BROADCASTED")
+		s.logger.Info(
+			"tx broadcasted",
+			slog.String("tx_id", msg.TxID),
+			slog.String("status", msg.Status),
+		)
+	}
+}
+
+func (s *Server) consumeTxProven() {
+	for msg := range s.txProvenCh {
+		fmt.Println("<---------------------------- PROVEN")
+		s.logger.Info(
+			"tx proven",
+			slog.String("tx_id", msg.TxID),
+			slog.String("status", msg.Status),
+		)
 	}
 }
 
