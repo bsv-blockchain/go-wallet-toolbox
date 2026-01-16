@@ -36,7 +36,7 @@ func newFeeCalculator(model defs.FeeModel) *feeCalc {
 
 // Calculate computes the transaction fee based on the transaction size in bytes.
 // The fee is calculated using per-byte precision to align with SV Node's fee calculation method.
-// 
+//
 // Formula: fee = ceil(txSize / 1000 * satoshisPerKB)
 //
 // This ensures accurate fee calculation for transactions of any size, particularly important
