@@ -104,7 +104,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		txProvenCh      chan defs.MonitorTaskResponse
 	)
 	if cfg.Monitor.Enabled {
-		var monitorOpts []monitor.CommunicationOption
+		var monitorOpts []monitor.DaemonCommunicationOption
 
 		if cfg.Monitor.Events.TxBroadcasted.Enabled {
 			txBroadcastedCh = make(chan defs.MonitorTaskResponse, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
@@ -156,16 +156,16 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 
 // ListenAndServe starts the JSON-RPC server
 func (s *Server) ListenAndServe() error {
-	if err := s.monitor.Start(s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
-		return fmt.Errorf("failed to start storage monitor: %w", err)
-	}
-
 	if s.txBroadcastedCh != nil {
 		go s.consumeTxBroadcasted()
 	}
 
 	if s.txProvenCh != nil {
 		go s.consumeTxProven()
+	}
+
+	if err := s.monitor.Start(s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
+		return fmt.Errorf("failed to start storage monitor: %w", err)
 	}
 
 	err := s.storageServer.Start()
@@ -191,7 +191,6 @@ func (s *Server) Cleanup() {
 
 func (s *Server) consumeTxBroadcasted() {
 	for msg := range s.txBroadcastedCh {
-		fmt.Println("<---------------------------- BROADCASTED")
 		s.logger.Info(
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
@@ -202,7 +201,6 @@ func (s *Server) consumeTxBroadcasted() {
 
 func (s *Server) consumeTxProven() {
 	for msg := range s.txProvenCh {
-		fmt.Println("<---------------------------- PROVEN")
 		s.logger.Info(
 			"tx proven",
 			slog.String("tx_id", msg.TxID),

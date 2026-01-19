@@ -1,8 +1,6 @@
 package monitor
 
 import (
-	"fmt"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
@@ -11,7 +9,7 @@ type DaemonCommunicationOptions struct {
 	onTxProven      chan<- defs.MonitorTaskResponse
 }
 
-type CommunicationOption func(*DaemonCommunicationOptions)
+type DaemonCommunicationOption func(*DaemonCommunicationOptions)
 
 func defaultDaemonCommunicationOptions() *DaemonCommunicationOptions {
 	return &DaemonCommunicationOptions{
@@ -22,14 +20,12 @@ func defaultDaemonCommunicationOptions() *DaemonCommunicationOptions {
 
 func WithBroadcastedTxChannel(ch chan<- defs.MonitorTaskResponse) func(*DaemonCommunicationOptions) {
 	return func(o *DaemonCommunicationOptions) {
-		fmt.Println("Setting broadcasted tx channel")
 		o.onTxBroadcasted = ch
 	}
 }
 
 func WithProvenTxChannel(ch chan<- defs.MonitorTaskResponse) func(*DaemonCommunicationOptions) {
 	return func(o *DaemonCommunicationOptions) {
-		fmt.Println("Setting proven tx channel")
 		o.onTxProven = ch
 	}
 }

@@ -29,7 +29,8 @@ func TestKnownTxAttemptsFilters(t *testing.T) {
 
 	// when:
 	for i := 0; i < 3; i++ {
-		require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
 	}
 
 	// then:
@@ -93,7 +94,8 @@ func TestKnownTxBlockHeightFilters(t *testing.T) {
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).WillReturnTransactionWithBlockHeight(12345)
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(tx1.ID().String()).
@@ -156,7 +158,8 @@ func TestKnownTxBlockHashFilters(t *testing.T) {
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	expectedBlockHash := testservices.TestBlockHash
 
@@ -212,7 +215,8 @@ func TestKnownTxMerkleRootFilters(t *testing.T) {
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	txidHash, err := chainhash.NewHashFromHex(tx1.ID().String())
 	require.NoError(t, err)
@@ -272,7 +276,8 @@ func TestKnownTxStatusFilters(t *testing.T) {
 	provider.ARC().WhenQueryingTx(txMined.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(txUnmined.ID().String()).
@@ -327,7 +332,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithoutMerklePath()
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(tx1.ID().String()).
@@ -359,7 +365,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 	mp := testutils.MockValidMerklePath(t, tx1.ID().String(), 2000)
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	// then:
 	testabilities.ThenDBState(t, activeStorage).

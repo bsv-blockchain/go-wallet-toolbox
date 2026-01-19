@@ -40,12 +40,6 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 		return nil
 	}
 
-	fmt.Println("<-----------------------------------------------------------------")
-	fmt.Println("SendWaitingTask: Broadcasting results for not delayed transactions")
-	fmt.Println("NotDelayedResults:", len(results.NotDelayedResults))
-	fmt.Println("SendWithResults:", len(results.SendWithResults))
-	fmt.Println("----------------------------------------------------------------->")
-
 	for _, res := range results.NotDelayedResults {
 		msg := defs.MonitorTaskResponse{
 			TxID:   res.TxID.String(),

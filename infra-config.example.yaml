@@ -57,6 +57,13 @@ monitor:
             enabled: true
             interval_seconds: 600
             start_immediately: false
+    events:
+        tx_broadcasted:
+            enabled: false
+            channel_size: 100
+        tx_proven:
+            enabled: false
+            channel_size: 100
 name: go-storage-server
 server_private_key: ""
 synchronize_tx_statuses:

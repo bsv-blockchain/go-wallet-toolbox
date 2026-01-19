@@ -49,7 +49,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...CommunicationOption) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...DaemonCommunicationOption) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
