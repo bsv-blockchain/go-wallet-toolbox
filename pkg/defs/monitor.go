@@ -33,6 +33,7 @@ func ParseMonitorTaskStr(task string) (MonitorTask, error) {
 	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask, FailAbandonedMonitorTask, UnFailMonitorTask)
 }
 
+// MonitorTaskResponse represents the response from a monitoring task
 type MonitorTaskResponse struct {
 	TxID   string
 	Status string
@@ -118,11 +119,14 @@ func (t *TasksConfig) Validate() error {
 	return nil
 }
 
+// EventConfig defines configuration parameters for monitoring events
+// If enabled is true, the event will be emitted with the specified channel size.
 type EventConfig struct {
 	Enabled     bool `mapstructure:"enabled"`
 	ChannelSize uint `mapstructure:"channel_size"`
 }
 
+// EventsConfig is a struct that contains fields each possible monitoring event
 type EventsConfig struct {
 	TxBroadcasted EventConfig `mapstructure:"tx_broadcasted"`
 	TxProven      EventConfig `mapstructure:"tx_proven"`

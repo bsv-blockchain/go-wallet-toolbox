@@ -34,6 +34,7 @@ type Daemon struct {
 	communicationChannels CommunicationChannels
 }
 
+// CommunicationChannels holds channels for communicating task results back to other components.
 type CommunicationChannels struct {
 	OnTxBroadcasted chan<- defs.MonitorTaskResponse
 	OnTxProven      chan<- defs.MonitorTaskResponse

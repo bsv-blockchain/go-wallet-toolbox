@@ -53,7 +53,7 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 		select {
 		case t.communicationChannel <- msg:
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
 		default:
 			t.logger.Warn("TxBroadcasted channel full, dropping event")
 		}
