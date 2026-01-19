@@ -4,6 +4,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// TxSynchronizedStatus represents the synchronization status of a transaction.
 type TxSynchronizedStatus struct {
 	TxID   string
 	Status ProvenTxReqStatus
