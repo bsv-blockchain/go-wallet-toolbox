@@ -30,6 +30,14 @@ type Daemon struct {
 
 	started   bool
 	startLock sync.Mutex
+
+	communicationChannels CommunicationChannels
+}
+
+// CommunicationChannels holds channels for communicating task results back to other components.
+type CommunicationChannels struct {
+	OnTxBroadcasted chan<- defs.MonitorTaskResponse
+	OnTxProven      chan<- defs.MonitorTaskResponse
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -42,7 +50,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...DaemonCommunicationOption) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
@@ -57,21 +65,31 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, gocron.WithDistributedLocker(locker))
+	options := defaultDaemonCommunicationOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, options, gocron.WithDistributedLocker(locker))
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MonitoredStorage, communicationOptions *DaemonCommunicationOptions, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}
+
 	return &Daemon{
 		scheduler:   scheduler,
 		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 		storage:     storage,
+		communicationChannels: CommunicationChannels{
+			OnTxBroadcasted: communicationOptions.onTxBroadcasted,
+			OnTxProven:      communicationOptions.onTxProven,
+		},
 	}, nil
 }
 

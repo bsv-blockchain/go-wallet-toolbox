@@ -31,7 +31,7 @@ func TestSynchronizeTx(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestSynchronizeManyTxs(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 	_ = givenProvider.WhatsOnChain().WillBeUnreachable()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// and:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -152,7 +152,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
 	// when:
-	err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 		)
 
 	// when:
-	err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -252,7 +252,7 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 
 	// when:
 	for attempt := range defs.DefaultSynchronizeTxStatuses().MaxAttempts {
-		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
 
 		// then:
@@ -305,7 +305,7 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 			test.setupARCMock(arcQueryFixture)
 
 			// when:
-			err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+			_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 			// then:
 			require.NoError(t, err)
@@ -335,7 +335,7 @@ func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 		noSendTxID := when.NoSendTxs()[0]
 		given.Provider().ARC().WhenQueryingTx(noSendTxID).WillReturnWithMindedTx()
 
-		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 		// then:
 		require.NoError(t, err)
@@ -363,7 +363,7 @@ func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 
 		// when:
 		when.WillSendSats(1).CreateAndProcessNoSendAction(nil)
-		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 		// then:
 		require.NoError(t, err)
