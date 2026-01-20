@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -336,24 +337,29 @@ func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []s
 	return nil
 }
 
-func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
-	var err error
+func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) ([]models.KnownTx, error) {
+	var (
+		err        error
+		updatedTxs []models.KnownTx
+	)
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetStatusForKnownTxsAboveAttempts", attribute.String("Status", string(status)), attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
 	if attempts == 0 {
-		return nil
+		return nil, nil
 	}
 
 	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("attempts >= ? ", attempts).
-		UpdateColumn("status", status).Error
+		Clauses(clause.Returning{}).
+		UpdateColumn("status", status).
+		Scan(&updatedTxs).Error
 	if err != nil {
-		return fmt.Errorf("failed to set status for known transactions above attempts: %w", err)
+		return nil, fmt.Errorf("failed to set status for known transactions above attempts: %w", err)
 	}
-	return nil
+	return updatedTxs, nil
 }
 
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
