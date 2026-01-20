@@ -115,8 +115,8 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 	t.Run("return error when all services are unreachable", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		given.Bitails().WillBeUnreachable()
-		given.WhatsOnChain().WillBeUnreachable()
+		_ = given.Bitails().WillBeUnreachable()
+		_ = given.WhatsOnChain().WillBeUnreachable()
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
 
 		// and:

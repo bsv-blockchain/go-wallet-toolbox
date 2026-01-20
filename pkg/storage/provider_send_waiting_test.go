@@ -33,7 +33,7 @@ func TestSendWaitingTransactions(t *testing.T) {
 
 	// when:
 	given.Provider().ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
-	err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute) // NOTE: using negative aged limit to ensure all waiting transactions are sent
+	_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute) // NOTE: using negative aged limit to ensure all waiting transactions are sent
 
 	// then:
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestSendWaitingTransactions_Empty(t *testing.T) {
 		GORM()
 
 	// when:
-	err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute) // NOTE: using negative aged limit to ensure all waiting transactions are sent
+	_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute) // NOTE: using negative aged limit to ensure all waiting transactions are sent
 
 	// then:
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestSendWaitingTransactions_MinTransactionAge(t *testing.T) {
 
 	// when:
 	given.Provider().ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
-	err := activeStorage.SendWaitingTransactions(t.Context(), minTransactionAge)
+	_, err := activeStorage.SendWaitingTransactions(t.Context(), minTransactionAge)
 
 	// then:
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestSendWaitingTransactions_SeveralFailures(t *testing.T) {
 
 	for range tries {
 		// when:
-		err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+		_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
 
 		// then:
 		assert.NoError(t, err)
@@ -119,7 +119,7 @@ func TestSendWaitingTransactions_SeveralFailures(t *testing.T) {
 
 	// when:
 	given.Provider().ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
-	err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+	_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
 
 	// then:
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestSendWaitingTransactions_ConcurrentCalls(t *testing.T) {
 			defer wg.Done()
 
 			// when:
-			err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+			_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
 
 			// then:
 			assert.NoError(t, err)
