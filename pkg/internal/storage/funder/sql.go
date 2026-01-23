@@ -196,6 +196,15 @@ func (c *utxoCollector) Allocate(utxos iter.Seq2[*models.UserUTXO, error]) error
 }
 
 func (c *utxoCollector) IsFunded() bool {
+	// When txSats <= 0, it indicates that either:
+	// 1. The action was created without inputs and outputs, or
+	// 2. Only inputs are defined in tx
+	// In both cases, we must ensure satsCovered strictly exceeds satsToCover to guarantee
+	// at least one change output is created, as a valid Bitcoin transaction requires at least one output.
+	if c.txSats <= 0 {
+		return c.satsCovered > c.satsToCover()
+	}
+
 	return c.satsCovered >= c.satsToCover()
 }
 
