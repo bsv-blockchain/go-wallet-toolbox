@@ -65,7 +65,8 @@ func TestSendWaitingMonitorTask_FirstRunWithZeroMinTransactionAge(t *testing.T) 
 	t.Parallel()
 	// given:
 	mockStorage := &testabilities.MockStorage{}
-	task := tasks.NewSendWaitingTask(mockStorage)
+	// pass nil channel and nil logger to match new constructor signature; task will return early because channel is nil
+	task := tasks.NewSendWaitingTask(mockStorage, nil, nil)
 
 	// when:
 	err := task.Run(t.Context())

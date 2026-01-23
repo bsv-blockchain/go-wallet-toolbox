@@ -5,6 +5,11 @@ import (
 	"fmt"
 )
 
+// UnFailChecker checks failed transactions against the chain and updates their status if they are found.
+type UnFailChecker interface {
+	UnFail(ctx context.Context) error
+}
+
 // UnFailTask iterates failed transactions and re-checks their on-chain status.
 type UnFailTask struct {
 	storage UnFailChecker
