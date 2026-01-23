@@ -195,6 +195,53 @@ func TestService_Lifecycle(t *testing.T) {
 	})
 }
 
+func TestService_ReorgCallback(t *testing.T) {
+	// given:
+	mockCT := testabilities.NewMockChaintracks()
+
+	reorgEvent := &chaintracks.ReorgEvent{
+		Depth:          4,
+		OrphanedHashes: []chainhash.Hash{{0x01}, {0x02}},
+		NewTip:         &chaintracks.BlockHeader{Height: 102},
+		CommonAncestor: &chaintracks.BlockHeader{Height: 100},
+	}
+
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err, "failed to create service")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// Track callback invocations
+	var reorgReceived atomic.Bool
+	var receivedReorgEvent atomic.Pointer[chaintracks.ReorgEvent]
+
+	// when:
+	err = service.Start(ctx, chaintracksclient.Callbacks{
+		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			receivedReorgEvent.Store(event)
+			reorgReceived.Store(true)
+			return nil
+		},
+	})
+	require.NoError(t, err, "start should not return error")
+
+	mockCT.SendReorg(reorgEvent)
+
+	require.Eventually(t, func() bool {
+		return reorgReceived.Load()
+	}, 1*time.Second, 10*time.Millisecond, "should receive reorg event")
+
+	event := receivedReorgEvent.Load()
+	require.NotNil(t, event, "received reorg event should not be nil")
+	assert.Equal(t, reorgEvent, event)
+}
+
 func TestService_StartWithNilCallback(t *testing.T) {
 	// given:
 	mockCT := testabilities.NewMockChaintracks()
@@ -212,14 +259,15 @@ func TestService_StartWithNilCallback(t *testing.T) {
 
 	// when:
 	err = service.Start(ctx, chaintracksclient.Callbacks{
-		OnTip: nil,
+		OnTip:   nil,
+		OnReorg: nil,
 	})
 
 	// then:
 	require.NoError(t, err, "start with nil callback should not return error")
 }
 
-func TestService_CallbackError(t *testing.T) {
+func TestService_OnTipCallbackError(t *testing.T) {
 	// given:
 	mockCT := testabilities.NewMockChaintracks()
 	tipHash, _ := chainhash.NewHashFromHex("00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31")
@@ -252,6 +300,47 @@ func TestService_CallbackError(t *testing.T) {
 
 	// Send a tip
 	mockCT.SendTip(tipHeader)
+
+	// then:
+	require.Eventually(t, func() bool {
+		return callbackInvoked.Load()
+	}, 1*time.Second, 10*time.Millisecond, "callback should be invoked even if it returns error")
+}
+
+func TestService_OnReorgCallbackError(t *testing.T) {
+	// given:
+	mockCT := testabilities.NewMockChaintracks()
+	reorgEvent := &chaintracks.ReorgEvent{
+		Depth:          4,
+		OrphanedHashes: []chainhash.Hash{{0x01}, {0x02}},
+		NewTip:         &chaintracks.BlockHeader{Height: 102},
+		CommonAncestor: &chaintracks.BlockHeader{Height: 100},
+	}
+
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var callbackInvoked atomic.Bool
+
+	// when:
+	err = service.Start(ctx, chaintracksclient.Callbacks{
+		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			callbackInvoked.Store(true)
+			return assert.AnError
+		},
+	})
+	require.NoError(t, err)
+
+	// Send a reorg event to subscribers
+	mockCT.SendReorg(reorgEvent)
 
 	// then:
 	require.Eventually(t, func() bool {

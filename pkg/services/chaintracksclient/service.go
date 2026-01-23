@@ -13,15 +13,16 @@ import (
 )
 
 type Callbacks struct {
-	OnTip func(*chaintracks.BlockHeader) error
+	OnTip   func(*chaintracks.BlockHeader) error
+	OnReorg func(*chaintracks.ReorgEvent) error
 }
 
 type Adapter struct {
 	logger *slog.Logger
 
-	ct      chaintracks.Chaintracks
-	tipChan <-chan *chaintracks.BlockHeader
-	// TODO: reorgChan <- add when go-chaintract supports  reorg
+	ct        chaintracks.Chaintracks
+	tipChan   <-chan *chaintracks.BlockHeader
+	reorgChan <-chan *chaintracks.ReorgEvent
 }
 
 func New(logger *slog.Logger, cfg *config.Config, p2pClient *p2p.Client, opts ...Option) (*Adapter, error) {
@@ -47,25 +48,51 @@ func New(logger *slog.Logger, cfg *config.Config, p2pClient *p2p.Client, opts ..
 }
 
 func (a *Adapter) Start(ctx context.Context, cb Callbacks) error {
-	if cb.OnTip == nil {
+	a.subscribeToTipChan(ctx, cb.OnTip)
+	a.subscribeToReorgChan(ctx, cb.OnReorg)
+
+	return nil
+}
+
+func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.BlockHeader) error) {
+	if cb == nil {
 		// TODO: warn for now but maybe we should error?
-		a.logger.Warn("onTip function is nil, tipChan results will be ignored")
+		a.logger.Warn("onTip callback is nil, tipChan results will be ignored")
+		return
 	}
 	a.tipChan = a.ct.Subscribe(ctx)
-
 	go func() {
 		for header := range a.tipChan {
-			if cb.OnTip != nil {
-				if err := cb.OnTip(header); err != nil {
+			if cb != nil {
+				if err := cb(header); err != nil {
 					a.logger.Error("onTip callback failed", "height", header.Height, "hash", header.Hash.String(), "err", err)
 				}
 			}
 		}
 	}()
+}
 
-	// TODO: a.reorgChan = a.ct.SubscribeReorg()... add when go-chaintracks supports reorg
+func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks.ReorgEvent) error) {
+	if cb == nil {
+		// TODO: warn for now but maybe we should error?
+		a.logger.Warn("onReorg callback is nil, reorgChan results will be ignored")
+		return
+	}
 
-	return nil
+	a.reorgChan = a.ct.SubscribeReorg(ctx)
+	go func() {
+		for reorgEvent := range a.reorgChan {
+			if cb != nil {
+				if err := cb(reorgEvent); err != nil {
+					a.logger.Error("onReorg callback failed",
+						"depth", reorgEvent.Depth,
+						"new tip hash", reorgEvent.NewTip.Hash.String(),
+						"orphaned hashes", reorgEvent.OrphanedHashes,
+						"err", err)
+				}
+			}
+		}
+	}()
 }
 
 func (a *Adapter) CurrentHeight(ctx context.Context) (uint32, error) {

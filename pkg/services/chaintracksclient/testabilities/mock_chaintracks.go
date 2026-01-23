@@ -10,7 +10,8 @@ import (
 
 // MockChaintracks is a mock implementation of the chaintracks.Chaintracks interface for testing.
 type MockChaintracks struct {
-	mu sync.RWMutex
+	mu      sync.RWMutex
+	reorgMu sync.RWMutex
 
 	height  uint32
 	tip     *chaintracks.BlockHeader
@@ -18,7 +19,8 @@ type MockChaintracks struct {
 	network string
 
 	// Subscription management - use bidirectional channels internally
-	subscribers []chan *chaintracks.BlockHeader
+	subscribers      []chan *chaintracks.BlockHeader
+	reorgSubscribers []chan *chaintracks.ReorgEvent
 }
 
 // NewMockChaintracks creates a new mock chaintracks instance.
@@ -68,6 +70,18 @@ func (m *MockChaintracks) SendTip(header *chaintracks.BlockHeader) {
 	for _, ch := range m.subscribers {
 		select {
 		case ch <- header:
+		default:
+		}
+	}
+}
+
+// SendReorg sends a reorg event to all subscribers.
+func (m *MockChaintracks) SendReorg(event *chaintracks.ReorgEvent) {
+	m.reorgMu.RLock()
+	defer m.reorgMu.RUnlock()
+	for _, ch := range m.reorgSubscribers {
+		select {
+		case ch <- event:
 		default:
 		}
 	}
@@ -132,6 +146,18 @@ func (m *MockChaintracks) Subscribe(_ context.Context) <-chan *chaintracks.Block
 }
 
 func (m *MockChaintracks) Unsubscribe(ch <-chan *chaintracks.BlockHeader) {
+	// No-op, for testing it doesn't need to be implemented
+}
+
+func (m *MockChaintracks) SubscribeReorg(_ context.Context) <-chan *chaintracks.ReorgEvent {
+	m.reorgMu.Lock()
+	defer m.reorgMu.Unlock()
+	ch := make(chan *chaintracks.ReorgEvent, 1)
+	m.reorgSubscribers = append(m.reorgSubscribers, ch)
+	return ch
+}
+
+func (m *MockChaintracks) UnsubscribeReorg(ch <-chan *chaintracks.ReorgEvent) {
 	// No-op, for testing it doesn't need to be implemented
 }
 
