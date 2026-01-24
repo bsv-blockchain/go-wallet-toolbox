@@ -15,7 +15,7 @@ import (
 // Callbacks defines the callback functions for chaintracks events
 type Callbacks struct {
 	// OnTip is called when a new block tip is received
-	OnTip   func(*chaintracks.BlockHeader) error
+	OnTip func(*chaintracks.BlockHeader) error
 	// OnReorg is called when a blockchain reorganization occurs
 	OnReorg func(*chaintracks.ReorgEvent) error
 }
