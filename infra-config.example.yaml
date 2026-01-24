@@ -40,6 +40,13 @@ logging:
     level: info
 monitor:
     enabled: true
+    events:
+        tx_broadcasted:
+            channel_size: 100
+            enabled: false
+        tx_proven:
+            channel_size: 100
+            enabled: false
     tasks:
         check_for_proofs:
             enabled: true

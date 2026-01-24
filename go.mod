@@ -3,26 +3,26 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.25.4
 
 require (
-	github.com/bsv-blockchain/go-bsv-middleware v0.12.2
+	github.com/bsv-blockchain/go-bsv-middleware v0.12.3
 	github.com/bsv-blockchain/go-chaintracks v1.0.3
 	github.com/bsv-blockchain/go-sdk v1.2.14
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.0.0
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
-	github.com/filecoin-project/go-jsonrpc v0.9.0
+	github.com/filecoin-project/go-jsonrpc v0.10.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0
-	github.com/go-co-op/gocron/v2 v2.18.2
-	github.com/go-resty/resty/v2 v2.17.0
+	github.com/go-co-op/gocron/v2 v2.19.0
+	github.com/go-resty/resty/v2 v2.17.1
 	github.com/go-softwarelab/common v1.8.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/google/uuid v1.6.0
 	github.com/jarcoal/httpmock v1.4.1
-	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.39.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
 	go.uber.org/mock v0.6.0
@@ -278,7 +278,7 @@ require (
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260120221211-b8f7ae30c516 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/grpc v1.78.0 // indirect
+	google.golang.org/grpc v1.79.0-dev // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
