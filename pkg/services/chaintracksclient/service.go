@@ -12,11 +12,15 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 )
 
+// Callbacks defines the callback functions for chaintracks events
 type Callbacks struct {
+	// OnTip is called when a new block tip is received
 	OnTip   func(*chaintracks.BlockHeader) error
+	// OnReorg is called when a blockchain reorganization occurs
 	OnReorg func(*chaintracks.ReorgEvent) error
 }
 
+// Adapter provides a wrapper around the chaintracks client with event subscription capabilities
 type Adapter struct {
 	logger *slog.Logger
 
@@ -25,6 +29,7 @@ type Adapter struct {
 	reorgChan <-chan *chaintracks.ReorgEvent
 }
 
+// New creates a new chaintracks adapter with the given configuration and P2P client
 func New(logger *slog.Logger, cfg *config.Config, p2pClient *p2p.Client, opts ...Option) (*Adapter, error) {
 	logger = logging.Child(logger, "chaintracks")
 
@@ -47,6 +52,7 @@ func New(logger *slog.Logger, cfg *config.Config, p2pClient *p2p.Client, opts ..
 	return adapter, nil
 }
 
+// Start begins listening for chaintracks events and invokes the provided callbacks
 func (a *Adapter) Start(ctx context.Context, cb Callbacks) error {
 	a.subscribeToTipChan(ctx, cb.OnTip)
 	a.subscribeToReorgChan(ctx, cb.OnReorg)
@@ -54,6 +60,7 @@ func (a *Adapter) Start(ctx context.Context, cb Callbacks) error {
 	return nil
 }
 
+// subscribeToTipChan subscribes to new block tip events and processes them with the provided callback
 func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.BlockHeader) error) {
 	if cb == nil {
 		// TODO: warn for now but maybe we should error?
@@ -72,6 +79,7 @@ func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.B
 	}()
 }
 
+// subscribeToReorgChan subscribes to blockchain reorganization events and processes them with the provided callback
 func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks.ReorgEvent) error) {
 	if cb == nil {
 		// TODO: warn for now but maybe we should error?
@@ -95,6 +103,7 @@ func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks
 	}()
 }
 
+// CurrentHeight returns the current blockchain height from chaintracks
 func (a *Adapter) CurrentHeight(ctx context.Context) (uint32, error) {
 	ch, err := a.ct.CurrentHeight(ctx)
 	if err != nil {
@@ -104,6 +113,7 @@ func (a *Adapter) CurrentHeight(ctx context.Context) (uint32, error) {
 	return ch, nil
 }
 
+// IsValidRootForHeight checks if the given merkle root is valid for the specified block height
 func (a *Adapter) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
 	isValid, err := a.ct.IsValidRootForHeight(ctx, root, height)
 	if err != nil {

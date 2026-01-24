@@ -82,6 +82,7 @@ func TestService_Lifecycle(t *testing.T) {
 
 	mockCT.SendTip(tipHeader)
 
+	// then:
 	require.Eventually(t, func() bool {
 		return tipReceived.Load()
 	}, 1*time.Second, 10*time.Millisecond, "should receive tip")
@@ -233,6 +234,7 @@ func TestService_ReorgCallback(t *testing.T) {
 
 	mockCT.SendReorg(reorgEvent)
 
+	// then:
 	require.Eventually(t, func() bool {
 		return reorgReceived.Load()
 	}, 1*time.Second, 10*time.Millisecond, "should receive reorg event")
@@ -298,7 +300,6 @@ func TestService_OnTipCallbackError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Send a tip
 	mockCT.SendTip(tipHeader)
 
 	// then:
@@ -339,7 +340,6 @@ func TestService_OnReorgCallbackError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Send a reorg event to subscribers
 	mockCT.SendReorg(reorgEvent)
 
 	// then:
