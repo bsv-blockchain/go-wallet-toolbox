@@ -17,15 +17,15 @@ type WaitingTransactionsSender interface {
 type SendWaitingTask struct {
 	storage              WaitingTransactionsSender
 	firstRun             bool
-	communicationChannel chan<- defs.MonitorTaskResponse
+	txBroadcastedChannel chan<- defs.TransactionStatusUpdate
 	logger               *slog.Logger
 }
 
-func NewSendWaitingTask(storage WaitingTransactionsSender, communicationChannel chan<- defs.MonitorTaskResponse, log *slog.Logger) TaskInterface {
+func NewSendWaitingTask(storage WaitingTransactionsSender, txBroadcastedChannel chan<- defs.TransactionStatusUpdate, log *slog.Logger) TaskInterface {
 	return &SendWaitingTask{
 		storage:              storage,
 		firstRun:             true,
-		communicationChannel: communicationChannel,
+		txBroadcastedChannel: txBroadcastedChannel,
 		logger:               log,
 	}
 }
@@ -36,22 +36,18 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 		return fmt.Errorf("send waiting transactions failed: %w", err)
 	}
 
-	if t.communicationChannel == nil || results == nil {
+	if t.txBroadcastedChannel == nil || results == nil {
 		return nil
 	}
 
 	for _, res := range results.NotDelayedResults {
-		msg := defs.MonitorTaskResponse{
+		msg := defs.TransactionStatusUpdate{
 			TxID:   res.TxID.String(),
-			Status: "broadcasted",
-		}
-
-		if res.Status != wdk.ReviewActionResultStatusSuccess {
-			msg.Status = "failed"
+			Status: defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
 		}
 
 		select {
-		case t.communicationChannel <- msg:
+		case t.txBroadcastedChannel <- msg:
 		case <-ctx.Done():
 			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
 		default:

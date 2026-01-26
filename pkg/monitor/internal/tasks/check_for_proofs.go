@@ -14,16 +14,16 @@ type TransactionStatusesSynchronizer interface {
 }
 
 type CheckForProofsTask struct {
-	storage              TransactionStatusesSynchronizer
-	communicationChannel chan<- defs.MonitorTaskResponse
-	logger               *slog.Logger
+	storage         TransactionStatusesSynchronizer
+	txProvenChannel chan<- defs.TransactionStatusUpdate
+	logger          *slog.Logger
 }
 
-func NewCheckForProofsTask(storage TransactionStatusesSynchronizer, communicationChannel chan<- defs.MonitorTaskResponse, log *slog.Logger) TaskInterface {
+func NewCheckForProofsTask(storage TransactionStatusesSynchronizer, txProvenChannel chan<- defs.TransactionStatusUpdate, log *slog.Logger) TaskInterface {
 	return &CheckForProofsTask{
-		storage:              storage,
-		communicationChannel: communicationChannel,
-		logger:               log,
+		storage:         storage,
+		txProvenChannel: txProvenChannel,
+		logger:          log,
 	}
 }
 
@@ -33,14 +33,14 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 		return fmt.Errorf("synchronize transaction statuses failed: %w", err)
 	}
 
-	if t.communicationChannel == nil {
+	if t.txProvenChannel == nil {
 		return nil
 	}
 
 	for _, res := range results {
-		msg := defs.MonitorTaskResponse{
+		msg := defs.TransactionStatusUpdate{
 			TxID:        res.TxID,
-			Status:      string(res.Status),
+			Status:      defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
 			MerkleRoot:  res.MerkleRoot,
 			MerklePath:  res.MerklePath,
 			BlockHeight: res.BlockHeight,
@@ -48,11 +48,11 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 		}
 
 		select {
-		case t.communicationChannel <- msg:
+		case t.txProvenChannel <- msg:
 		case <-ctx.Done():
 			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
 		default:
-			t.logger.Warn("TxBroadcasted channel full, dropping event")
+			t.logger.Warn("TxProven channel full, dropping event")
 		}
 	}
 

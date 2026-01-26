@@ -33,15 +33,75 @@ func ParseMonitorTaskStr(task string) (MonitorTask, error) {
 	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask, FailAbandonedMonitorTask, UnFailMonitorTask)
 }
 
-// MonitorTaskResponse represents the response from a monitoring task
-type MonitorTaskResponse struct {
+// TransactionStatusUpdate represents the response from a monitoring task
+type TransactionStatusUpdate struct {
 	TxID   string
-	Status string
+	Status TxUpdateStatus
 
 	BlockHash   string
 	BlockHeight uint32
 	MerklePath  *transaction.MerklePath
 	MerkleRoot  string
+}
+
+// TxUpdateStatus represents the status of a transaction in a monitoring task response
+type TxUpdateStatus string
+
+// Possible values for TxUpdateStatus
+const (
+	TxUpdateStatusCallback    TxUpdateStatus = "callback"
+	TxUpdateStatusCompleted   TxUpdateStatus = "completed"
+	TxUpdateStatusDoubleSpend TxUpdateStatus = "doubleSpend"
+	TxUpdateStatusFailed      TxUpdateStatus = "failed"
+	TxUpdateStatusInvalid     TxUpdateStatus = "invalid"
+	TxUpdateStatusNonFinal    TxUpdateStatus = "nonfinal"
+	TxUpdateStatusNoSend      TxUpdateStatus = "nosend"
+	TxUpdateStatusSending     TxUpdateStatus = "sending"
+	TxUpdateStatusUnconfirmed TxUpdateStatus = "unconfirmed"
+	TxUpdateStatusUnfail      TxUpdateStatus = "unfail"
+	TxUpdateStatusUnknown     TxUpdateStatus = "unknown"
+	TxUpdateStatusUnmined     TxUpdateStatus = "unmined"
+	TxUpdateStatusUnprocessed TxUpdateStatus = "unprocessed"
+	TxUpdateStatusUnproven    TxUpdateStatus = "unproven"
+	TxUpdateStatusUnsent      TxUpdateStatus = "unsent"
+)
+
+// String returns the string representation of TxUpdateStatus
+func (s TxUpdateStatus) String() string {
+	return string(s)
+}
+
+// allTxUpdateStatuses contains all valid TxUpdateStatus values for parsing
+var allTxUpdateStatuses = []TxUpdateStatus{
+	TxUpdateStatusCallback,
+	TxUpdateStatusCompleted,
+	TxUpdateStatusDoubleSpend,
+	TxUpdateStatusFailed,
+	TxUpdateStatusInvalid,
+	TxUpdateStatusNonFinal,
+	TxUpdateStatusNoSend,
+	TxUpdateStatusSending,
+	TxUpdateStatusUnconfirmed,
+	TxUpdateStatusUnfail,
+	TxUpdateStatusUnknown,
+	TxUpdateStatusUnmined,
+	TxUpdateStatusUnprocessed,
+	TxUpdateStatusUnproven,
+	TxUpdateStatusUnsent,
+}
+
+// ParseTxUpdateStatus parses a string to TxUpdateStatus or returns an error
+func ParseTxUpdateStatus(status string) (TxUpdateStatus, error) {
+	return parseEnumCaseInsensitive(status, allTxUpdateStatuses...)
+}
+
+// ParseTxUpdateStatusOrUnknown parses a string to TxUpdateStatus, returning TxUpdateStatusUnknown if parsing fails
+func ParseTxUpdateStatusOrUnknown(status string) TxUpdateStatus {
+	parsed, err := ParseTxUpdateStatus(status)
+	if err != nil {
+		return TxUpdateStatusUnknown
+	}
+	return parsed
 }
 
 // TaskConfig defines configuration parameters for a monitoring task

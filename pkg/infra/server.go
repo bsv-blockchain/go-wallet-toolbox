@@ -28,8 +28,8 @@ type Server struct {
 	storageServer *storage.Server
 	monitor       *monitor.Daemon
 
-	txBroadcastedCh <-chan defs.MonitorTaskResponse
-	txProvenCh      <-chan defs.MonitorTaskResponse
+	txBroadcastedCh <-chan defs.TransactionStatusUpdate
+	txProvenCh      <-chan defs.TransactionStatusUpdate
 
 	cleanupFunc []func()
 }
@@ -100,14 +100,14 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 
 	var (
 		daemon          *monitor.Daemon
-		txBroadcastedCh chan defs.MonitorTaskResponse
-		txProvenCh      chan defs.MonitorTaskResponse
+		txBroadcastedCh chan defs.TransactionStatusUpdate
+		txProvenCh      chan defs.TransactionStatusUpdate
 	)
 	if cfg.Monitor.Enabled {
-		var monitorOpts []monitor.DaemonCommunicationOption
+		var monitorOpts []monitor.DaemonEventOption
 
 		if cfg.Monitor.Events.TxBroadcasted.Enabled {
-			txBroadcastedCh = make(chan defs.MonitorTaskResponse, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
+			txBroadcastedCh = make(chan defs.TransactionStatusUpdate, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
 			monitorOpts = append(monitorOpts, monitor.WithBroadcastedTxChannel(txBroadcastedCh))
 
 			cleanupFuncs = append(cleanupFuncs, func() {
@@ -116,7 +116,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		}
 
 		if cfg.Monitor.Events.TxProven.Enabled {
-			txProvenCh = make(chan defs.MonitorTaskResponse, cfg.Monitor.Events.TxProven.ChannelSize)
+			txProvenCh = make(chan defs.TransactionStatusUpdate, cfg.Monitor.Events.TxProven.ChannelSize)
 			monitorOpts = append(monitorOpts, monitor.WithProvenTxChannel(txProvenCh))
 
 			cleanupFuncs = append(cleanupFuncs, func() {
@@ -194,7 +194,7 @@ func (s *Server) consumeTxBroadcasted() {
 		s.logger.Info(
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
-			slog.String("status", msg.Status),
+			slog.String("status", msg.Status.String()),
 		)
 	}
 }
@@ -204,7 +204,7 @@ func (s *Server) consumeTxProven() {
 		s.logger.Info(
 			"tx proven",
 			slog.String("tx_id", msg.TxID),
-			slog.String("status", msg.Status),
+			slog.String("status", msg.Status.String()),
 		)
 	}
 }
