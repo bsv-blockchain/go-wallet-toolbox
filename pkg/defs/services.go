@@ -38,6 +38,9 @@ const (
 	// BHSApiKey is the token for the BHS service
 	BHSApiKey = ""
 
+	// ChaintracksTestURL is the URL for the ChaintracksClient service
+	ChaintracksTestURL = "http://localhost:3011"
+
 	// DefaultGetBeefMaxDepth is the maximum depth for GetBEEF requests
 	DefaultGetBeefMaxDepth = 100
 )
@@ -55,13 +58,14 @@ type WalletServices struct {
 	Chain               BSVNetwork        `mapstructure:"-"`
 	FiatExchangeRates   FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
 	FiatUpdateInterval  *time.Duration    `mapstructure:"fiat_update_interval"`
-	ExchangeratesApiKey string            `mapstructure:"exchangerates_api_key"`
+	ExchangeratesAPIKey string            `mapstructure:"exchangerates_api_key"`
 	GetBeefMaxDepth     uint              `mapstructure:"get_beef_max_depth"`
 
-	ArcConfig    ARC          `mapstructure:"arc"`
-	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
-	Bitails      Bitails      `mapstructure:"bitails"`
-	BHS          BHS          `mapstructure:"bhs"`
+	ArcConfig         ARC               `mapstructure:"arc"`
+	WhatsOnChain      WhatsOnChain      `mapstructure:"whats_on_chain"`
+	Bitails           Bitails           `mapstructure:"bitails"`
+	BHS               BHS               `mapstructure:"bhs"`
+	ChaintracksClient ChaintracksClient `mapstructure:"chaintracks"`
 }
 
 // Validate checks the validity of the WalletServices struct
@@ -86,6 +90,10 @@ func (ws *WalletServices) Validate() error {
 
 	if err = ws.Bitails.Validate(); err != nil {
 		return fmt.Errorf("invalid Bitails config: %w", err)
+	}
+
+	if err = ws.ChaintracksClient.Validate(); err != nil {
+		return fmt.Errorf("invalid Chaintracks config: %w", err)
 	}
 
 	return nil
@@ -122,6 +130,11 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			Enabled:                    false, // NOTE: Bitails is disabled by default
 			ScriptHashHistoryPageLimit: defaultScriptHashHistoryPageLimit,
 		},
+		ChaintracksClient: ChaintracksClient{
+			Enabled:   false,
+			Mode:      "remote",
+			RemoteURL: ChaintracksTestURL,
+		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,
 			Base:      USD,
@@ -132,7 +145,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			},
 		},
 		FiatUpdateInterval:  to.Ptr(DefaultFiatExchangeUpdateInterval),
-		ExchangeratesApiKey: "bd539d2ff492bcb5619d5f27726a766f",
+		ExchangeratesAPIKey: "bd539d2ff492bcb5619d5f27726a766f",
 		GetBeefMaxDepth:     DefaultGetBeefMaxDepth,
 	}
 
