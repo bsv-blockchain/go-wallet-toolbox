@@ -28,7 +28,7 @@ func main() {
 	//		BootstrapURL: "http://localhost:3011", // optional: where to bootstrap headers form
 	//	}
 
-	svc, err := chaintracksclient.New(logger, cfg, nil)
+	svc, err := chaintracksclient.New(logger, cfg)
 	if err != nil {
 		logger.Error("failed to create service", "err", err)
 		os.Exit(1)
@@ -38,6 +38,14 @@ func main() {
 	defer cancel()
 
 	err = svc.Start(ctx, chaintracksclient.Callbacks{
+		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			logger.Info("new reorg event received",
+				"depth", event.Depth,
+				"tip", event.NewTip,
+				"orhpaned hashes", event.OrphanedHashes,
+			)
+			return nil
+		},
 		OnTip: func(header *chaintracks.BlockHeader) error {
 			logger.Info("new tip received",
 				"height", header.Height,
@@ -51,7 +59,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("listening for tips... press Ctrl+C to exit")
+	logger.Info("listening for reorgs... press Ctrl+C to exit")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

@@ -22,7 +22,8 @@ type Callbacks struct {
 
 // Adapter provides a wrapper around the chaintracks client with event subscription capabilities
 type Adapter struct {
-	logger *slog.Logger
+	logger    *slog.Logger
+	p2pClient *p2p.Client
 
 	ct        chaintracks.Chaintracks
 	tipChan   <-chan *chaintracks.BlockHeader
@@ -30,7 +31,7 @@ type Adapter struct {
 }
 
 // New creates a new chaintracks adapter with the given configuration and P2P client
-func New(logger *slog.Logger, cfg *config.Config, p2pClient *p2p.Client, opts ...Option) (*Adapter, error) {
+func New(logger *slog.Logger, cfg *config.Config, opts ...Option) (*Adapter, error) {
 	logger = logging.Child(logger, "chaintracks")
 
 	adapter := &Adapter{
@@ -42,7 +43,7 @@ func New(logger *slog.Logger, cfg *config.Config, p2pClient *p2p.Client, opts ..
 	}
 
 	if adapter.ct == nil {
-		ct, err := cfg.Initialize(context.Background(), "wallet-toolbox", p2pClient)
+		ct, err := cfg.Initialize(context.Background(), "wallet-toolbox", adapter.p2pClient)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize chaintracks: %w", err)
 		}

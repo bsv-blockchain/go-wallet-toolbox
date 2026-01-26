@@ -57,7 +57,6 @@ func TestService_Lifecycle(t *testing.T) {
 	service, err := chaintracksclient.New(
 		logging.NewTestLogger(t),
 		nil,
-		nil,
 		chaintracksclient.WithChaintracks(mockCT),
 	)
 	require.NoError(t, err, "failed to create service")
@@ -210,7 +209,6 @@ func TestService_ReorgCallback(t *testing.T) {
 	service, err := chaintracksclient.New(
 		logging.NewTestLogger(t),
 		nil,
-		nil,
 		chaintracksclient.WithChaintracks(mockCT),
 	)
 	require.NoError(t, err, "failed to create service")
@@ -251,7 +249,6 @@ func TestService_StartWithNilCallback(t *testing.T) {
 	service, err := chaintracksclient.New(
 		logging.NewTestLogger(t),
 		nil,
-		nil,
 		chaintracksclient.WithChaintracks(mockCT),
 	)
 	require.NoError(t, err)
@@ -280,7 +277,6 @@ func TestService_OnTipCallbackError(t *testing.T) {
 
 	service, err := chaintracksclient.New(
 		logging.NewTestLogger(t),
-		nil,
 		nil,
 		chaintracksclient.WithChaintracks(mockCT),
 	)
@@ -320,7 +316,6 @@ func TestService_OnReorgCallbackError(t *testing.T) {
 
 	service, err := chaintracksclient.New(
 		logging.NewTestLogger(t),
-		nil,
 		nil,
 		chaintracksclient.WithChaintracks(mockCT),
 	)

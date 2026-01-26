@@ -4,9 +4,9 @@ go 1.25.4
 
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.12.3
-	github.com/bsv-blockchain/go-chaintracks v1.0.3
+	github.com/bsv-blockchain/go-chaintracks v1.1.0
 	github.com/bsv-blockchain/go-sdk v1.2.14
-	github.com/bsv-blockchain/go-teranode-p2p-client v0.0.0
+	github.com/bsv-blockchain/go-teranode-p2p-client v0.1.0
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.0
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0
@@ -81,6 +81,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/dolthub/swiss v0.2.1 // indirect
+	github.com/dunglas/httpsfv v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
@@ -125,7 +126,7 @@ require (
 	github.com/ipfs/boxo v0.35.2 // indirect
 	github.com/ipfs/go-cid v0.6.0 // indirect
 	github.com/ipfs/go-datastore v0.9.0 // indirect
-	github.com/ipfs/go-log/v2 v2.9.0 // indirect
+	github.com/ipfs/go-log/v2 v2.9.1 // indirect
 	github.com/ipld/go-ipld-prime v0.21.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -154,7 +155,7 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.3.0 // indirect
-	github.com/libp2p/go-libp2p v0.46.0 // indirect
+	github.com/libp2p/go-libp2p v0.47.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
 	github.com/libp2p/go-libp2p-kad-dht v0.37.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.8.0 // indirect
@@ -226,8 +227,8 @@ require (
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.58.0 // indirect
-	github.com/quic-go/webtransport-go v0.9.0 // indirect
+	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/quic-go/webtransport-go v0.10.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
@@ -276,9 +277,9 @@ require (
 	golang.org/x/tools v0.41.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/grpc v1.79.0-dev // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260122232226-8e98ce8d340d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260122232226-8e98ce8d340d // indirect
+	google.golang.org/grpc v1.80.0-dev // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -290,7 +291,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20251125145642-4e65d59e963e // indirect
 	k8s.io/utils v0.0.0-20260108192941-914a6e750570 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
-	modernc.org/libc v1.67.6 // indirect
+	modernc.org/libc v1.67.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.44.3 // indirect
@@ -301,5 +302,3 @@ require (
 )
 
 tool go.uber.org/mock/mockgen
-
-replace github.com/bsv-blockchain/go-teranode-p2p-client => github.com/shruggr/go-teranode-p2p-client v0.0.0-20251219052644-3b9eba1f195f
