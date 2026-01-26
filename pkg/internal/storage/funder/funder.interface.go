@@ -11,6 +11,7 @@ type Funder interface {
 	// Fund
 	// @param targetSat - the target amount of satoshis to fund (total inputs - total outputs)
 	// @param currentTxSize - the current size of the transaction in bytes (size of tx + current inputs + current outputs)
+	// @param outputCount - the number of outputs already defined in the transaction
 	// @param numberOfDesiredUTXOs - the number of UTXOs in basket #TakeFromBasket
 	// @param minimumDesiredUTXOValue - the minimum value of UTXO in basket #TakeFromBasket
 	// @param userID - the user ID.
@@ -21,6 +22,7 @@ type Funder interface {
 		ctx context.Context,
 		targetSat satoshi.Value,
 		currentTxSize uint64,
+		outputCount uint64,
 		basket *entity.OutputBasket,
 		userID int,
 		forbiddenOutputIDs []uint,
