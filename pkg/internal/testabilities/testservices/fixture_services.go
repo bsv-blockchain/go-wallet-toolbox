@@ -188,3 +188,9 @@ func WithEnabledWoC(enabled bool) func(*defs.WalletServices) {
 		ws.WhatsOnChain.Enabled = enabled
 	}
 }
+
+func WithEnabledChaintracks(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.ChaintracksClient.Enabled = enabled
+	}
+}

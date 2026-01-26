@@ -9,8 +9,10 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	p2p "github.com/bsv-blockchain/go-teranode-p2p-client"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
@@ -24,9 +26,10 @@ import (
 
 // WalletServices is a struct that contains services used by a wallet
 type WalletServices struct {
-	logger *slog.Logger
-	chain  defs.BSVNetwork
-	config *defs.WalletServices
+	logger    *slog.Logger
+	chain     defs.BSVNetwork
+	config    *defs.WalletServices
+	p2pClient *p2p.Client
 
 	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
 	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
@@ -41,6 +44,10 @@ type WalletServices struct {
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
 	bsvExchangeRateServices      servicequeue.Queue[float64]
+
+	// chaintracks integration
+	chaintracks    *chaintracksclient.Adapter
+	reorgBroadcast *reorgBroadcaster
 }
 
 // New will return a new WalletServices
