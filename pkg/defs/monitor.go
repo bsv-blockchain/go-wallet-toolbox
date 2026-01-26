@@ -49,21 +49,12 @@ type TxUpdateStatus string
 
 // Possible values for TxUpdateStatus
 const (
-	TxUpdateStatusCallback    TxUpdateStatus = "callback"
-	TxUpdateStatusCompleted   TxUpdateStatus = "completed"
-	TxUpdateStatusDoubleSpend TxUpdateStatus = "doubleSpend"
-	TxUpdateStatusFailed      TxUpdateStatus = "failed"
-	TxUpdateStatusInvalid     TxUpdateStatus = "invalid"
-	TxUpdateStatusNonFinal    TxUpdateStatus = "nonfinal"
-	TxUpdateStatusNoSend      TxUpdateStatus = "nosend"
-	TxUpdateStatusSending     TxUpdateStatus = "sending"
-	TxUpdateStatusUnconfirmed TxUpdateStatus = "unconfirmed"
-	TxUpdateStatusUnfail      TxUpdateStatus = "unfail"
-	TxUpdateStatusUnknown     TxUpdateStatus = "unknown"
-	TxUpdateStatusUnmined     TxUpdateStatus = "unmined"
-	TxUpdateStatusUnprocessed TxUpdateStatus = "unprocessed"
-	TxUpdateStatusUnproven    TxUpdateStatus = "unproven"
-	TxUpdateStatusUnsent      TxUpdateStatus = "unsent"
+	TxUpdateStatusCompleted    TxUpdateStatus = "completed"
+	TxUpdateStatusDoubleSpend  TxUpdateStatus = "doubleSpend"
+	TxUpdateStatusInvalidTx    TxUpdateStatus = "invalidTx"
+	TxUpdateStatusServiceError TxUpdateStatus = "serviceError"
+	TxUpdateStatusSuccess      TxUpdateStatus = "success"
+	TxUpdateStatusUnknown      TxUpdateStatus = "unknown"
 )
 
 // String returns the string representation of TxUpdateStatus
@@ -73,21 +64,12 @@ func (s TxUpdateStatus) String() string {
 
 // allTxUpdateStatuses contains all valid TxUpdateStatus values for parsing
 var allTxUpdateStatuses = []TxUpdateStatus{
-	TxUpdateStatusCallback,
+	TxUpdateStatusSuccess,
+	TxUpdateStatusServiceError,
+	TxUpdateStatusInvalidTx,
 	TxUpdateStatusCompleted,
 	TxUpdateStatusDoubleSpend,
-	TxUpdateStatusFailed,
-	TxUpdateStatusInvalid,
-	TxUpdateStatusNonFinal,
-	TxUpdateStatusNoSend,
-	TxUpdateStatusSending,
-	TxUpdateStatusUnconfirmed,
-	TxUpdateStatusUnfail,
 	TxUpdateStatusUnknown,
-	TxUpdateStatusUnmined,
-	TxUpdateStatusUnprocessed,
-	TxUpdateStatusUnproven,
-	TxUpdateStatusUnsent,
 }
 
 // ParseTxUpdateStatus parses a string to TxUpdateStatus or returns an error
