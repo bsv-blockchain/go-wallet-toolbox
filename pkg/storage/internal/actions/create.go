@@ -237,7 +237,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	includeUTXOsInSendingState := params.IsDelayed
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
+	outputCount := uint64(len(params.Outputs))
+	if commOut != nil {
+		outputCount++
+	}
+
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}
