@@ -50,7 +50,7 @@ const (
 	ProvenTxStatusCallback    ProvenTxReqStatus = "callback"
 	ProvenTxStatusUnconfirmed ProvenTxReqStatus = "unconfirmed"
 	ProvenTxStatusCompleted   ProvenTxReqStatus = "completed"
-	ProvenTxStatusInvalid     ProvenTxReqStatus = "invalid"
+	ProvenTxStatusInvalid     ProvenTxReqStatus = "invalidTx"
 	ProvenTxStatusDoubleSpend ProvenTxReqStatus = "doubleSpend"
 	ProvenTxStatusUnfail      ProvenTxReqStatus = "unfail"
 )
