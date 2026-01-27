@@ -36,7 +36,7 @@ type Daemon struct {
 }
 
 // EventChannels holds channels for bidirectional communication with the monitor.
-// Outbound channels (chan<-) are used by monitor to send notifications.
+// Outbound channels (chan<-) are used by monitor to send notifications back to other components.
 // Inbound channels (<-chan) are used by monitor to receive external events.
 type EventChannels struct {
 	// Outbound channels:
@@ -82,7 +82,7 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, storage MonitoredStorage, communicationOptions *DaemonEventOptions, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *DaemonEventOptions, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
@@ -94,9 +94,9 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, communicationOptio
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 		storage:     storage,
 		eventChannels: EventChannels{
-			OnTxBroadcasted: communicationOptions.onTxBroadcasted,
-			OnTxProven:      communicationOptions.onTxProven,
-			OnReorg:         communicationOptions.onReorg,
+			OnTxBroadcasted: eventOptions.onTxBroadcasted,
+			OnTxProven:      eventOptions.onTxProven,
+			OnReorg:         eventOptions.onReorg,
 		},
 	}, nil
 }

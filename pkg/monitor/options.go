@@ -13,7 +13,7 @@ type DaemonEventOptions struct {
 	onReorg <-chan *chaintracks.ReorgEvent
 }
 
-// DaemonEventOption defines a function type for setting DaemonCommunicationOptions.
+// DaemonEventOption defines a function type for setting DaemonEventOptions.
 type DaemonEventOption func(*DaemonEventOptions)
 
 func defaultDaemonEventOptions() *DaemonEventOptions {
