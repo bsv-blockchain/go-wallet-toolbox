@@ -5,19 +5,19 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
-// DaemonCommunicationOptions holds options for communication channels used by the monitor daemon.
-type DaemonCommunicationOptions struct {
-	onTxBroadcasted chan<- defs.MonitorTaskResponse
-	onTxProven      chan<- defs.MonitorTaskResponse
+// DaemonEventOptions holds options for communication channels used by the monitor daemon.
+type DaemonEventOptions struct {
+	onTxBroadcasted chan<- defs.TransactionStatusUpdate
+	onTxProven      chan<- defs.TransactionStatusUpdate
 
 	onReorg <-chan *chaintracks.ReorgEvent
 }
 
-// DaemonCommunicationOption defines a function type for setting DaemonCommunicationOptions.
-type DaemonCommunicationOption func(*DaemonCommunicationOptions)
+// DaemonEventOption defines a function type for setting DaemonCommunicationOptions.
+type DaemonEventOption func(*DaemonEventOptions)
 
-func defaultDaemonCommunicationOptions() *DaemonCommunicationOptions {
-	return &DaemonCommunicationOptions{
+func defaultDaemonEventOptions() *DaemonEventOptions {
+	return &DaemonEventOptions{
 		onTxBroadcasted: nil,
 		onTxProven:      nil,
 		onReorg:         nil,
@@ -25,22 +25,22 @@ func defaultDaemonCommunicationOptions() *DaemonCommunicationOptions {
 }
 
 // WithBroadcastedTxChannel sets the channel for broadcasted transaction notifications.
-func WithBroadcastedTxChannel(ch chan<- defs.MonitorTaskResponse) func(*DaemonCommunicationOptions) {
-	return func(o *DaemonCommunicationOptions) {
+func WithBroadcastedTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEventOptions) {
+	return func(o *DaemonEventOptions) {
 		o.onTxBroadcasted = ch
 	}
 }
 
 // WithProvenTxChannel sets the channel for proven transaction notifications.
-func WithProvenTxChannel(ch chan<- defs.MonitorTaskResponse) func(*DaemonCommunicationOptions) {
-	return func(o *DaemonCommunicationOptions) {
+func WithProvenTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEventOptions) {
+	return func(o *DaemonEventOptions) {
 		o.onTxProven = ch
 	}
 }
 
 // WithReorgChannel sets the channel for receiving reorg events.
-func WithReorgChannel(ch <-chan *chaintracks.ReorgEvent) func(*DaemonCommunicationOptions) {
-	return func(o *DaemonCommunicationOptions) {
+func WithReorgChannel(ch <-chan *chaintracks.ReorgEvent) func(*DaemonEventOptions) {
+	return func(o *DaemonEventOptions) {
 		o.onReorg = ch
 	}
 }
