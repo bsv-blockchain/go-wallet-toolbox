@@ -13,4 +13,6 @@ type MonitoredStorage interface {
 	SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error)
 	AbortAbandoned(ctx context.Context) error
 	UnFail(ctx context.Context) error
+
+	HandleReorg(ctx context.Context, orphanedBlockHashes []string) error
 }
