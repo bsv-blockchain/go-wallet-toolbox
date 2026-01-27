@@ -7,9 +7,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+	ctConfig "github.com/bsv-blockchain/go-chaintracks/config"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	p2p "github.com/bsv-blockchain/go-teranode-p2p-client"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
@@ -26,10 +27,10 @@ import (
 
 // WalletServices is a struct that contains services used by a wallet
 type WalletServices struct {
-	logger    *slog.Logger
-	chain     defs.BSVNetwork
-	config    *defs.WalletServices
-	p2pClient *p2p.Client
+	logger *slog.Logger
+	chain  defs.BSVNetwork
+	config *defs.WalletServices
+	// TODO: add p2p client here when adding embedded support
 
 	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
 	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
@@ -125,6 +126,30 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
 			},
 		})
+	}
+
+	var chaintracksAdapter *chaintracksclient.Adapter
+	var reorgBroadcast *reorgBroadcaster
+
+	if config.ChaintracksClient.Enabled {
+		ctCfg := &ctConfig.Config{
+			Mode: ctConfig.ModeRemote,
+			URL:  config.ChaintracksClient.RemoteURL,
+		}
+
+		if config.ChaintracksClient.Mode == "embedded" {
+			ctCfg.Mode = ctConfig.ModeEmbedded
+			// TODO: add embedded config opts
+		}
+
+		// TODO: when added embedded support add p2p inicalization
+		adapter, err := chaintracksclient.New(logger, ctCfg)
+		if err != nil {
+			panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
+		}
+
+		chaintracksAdapter = adapter
+		reorgBroadcast = newReorgBroadcaster(logger)
 	}
 
 	allImplementations := append(options.customImplementations, predefined...)
@@ -263,6 +288,9 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 						return it.BsvExchangeRate
 					})))...,
 		),
+
+		chaintracks:    chaintracksAdapter,
+		reorgBroadcast: reorgBroadcast,
 	}
 
 	walletServices.logActiveServices()
@@ -300,6 +328,49 @@ func (s *WalletServices) logActiveServices() {
 	})
 
 	s.logger.Debug("Active services by methods", logAttrs...)
+}
+
+// StartChaintracks begins background chaintracks event subscription.
+// Must be called after New() to start listening for blockchain events.
+func (s *WalletServices) StartChaintracks(ctx context.Context) error {
+	if s.chaintracks == nil {
+		return nil // chaintracks is disabled
+	}
+
+	err := s.chaintracks.Start(ctx, chaintracksclient.Callbacks{
+		OnTip: func(bh *chaintracks.BlockHeader) error {
+			s.logger.Debug("new chain tip received",
+				"height", bh.Height,
+				"hash", bh.Hash.String(),
+			)
+			return nil
+		},
+		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			s.logger.Info("reorg detected",
+				"depth", event.Depth,
+				"new_tip_hash", event.NewTip.Hash.String(),
+				"orphaned_count", len(event.OrphanedHashes),
+			)
+			s.reorgBroadcast.broadcast(event)
+			return nil
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start chaintracks: %w", err)
+	}
+
+	s.logger.Info("chaintracks started")
+	return nil
+}
+
+// SubscribeReorgs returns a channel that receives reorg events.
+// Call the returned unsubscribe function to stop receiving events and close the channel.
+// Returns nil, nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeReorgs() (<-chan *chaintracks.ReorgEvent, func()) {
+	if s.reorgBroadcast == nil {
+		return nil, func() {}
+	}
+	return s.reorgBroadcast.Subscribe()
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
