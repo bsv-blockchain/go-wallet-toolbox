@@ -25,7 +25,6 @@ const (
 	syncTxStatusesPerPage = 1000
 	lastBlockHeightKey    = "synchronize_tx_statuses_last_block_height"
 	noSendLastCheck       = "synchronize_tx_statuses_last_check_no_send"
-	blocksDelay           = 1
 )
 
 var (
@@ -141,7 +140,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 	}
 
 	if len(txsToSync) == 0 {
-		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Int("requiredDepth", blocksDelay))
+		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
 		return nil, nil
 	}
 
@@ -247,7 +246,7 @@ func (s *synchronizeTxStatuses) alreadyCheckedForCurrentBlock(ctx context.Contex
 		return false, 0, err
 	}
 
-	heightForCheck := header.Height - blocksDelay
+	heightForCheck := header.Height - s.syncTxStatusesConfig.BlocksDelay
 
 	if ok && lastHeight == heightForCheck {
 		s.logger.Debug("already checked for this block, skipping alreadyCheckedForThisBlock", slog.Any("height", header.Height))
@@ -323,8 +322,6 @@ func (s *synchronizeTxStatuses) getLastBlockHeight(ctx context.Context) (uint, b
 		return 0, false, fmt.Errorf("failed to unmarshal last block height: %w", err)
 	}
 
-	fmt.Println("LAST BLOCK HEIGHT:", lastHeight.BlockHeight)
-
 	if lastHeight.BlockHeight == 0 {
 		return 0, false, fmt.Errorf("last block height is zero, this should not happen")
 	}
@@ -346,7 +343,7 @@ func (s *synchronizeTxStatuses) setLastBlockHeight(ctx context.Context, blockHei
 	return nil
 }
 
-// filterTxsByConfirmationDepth filters transactions to only those that have at least blocksDelay confirmations.
+// filterTxsByConfirmationDepth filters transactions to only those that have at least BlocksDelay confirmations.
 // This prevents unnecessary MerklePath calls for transactions that are not yet sufficiently confirmed.
 func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) {
 	if len(txs) == 0 {
@@ -366,6 +363,8 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 	for _, result := range statusResult.Results {
 		depthByTxID[result.TxID] = result.Depth
 	}
+
+	blocksDelay := int(s.syncTxStatusesConfig.BlocksDelay)
 
 	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
 		depth, ok := depthByTxID[tx.TxID]
