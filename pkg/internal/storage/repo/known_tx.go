@@ -46,7 +46,6 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return upsertKnownTx(tx, req, txNote)
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}
@@ -310,7 +309,6 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
 	}
@@ -463,6 +461,41 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	}
 
 	return conditions
+}
+
+// InvalidateMerkleProofsByBlockHash sets MerklePath, BlockHeight, MerkleRoot, and BlockHash
+// to NULL for all KnownTx records where BlockHash matches any of the provided hashes.
+// Also sets status to 'unmined' so CheckForProofsTask will re-fetch proofs.
+// Returns the number of affected records.
+func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHashes []string) (int64, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-InvalidMerkleProofsByClockHash",
+		attribute.Int("block_hashes_count", len(blockHashes)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(blockHashes) == 0 {
+		return 0, nil
+	}
+
+	res := p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Where("block_hash IN ?", blockHashes).
+		Updates(map[string]any{
+			"merkle_path":  nil,
+			"block_height": nil,
+			"merkle_root":  nil,
+			"block_hash":   nil,
+			"status":       wdk.ProvenTxStatusUnmined,
+		})
+	if res.Error != nil {
+		err = res.Error
+		return 0, fmt.Errorf("failed to invalidate merkle proofs: %w", err)
+	}
+
+	return res.RowsAffected, nil
 }
 
 func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {
