@@ -361,6 +361,10 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 
 	depthByTxID := make(map[string]int, len(statusResult.Results))
 	for _, result := range statusResult.Results {
+		if result.Depth == nil {
+			continue
+		}
+
 		depthByTxID[result.TxID] = *result.Depth
 	}
 
