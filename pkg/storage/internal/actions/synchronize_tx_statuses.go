@@ -359,14 +359,14 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
 	}
 
-	depthByTxID := make(map[string]*int, len(statusResult.Results))
+	depthByTxID := make(map[string]int, len(statusResult.Results))
 	for _, result := range statusResult.Results {
-		depthByTxID[result.TxID] = result.Depth
+		depthByTxID[result.TxID] = *result.Depth
 	}
 
 	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
 		depth, ok := depthByTxID[tx.TxID]
-		if !ok || depth == nil {
+		if !ok {
 			s.logger.Debug("transaction depth not found or nil, skipping",
 				slog.String("txID", tx.TxID),
 				slog.String("status", string(tx.Status)),
@@ -374,10 +374,10 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 			return false
 		}
 
-		if *depth < 0 || uint(*depth) < s.syncTxStatusesConfig.BlocksDelay {
+		if depth < 0 || uint(depth) < s.syncTxStatusesConfig.BlocksDelay {
 			s.logger.Debug("transaction does not have enough confirmations yet",
 				slog.String("txID", tx.TxID),
-				slog.Int("depth", *depth),
+				slog.Int("depth", depth),
 				slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
 			)
 			return false
