@@ -364,7 +364,7 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		depthByTxID[result.TxID] = result.Depth
 	}
 
-	blocksDelay := int(s.syncTxStatusesConfig.BlocksDelay)
+	blocksDelay := int(s.syncTxStatusesConfig.BlocksDelay) //nolint:gosec BlocksDelay is a small config value, overflow is not possible
 
 	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
 		depth, ok := depthByTxID[tx.TxID]
