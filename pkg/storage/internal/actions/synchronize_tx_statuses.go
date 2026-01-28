@@ -364,8 +364,6 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		depthByTxID[result.TxID] = result.Depth
 	}
 
-	blocksDelay := int(s.syncTxStatusesConfig.BlocksDelay) //nolint:gosec BlocksDelay is a small config value, overflow is not possible
-
 	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
 		depth, ok := depthByTxID[tx.TxID]
 		if !ok || depth == nil {
@@ -376,11 +374,11 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 			return false
 		}
 
-		if *depth < blocksDelay {
+		if *depth < 0 || uint(*depth) < s.syncTxStatusesConfig.BlocksDelay {
 			s.logger.Debug("transaction does not have enough confirmations yet",
 				slog.String("txID", tx.TxID),
 				slog.Int("depth", *depth),
-				slog.Int("requiredDepth", blocksDelay),
+				slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
 			)
 			return false
 		}
@@ -391,7 +389,7 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 	s.logger.Debug("filtered transactions by confirmation depth",
 		slog.Int("total", len(txs)),
 		slog.Int("filtered", len(filtered)),
-		slog.Int("requiredDepth", blocksDelay),
+		slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
 	)
 
 	return filtered, nil
