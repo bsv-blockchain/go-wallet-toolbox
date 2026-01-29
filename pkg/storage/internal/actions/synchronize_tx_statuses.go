@@ -27,15 +27,14 @@ const (
 	noSendLastCheck       = "synchronize_tx_statuses_last_check_no_send"
 )
 
-var (
-	statusesReadyToSync = []wdk.ProvenTxReqStatus{
-		wdk.ProvenTxStatusCallback,
-		wdk.ProvenTxStatusUnmined,
-		wdk.ProvenTxStatusSending,
-		wdk.ProvenTxStatusUnknown,
-		wdk.ProvenTxStatusUnconfirmed,
-	}
-)
+var statusesReadyToSync = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusCallback,
+	wdk.ProvenTxStatusUnmined,
+	wdk.ProvenTxStatusSending,
+	wdk.ProvenTxStatusUnknown,
+	wdk.ProvenTxStatusUnconfirmed,
+	wdk.ProvenTxStatusReorg,
+}
 
 type synchronizeTxStatuses struct {
 	lock                 sync.Mutex
@@ -206,9 +205,9 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
 
-	//NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
-	//updates matching (user) transactions to "failed" and tidies outputs
-	//TODO: Consider if we want to do the same or do it right away here
+	// NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
+	// updates matching (user) transactions to "failed" and tidies outputs
+	// TODO: Consider if we want to do the same or do it right away here
 	updatedTxs, err := s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set status for txs above attempts: %w", err)
