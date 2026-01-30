@@ -89,6 +89,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			services,
 			options.SynchronizeTxStatusesConfig,
 			options.beefVerifier(),
+			options.BackgroundBroadcasterChannel,
 		),
 		options:  &options,
 		logger:   log,

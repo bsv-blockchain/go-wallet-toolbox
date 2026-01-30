@@ -54,6 +54,7 @@ const (
 	TxUpdateStatusInvalidTx    TxUpdateStatus = "invalidTx"
 	TxUpdateStatusServiceError TxUpdateStatus = "serviceError"
 	TxUpdateStatusSuccess      TxUpdateStatus = "success"
+	TxUpdateStatusUnproven     TxUpdateStatus = "unproven"
 	TxUpdateStatusUnknown      TxUpdateStatus = "unknown"
 )
 
@@ -69,6 +70,7 @@ var allTxUpdateStatuses = []TxUpdateStatus{
 	TxUpdateStatusInvalidTx,
 	TxUpdateStatusCompleted,
 	TxUpdateStatusDoubleSpend,
+	TxUpdateStatusUnproven,
 	TxUpdateStatusUnknown,
 }
 

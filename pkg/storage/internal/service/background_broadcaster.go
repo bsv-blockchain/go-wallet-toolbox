@@ -7,7 +7,9 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const (
@@ -21,7 +23,7 @@ const (
 )
 
 type broadcaster interface {
-	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error
+	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.SendWithResult, error)
 }
 
 type BackgroundBroadcaster struct {
@@ -31,6 +33,9 @@ type BackgroundBroadcaster struct {
 	wg               sync.WaitGroup
 	logger           *slog.Logger
 	broadcastHandler broadcaster
+
+	// optional notification channel
+	txBroadcastedChannel chan<- defs.TransactionStatusUpdate
 }
 
 type broadcastItem struct {
@@ -38,15 +43,16 @@ type broadcastItem struct {
 	txIDs []string
 }
 
-func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster) *BackgroundBroadcaster {
+func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- defs.TransactionStatusUpdate) *BackgroundBroadcaster {
 	bbContext, cancel := context.WithCancel(ctx)
 	logger := logging.Child(parentLogger, "BackgroundBroadcaster")
 	return &BackgroundBroadcaster{
-		ctx:              bbContext,
-		cancel:           cancel,
-		broadcastChannel: make(chan broadcastItem, BackgroundBroadcasterChannelSize),
-		logger:           logger,
-		broadcastHandler: broadcastHandler,
+		ctx:                  bbContext,
+		cancel:               cancel,
+		broadcastChannel:     make(chan broadcastItem, BackgroundBroadcasterChannelSize),
+		logger:               logger,
+		broadcastHandler:     broadcastHandler,
+		txBroadcastedChannel: txBroadcastedChannel,
 	}
 }
 
@@ -100,9 +106,28 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 		}
 	}()
 
-	err = bb.broadcastHandler.BackgroundBroadcast(bb.ctx, item.beef, item.txIDs)
+	results, err := bb.broadcastHandler.BackgroundBroadcast(bb.ctx, item.beef, item.txIDs)
 	if err != nil {
 		return fmt.Errorf("failed to broadcast beef: %w", err)
+	}
+
+	if bb.txBroadcastedChannel == nil || results == nil {
+		return nil
+	}
+
+	for _, res := range results {
+		msg := defs.TransactionStatusUpdate{
+			TxID:   res.TxID.String(),
+			Status: defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+		}
+
+		select {
+		case bb.txBroadcastedChannel <- msg:
+		case <-bb.ctx.Done():
+			return fmt.Errorf("context done while sending tx status update: %w", bb.ctx.Err())
+		default:
+			bb.logger.Warn("TxBroadcasted channel in background broadcaster is full, dropping event")
+		}
 	}
 
 	return nil
