@@ -31,6 +31,7 @@ func New(
 	services wdk.Services,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
 	beefVerifier wdk.BeefVerifier,
+	txBroadcastedChannel chan<- defs.TransactionStatusUpdate,
 ) *Actions {
 	return &Actions{
 		create: newCreateAction(
@@ -68,6 +69,7 @@ func New(
 			services,
 			randomizer,
 			beefVerifier,
+			txBroadcastedChannel,
 		),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),
