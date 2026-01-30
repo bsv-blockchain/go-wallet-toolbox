@@ -38,7 +38,11 @@ func WithProvenTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEve
 	}
 }
 
-// WithReorgChannel sets the channel for receiving reorg events.
+// WithReorgChannel sets the channel for receiving reorg events from chaintracks.
+//
+// NOTE: This is typically not used directly by users. When using infra.Server,
+// this is automatically wired to chaintracks. Only use this if you are manually
+// setting up the monitor.
 func WithReorgChannel(ch <-chan *chaintracks.ReorgEvent) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onReorg = ch
