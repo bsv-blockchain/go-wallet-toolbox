@@ -74,7 +74,7 @@ type WalletStorageProvider interface {
 	// FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.
 	// @Sync
-	FindOrInsertSyncStateAuth(ctx context.Context, auth AuthID, storageIdentityKey, storageName string) (*FindOrInsertSyncStateAuthResponse, error)
+	FindOrInsertSyncStateAuth(ctx context.Context, auth AuthID, storageIdentityKey, storageName, deviceID string) (*FindOrInsertSyncStateAuthResponse, error)
 
 	// ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
 	// Skipped in WalletStorage interface and not exposed in StorageManager.

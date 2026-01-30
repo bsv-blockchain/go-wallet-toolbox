@@ -72,18 +72,18 @@ func (mr *MockWalletStorageProviderMockRecorder) CreateAction(ctx, auth, args an
 }
 
 // FindOrInsertSyncStateAuth mocks base method.
-func (m *MockWalletStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+func (m *MockWalletStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName, deviceID string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOrInsertSyncStateAuth", ctx, auth, storageIdentityKey, storageName)
+	ret := m.ctrl.Call(m, "FindOrInsertSyncStateAuth", ctx, auth, storageIdentityKey, storageName, deviceID)
 	ret0, _ := ret[0].(*wdk.FindOrInsertSyncStateAuthResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindOrInsertSyncStateAuth indicates an expected call of FindOrInsertSyncStateAuth.
-func (mr *MockWalletStorageProviderMockRecorder) FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName any) *gomock.Call {
+func (mr *MockWalletStorageProviderMockRecorder) FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName, deviceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrInsertSyncStateAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOrInsertSyncStateAuth), ctx, auth, storageIdentityKey, storageName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrInsertSyncStateAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOrInsertSyncStateAuth), ctx, auth, storageIdentityKey, storageName, deviceID)
 }
 
 // FindOrInsertUser mocks base method.

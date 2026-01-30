@@ -13,6 +13,11 @@ type RequestSyncChunkArgs struct {
 	// IdentityKey - The identity of whose data is being requested
 	IdentityKey string `json:"identityKey"`
 
+	// DeviceID - Unique identifier for the client device. Used to isolate SyncState per device,
+	// preventing ID mapping corruption when multiple devices share the same wallet identity.
+	// Empty string for backwards compatibility with existing clients.
+	DeviceID string `json:"deviceId,omitempty"`
+
 	// Since - The max updated_at time received from the storage service receiving the request.
 	// Will be nil if this is the first request or if no data was previously sync'ed.
 	// `since` must include items if 'updated_at' is greater or equal. Thus, when not undefined, a sync request should always return at least one item already seen.

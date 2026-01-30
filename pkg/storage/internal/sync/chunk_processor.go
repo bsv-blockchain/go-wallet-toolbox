@@ -55,13 +55,13 @@ func NewChunkProcessor(ctx context.Context, logger *slog.Logger, repo Repository
 
 func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 	p.logger.InfoContext(p.ctx, "processing sync chunk")
-	syncState, err := p.repo.FindSyncState(p.ctx, p.user.ID, p.args.FromStorageIdentityKey)
+	syncState, err := p.repo.FindSyncState(p.ctx, p.user.ID, p.args.FromStorageIdentityKey, p.args.DeviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find sync state: %w", err)
 	}
 
 	if syncState == nil {
-		return nil, fmt.Errorf("sync state not found for userID %d and storage %s", p.user.ID, p.args.FromStorageIdentityKey)
+		return nil, fmt.Errorf("sync state not found for userID %d, storage %s, device %s", p.user.ID, p.args.FromStorageIdentityKey, p.args.DeviceID)
 	}
 
 	p.syncState = syncState

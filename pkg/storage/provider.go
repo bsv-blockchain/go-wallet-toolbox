@@ -737,10 +737,10 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 	return chunk, nil
 }
 
-// FindOrInsertSyncStateAuth finds or inserts a sync state for the given user, storage identity key, and storage name.
-func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+// FindOrInsertSyncStateAuth finds or inserts a sync state for the given user, storage identity key, storage name, and device ID.
+func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName, deviceID string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "StorageProvider-FindOrInsertSyncStateAuth", attribute.String("StorageIdentityKey", storageIdentityKey), attribute.String("StorageName", storageName))
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-FindOrInsertSyncStateAuth", attribute.String("StorageIdentityKey", storageIdentityKey), attribute.String("StorageName", storageName), attribute.String("DeviceID", deviceID))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -749,7 +749,7 @@ func (p *Provider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthI
 		return nil, ErrAuthorization
 	}
 
-	action := sync.NewFindOrInsertSyncState(p.repo, p.options.Randomizer, *auth.UserID, storageIdentityKey, storageName)
+	action := sync.NewFindOrInsertSyncState(p.repo, p.options.Randomizer, *auth.UserID, storageIdentityKey, storageName, deviceID)
 	syncStateResponse, err := action.FindOrInsertSyncState(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or insert sync state: %w", err)

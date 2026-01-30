@@ -177,7 +177,7 @@ func (p *RPCStorageProvider) GetSyncChunk(ctx context.Context, args wdk.RequestS
 
 // FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
-func (p *RPCStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey string, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+func (p *RPCStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey string, storageName string, deviceID string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 	err := p.verifyAuthID(ctx, auth)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func (p *RPCStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth
 		return nil, err
 	}
 
-	return p.localProvider.FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName)
+	return p.localProvider.FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName, deviceID)
 }
 
 // ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.

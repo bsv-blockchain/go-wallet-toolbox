@@ -26,9 +26,9 @@ func NewSyncState(db *gorm.DB) *SyncState {
 	}
 }
 
-func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdentityKey string) (*entity.SyncState, error) {
+func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdentityKey string, deviceID string) (*entity.SyncState, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-SyncState-FindSyncState", attribute.Int("UserID", userID), attribute.String("StorageIdentityKey", storageIdentityKey))
+	ctx, span := tracing.StartTracing(ctx, "Repository-SyncState-FindSyncState", attribute.Int("UserID", userID), attribute.String("StorageIdentityKey", storageIdentityKey), attribute.String("DeviceID", deviceID))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -36,7 +36,7 @@ func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdenti
 	var model models.SyncState
 	err = s.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
-		Where("storage_identity_key = ?", storageIdentityKey).
+		Where("storage_identity_key = ? AND device_id = ?", storageIdentityKey, deviceID).
 		First(&model).Error
 
 	if err != nil {
@@ -64,6 +64,7 @@ func (s *SyncState) CreateSyncState(ctx context.Context, syncState *entity.SyncS
 	model := models.SyncState{
 		UserID:             syncState.UserID,
 		StorageIdentityKey: syncState.StorageIdentityKey,
+		DeviceID:           syncState.DeviceID,
 		StorageName:        syncState.StorageName,
 		Status:             syncState.Status,
 		RefNum:             syncState.Reference,
@@ -128,6 +129,7 @@ func mapModelToSyncStateEntity(model models.SyncState) (*entity.SyncState, error
 		UpdatedAt:          model.UpdatedAt,
 		UserID:             model.UserID,
 		StorageIdentityKey: model.StorageIdentityKey,
+		DeviceID:           model.DeviceID,
 		StorageName:        model.StorageName,
 		Status:             model.Status,
 		Reference:          model.RefNum,

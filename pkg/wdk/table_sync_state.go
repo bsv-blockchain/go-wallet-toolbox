@@ -13,6 +13,7 @@ type TableSyncState struct {
 	SyncStateID        uint                     `json:"syncStateId"`
 	UserID             int                      `json:"userId"`
 	StorageIdentityKey string                   `json:"storageIdentityKey"`
+	DeviceID           string                   `json:"deviceId,omitempty"`
 	StorageName        string                   `json:"storageName"`
 	Status             SyncStatus               `json:"status"`
 	Init               bool                     `json:"init"`

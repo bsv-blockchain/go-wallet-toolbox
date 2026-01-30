@@ -18,20 +18,22 @@ type FindOrInsertSyncState struct {
 	userID             int
 	storageIdentityKey string
 	storageName        string
+	deviceID           string
 }
 
-func NewFindOrInsertSyncState(repo Repository, random wdk.Randomizer, userID int, storageIdentityKey, storageName string) *FindOrInsertSyncState {
+func NewFindOrInsertSyncState(repo Repository, random wdk.Randomizer, userID int, storageIdentityKey, storageName, deviceID string) *FindOrInsertSyncState {
 	return &FindOrInsertSyncState{
 		repo:               repo,
 		random:             random,
 		userID:             userID,
 		storageIdentityKey: storageIdentityKey,
 		storageName:        storageName,
+		deviceID:           deviceID,
 	}
 }
 
 func (f *FindOrInsertSyncState) FindOrInsertSyncState(ctx context.Context) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	syncState, err := f.repo.FindSyncState(ctx, f.userID, f.storageIdentityKey)
+	syncState, err := f.repo.FindSyncState(ctx, f.userID, f.storageIdentityKey, f.deviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find sync state: %w", err)
 	}
@@ -69,6 +71,7 @@ func (f *FindOrInsertSyncState) createNewState(ctx context.Context) (*entity.Syn
 	syncState, err := f.repo.CreateSyncState(ctx, &entity.SyncState{
 		UserID:             f.userID,
 		StorageIdentityKey: f.storageIdentityKey,
+		DeviceID:           f.deviceID,
 		StorageName:        f.storageName,
 		Status:             wdk.SyncStatusUnknown,
 		Reference:          reference,

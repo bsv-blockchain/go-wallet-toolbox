@@ -85,8 +85,8 @@ func (c *WalletStorageProviderClient) GetSyncChunk(ctx context.Context, args wdk
 
 // FindOrInsertSyncStateAuth retrieves an existing sync state or inserts a new one based on the provided authentication and storage details.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
-func (c *WalletStorageProviderClient) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey string, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-	return c.client.FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName)
+func (c *WalletStorageProviderClient) FindOrInsertSyncStateAuth(ctx context.Context, auth wdk.AuthID, storageIdentityKey string, storageName string, deviceID string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	return c.client.FindOrInsertSyncStateAuth(ctx, auth, storageIdentityKey, storageName, deviceID)
 }
 
 // ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
@@ -125,7 +125,7 @@ type rpcWalletStorageProvider struct {
 	ListOutputs               func(context.Context, wdk.AuthID, wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	ListActions               func(context.Context, wdk.AuthID, wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
 	GetSyncChunk              func(context.Context, wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error)
-	FindOrInsertSyncStateAuth func(context.Context, wdk.AuthID, string, string) (*wdk.FindOrInsertSyncStateAuthResponse, error)
+	FindOrInsertSyncStateAuth func(context.Context, wdk.AuthID, string, string, string) (*wdk.FindOrInsertSyncStateAuthResponse, error)
 	ProcessSyncChunk          func(context.Context, wdk.RequestSyncChunkArgs, *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error)
 	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 	FindOutputBasketsAuth     func(context.Context, wdk.AuthID, wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error)

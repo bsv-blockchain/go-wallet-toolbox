@@ -16,6 +16,7 @@ type SyncState struct {
 	UpdatedAt          time.Time
 	UserID             int
 	StorageIdentityKey string
+	DeviceID           string
 	StorageName        string
 	Status             wdk.SyncStatus
 	Reference          string
@@ -36,6 +37,7 @@ func (ss *SyncState) ToWDK() (*wdk.TableSyncState, error) {
 		SyncStateID:        ss.ID,
 		UserID:             ss.UserID,
 		StorageIdentityKey: ss.StorageIdentityKey,
+		DeviceID:           ss.DeviceID,
 		StorageName:        ss.StorageName,
 		Status:             ss.Status,
 		Init:               false, // Init as true appears to be used only for testing purposes in TS version

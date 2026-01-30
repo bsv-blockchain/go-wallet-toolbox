@@ -65,8 +65,12 @@ func (s *ReaderToWriter) Sync(
 
 	var state syncingState
 
+	// For server-to-server sync, deviceID is empty. The deviceID isolation is primarily
+	// for client-side sync where multiple client instances share the same wallet identity.
+	const deviceID = ""
+
 	for range state.doWhileChangesMade() {
-		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, userAuthOnWriterSide, readerSettings.StorageIdentityKey, readerSettings.StorageName)
+		writerSyncState, err := writer.FindOrInsertSyncStateAuth(ctx, userAuthOnWriterSide, readerSettings.StorageIdentityKey, readerSettings.StorageName, deviceID)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to find or insert sync state auth: %w", err)
 		}
@@ -82,6 +86,7 @@ func (s *ReaderToWriter) Sync(
 			FromStorageIdentityKey: readerSettings.StorageIdentityKey,
 			ToStorageIdentityKey:   writerSettings.StorageIdentityKey,
 			IdentityKey:            userIdentityKey,
+			DeviceID:               deviceID,
 
 			Since:        syncState.When,
 			MaxRoughSize: maxSyncChunkSize,
