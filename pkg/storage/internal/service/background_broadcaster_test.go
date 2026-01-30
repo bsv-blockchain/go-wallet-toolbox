@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,10 +26,10 @@ type mockBroadcaster struct {
 	panicDuringCall error
 }
 
-func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, _ []string) error {
+func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, _ []string) ([]wdk.SendWithResult, error) {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	case <-time.After(m.sleep):
 		// Simulate a delay for the broadcast operation
 	}
@@ -36,11 +37,11 @@ func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transactio
 
 	switch {
 	case m.returnErr != nil:
-		return m.returnErr
+		return nil, m.returnErr
 	case m.panicDuringCall != nil:
 		panic(m.panicDuringCall)
 	default:
-		return nil
+		return nil, nil
 	}
 }
 
@@ -104,7 +105,7 @@ func TestBackgroundBroadcaster_HappyPath(t *testing.T) {
 			mockBroadcast := &mockBroadcaster{}
 
 			logger, _ := loggerForTestBroadcaster()
-			bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast)
+			bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
 			bb.Start()
 
 			for txSpec := range broadcastItemsGenerator(tt.length) {
@@ -127,7 +128,7 @@ func TestBackgroundBroadcaster_WhenProducerIsSlowerThanConsumer(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{}
 
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
 	bb.Start()
 
 	moreThanChannerSize := 2*service.BackgroundBroadcasterChannelSize + 1
@@ -154,7 +155,7 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 	}
 
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
 	bb.Start()
 
 	moreThanChannerSize := 2*service.BackgroundBroadcasterChannelSize + 1
@@ -183,7 +184,7 @@ func TestBackgroundBroadcast_StopDuringProcessing(t *testing.T) {
 	}
 
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
 	bb.Start()
 
 	const count = 10
@@ -206,7 +207,7 @@ func TestBackgroundBroadcast_BroadcasterReturnsError(t *testing.T) {
 	}
 
 	logger, logsBuffer := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
 	bb.Start()
 
 	const count = 10
@@ -231,7 +232,7 @@ func TestBackgroundBroadcast_BroadcasterPanics(t *testing.T) {
 	}
 
 	logger, logsBuffer := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
 	bb.Start()
 
 	const count = 10
