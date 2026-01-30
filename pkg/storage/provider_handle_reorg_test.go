@@ -28,6 +28,10 @@ func TestHandleReorg_InvalidateProofsForOrphanedBlocks(t *testing.T) {
 	// and: sync to get merkle proof
 	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 	require.NoError(t, err)
 
@@ -78,6 +82,10 @@ func TestHandleReorg_DoesNothingWhenNoMatchingBlockHash(t *testing.T) {
 	// and: sync to get merkle proof
 	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 	require.NoError(t, err)
 
@@ -117,6 +125,10 @@ func TestHandleReorg_MultipleTxsInSameBlock(t *testing.T) {
 	givenProvider.ARC().WhenQueryingTx(txID1).WillReturnWithMindedTx()
 	givenProvider.ARC().WhenQueryingTx(txID2).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 	require.NoError(t, err)
 
@@ -178,6 +190,10 @@ func TestHandleReorg_ReorgedTxCanBeReprovenBySyncTask(t *testing.T) {
 	// and: sync to get proof
 	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 	require.NoError(t, err)
 
@@ -194,6 +210,10 @@ func TestHandleReorg_ReorgedTxCanBeReprovenBySyncTask(t *testing.T) {
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList(
 		testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight + 1),
 	)
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight + 1),
+	})
 	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
