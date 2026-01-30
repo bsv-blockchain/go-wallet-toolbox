@@ -24,6 +24,7 @@ type Server struct {
 	Config Config
 
 	logger        *slog.Logger
+	services      *services.WalletServices
 	storage       *storage.Provider
 	storageServer *storage.Server
 	monitor       *monitor.Daemon
@@ -124,6 +125,14 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 			})
 		}
 
+		if cfg.Services.ChaintracksClient.Enabled {
+			reorgChan, unsubscribe := activeServices.SubscribeReorgs()
+			if reorgChan != nil {
+				monitorOpts = append(monitorOpts, monitor.WithReorgChannel(reorgChan))
+				cleanupFuncs = append(cleanupFuncs, unsubscribe)
+			}
+		}
+
 		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB, monitorOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create daemon: %w", err)
@@ -145,6 +154,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		Config: cfg,
 
 		logger:          logger,
+		services:        activeServices,
 		storage:         activeStorage,
 		monitor:         daemon,
 		storageServer:   storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
@@ -162,6 +172,12 @@ func (s *Server) ListenAndServe() error {
 
 	if s.txProvenCh != nil {
 		go s.consumeTxProven()
+	}
+
+	if s.Config.Services.ChaintracksClient.Enabled {
+		if err := s.services.StartChaintracks(context.Background()); err != nil {
+			return fmt.Errorf("failed to start chaintracks: %w", err)
+		}
 	}
 
 	if err := s.monitor.Start(s.Config.Monitor.Tasks.EnabledTasks()); err != nil {

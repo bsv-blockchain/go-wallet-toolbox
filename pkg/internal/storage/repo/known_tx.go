@@ -46,7 +46,6 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return upsertKnownTx(tx, req, txNote)
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}
@@ -310,7 +309,6 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
 	}
@@ -463,6 +461,78 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	}
 
 	return conditions
+}
+
+// InvalidateMerkleProofsByBlockHash sets MerklePath, BlockHeight, MerkleRoot, and BlockHash
+// to NULL for all KnownTx records where BlockHash matches any of the provided hashes.
+// Also sets status to 'reorg' so CheckForProofsTask will re-fetch proofs.
+// Adds a history note to each affected transaction.
+// Returns the number of affected records.
+func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHashes []string) (int64, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-InvalidMerkleProofsByClockHash",
+		attribute.Int("block_hashes_count", len(blockHashes)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(blockHashes) == 0 {
+		return 0, nil
+	}
+
+	var affected int64
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var affectedTxs []struct {
+			TxID      string
+			BlockHash string
+		}
+
+		if err := tx.Model(&models.KnownTx{}).
+			Select("tx_id", "block_hash").
+			Where("block_hash IN ?", blockHashes).
+			Find(&affectedTxs).Error; err != nil {
+			return fmt.Errorf("failed to find affected transactions: %w", err)
+		}
+		if len(affectedTxs) == 0 {
+			return nil
+		}
+
+		res := tx.Model(&models.KnownTx{}).
+			Where("block_hash IN ?", blockHashes).
+			Updates(map[string]any{
+				"merkle_path":  nil,
+				"block_height": nil,
+				"merkle_root":  nil,
+				"block_hash":   nil,
+				"attempts":     0,
+				"status":       wdk.ProvenTxStatusReorg,
+			})
+		if res.Error != nil {
+			err = res.Error
+			return fmt.Errorf("failed to invalidate merkle proofs: %w", err)
+		}
+
+		affected = res.RowsAffected
+
+		// add history notes about reorg
+		notes := make([]*pkgentity.TxHistoryNote, 0, len(affectedTxs))
+		for _, tx := range affectedTxs {
+			note := history.NewBuilder().
+				ReorgInvalidatedProof(tx.BlockHash).
+				Entity(tx.TxID)
+			notes = append(notes, note)
+		}
+
+		if err := addTxNotes(tx, notes); err != nil {
+			return fmt.Errorf("failed to add reorg history notes: %w", err)
+		}
+
+		return nil
+	})
+
+	return affected, nil
 }
 
 func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
@@ -34,10 +35,16 @@ type Daemon struct {
 	eventChannels EventChannels
 }
 
-// EventChannels holds channels for communicating task results back to other components.
+// EventChannels holds channels for bidirectional communication with the monitor.
+// Outbound channels (chan<-) are used by monitor to send notifications back to other components.
+// Inbound channels (<-chan) are used by monitor to receive external events.
 type EventChannels struct {
+	// Outbound channels:
 	OnTxBroadcasted chan<- defs.TransactionStatusUpdate
 	OnTxProven      chan<- defs.TransactionStatusUpdate
+
+	// Inbound channels:
+	OnReorg <-chan *chaintracks.ReorgEvent
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -89,6 +96,7 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *Daem
 		eventChannels: EventChannels{
 			OnTxBroadcasted: eventOptions.onTxBroadcasted,
 			OnTxProven:      eventOptions.onTxProven,
+			OnReorg:         eventOptions.onReorg,
 		},
 	}, nil
 }
@@ -114,6 +122,10 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
 			return err
 		}
+	}
+
+	if d.eventChannels.OnReorg != nil {
+		go d.handleReorgEvents()
 	}
 
 	d.scheduler.Start()
@@ -247,4 +259,26 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 
 	timeout := time.Duration(float64(untilNext) * safetyMargin)
 	return context.WithTimeout(ctx, timeout)
+}
+
+func (d *Daemon) handleReorgEvents() {
+	d.logger.Info("Starting reorg event handler")
+
+	for event := range d.eventChannels.OnReorg {
+		d.logger.Info("Received reorg event",
+			"depth", event.Depth,
+			"orphaned_count", len(event.OrphanedHashes),
+		)
+
+		orphanedHashes := make([]string, len(event.OrphanedHashes))
+		for i, hash := range event.OrphanedHashes {
+			orphanedHashes[i] = hash.String()
+		}
+
+		if err := d.storage.HandleReorg(context.Background(), orphanedHashes); err != nil {
+			d.logger.Error("Failed to handle reorg", "error", err)
+		}
+	}
+
+	d.logger.Info("reorg event handler stopped")
 }
