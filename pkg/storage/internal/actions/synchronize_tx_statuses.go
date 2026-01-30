@@ -86,7 +86,8 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 	}
 	defer s.lock.Unlock()
 
-	checkedForCurrentBlock, currentHeight, err := s.alreadyCheckedForCurrentBlock(ctx)
+	checkedForCurrentBlock, heightForCheck, err := s.alreadyCheckedForCurrentBlock(ctx)
+
 	if err != nil {
 		s.logger.Warn("failed to check if already checked for this block", slog.Any("err", err))
 		// We still want to proceed with the synchronization, so we log the error and continue
@@ -99,7 +100,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 			if resultErr != nil {
 				return
 			}
-			if err := s.setLastBlockHeight(ctx, currentHeight); err != nil {
+			if err := s.setLastBlockHeight(ctx, heightForCheck); err != nil {
 				resultErr = fmt.Errorf("successfully synchronized tx statuses, but failed to set last block height: %w", err)
 			}
 		}()
@@ -128,11 +129,21 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 	}
 
 	if len(txsToSync) == 0 {
-		s.logger.Info("no transactions need synchronization", slog.Any("height", currentHeight))
+		s.logger.Info("no transactions need synchronization", slog.Any("height", heightForCheck))
 		return nil, nil
 	}
 
-	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", currentHeight))
+	txsToSync, err = s.filterTxsByConfirmationDepth(ctx, txsToSync)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter txs by confirmation depth: %w", err)
+	}
+
+	if len(txsToSync) == 0 {
+		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
+		return nil, nil
+	}
+
+	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
 
 	var failedAttempts []string
 	for _, txToSync := range txsToSync {
@@ -150,7 +161,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 				slog.String("txID", txToSync.TxID),
 				slog.Uint64("attempts", txToSync.Attempts),
 				slog.String("status", string(txToSync.Status)),
-				slog.Any("height", currentHeight),
+				slog.Any("height", heightForCheck),
 			)
 
 			failedAttempts = append(failedAttempts, txToSync.TxID)
@@ -162,7 +173,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
 				slog.String("status", string(txToSync.Status)),
-				slog.Any("height", currentHeight),
+				slog.Any("height", heightForCheck),
 			)
 
 			failedAttempts = append(failedAttempts, txToSync.TxID)
@@ -234,12 +245,16 @@ func (s *synchronizeTxStatuses) alreadyCheckedForCurrentBlock(ctx context.Contex
 		return false, 0, err
 	}
 
-	if ok && lastHeight == header.Height {
+	heightForCheck := header.Height - s.syncTxStatusesConfig.BlocksDelay
+
+	if ok && lastHeight == heightForCheck {
 		s.logger.Debug("already checked for this block, skipping alreadyCheckedForThisBlock", slog.Any("height", header.Height))
-		return true, header.Height, nil
+		return true, heightForCheck, nil
 	}
 
-	return false, header.Height, nil
+	s.logger.Debug("checking for new block to synchronize", slog.Any("currentHeight", header.Height), slog.Any("heightForCheck", heightForCheck))
+
+	return false, heightForCheck, nil
 }
 
 func (s *synchronizeTxStatuses) getStatusesReadyToSync(ctx context.Context) ([]wdk.ProvenTxReqStatus, error) {
@@ -325,4 +340,66 @@ func (s *synchronizeTxStatuses) setLastBlockHeight(ctx context.Context, blockHei
 	}
 
 	return nil
+}
+
+// filterTxsByConfirmationDepth filters transactions to only those that have at least BlocksDelay confirmations.
+// This prevents unnecessary MerklePath calls for transactions that are not yet sufficiently confirmed.
+// If the status service is unavailable, it returns an empty slice to skip synchronization.
+func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) {
+	if len(txs) == 0 {
+		return txs, nil
+	}
+
+	txIDs := slices.Map(txs, func(tx *entity.KnownTxForStatusSync) string {
+		return tx.TxID
+	})
+
+	statusResult, err := s.services.GetStatusForTxIDs(ctx, txIDs)
+	if err != nil {
+		s.logger.Warn("failed to get status for txIDs, skipping synchronization",
+			slog.Any("err", err),
+			slog.Int("count", len(txs)),
+		)
+		// Return empty slice to skip synchronization when we can't get the status
+		return nil, nil
+	}
+
+	depthByTxID := make(map[string]int, len(statusResult.Results))
+	for _, result := range statusResult.Results {
+		if result.Depth == nil {
+			continue
+		}
+
+		depthByTxID[result.TxID] = *result.Depth
+	}
+
+	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
+		depth, ok := depthByTxID[tx.TxID]
+		if !ok {
+			s.logger.Debug("transaction depth not found or nil, skipping",
+				slog.String("txID", tx.TxID),
+				slog.String("status", string(tx.Status)),
+			)
+			return false
+		}
+
+		if depth < 0 || uint(depth) < s.syncTxStatusesConfig.BlocksDelay {
+			s.logger.Debug("transaction does not have enough confirmations yet",
+				slog.String("txID", tx.TxID),
+				slog.Int("depth", depth),
+				slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
+			)
+			return false
+		}
+
+		return true
+	})
+
+	s.logger.Debug("filtered transactions by confirmation depth",
+		slog.Int("total", len(txs)),
+		slog.Int("filtered", len(filtered)),
+		slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
+	)
+
+	return filtered, nil
 }
