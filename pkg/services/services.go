@@ -146,7 +146,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
 		}
 
-		// NOTE: when added Arcade we can add here P2P initalization if required
+		// NOTE: when added Arcade we can add here P2P initialization if required
 		adapter, err := chaintracksclient.New(logger, ctCfg)
 		if err != nil {
 			panic(fmt.Errorf("failed to initialize chaintracks: %w", err))

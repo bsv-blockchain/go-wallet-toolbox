@@ -1,124 +1,122 @@
 bsv_network: main
 commission:
-  pub_key_hex: ""
-  satoshis: 0
+    pub_key_hex: ""
+    satoshis: 0
 db:
-  engine: sqlite
-  max_connection_idle_time: 6m0s
-  max_connection_time: 1m0s
-  max_idle_connections: 5
-  max_open_connections: 5
-  mysql:
-    db_name: storage
-    host: localhost
-    password: ""
-    port: "3306"
-    protocol: tcp
-    time_zone: UTC
-    user: root
-  postgresql:
-    db_name: storage
-    host: localhost
-    password: postgres
-    port: "5432"
-    ssl_mode: disable
-    time_zone: UTC
-    user: postgres
-  sqlite:
-    connection_string: ./storage.sqlite
+    engine: sqlite
+    max_connection_idle_time: 6m0s
+    max_connection_time: 1m0s
+    max_idle_connections: 5
+    max_open_connections: 5
+    mysql:
+        db_name: storage
+        host: localhost
+        password: ""
+        port: "3306"
+        protocol: tcp
+        time_zone: UTC
+        user: root
+    postgresql:
+        db_name: storage
+        host: localhost
+        password: postgres
+        port: "5432"
+        ssl_mode: disable
+        time_zone: UTC
+        user: postgres
+    sqlite:
+        connection_string: ./storage.sqlite
 fail_abandoned:
-  min_transaction_age_seconds: 300
+    min_transaction_age_seconds: 300
 fee_model:
-  type: sat/kb
-  value: 1
+    type: sat/kb
+    value: 1
 http:
-  port: 8100
-  request_price: 0
+    port: 8100
+    request_price: 0
 logging:
-  enabled: true
-  handler: json
-  level: info
+    enabled: true
+    handler: json
+    level: info
 monitor:
-  enabled: true
-  events:
-    tx_broadcasted:
-      channel_size: 100
-      enabled: false
-    tx_proven:
-      channel_size: 100
-      enabled: false
-  tasks:
-    check_for_proofs:
-      enabled: true
-      interval_seconds: 60
-      start_immediately: false
-    fail_abandoned:
-      enabled: true
-      interval_seconds: 300
-      start_immediately: false
-    send_waiting:
-      enabled: true
-      interval_seconds: 300
-      start_immediately: true
-    un_fail:
-      enabled: true
-      interval_seconds: 600
-      start_immediately: false
+    enabled: true
+    events:
+        tx_broadcasted:
+            channel_size: 100
+            enabled: false
+        tx_proven:
+            channel_size: 100
+            enabled: false
+    tasks:
+        check_for_proofs:
+            enabled: true
+            interval_seconds: 60
+            start_immediately: false
+        fail_abandoned:
+            enabled: true
+            interval_seconds: 300
+            start_immediately: false
+        send_waiting:
+            enabled: true
+            interval_seconds: 300
+            start_immediately: true
+        un_fail:
+            enabled: true
+            interval_seconds: 600
+            start_immediately: false
 name: go-storage-server
 server_private_key: ""
 synchronize_tx_statuses:
-  blocks_delay: 1
-  check_no_send_period_hours: 24
-  max_attempts: 10
+    blocks_delay: 1
+    check_no_send_period_hours: 24
+    max_attempts: 10
 tracing:
-  dialAddr: http://localhost:4317
-  enabled: false
-  sample: 100
+    dialAddr: http://localhost:4317
+    enabled: false
+    sample: 100
 wallet_services:
-  arc:
-    callback_token: ""
-    callback_url: ""
-    deployment_id: ""
-    enabled: true
-    token: mainnet_9596de07e92300c6287e4393594ae39c
-    url: https://arc.taal.com
-    wait_for: ""
-  bhs:
-    api_key: ""
-    enabled: false
-    url: http://localhost:8080
-  bitails:
-    api_key: ""
-    enabled: false
-    script_hash_history_page_limit: 100
-  chaintracks:
-    enabled: false
-    mode: remote # "remote" or "embedded"
-    # Remote mode settings
-    remote_url: http://localhost:3011
-    # Embedded mode settings (used when mode is "embedded")
-    storage_path: ""
-    bootstrap_url: ""
-    bootstrap_mode: "api" # "api" or "cdn"
-    p2p_network: "main" # "main", "test", or "stn"
-    p2p_storage_path: ""
-  exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
-  fiat_exchange_rates:
-    base: USD
-    rates:
-      EUR: 0.93
-      GBP: 0.8
-      USD: 1
-    timestamp: {}
-  fiat_update_interval: 24h0m0s
-  get_beef_max_depth: 100
-  whats_on_chain:
-    api_key: ""
-    bsv_exchange_rate:
-      base: USD
-      rates: 47.52
-      timestamp: {}
-    bsv_update_interval: 15m0s
-    enabled: true
-    root_for_height_retries: 3
-    root_for_height_retry_interval: 1s
+    arc:
+        callback_token: ""
+        callback_url: ""
+        deployment_id: ""
+        enabled: true
+        token: mainnet_9596de07e92300c6287e4393594ae39c
+        url: https://arc.taal.com
+        wait_for: ""
+    bhs:
+        api_key: ""
+        enabled: false
+        url: http://localhost:8080
+    bitails:
+        api_key: ""
+        enabled: false
+        script_hash_history_page_limit: 100
+    chaintracks:
+        bootstrap_mode: ""
+        bootstrap_url: ""
+        enabled: false
+        mode: remote
+        p2p_network: ""
+        p2p_storage_path: ""
+        remote_url: http://localhost:3011
+        storage_path: ""
+    exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
+    fiat_exchange_rates:
+        base: USD
+        rates:
+            EUR: 0.93
+            GBP: 0.8
+            USD: 1
+        timestamp: {}
+    fiat_update_interval: 24h0m0s
+    get_beef_max_depth: 100
+    whats_on_chain:
+        api_key: ""
+        bsv_exchange_rate:
+            base: USD
+            rates: 47.52
+            timestamp: {}
+        bsv_update_interval: 15m0s
+        enabled: true
+        root_for_height_retries: 3
+        root_for_height_retry_interval: 1s
