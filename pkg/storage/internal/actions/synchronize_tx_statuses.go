@@ -345,6 +345,7 @@ func (s *synchronizeTxStatuses) setLastBlockHeight(ctx context.Context, blockHei
 
 // filterTxsByConfirmationDepth filters transactions to only those that have at least BlocksDelay confirmations.
 // This prevents unnecessary MerklePath calls for transactions that are not yet sufficiently confirmed.
+// If the status service is unavailable, it returns an empty slice to skip synchronization.
 func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) {
 	if len(txs) == 0 {
 		return txs, nil
@@ -356,7 +357,12 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 
 	statusResult, err := s.services.GetStatusForTxIDs(ctx, txIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get status for txIDs: %w", err)
+		s.logger.Warn("failed to get status for txIDs, skipping synchronization",
+			slog.Any("err", err),
+			slog.Int("count", len(txs)),
+		)
+		// Return empty slice to skip synchronization when we can't get the status
+		return nil, nil
 	}
 
 	depthByTxID := make(map[string]int, len(statusResult.Results))
