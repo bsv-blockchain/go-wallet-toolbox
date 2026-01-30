@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
@@ -8,6 +9,8 @@ import (
 type DaemonEventOptions struct {
 	onTxBroadcasted chan<- defs.TransactionStatusUpdate
 	onTxProven      chan<- defs.TransactionStatusUpdate
+
+	onReorg <-chan *chaintracks.ReorgEvent
 }
 
 // DaemonEventOption defines a function type for setting DaemonEventOptions.
@@ -17,6 +20,7 @@ func defaultDaemonEventOptions() *DaemonEventOptions {
 	return &DaemonEventOptions{
 		onTxBroadcasted: nil,
 		onTxProven:      nil,
+		onReorg:         nil,
 	}
 }
 
@@ -31,5 +35,16 @@ func WithBroadcastedTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*Daem
 func WithProvenTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onTxProven = ch
+	}
+}
+
+// WithReorgChannel sets the channel for receiving reorg events from chaintracks.
+//
+// NOTE: This is typically not used directly by users. When using infra.Server,
+// this is automatically wired to chaintracks. Only use this if you are manually
+// setting up the monitor.
+func WithReorgChannel(ch <-chan *chaintracks.ReorgEvent) func(*DaemonEventOptions) {
+	return func(o *DaemonEventOptions) {
+		o.onReorg = ch
 	}
 }

@@ -945,3 +945,31 @@ func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters
 		return *o.ToWDK()
 	}), nil
 }
+
+// HandleReorg invalidates merkle proofs for transactions in orphaned blocks.
+// This is called when a blockchain reorganization is detected.
+func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string) error {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-HandleReorg",
+		attribute.Int("orphaned_blocks", len(orphanedBlockHashes)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(orphanedBlockHashes) == 0 {
+		return nil
+	}
+
+	affected, err := p.repo.InvalidateMerkleProofsByBlockHash(ctx, orphanedBlockHashes)
+	if err != nil {
+		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
+	}
+
+	p.logger.Info("Handled reorg - invalidated merkle proofs",
+		"orphaned_blocks", len(orphanedBlockHashes),
+		"affected_transactions", affected,
+	)
+
+	return nil
+}
