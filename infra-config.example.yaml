@@ -92,9 +92,14 @@ wallet_services:
         enabled: false
         script_hash_history_page_limit: 100
     chaintracks:
+        bootstrap_mode: ""
+        bootstrap_url: ""
         enabled: false
         mode: remote
+        p2p_network: ""
+        p2p_storage_path: ""
         remote_url: http://localhost:3011
+        storage_path: ""
     exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
     fiat_exchange_rates:
         base: USD

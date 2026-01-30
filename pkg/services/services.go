@@ -30,7 +30,7 @@ type WalletServices struct {
 	logger *slog.Logger
 	chain  defs.BSVNetwork
 	config *defs.WalletServices
-	// TODO: add p2p client here when adding embedded support
+	// NOTE: add p2p client here when arcade is implemented so they can share clients
 
 	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
 	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
@@ -137,12 +137,16 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			URL:  config.ChaintracksClient.RemoteURL,
 		}
 
-		if config.ChaintracksClient.Mode == "embedded" {
+		if config.ChaintracksClient.Mode == defs.ChaintracksClientModeEmbedded {
 			ctCfg.Mode = ctConfig.ModeEmbedded
-			// TODO: add embedded config opts
+			ctCfg.BootstrapURL = config.ChaintracksClient.BootstrapURL
+			ctCfg.BootstrapMode = ctConfig.BootstrapMode(config.ChaintracksClient.BootstrapMode)
+			ctCfg.StoragePath = config.ChaintracksClient.StoragePath
+			ctCfg.P2P.Network = config.ChaintracksClient.P2PNetwork
+			ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
 		}
 
-		// TODO: when added embedded support add p2p inicalization
+		// NOTE: when added Arcade we can add here P2P initialization if required
 		adapter, err := chaintracksclient.New(logger, ctCfg)
 		if err != nil {
 			panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
