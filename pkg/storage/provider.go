@@ -960,7 +960,7 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 		return nil
 	}
 
-	affected, err := p.repo.KnownTx.InvalidateMerkleProofsByBlockHash(ctx, orphanedBlockHashes)
+	affected, err := p.repo.InvalidateMerkleProofsByBlockHash(ctx, orphanedBlockHashes)
 	if err != nil {
 		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
 	}

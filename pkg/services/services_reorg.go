@@ -10,14 +10,14 @@ import (
 // reorgBroadcaster allows multiple subscribers to receive reorg events
 type reorgBroadcaster struct {
 	mu          sync.RWMutex
-	subscribers []chan *chaintracks.ReorgEvent
+	subscribers map[chan *chaintracks.ReorgEvent]any
 	logger      *slog.Logger
 }
 
 func newReorgBroadcaster(logger *slog.Logger) *reorgBroadcaster {
 	return &reorgBroadcaster{
 		logger:      logger,
-		subscribers: make([]chan *chaintracks.ReorgEvent, 0),
+		subscribers: make(map[chan *chaintracks.ReorgEvent]any, 0),
 	}
 }
 
@@ -28,20 +28,14 @@ func (b *reorgBroadcaster) Subscribe() (<-chan *chaintracks.ReorgEvent, func()) 
 	ch := make(chan *chaintracks.ReorgEvent, 10)
 
 	b.mu.Lock()
-	b.subscribers = append(b.subscribers, ch)
+	b.subscribers[ch] = struct{}{}
 	b.mu.Unlock()
 
 	unsubscribe := func() {
 		b.mu.Lock()
-		defer b.mu.Unlock()
-
-		for i, sub := range b.subscribers {
-			if sub == ch {
-				b.subscribers = append(b.subscribers[:i], b.subscribers[i+1:]...)
-				close(ch)
-				return
-			}
-		}
+		delete(b.subscribers, ch)
+		close(ch)
+		b.mu.Unlock()
 	}
 
 	return ch, unsubscribe
@@ -53,7 +47,7 @@ func (b *reorgBroadcaster) broadcast(event *chaintracks.ReorgEvent) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	for _, sub := range b.subscribers {
+	for sub := range b.subscribers {
 		select {
 		case sub <- event:
 		default:

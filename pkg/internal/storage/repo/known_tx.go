@@ -499,14 +499,14 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 			return nil
 		}
 
-		res := p.db.WithContext(ctx).
-			Model(&models.KnownTx{}).
+		res := tx.Model(&models.KnownTx{}).
 			Where("block_hash IN ?", blockHashes).
 			Updates(map[string]any{
 				"merkle_path":  nil,
 				"block_height": nil,
 				"merkle_root":  nil,
 				"block_hash":   nil,
+				"attempts":     0,
 				"status":       wdk.ProvenTxStatusReorg,
 			})
 		if res.Error != nil {
