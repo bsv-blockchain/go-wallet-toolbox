@@ -118,9 +118,14 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		_ = given.Bitails().WillBeUnreachable()
 		_ = given.WhatsOnChain().WillBeUnreachable()
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
+		given.Chaintracks().WillFail()
 
 		// and:
-		services := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
+		services := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		header, err := services.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
@@ -138,9 +143,14 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 		given.Bitails().WillRespondWithInternalFailure()
+		given.Chaintracks().WillFail()
 
 		// and:
-		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		services := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		response, err := services.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
@@ -158,9 +168,14 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given.BHS().WillRespondWithEmptyBlockHeight()
 		given.WhatsOnChain().WillRespondWithEmptyBlockHeight()
 		given.Bitails().WillRespondWithEmptyBlockHeight()
+		given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.ChainHeaderByHeight(t.Context(), 0) // Assuming height 0 for empty response scenario

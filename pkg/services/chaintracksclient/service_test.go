@@ -105,7 +105,7 @@ func TestService_Lifecycle(t *testing.T) {
 
 		// then:
 		require.NotNil(t, tip)
-		assert.Equal(t, currentHeight, tip.Height)
+		assert.Equal(t, uint(currentHeight), tip.Height)
 	})
 
 	t.Run("CurrentHeight", func(t *testing.T) {
@@ -124,8 +124,8 @@ func TestService_Lifecycle(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, header)
-		assert.Equal(t, uint32(0), header.Height)
-		assert.Equal(t, *genesisHash, header.Hash)
+		assert.Equal(t, uint(0), header.Height)
+		assert.Equal(t, genesisHash.String(), header.Hash)
 	})
 
 	t.Run("GetHeaderByHeight_tip", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestService_Lifecycle(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, header)
-		assert.Equal(t, currentHeight, header.Height)
+		assert.Equal(t, uint(currentHeight), header.Height)
 	})
 
 	t.Run("GetHeaderByHeight_notFound", func(t *testing.T) {
@@ -192,7 +192,8 @@ func TestService_Lifecycle(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, header)
-		assert.Equal(t, uint32(0), header.Height)
+		assert.Equal(t, uint(0), header.Height)
+		assert.Equal(t, header.Hash, genesisHashStr)
 	})
 }
 

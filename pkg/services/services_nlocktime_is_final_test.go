@@ -106,8 +106,13 @@ func TestWalletServices_NLockTimeIsFinal_AllProvidersFail(t *testing.T) {
 	given.Bitails().WillReturnNetworkInfo(http.StatusBadGateway, 0)
 	err = given.BHS().WillBeUnreachable()
 	require.Error(t, err)
+	given.Chaintracks().WillFail()
 
-	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+	svc := given.Services().Config(
+		testservices.WithEnabledBitails(true),
+		testservices.WithEnabledBHS(true),
+		testservices.WithEnabledChaintracks(true),
+	).New()
 
 	// when:
 	_, err = svc.NLockTimeIsFinal(t.Context(), uint32(400_000_000))

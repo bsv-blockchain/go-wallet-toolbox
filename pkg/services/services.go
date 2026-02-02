@@ -131,34 +131,39 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 	var chaintracksAdapter *chaintracksclient.Adapter
 	var reorgBroadcast *reorgBroadcaster
 
-	if options.chaintracksAdapter != nil {
-		chaintracksAdapter = options.chaintracksAdapter
-		reorgBroadcast = newReorgBroadcaster(logger)
-	} else if config.ChaintracksClient.Enabled {
-		ctCfg := &ctConfig.Config{
-			Mode: ctConfig.ModeRemote,
-			URL:  config.ChaintracksClient.RemoteURL,
+	if config.ChaintracksClient.Enabled {
+		if options.chaintracksAdapter != nil {
+			// Use injected adapter (mostly for testing)
+			chaintracksAdapter = options.chaintracksAdapter
+		} else {
+			// Create adapter from config
+			ctCfg := &ctConfig.Config{
+				Mode: ctConfig.ModeRemote,
+				URL:  config.ChaintracksClient.RemoteURL,
+			}
+
+			if config.ChaintracksClient.Mode == defs.ChaintracksClientModeEmbedded {
+				ctCfg.Mode = ctConfig.ModeEmbedded
+				ctCfg.BootstrapURL = config.ChaintracksClient.BootstrapURL
+				ctCfg.BootstrapMode = ctConfig.BootstrapMode(config.ChaintracksClient.BootstrapMode)
+				ctCfg.StoragePath = config.ChaintracksClient.StoragePath
+				ctCfg.P2P.Network = config.ChaintracksClient.P2PNetwork
+				ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
+			}
+
+			// NOTE: when added Arcade we can add here P2P initialization if required
+			adapter, err := chaintracksclient.New(logger, ctCfg)
+			if err != nil {
+				panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
+			}
+
+			chaintracksAdapter = adapter
 		}
 
-		if config.ChaintracksClient.Mode == defs.ChaintracksClientModeEmbedded {
-			ctCfg.Mode = ctConfig.ModeEmbedded
-			ctCfg.BootstrapURL = config.ChaintracksClient.BootstrapURL
-			ctCfg.BootstrapMode = ctConfig.BootstrapMode(config.ChaintracksClient.BootstrapMode)
-			ctCfg.StoragePath = config.ChaintracksClient.StoragePath
-			ctCfg.P2P.Network = config.ChaintracksClient.P2PNetwork
-			ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
-		}
-
-		// NOTE: when added Arcade we can add here P2P initialization if required
-		adapter, err := chaintracksclient.New(logger, ctCfg)
-		if err != nil {
-			panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
-		}
-
-		chaintracksAdapter = adapter
 		reorgBroadcast = newReorgBroadcaster(logger)
 	}
 
+	// Register chaintracks implementation if adapter is available
 	if chaintracksAdapter != nil {
 		predefined = append(predefined, Named[Implementation]{
 			Name: defs.ChaintracksServiceName,
