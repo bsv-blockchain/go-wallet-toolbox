@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	p2p "github.com/bsv-blockchain/go-teranode-p2p-client"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // Callbacks defines the callback functions for chaintracks events
@@ -130,28 +131,68 @@ func (a *Adapter) GetHeight(ctx context.Context) uint32 {
 }
 
 // GetTip returns the current chain tip
-func (a *Adapter) GetTip(ctx context.Context) *chaintracks.BlockHeader {
-	return a.ct.GetTip(ctx)
+func (a *Adapter) GetTip(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+	tip := a.ct.GetTip(ctx)
+
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      uint32(tip.Version),
+			PreviousHash: tip.PrevHash.String(),
+			MerkleRoot:   tip.MerkleRoot.String(),
+			Time:         tip.Timestamp,
+			Bits:         tip.Bits,
+			Nonce:        tip.Nonce,
+		},
+		Hash:   tip.Hash.String(),
+		Height: uint(tip.Height),
+	}, nil
 }
 
 // GetHeaderByHeight retrieves a block header by its height
-func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (*chaintracks.BlockHeader, error) {
+func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
 	header, err := a.ct.GetHeaderByHeight(ctx, height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get header by height %d: %w", height, err)
 	}
 
-	return header, nil
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      uint32(header.Version),
+			PreviousHash: header.PrevHash.String(),
+			MerkleRoot:   header.MerkleRoot.String(),
+			Time:         header.Timestamp,
+			Bits:         header.Bits,
+			Nonce:        header.Nonce,
+		},
+		Hash:   header.Hash.String(),
+		Height: uint(header.Height),
+	}, nil
 }
 
 // GetHeaderByHash retrieves a block header by its hash
-func (a *Adapter) GetHeaderByHash(ctx context.Context, hash *chainhash.Hash) (*chaintracks.BlockHeader, error) {
-	header, err := a.ct.GetHeaderByHash(ctx, hash)
+func (a *Adapter) GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
+	chainHash, err := chainhash.NewHashFromHex(hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get header by hash %s: %w", hash.String(), err)
+		return nil, fmt.Errorf("failed to create chainhash from hash string: %s, err: %w", hash, err)
 	}
 
-	return header, nil
+	header, err := a.ct.GetHeaderByHash(ctx, chainHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get header by hash %s: %w", hash, err)
+	}
+
+	return &wdk.ChainBlockHeader{
+		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
+			Version:      uint32(header.Version),
+			PreviousHash: header.PrevHash.String(),
+			MerkleRoot:   header.MerkleRoot.String(),
+			Time:         header.Timestamp,
+			Bits:         header.Bits,
+			Nonce:        header.Nonce,
+		},
+		Hash:   header.Hash.String(),
+		Height: uint(header.Height),
+	}, nil
 }
 
 // GetHeaders retrieves multiple headers starting from the given height
