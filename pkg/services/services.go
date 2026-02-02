@@ -63,10 +63,78 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	var predefined []Named[Implementation]
 
+	if config.ArcConfig.Enabled {
+		arcService := arc.New(logger, options.RestyClientFactory.New(), config.ArcConfig)
+		predefined = append(predefined, Named[Implementation]{
+			Name: arc.ServiceName,
+			Item: Implementation{
+				PostBEEF:   arcService.PostBEEF,
+				MerklePath: arcService.MerklePath,
+			},
+		})
+	}
+
+	if config.BHS.Enabled {
+		bhsService := bhs.New(options.RestyClientFactory.New(), logger, config.Chain, config.BHS)
+		predefined = append(predefined, Named[Implementation]{
+			Name: bhs.ServiceName,
+			Item: Implementation{
+				FindChainTipHeader:   bhsService.FindChainTipHeader,
+				IsValidRootForHeight: bhsService.IsValidRootForHeight,
+				CurrentHeight:        bhsService.CurrentHeight,
+				ChainHeaderByHeight:  bhsService.ChainHeaderByHeight,
+			},
+		})
+	}
+
+	if config.WhatsOnChain.Enabled {
+		wocService := whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
+		predefined = append(predefined, Named[Implementation]{
+			Name: whatsonchain.ServiceName,
+			Item: Implementation{
+				RawTx:                wocService.RawTx,
+				PostBEEF:             wocService.PostBEEF,
+				MerklePath:           wocService.MerklePath,
+				FindChainTipHeader:   wocService.FindChainTipHeader,
+				IsValidRootForHeight: wocService.IsValidRootForHeight,
+				CurrentHeight:        wocService.CurrentHeight,
+				GetScriptHashHistory: wocService.GetScriptHashHistory,
+				HashToHeader:         wocService.HashToHeader,
+				ChainHeaderByHeight:  wocService.ChainHeaderByHeight,
+				GetStatusForTxIDs:    wocService.GetStatusForTxIDs,
+				GetUtxoStatus:        wocService.GetUtxoStatus,
+				IsUtxo:               wocService.IsUtxo,
+				BsvExchangeRate:      wocService.UpdateBsvExchangeRate,
+			},
+		})
+	}
+
+	if config.Bitails.Enabled {
+		bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
+		predefined = append(predefined, Named[Implementation]{
+			Name: bitails.ServiceName,
+			Item: Implementation{
+				RawTx:                bitailsService.RawTx,
+				PostBEEF:             bitailsService.PostBEEF,
+				MerklePath:           bitailsService.MerklePath,
+				FindChainTipHeader:   bitailsService.FindChainTipHeader,
+				IsValidRootForHeight: bitailsService.IsValidRootForHeight,
+				CurrentHeight:        bitailsService.CurrentHeight,
+				GetScriptHashHistory: bitailsService.GetScriptHashHistory,
+				HashToHeader:         bitailsService.HashToHeader,
+				ChainHeaderByHeight:  bitailsService.ChainHeaderByHeight,
+				GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
+			},
+		})
+	}
+
 	var chaintracksAdapter *chaintracksclient.Adapter
 	var reorgBroadcast *reorgBroadcaster
 
-	if config.ChaintracksClient.Enabled {
+	if options.chaintracksAdapter != nil {
+		chaintracksAdapter = options.chaintracksAdapter
+		reorgBroadcast = newReorgBroadcaster(logger)
+	} else if config.ChaintracksClient.Enabled {
 		ctCfg := &ctConfig.Config{
 			Mode: ctConfig.ModeRemote,
 			URL:  config.ChaintracksClient.RemoteURL,
@@ -89,73 +157,17 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		chaintracksAdapter = adapter
 		reorgBroadcast = newReorgBroadcaster(logger)
+	}
 
+	if chaintracksAdapter != nil {
 		predefined = append(predefined, Named[Implementation]{
 			Name: defs.ChaintracksServiceName,
 			Item: Implementation{
-				CurrentHeight:        adapter.CurrentHeight,
-				ChainHeaderByHeight:  adapter.GetHeaderByHeight,
-				HashToHeader:         adapter.GetHeaderByHash,
-				FindChainTipHeader:   adapter.GetTip,
-				IsValidRootForHeight: adapter.IsValidRootForHeight,
-			},
-		})
-	}
-
-	if config.ArcConfig.Enabled {
-		arcService := arc.New(logger, options.RestyClientFactory.New(), config.ArcConfig)
-		predefined = append(predefined, Named[Implementation]{
-			Name: arc.ServiceName,
-			Item: Implementation{
-				PostBEEF:   arcService.PostBEEF,
-				MerklePath: arcService.MerklePath,
-			},
-		})
-	}
-
-	if config.BHS.Enabled {
-		bhsService := bhs.New(options.RestyClientFactory.New(), logger, config.Chain, config.BHS)
-		predefined = append(predefined, Named[Implementation]{
-			Name: bhs.ServiceName,
-			Item: Implementation{
-				FindChainTipHeader:   bhsService.FindChainTipHeader,
-				IsValidRootForHeight: bhsService.IsValidRootForHeight,
-			},
-		})
-	}
-
-	if config.WhatsOnChain.Enabled {
-		wocService := whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
-		predefined = append(predefined, Named[Implementation]{
-			Name: whatsonchain.ServiceName,
-			Item: Implementation{
-				RawTx:                wocService.RawTx,
-				PostBEEF:             wocService.PostBEEF,
-				MerklePath:           wocService.MerklePath,
-				FindChainTipHeader:   wocService.FindChainTipHeader,
-				IsValidRootForHeight: wocService.IsValidRootForHeight,
-				GetScriptHashHistory: wocService.GetScriptHashHistory,
-				HashToHeader:         wocService.HashToHeader,
-				GetStatusForTxIDs:    wocService.GetStatusForTxIDs,
-				GetUtxoStatus:        wocService.GetUtxoStatus,
-				IsUtxo:               wocService.IsUtxo,
-				BsvExchangeRate:      wocService.UpdateBsvExchangeRate,
-			},
-		})
-	}
-
-	if config.Bitails.Enabled {
-		bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
-		predefined = append(predefined, Named[Implementation]{
-			Name: bitails.ServiceName,
-			Item: Implementation{
-				RawTx:                bitailsService.RawTx,
-				PostBEEF:             bitailsService.PostBEEF,
-				MerklePath:           bitailsService.MerklePath,
-				FindChainTipHeader:   bitailsService.FindChainTipHeader,
-				IsValidRootForHeight: bitailsService.IsValidRootForHeight,
-				GetScriptHashHistory: bitailsService.GetScriptHashHistory,
-				GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
+				CurrentHeight:        chaintracksAdapter.CurrentHeight,
+				ChainHeaderByHeight:  chaintracksAdapter.GetHeaderByHeight,
+				HashToHeader:         chaintracksAdapter.GetHeaderByHash,
+				FindChainTipHeader:   chaintracksAdapter.GetTip,
+				IsValidRootForHeight: chaintracksAdapter.IsValidRootForHeight,
 			},
 		})
 	}
