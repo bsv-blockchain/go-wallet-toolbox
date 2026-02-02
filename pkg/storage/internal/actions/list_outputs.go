@@ -11,12 +11,14 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type listOutputs struct {
@@ -39,7 +41,14 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	// TODO: Handle args.KnownTxids
 	// TODO: Handle args.IncludeLabels
 
-	filter := l.toFilterParams(*auth.UserID, args)
+	userID := *auth.UserID
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-ListOutputs", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	filter := l.toFilterParams(userID, args)
 
 	outputModels, totalCount, err := l.outputsRepo.ListAndCountOutputs(ctx, filter)
 	if err != nil {
@@ -93,7 +102,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 			return nil, fmt.Errorf("error converting BEEF to bytes: %w", err)
 		}
 
-		result.BEEF = to.Ptr[primitives.BEEF](rawBeef)
+		result.BEEF = primitives.ExplicitByteArray(rawBeef)
 	}
 
 	return result, nil

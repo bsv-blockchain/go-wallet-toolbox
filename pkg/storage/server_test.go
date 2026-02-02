@@ -500,7 +500,7 @@ func TestRPCCommunication(t *testing.T) {
 
 		expectedResult := &wdk.ListOutputsResult{
 			TotalOutputs: 1,
-			BEEF:         to.Ptr(primitives.BEEF([]byte{0x01, 0x02})),
+			BEEF:         primitives.ExplicitByteArray{0x01, 0x02},
 			Outputs: []*wdk.WalletOutput{
 				{
 					Satoshis:  1000,

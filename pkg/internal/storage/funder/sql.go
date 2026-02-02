@@ -57,6 +57,7 @@ func (f *SQL) Fund(
 	ctx context.Context,
 	targetSat satoshi.Value,
 	currentTxSize uint64,
+	outputCount uint64,
 	basket *entity.OutputBasket,
 	userID int,
 	forbiddenOutputIDs []uint,
@@ -68,7 +69,7 @@ func (f *SQL) Fund(
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
 	}
 
-	collector, err := newCollector(targetSat, currentTxSize, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator)
+	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
@@ -155,15 +156,17 @@ type utxoCollector struct {
 	satsCovered    satoshi.Value
 	allocatedUTXOs []*UTXO
 
+	outputCount             uint64
 	numberOfDesiredUTXOs    uint64
 	minimumDesiredUTXOValue uint64
 	changeOutputsCount      uint64
 	minimumChange           uint64
 }
 
-func newCollector(txSats satoshi.Value, txSize uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
+func newCollector(txSats satoshi.Value, txSize uint64, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
 	c = &utxoCollector{
 		txSats:                  txSats,
+		outputCount:             outputCount,
 		minimumDesiredUTXOValue: minimumDesiredUTXOValue,
 		feeCalculator:           feeCalculator,
 		allocatedUTXOs:          make([]*UTXO, 0),
@@ -196,6 +199,14 @@ func (c *utxoCollector) Allocate(utxos iter.Seq2[*models.UserUTXO, error]) error
 }
 
 func (c *utxoCollector) IsFunded() bool {
+	// A valid Bitcoin transaction must have at least one output.
+	// If no outputs are defined and no change outputs will be created,
+	// we must continue allocating UTXOs to ensure at least one change output exists.
+	totalOutputs := c.outputCount + c.changeOutputsCount
+	if totalOutputs == 0 {
+		return c.satsCovered > c.satsToCover()
+	}
+
 	return c.satsCovered >= c.satsToCover()
 }
 

@@ -11,7 +11,9 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type getBeef struct {
@@ -35,6 +37,12 @@ type rawTxWithMerklePath struct {
 }
 
 func (g *getBeef) GetBeef(ctx context.Context, txID string, options wdk.StorageGetBeefOptions) (*transaction.Beef, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-GetBeef", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if stdslices.Contains(options.KnownTxIDs, txID) {
 		return g.beefForKnownID(txID)
 	}

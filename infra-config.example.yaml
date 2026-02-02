@@ -40,6 +40,13 @@ logging:
     level: info
 monitor:
     enabled: true
+    events:
+        tx_broadcasted:
+            channel_size: 100
+            enabled: false
+        tx_proven:
+            channel_size: 100
+            enabled: false
     tasks:
         check_for_proofs:
             enabled: true
@@ -60,6 +67,7 @@ monitor:
 name: go-storage-server
 server_private_key: ""
 synchronize_tx_statuses:
+    blocks_delay: 1
     check_no_send_period_hours: 24
     max_attempts: 10
 tracing:
@@ -83,6 +91,15 @@ wallet_services:
         api_key: ""
         enabled: false
         script_hash_history_page_limit: 100
+    chaintracks:
+        bootstrap_mode: ""
+        bootstrap_url: ""
+        enabled: false
+        mode: remote
+        p2p_network: ""
+        p2p_storage_path: ""
+        remote_url: http://localhost:3011
+        storage_path: ""
     exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
     fiat_exchange_rates:
         base: USD

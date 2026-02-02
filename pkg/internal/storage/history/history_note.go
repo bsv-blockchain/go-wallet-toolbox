@@ -24,6 +24,8 @@ const (
 	PostBeefError   = "postBeefError"
 
 	ServiceFetchedWhileGettingBeef = "serviceFetchedWhileGettingBeef"
+
+	ReorgInvalidatedProof = "reorgInvalidatedProof"
 )
 
 const (
@@ -44,6 +46,8 @@ type EventTypesSelector interface {
 	PostBeefSuccess(serviceName string, txIDs []string) Builder
 
 	ServiceFetchedWhileGettingBeef(subjectTxID string) Builder
+
+	ReorgInvalidatedProof(orhpanedBlockHash string) Builder
 }
 
 type AggregatedBroadcastResult struct {
@@ -126,6 +130,12 @@ func (b *builder) PostBeefSuccess(serviceName string, txIDs []string) Builder {
 	return b.WithWhat(PostBeefSuccess).
 		WithAttribute(serviceNameAttr, serviceName).
 		WithAttribute("txids", strings.Join(txIDs, ","))
+}
+
+func (b *builder) ReorgInvalidatedProof(orhpanedBlockHash string) Builder {
+	return b.WithWhat(ReorgInvalidatedProof).
+		WithAttribute("orhpaned_block_hash", orhpanedBlockHash).
+		WithNewStatus(string(wdk.ProvenTxStatusReorg))
 }
 
 func (b *builder) NotifyTxOfProof(transactionID uint) Builder {

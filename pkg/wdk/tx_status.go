@@ -50,9 +50,10 @@ const (
 	ProvenTxStatusCallback    ProvenTxReqStatus = "callback"
 	ProvenTxStatusUnconfirmed ProvenTxReqStatus = "unconfirmed"
 	ProvenTxStatusCompleted   ProvenTxReqStatus = "completed"
-	ProvenTxStatusInvalid     ProvenTxReqStatus = "invalid"
+	ProvenTxStatusInvalid     ProvenTxReqStatus = "invalidTx"
 	ProvenTxStatusDoubleSpend ProvenTxReqStatus = "doubleSpend"
 	ProvenTxStatusUnfail      ProvenTxReqStatus = "unfail"
+	ProvenTxStatusReorg       ProvenTxReqStatus = "reorg"
 )
 
 // SendWithResultStatus returns the status of a transaction request based on its ProvenTxReqStatus.
@@ -91,7 +92,8 @@ func (s ProvenTxReqStatus) AlreadySent() bool {
 	case ProvenTxStatusUnmined,
 		ProvenTxStatusCallback,
 		ProvenTxStatusUnconfirmed,
-		ProvenTxStatusCompleted:
+		ProvenTxStatusCompleted,
+		ProvenTxStatusReorg:
 		return true
 	default:
 		return false

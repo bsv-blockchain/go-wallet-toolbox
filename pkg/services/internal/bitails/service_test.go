@@ -393,7 +393,7 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 		{
 			name: "network/client failure",
 			setup: func() {
-				given.Bitails().WillBeUnreachable()
+				_ = given.Bitails().WillBeUnreachable()
 			},
 			wantErr: "unexpected HTTP",
 		},

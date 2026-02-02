@@ -19,6 +19,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -27,6 +28,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -121,6 +123,12 @@ func newCreateAction(
 }
 
 func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (*wdk.StorageCreateActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-Create", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	reference, err := c.randomReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate reference number: %w", err)
@@ -229,7 +237,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	includeUTXOsInSendingState := params.IsDelayed
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
+	outputCount := uint64(len(params.Outputs))
+	if commOut != nil {
+		outputCount++
+	}
+
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}

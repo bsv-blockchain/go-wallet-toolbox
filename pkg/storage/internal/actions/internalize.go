@@ -12,12 +12,14 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type OutputToInternalize struct {
@@ -60,6 +62,12 @@ func newInternalizeAction(
 }
 
 func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-Internalize", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	in.logger.DebugContext(ctx, "Starting internalize action",
 		logging.UserID(userID),
 		slog.Int("txBeefSize", len(args.Tx)),

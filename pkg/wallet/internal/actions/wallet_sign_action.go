@@ -12,12 +12,14 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type SignAction struct {
@@ -33,11 +35,17 @@ type SignAction struct {
 }
 
 func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string) (*wallet.SignActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	s.Logger = logging.Child(s.Logger, "SignAction")
 	s.originator = originator
 	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
 
-	err := s.validate()
+	err = s.validate()
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +106,12 @@ func (s *SignAction) attachUnlockingScripts(args wallet.SignActionArgs) {
 }
 
 func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction-handleProcessAction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(s.txID, s.tx, s.reference, s.wdkArgs)
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)

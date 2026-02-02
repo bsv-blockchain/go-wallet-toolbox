@@ -89,6 +89,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			services,
 			options.SynchronizeTxStatusesConfig,
 			options.beefVerifier(),
+			options.BackgroundBroadcasterChannel,
 		),
 		options:  &options,
 		logger:   log,
@@ -382,7 +383,7 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidCreateActionArgs(&args); err != nil {
+	if err = validate.ValidCreateActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
@@ -425,7 +426,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
+	if err = validate.ValidInternalizeActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
 	}
 
@@ -447,7 +448,7 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ProcessActionArgs(&args); err != nil {
+	if err = validate.ProcessActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid processAction args: %w", err)
 	}
 
@@ -470,7 +471,7 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ValidAbortActionArgs(&args); err != nil {
+	if err = validate.ValidAbortActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid abortActionArgs args: %w", err)
 	}
 
@@ -482,33 +483,33 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 }
 
 // SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
-func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
+func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.TxSynchronizedStatus, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SynchronizeTransactionStatuses")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.actions.SynchronizeTxStatuses(ctx)
+	results, err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+		return nil, fmt.Errorf("failed to synchronize transaction statuses: %w", err)
 	}
-	return nil
+	return results, nil
 }
 
 // SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
-func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SendWaitingTransactions")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.actions.SendWaitingTransactions(ctx, minTransactionAge)
+	results, err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
-		return fmt.Errorf("failed to send waiting transactions: %w", err)
+		return nil, fmt.Errorf("failed to send waiting transactions: %w", err)
 	}
-	return nil
+	return results, nil
 }
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
@@ -540,7 +541,7 @@ func (p *Provider) UnFail(ctx context.Context) error {
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := p.actions.UnFail(ctx); err != nil {
+	if err = p.actions.UnFail(ctx); err != nil {
 		return fmt.Errorf("failed to recheck failed transactions: %w", err)
 	}
 	return nil
@@ -558,7 +559,7 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ListOutputsArgs(&args); err != nil {
+	if err = validate.ListOutputsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listOutputs args: %w", err)
 	}
 
@@ -586,7 +587,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return ErrAuthorization
 	}
 
-	if err := validate.ValidRelinquishOutputArgs(&args); err != nil {
+	if err = validate.ValidRelinquishOutputArgs(&args); err != nil {
 		return fmt.Errorf("invalid relinquishOutput args: %w", err)
 	}
 
@@ -628,7 +629,7 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 		return ErrAuthorization
 	}
 
-	if err := validate.ValidBasketConfiguration(&args); err != nil {
+	if err = validate.ValidBasketConfiguration(&args); err != nil {
 		return fmt.Errorf("invalid basket configuration: %w", err)
 	}
 
@@ -943,4 +944,32 @@ func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters
 	return slices.Map(entities, func(o *entity.Output) wdk.TableOutput {
 		return *o.ToWDK()
 	}), nil
+}
+
+// HandleReorg invalidates merkle proofs for transactions in orphaned blocks.
+// This is called when a blockchain reorganization is detected.
+func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string) error {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-HandleReorg",
+		attribute.Int("orphaned_blocks", len(orphanedBlockHashes)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(orphanedBlockHashes) == 0 {
+		return nil
+	}
+
+	affected, err := p.repo.InvalidateMerkleProofsByBlockHash(ctx, orphanedBlockHashes)
+	if err != nil {
+		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
+	}
+
+	p.logger.Info("Handled reorg - invalidated merkle proofs",
+		"orphaned_blocks", len(orphanedBlockHashes),
+		"affected_transactions", affected,
+	)
+
+	return nil
 }

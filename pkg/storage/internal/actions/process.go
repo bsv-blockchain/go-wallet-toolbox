@@ -18,12 +18,14 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const transactionBatchLength = 16
@@ -55,6 +57,7 @@ func newProcessAction(
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
+	txBroadcastedChannel chan<- defs.TransactionStatusUpdate,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -70,12 +73,18 @@ func newProcessAction(
 		beefVerifier:   beefVerifier,
 	}
 
-	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p)
+	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel)
 	p.backgroundBroadcaster.Start()
 	return p
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-Process", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	logger := p.logger.With(logging.UserID(userID))
 
 	logger.InfoContext(ctx, "Starting Process Action",
@@ -754,17 +763,18 @@ func (p *process) StopBackgroundBroadcaster() {
 	}
 }
 
-func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error {
+func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.SendWithResult, error) {
 	results, err := p.services.PostBEEF(ctx, beef, txIDs)
 	if err != nil {
-		return fmt.Errorf("failed to post BEEF in background: %w", err)
+		return nil, fmt.Errorf("failed to post BEEF in background: %w", err)
 	}
 
 	aggregated := results.Aggregated(txIDs)
+	bResults := make([]wdk.SendWithResult, 0, len(txIDs))
 	for _, broadcastedTxID := range txIDs {
 		aggBroadcastResult, ok := aggregated[broadcastedTxID]
 		if !ok {
-			return fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
+			return nil, fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
 		}
 
 		sendWithResult, _, err := p.updateSingleTx(
@@ -776,11 +786,12 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 			txIDs,
 		)
 		if err != nil {
-			return fmt.Errorf("failed to update single tx after background broadcast (txID: %s): %w", broadcastedTxID, err)
+			return nil, fmt.Errorf("failed to update single tx after background broadcast (txID: %s): %w", broadcastedTxID, err)
 		}
 
 		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", sendWithResult.Status)
+		bResults = append(bResults, sendWithResult)
 	}
 
-	return nil
+	return bResults, nil
 }

@@ -1,7 +1,6 @@
 package testabilities
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -130,9 +129,8 @@ func (b *certifierServerBuilder) createHandler(signCertHandler http.HandlerFunc)
 		authMiddleware = b.authMiddleware
 	} else {
 		// Build default auth middleware with configured options
-		opts := []func(*middleware.AuthMiddlewareConfig){
-			middleware.WithAuthLogger(slogx.NewTestLogger(b)),
-		}
+		opts := make([]func(*middleware.AuthMiddlewareConfig), 0, 1+len(b.authMiddlewareOpts))
+		opts = append(opts, middleware.WithAuthLogger(slogx.NewTestLogger(b)))
 		opts = append(opts, b.authMiddlewareOpts...)
 		authMiddleware = middleware.NewAuth(b.serverWallet, opts...)
 	}
@@ -167,19 +165,32 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			http.Error(w, "failed to create server nonce", http.StatusBadRequest)
 			return
 		}
+
+		decodedClientNonce, err := base64.StdEncoding.DecodeString(req.Nonce)
+		if err != nil {
+			logger.Error("failed to decode client nonce", slog.Any("error", err))
+			http.Error(w, "Invalid client nonce encoding", http.StatusBadRequest)
+			return
+		}
+		decodedSrvNonce, err := base64.StdEncoding.DecodeString(serverNonce)
+		if err != nil {
+			logger.Error("failed to decode server nonce", slog.Any("error", err))
+			http.Error(w, "Invalid server nonce encoding", http.StatusBadRequest)
+			return
+		}
 		hmac, err := b.serverWallet.CreateHMAC(b.Context(), sdk.CreateHMACArgs{
 			EncryptionArgs: sdk.EncryptionArgs{
 				ProtocolID: sdk.Protocol{
 					SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 					Protocol:      "certificate issuance",
 				},
-				KeyID: string(serverNonce) + req.Nonce,
+				KeyID: serverNonce + req.Nonce,
 				Counterparty: sdk.Counterparty{
 					Type:         sdk.CounterpartyTypeOther,
 					Counterparty: clientPubKey,
 				},
 			},
-			Data: bytes.Join([][]byte{[]byte(req.Nonce), serverNonce}, []byte{}),
+			Data: append(decodedClientNonce, decodedSrvNonce...),
 		}, "")
 		if err != nil {
 			logger.Error("failed to create server hmac", slog.Any("error", err))
@@ -215,7 +226,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 
 		// Mock response with a certificate
 		response := actions.ProtocolIssuanceResponse{
-			ServerNonce: string(serverNonce),
+			ServerNonce: serverNonce,
 			Certificate: &actions.Certificate{
 				Type:               string(signedCertificate.Type),
 				SerialNumber:       string(signedCertificate.SerialNumber),

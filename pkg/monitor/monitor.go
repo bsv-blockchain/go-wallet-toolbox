@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
@@ -30,6 +31,20 @@ type Daemon struct {
 
 	started   bool
 	startLock sync.Mutex
+
+	eventChannels EventChannels
+}
+
+// EventChannels holds channels for bidirectional communication with the monitor.
+// Outbound channels (chan<-) are used by monitor to send notifications back to other components.
+// Inbound channels (<-chan) are used by monitor to receive external events.
+type EventChannels struct {
+	// Outbound channels:
+	OnTxBroadcasted chan<- defs.TransactionStatusUpdate
+	OnTxProven      chan<- defs.TransactionStatusUpdate
+
+	// Inbound channels:
+	OnReorg <-chan *chaintracks.ReorgEvent
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -42,7 +57,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...DaemonEventOption) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
@@ -57,21 +72,32 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, gocron.WithDistributedLocker(locker))
+	options := defaultDaemonEventOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, options, gocron.WithDistributedLocker(locker))
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *DaemonEventOptions, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}
+
 	return &Daemon{
 		scheduler:   scheduler,
 		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 		storage:     storage,
+		eventChannels: EventChannels{
+			OnTxBroadcasted: eventOptions.onTxBroadcasted,
+			OnTxProven:      eventOptions.onTxProven,
+			OnReorg:         eventOptions.onReorg,
+		},
 	}, nil
 }
 
@@ -96,6 +122,10 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
 			return err
 		}
+	}
+
+	if d.eventChannels.OnReorg != nil {
+		go d.handleReorgEvents()
 	}
 
 	d.scheduler.Start()
@@ -229,4 +259,26 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 
 	timeout := time.Duration(float64(untilNext) * safetyMargin)
 	return context.WithTimeout(ctx, timeout)
+}
+
+func (d *Daemon) handleReorgEvents() {
+	d.logger.Info("Starting reorg event handler")
+
+	for event := range d.eventChannels.OnReorg {
+		d.logger.Info("Received reorg event",
+			"depth", event.Depth,
+			"orphaned_count", len(event.OrphanedHashes),
+		)
+
+		orphanedHashes := make([]string, len(event.OrphanedHashes))
+		for i, hash := range event.OrphanedHashes {
+			orphanedHashes[i] = hash.String()
+		}
+
+		if err := d.storage.HandleReorg(context.Background(), orphanedHashes); err != nil {
+			d.logger.Error("Failed to handle reorg", "error", err)
+		}
+	}
+
+	d.logger.Info("reorg event handler stopped")
 }

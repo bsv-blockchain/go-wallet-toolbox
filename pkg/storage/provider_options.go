@@ -33,6 +33,7 @@ type ProviderConfig struct {
 	Commission defs.Commission
 
 	BackgroundBroadcasterContext context.Context
+	BackgroundBroadcasterChannel chan<- defs.TransactionStatusUpdate
 }
 
 // WithConfig returns a ProviderOption that sets the ProviderConfig to the supplied cfg value.
@@ -117,6 +118,15 @@ func WithCommission(commission defs.Commission) ProviderOption {
 func WithBackgroundBroadcasterContext(ctx context.Context) ProviderOption {
 	return func(o *ProviderConfig) {
 		o.BackgroundBroadcasterContext = ctx
+	}
+}
+
+// WithBackgroundBroadcasterChannel sets the notification channel for the background broadcaster in provider options.
+// This channel is used to send transaction status updates when transactions are broadcasted in the background.
+// This same channel which is passed to the monitor to receive broadcasted transaction updates should be used.
+func WithBackgroundBroadcasterChannel(txBroadcastedChannel chan<- defs.TransactionStatusUpdate) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.BackgroundBroadcasterChannel = txBroadcastedChannel
 	}
 }
 
