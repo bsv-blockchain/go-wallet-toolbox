@@ -84,8 +84,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 
 	header, err := s.services.FindChainTipHeader(ctx)
 	if err != nil {
-		// Log warning but continue - we'll skip the "already checked" optimization
-		// and won't save the lastBlock, but sync will still process transactions
+		// log warning but continue with sync anyway.
 		s.logger.Warn("failed to find chain tip header, continuing without block tracking", slog.Any("err", err))
 	} else {
 		heightForCheck = header.Height - s.syncTxStatusesConfig.BlocksDelay
