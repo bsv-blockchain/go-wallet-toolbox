@@ -11,6 +11,7 @@ type DaemonEventOptions struct {
 	onTxProven      chan<- defs.TransactionStatusUpdate
 
 	onReorg <-chan *chaintracks.ReorgEvent
+	onTip   <-chan *chaintracks.BlockHeader
 }
 
 // DaemonEventOption defines a function type for setting DaemonEventOptions.
@@ -21,6 +22,7 @@ func defaultDaemonEventOptions() *DaemonEventOptions {
 		onTxBroadcasted: nil,
 		onTxProven:      nil,
 		onReorg:         nil,
+		onTip:           nil,
 	}
 }
 
@@ -46,5 +48,16 @@ func WithProvenTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEve
 func WithReorgChannel(ch <-chan *chaintracks.ReorgEvent) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onReorg = ch
+	}
+}
+
+// WithTipChannel sets the channel for receiving new tips events from chaintracks.
+//
+// NOTE: This is typically not used directly by users. When using infra.Server,
+// this is automatically wired to chaintracks. Only use this if you are manually
+// setting up the monitor.
+func WithTipChannel(ch <-chan *chaintracks.BlockHeader) func(*DaemonEventOptions) {
+	return func(o *DaemonEventOptions) {
+		o.onTip = ch
 	}
 }

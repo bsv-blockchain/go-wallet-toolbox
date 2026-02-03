@@ -49,6 +49,7 @@ type WalletServices struct {
 	// chaintracks integration
 	chaintracks    *chaintracksclient.Adapter
 	reorgBroadcast *reorgBroadcaster
+	tipBroadcast   *tipBroadcaster
 }
 
 // New will return a new WalletServices
@@ -130,6 +131,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	var chaintracksAdapter *chaintracksclient.Adapter
 	var reorgBroadcast *reorgBroadcaster
+	var tipBroadcast *tipBroadcaster
 
 	if config.ChaintracksClient.Enabled {
 		if options.chaintracksAdapter != nil {
@@ -161,6 +163,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		}
 
 		reorgBroadcast = newReorgBroadcaster(logger)
+		tipBroadcast = newTipBroadcaster(logger)
 	}
 
 	// Register chaintracks implementation if adapter is available
@@ -316,6 +319,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		chaintracks:    chaintracksAdapter,
 		reorgBroadcast: reorgBroadcast,
+		tipBroadcast:   tipBroadcast,
 	}
 
 	walletServices.logActiveServices()
@@ -368,6 +372,7 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 				"height", bh.Height,
 				"hash", bh.Hash.String(),
 			)
+			s.tipBroadcast.broadcast(bh)
 			return nil
 		},
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
@@ -396,6 +401,16 @@ func (s *WalletServices) SubscribeReorgs() (<-chan *chaintracks.ReorgEvent, func
 		return nil, func() {}
 	}
 	return s.reorgBroadcast.Subscribe()
+}
+
+// SubscribeTips returns a channel that receives new tips events.
+// Call the returned unsubscribe function to stop receiving events and close the channel.
+// Returns nil, nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeTips() (<-chan *chaintracks.BlockHeader, func()) {
+	if s.tipBroadcast == nil {
+		return nil, func() {}
+	}
+	return s.tipBroadcast.Subscribe()
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence

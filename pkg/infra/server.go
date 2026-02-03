@@ -126,10 +126,16 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		}
 
 		if cfg.Services.ChaintracksClient.Enabled {
-			reorgChan, unsubscribe := activeServices.SubscribeReorgs()
+			reorgChan, unsubReorg := activeServices.SubscribeReorgs()
 			if reorgChan != nil {
 				monitorOpts = append(monitorOpts, monitor.WithReorgChannel(reorgChan))
-				cleanupFuncs = append(cleanupFuncs, unsubscribe)
+				cleanupFuncs = append(cleanupFuncs, unsubReorg)
+			}
+
+			tipChan, unsubTips := activeServices.SubscribeTips()
+			if tipChan != nil {
+				monitorOpts = append(monitorOpts, monitor.WithTipChannel(tipChan))
+				cleanupFuncs = append(cleanupFuncs, unsubTips)
 			}
 		}
 
