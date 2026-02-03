@@ -54,7 +54,7 @@ func (t *tipBroadcaster) broadcast(tip *chaintracks.BlockHeader) {
 			t.logger.Warn("new tip subscriber channel full, dropping event",
 				"tip hash", tip.Hash.String(),
 				"tip height", tip.Height,
-				"tip header", tip.Header.String(),
+				"tip header", tip.String(),
 			)
 		}
 	}

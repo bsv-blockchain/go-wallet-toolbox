@@ -101,7 +101,7 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatusesForTip(ctx context.Context,
 		tracing.EndTracing(span, err)
 	}()
 
-	heightForCheck := uint(tipHeight) - uint(s.syncTxStatusesConfig.BlocksDelay)
+	heightForCheck := uint(tipHeight) - s.syncTxStatusesConfig.BlocksDelay
 	hashForCheck := tipHash
 
 	return s.synchronizeTxStatusesInternal(ctx, heightForCheck, hashForCheck)
