@@ -30,6 +30,7 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.
 		Version:     to.ValueOr(args.Version, 1),
 		Labels:      slices.Map(args.Labels, stringToStringUnder300),
 		Options:     options,
+		Reference:   args.Reference,
 
 		RandomVals:                   nil,
 		IncludeAllSourceTransactions: opts.IncludeAllSourceTransactions,

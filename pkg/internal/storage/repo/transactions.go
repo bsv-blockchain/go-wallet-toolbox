@@ -427,6 +427,10 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
+		if filter.Reference != "" {
+			query = query.Where("reference = ?", filter.Reference)
+		}
+
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
@@ -466,6 +470,9 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 	}
 	if len(filter.Labels) > 0 {
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
+	}
+	if filter.Reference != "" {
+		query = query.Where("reference = ?", filter.Reference)
 	}
 
 	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)

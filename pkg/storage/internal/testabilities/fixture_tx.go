@@ -25,6 +25,7 @@ type TxGeneratorFixture interface {
 	WithSender(sender testusers.User) TxGeneratorFixture
 	WithRecipient(recipient testusers.User) TxGeneratorFixture
 	WithDelayedBroadcast() TxGeneratorFixture
+	WithReference(reference string) TxGeneratorFixture
 	WillFailOnBroadcast() TxGeneratorFixture
 
 	PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction)
@@ -44,6 +45,7 @@ type txGeneratorFixture struct {
 	recipient             testusers.User
 	delayedBroadcast      bool
 	failedBroadcast       bool
+	reference             string
 }
 
 func (t *txGeneratorFixture) WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture {
@@ -68,6 +70,11 @@ func (t *txGeneratorFixture) WithRecipient(recipient testusers.User) TxGenerator
 
 func (t *txGeneratorFixture) WithDelayedBroadcast() TxGeneratorFixture {
 	t.delayedBroadcast = true
+	return t
+}
+
+func (t *txGeneratorFixture) WithReference(reference string) TxGeneratorFixture {
+	t.reference = reference
 	return t
 }
 
@@ -154,6 +161,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 
 	args := wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
+		Reference:   t.reference,
 		Inputs: []wdk.ValidCreateActionInput{
 			{
 				Outpoint: wdk.OutPoint{

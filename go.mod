@@ -302,3 +302,6 @@ require (
 )
 
 tool go.uber.org/mock/mockgen
+
+
+replace github.com/bsv-blockchain/go-sdk => ../go-sdk

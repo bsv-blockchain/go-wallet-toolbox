@@ -761,3 +761,67 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 		DataFormat: to.Ptr(transaction.TxIDOnly),
 	})
 }
+
+func TestCreateActionWithCustomReference(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	customReference := "my-custom-ref-123"
+	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Reference = customReference
+	})
+
+	// when:
+	result, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, customReference, result.Reference)
+}
+
+func TestCreateActionWithDuplicateCustomReference(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	// and:
+	customReference := "duplicate-ref"
+	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Reference = customReference
+	})
+
+	// when: first action with custom reference
+	_, err := activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+	require.NoError(t, err)
+
+	// when: second action with same custom reference
+	_, err = activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then: should fail due to unique constraint on reference
+	require.Error(t, err)
+}
