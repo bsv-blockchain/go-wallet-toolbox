@@ -110,6 +110,11 @@ func (c *WalletStorageProviderClient) FindOutputsAuth(ctx context.Context, auth 
 	return c.client.FindOutputsAuth(ctx, auth, filters)
 }
 
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+func (c *WalletStorageProviderClient) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	return c.client.ListTransactions(ctx, auth, args)
+}
+
 type rpcWalletStorageProvider struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -130,4 +135,5 @@ type rpcWalletStorageProvider struct {
 	AbortAction               func(context.Context, wdk.AuthID, wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 	FindOutputBasketsAuth     func(context.Context, wdk.AuthID, wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error)
 	FindOutputsAuth           func(context.Context, wdk.AuthID, wdk.FindOutputsArgs) (wdk.TableOutputs, error)
+	ListTransactions          func(context.Context, wdk.AuthID, wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error)
 }

@@ -279,17 +279,17 @@ func TestListActions_FilterByReference(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
-	// given:
 	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
-	customReference := "my-unique-reference"
+	customReference := "custom-ref-123"
 	given.Action(activeStorage).WithSatoshisToInternalize(42001).WithReference(customReference).Processed()
 	given.Action(activeStorage).WithSatoshisToInternalize(42002).Processed()
 
 	listArgs := wdk.ListActionsArgs{
 		Limit:     10,
 		Offset:    0,
-		Reference: customReference,
+		Reference: &customReference,
 	}
 	result, err := activeStorage.ListActions(t.Context(), testusers.Alice.AuthID(), listArgs)
 
@@ -310,10 +310,11 @@ func TestListActions_FilterByReferenceNoMatch(t *testing.T) {
 	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
 	require.NoError(t, err)
 
+	nonExistentRef := "non-existent-reference"
 	listArgs := wdk.ListActionsArgs{
 		Limit:     10,
 		Offset:    0,
-		Reference: "non-existent-reference",
+		Reference: &nonExistentRef,
 	}
 	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), listArgs)
 
@@ -331,8 +332,9 @@ func TestListActions_EmptyReferenceReturnsAll(t *testing.T) {
 	activeStorage := given.Provider().GORM()
 	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
+	someReference := "some-reference"
 	argsWithRef := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
-		args.Reference = "some-reference"
+		args.Reference = someReference
 	})
 	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), argsWithRef)
 	require.NoError(t, err)
@@ -340,7 +342,7 @@ func TestListActions_EmptyReferenceReturnsAll(t *testing.T) {
 	listArgs := wdk.ListActionsArgs{
 		Limit:     10,
 		Offset:    0,
-		Reference: "",
+		Reference: nil,
 	}
 	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), listArgs)
 

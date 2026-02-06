@@ -130,7 +130,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
-	
+
 	var reference string
 	if params.Reference != "" {
 		reference = params.Reference

@@ -2,6 +2,8 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 
 go 1.25.4
 
+replace github.com/bsv-blockchain/go-sdk => github.com/pawellewandowski98/go-sdk v1.2.17-0.20260206100437-86a1c577579f
+
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.12.3
 	github.com/bsv-blockchain/go-chaintracks v1.1.0
@@ -300,8 +302,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-tool go.uber.org/mock/mockgen
-
-
-replace github.com/bsv-blockchain/go-sdk => ../go-sdk

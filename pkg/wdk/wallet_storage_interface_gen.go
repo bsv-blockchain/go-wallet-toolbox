@@ -56,4 +56,7 @@ type WalletStorageBasic interface {
 	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
 	// @Read
 	FindOutputsAuth(ctx context.Context, filters FindOutputsArgs) (TableOutputs, error)
+	// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+	// @Read
+	ListTransactions(ctx context.Context, args ListTransactionsArgs) (*ListTransactionsResult, error)
 }

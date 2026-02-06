@@ -37,7 +37,8 @@ type TxHistoryNote struct {
 
 // KnownTxReadSpecification defines criteria for querying known transactions, including optional filtering by TxID.
 type KnownTxReadSpecification struct {
-	TxID *string
+	TxID  *string
+	TxIDs []string
 
 	IncludeHistoryNotes bool
 	Status              *Comparable[wdk.ProvenTxReqStatus]

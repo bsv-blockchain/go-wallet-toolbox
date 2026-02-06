@@ -973,3 +973,111 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 
 	return nil
 }
+
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+// It fetches transactions from the KnownTx table and converts them to TransactionStatusUpdate format.
+func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	offset := int(args.Offset)
+
+	hasTxIDFilter := args.TxID != nil && *args.TxID != ""
+	hasReferenceFilter := args.Reference != nil && *args.Reference != ""
+
+	txQuery := p.TransactionEntity().Read().
+		UserID().Equals(int(*auth.UserID))
+
+	if hasReferenceFilter {
+		txQuery = txQuery.Reference().Equals(*args.Reference)
+	}
+	if hasTxIDFilter {
+		txQuery = txQuery.TxID().Equals(*args.TxID)
+	}
+
+	userTxs, txErr := txQuery.Find(ctx)
+	if txErr != nil {
+		return nil, fmt.Errorf("error finding transactions: %w", txErr)
+	}
+
+	if len(userTxs) == 0 {
+		return &wdk.ListTransactionsResult{
+			TotalTransactions: 0,
+			Transactions:      []defs.TransactionStatusUpdate{},
+		}, nil
+	}
+
+	txStatusMap := make(map[string]wdk.TxStatus, len(userTxs))
+	txIDs := make([]string, 0, len(userTxs))
+	for _, tx := range userTxs {
+		if tx.TxID != nil {
+			txIDs = append(txIDs, *tx.TxID)
+			txStatusMap[*tx.TxID] = tx.Status
+		}
+	}
+
+	if len(txIDs) == 0 {
+		return &wdk.ListTransactionsResult{
+			TotalTransactions: 0,
+			Transactions:      []defs.TransactionStatusUpdate{},
+		}, nil
+	}
+
+	query := p.KnownTxEntity().Read().Paged(int(args.Limit), offset, false)
+
+	if args.Status != nil {
+		query = query.Status().Equals(wdk.ProvenTxReqStatus(*args.Status))
+	}
+
+	knownTxs, err := query.TxIDs(txIDs...).Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing transactions: %w", err)
+	}
+
+	totalCount := int64(len(knownTxs))
+
+	transactions := make([]defs.TransactionStatusUpdate, 0, len(knownTxs))
+	for _, ktx := range knownTxs {
+		var status defs.TxUpdateStatus
+		if s, ok := txStatusMap[ktx.TxID]; ok {
+			status = defs.ParseTxUpdateStatusOrUnknown(string(s))
+		} else {
+			status = defs.ParseTxUpdateStatusOrUnknown(string(ktx.Status))
+		}
+
+		txUpdate := defs.TransactionStatusUpdate{
+			TxID:   ktx.TxID,
+			Status: status,
+		}
+
+		if ktx.BlockHash != nil {
+			txUpdate.BlockHash = *ktx.BlockHash
+		}
+		if ktx.BlockHeight != nil {
+			txUpdate.BlockHeight = *ktx.BlockHeight
+		}
+		if ktx.MerkleRoot != nil {
+			txUpdate.MerkleRoot = *ktx.MerkleRoot
+		}
+		if len(ktx.MerklePath) > 0 {
+			merklePath, parseErr := transaction.NewMerklePathFromBinary(ktx.MerklePath)
+			if parseErr == nil {
+				txUpdate.MerklePath = merklePath
+			}
+		}
+
+		transactions = append(transactions, txUpdate)
+	}
+
+	return &wdk.ListTransactionsResult{
+		TotalTransactions: primitives.PositiveInteger(totalCount),
+		Transactions:      transactions,
+	}, nil
+}
