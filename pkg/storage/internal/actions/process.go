@@ -17,6 +17,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -43,6 +44,7 @@ type process struct {
 	randomizer            wdk.Randomizer
 	sendWaitingLock       sync.Mutex
 	beefVerifier          wdk.BeefVerifier
+	scriptsVerifier       wdk.ScriptsVerifier
 }
 
 func newProcessAction(
@@ -57,20 +59,22 @@ func newProcessAction(
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- defs.TransactionStatusUpdate,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
-		logger:         logger,
-		commissionCfg:  commissionCfg,
-		txRepo:         txRepo,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		utxoRepo:       utxoRepo,
-		services:       services,
-		randomizer:     randomizer,
-		beefVerifier:   beefVerifier,
+		logger:          logger,
+		commissionCfg:   commissionCfg,
+		txRepo:          txRepo,
+		outputRepo:      outputRepo,
+		knownTxRepo:     knownTxRepo,
+		commissionRepo:  commissionRepo,
+		utxoRepo:        utxoRepo,
+		services:        services,
+		randomizer:      randomizer,
+		beefVerifier:    beefVerifier,
+		scriptsVerifier: scriptsVerifier,
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel)
@@ -439,18 +443,28 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
-	logger.DebugContext(ctx, "Verifying built BEEF",
+	logger.DebugContext(ctx, "Verifying built EF",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	logger.DebugContext(ctx, "Verifying built BEEF",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
-
-	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, false); err != nil {
-		return nil, fmt.Errorf("failed to verify beef: %w", err)
-	} else if !ok {
-		return nil, fmt.Errorf("provided beef is not valid")
+	// Verify scripts for each transaction before broadcasting.
+	// We use scripts-only verification (not full BEEF verification) because:
+	// 1. We're sending EF format to ARC, not BEEF
+	// 2. Merkle path validation can fail during block reorgs
+	// 3. ARC will validate scripts anyway
+	for _, txID := range readyToSendTxIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return nil, fmt.Errorf("transaction %s not found in beef", txID)
+		}
+		if err := txutils.HydrateTransactionFromBEEF(tx, beef); err != nil {
+			return nil, fmt.Errorf("failed to hydrate transaction %s for verification: %w", txID, err)
+		}
+		if ok, err := p.scriptsVerifier.VerifyScripts(ctx, tx); err != nil {
+			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
+		} else if !ok {
+			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
+		}
 	}
 
 	logger.DebugContext(ctx, "Increasing attempt counters for transactions",

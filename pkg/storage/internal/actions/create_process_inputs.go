@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -64,16 +65,17 @@ type processedInputsResult struct {
 }
 
 type inputsProcessor struct {
-	parent         *create
-	ctx            context.Context
-	userID         int
-	providedInputs []wdk.ValidCreateActionInput
-	inputBEEF      []byte
-	trustSelf      bool
-	txIDsLookup    map[chainhash.Hash]struct{}
-	beef           *transaction.Beef
-	logger         *slog.Logger
-	beefVerifier   wdk.BeefVerifier
+	parent          *create
+	ctx             context.Context
+	userID          int
+	providedInputs  []wdk.ValidCreateActionInput
+	inputBEEF       []byte
+	trustSelf       bool
+	txIDsLookup     map[chainhash.Hash]struct{}
+	beef            *transaction.Beef
+	logger          *slog.Logger
+	beefVerifier    wdk.BeefVerifier
+	scriptsVerifier wdk.ScriptsVerifier
 }
 
 func newInputsProcessor(
@@ -85,6 +87,7 @@ func newInputsProcessor(
 	inputBEEF []byte,
 	trustSelf bool,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
 ) (*inputsProcessor, error) {
 	txIDsLookup := make(map[chainhash.Hash]struct{}, len(providedInputs))
 	for _, input := range providedInputs {
@@ -99,16 +102,17 @@ func newInputsProcessor(
 	logger = logger.With(logging.UserID(userID), logging.Reference(reference))
 
 	return &inputsProcessor{
-		ctx:            ctx,
-		logger:         logger,
-		parent:         parent,
-		userID:         userID,
-		inputBEEF:      inputBEEF,
-		trustSelf:      trustSelf,
-		txIDsLookup:    txIDsLookup,
-		providedInputs: providedInputs,
-		beef:           transaction.NewBeefV2(),
-		beefVerifier:   beefVerifier,
+		ctx:             ctx,
+		logger:          logger,
+		parent:          parent,
+		userID:          userID,
+		inputBEEF:       inputBEEF,
+		trustSelf:       trustSelf,
+		txIDsLookup:     txIDsLookup,
+		providedInputs:  providedInputs,
+		beef:            transaction.NewBeefV2(),
+		beefVerifier:    beefVerifier,
+		scriptsVerifier: scriptsVerifier,
 	}, nil
 }
 
@@ -138,6 +142,25 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
+	}
+
+	// verify scripts for all unmined transactions in BEEF
+	for txIDHash, beefTx := range proc.beef.Transactions {
+		// no raw tx available or skip already mined txs
+		if beefTx.Transaction == nil || beefTx.Transaction.MerklePath != nil {
+			continue
+		}
+
+		tx := beefTx.Transaction
+		if err := txutils.HydrateTransactionFromBEEF(tx, proc.beef); err != nil {
+			return nil, fmt.Errorf("failed to hydrate tx %s for script verification: %w", txIDHash, err)
+		}
+
+		if ok, err := proc.scriptsVerifier.VerifyScripts(proc.ctx, tx); err != nil {
+			return nil, fmt.Errorf("script verification failed for tx %s : %w", txIDHash, err)
+		} else if !ok {
+			return nil, fmt.Errorf("scripts are not valid for tx %s", txIDHash)
+		}
 	}
 
 	return proc.buildInputsDefinition()

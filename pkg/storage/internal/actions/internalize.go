@@ -35,6 +35,7 @@ type internalize struct {
 	outputRepo         OutputRepo
 	random             wdk.Randomizer
 	beefVerifier       wdk.BeefVerifier
+	scriptsVerifier    wdk.ScriptsVerifier
 	blockHeaderService wdk.BlockHeaderLoader
 }
 
@@ -46,6 +47,7 @@ func newInternalizeAction(
 	outputRepo OutputRepo,
 	random wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
 	blockHeader wdk.BlockHeaderLoader,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
@@ -57,6 +59,7 @@ func newInternalizeAction(
 		outputRepo:         outputRepo,
 		random:             random,
 		beefVerifier:       beefVerifier,
+		scriptsVerifier:    scriptsVerifier,
 		blockHeaderService: blockHeader,
 	}
 }
@@ -90,6 +93,25 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
+	}
+
+	// verify scripts for all unmined transactions in BEEF
+	for txIDHash, beefTx := range beef.Transactions {
+		// no raw tx available or skip already mined txs
+		if beefTx.Transaction == nil || beefTx.Transaction.MerklePath != nil {
+			continue
+		}
+
+		tx := beefTx.Transaction
+		if err := txutils.HydrateTransactionFromBEEF(tx, beef); err != nil {
+			return nil, fmt.Errorf("failed to hydrate tx %s for script verification: %w", txIDHash, err)
+		}
+
+		if ok, err := in.scriptsVerifier.VerifyScripts(ctx, tx); err != nil {
+			return nil, fmt.Errorf("script verification failed for tx %s : %w", txIDHash, err)
+		} else if !ok {
+			return nil, fmt.Errorf("scripts are not valid for tx %s", txIDHash)
+		}
 	}
 
 	tx := beef.FindAtomicTransactionByHash(txIDHash)
@@ -392,7 +414,7 @@ func (in *internalize) makeOutputs(
 			if err != nil {
 				return nil, 0, fmt.Errorf("failed to find existing output: %w", err)
 			}
-			//NOTE: FindOutput can return nil if the output is not found
+			// NOTE: FindOutput can return nil if the output is not found
 		}
 
 		wasChangeOutput := existingOutput != nil && existingOutput.BasketName != nil && *existingOutput.BasketName == wdk.BasketNameForChange
