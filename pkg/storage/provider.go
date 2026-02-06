@@ -987,8 +987,6 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		return nil, ErrAuthorization
 	}
 
-	offset := int(args.Offset)
-
 	hasTxIDFilter := args.TxID != nil && *args.TxID != ""
 	hasReferenceFilter := args.Reference != nil && *args.Reference != ""
 
@@ -1030,7 +1028,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		}, nil
 	}
 
-	query := p.KnownTxEntity().Read().Paged(int(args.Limit), offset, false)
+	query := p.KnownTxEntity().Read().Paged(must.ConvertToIntFromUnsigned(args.Limit), must.ConvertToIntFromUnsigned(args.Offset), false)
 
 	if args.Status != nil {
 		query = query.Status().Equals(wdk.ProvenTxReqStatus(*args.Status))
@@ -1041,7 +1039,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		return nil, fmt.Errorf("error listing transactions: %w", err)
 	}
 
-	totalCount := int64(len(knownTxs))
+	totalCount := uint64(len(knownTxs))
 
 	transactions := make([]defs.TransactionStatusUpdate, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
