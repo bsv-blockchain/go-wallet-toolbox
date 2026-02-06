@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -77,19 +78,21 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 	return service
 }
 
-// PostBEEF attempts to post beef with given txIDs
+// PostBEEF attempts to post EF with given txIDs
 func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
 	err := s.validateBEEF(beef)
 	if err != nil {
 		return nil, err
 	}
 
-	beefHex, err := s.toHex(beef)
+	// TODO: get all txs from beef broadcast all except ones that are mined one by one
+	// TODO: think about how to handle internal beef verification failure when reorg happened (in later tasks)
+	efHex, err := s.toEFHex(beef)
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := s.broadcast(ctx, beefHex)
+	response, err := s.broadcast(ctx, efHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to broadcast beef: %w", err)
 	}
@@ -103,7 +106,7 @@ func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []
 
 	results := seq.Collect(resultsForTxID)
 	for i := range results {
-		withBroadcastNote(&results[i], beefHex, txIDs)
+		withBroadcastNote(&results[i], efHex, txIDs)
 	}
 
 	return &wdk.PostedBEEF{
@@ -132,18 +135,18 @@ func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[w
 	return seq.Map(txsData, toResultForPostTxID)
 }
 
-func withBroadcastNote(result *wdk.PostedTxID, beefHex string, txIDs []string) {
+func withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
 	switch result.Result {
 	case wdk.PostedTxIDResultSuccess, wdk.PostedTxIDResultAlreadyKnown:
 		result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, txIDs).Note().AsList()
 	case wdk.PostedTxIDResultError, wdk.PostedTxIDResultDoubleSpend, wdk.PostedTxIDResultMissingInputs:
 		fallthrough
 	default:
-		msg := fmt.Sprintf("broadcasted beef with problematic result %s", result.Result)
+		msg := fmt.Sprintf("broadcasted ef with problematic result %s", result.Result)
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
-		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Hex(beefHex), txIDs, msg).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Hex(efHex), txIDs, msg).Note().AsList()
 	}
 }
 
@@ -225,12 +228,12 @@ func (s *Service) getTransactionData(ctx context.Context, txID string) *internal
 	return internal.NewNamedResult(txID, types.SuccessResult(txInfo))
 }
 
-func (s *Service) toHex(beef *transaction.Beef) (string, error) {
+func (s *Service) toEFHex(beef *transaction.Beef) (string, error) {
 	// This is a temporary fix on BEEF until the merge beef will work properly and will bind the tx with bump.
 	s.bindBumpsAndTransactions(beef)
 
 	// This is a temporary solution until go-sdk properly implements BEEF serialization
-	// It searches for the subject transaction in transaction.Beef and serializes this one to BEEF hex.
+	// It searches for the subject transaction in transaction.Beef and serializes this one to EF hex.
 	// For now, it's not supporting more than one subject transaction.
 	idToTx := seq2.FromMap(beef.Transactions)
 
@@ -270,16 +273,17 @@ func (s *Service) toHex(beef *transaction.Beef) (string, error) {
 	}
 
 	// Another temporary workaround until go-sdk properly implements BEEF serialization
-	tx, err := rebuildSubjectTx(subjectTx.Transaction, beef)
+	err := txutils.HydrateTransactionFromBEEF(subjectTx.Transaction, beef)
 	if err != nil {
 		return "", fmt.Errorf("failed to rebuild subject tx: %w", err)
 	}
 
-	beefHex, err := tx.BEEFHex()
+	efHex, err := subjectTx.Transaction.EFHex()
 	if err != nil {
-		return "", fmt.Errorf("failed to convert subject tx into BEEF hex: %w", err)
+		return "", fmt.Errorf("failed to convert subject tx into EF hex: %w", err)
 	}
-	return beefHex, nil
+
+	return efHex, nil
 }
 
 func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
@@ -305,44 +309,4 @@ func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
 			}
 		}
 	}
-}
-
-func rebuildSubjectTx(tx *transaction.Transaction, beef *transaction.Beef) (*transaction.Transaction, error) {
-	for _, input := range tx.Inputs {
-		err := hydrateInput(input, beef, 0)
-		if err != nil {
-			return nil, fmt.Errorf("failed to hydrate input %s of tx %s: %w", input.SourceTXID.String(), tx.TxID().String(), err)
-		}
-	}
-	return tx, nil
-}
-
-func hydrateInput(input *transaction.TransactionInput, beef *transaction.Beef, depth int) error {
-	txID := input.SourceTXID.String()
-	if depth > 100 {
-		return fmt.Errorf("could not hydrate the input %s: too many recursions", txID)
-	}
-	if input.SourceTransaction != nil {
-		return nil
-	}
-
-	tx, ok := beef.Transactions[*input.SourceTXID]
-	if !ok {
-		return fmt.Errorf("could not find transaction %s in beef", txID)
-	}
-	input.SourceTransaction = tx.Transaction
-	if tx.DataFormat == transaction.RawTxAndBumpIndex {
-		if !is.Between(tx.BumpIndex, 0, len(beef.BUMPs)-1) {
-			return fmt.Errorf("cannot find bump with index %d for tx %s", tx.BumpIndex, txID)
-		}
-		input.SourceTransaction.MerklePath = beef.BUMPs[tx.BumpIndex]
-		return nil
-	}
-	for _, source := range input.SourceTransaction.Inputs {
-		err := hydrateInput(source, beef, depth+1)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
