@@ -990,8 +990,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	hasTxIDFilter := args.TxID != nil && *args.TxID != ""
 	hasReferenceFilter := args.Reference != nil && *args.Reference != ""
 
-	txQuery := p.TransactionEntity().Read().
-		UserID().Equals(int(*auth.UserID))
+	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
 
 	if hasReferenceFilter {
 		txQuery = txQuery.Reference().Equals(*args.Reference)
