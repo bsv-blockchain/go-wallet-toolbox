@@ -15,23 +15,28 @@ import (
 func TestTipBroadcaster_Subscribe(t *testing.T) {
 	// given:
 	broadcaster := newTipBroadcaster(slog.Default())
+	ch := make(chan *chaintracks.BlockHeader, 10)
 
 	// when:
-	ch, unsub := broadcaster.Subscribe()
+	unsub := broadcaster.Subscribe(ch)
 
 	// then:
-	require.NotNil(t, ch)
 	require.NotNil(t, unsub)
 
 	// cleanup:
 	unsub()
+	close(ch)
 }
 
 func TestTipBroadcaster_BroadcastToSingleSubscriber(t *testing.T) {
 	// given:
 	broadcaster := newTipBroadcaster(slog.Default())
-	ch, unsub := broadcaster.Subscribe()
-	defer unsub()
+	ch := make(chan *chaintracks.BlockHeader, 10)
+	unsub := broadcaster.Subscribe(ch)
+	defer func() {
+		unsub()
+		close(ch)
+	}()
 
 	testHeader := createTestBlockHeader(100, "0000000000000000000000000000000000000000000000000000000000000001")
 
@@ -52,12 +57,26 @@ func TestTipBroadcaster_BroadcastToMultipleSubscribers(t *testing.T) {
 	// given:
 	broadcaster := newTipBroadcaster(slog.Default())
 
-	ch1, unsub1 := broadcaster.Subscribe()
-	defer unsub1()
-	ch2, unsub2 := broadcaster.Subscribe()
-	defer unsub2()
-	ch3, unsub3 := broadcaster.Subscribe()
-	defer unsub3()
+	ch1 := make(chan *chaintracks.BlockHeader, 10)
+	unsub1 := broadcaster.Subscribe(ch1)
+	defer func() {
+		unsub1()
+		close(ch1)
+	}()
+
+	ch2 := make(chan *chaintracks.BlockHeader, 10)
+	unsub2 := broadcaster.Subscribe(ch2)
+	defer func() {
+		unsub2()
+		close(ch2)
+	}()
+
+	ch3 := make(chan *chaintracks.BlockHeader, 10)
+	unsub3 := broadcaster.Subscribe(ch3)
+	defer func() {
+		unsub3()
+		close(ch3)
+	}()
 
 	testHeader := createTestBlockHeader(200, "0000000000000000000000000000000000000000000000000000000000000002")
 
@@ -78,10 +97,12 @@ func TestTipBroadcaster_BroadcastToMultipleSubscribers(t *testing.T) {
 func TestTipBroadcaster_UnsubscribeStopsReceiving(t *testing.T) {
 	// given:
 	broadcaster := newTipBroadcaster(slog.Default())
-	ch, unsub := broadcaster.Subscribe()
+	ch := make(chan *chaintracks.BlockHeader, 10)
+	unsub := broadcaster.Subscribe(ch)
 
 	// when:
 	unsub()
+	close(ch)
 
 	// and: broadcast after unsubscribe
 	testHeader := createTestBlockHeader(300, "0000000000000000000000000000000000000000000000000000000000000003")

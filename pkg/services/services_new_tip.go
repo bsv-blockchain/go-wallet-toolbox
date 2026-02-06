@@ -21,24 +21,20 @@ func newTipBroadcaster(logger *slog.Logger) *tipBroadcaster {
 	}
 }
 
-// Subscribe returns a channel that receives new tip events and an unsubscribe function.
-// The channel is buffered to avoid blocking the broadcaster.
-// Call the returned unsubscribe function to stop receiving events and close the channel.
-func (t *tipBroadcaster) Subscribe() (<-chan *chaintracks.BlockHeader, func()) {
-	ch := make(chan *chaintracks.BlockHeader, 10)
-
+// Subscribe registers a user-provided channel to receive new tip events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function that removes the channel from the subscriber list.
+func (t *tipBroadcaster) Subscribe(ch chan *chaintracks.BlockHeader) func() {
 	t.mu.Lock()
 	t.subscribers[ch] = struct{}{}
 	t.mu.Unlock()
 
-	unsubscribe := func() {
+	return func() {
 		t.mu.Lock()
 		delete(t.subscribers, ch)
-		close(ch)
 		t.mu.Unlock()
 	}
-
-	return ch, unsubscribe
 }
 
 // broadcast sends the event to all subscribers.

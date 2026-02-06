@@ -393,24 +393,26 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 	return nil
 }
 
-// SubscribeReorgs returns a channel that receives reorg events.
-// Call the returned unsubscribe function to stop receiving events and close the channel.
-// Returns nil, nil if chaintracks is not enabled.
-func (s *WalletServices) SubscribeReorgs() (<-chan *chaintracks.ReorgEvent, func()) {
+// SubscribeReorgs registers a user-provided channel to receive reorg events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function, or nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeReorgs(ch chan *chaintracks.ReorgEvent) func() {
 	if s.reorgBroadcast == nil {
-		return nil, func() {}
+		return nil
 	}
-	return s.reorgBroadcast.Subscribe()
+	return s.reorgBroadcast.Subscribe(ch)
 }
 
-// SubscribeTips returns a channel that receives new tips events.
-// Call the returned unsubscribe function to stop receiving events and close the channel.
-// Returns nil, nil if chaintracks is not enabled.
-func (s *WalletServices) SubscribeTips() (<-chan *chaintracks.BlockHeader, func()) {
+// SubscribeTips registers a user-provided channel to receive new tip events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function, or nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeTips(ch chan *chaintracks.BlockHeader) func() {
 	if s.tipBroadcast == nil {
-		return nil, func() {}
+		return nil
 	}
-	return s.tipBroadcast.Subscribe()
+	return s.tipBroadcast.Subscribe(ch)
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
