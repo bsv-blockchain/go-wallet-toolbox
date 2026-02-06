@@ -293,33 +293,21 @@ func (d *Daemon) handleReorgEvents() {
 func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 	d.logger.Info("Starting new tip event handler")
 
-	for {
-		select {
-		case <-ctx.Done():
-			d.logger.Info("New tip event handler stopped")
-			return
+	for header := range d.eventChannels.OnTip {
+		d.logger.Info("New tip received and processing",
+			"height", header.Height,
+			"hash", header.Hash.String(),
+		)
 
-		case header, ok := <-d.eventChannels.OnTip:
-			if !ok {
-				d.logger.Info("Tip channel closed")
+		go func(h *chaintracks.BlockHeader) {
+			results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
+			if err != nil {
+				d.logger.Error("ProcessNewTip failed", "error", err)
 				return
 			}
 
-			d.logger.Info("New tip received and processing",
-				"height", header.Height,
-				"hash", header.Hash.String(),
-			)
-
-			go func(h *chaintracks.BlockHeader) {
-				results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
-				if err != nil {
-					d.logger.Error("ProcessNewTip failed", "error", err)
-					return
-				}
-
-				d.sendProvenEvents(ctx, results)
-			}(header)
-		}
+			d.sendProvenEvents(ctx, results)
+		}(header)
 	}
 }
 
@@ -330,8 +318,12 @@ func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchroni
 
 	for _, res := range results {
 		msg := defs.TransactionStatusUpdate{
-			TxID:   res.TxID,
-			Status: defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+			TxID:        res.TxID,
+			Status:      defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+			MerklePath:  res.MerklePath,
+			MerkleRoot:  res.MerkleRoot,
+			BlockHash:   res.BlockHash,
+			BlockHeight: res.BlockHeight,
 		}
 
 		select {
