@@ -4,23 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"log/slog"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/is"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
 )
@@ -78,61 +73,32 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 	return service
 }
 
-// PostBEEF attempts to post EF with given txIDs
-func (s *Service) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
-	err := s.validateBEEF(beef)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: get all txs from beef broadcast all except ones that are mined one by one
-	// TODO: think about how to handle internal beef verification failure when reorg happened (in later tasks)
-	efHex, err := s.toEFHex(beef)
-	if err != nil {
-		return nil, err
-	}
-
+// PostEF attempts to post EF with given txIDs
+func (s *Service) PostEF(ctx context.Context, efHex, txID string) (*wdk.PostedTxID, error) {
 	response, err := s.broadcast(ctx, efHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to broadcast beef: %w", err)
+		result := wdk.PostedTxID{
+			TxID:   txID,
+			Result: wdk.PostedTxIDResultError,
+			Error:  fmt.Errorf("failed to broadcast tx: %w", err),
+		}
+		withBroadcastNote(&result, efHex, []string{txID})
+		return &result, nil // nil error - error info is in the result
 	}
 
-	var resultsForTxID iter.Seq[wdk.PostedTxID]
-	if response != nil {
-		resultsForTxID = s.getMissingTxIDResults(ctx, response, txIDs)
+	// if ARC returned info for this tx, use it directly
+	var namedResult *internal.NamedResult[*TXInfo]
+	if response != nil && response.TxID == txID {
+		namedResult = internal.NewNamedResult(txID, types.SuccessResult(response))
 	} else {
-		resultsForTxID = s.getTxIDResults(ctx, txIDs)
+		// else query ARC for the tx status using getTransactionData
+		namedResult = s.getTransactionData(ctx, txID)
 	}
 
-	results := seq.Collect(resultsForTxID)
-	for i := range results {
-		withBroadcastNote(&results[i], efHex, txIDs)
-	}
+	result := toResultForPostTxID(namedResult)
+	withBroadcastNote(&result, efHex, []string{txID})
 
-	return &wdk.PostedBEEF{
-		TxIDResults: results,
-	}, nil
-}
-
-func (s *Service) getMissingTxIDResults(ctx context.Context, txInfo *TXInfo, txIDs []string) iter.Seq[wdk.PostedTxID] {
-	txIDsWithMissingTxInfo := seq.Filter(seq.FromSlice(txIDs), func(txID string) bool {
-		return txInfo.TxID != txID
-	})
-
-	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
-
-	subjectTxResult := internal.NewNamedResult(txInfo.TxID, types.SuccessResult(txInfo))
-	txsData = seq.Prepend(txsData, subjectTxResult)
-
-	return seq.Map(txsData, toResultForPostTxID)
-}
-
-func (s *Service) getTxIDResults(ctx context.Context, txIDs []string) iter.Seq[wdk.PostedTxID] {
-	txIDsWithMissingTxInfo := seq.FromSlice(txIDs)
-
-	txsData := internal.MapParallel(ctx, txIDsWithMissingTxInfo, s.getTransactionData)
-
-	return seq.Map(txsData, toResultForPostTxID)
+	return &result, nil
 }
 
 func withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
@@ -191,26 +157,6 @@ func toResultForPostTxID(it *internal.NamedResult[*TXInfo]) wdk.PostedTxID {
 	return result
 }
 
-func (s *Service) validateBEEF(beef *transaction.Beef) error {
-	if beef == nil {
-		return fmt.Errorf("cannot broadcast nil beef")
-	}
-
-	if len(beef.Transactions) == 0 {
-		return fmt.Errorf("cannot broadcast empty beef")
-	}
-
-	beefTxs := seq2.Values(seq2.FromMap(beef.Transactions))
-	canBeSerializedToBEEFV1 := seq.Every(beefTxs, func(tx *transaction.BeefTx) bool {
-		return tx.DataFormat != transaction.TxIDOnly && tx.Transaction != nil
-	})
-
-	if !canBeSerializedToBEEFV1 {
-		return fmt.Errorf("arc is not supporting beef v2 and provided beef cannot be converted to v1")
-	}
-	return nil
-}
-
 func (s *Service) getTransactionData(ctx context.Context, txID string) *internal.NamedResult[*TXInfo] {
 	txInfo, err := s.queryTransaction(ctx, txID)
 	if err != nil {
@@ -226,87 +172,4 @@ func (s *Service) getTransactionData(ctx context.Context, txID string) *internal
 	}
 
 	return internal.NewNamedResult(txID, types.SuccessResult(txInfo))
-}
-
-func (s *Service) toEFHex(beef *transaction.Beef) (string, error) {
-	// This is a temporary fix on BEEF until the merge beef will work properly and will bind the tx with bump.
-	s.bindBumpsAndTransactions(beef)
-
-	// This is a temporary solution until go-sdk properly implements BEEF serialization
-	// It searches for the subject transaction in transaction.Beef and serializes this one to EF hex.
-	// For now, it's not supporting more than one subject transaction.
-	idToTx := seq2.FromMap(beef.Transactions)
-
-	// inDegree will contain the number of transactions for which the given tx is a parent
-	inDegree := seq2.CollectToMap(seq2.MapValues(idToTx, func(tx *transaction.BeefTx) int { return 0 }))
-
-	// txsNotMined we are not interested in inputs of mined transactions
-	txsNotMined := seq.Filter(seq2.Values(idToTx), func(tx *transaction.BeefTx) bool {
-		return tx.Transaction.MerklePath == nil
-	})
-
-	inputs := seq.FlattenSlices(seq.Map(txsNotMined, func(tx *transaction.BeefTx) []*transaction.TransactionInput {
-		return tx.Transaction.Inputs
-	}))
-
-	inputsIds := seq.Map(inputs, func(input *transaction.TransactionInput) chainhash.Hash {
-		return *input.SourceTXID
-	})
-
-	seq.ForEach(inputsIds, func(inputTxID chainhash.Hash) {
-		if _, ok := inDegree[inputTxID]; !ok {
-			panic(fmt.Sprintf("unexpected input txid %s, this shouldn't ever happen", inputTxID))
-		}
-		inDegree[inputTxID]++
-	})
-
-	txIDsWithoutChildren := seq2.FilterByValue(seq2.FromMap(inDegree), is.Zero)
-
-	subjectTxs := seq.Collect(seq2.Keys(txIDsWithoutChildren))
-	if len(subjectTxs) != 1 {
-		return "", fmt.Errorf("expected only one subject tx, but got %d", len(subjectTxs))
-	}
-
-	subjectTx, ok := beef.Transactions[subjectTxs[0]]
-	if !ok {
-		return "", fmt.Errorf("expected to find subject tx %s in beef, but it was not found, this shouldn't ever happen", subjectTxs[0])
-	}
-
-	// Another temporary workaround until go-sdk properly implements BEEF serialization
-	err := txutils.HydrateTransactionFromBEEF(subjectTx.Transaction, beef)
-	if err != nil {
-		return "", fmt.Errorf("failed to rebuild subject tx: %w", err)
-	}
-
-	efHex, err := subjectTx.Transaction.EFHex()
-	if err != nil {
-		return "", fmt.Errorf("failed to convert subject tx into EF hex: %w", err)
-	}
-
-	return efHex, nil
-}
-
-func (s *Service) bindBumpsAndTransactions(beef *transaction.Beef) {
-	for i, bump := range beef.BUMPs {
-		if len(bump.Path) == 0 || len(bump.Path[0]) == 0 {
-			s.logger.Warn("got bump without bottom path", slog.String("merklePath", bump.Hex()))
-			continue
-		}
-		for _, element := range bump.Path[0] {
-			if element.Txid != nil && *element.Txid {
-				if element.Hash == nil {
-					s.logger.Error("got leaf marked as txid in BUMP but hash is nil")
-					continue
-				}
-				tx, ok := beef.Transactions[*element.Hash]
-				if !ok {
-					s.logger.Warn("got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
-					continue
-				}
-				tx.BumpIndex = i
-				tx.DataFormat = transaction.RawTxAndBumpIndex
-				tx.Transaction.MerklePath = bump
-			}
-		}
-	}
 }
