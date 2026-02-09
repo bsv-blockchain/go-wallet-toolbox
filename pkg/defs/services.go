@@ -51,6 +51,7 @@ const (
 	BitailsServiceName      = "Bitails"
 	ArcServiceName          = "ARC"
 	BHSServiceName          = "BHS"
+	ChaintracksServiceName  = "Chaintracks"
 )
 
 // WalletServices is a struct that has options for wallet services

@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
@@ -45,6 +46,7 @@ type EventChannels struct {
 
 	// Inbound channels:
 	OnReorg <-chan *chaintracks.ReorgEvent
+	OnTip   <-chan *chaintracks.BlockHeader
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -97,6 +99,7 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *Daem
 			OnTxBroadcasted: eventOptions.onTxBroadcasted,
 			OnTxProven:      eventOptions.onTxProven,
 			OnReorg:         eventOptions.onReorg,
+			OnTip:           eventOptions.onTip,
 		},
 	}, nil
 }
@@ -126,6 +129,10 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 
 	if d.eventChannels.OnReorg != nil {
 		go d.handleReorgEvents()
+	}
+
+	if d.eventChannels.OnTip != nil {
+		go d.handleNewTipEvents(context.Background())
 	}
 
 	d.scheduler.Start()
@@ -281,4 +288,50 @@ func (d *Daemon) handleReorgEvents() {
 	}
 
 	d.logger.Info("reorg event handler stopped")
+}
+
+func (d *Daemon) handleNewTipEvents(ctx context.Context) {
+	d.logger.Info("Starting new tip event handler")
+
+	for header := range d.eventChannels.OnTip {
+		d.logger.Info("New tip received and processing",
+			"height", header.Height,
+			"hash", header.Hash.String(),
+		)
+
+		go func(h *chaintracks.BlockHeader) {
+			results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
+			if err != nil {
+				d.logger.Error("ProcessNewTip failed", "error", err)
+				return
+			}
+
+			d.sendProvenEvents(ctx, results)
+		}(header)
+	}
+}
+
+func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchronizedStatus) {
+	if d.eventChannels.OnTxProven == nil {
+		return
+	}
+
+	for _, res := range results {
+		msg := defs.TransactionStatusUpdate{
+			TxID:        res.TxID,
+			Status:      defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+			MerklePath:  res.MerklePath,
+			MerkleRoot:  res.MerkleRoot,
+			BlockHash:   res.BlockHash,
+			BlockHeight: res.BlockHeight,
+		}
+
+		select {
+		case d.eventChannels.OnTxProven <- msg:
+		case <-ctx.Done():
+			return
+		default:
+			d.logger.Warn("OnTxProven channel in monitor is full, dropping event")
+		}
+	}
 }

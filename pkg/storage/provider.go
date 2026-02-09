@@ -1078,3 +1078,24 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		Transactions:      transactions,
 	}, nil
 }
+
+// ProcessNewTip updates the last checked block and runs transaction synchronization.
+// Called when a new chain tip is received from chaintracks.
+func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessNewTip",
+		attribute.Int("height", int(height)),
+		attribute.String("hash", hash),
+	)
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	results, err := p.actions.SynchronizeTxStatusesForTip(ctx, height, hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to synchronize transaction statuses for tip: %w", err)
+	}
+
+	return results, nil
+}

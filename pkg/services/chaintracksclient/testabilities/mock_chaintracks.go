@@ -18,6 +18,9 @@ type MockChaintracks struct {
 	headers map[uint32]*chaintracks.BlockHeader
 	network string
 
+	// Error injection - when set, all methods will return this error
+	forcedError error
+
 	// Subscription management - use bidirectional channels internally
 	subscribers      []chan *chaintracks.BlockHeader
 	reorgSubscribers []chan *chaintracks.ReorgEvent
@@ -52,6 +55,15 @@ func (m *MockChaintracks) SetNetwork(network string) *MockChaintracks {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.network = network
+	return m
+}
+
+// SetError configures the mock to return the given error for all subsequent calls.
+// Pass nil to clear the error and resume normal behavior.
+func (m *MockChaintracks) SetError(err error) *MockChaintracks {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.forcedError = err
 	return m
 }
 
@@ -96,12 +108,18 @@ func (m *MockChaintracks) GetHeight(_ context.Context) uint32 {
 func (m *MockChaintracks) GetTip(_ context.Context) *chaintracks.BlockHeader {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return nil
+	}
 	return m.tip
 }
 
 func (m *MockChaintracks) GetHeaderByHeight(_ context.Context, height uint32) (*chaintracks.BlockHeader, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return nil, m.forcedError
+	}
 	if header, ok := m.headers[height]; ok {
 		return header, nil
 	}
@@ -111,6 +129,9 @@ func (m *MockChaintracks) GetHeaderByHeight(_ context.Context, height uint32) (*
 func (m *MockChaintracks) GetHeaderByHash(_ context.Context, hash *chainhash.Hash) (*chaintracks.BlockHeader, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return nil, m.forcedError
+	}
 	for _, header := range m.headers {
 		if header.Hash.IsEqual(hash) {
 			return header, nil
@@ -122,6 +143,9 @@ func (m *MockChaintracks) GetHeaderByHash(_ context.Context, hash *chainhash.Has
 func (m *MockChaintracks) GetHeaders(_ context.Context, height, count uint32) ([]*chaintracks.BlockHeader, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return nil, m.forcedError
+	}
 	var result []*chaintracks.BlockHeader
 	for i := uint32(0); i < count; i++ {
 		if header, ok := m.headers[height+i]; ok {
@@ -134,6 +158,9 @@ func (m *MockChaintracks) GetHeaders(_ context.Context, height, count uint32) ([
 func (m *MockChaintracks) GetNetwork(_ context.Context) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return "", m.forcedError
+	}
 	return m.network, nil
 }
 
@@ -164,6 +191,9 @@ func (m *MockChaintracks) UnsubscribeReorg(ch <-chan *chaintracks.ReorgEvent) {
 func (m *MockChaintracks) IsValidRootForHeight(_ context.Context, root *chainhash.Hash, height uint32) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return false, m.forcedError
+	}
 	if header, ok := m.headers[height]; ok {
 		return header.MerkleRoot.IsEqual(root), nil
 	}
@@ -173,5 +203,8 @@ func (m *MockChaintracks) IsValidRootForHeight(_ context.Context, root *chainhas
 func (m *MockChaintracks) CurrentHeight(_ context.Context) (uint32, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.forcedError != nil {
+		return 0, m.forcedError
+	}
 	return m.height, nil
 }

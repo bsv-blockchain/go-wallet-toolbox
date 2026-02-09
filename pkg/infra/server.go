@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
@@ -126,10 +127,28 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		}
 
 		if cfg.Services.ChaintracksClient.Enabled {
-			reorgChan, unsubscribe := activeServices.SubscribeReorgs()
-			if reorgChan != nil {
+			reorgChan := make(chan *chaintracks.ReorgEvent, 10)
+			unsubReorg := activeServices.SubscribeReorgs(reorgChan)
+			if unsubReorg != nil {
 				monitorOpts = append(monitorOpts, monitor.WithReorgChannel(reorgChan))
-				cleanupFuncs = append(cleanupFuncs, unsubscribe)
+				cleanupFuncs = append(cleanupFuncs, func() {
+					unsubReorg()
+					close(reorgChan)
+				})
+			} else {
+				close(reorgChan)
+			}
+
+			tipChan := make(chan *chaintracks.BlockHeader, 10)
+			unsubTips := activeServices.SubscribeTips(tipChan)
+			if unsubTips != nil {
+				monitorOpts = append(monitorOpts, monitor.WithTipChannel(tipChan))
+				cleanupFuncs = append(cleanupFuncs, func() {
+					unsubTips()
+					close(tipChan)
+				})
+			} else {
+				close(tipChan)
 			}
 		}
 
