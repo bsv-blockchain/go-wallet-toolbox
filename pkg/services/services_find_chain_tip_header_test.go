@@ -67,9 +67,14 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 		given.Bitails().WillReturnInternalError()
+		given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())
@@ -87,9 +92,14 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		target1 := given.BHS().WillBeUnreachable()
 		target2 := given.WhatsOnChain().WillBeUnreachable()
 		target3 := given.Bitails().WillBeUnreachable()
+		given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())
@@ -109,9 +119,14 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.BHS().WillRespondWithEmptyLongestTipBlockHeader()
 		given.WhatsOnChain().OnTipBlockHeaderWillRespondWithEmptyList()
 		given.Bitails().WillReturnLatestBlock("", 0)
+		given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())

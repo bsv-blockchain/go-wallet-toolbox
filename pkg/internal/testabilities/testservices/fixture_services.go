@@ -22,6 +22,7 @@ type ServicesFixture interface {
 	WhatsOnChain() WhatsOnChainFixture
 	ARC() ARCFixture
 	BHS() BHSFixture
+	Chaintracks() ChaintracksClientFixture
 	Services() WalletServicesFixture
 
 	Network() defs.BSVNetwork
@@ -48,6 +49,7 @@ type servicesFixture struct {
 	bitails              BitailsFixture
 	bhs                  BHSFixture
 	network              defs.BSVNetwork
+	chaintracksClient    ChaintracksClientFixture
 }
 
 func GivenServices(t testing.TB) ServicesFixture {
@@ -72,6 +74,7 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
 	bitailsFx := NewBitailsFixture(t, WithTransport(transport), WithNetwork(network))
 	bhsFx := NewBHSFixture(t, WithTransport(transport))
+	chaintracksClient := NewChaintracksClientFixture(t)
 
 	return &servicesFixture{
 		t:                    t,
@@ -85,6 +88,7 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 		bhs:                  bhsFx,
 		arc:                  arcFx,
 		bitails:              bitailsFx,
+		chaintracksClient:    chaintracksClient,
 	}
 }
 
@@ -94,6 +98,10 @@ func (f *servicesFixture) WhatsOnChain() WhatsOnChainFixture {
 
 func (f *servicesFixture) ARC() ARCFixture {
 	return f.arc
+}
+
+func (f *servicesFixture) Chaintracks() ChaintracksClientFixture {
+	return f.chaintracksClient
 }
 
 func (f *servicesFixture) Bitails() BitailsFixture {
@@ -123,7 +131,10 @@ func (f *servicesFixture) Opts(options ...func(option *services.Options)) Wallet
 func (f *servicesFixture) New() *services.WalletServices {
 	f.t.Helper()
 
-	options := append(f.walletServicesOpts, services.WithRestyClient(f.httpClient))
+	options := append(f.walletServicesOpts,
+		services.WithRestyClient(f.httpClient),
+		services.WithChaintracksAdapter(f.chaintracksClient.Adapter()),
+	)
 
 	walletServices := services.New(f.logger, *f.walletServicesConfig, options...)
 	f.services = walletServices
