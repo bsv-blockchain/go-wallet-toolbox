@@ -44,7 +44,7 @@ func main() {
 
 	show.Step("Wallet-Services", fmt.Sprintf("broadcasting transaction %s", transactionID))
 
-	results, err := walletServices.PostBEEF(context.Background(), beef, []string{transactionID})
+	results, err := walletServices.PostFromBEEF(context.Background(), beef, []string{transactionID})
 	if err != nil {
 		panic(err)
 	}

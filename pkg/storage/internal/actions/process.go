@@ -496,7 +496,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
+	results, err := p.services.PostFromBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
@@ -778,7 +778,7 @@ func (p *process) StopBackgroundBroadcaster() {
 }
 
 func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.SendWithResult, error) {
-	results, err := p.services.PostBEEF(ctx, beef, txIDs)
+	results, err := p.services.PostFromBEEF(ctx, beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF in background: %w", err)
 	}

@@ -32,8 +32,10 @@ type WalletServices struct {
 	config *defs.WalletServices
 	// NOTE: add p2p client here when arcade is implemented so they can share clients
 
-	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
+	rawTxServices  servicequeue.Queue1[string, *wdk.RawTxResult]
+	postEFServices servicequeue.Queue2[string, string, *wdk.PostedTxID]
+	postTXServices servicequeue.Queue2[[]byte, string, *wdk.PostedTxID]
+
 	merklePathServices           servicequeue.Queue1[string, *wdk.MerklePathResult]
 	findChainTipHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
 	isValidRootForHeightServices servicequeue.Queue2[*chainhash.Hash, uint32, bool]
@@ -68,7 +70,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		predefined = append(predefined, Named[Implementation]{
 			Name: arc.ServiceName,
 			Item: Implementation{
-				PostBEEF:   arcService.PostBEEF,
+				PostEF:     arcService.PostEF,
 				MerklePath: arcService.MerklePath,
 			},
 		})
@@ -93,7 +95,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			Name: whatsonchain.ServiceName,
 			Item: Implementation{
 				RawTx:                wocService.RawTx,
-				PostBEEF:             wocService.PostBEEF,
+				PostTX:               wocService.PostTX,
 				MerklePath:           wocService.MerklePath,
 				FindChainTipHeader:   wocService.FindChainTipHeader,
 				IsValidRootForHeight: wocService.IsValidRootForHeight,
@@ -115,7 +117,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			Name: bitails.ServiceName,
 			Item: Implementation{
 				RawTx:                bitailsService.RawTx,
-				PostBEEF:             bitailsService.PostBEEF,
+				PostTX:               bitailsService.PostTX,
 				MerklePath:           bitailsService.MerklePath,
 				FindChainTipHeader:   bitailsService.FindChainTipHeader,
 				IsValidRootForHeight: bitailsService.IsValidRootForHeight,
@@ -173,13 +175,23 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 					})))...,
 		),
 
-		postBEEFServices: servicequeue.NewQueue2(
+		postEFServices: servicequeue.NewQueue2(
 			logger,
-			"PostBEEF",
+			"PostEF",
 			namedFuncsToServices2(
-				applyModifierIfExists(options.PostBEEFMethodsModifier,
-					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostBEEFFunc {
-						return it.PostBEEF
+				applyModifierIfExists(options.PostEFMethodsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostEFFunc {
+						return it.PostEF
+					})))...,
+		),
+
+		postTXServices: servicequeue.NewQueue2(
+			logger,
+			"PostTX",
+			namedFuncsToServices2(
+				applyModifierIfExists(options.PostTXMethodsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostTXFunc {
+						return it.PostTX
 					})))...,
 		),
 
@@ -312,7 +324,8 @@ func (s *WalletServices) logActiveServices() {
 
 	services := []loggable{
 		&s.rawTxServices,
-		&s.postBEEFServices,
+		&s.postEFServices,
+		&s.postTXServices,
 		&s.merklePathServices,
 		&s.findChainTipHeaderServices,
 		&s.isValidRootForHeightServices,
@@ -443,27 +456,30 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 	return result, nil
 }
 
-// PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
-	res, err := s.postBEEFServices.All(ctx, beef, txIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
+// PostFromBEEF attempts to broadcast transactions from BEEF to all configured services.
+func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
+	allResults := make([]*wdk.PostBEEFServiceResult, 0)
+
+	for _, txID := range txIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return nil, fmt.Errorf("transaction %s not found in beef", txID)
+		}
+
+		rawTx := tx.Bytes()
+		efHex, err := txutils.ToEFHex(beef, s.logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
+		}
+
+		efResults, _ := s.postEFServices.All(ctx, efHex, txID)
+		allResults = append(allResults, slices.Map(efResults, s.mapToPostBEEFServiceResult)...)
+
+		txResults, _ := s.postTXServices.All(ctx, rawTx, txID)
+		allResults = append(allResults, slices.Map(txResults, s.mapToPostBEEFServiceResult)...)
 	}
 
-	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostedBEEF]) *wdk.PostBEEFServiceResult {
-		if it.IsError() {
-			return &wdk.PostBEEFServiceResult{
-				Name:  it.Name(),
-				Error: it.MustGetError(),
-			}
-		}
-		return &wdk.PostBEEFServiceResult{
-			Name:             it.Name(),
-			PostedBEEFResult: it.MustGetValue(),
-		}
-	})
-
-	return postBEEFResults, nil
+	return allResults, nil
 }
 
 // UtxoStatus attempts to determine the UTXO status of a transaction output.
@@ -675,4 +691,17 @@ func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Cur
 	}
 
 	return currencyRate / baseRate
+}
+
+func (s *WalletServices) mapToPostBEEFServiceResult(r *servicequeue.NamedResult[*wdk.PostedTxID]) *wdk.PostBEEFServiceResult {
+	if r.IsError() {
+		return &wdk.PostBEEFServiceResult{
+			Name:  r.Name(),
+			Error: r.MustGetError(),
+		}
+	}
+	return &wdk.PostBEEFServiceResult{
+		Name:             r.Name(),
+		PostedBEEFResult: &wdk.PostedBEEF{TxIDResults: []wdk.PostedTxID{*r.MustGetValue()}},
+	}
 }
