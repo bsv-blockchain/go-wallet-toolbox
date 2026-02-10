@@ -138,10 +138,13 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 		return nil, fmt.Errorf("failed to get beef for inputs: %w", err)
 	}
 
-	if ok, err := proc.beefVerifier.VerifyBeef(proc.ctx, proc.beef, true); err != nil {
-		return nil, fmt.Errorf("failed to verify beef: %w", err)
-	} else if !ok {
-		return nil, fmt.Errorf("provided beef is not valid")
+	// only verify beef during create action if using external input
+	if proc.inputBEEF != nil {
+		if ok, err := proc.beefVerifier.VerifyBeef(proc.ctx, proc.beef, true); err != nil {
+			return nil, fmt.Errorf("failed to verify beef: %w", err)
+		} else if !ok {
+			return nil, fmt.Errorf("provided beef is not valid")
+		}
 	}
 
 	// verify scripts for all unmined transactions in BEEF

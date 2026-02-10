@@ -498,10 +498,18 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
 	allResults := make([]*wdk.PostBEEFServiceResult, 0)
 
+	// for now we are broadcasting transactions from beef in an order provided in txIDs.
+	// later think about broadcasting all txs from beef that doesn't have merkle path set (is unmined)
+	// in order they appear in beef
 	for _, txID := range txIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
 			return nil, fmt.Errorf("transaction %s not found in beef", txID)
+		}
+
+		// skip already mined txs
+		if tx.MerklePath != nil {
+			continue
 		}
 
 		rawTx := tx.Bytes()
