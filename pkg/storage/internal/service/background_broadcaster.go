@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -35,7 +34,7 @@ type BackgroundBroadcaster struct {
 	broadcastHandler broadcaster
 
 	// optional notification channel
-	txBroadcastedChannel chan<- defs.TransactionStatusUpdate
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus
 }
 
 type broadcastItem struct {
@@ -43,7 +42,7 @@ type broadcastItem struct {
 	txIDs []string
 }
 
-func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- defs.TransactionStatusUpdate) *BackgroundBroadcaster {
+func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- wdk.CurrentTxStatus) *BackgroundBroadcaster {
 	bbContext, cancel := context.WithCancel(ctx)
 	logger := logging.Child(parentLogger, "BackgroundBroadcaster")
 	return &BackgroundBroadcaster{
@@ -116,9 +115,9 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 	}
 
 	for _, res := range results {
-		msg := defs.TransactionStatusUpdate{
+		msg := wdk.CurrentTxStatus{
 			TxID:   res.TxID.String(),
-			Status: defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+			Status: res.Status.ToStandardizedStatus(),
 		}
 
 		select {

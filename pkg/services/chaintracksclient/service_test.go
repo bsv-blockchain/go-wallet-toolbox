@@ -22,7 +22,8 @@ func TestService_Lifecycle(t *testing.T) {
 	// given:
 	mockCT := testabilities.NewMockChaintracks()
 
-	genesisHash, _ := chainhash.NewHashFromHex("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f")
+	genesisHashStr := "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+	genesisHash, _ := chainhash.NewHashFromHex(genesisHashStr)
 	genesisMerkleRoot, _ := chainhash.NewHashFromHex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b")
 
 	tipHash, _ := chainhash.NewHashFromHex("00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31")
@@ -100,11 +101,11 @@ func TestService_Lifecycle(t *testing.T) {
 
 	t.Run("GetTip", func(t *testing.T) {
 		// when:
-		tip := service.GetTip(ctx)
+		tip, _ := service.GetTip(ctx)
 
 		// then:
 		require.NotNil(t, tip)
-		assert.Equal(t, currentHeight, tip.Height)
+		assert.Equal(t, uint(currentHeight), tip.Height)
 	})
 
 	t.Run("CurrentHeight", func(t *testing.T) {
@@ -123,8 +124,8 @@ func TestService_Lifecycle(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, header)
-		assert.Equal(t, uint32(0), header.Height)
-		assert.Equal(t, *genesisHash, header.Hash)
+		assert.Equal(t, uint(0), header.Height)
+		assert.Equal(t, genesisHash.String(), header.Hash)
 	})
 
 	t.Run("GetHeaderByHeight_tip", func(t *testing.T) {
@@ -134,7 +135,7 @@ func TestService_Lifecycle(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, header)
-		assert.Equal(t, currentHeight, header.Height)
+		assert.Equal(t, uint(currentHeight), header.Height)
 	})
 
 	t.Run("GetHeaderByHeight_notFound", func(t *testing.T) {
@@ -186,12 +187,13 @@ func TestService_Lifecycle(t *testing.T) {
 
 	t.Run("GetHeaderByHash", func(t *testing.T) {
 		// when:
-		header, err := service.GetHeaderByHash(ctx, genesisHash)
+		header, err := service.GetHeaderByHash(ctx, genesisHashStr)
 
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, header)
-		assert.Equal(t, uint32(0), header.Height)
+		assert.Equal(t, uint(0), header.Height)
+		assert.Equal(t, header.Hash, genesisHashStr)
 	})
 }
 

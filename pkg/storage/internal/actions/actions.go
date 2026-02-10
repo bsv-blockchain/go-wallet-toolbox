@@ -32,7 +32,7 @@ func New(
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
-	txBroadcastedChannel chan<- defs.TransactionStatusUpdate,
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 ) *Actions {
 	return &Actions{
 		create: newCreateAction(

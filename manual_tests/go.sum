@@ -16,6 +16,7 @@ github.com/bsv-blockchain/go-bsv-middleware v0.12.3 h1:6w4y2Z1pkMZgLpq18PVM8BeBv
 github.com/bsv-blockchain/go-bsv-middleware v0.12.3/go.mod h1:PfTVTm/qjHR0DLuY5hqKfZA9mnID3rxwFdzya2VY96c=
 github.com/bsv-blockchain/go-sdk v1.2.14 h1:Yhp/UIYByE5pC2OXqYPK1fe0d8cVPqywaWcfCb/oZ2o=
 github.com/bsv-blockchain/go-sdk v1.2.14/go.mod h1:tP9RkD+1BKw2KSXSQwh2j/h01PoZ2FEuzN1z089iU+Y=
+github.com/bsv-blockchain/go-sdk v1.2.17/go.mod h1:QWYwia7QSPB8+sLWyVldsIg0wPPzvEmXL5wGAT0dgaA=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1 h1:6mRV8T4ug8456p/rufoDselui3eKY6kr9mRYx8e87Rw=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1/go.mod h1:aNNGIH9aN/aCQ9vw0gTiQiOajkyBQIPJM9O6nHhhF5g=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=

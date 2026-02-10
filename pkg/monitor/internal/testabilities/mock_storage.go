@@ -15,6 +15,7 @@ type MockStorage struct {
 	SendWaitingLastMinTransactionAge time.Duration
 	UnFailCalled                     int
 	HandleReorgCalled                int
+	ProcessNewTipCalled              int
 }
 
 func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) ([]wdk.TxSynchronizedStatus, error) {
@@ -41,4 +42,9 @@ func (m *MockStorage) UnFail(_ context.Context) error {
 func (m *MockStorage) HandleReorg(_ context.Context, _ []string) error {
 	m.HandleReorgCalled++
 	return nil
+}
+
+func (m *MockStorage) ProcessNewTip(_ context.Context, _ uint32, _ string) ([]wdk.TxSynchronizedStatus, error) {
+	m.ProcessNewTipCalled++
+	return nil, nil
 }

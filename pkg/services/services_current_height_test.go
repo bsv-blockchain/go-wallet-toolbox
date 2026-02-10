@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +72,7 @@ func TestWalletServices_CurrentHeight_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func(testservices.ServicesFixture)
+		config      []func(*defs.WalletServices)
 		expectValue uint32
 	}{
 		{
@@ -79,6 +81,12 @@ func TestWalletServices_CurrentHeight_ErrorCases(t *testing.T) {
 				_ = f.WhatsOnChain().WillBeUnreachable()
 				f.Bitails().WillReturnNetworkInfo(http.StatusBadGateway, 0)
 				_ = f.BHS().WillBeUnreachable()
+				_ = f.Chaintracks().WillFail()
+			},
+			config: []func(*defs.WalletServices){
+				testservices.WithEnabledBitails(true),
+				testservices.WithEnabledBHS(true),
+				testservices.WithEnabledChaintracks(true),
 			},
 			expectValue: 0,
 		},
@@ -90,7 +98,7 @@ func TestWalletServices_CurrentHeight_ErrorCases(t *testing.T) {
 			fix := testservices.GivenServices(t)
 			tc.setup(fix)
 
-			svc := fix.Services().New()
+			svc := fix.Services().Config(tc.config...).New()
 
 			// when:
 			got, err := svc.CurrentHeight(t.Context())

@@ -51,6 +51,7 @@ type WalletServices struct {
 	// chaintracks integration
 	chaintracks    *chaintracksclient.Adapter
 	reorgBroadcast *reorgBroadcaster
+	tipBroadcast   *tipBroadcaster
 }
 
 // New will return a new WalletServices
@@ -132,30 +133,53 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	var chaintracksAdapter *chaintracksclient.Adapter
 	var reorgBroadcast *reorgBroadcaster
+	var tipBroadcast *tipBroadcaster
 
 	if config.ChaintracksClient.Enabled {
-		ctCfg := &ctConfig.Config{
-			Mode: ctConfig.ModeRemote,
-			URL:  config.ChaintracksClient.RemoteURL,
+		if options.chaintracksAdapter != nil {
+			// Use injected adapter (mostly for testing)
+			chaintracksAdapter = options.chaintracksAdapter
+		} else {
+			// Create adapter from config
+			ctCfg := &ctConfig.Config{
+				Mode: ctConfig.ModeRemote,
+				URL:  config.ChaintracksClient.RemoteURL,
+			}
+
+			if config.ChaintracksClient.Mode == defs.ChaintracksClientModeEmbedded {
+				ctCfg.Mode = ctConfig.ModeEmbedded
+				ctCfg.BootstrapURL = config.ChaintracksClient.BootstrapURL
+				ctCfg.BootstrapMode = ctConfig.BootstrapMode(config.ChaintracksClient.BootstrapMode)
+				ctCfg.StoragePath = config.ChaintracksClient.StoragePath
+				ctCfg.P2P.Network = config.ChaintracksClient.P2PNetwork
+				ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
+			}
+
+			// NOTE: when added Arcade we can add here P2P initialization if required
+			adapter, err := chaintracksclient.New(logger, ctCfg)
+			if err != nil {
+				panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
+			}
+
+			chaintracksAdapter = adapter
 		}
 
-		if config.ChaintracksClient.Mode == defs.ChaintracksClientModeEmbedded {
-			ctCfg.Mode = ctConfig.ModeEmbedded
-			ctCfg.BootstrapURL = config.ChaintracksClient.BootstrapURL
-			ctCfg.BootstrapMode = ctConfig.BootstrapMode(config.ChaintracksClient.BootstrapMode)
-			ctCfg.StoragePath = config.ChaintracksClient.StoragePath
-			ctCfg.P2P.Network = config.ChaintracksClient.P2PNetwork
-			ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
-		}
-
-		// NOTE: when added Arcade we can add here P2P initialization if required
-		adapter, err := chaintracksclient.New(logger, ctCfg)
-		if err != nil {
-			panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
-		}
-
-		chaintracksAdapter = adapter
 		reorgBroadcast = newReorgBroadcaster(logger)
+		tipBroadcast = newTipBroadcaster(logger)
+	}
+
+	// Register chaintracks implementation if adapter is available
+	if chaintracksAdapter != nil {
+		predefined = append(predefined, Named[Implementation]{
+			Name: defs.ChaintracksServiceName,
+			Item: Implementation{
+				CurrentHeight:        chaintracksAdapter.CurrentHeight,
+				ChainHeaderByHeight:  chaintracksAdapter.GetHeaderByHeight,
+				HashToHeader:         chaintracksAdapter.GetHeaderByHash,
+				FindChainTipHeader:   chaintracksAdapter.GetTip,
+				IsValidRootForHeight: chaintracksAdapter.IsValidRootForHeight,
+			},
+		})
 	}
 
 	allImplementations := append(options.customImplementations, predefined...)
@@ -307,6 +331,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		chaintracks:    chaintracksAdapter,
 		reorgBroadcast: reorgBroadcast,
+		tipBroadcast:   tipBroadcast,
 	}
 
 	walletServices.logActiveServices()
@@ -360,6 +385,7 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 				"height", bh.Height,
 				"hash", bh.Hash.String(),
 			)
+			s.tipBroadcast.broadcast(bh)
 			return nil
 		},
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
@@ -380,14 +406,26 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 	return nil
 }
 
-// SubscribeReorgs returns a channel that receives reorg events.
-// Call the returned unsubscribe function to stop receiving events and close the channel.
-// Returns nil, nil if chaintracks is not enabled.
-func (s *WalletServices) SubscribeReorgs() (<-chan *chaintracks.ReorgEvent, func()) {
+// SubscribeReorgs registers a user-provided channel to receive reorg events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function, or nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeReorgs(ch chan *chaintracks.ReorgEvent) func() {
 	if s.reorgBroadcast == nil {
-		return nil, func() {}
+		return nil
 	}
-	return s.reorgBroadcast.Subscribe()
+	return s.reorgBroadcast.Subscribe(ch)
+}
+
+// SubscribeTips registers a user-provided channel to receive new tip events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function, or nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeTips(ch chan *chaintracks.BlockHeader) func() {
+	if s.tipBroadcast == nil {
+		return nil
+	}
+	return s.tipBroadcast.Subscribe(ch)
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence

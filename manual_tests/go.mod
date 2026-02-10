@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-wallet-toolbox-manual-tests
 go 1.25.4
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.14
+	github.com/bsv-blockchain/go-sdk v1.2.17
 	github.com/bsv-blockchain/go-wallet-toolbox v1.24.3
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
