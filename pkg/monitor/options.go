@@ -2,13 +2,13 @@ package monitor
 
 import (
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // DaemonEventOptions holds options for communication channels used by the monitor daemon.
 type DaemonEventOptions struct {
-	onTxBroadcasted chan<- defs.TransactionStatusUpdate
-	onTxProven      chan<- defs.TransactionStatusUpdate
+	onTxBroadcasted chan<- wdk.CurrentTxStatus
+	onTxProven      chan<- wdk.CurrentTxStatus
 
 	onReorg <-chan *chaintracks.ReorgEvent
 	onTip   <-chan *chaintracks.BlockHeader
@@ -27,14 +27,14 @@ func defaultDaemonEventOptions() *DaemonEventOptions {
 }
 
 // WithBroadcastedTxChannel sets the channel for broadcasted transaction notifications.
-func WithBroadcastedTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEventOptions) {
+func WithBroadcastedTxChannel(ch chan<- wdk.CurrentTxStatus) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onTxBroadcasted = ch
 	}
 }
 
 // WithProvenTxChannel sets the channel for proven transaction notifications.
-func WithProvenTxChannel(ch chan<- defs.TransactionStatusUpdate) func(*DaemonEventOptions) {
+func WithProvenTxChannel(ch chan<- wdk.CurrentTxStatus) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onTxProven = ch
 	}

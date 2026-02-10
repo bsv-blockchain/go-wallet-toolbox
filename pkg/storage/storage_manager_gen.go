@@ -140,3 +140,13 @@ func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.
 
 	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
 }
+
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+func (m *WalletStorageManager) ListTransactions(ctx context.Context, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().ListTransactions(ctx, auth, args)
+}

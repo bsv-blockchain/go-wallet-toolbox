@@ -12,6 +12,20 @@ const (
 	SendWithResultStatusFailed   SendWithResultStatus = "failed"
 )
 
+// ToStandardizedStatus returns standardized status of a transaction request based on its ProvenTxReqStatus.
+func (s SendWithResultStatus) ToStandardizedStatus() StandardizedTxStatus {
+	switch s {
+	case SendWithResultStatusUnproven:
+		return TxUpdateStatusBroadcasted
+	case SendWithResultStatusSending:
+		return TxUpdateStatusWaiting
+	case SendWithResultStatusFailed:
+		return TxUpdateStatusServiceError
+	default:
+		return TxUpdateStatusUnknown
+	}
+}
+
 // ReviewActionResultStatus represents the status of a reviewed action, describing the result of the review process.
 type ReviewActionResultStatus string
 
@@ -22,6 +36,22 @@ const (
 	ReviewActionResultStatusServiceError ReviewActionResultStatus = "serviceError"
 	ReviewActionResultStatusInvalidTx    ReviewActionResultStatus = "invalidTx"
 )
+
+// ToStandardizedStatus returns standardized status of a transaction request based on its ProvenTxReqStatus.
+func (s ReviewActionResultStatus) ToStandardizedStatus() StandardizedTxStatus {
+	switch s {
+	case ReviewActionResultStatusSuccess:
+		return TxUpdateStatusBroadcasted
+	case ReviewActionResultStatusDoubleSpend:
+		return TxUpdateStatusDoubleSpend
+	case ReviewActionResultStatusInvalidTx:
+		return TxUpdateStatusInvalidTx
+	case ReviewActionResultStatusServiceError:
+		return TxUpdateStatusServiceError
+	default:
+		return TxUpdateStatusUnknown
+	}
+}
 
 // SendWithResult represents the result of a send operation, including the transaction ID and the status of the operation.
 type SendWithResult struct {

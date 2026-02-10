@@ -57,7 +57,7 @@ func newProcessAction(
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
-	txBroadcastedChannel chan<- defs.TransactionStatusUpdate,
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{

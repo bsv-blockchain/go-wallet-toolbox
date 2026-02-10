@@ -974,6 +974,111 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 	return nil
 }
 
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+// It fetches transactions from the KnownTx table and converts them to CurrentTxStatus format.
+func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	hasTxIDsFilter := len(args.TxIDs) > 0
+	hasReferencesFilter := len(args.References) > 0
+
+	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
+
+	if hasReferencesFilter {
+		txQuery = txQuery.Reference().In(args.References...)
+	}
+	if hasTxIDsFilter {
+		txQuery = txQuery.TxID().In(args.TxIDs...)
+	}
+
+	userTxs, txErr := txQuery.Find(ctx)
+	if txErr != nil {
+		return nil, fmt.Errorf("error finding transactions: %w", txErr)
+	}
+
+	if len(userTxs) == 0 {
+		return &wdk.ListTransactionsResult{
+			TotalTransactions: 0,
+			Transactions:      []wdk.CurrentTxStatus{},
+		}, nil
+	}
+
+	txStatusMap := make(map[string]wdk.TxStatus, len(userTxs))
+	txIDs := make([]string, 0, len(userTxs))
+	for _, tx := range userTxs {
+		if tx.TxID != nil {
+			txIDs = append(txIDs, *tx.TxID)
+			txStatusMap[*tx.TxID] = tx.Status
+		}
+	}
+
+	if len(txIDs) == 0 {
+		return &wdk.ListTransactionsResult{
+			TotalTransactions: 0,
+			Transactions:      []wdk.CurrentTxStatus{},
+		}, nil
+	}
+
+	query := p.KnownTxEntity().Read().Paged(must.ConvertToIntFromUnsigned(args.Limit), must.ConvertToIntFromUnsigned(args.Offset), false)
+
+	if args.Status != nil {
+		query = query.Status().Equals(wdk.ProvenTxReqStatus(*args.Status))
+	}
+
+	knownTxs, err := query.TxIDs(txIDs...).Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing transactions: %w", err)
+	}
+
+	totalCount := uint64(len(knownTxs))
+
+	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
+	for _, ktx := range knownTxs {
+		var status wdk.StandardizedTxStatus
+		if s, ok := txStatusMap[ktx.TxID]; ok {
+			status = s.ToStandardizedStatus()
+		} else {
+			status = ktx.Status.ToStandardizedStatus()
+		}
+
+		txUpdate := wdk.CurrentTxStatus{
+			TxID:   ktx.TxID,
+			Status: status,
+		}
+
+		if ktx.BlockHash != nil {
+			txUpdate.BlockHash = *ktx.BlockHash
+		}
+		if ktx.BlockHeight != nil {
+			txUpdate.BlockHeight = *ktx.BlockHeight
+		}
+		if ktx.MerkleRoot != nil {
+			txUpdate.MerkleRoot = *ktx.MerkleRoot
+		}
+		if len(ktx.MerklePath) > 0 {
+			merklePath, parseErr := transaction.NewMerklePathFromBinary(ktx.MerklePath)
+			if parseErr == nil {
+				txUpdate.MerklePath = merklePath
+			}
+		}
+
+		transactions = append(transactions, txUpdate)
+	}
+
+	return &wdk.ListTransactionsResult{
+		TotalTransactions: primitives.PositiveInteger(totalCount),
+		Transactions:      transactions,
+	}, nil
+}
+
 // ProcessNewTip updates the last checked block and runs transaction synchronization.
 // Called when a new chain tip is received from chaintracks.
 func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {

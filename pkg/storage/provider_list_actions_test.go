@@ -274,3 +274,79 @@ func TestListActions_SeekPermissionFalse(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "seekPermission=false")
 }
+
+func TestListActions_FilterByReference(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	customReference := "custom-ref-123"
+	given.Action(activeStorage).WithSatoshisToInternalize(42001).WithReference(customReference).Processed()
+	given.Action(activeStorage).WithSatoshisToInternalize(42002).Processed()
+
+	listArgs := wdk.ListActionsArgs{
+		Limit:     10,
+		Offset:    0,
+		Reference: &customReference,
+	}
+	result, err := activeStorage.ListActions(t.Context(), testusers.Alice.AuthID(), listArgs)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, primitives.PositiveInteger(1), result.TotalActions)
+	assert.Len(t, result.Actions, 1)
+}
+
+func TestListActions_FilterByReferenceNoMatch(t *testing.T) {
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
+	require.NoError(t, err)
+
+	nonExistentRef := "non-existent-reference"
+	listArgs := wdk.ListActionsArgs{
+		Limit:     10,
+		Offset:    0,
+		Reference: &nonExistentRef,
+	}
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), listArgs)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, primitives.PositiveInteger(0), result.TotalActions)
+	assert.Len(t, result.Actions, 0)
+}
+
+func TestListActions_EmptyReferenceReturnsAll(t *testing.T) {
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	someReference := "some-reference"
+	argsWithRef := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Reference = someReference
+	})
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), argsWithRef)
+	require.NoError(t, err)
+
+	listArgs := wdk.ListActionsArgs{
+		Limit:     10,
+		Offset:    0,
+		Reference: nil,
+	}
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), listArgs)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, primitives.PositiveInteger(2), result.TotalActions)
+}
