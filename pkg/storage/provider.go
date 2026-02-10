@@ -975,7 +975,7 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 }
 
 // ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
-// It fetches transactions from the KnownTx table and converts them to TransactionStatusUpdate format.
+// It fetches transactions from the KnownTx table and converts them to CurrentTxStatus format.
 func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListTransactions")
@@ -987,16 +987,16 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		return nil, ErrAuthorization
 	}
 
-	hasTxIDFilter := args.TxID != nil && *args.TxID != ""
-	hasReferenceFilter := args.Reference != nil && *args.Reference != ""
+	hasTxIDsFilter := len(args.TxIDs) > 0
+	hasReferencesFilter := len(args.References) > 0
 
 	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
 
-	if hasReferenceFilter {
-		txQuery = txQuery.Reference().Equals(*args.Reference)
+	if hasReferencesFilter {
+		txQuery = txQuery.Reference().In(args.References...)
 	}
-	if hasTxIDFilter {
-		txQuery = txQuery.TxID().Equals(*args.TxID)
+	if hasTxIDsFilter {
+		txQuery = txQuery.TxID().In(args.TxIDs...)
 	}
 
 	userTxs, txErr := txQuery.Find(ctx)
@@ -1007,7 +1007,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	if len(userTxs) == 0 {
 		return &wdk.ListTransactionsResult{
 			TotalTransactions: 0,
-			Transactions:      []defs.TransactionStatusUpdate{},
+			Transactions:      []wdk.CurrentTxStatus{},
 		}, nil
 	}
 
@@ -1023,7 +1023,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	if len(txIDs) == 0 {
 		return &wdk.ListTransactionsResult{
 			TotalTransactions: 0,
-			Transactions:      []defs.TransactionStatusUpdate{},
+			Transactions:      []wdk.CurrentTxStatus{},
 		}, nil
 	}
 
@@ -1040,16 +1040,16 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	totalCount := uint64(len(knownTxs))
 
-	transactions := make([]defs.TransactionStatusUpdate, 0, len(knownTxs))
+	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
-		var status defs.TxUpdateStatus
+		var status wdk.StandardizedTxStatus
 		if s, ok := txStatusMap[ktx.TxID]; ok {
-			status = defs.ParseTxUpdateStatusOrUnknown(string(s))
+			status = s.ToStandardizedStatus()
 		} else {
-			status = defs.ParseTxUpdateStatusOrUnknown(string(ktx.Status))
+			status = ktx.Status.ToStandardizedStatus()
 		}
 
-		txUpdate := defs.TransactionStatusUpdate{
+		txUpdate := wdk.CurrentTxStatus{
 			TxID:   ktx.TxID,
 			Status: status,
 		}

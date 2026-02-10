@@ -9,7 +9,6 @@ import (
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -30,8 +29,8 @@ type Server struct {
 	storageServer *storage.Server
 	monitor       *monitor.Daemon
 
-	txBroadcastedCh <-chan defs.TransactionStatusUpdate
-	txProvenCh      <-chan defs.TransactionStatusUpdate
+	txBroadcastedCh <-chan wdk.CurrentTxStatus
+	txProvenCh      <-chan wdk.CurrentTxStatus
 
 	cleanupFunc []func()
 }
@@ -102,14 +101,14 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 
 	var (
 		daemon          *monitor.Daemon
-		txBroadcastedCh chan defs.TransactionStatusUpdate
-		txProvenCh      chan defs.TransactionStatusUpdate
+		txBroadcastedCh chan wdk.CurrentTxStatus
+		txProvenCh      chan wdk.CurrentTxStatus
 	)
 	if cfg.Monitor.Enabled {
 		var monitorOpts []monitor.DaemonEventOption
 
 		if cfg.Monitor.Events.TxBroadcasted.Enabled {
-			txBroadcastedCh = make(chan defs.TransactionStatusUpdate, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
+			txBroadcastedCh = make(chan wdk.CurrentTxStatus, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
 			monitorOpts = append(monitorOpts, monitor.WithBroadcastedTxChannel(txBroadcastedCh))
 
 			cleanupFuncs = append(cleanupFuncs, func() {
@@ -118,7 +117,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		}
 
 		if cfg.Monitor.Events.TxProven.Enabled {
-			txProvenCh = make(chan defs.TransactionStatusUpdate, cfg.Monitor.Events.TxProven.ChannelSize)
+			txProvenCh = make(chan wdk.CurrentTxStatus, cfg.Monitor.Events.TxProven.ChannelSize)
 			monitorOpts = append(monitorOpts, monitor.WithProvenTxChannel(txProvenCh))
 
 			cleanupFuncs = append(cleanupFuncs, func() {

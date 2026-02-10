@@ -92,9 +92,9 @@ func TestListTransactions_FilterByReference(t *testing.T) {
 
 	// When: filter by specific reference
 	args := wdk.ListTransactionsArgs{
-		Limit:     10,
-		Offset:    0,
-		Reference: &customReference,
+		Limit:      10,
+		Offset:     0,
+		References: []string{customReference},
 	}
 	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
 
@@ -119,9 +119,9 @@ func TestListTransactions_FilterByReferenceNoMatch(t *testing.T) {
 	// When: filter by non-existent reference
 	nonExistentRef := "non-existent-reference"
 	args := wdk.ListTransactionsArgs{
-		Limit:     10,
-		Offset:    0,
-		Reference: &nonExistentRef,
+		Limit:      10,
+		Offset:     0,
+		References: []string{nonExistentRef},
 	}
 	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
 
@@ -150,7 +150,7 @@ func TestListTransactions_FilterByTxID(t *testing.T) {
 	args := wdk.ListTransactionsArgs{
 		Limit:  10,
 		Offset: 0,
-		TxID:   &txID,
+		TxIDs:  []string{txID},
 	}
 	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
 
@@ -175,11 +175,11 @@ func TestListTransactions_NilReferenceReturnsAll(t *testing.T) {
 	given.Action(activeStorage).WithReference(customReference).Processed()
 	given.Action(activeStorage).WithSatoshisToInternalize(50000).Processed()
 
-	// When: no reference filter (nil)
+	// When: no reference filter (empty slice)
 	args := wdk.ListTransactionsArgs{
-		Limit:     10,
-		Offset:    0,
-		Reference: nil,
+		Limit:      10,
+		Offset:     0,
+		References: nil,
 	}
 	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
 
