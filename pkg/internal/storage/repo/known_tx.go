@@ -439,6 +439,9 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	if spec.TxID != nil {
 		return []gen.Condition{table.TxID.Eq(*spec.TxID)}
 	}
+	if len(spec.TxIDs) > 0 {
+		return []gen.Condition{table.TxID.In(spec.TxIDs...)}
+	}
 
 	var conditions []gen.Condition
 	if spec.Attempts != nil {

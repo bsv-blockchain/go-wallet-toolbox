@@ -241,6 +241,13 @@ func TestWrongCreateActionArgs(t *testing.T) {
 				return args
 			},
 		},
+		"Reference too long": {
+			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
+				longRef := string(bytes.Repeat([]byte{'a'}, 501))
+				args.Reference = longRef
+				return args
+			},
+		},
 	}
 
 	for name, test := range tests {

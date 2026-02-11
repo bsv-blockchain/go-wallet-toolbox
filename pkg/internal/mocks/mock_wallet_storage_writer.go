@@ -221,6 +221,21 @@ func (mr *MockWalletStorageProviderMockRecorder) ListOutputs(ctx, auth, args any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOutputs", reflect.TypeOf((*MockWalletStorageProvider)(nil).ListOutputs), ctx, auth, args)
 }
 
+// ListTransactions mocks base method.
+func (m *MockWalletStorageProvider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTransactions", ctx, auth, args)
+	ret0, _ := ret[0].(*wdk.ListTransactionsResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTransactions indicates an expected call of ListTransactions.
+func (mr *MockWalletStorageProviderMockRecorder) ListTransactions(ctx, auth, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTransactions", reflect.TypeOf((*MockWalletStorageProvider)(nil).ListTransactions), ctx, auth, args)
+}
+
 // MakeAvailable mocks base method.
 func (m *MockWalletStorageProvider) MakeAvailable(ctx context.Context) (*wdk.TableSettings, error) {
 	m.ctrl.T.Helper()

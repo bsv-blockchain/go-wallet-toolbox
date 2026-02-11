@@ -41,8 +41,8 @@ type Daemon struct {
 // Inbound channels (<-chan) are used by monitor to receive external events.
 type EventChannels struct {
 	// Outbound channels:
-	OnTxBroadcasted chan<- defs.TransactionStatusUpdate
-	OnTxProven      chan<- defs.TransactionStatusUpdate
+	OnTxBroadcasted chan<- wdk.CurrentTxStatus
+	OnTxProven      chan<- wdk.CurrentTxStatus
 
 	// Inbound channels:
 	OnReorg <-chan *chaintracks.ReorgEvent
@@ -317,9 +317,9 @@ func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchroni
 	}
 
 	for _, res := range results {
-		msg := defs.TransactionStatusUpdate{
+		msg := wdk.CurrentTxStatus{
 			TxID:        res.TxID,
-			Status:      defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+			Status:      res.Status.ToStandardizedStatus(),
 			MerklePath:  res.MerklePath,
 			MerkleRoot:  res.MerkleRoot,
 			BlockHash:   res.BlockHash,

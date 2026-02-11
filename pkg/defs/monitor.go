@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq2"
 )
@@ -31,61 +30,6 @@ const (
 // ParseMonitorTaskStr parses a string to a MonitorTask or returns an error
 func ParseMonitorTaskStr(task string) (MonitorTask, error) {
 	return parseEnumCaseInsensitive(task, CheckForProofsMonitorTask, SendWaitingMonitorTask, FailAbandonedMonitorTask, UnFailMonitorTask)
-}
-
-// TransactionStatusUpdate represents the response from a monitoring task
-type TransactionStatusUpdate struct {
-	TxID   string
-	Status TxUpdateStatus
-
-	BlockHash   string
-	BlockHeight uint32
-	MerklePath  *transaction.MerklePath
-	MerkleRoot  string
-}
-
-// TxUpdateStatus represents the status of a transaction in a monitoring task response
-type TxUpdateStatus string
-
-// Possible values for TxUpdateStatus
-const (
-	TxUpdateStatusCompleted    TxUpdateStatus = "completed"
-	TxUpdateStatusDoubleSpend  TxUpdateStatus = "doubleSpend"
-	TxUpdateStatusInvalidTx    TxUpdateStatus = "invalidTx"
-	TxUpdateStatusServiceError TxUpdateStatus = "serviceError"
-	TxUpdateStatusSuccess      TxUpdateStatus = "success"
-	TxUpdateStatusUnproven     TxUpdateStatus = "unproven"
-	TxUpdateStatusUnknown      TxUpdateStatus = "unknown"
-)
-
-// String returns the string representation of TxUpdateStatus
-func (s TxUpdateStatus) String() string {
-	return string(s)
-}
-
-// allTxUpdateStatuses contains all valid TxUpdateStatus values for parsing
-var allTxUpdateStatuses = []TxUpdateStatus{
-	TxUpdateStatusSuccess,
-	TxUpdateStatusServiceError,
-	TxUpdateStatusInvalidTx,
-	TxUpdateStatusCompleted,
-	TxUpdateStatusDoubleSpend,
-	TxUpdateStatusUnproven,
-	TxUpdateStatusUnknown,
-}
-
-// ParseTxUpdateStatus parses a string to TxUpdateStatus or returns an error
-func ParseTxUpdateStatus(status string) (TxUpdateStatus, error) {
-	return parseEnumCaseInsensitive(status, allTxUpdateStatuses...)
-}
-
-// ParseTxUpdateStatusOrUnknown parses a string to TxUpdateStatus, returning TxUpdateStatusUnknown if parsing fails
-func ParseTxUpdateStatusOrUnknown(status string) TxUpdateStatus {
-	parsed, err := ParseTxUpdateStatus(status)
-	if err != nil {
-		return TxUpdateStatusUnknown
-	}
-	return parsed
 }
 
 // TaskConfig defines configuration parameters for a monitoring task

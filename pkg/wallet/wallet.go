@@ -490,6 +490,27 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 	return mappedResult, nil
 }
 
+// ListTransactions retrieves a list of transactions with their status updates (merkle proofs, block info).
+func (w *Wallet) ListTransactions(ctx context.Context, args wdk.ListTransactionsArgs, originator string) (*wdk.ListTransactionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ListTransactions", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	w.logger.DebugContext(ctx, "ListTransactions call", slogx.String("originator", originator))
+	if err := validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	result, err := w.storage.ListTransactions(ctx, args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list transactions: %w", err)
+	}
+
+	return result, nil
+}
+
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
 // inserted into baskets, and/or tagged.
 func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
