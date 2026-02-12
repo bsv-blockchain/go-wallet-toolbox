@@ -1,6 +1,6 @@
 package wdk
 
-// AggregatedPostedTxIDStatus represents the aggregated status of postBEEF process for single txid
+// AggregatedPostedTxIDStatus represents the aggregated status of postFromBEEF process for single txid
 type AggregatedPostedTxIDStatus string
 
 // Possible values for AggregatedPostedTxIDStatus
@@ -11,7 +11,7 @@ const (
 	AggregatedPostedTxIDServiceError AggregatedPostedTxIDStatus = "serviceError"
 )
 
-// AggregatedPostedTxID represents postBEEF result, aggregated from all broadcasters for particular TxID
+// AggregatedPostedTxID represents postFromBEEF result, aggregated from all broadcasters for particular TxID
 type AggregatedPostedTxID struct {
 	TxID              string
 	TxIDResults       []*PostedTxID
@@ -64,7 +64,7 @@ func (a AggregatedPostFromBEEF) summarize(txID string) {
 	}
 }
 
-func newAggregatedPostBEEF(results PostFromBeefResult, txids []string) AggregatedPostFromBEEF {
+func newAggregatedPostFromBEEF(results PostFromBeefResult, txids []string) AggregatedPostFromBEEF {
 	aggregatedTxs := make(AggregatedPostFromBEEF)
 
 	for _, result := range results {

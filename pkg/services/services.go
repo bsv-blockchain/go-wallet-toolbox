@@ -513,7 +513,7 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}
 
 		rawTx := tx.Bytes()
-		efHex, err := txutils.ToEFHex(beef, s.logger)
+		efHex, err := txutils.TxToEFHex(tx, beef)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
 		}

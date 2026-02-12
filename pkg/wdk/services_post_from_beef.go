@@ -5,7 +5,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 
-// PostFromBeefResult is a list of results from the PostBEEF method of all services.
+// PostFromBeefResult is a list of results from the PostFromBEEF method of all services.
 type PostFromBeefResult []*PostFromBEEFServiceResult
 
 // Success checks if one of the results is a success.
@@ -17,10 +17,10 @@ func (it PostFromBeefResult) Success() bool {
 
 // Aggregated gets results from all services and aggregates them by txid, calculating status and counts.
 func (it PostFromBeefResult) Aggregated(txids []string) AggregatedPostFromBEEF {
-	return newAggregatedPostBEEF(it, txids)
+	return newAggregatedPostFromBEEF(it, txids)
 }
 
-// ServiceErrors returns a map containing service names and their corresponding errors for failed PostBEEF results.
+// ServiceErrors returns a map containing service names and their corresponding errors for failed PostFromBEEF results.
 func (it PostFromBeefResult) ServiceErrors() map[string]error {
 	errs := make(map[string]error)
 	for _, result := range it {
@@ -31,7 +31,7 @@ func (it PostFromBeefResult) ServiceErrors() map[string]error {
 	return errs
 }
 
-// PostFromBEEFServiceResult is the result of the PostBEEF method of a single service.
+// PostFromBEEFServiceResult is the result of the PostFromBEEF method of a single service.
 // It contains the name of the service that produced the result and the result itself.
 // The result could be either a success or an error.
 type PostFromBEEFServiceResult struct {
