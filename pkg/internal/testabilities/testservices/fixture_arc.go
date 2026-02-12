@@ -128,27 +128,23 @@ func (f *arcFixture) IsUpAndRunning() {
 				),
 			)
 		}
-		txHex := rawTx.(string)
 
-		tx, err := sdk.NewTransactionFromBEEFHex(txHex)
-		if !assert.NoError(f, err) {
+		txBytes, err := hex.DecodeString(rawTx.(string))
+		if err != nil {
 			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusMalformed, err.Error()))
 		}
 
-		beefBytes, err := hex.DecodeString(txHex)
-		require.NoError(f, err, "failed to decode BEEF hex")
-
-		beef, err := sdk.NewBeefFromBytes(beefBytes)
-		require.NoError(f, err, "failed to create BEEF from bytes")
-
-		for _, tx := range beef.Transactions {
-			if !f.verifyTxScripts(tx.Transaction) {
-				message := "arc error 465: inputs must have an unlocking script or an unlocker"
-				return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
-			}
+		tx, err := sdk.NewTransactionFromBytes(txBytes)
+		if err != nil {
+			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusMalformed, err.Error()))
 		}
 
-		f.store(beef)
+		if !f.verifyTxScripts(tx) {
+			message := "arc error 465: inputs must have an unlocking script or an unlocker"
+			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
+		}
+
+		f.storeEFTx(tx)
 
 		if f.broadcastWithoutResponseBody {
 			return httpmock.NewJsonResponse(http.StatusOK, nil)
@@ -244,6 +240,31 @@ func (f *arcFixture) store(beef *sdk.Beef) {
 		if tx == nil {
 			f.saveKnownTransaction(it)
 		}
+	}
+}
+
+func (f *arcFixture) storeEFTx(tx *sdk.Transaction) {
+	var err error
+	merklePath := tx.MerklePath
+	txID := tx.TxID().String()
+
+	knownTx := &knownTransaction{
+		txid:   txID,
+		status: "SEEN_ON_NETWORK",
+	}
+
+	if merklePath != nil {
+		knownTx.blockHash, err = merklePath.ComputeRootHex(&txID)
+		require.NoError(f, err, "failed to compute root: wrong test setup")
+
+		knownTx.status = "MINED"
+		knownTx.blockHeight = merklePath.BlockHeight
+		knownTx.merklePath = merklePath.Hex()
+	}
+
+	existing := f.getKnownTransaction(txID)
+	if existing == nil {
+		f.saveKnownTransaction(knownTx)
 	}
 }
 
@@ -386,7 +407,7 @@ func errorResponseForStatus(httpStatus int) (int, map[string]any) {
 }
 
 func errorResponseForStatusWithExtraInfo(httpStatus int, extraInfo string) (int, map[string]any) {
-	var title = http.StatusText(httpStatus)
+	title := http.StatusText(httpStatus)
 	var details string
 	switch httpStatus {
 	case http.StatusBadRequest:

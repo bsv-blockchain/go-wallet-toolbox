@@ -16,39 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostBEEFWithARCService(t *testing.T) {
-
-	t.Run("broadcast without passing txid", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
-
-		// setup arc server
-		given.ARC().IsUpAndRunning()
-
-		// and:
-		service := given.NewArcService()
-
-		// and:
-		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
-		beef, err := sdk.NewBeefFromTransaction(tx)
-		require.NoError(t, err)
-
-		txID := tx.TxID().String()
-
-		// when:
-		res, err := service.PostBEEF(t.Context(), beef, nil)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, res)
-		require.Len(t, res.TxIDResults, 1)
-
-		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
-		assert.Equal(t, txID, res.TxIDResults[0].TxID)
-		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.TxIDResults[0].Data)
-		assert.Len(t, res.TxIDResults[0].Notes, 1)
-	})
-
+func TestPostEFWithARCService(t *testing.T) {
 	t.Run("broadcast single transaction", func(t *testing.T) {
 		// given:
 		given := arctestabilities.Given(t)
@@ -61,70 +29,22 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
-		beef, err := sdk.NewBeefFromTransaction(tx)
+		efTX, err := tx.EFHex()
 		require.NoError(t, err)
 
 		txID := tx.TxID().String()
-		var txids = []string{txID}
 
 		// when:
-		res, err := service.PostBEEF(t.Context(), beef, txids)
+		res, err := service.PostEF(t.Context(), efTX, txID)
 
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
-		require.Len(t, res.TxIDResults, 1)
 
-		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
-		assert.Equal(t, txID, res.TxIDResults[0].TxID)
-		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.TxIDResults[0].Data)
-		assert.Len(t, res.TxIDResults[0].Notes, 1)
-	})
-
-	t.Run("broadcast multiple txids", func(t *testing.T) {
-		// given:
-		given := arctestabilities.Given(t)
-
-		// setup arc server
-		given.ARC().IsUpAndRunning()
-
-		// and:
-		service := given.NewArcService()
-
-		// and:
-		parentTx := txtestabilities.GivenTX().
-			WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
-			WithInput(100).
-			WithP2PKHOutput(99).
-			TX()
-		parentTxID := parentTx.TxID().String()
-
-		// and:
-		childTx := txtestabilities.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(98).TX()
-		childTxID := childTx.TxID().String()
-		beef, err := sdk.NewBeefFromTransaction(childTx)
-		require.NoError(t, err)
-
-		var txids = []string{parentTxID, childTxID}
-
-		// when:
-		res, err := service.PostBEEF(t.Context(), beef, txids)
-
-		// then:
-		assert.NoError(t, err)
-		require.NotNil(t, res)
-		require.Len(t, res.TxIDResults, 2)
-
-		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
-		assert.Equal(t, childTxID, res.TxIDResults[0].TxID)
-		assert.Equal(t, given.ARC().TxInfoJSON(childTxID), res.TxIDResults[0].Data)
-		assert.Len(t, res.TxIDResults[0].Notes, 1)
-
-		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[1].Result)
-		assert.Equal(t, parentTxID, res.TxIDResults[1].TxID)
-		assert.Equal(t, given.ARC().TxInfoJSON(parentTxID), res.TxIDResults[1].Data)
-		assert.Len(t, res.TxIDResults[1].Notes, 1)
-
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
+		assert.Equal(t, txID, res.TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.Data)
+		assert.Len(t, res.Notes, 1)
 	})
 
 	t.Run("return success if broadcast finished with OK without body, but we can query the tx", func(t *testing.T) {
@@ -140,69 +60,43 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
-		beef, err := sdk.NewBeefFromTransaction(tx)
+		efTX, err := tx.EFHex()
 		require.NoError(t, err)
 
 		txID := tx.TxID().String()
-		var txids = []string{txID}
 
 		// when:
-		res, err := service.PostBEEF(t.Context(), beef, txids)
+		res, err := service.PostEF(t.Context(), efTX, txID)
 
 		// then:
 		assert.NoError(t, err)
 		require.NotNil(t, res)
-		require.Len(t, res.TxIDResults, 1)
 
-		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.TxIDResults[0].Result)
-		assert.Equal(t, txID, res.TxIDResults[0].TxID)
-		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.TxIDResults[0].Data)
-		assert.Len(t, res.TxIDResults[0].Notes, 1)
+		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
+		assert.Equal(t, txID, res.TxID)
+		assert.Equal(t, given.ARC().TxInfoJSON(txID), res.Data)
+		assert.Len(t, res.Notes, 1)
 	})
 
-	invalidBEEFTestCases := map[string]struct {
-		BEEF func(t testing.TB) *sdk.Beef
+	invalidEFTestCases := map[string]struct {
+		EF func(t testing.TB) (string, string)
 	}{
-		"return error on nil beef": {
-			BEEF: func(t testing.TB) *sdk.Beef {
-				return nil
+		"return error on empty ef hex": {
+			EF: func(t testing.TB) (string, string) {
+				return "", "some-tx-id"
 			},
 		},
-		"return error on empty beef": {
-			BEEF: func(t testing.TB) *sdk.Beef {
-				return sdk.NewBeefV2()
-			},
-		},
-		"return error on beef v2 with txID only": {
-			BEEF: func(t testing.TB) *sdk.Beef {
-				tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
-				beef, err := sdk.NewBeefFromTransaction(tx)
-				require.NoError(t, err)
-
-				beefTxIDOnly, err := beef.TxidOnly()
-				require.NoError(t, err)
-				return beefTxIDOnly
-			},
-		},
-		"return error on beef v2 with multiple subject transactions (TEMPORARY)": {
-			BEEF: func(t testing.TB) *sdk.Beef {
-				tx1 := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
-				beef, err := sdk.NewBeefFromTransaction(tx1)
-				require.NoError(t, err)
-
-				tx2 := txtestabilities.GivenTX().WithInput(200).WithP2PKHOutput(100).TX()
-
-				_, err = beef.MergeTransaction(tx2)
-				require.NoError(t, err)
-
-				return beef
+		"return error on invalid hex characters": {
+			EF: func(t testing.TB) (string, string) {
+				return "abc-not-hex", "some-tx-id"
 			},
 		},
 	}
-	for name, test := range invalidBEEFTestCases {
+	for name, test := range invalidEFTestCases {
 		t.Run(name, func(t *testing.T) {
 			// given:
 			given := arctestabilities.Given(t)
+			txEF, txID := test.EF(t)
 
 			// setup arc server
 			given.ARC().IsUpAndRunning()
@@ -211,11 +105,13 @@ func TestPostBEEFWithARCService(t *testing.T) {
 			service := given.NewArcService()
 
 			// when:
-			res, err := service.PostBEEF(t.Context(), test.BEEF(t), nil)
+			res, err := service.PostEF(t.Context(), txEF, txID)
 
 			// then:
-			assert.Error(t, err)
-			assert.Nil(t, res)
+			assert.NoError(t, err)
+			assert.NotNil(t, res)
+			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
+			assert.Error(t, res.Error)
 		})
 	}
 
@@ -259,15 +155,17 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 			// and:
 			tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
-			beef, err := sdk.NewBeefFromTransaction(tx)
+			efHex, err := tx.EFHex()
 			require.NoError(t, err)
 
 			// when:
-			res, err := service.PostBEEF(t.Context(), beef, nil)
+			res, err := service.PostEF(t.Context(), efHex, tx.TxID().String())
 
 			// then:
-			assert.Error(t, err)
-			assert.Nil(t, res)
+			assert.NoError(t, err)
+			assert.NotNil(t, res)
+			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
+			assert.Error(t, res.Error)
 		})
 	}
 
@@ -322,52 +220,34 @@ func TestPostBEEFWithARCService(t *testing.T) {
 
 			// setup arc server
 			given.ARC().IsUpAndRunning()
+			given.ARC().OnBroadcast().WillReturnNoBody()
 
 			// and:
 			service := given.NewArcService()
 
 			// and:
-			grandParentTx := txtestabilities.GivenTX().
-				WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
-				WithInput(300).
-				WithP2PKHOutput(299).
-				TX()
-			grandParentTxID := grandParentTx.TxID().String()
-
-			parentTx := txtestabilities.GivenTX().
-				WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
-				WithInputFromUTXO(grandParentTx, 0).
-				WithP2PKHOutput(199).
-				TX()
-			parentTxID := parentTx.TxID().String()
-
-			// and:
-			childTx := txtestabilities.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(99).TX()
-			childTxID := childTx.TxID().String()
-			beef, err := sdk.NewBeefFromTransaction(childTx)
+			tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
+			// WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
+			// WithInput(300).
+			// WithP2PKHOutput(299).
+			// TX()
+			txID := tx.TxID().String()
+			efHex, err := tx.EFHex()
 			require.NoError(t, err)
 
-			var txids = []string{grandParentTxID, parentTxID, childTxID}
-
 			// and:
-			test.setupARCQueryTx(given.ARC().WhenQueryingTx(parentTxID))
+			test.setupARCQueryTx(given.ARC().WhenQueryingTx(txID))
 
 			// when:
-			res, err := service.PostBEEF(t.Context(), beef, txids)
+			res, err := service.PostEF(t.Context(), efHex, txID)
 
 			// then:
 			assert.NoError(t, err)
 			require.NotNil(t, res)
 
-			for _, resultForTxID := range res.TxIDResults {
-				if resultForTxID.TxID == parentTxID {
-					assert.Equal(t, wdk.PostedTxIDResultError, resultForTxID.Result, "expect (parentTx) tx %s to have error result", resultForTxID.TxID)
-					assert.Empty(t, resultForTxID.Data, "expect result for (parentTx) tx %s to have no data", resultForTxID.TxID)
-					assert.Error(t, resultForTxID.Error, "expect result for (parentTx) tx %s to have an error", resultForTxID.TxID)
-				} else {
-					assert.Equal(t, wdk.PostedTxIDResultSuccess, resultForTxID.Result, "expect tx %s to have success result", resultForTxID.TxID)
-				}
-			}
+			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
+			assert.Empty(t, res.Data)
+			assert.Error(t, res.Error)
 		})
 	}
 }
@@ -439,7 +319,6 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 				arc.WhenQueryingTx(txID).
 					WillReturnTransactionWithMerklePath(merklePath).
 					WillReturnTransactionOnHeight(2002)
-
 			},
 		},
 		"return error when arc return merkle path without queried tx": {
