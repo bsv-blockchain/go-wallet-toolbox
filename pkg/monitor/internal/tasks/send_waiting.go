@@ -41,8 +41,17 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 
 	for _, res := range results.NotDelayedResults {
 		msg := wdk.CurrentTxStatus{
-			TxID:   res.TxID.String(),
-			Status: res.Status.ToStandardizedStatus(),
+			TxID:      res.TxID.String(),
+			Status:    res.Status.ToStandardizedStatus(),
+			Reference: res.Reference,
+		}
+
+		if len(res.Errors) > 0 {
+			broadcastError := &wdk.CurrentTxError{
+				CompetingTxs: res.CompetingTxs,
+				Errors:       res.Errors,
+			}
+			msg.Error = broadcastError
 		}
 
 		select {

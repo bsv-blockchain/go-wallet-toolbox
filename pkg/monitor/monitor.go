@@ -324,6 +324,7 @@ func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchroni
 			MerkleRoot:  res.MerkleRoot,
 			BlockHash:   res.BlockHash,
 			BlockHeight: res.BlockHeight,
+			Reference:   res.Reference,
 		}
 
 		select {

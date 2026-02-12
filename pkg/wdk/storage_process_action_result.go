@@ -65,6 +65,8 @@ type ReviewActionResult struct {
 	Status        ReviewActionResultStatus     `json:"status"`
 	CompetingTxs  []string                     `json:"competingTxs,omitempty"`
 	CompetingBeef primitives.ExplicitByteArray `json:"competingBeef,omitempty"`
+	Reference     string                       `json:"reference,omitempty"`
+	Errors        map[string]error             `json:"errors,omitempty"`
 }
 
 // ProcessActionResult represents the result of processing an action, including send results, non-delayed results, and a log.

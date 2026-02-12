@@ -26,7 +26,7 @@ type mockBroadcaster struct {
 	panicDuringCall error
 }
 
-func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, _ []string) ([]wdk.SendWithResult, error) {
+func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, _ []string) ([]wdk.ReviewActionResult, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
