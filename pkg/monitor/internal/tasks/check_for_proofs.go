@@ -44,6 +44,7 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 			MerklePath:  res.MerklePath,
 			BlockHeight: res.BlockHeight,
 			BlockHash:   res.BlockHash,
+			Reference:   res.Reference,
 		}
 
 		select {

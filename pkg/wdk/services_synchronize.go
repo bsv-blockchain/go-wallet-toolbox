@@ -6,8 +6,9 @@ import (
 
 // TxSynchronizedStatus represents the synchronization status of a transaction.
 type TxSynchronizedStatus struct {
-	TxID   string
-	Status ProvenTxReqStatus
+	TxID      string
+	Reference string
+	Status    ProvenTxReqStatus
 
 	MerkleRoot  string
 	MerklePath  *transaction.MerklePath

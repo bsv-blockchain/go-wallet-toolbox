@@ -251,6 +251,36 @@ func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID stri
 	}), nil
 }
 
+func (txs *Transactions) FindReferencesByTxIDs(ctx context.Context, txIDs []string) (map[string]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindReferencesByTxIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(txIDs) == 0 {
+		return make(map[string]string), nil
+	}
+
+	var transactions []*models.Transaction
+	err = txs.db.WithContext(ctx).
+		Select("tx_id", "reference").
+		Where("tx_id IN ?", txIDs).
+		Find(&transactions).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references by TxIDs: %w", err)
+	}
+
+	result := make(map[string]string, len(transactions))
+	for _, tx := range transactions {
+		if tx.TxID != nil {
+			result[*tx.TxID] = tx.Reference
+		}
+	}
+
+	return result, nil
+}
+
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionByReference", attribute.Int("UserID", userID), attribute.String("Reference", reference))
