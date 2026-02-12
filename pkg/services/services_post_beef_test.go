@@ -40,7 +40,7 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
+		slices.ForEach(response, func(item *wdk.PostFromBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
 			if assert.NotNil(t, item.PostedBEEFResult) {
@@ -84,7 +84,7 @@ func TestPostBEEF(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
+		slices.ForEach(response, func(item *wdk.PostFromBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
 			if assert.NotNil(t, item.PostedBEEFResult) {
@@ -210,7 +210,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	})
 }
 
-func assertWoCErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
+func assertWoCErrorResult(t *testing.T, res *wdk.PostFromBEEFServiceResult, txids []string) {
 	require.NoError(t, res.Error)
 	require.NotNil(t, res.PostedBEEFResult)
 	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))
@@ -220,12 +220,12 @@ func assertWoCErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []
 	}
 }
 
-func assertArcErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult) {
+func assertArcErrorResult(t *testing.T, res *wdk.PostFromBEEFServiceResult) {
 	require.Error(t, res.Error)
 	require.Nil(t, res.PostedBEEFResult)
 }
 
-func assertBitailsErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
+func assertBitailsErrorResult(t *testing.T, res *wdk.PostFromBEEFServiceResult, txids []string) {
 	require.NoError(t, res.Error)
 	require.NotNil(t, res.PostedBEEFResult)
 	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))
@@ -235,7 +235,7 @@ func assertBitailsErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txid
 	}
 }
 
-func assertServiceSuccess(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
+func assertServiceSuccess(t *testing.T, res *wdk.PostFromBEEFServiceResult, txids []string) {
 	require.NoError(t, res.Error)
 	require.NotNil(t, res.PostedBEEFResult)
 	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))

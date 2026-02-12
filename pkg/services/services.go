@@ -495,8 +495,8 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 }
 
 // PostFromBEEF attempts to broadcast transactions from BEEF to all configured services.
-func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
-	allResults := make([]*wdk.PostBEEFServiceResult, 0)
+func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostFromBeefResult, error) {
+	allResults := make([]*wdk.PostFromBEEFServiceResult, 0)
 
 	// for now we are broadcasting transactions from beef in an order provided in txIDs.
 	// later think about broadcasting all txs from beef that doesn't have merkle path set (is unmined)
@@ -739,14 +739,14 @@ func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Cur
 	return currencyRate / baseRate
 }
 
-func (s *WalletServices) mapToPostBEEFServiceResult(r *servicequeue.NamedResult[*wdk.PostedTxID]) *wdk.PostBEEFServiceResult {
+func (s *WalletServices) mapToPostBEEFServiceResult(r *servicequeue.NamedResult[*wdk.PostedTxID]) *wdk.PostFromBEEFServiceResult {
 	if r.IsError() {
-		return &wdk.PostBEEFServiceResult{
+		return &wdk.PostFromBEEFServiceResult{
 			Name:  r.Name(),
 			Error: r.MustGetError(),
 		}
 	}
-	return &wdk.PostBEEFServiceResult{
+	return &wdk.PostFromBEEFServiceResult{
 		Name:             r.Name(),
 		PostedBEEFResult: &wdk.PostedBEEF{TxIDResults: []wdk.PostedTxID{*r.MustGetValue()}},
 	}

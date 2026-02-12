@@ -132,7 +132,7 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 	}
 
 	if d.eventChannels.OnTip != nil {
-		go d.handleNewTipEvents(context.Background())
+		go d.handleNewTipEvents()
 	}
 
 	d.scheduler.Start()
@@ -290,7 +290,7 @@ func (d *Daemon) handleReorgEvents() {
 	d.logger.Info("reorg event handler stopped")
 }
 
-func (d *Daemon) handleNewTipEvents(ctx context.Context) {
+func (d *Daemon) handleNewTipEvents() {
 	d.logger.Info("Starting new tip event handler")
 
 	for header := range d.eventChannels.OnTip {
@@ -300,18 +300,18 @@ func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 		)
 
 		go func(h *chaintracks.BlockHeader) {
-			results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
+			results, err := d.storage.ProcessNewTip(context.Background(), h.Height, h.Hash.String())
 			if err != nil {
 				d.logger.Error("ProcessNewTip failed", "error", err)
 				return
 			}
 
-			d.sendProvenEvents(ctx, results)
+			d.sendProvenEvents(results)
 		}(header)
 	}
 }
 
-func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchronizedStatus) {
+func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
 	if d.eventChannels.OnTxProven == nil {
 		return
 	}
@@ -328,8 +328,6 @@ func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchroni
 
 		select {
 		case d.eventChannels.OnTxProven <- msg:
-		case <-ctx.Done():
-			return
 		default:
 			d.logger.Warn("OnTxProven channel in monitor is full, dropping event")
 		}
