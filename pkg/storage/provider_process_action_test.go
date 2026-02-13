@@ -472,8 +472,8 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	txID := signedTx.TxID().String()
 
 	// and:
-	beefVerifyMockError := fmt.Errorf("mock beef verifier error")
-	given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
+	scriptsVerifyMockError := fmt.Errorf("mock scripts verifier error")
+	given.Provider().ScriptsVerifier().WillReturnError(scriptsVerifyMockError)
 
 	// when:
 	args := wdk.ProcessActionArgs{
@@ -486,7 +486,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	require.ErrorIs(t, err, beefVerifyMockError)
+	require.ErrorIs(t, err, scriptsVerifyMockError)
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -504,7 +504,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
 
 	// when, retry:
-	given.Provider().BeefVerifier().DefaultBehavior()
+	given.Provider().ScriptsVerifier().DefaultBehavior()
 	args = wdk.ProcessActionArgs{
 		IsNewTx: false,
 		TxID:    to.Ptr(primitives.TXIDHexString(txID)),

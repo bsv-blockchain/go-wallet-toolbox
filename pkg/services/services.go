@@ -518,11 +518,20 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
 		}
 
-		efResults, _ := s.postEFServices.All(ctx, efHex, txID)
-		allResults = append(allResults, slices.Map(efResults, s.mapToPostBEEFServiceResult)...)
+		efResults, efErr := s.postEFServices.All(ctx, efHex, txID)
 
-		txResults, _ := s.postTXServices.All(ctx, rawTx, txID)
-		allResults = append(allResults, slices.Map(txResults, s.mapToPostBEEFServiceResult)...)
+		txResults, txErr := s.postTXServices.All(ctx, rawTx, txID)
+
+		if errors.Is(efErr, servicequeue.ErrNoServicesRegistered) && errors.Is(txErr, servicequeue.ErrNoServicesRegistered) {
+			return nil, fmt.Errorf("no services registered for broadcasting")
+		}
+
+		if efErr == nil {
+			allResults = append(allResults, slices.Map(efResults, s.mapToPostBEEFServiceResult)...)
+		}
+		if txErr == nil {
+			allResults = append(allResults, slices.Map(txResults, s.mapToPostBEEFServiceResult)...)
+		}
 	}
 
 	return allResults, nil

@@ -16,7 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var mockTxID = testvectors.GivenTX().WithInput(10).WithP2PKHOutput(9).ID().String()
+var (
+	mockTx   = testvectors.GivenTX().WithInput(10).WithP2PKHOutput(9)
+	mockTxID = mockTx.ID().String()
+)
 
 func TestServicesConfig_CustomServiceImplementation(t *testing.T) {
 	// given:
@@ -516,7 +519,10 @@ func callAllMethods(t testing.TB, service *services.WalletServices) []error {
 	_, err := service.RawTx(t.Context(), mockTxID)
 	errs = append(errs, err)
 
-	_, err = service.PostFromBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
+	beef, err := transaction.NewBeefFromTransaction(mockTx.TX())
+	require.NoError(t, err)
+
+	_, err = service.PostFromBEEF(t.Context(), beef, []string{mockTxID})
 	errs = append(errs, err)
 	_, err = service.MerklePath(t.Context(), mockTxID)
 	errs = append(errs, err)
