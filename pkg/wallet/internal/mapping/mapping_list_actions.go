@@ -62,6 +62,10 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 		result.IncludeOutputLockingScripts = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeOutputLockingScripts))
 	}
 
+	if args.Reference != nil && *args.Reference != "" {
+		result.Reference = args.Reference
+	}
+
 	return result
 }
 

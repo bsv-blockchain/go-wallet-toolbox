@@ -309,8 +309,13 @@ func TestWalletServices_IsValidRootForHeight_BHS_Unreachable(t *testing.T) {
 	_ = given.WhatsOnChain().WillBeUnreachable()
 	_ = given.Bitails().WillBeUnreachable()
 	target := given.BHS().WillBeUnreachable()
+	given.Chaintracks().WillFail()
 
-	svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
+	svc := given.Services().Config(
+		testservices.WithEnabledBitails(true),
+		testservices.WithEnabledBHS(true),
+		testservices.WithEnabledChaintracks(true),
+	).New()
 	root, err := chainhash.NewHashFromHex(rootHex)
 	require.NoError(t, err)
 

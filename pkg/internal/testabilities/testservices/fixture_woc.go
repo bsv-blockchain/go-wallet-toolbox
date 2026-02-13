@@ -111,6 +111,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 
 type TipBlockHeaderOptions struct {
 	Height uint
+	Hash   string
 }
 
 type TipBlockHeaderOption = func(*TipBlockHeaderOptions)
@@ -118,6 +119,12 @@ type TipBlockHeaderOption = func(*TipBlockHeaderOptions)
 func WithTipBlockHeaderHeight(height uint) TipBlockHeaderOption {
 	return func(opts *TipBlockHeaderOptions) {
 		opts.Height = height
+	}
+}
+
+func WithTipBlockHeaderHash(hash string) TipBlockHeaderOption {
+	return func(opts *TipBlockHeaderOptions) {
+		opts.Hash = hash
 	}
 }
 
@@ -135,6 +142,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBl
 
 	options := to.OptionsWithDefault(TipBlockHeaderOptions{
 		Height: TestBlockHeight,
+		Hash:   TestBlockHash,
 	}, opts...)
 
 	f.transport.RegisterResponder(
@@ -142,7 +150,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBl
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, []wocBlockResponseItem{
 			{
-				Hash:              TestBlockHash,
+				Hash:              options.Hash,
 				Confirmations:     TestBlockConfirmations,
 				Size:              TestBlockSize,
 				Height:            options.Height,

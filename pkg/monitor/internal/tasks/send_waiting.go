@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -17,11 +16,11 @@ type WaitingTransactionsSender interface {
 type SendWaitingTask struct {
 	storage              WaitingTransactionsSender
 	firstRun             bool
-	txBroadcastedChannel chan<- defs.TransactionStatusUpdate
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus
 	logger               *slog.Logger
 }
 
-func NewSendWaitingTask(storage WaitingTransactionsSender, txBroadcastedChannel chan<- defs.TransactionStatusUpdate, log *slog.Logger) TaskInterface {
+func NewSendWaitingTask(storage WaitingTransactionsSender, txBroadcastedChannel chan<- wdk.CurrentTxStatus, log *slog.Logger) TaskInterface {
 	return &SendWaitingTask{
 		storage:              storage,
 		firstRun:             true,
@@ -41,9 +40,18 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 	}
 
 	for _, res := range results.NotDelayedResults {
-		msg := defs.TransactionStatusUpdate{
-			TxID:   res.TxID.String(),
-			Status: defs.ParseTxUpdateStatusOrUnknown(string(res.Status)),
+		msg := wdk.CurrentTxStatus{
+			TxID:      res.TxID.String(),
+			Status:    res.Status.ToStandardizedStatus(),
+			Reference: res.Reference,
+		}
+
+		if len(res.Errors) > 0 {
+			broadcastError := &wdk.CurrentTxError{
+				CompetingTxs: res.CompetingTxs,
+				Errors:       res.Errors,
+			}
+			msg.Error = broadcastError
 		}
 
 		select {

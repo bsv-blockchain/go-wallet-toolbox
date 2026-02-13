@@ -3,6 +3,7 @@ package services
 import (
 	"net/http"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/go-resty/resty/v2"
 )
@@ -26,6 +27,8 @@ type Options struct {
 	BsvExchangeRateModifier      func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]
 
 	customImplementations []Named[Implementation]
+
+	chaintracksAdapter *chaintracksclient.Adapter
 }
 
 // WithHttpClient sets the http client for the service.
@@ -182,5 +185,15 @@ func WithIsUtxoMethodsModifier(modifier func([]Named[IsUtxo]) []Named[IsUtxo]) f
 func WithBsvExchangeRateMethodsModifier(modifier func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]) func(*Options) {
 	return func(o *Options) {
 		o.BsvExchangeRateModifier = modifier
+	}
+}
+
+// WithChaintracksAdapter allows injecting a pre-configured chaintracks adapter.
+// This is primarily useful for testing, where a mock chaintracks implementation
+// can be injected to avoid real network calls and control test scenarios.
+// When provided, the adapter will be used instead of creating one from config.
+func WithChaintracksAdapter(adapter *chaintracksclient.Adapter) func(*Options) {
+	return func(o *Options) {
+		o.chaintracksAdapter = adapter
 	}
 }

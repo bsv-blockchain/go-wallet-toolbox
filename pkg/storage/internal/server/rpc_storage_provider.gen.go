@@ -242,3 +242,17 @@ func (p *RPCStorageProvider) FindOutputsAuth(ctx context.Context, auth wdk.AuthI
 
 	return p.localProvider.FindOutputsAuth(ctx, auth, filters)
 }
+
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+func (p *RPCStorageProvider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	err := p.verifyAuthID(ctx, auth)
+	if err != nil {
+		return nil, err
+	}
+	err = p.ensureUserID(ctx, &auth)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.localProvider.ListTransactions(ctx, auth, args)
+}

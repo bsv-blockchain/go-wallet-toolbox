@@ -23,7 +23,7 @@ import (
 const (
 	syncTxStatusMaxPages  = 10
 	syncTxStatusesPerPage = 1000
-	lastBlockHeightKey    = "synchronize_tx_statuses_last_block_height"
+	lastBlockKey          = "synchronize_tx_statuses_last_block"
 	noSendLastCheck       = "synchronize_tx_statuses_last_check_no_send"
 )
 
@@ -79,182 +79,32 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 		tracing.EndTracing(span, err)
 	}()
 
-	lockAcquired := s.lock.TryLock()
-	if !lockAcquired {
-		s.logger.Warn("synchronizeTxStatuses is already running, skipping this run")
-		return nil, nil
-	}
-	defer s.lock.Unlock()
+	var heightForCheck uint
+	var hashForCheck string
 
-	checkedForCurrentBlock, heightForCheck, err := s.alreadyCheckedForCurrentBlock(ctx)
-
-	if err != nil {
-		s.logger.Warn("failed to check if already checked for this block", slog.Any("err", err))
-		// We still want to proceed with the synchronization, so we log the error and continue
-	} else {
-		if checkedForCurrentBlock {
-			return nil, nil
-		}
-
-		defer func() {
-			if resultErr != nil {
-				return
-			}
-			if err := s.setLastBlockHeight(ctx, heightForCheck); err != nil {
-				resultErr = fmt.Errorf("successfully synchronized tx statuses, but failed to set last block height: %w", err)
-			}
-		}()
-	}
-
-	statuses, err := s.getStatusesReadyToSync(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get statuses ready to sync: %w", err)
-	}
-
-	var txsToSync []*entity.KnownTxForStatusSync
-	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
-	for range syncTxStatusMaxPages {
-		txsPage, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statuses, queryopts.WithPage(paging))
-		if err != nil {
-			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
-		}
-
-		txsToSync = append(txsToSync, txsPage...)
-
-		if len(txsPage) < syncTxStatusesPerPage {
-			break
-		}
-
-		paging.Next()
-	}
-
-	if len(txsToSync) == 0 {
-		s.logger.Info("no transactions need synchronization", slog.Any("height", heightForCheck))
-		return nil, nil
-	}
-
-	txsToSync, err = s.filterTxsByConfirmationDepth(ctx, txsToSync)
-	if err != nil {
-		return nil, fmt.Errorf("failed to filter txs by confirmation depth: %w", err)
-	}
-
-	if len(txsToSync) == 0 {
-		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
-		return nil, nil
-	}
-
-	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
-
-	var failedAttempts []string
-	for _, txToSync := range txsToSync {
-		if err = ctx.Err(); err != nil {
-			return nil, fmt.Errorf("context canceled, aborting synchronizeTxStatuses: %w", err)
-		}
-
-		s.logger.Debug("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
-
-		merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
-		if err != nil {
-			s.logger.Warn(
-				"failed to get merkle path for transaction",
-				slog.Any("err", err),
-				slog.String("txID", txToSync.TxID),
-				slog.Uint64("attempts", txToSync.Attempts),
-				slog.String("status", string(txToSync.Status)),
-				slog.Any("height", heightForCheck),
-			)
-
-			failedAttempts = append(failedAttempts, txToSync.TxID)
-			continue
-		}
-
-		if merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
-			s.logger.Info(
-				"merkle path result is empty, this may be normal if the transaction is not yet mined",
-				slog.String("txID", txToSync.TxID),
-				slog.String("status", string(txToSync.Status)),
-				slog.Any("height", heightForCheck),
-			)
-
-			failedAttempts = append(failedAttempts, txToSync.TxID)
-			continue
-		}
-
-		transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
-		}
-
-		notes := slices.Map(transactionIDs, func(transactionID uint) history.Builder {
-			return history.NewBuilder().NotifyTxOfProof(transactionID)
-		})
-
-		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
-			TxID:        txToSync.TxID,
-			BlockHeight: merkleResult.BlockHeader.Height,
-			MerklePath:  merkleResult.MerklePath.Bytes(),
-			BlockHash:   merkleResult.BlockHeader.Hash,
-			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
-			Notes:       notes,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update proven txs as mined: %w", err)
-		}
-
-		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
-			TxID:        txToSync.TxID,
-			Status:      wdk.ProvenTxStatusCompleted,
-			BlockHeight: merkleResult.BlockHeader.Height,
-			BlockHash:   merkleResult.BlockHeader.Hash,
-			MerklePath:  merkleResult.MerklePath,
-			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
-		})
-	}
-
-	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
-	}
-
-	// NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
-	// updates matching (user) transactions to "failed" and tidies outputs
-	// TODO: Consider if we want to do the same or do it right away here
-	updatedTxs, err := s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set status for txs above attempts: %w", err)
-	}
-
-	for _, updatedTx := range updatedTxs {
-		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
-			TxID:   updatedTx.TxID,
-			Status: wdk.ProvenTxStatusInvalid,
-		})
-	}
-
-	return txStatuses, nil
-}
-
-func (s *synchronizeTxStatuses) alreadyCheckedForCurrentBlock(ctx context.Context) (bool, uint, error) {
 	header, err := s.services.FindChainTipHeader(ctx)
 	if err != nil {
-		return false, 0, fmt.Errorf("failed to find chain tip header: %w", err)
+		// log warning but continue with sync anyway.
+		s.logger.Warn("failed to find chain tip header, continuing without block tracking", slog.Any("err", err))
+	} else {
+		heightForCheck = header.Height - s.syncTxStatusesConfig.BlocksDelay
+		hashForCheck = header.Hash
 	}
 
-	lastHeight, ok, err := s.getLastBlockHeight(ctx)
-	if err != nil {
-		return false, 0, err
-	}
+	return s.synchronizeTxStatusesInternal(ctx, heightForCheck, hashForCheck)
+}
 
-	heightForCheck := header.Height - s.syncTxStatusesConfig.BlocksDelay
+func (s *synchronizeTxStatuses) SynchronizeTxStatusesForTip(ctx context.Context, tipHeight uint32, tipHash string) (txStatuses []wdk.TxSynchronizedStatus, resultErr error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-SynchronizeTxStatusesForTip")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
 
-	if ok && lastHeight == heightForCheck {
-		s.logger.Debug("already checked for this block, skipping alreadyCheckedForThisBlock", slog.Any("height", header.Height))
-		return true, heightForCheck, nil
-	}
+	heightForCheck := uint(tipHeight) - s.syncTxStatusesConfig.BlocksDelay
+	hashForCheck := tipHash
 
-	s.logger.Debug("checking for new block to synchronize", slog.Any("currentHeight", header.Height), slog.Any("heightForCheck", heightForCheck))
-
-	return false, heightForCheck, nil
+	return s.synchronizeTxStatusesInternal(ctx, heightForCheck, hashForCheck)
 }
 
 func (s *synchronizeTxStatuses) getStatusesReadyToSync(ctx context.Context) ([]wdk.ProvenTxReqStatus, error) {
@@ -301,42 +151,43 @@ func (s *synchronizeTxStatuses) setCurrentTimeAsLastCheckNoSend(ctx context.Cont
 	return nil
 }
 
-type LastHeightValue struct {
-	BlockHeight uint `json:"blockHeight"`
+type LastBlockValue struct {
+	BlockHeight uint   `json:"blockHeight"`
+	BlockHash   string `json:"blockHash"`
 }
 
-func (s *synchronizeTxStatuses) getLastBlockHeight(ctx context.Context) (uint, bool, error) {
-	obj, ok, err := s.keyValueRepo.Get(ctx, lastBlockHeightKey)
+func (s *synchronizeTxStatuses) getLastBlock(ctx context.Context) (*LastBlockValue, bool, error) {
+	obj, ok, err := s.keyValueRepo.Get(ctx, lastBlockKey)
 	if err != nil {
-		return 0, false, fmt.Errorf("failed to get last block height: %w", err)
+		return nil, false, fmt.Errorf("failed to get last block height: %w", err)
 	}
 
 	if !ok {
 		// It seems that it is the first time we are checking the block height
-		return 0, false, nil
+		return nil, false, nil
 	}
 
-	var lastHeight LastHeightValue
-	if err := json.Unmarshal(obj, &lastHeight); err != nil {
-		return 0, false, fmt.Errorf("failed to unmarshal last block height: %w", err)
+	var lastBlock LastBlockValue
+	if err := json.Unmarshal(obj, &lastBlock); err != nil {
+		return nil, false, fmt.Errorf("failed to unmarshal last block height: %w", err)
 	}
 
-	if lastHeight.BlockHeight == 0 {
-		return 0, false, fmt.Errorf("last block height is zero, this should not happen")
+	if lastBlock.BlockHeight == 0 {
+		return nil, false, fmt.Errorf("last block height is zero, this should not happen")
 	}
 
-	return lastHeight.BlockHeight, true, nil
+	return &lastBlock, true, nil
 }
 
-func (s *synchronizeTxStatuses) setLastBlockHeight(ctx context.Context, blockHeight uint) error {
-	lastHeight := LastHeightValue{BlockHeight: blockHeight}
-	data, err := json.Marshal(lastHeight)
+func (s *synchronizeTxStatuses) setLastBlock(ctx context.Context, height uint, hash string) error {
+	lastBlock := LastBlockValue{BlockHeight: height, BlockHash: hash}
+	data, err := json.Marshal(lastBlock)
 	if err != nil {
-		return fmt.Errorf("failed to marshal last block height: %w", err)
+		return fmt.Errorf("failed to marshal last block: %w", err)
 	}
 
-	if err := s.keyValueRepo.Set(ctx, lastBlockHeightKey, data); err != nil {
-		return fmt.Errorf("failed to set last block height: %w", err)
+	if err := s.keyValueRepo.Set(ctx, lastBlockKey, data); err != nil {
+		return fmt.Errorf("failed to set last block: %w", err)
 	}
 
 	return nil
@@ -402,4 +253,179 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 	)
 
 	return filtered, nil
+}
+
+func (s *synchronizeTxStatuses) synchronizeTxStatusesInternal(ctx context.Context, heightForCheck uint, hashForCheck string) ([]wdk.TxSynchronizedStatus, error) {
+	lockAcquired := s.lock.TryLock()
+	if !lockAcquired {
+		s.logger.Warn("synchronizeTxStatuses is already running, skipping this run")
+		return nil, nil
+	}
+	defer s.lock.Unlock()
+
+	// check if already processed this block
+	lastBlock, ok, err := s.getLastBlock(ctx)
+	if err != nil {
+		s.logger.Warn("failed to check if already checked for this block", slog.Any("err", err))
+		// We still want to proceed with the synchronization, so we log the error and continue
+	} else if ok && lastBlock.BlockHeight == heightForCheck && lastBlock.BlockHash == hashForCheck {
+		s.logger.Debug("already checked for this block, skipping",
+			slog.Uint64("height", uint64(heightForCheck)),
+			slog.String("hash", hashForCheck))
+		return nil, nil
+	}
+
+	txStatuses, err := s.doSynchronizeTxStatuses(ctx, heightForCheck)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save block info after successful completion (only if we have valid height and hash)
+	if heightForCheck > 0 && hashForCheck != "" {
+		if err := s.setLastBlock(ctx, heightForCheck, hashForCheck); err != nil {
+			return txStatuses, fmt.Errorf("successfully synchronized tx statuses, but failed to set last block: %w", err)
+		}
+	}
+
+	return txStatuses, nil
+}
+
+func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, heightForCheck uint) ([]wdk.TxSynchronizedStatus, error) {
+	statuses, err := s.getStatusesReadyToSync(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get statuses ready to sync: %w", err)
+	}
+
+	var txStatuses []wdk.TxSynchronizedStatus
+	var txsToSync []*entity.KnownTxForStatusSync
+	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
+	for range syncTxStatusMaxPages {
+		txsPage, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statuses, queryopts.WithPage(paging))
+		if err != nil {
+			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
+		}
+
+		txsToSync = append(txsToSync, txsPage...)
+
+		if len(txsPage) < syncTxStatusesPerPage {
+			break
+		}
+
+		paging.Next()
+	}
+
+	if len(txsToSync) == 0 {
+		s.logger.Info("no transactions need synchronization", slog.Any("height", heightForCheck))
+		return nil, nil
+	}
+
+	txsToSync, err = s.filterTxsByConfirmationDepth(ctx, txsToSync)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter txs by confirmation depth: %w", err)
+	}
+
+	if len(txsToSync) == 0 {
+		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
+		return nil, nil
+	}
+
+	txIDs := slices.Map(txsToSync, func(tx *entity.KnownTxForStatusSync) string {
+		return tx.TxID
+	})
+	txReferencesLookup, err := s.transactionRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
+	}
+
+	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
+
+	var failedAttempts []string
+	for _, txToSync := range txsToSync {
+		if err = ctx.Err(); err != nil {
+			return nil, fmt.Errorf("context canceled, aborting synchronizeTxStatuses: %w", err)
+		}
+
+		s.logger.Debug("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
+
+		merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
+		if err != nil {
+			s.logger.Warn(
+				"failed to get merkle path for transaction",
+				slog.Any("err", err),
+				slog.String("txID", txToSync.TxID),
+				slog.Uint64("attempts", txToSync.Attempts),
+				slog.String("status", string(txToSync.Status)),
+				slog.Any("height", heightForCheck),
+			)
+
+			failedAttempts = append(failedAttempts, txToSync.TxID)
+			continue
+		}
+
+		if merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
+			s.logger.Info(
+				"merkle path result is empty, this may be normal if the transaction is not yet mined",
+				slog.String("txID", txToSync.TxID),
+				slog.String("status", string(txToSync.Status)),
+				slog.Any("height", heightForCheck),
+			)
+
+			failedAttempts = append(failedAttempts, txToSync.TxID)
+			continue
+		}
+
+		transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
+		}
+
+		notes := slices.Map(transactionIDs, func(transactionID uint) history.Builder {
+			return history.NewBuilder().NotifyTxOfProof(transactionID)
+		})
+
+		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+			TxID:        txToSync.TxID,
+			BlockHeight: merkleResult.BlockHeader.Height,
+			MerklePath:  merkleResult.MerklePath.Bytes(),
+			BlockHash:   merkleResult.BlockHeader.Hash,
+			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
+			Notes:       notes,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update proven txs as mined: %w", err)
+		}
+
+		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
+			TxID:        txToSync.TxID,
+			Status:      wdk.ProvenTxStatusCompleted,
+			Reference:   txReferencesLookup[txToSync.TxID],
+			BlockHeight: merkleResult.BlockHeader.Height,
+			BlockHash:   merkleResult.BlockHeader.Hash,
+			MerklePath:  merkleResult.MerklePath,
+			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
+		})
+	}
+
+	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
+	}
+
+	// NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
+	// updates matching (user) transactions to "failed" and tidies outputs
+	// TODO: Consider if we want to do the same or do it right away here
+	updatedTxs, err := s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set status for txs above attempts: %w", err)
+	}
+
+	for _, updatedTx := range updatedTxs {
+		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
+			TxID:      updatedTx.TxID,
+			Status:    wdk.ProvenTxStatusInvalid,
+			Reference: txReferencesLookup[updatedTx.TxID],
+		})
+	}
+
+	return txStatuses, nil
 }

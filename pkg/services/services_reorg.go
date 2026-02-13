@@ -21,24 +21,20 @@ func newReorgBroadcaster(logger *slog.Logger) *reorgBroadcaster {
 	}
 }
 
-// Subscribe returns a channel that receives reorg events and an unsubscribe function.
-// The channel is buffered to avoid blocking the broadcaster.
-// Call the returned unsubscribe function to stop receiving events and close the channel.
-func (b *reorgBroadcaster) Subscribe() (<-chan *chaintracks.ReorgEvent, func()) {
-	ch := make(chan *chaintracks.ReorgEvent, 10)
-
+// Subscribe registers a user-provided channel to receive reorg events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function that removes the channel from the subscriber list.
+func (b *reorgBroadcaster) Subscribe(ch chan *chaintracks.ReorgEvent) func() {
 	b.mu.Lock()
 	b.subscribers[ch] = struct{}{}
 	b.mu.Unlock()
 
-	unsubscribe := func() {
+	return func() {
 		b.mu.Lock()
 		delete(b.subscribers, ch)
-		close(ch)
 		b.mu.Unlock()
 	}
-
-	return ch, unsubscribe
 }
 
 // broadcast sends the event to all subscribers.

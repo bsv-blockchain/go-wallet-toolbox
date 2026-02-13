@@ -31,7 +31,7 @@ func New(
 	services wdk.Services,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
 	beefVerifier wdk.BeefVerifier,
-	txBroadcastedChannel chan<- defs.TransactionStatusUpdate,
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 ) *Actions {
 	return &Actions{
 		create: newCreateAction(

@@ -340,6 +340,66 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 	}
 }
 
+func TestSynchronizeTxForSameHeightDifferentHash(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	txID := txSpec.ID().String()
+
+	// and: setup mocks for first sync
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// when: first sync - transaction gets mined
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: transaction is mined
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+
+	// when: reorg happens - invalidate proofs for the block
+	err = activeStorage.HandleReorg(t.Context(), []string{testservices.TestBlockHash})
+	require.NoError(t, err)
+
+	// then: transaction status is now 'reorg' and proof is invalidated
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusReorg).
+		NotMined()
+
+	// given: new chain tip has SAME height but DIFFERENT hash (competing block won)
+	const newBlockHash = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b9999"
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().
+		OnTipBlockHeaderWillRespondWithOneElementList(
+			testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight),
+			testservices.WithTipBlockHeaderHash(newBlockHash),
+		)
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   newBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// when: second sync - same height but different hash should not skip
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: transaction is mined again (re-proven in the new winning block)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+}
+
 func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 	t.Run("no send tx broadcasted externally is marked as mined", func(t *testing.T) {
 		// given:
