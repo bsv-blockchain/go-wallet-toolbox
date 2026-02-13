@@ -577,6 +577,8 @@ func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {
 			defer cleanup()
 
 			test.setupService(given)
+			// These tests are supposed to check nLockTime and not scripts verification so we mock it here
+			given.Provider().ScriptsVerifier().WillReturnBool(true)
 
 			activeStorage := given.Provider().
 				WithRandomizer(randomizer.NewTestRandomizer()).
@@ -746,6 +748,9 @@ func TestProcessActionNLockTimeIsFinalThresholdBoundary(t *testing.T) {
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
 		GORM()
+
+	// These tests are supposed to check nLockTime and not scripts verification so we mock it here
+	given.Provider().ScriptsVerifier().WillReturnBool(true)
 
 	createActionResult, originalTx := given.Action(activeStorage).Created()
 
