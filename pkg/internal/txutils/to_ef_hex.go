@@ -68,7 +68,7 @@ func TxToEFHex(tx *transaction.Transaction, beef *transaction.Beef) (string, err
 
 	efHex, err := tx.EFHex()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get efhex from tx %s: %w", tx.TxID().String(), err)
 	}
 
 	return efHex, nil
