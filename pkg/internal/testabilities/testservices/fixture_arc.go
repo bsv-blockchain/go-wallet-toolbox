@@ -16,7 +16,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
@@ -209,38 +208,6 @@ func (f *arcFixture) saveKnownTransaction(tx *knownTransaction) {
 	}
 
 	f.knownTransactions.Store(tx.txid, tx)
-}
-
-func (f *arcFixture) store(beef *sdk.Beef) {
-	var err error
-	transactions := seq2.FromMap(beef.Transactions)
-	includedTransactions := seq2.MapTo(transactions, func(txIDHash chainhash.Hash, tx *sdk.BeefTx) *knownTransaction {
-		merklePath := tx.Transaction.MerklePath
-		txID := txIDHash.String()
-
-		knownTx := &knownTransaction{
-			txid:   txID,
-			status: "SEEN_ON_NETWORK",
-		}
-
-		if merklePath != nil {
-			knownTx.blockHash, err = merklePath.ComputeRootHex(&txID)
-			require.NoError(f, err, "failed to compute root: wrong test setup")
-
-			knownTx.status = "MINED"
-			knownTx.blockHeight = merklePath.BlockHeight
-			knownTx.merklePath = merklePath.Hex()
-		}
-
-		return knownTx
-	})
-
-	for it := range includedTransactions {
-		tx := f.getKnownTransaction(it.txid)
-		if tx == nil {
-			f.saveKnownTransaction(it)
-		}
-	}
 }
 
 func (f *arcFixture) storeEFTx(tx *sdk.Transaction) {

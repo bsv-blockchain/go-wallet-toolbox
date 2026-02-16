@@ -65,7 +65,13 @@ func TxToEFHex(tx *transaction.Transaction, beef *transaction.Beef) (string, err
 	if err != nil {
 		return "", err
 	}
-	return tx.EFHex()
+
+	efHex, err := tx.EFHex()
+	if err != nil {
+		return "", err
+	}
+
+	return efHex, nil
 }
 
 // BindBumpsAndTransactions binds BUMPs to transactions in BEEF.
