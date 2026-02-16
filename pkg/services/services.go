@@ -498,7 +498,18 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostFromBeefResult, error) {
 	allResults := make([]*wdk.PostFromBEEFServiceResult, 0)
 
-	// for now we are broadcasting transactions from beef in an order provided in txIDs.
+	txutils.BindBumpsAndTransactions(beef, s.logger)
+
+	// check if beef contains only one child transaction
+	if err := txutils.ValidateSingleLeafTx(beef); err != nil {
+		// Return error as service error for each txID, not as Go error
+		return []*wdk.PostFromBEEFServiceResult{{
+			Name:  "PostFromBEEF Validation",
+			Error: err,
+		}}, nil
+	}
+
+	// TODO: for now we are broadcasting transactions from beef in an order provided in txIDs.
 	// later think about broadcasting all txs from beef that doesn't have merkle path set (is unmined)
 	// in order they appear in beef
 	for _, txID := range txIDs {
