@@ -22,7 +22,7 @@ const (
 )
 
 type broadcaster interface {
-	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.SendWithResult, error)
+	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error)
 }
 
 type BackgroundBroadcaster struct {
@@ -116,8 +116,17 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 
 	for _, res := range results {
 		msg := wdk.CurrentTxStatus{
-			TxID:   res.TxID.String(),
-			Status: res.Status.ToStandardizedStatus(),
+			TxID:      res.TxID.String(),
+			Status:    res.Status.ToStandardizedStatus(),
+			Reference: res.Reference,
+		}
+
+		if len(res.Errors) > 0 {
+			broadcastError := &wdk.CurrentTxError{
+				CompetingTxs: res.CompetingTxs,
+				Errors:       res.Errors,
+			}
+			msg.Error = broadcastError
 		}
 
 		select {

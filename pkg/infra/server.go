@@ -228,8 +228,17 @@ func (s *Server) consumeTxBroadcasted() {
 		s.logger.Info(
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
+			slog.String("reference", msg.Reference),
 			slog.String("status", msg.Status.String()),
 		)
+
+		if msg.Error != nil {
+			s.logger.Error(
+				"tx broadcast error",
+				slog.String("tx_id", msg.TxID),
+				slog.Any("error", msg.Error.Errors),
+			)
+		}
 	}
 }
 

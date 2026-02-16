@@ -37,6 +37,7 @@ type TransactionsRepo interface {
 	FindTransactions(ctx context.Context, spec *pkgentity.TransactionReadSpecification, opts ...queryopts.Options) ([]*pkgentity.Transaction, error)
 	FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*pkgentity.Transaction, error)
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error)
+	FindReferencesByTxIDs(ctx context.Context, txIDs []string) (map[string]string, error)
 	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
 	UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error
 	UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error

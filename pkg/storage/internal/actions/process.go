@@ -376,6 +376,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, err
 	}
 
+	txReferencesLookup, err := p.txRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
+	}
+
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
 	notDelayedResults := make([]wdk.ReviewActionResult, 0, to.IfThen(!isDelayed, len(txIDs)).ElseThen(0))
 	var readyToSendTxIDs []string
@@ -533,6 +538,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				results.ServiceErrors(),
 				beef,
 				readyToSendTxIDs,
+				txReferencesLookup[broadcastedTxID],
 			)
 			if err != nil {
 				return nil, fmt.Errorf(
@@ -566,8 +572,9 @@ func (p *process) setBatchForTxs(ctx context.Context, txIDs []string) error {
 
 	err = p.knownTxRepo.SetBatchForKnownTxs(ctx, txIDs, batch)
 	if err != nil {
-		return fmt.Errorf("failed to set batch for known txs: %w", err)
+		return fmt.Errorf("failed to set batch for txIDs: %w", err)
 	}
+
 	return nil
 }
 
@@ -605,6 +612,7 @@ func (p *process) updateSingleTx(
 	serviceErrors map[string]error,
 	beef *transaction.Beef,
 	txIDs []string,
+	reference string,
 ) (
 	sendWithResult wdk.SendWithResult,
 	reviewActionResult wdk.ReviewActionResult,
@@ -616,7 +624,7 @@ func (p *process) updateSingleTx(
 		spendable    bool
 	)
 
-	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID)
+	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID, serviceErrors, reference)
 	if err != nil {
 		return
 	}
@@ -721,7 +729,7 @@ func (p *process) getKnownTxStatuses(ctx context.Context, txIDs ...string) (map[
 	return lookup, nil
 }
 
-func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
+func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string, serviceErrors map[string]error, reference string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
 	spendable bool,
@@ -730,7 +738,9 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	err error,
 ) {
 	reviewActionResult = wdk.ReviewActionResult{
-		TxID: primitives.TXIDHexString(txID),
+		TxID:      primitives.TXIDHexString(txID),
+		Errors:    serviceErrors,
+		Reference: reference,
 	}
 
 	sendWithResult = wdk.SendWithResult{
@@ -777,34 +787,40 @@ func (p *process) StopBackgroundBroadcaster() {
 	}
 }
 
-func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.SendWithResult, error) {
+func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error) {
 	results, err := p.services.PostFromBEEF(ctx, beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF in background: %w", err)
 	}
 
+	txReferencesLookup, err := p.txRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references for txIDs in background broadcast: %w", err)
+	}
+
 	aggregated := results.Aggregated(txIDs)
-	bResults := make([]wdk.SendWithResult, 0, len(txIDs))
+	bResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 	for _, broadcastedTxID := range txIDs {
 		aggBroadcastResult, ok := aggregated[broadcastedTxID]
 		if !ok {
 			return nil, fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
 		}
 
-		sendWithResult, _, err := p.updateSingleTx(
+		_, reviewActionResult, err := p.updateSingleTx(
 			ctx,
 			broadcastedTxID,
 			aggBroadcastResult,
 			results.ServiceErrors(),
 			beef,
 			txIDs,
+			txReferencesLookup[broadcastedTxID],
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update single tx after background broadcast (txID: %s): %w", broadcastedTxID, err)
 		}
 
-		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", sendWithResult.Status)
-		bResults = append(bResults, sendWithResult)
+		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", reviewActionResult.Status)
+		bResults = append(bResults, reviewActionResult)
 	}
 
 	return bResults, nil

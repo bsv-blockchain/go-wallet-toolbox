@@ -156,13 +156,20 @@ var ProvenTxReqBeyondBroadcastStageStatuses = []ProvenTxReqStatus{
 
 // CurrentTxStatus represents the response from a monitoring task
 type CurrentTxStatus struct {
-	TxID   string
-	Status StandardizedTxStatus
-
+	TxID        string
+	Status      StandardizedTxStatus
 	BlockHash   string
 	BlockHeight uint32
 	MerklePath  *transaction.MerklePath
 	MerkleRoot  string
+	Error       *CurrentTxError
+	Reference   string
+}
+
+// CurrentTxError represents the error details for a transaction status update, including competing transactions and error messages.
+type CurrentTxError struct {
+	CompetingTxs []string         // only when double spend is detected, list of competing txids
+	Errors       map[string]error // error message describing the issue, e.g. "double spend detected", "transaction invalid", etc.
 }
 
 // StandardizedTxStatus represents the status of a transaction in a monitoring task response

@@ -1013,11 +1013,13 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	}
 
 	txStatusMap := make(map[string]wdk.TxStatus, len(userTxs))
+	txReferenceMap := make(map[string]string, len(userTxs))
 	txIDs := make([]string, 0, len(userTxs))
 	for _, tx := range userTxs {
 		if tx.TxID != nil {
 			txIDs = append(txIDs, *tx.TxID)
 			txStatusMap[*tx.TxID] = tx.Status
+			txReferenceMap[*tx.TxID] = tx.Reference
 		}
 	}
 
@@ -1053,6 +1055,10 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		txUpdate := wdk.CurrentTxStatus{
 			TxID:   ktx.TxID,
 			Status: status,
+		}
+
+		if ref, ok := txReferenceMap[ktx.TxID]; ok {
+			txUpdate.Reference = ref
 		}
 
 		if ktx.BlockHash != nil {

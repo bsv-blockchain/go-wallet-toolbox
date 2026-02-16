@@ -329,6 +329,14 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, nil
 	}
 
+	txIDs := slices.Map(txsToSync, func(tx *entity.KnownTxForStatusSync) string {
+		return tx.TxID
+	})
+	txReferencesLookup, err := s.transactionRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
+	}
+
 	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
 
 	var failedAttempts []string
@@ -390,6 +398,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
 			TxID:        txToSync.TxID,
 			Status:      wdk.ProvenTxStatusCompleted,
+			Reference:   txReferencesLookup[txToSync.TxID],
 			BlockHeight: merkleResult.BlockHeader.Height,
 			BlockHash:   merkleResult.BlockHeader.Hash,
 			MerklePath:  merkleResult.MerklePath,
@@ -412,8 +421,9 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	for _, updatedTx := range updatedTxs {
 		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
-			TxID:   updatedTx.TxID,
-			Status: wdk.ProvenTxStatusInvalid,
+			TxID:      updatedTx.TxID,
+			Status:    wdk.ProvenTxStatusInvalid,
+			Reference: txReferencesLookup[updatedTx.TxID],
 		})
 	}
 
