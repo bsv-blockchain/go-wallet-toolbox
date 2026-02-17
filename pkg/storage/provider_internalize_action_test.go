@@ -544,3 +544,33 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 	thenDBState.AllOutputs(testusers.Alice).WithCount(1)
 	thenDBState.AllOutputs(testusers.Bob).WithCount(1)
 }
+
+func TestInternalizeActionWithCustomReference(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+
+	// and:
+	customReference := "my_custom_reference_123"
+	args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
+	args.Reference = &customReference
+
+	// when:
+	result, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.Equal(t, true, result.Accepted)
+	assert.Equal(t, false, result.IsMerge)
+	assert.Equal(t, int64(fixtures.ExpectedValueToInternalize), result.Satoshis)
+
+	// and db state:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, customReference)
+}

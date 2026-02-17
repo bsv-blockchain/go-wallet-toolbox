@@ -103,6 +103,7 @@ type InternalizeActionArgs struct {
 	Description    primitives.String5to2000Bytes  `json:"description"`
 	Labels         []primitives.StringUnder300    `json:"labels"`
 	SeekPermission *primitives.BooleanDefaultTrue `json:"seekPermission"`
+	Reference      *string                        `json:"reference,omitempty"`
 }
 
 // InternalizeActionResult represents the result of an internalize action with a status indicating if it was accepted or not.

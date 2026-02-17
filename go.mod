@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.12.4
 	github.com/bsv-blockchain/go-chaintracks v1.1.1
-	github.com/bsv-blockchain/go-sdk v1.2.17
+	github.com/bsv-blockchain/go-sdk v1.2.19-0.20260217123247-4b4024b886b6
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.1.1
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.0

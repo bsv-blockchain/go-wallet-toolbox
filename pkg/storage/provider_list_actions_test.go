@@ -283,8 +283,8 @@ func TestListActions_FilterByReference(t *testing.T) {
 	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	customReference := "custom-ref-123"
-	given.Action(activeStorage).WithSatoshisToInternalize(42001).WithReference(customReference).Processed()
-	given.Action(activeStorage).WithSatoshisToInternalize(42002).Processed()
+	given.Action(activeStorage).WithSatoshisToInternalize(42001).Processed()
+	given.Action(activeStorage).WithSatoshisToInternalize(42002).WithReference(customReference).Processed()
 
 	listArgs := wdk.ListActionsArgs{
 		Limit:     10,

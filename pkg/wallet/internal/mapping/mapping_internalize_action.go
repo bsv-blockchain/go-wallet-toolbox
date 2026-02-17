@@ -17,6 +17,7 @@ func MapInternalizeActionArgs(args sdk.InternalizeActionArgs) wdk.InternalizeAct
 		Description:    primitives.String5to2000Bytes(args.Description),
 		Labels:         slices.Map(args.Labels, stringToStringUnder300),
 		SeekPermission: mapSeekPermission(args.SeekPermission),
+		Reference:      args.Reference,
 	}
 }
 

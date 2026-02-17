@@ -333,9 +333,14 @@ func (in *internalize) storeNewTx(
 		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}
 
-	reference, err := in.random.Base64(referenceLength)
-	if err != nil {
-		return fmt.Errorf("failed to generate random reference: %w", err)
+	var reference string
+	if args.Reference != nil {
+		reference = *args.Reference
+	} else {
+		reference, err = in.random.Base64(referenceLength)
+		if err != nil {
+			return fmt.Errorf("failed to generate random reference: %w", err)
+		}
 	}
 
 	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{
