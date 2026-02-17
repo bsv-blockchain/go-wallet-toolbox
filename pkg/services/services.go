@@ -509,9 +509,6 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}}, nil
 	}
 
-	// TODO: for now we are broadcasting transactions from beef in an order provided in txIDs.
-	// later think about broadcasting all txs from beef that doesn't have merkle path set (is unmined)
-	// in order they appear in beef
 	for _, txID := range txIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
