@@ -104,7 +104,7 @@ func (ws *WalletServices) Validate() error {
 func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
-	cfg := WalletServices{
+	cfg := WalletServices{ //nolint:gosec // G101 - not hardcoded credentials, default config values
 		Chain: chain,
 		ArcConfig: ARC{
 			Enabled: true,
