@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/filecoin-project/go-jsonrpc v0.8.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
