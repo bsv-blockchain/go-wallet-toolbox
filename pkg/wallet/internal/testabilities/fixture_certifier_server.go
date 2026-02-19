@@ -15,11 +15,9 @@ import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/stretchr/testify/require"
 )
@@ -146,7 +144,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 		logger.Info("received sign certificate request", slog.String("path", r.URL.Path))
 
 		// Parse the request
-		var req actions.ProtocolIssuanceRequest
+		var req walletcerts.ProtocolIssuanceRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logger.Error("failed to decode request", slog.Any("error", err))
 			http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -159,7 +157,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 			http.Error(w, "failed to create client public key", http.StatusBadRequest)
 			return
 		}
-		serverNonce, err := utils.CreateNonce(b.Context(), b.serverWallet, randomizer.New(), clientPubKey, fixtures.DefaultOriginator)
+		serverNonce, err := walletcerts.CreateNonce(b.Context(), b.serverWallet, randomizer.New(), clientPubKey, fixtures.DefaultOriginator)
 		if err != nil {
 			logger.Error("failed to create server nonce", slog.Any("error", err))
 			http.Error(w, "failed to create server nonce", http.StatusBadRequest)
@@ -206,7 +204,7 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 		}
 
 		serialNumber := base64.StdEncoding.EncodeToString(hmac.HMAC[:])
-		certFields, err := mapping.MapToCertificateFields(req.Fields)
+		certFields, err := walletcerts.MapToCertificateFields(req.Fields)
 		require.NoError(b.TB, err)
 
 		signedCertificate := certificates.NewCertificate(
@@ -225,9 +223,9 @@ func (b *certifierServerBuilder) defaultSignCertificateHandler() http.HandlerFun
 		}
 
 		// Mock response with a certificate
-		response := actions.ProtocolIssuanceResponse{
+		response := walletcerts.ProtocolIssuanceResponse{
 			ServerNonce: serverNonce,
-			Certificate: &actions.Certificate{
+			Certificate: &walletcerts.Certificate{
 				Type:               string(signedCertificate.Type),
 				SerialNumber:       string(signedCertificate.SerialNumber),
 				Subject:            signedCertificate.Subject.ToDERHex(),
