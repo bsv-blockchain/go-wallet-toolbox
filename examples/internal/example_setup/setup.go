@@ -35,7 +35,7 @@ type SetupConfig struct {
 
 type UserConfig struct {
 	IdentityKey string `mapstructure:"identity_key"`
-	PrivateKey string `mapstructure:"private_key"` //nolint:gosec // G117 - config field, not a hardcoded secret
+	PrivateKey  string `mapstructure:"private_key"` //nolint:gosec // G117 - config field, not a hardcoded secret
 }
 
 func (u *UserConfig) Verify() error {
