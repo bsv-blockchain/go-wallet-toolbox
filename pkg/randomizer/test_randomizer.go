@@ -76,7 +76,7 @@ func (t *TestRandomizer) nextBytes(length uint64) []byte {
 		result[i] = current
 		if currentRollCounter > 0 {
 			result[0] = 0x20
-			result[1] = byte(currentRollCounter % 0xFF)
+			result[1] = byte(currentRollCounter % 0xFF) //nolint:gosec // G115 - value is bounded by modulo
 		}
 	}
 
