@@ -9,7 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"

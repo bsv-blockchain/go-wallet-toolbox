@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testmode"
 	"github.com/stretchr/testify/require"

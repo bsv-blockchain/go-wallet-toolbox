@@ -1,10 +1,10 @@
-package server
+package rpcserver
 
 import (
 	"log/slog"
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/filecoin-project/go-jsonrpc"
 )
 

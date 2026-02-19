@@ -1,4 +1,4 @@
-package server
+package rpcserver
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/go-softwarelab/common/pkg/to"
 )
