@@ -10,7 +10,7 @@ const (
 // Bitails configures the Bitails service
 type Bitails struct {
 	Enabled                    bool   `mapstructure:"enabled"`
-	APIKey                     string `mapstructure:"api_key"`
+	APIKey                     string `mapstructure:"api_key"` //nolint:gosec // G117 - config field, not a hardcoded secret
 	ScriptHashHistoryPageLimit int    `mapstructure:"script_hash_history_page_limit"`
 }
 
