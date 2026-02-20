@@ -28,14 +28,14 @@ func TestInsertCertificateAuth(t *testing.T) {
 
 	t.Run("should insert a certificate for Alice", func(t *testing.T) {
 		// given:
-		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID)
+		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID, primitives.PubKeyHex(testusers.Alice.PubKey(t)))
 		// and:
 		expectedResult.TotalCertificates = primitives.PositiveInteger(1)
 		expectedResult.Certificates = []*wdk.CertificateResult{{
 			Verifier: "",
 			WalletCertificate: wdk.WalletCertificate{
 				Type:               fixtures.TypeField,
-				Subject:            fixtures.SubjectPubKey,
+				Subject:            primitives.PubKeyHex(testusers.Alice.PublicKey(t).ToDERHex()),
 				SerialNumber:       fixtures.SerialNumber,
 				Certifier:          fixtures.Certifier,
 				RevocationOutpoint: fixtures.RevocationOutpoint,
@@ -65,14 +65,15 @@ func TestInsertCertificateAuth(t *testing.T) {
 
 	t.Run("should insert a certificate for Bob", func(t *testing.T) {
 		// given:
-		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Bob.ID)
+		bobPubKey := primitives.PubKeyHex(testusers.Bob.PubKey(t))
+		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Bob.ID, bobPubKey)
 		// and:
 		expectedResult.TotalCertificates = primitives.PositiveInteger(2)
 		expectedResult.Certificates = []*wdk.CertificateResult{{
 			Verifier: "",
 			WalletCertificate: wdk.WalletCertificate{
 				Type:               "ZXhhbXBsZVR5cGUy",
-				Subject:            fixtures.SubjectPubKey,
+				Subject:            bobPubKey,
 				SerialNumber:       fixtures.SerialNumber,
 				Certifier:          fixtures.Certifier,
 				RevocationOutpoint: fixtures.RevocationOutpoint,
@@ -88,7 +89,7 @@ func TestInsertCertificateAuth(t *testing.T) {
 			Verifier: "",
 			WalletCertificate: wdk.WalletCertificate{
 				Type:               fixtures.TypeField,
-				Subject:            fixtures.SubjectPubKey,
+				Subject:            bobPubKey,
 				SerialNumber:       fixtures.SerialNumber,
 				Certifier:          fixtures.Certifier,
 				RevocationOutpoint: fixtures.RevocationOutpoint,
@@ -126,6 +127,7 @@ func TestInsertCertificateAuth(t *testing.T) {
 
 	t.Run("should delete a certificate for Bob", func(t *testing.T) {
 		// given:
+		bobPubKey := primitives.PubKeyHex(testusers.Bob.PubKey(t))
 		certs, err := activeStorage.ListCertificates(t.Context(), testusers.Bob.AuthID(), wdk.ListCertificatesArgs{})
 		require.NoError(t, err)
 		require.Equal(t, primitives.PositiveInteger(2), certs.TotalCertificates)
@@ -136,7 +138,7 @@ func TestInsertCertificateAuth(t *testing.T) {
 			Verifier: "",
 			WalletCertificate: wdk.WalletCertificate{
 				Type:               fixtures.TypeField,
-				Subject:            fixtures.SubjectPubKey,
+				Subject:            bobPubKey,
 				SerialNumber:       fixtures.SerialNumber,
 				Certifier:          fixtures.Certifier,
 				RevocationOutpoint: fixtures.RevocationOutpoint,
@@ -235,7 +237,7 @@ func TestListCertificates(t *testing.T) {
 
 	t.Run("should insert 3 certificates for Alice", func(t *testing.T) {
 		// given:
-		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID)
+		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID, primitives.PubKeyHex(testusers.Alice.PubKey(t)))
 		// when: insert 1st certificate for Bob
 		_, err := activeStorage.InsertCertificateAuth(t.Context(), testusers.Alice.AuthID(), certToInsert)
 

@@ -13,7 +13,7 @@ import (
 
 func TestForDefaultValidInsertCertificateAuthArgs(t *testing.T) {
 	// given:
-	args := fixtures.DefaultInsertCertAuth(1)
+	args := fixtures.DefaultInsertCertAuth(1, fixtures.SubjectPubKey)
 
 	// when:
 	err := validate.TableCertificateX(args)
@@ -99,7 +99,7 @@ func TestWrongInsertCertificateAuthArgs(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			defaultArgs := fixtures.DefaultInsertCertAuth(1)
+			defaultArgs := fixtures.DefaultInsertCertAuth(1, fixtures.SubjectPubKey)
 			modifiedArgs := test.modifier(defaultArgs)
 
 			// when:

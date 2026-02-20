@@ -22,20 +22,3 @@ func MapToCertificateFieldNameUnder50BytesSlice(fields map[sdk.CertificateFieldN
 
 	return out, nil
 }
-
-func MapToCertificateFields(fields map[string]string) (map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64, error) {
-	const (
-		minLength = 1
-		maxLength = 50
-	)
-
-	stringFields := make(map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64, len(fields))
-	for k, v := range fields {
-		if len(k) < minLength || len(k) > maxLength {
-			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 bytes", k)
-		}
-		stringFields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
-	}
-
-	return stringFields, nil
-}
