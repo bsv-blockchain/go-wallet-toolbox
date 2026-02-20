@@ -12,7 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,8 +83,7 @@ func newGiven(t testing.TB) (given *walletFixture, cleanup func()) {
 
 func (w *walletFixture) CertifierServer() CertifierServerBuilder {
 	return &certifierServerBuilder{
-		TB:     w.TB,
-		logger: slogx.NewTestLogger(w.TB),
+		TB: w.TB,
 	}
 }
 
