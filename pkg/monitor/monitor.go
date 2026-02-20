@@ -9,7 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"

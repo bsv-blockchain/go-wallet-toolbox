@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/seq"
