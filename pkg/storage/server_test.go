@@ -376,7 +376,7 @@ func TestRPCCommunication(t *testing.T) {
 		defer cleanupCli()
 
 		// given:
-		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID)
+		certToInsert := fixtures.DefaultInsertCertAuth(testusers.Alice.ID, primitives.PubKeyHex(testusers.Alice.PubKey(t)))
 
 		mockStorage.EXPECT().
 			InsertCertificateAuth(gomock.Any(), testusers.Alice.AuthID(), certToInsert).
