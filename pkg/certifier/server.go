@@ -115,7 +115,7 @@ func (s *Server) URL() string {
 func (s *Server) Stop(ctx context.Context) error {
 	if s.httpServer != nil {
 		if err := s.httpServer.Shutdown(ctx); err != nil {
-			return err
+			return fmt.Errorf("failed to shutdown server: %w", err)
 		}
 	}
 	if s.cleanup != nil {

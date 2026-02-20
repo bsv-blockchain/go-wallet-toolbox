@@ -17,11 +17,13 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 )
 
+// CertificateService handles certificate signing operations.
 type CertificateService struct {
 	wallet sdk.Interface
 	config *ServerConfig
 }
 
+// NewCertificateService creates a new certificate service with the given wallet and configuration.
 func NewCertificateService(wallet sdk.Interface, cfg *ServerConfig) *CertificateService {
 	return &CertificateService{
 		wallet: wallet,
@@ -29,6 +31,7 @@ func NewCertificateService(wallet sdk.Interface, cfg *ServerConfig) *Certificate
 	}
 }
 
+// SignCertificate processes a certificate issuance request and returns a signed certificate.
 func (s *CertificateService) SignCertificate(
 	ctx context.Context,
 	req *walletcerts.ProtocolIssuanceRequest,

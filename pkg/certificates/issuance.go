@@ -36,6 +36,8 @@ type Certificate struct {
 	Signature          string            `json:"signature"`
 }
 
+// MapToCertificateFields converts a map of string fields to SDK certificate fields.
+// It validates that each field name is between 1 and 50 bytes as required by the SDK.
 func MapToCertificateFields(fields map[string]string) (map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64, error) {
 	const (
 		minLength = 1
