@@ -456,7 +456,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// We use scripts-only verification (not full BEEF verification) because:
 	// 1. We're sending EF format to ARC, not BEEF
 	// 2. Merkle path validation can fail during block reorgs
-	// 3. ARC will validate scripts anyway
+	// 3. Input BEEF was validated when creating action with external inputs or during internalization, so there's no need to validate it again
 	for _, txID := range readyToSendTxIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {

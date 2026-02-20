@@ -97,8 +97,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 
 	// verify scripts for all unmined transactions in BEEF
 	for txIDHash, beefTx := range beef.Transactions {
-		// no raw tx available or skip already mined txs
-		if beefTx.Transaction == nil || beefTx.Transaction.MerklePath != nil {
+		// there shouldn't happen a situation when transaction will be nil in beef
+		if beefTx.Transaction == nil {
+			return nil, fmt.Errorf("failed to find raw tx inside beef, txHash: %s", txIDHash.String())
+		}
+		// skip already mined txs
+		if beefTx.Transaction.MerklePath != nil {
 			continue
 		}
 

@@ -216,7 +216,7 @@ func TestBitails_PostTX(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := bitailsService.PostTX(t.Context(), rawTx, givenTxID)
+			result, err := bitailsService.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)
@@ -306,7 +306,7 @@ func TestBitails_PostTX_ErrorCases(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := bitailsService.PostTX(t.Context(), rawTx, givenTxID)
+			result, err := bitailsService.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)

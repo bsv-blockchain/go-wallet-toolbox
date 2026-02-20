@@ -61,7 +61,7 @@ func TestWhatsOnChain_PostTX(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := woc.PostTX(t.Context(), rawTx, givenTxID)
+			result, err := woc.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestWhatsOnChain_PostTX_ErrorCases(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := woc.PostTX(t.Context(), rawTx, givenTxID)
+			result, err := woc.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)

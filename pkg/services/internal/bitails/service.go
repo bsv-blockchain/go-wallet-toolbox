@@ -61,7 +61,7 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 }
 
 // PostTX sends the given raw tx to Bitails for broadcasting.
-func (b *Bitails) PostTX(ctx context.Context, rawTx []byte, _ string) (*wdk.PostedTxID, error) {
+func (b *Bitails) PostTX(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
 	broadcastResult := b.broadcast(ctx, rawTx)
 	return &broadcastResult, nil
 }

@@ -34,7 +34,7 @@ type WalletServices struct {
 
 	rawTxServices  servicequeue.Queue1[string, *wdk.RawTxResult]
 	postEFServices servicequeue.Queue2[string, string, *wdk.PostedTxID]
-	postTXServices servicequeue.Queue2[[]byte, string, *wdk.PostedTxID]
+	postTXServices servicequeue.Queue1[[]byte, *wdk.PostedTxID]
 
 	merklePathServices           servicequeue.Queue1[string, *wdk.MerklePathResult]
 	findChainTipHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
@@ -209,10 +209,10 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 					})))...,
 		),
 
-		postTXServices: servicequeue.NewQueue2(
+		postTXServices: servicequeue.NewQueue1(
 			logger,
 			"PostTX",
-			namedFuncsToServices2(
+			namedFuncsToServices1(
 				applyModifierIfExists(options.PostTXMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostTXFunc {
 						return it.PostTX
@@ -528,7 +528,7 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 
 		efResults, efErr := s.postEFServices.All(ctx, efHex, txID)
 
-		txResults, txErr := s.postTXServices.All(ctx, rawTx, txID)
+		txResults, txErr := s.postTXServices.All(ctx, rawTx)
 
 		if errors.Is(efErr, servicequeue.ErrNoServicesRegistered) && errors.Is(txErr, servicequeue.ErrNoServicesRegistered) {
 			return nil, fmt.Errorf("no services registered for broadcasting")

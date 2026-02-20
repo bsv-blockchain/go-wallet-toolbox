@@ -210,8 +210,8 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 }
 
 // PostTX broadcasts a single raw transaction to WhatsOnChain
-func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte, txID string) (*wdk.PostedTxID, error) {
-	result := woc.processSingleTx(ctx, txID, rawTx)
+func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
+	result := woc.processSingleTx(ctx, rawTx)
 	return &result, nil
 }
 

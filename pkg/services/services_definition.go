@@ -19,7 +19,7 @@ type (
 	// RawTxFunc is a function type for RawTx service method.
 	RawTxFunc = func(ctx context.Context, txID string) (*wdk.RawTxResult, error)
 	// PostTXFunc is a function type for PostTX service method (broadcasts raw transaction).
-	PostTXFunc = func(ctx context.Context, rawTx []byte, txID string) (*wdk.PostedTxID, error)
+	PostTXFunc = func(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error)
 	// PostEFFunc is a function type for PostEF service method (broadcasts EF format transaction).
 	PostEFFunc = func(ctx context.Context, efHex string, txID string) (*wdk.PostedTxID, error)
 	// MerklePathFunc is a function type for MerklePath service method.

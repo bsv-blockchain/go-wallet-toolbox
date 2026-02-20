@@ -337,7 +337,7 @@ func TestServicesConfig_ToImplementation(t *testing.T) {
 	require.NoError(t, err)
 	//
 	// when:
-	_, err = impl.PostTX(context.Background(), []byte{}, "txID")
+	_, err = impl.PostTX(context.Background(), []byte{})
 	// then:
 	require.NoError(t, err)
 
@@ -431,7 +431,7 @@ func (m *mockImplementation) PostEF(context.Context, string, string) (*wdk.Poste
 	return &wdk.PostedTxID{}, nil
 }
 
-func (m *mockImplementation) PostTX(context.Context, []byte, string) (*wdk.PostedTxID, error) {
+func (m *mockImplementation) PostTX(context.Context, []byte) (*wdk.PostedTxID, error) {
 	m.postTXCounter++
 	return &wdk.PostedTxID{}, nil
 }

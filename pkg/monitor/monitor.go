@@ -105,7 +105,7 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *Daem
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
-func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
+func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
 	d.startLock.Lock()
 	defer d.startLock.Unlock()
 
@@ -128,11 +128,11 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 	}
 
 	if d.eventChannels.OnReorg != nil {
-		go d.handleReorgEvents()
+		go d.handleReorgEvents(ctx)
 	}
 
 	if d.eventChannels.OnTip != nil {
-		go d.handleNewTipEvents()
+		go d.handleNewTipEvents(ctx)
 	}
 
 	d.scheduler.Start()
@@ -268,7 +268,7 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 	return context.WithTimeout(ctx, timeout)
 }
 
-func (d *Daemon) handleReorgEvents() {
+func (d *Daemon) handleReorgEvents(ctx context.Context) {
 	d.logger.Info("Starting reorg event handler")
 
 	for event := range d.eventChannels.OnReorg {
@@ -282,7 +282,7 @@ func (d *Daemon) handleReorgEvents() {
 			orphanedHashes[i] = hash.String()
 		}
 
-		if err := d.storage.HandleReorg(context.Background(), orphanedHashes); err != nil {
+		if err := d.storage.HandleReorg(ctx, orphanedHashes); err != nil {
 			d.logger.Error("Failed to handle reorg", "error", err)
 		}
 	}
@@ -290,7 +290,7 @@ func (d *Daemon) handleReorgEvents() {
 	d.logger.Info("reorg event handler stopped")
 }
 
-func (d *Daemon) handleNewTipEvents() {
+func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 	d.logger.Info("Starting new tip event handler")
 
 	for header := range d.eventChannels.OnTip {
@@ -300,7 +300,7 @@ func (d *Daemon) handleNewTipEvents() {
 		)
 
 		go func(h *chaintracks.BlockHeader) {
-			results, err := d.storage.ProcessNewTip(context.Background(), h.Height, h.Hash.String())
+			results, err := d.storage.ProcessNewTip(ctx, h.Height, h.Hash.String())
 			if err != nil {
 				d.logger.Error("ProcessNewTip failed", "error", err)
 				return
