@@ -7,7 +7,7 @@ import (
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/client_gen.go
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out wallet_storage_interface_gen.go -skip-methods "GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl wallet_storage.tpl
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/storage_manager_gen.go -skip-methods "MakeAvailable,SetActive,GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl manager.tpl
-//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/internal/server/rpc_storage_provider.gen.go -tmpl rpc_storage_provider.tpl
+//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/rpcserver/rpc_storage_provider.gen.go -tmpl rpc_storage_provider.tpl
 //go:generate go tool mockgen -destination=../internal/mocks/mock_wallet_storage_writer.go -package=mocks github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk WalletStorageProvider
 
 // WalletStorageProvider is an interface for writing to the wallet storage

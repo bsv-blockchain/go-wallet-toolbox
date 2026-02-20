@@ -10,6 +10,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/types"
 )
 
+// Standard structured logging keys.
 const (
 	ServiceKey   = "service"
 	ErrorKey     = "error"
@@ -89,6 +90,7 @@ func UserID[ID int | *int](userID ID) slog.Attr {
 	}
 }
 
+// Reference returns a slog.Attr for a reference string.
 func Reference(ref string) slog.Attr {
 	return slog.String(ReferenceKey, ref)
 }
@@ -101,6 +103,7 @@ func DefaultIfNil(logger *slog.Logger) *slog.Logger {
 	return logger
 }
 
+// IsDebug returns true if the logger has debug level enabled.
 func IsDebug(logger *slog.Logger) bool {
 	return logger.Enabled(context.Background(), slog.LevelDebug)
 }
