@@ -1,4 +1,4 @@
-package utils
+package certificates
 
 import (
 	"context"
@@ -24,8 +24,11 @@ func BytesToUTF8(bytes []byte) string {
 }
 
 const (
-	NonceDataSize  = 16
-	NonceHMACSize  = 32
+	// NonceDataSize is the size of the data in nonce.
+	NonceDataSize = 16
+	// NonceHMACSize is the size of the HMAC in nonce.
+	NonceHMACSize = 32
+	// TotalNonceSize is the total size of the nonce in bytes.
 	TotalNonceSize = 48
 )
 

@@ -199,7 +199,7 @@ func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, c
 		tracing.EndTracing(span, err)
 	}()
 
-	if auth.UserID == nil || certificate.UserID != *auth.UserID {
+	if auth.UserID == nil || string(certificate.Subject) != auth.IdentityKey {
 		return 0, ErrAuthorization
 	}
 
