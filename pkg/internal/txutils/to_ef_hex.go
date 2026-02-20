@@ -58,22 +58,6 @@ func ValidateSingleLeafTx(beef *transaction.Beef) error {
 	return nil
 }
 
-// TxToEFHex converts a specific transaction to EF hex, using BEEF for hydration.
-// Call BindBumpsAndTransactions once before calling this in a loop.
-func TxToEFHex(tx *transaction.Transaction, beef *transaction.Beef) (string, error) {
-	err := HydrateTransactionFromBEEF(tx, beef)
-	if err != nil {
-		return "", err
-	}
-
-	efHex, err := tx.EFHex()
-	if err != nil {
-		return "", fmt.Errorf("failed to get efhex from tx %s: %w", tx.TxID().String(), err)
-	}
-
-	return efHex, nil
-}
-
 // BindBumpsAndTransactions binds BUMPs to transactions in BEEF.
 func BindBumpsAndTransactions(beef *transaction.Beef, logger *slog.Logger) {
 	for i, bump := range beef.BUMPs {

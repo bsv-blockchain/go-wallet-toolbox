@@ -95,6 +95,11 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
+	// hydrate txs in beef
+	if err := txutils.HydrateBEEF(beef); err != nil {
+		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
+	}
+
 	// verify scripts for all unmined transactions in BEEF
 	for txIDHash, beefTx := range beef.Transactions {
 		// there shouldn't happen a situation when transaction will be nil in beef
@@ -106,12 +111,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 			continue
 		}
 
-		tx := beefTx.Transaction
-		if err := txutils.HydrateTransactionFromBEEF(tx, beef); err != nil {
-			return nil, fmt.Errorf("failed to hydrate tx %s for script verification: %w", txIDHash, err)
-		}
-
-		if ok, err := in.scriptsVerifier.VerifyScripts(ctx, tx); err != nil {
+		if ok, err := in.scriptsVerifier.VerifyScripts(ctx, beefTx.Transaction); err != nil {
 			return nil, fmt.Errorf("script verification failed for tx %s : %w", txIDHash, err)
 		} else if !ok {
 			return nil, fmt.Errorf("scripts are not valid for tx %s", txIDHash)

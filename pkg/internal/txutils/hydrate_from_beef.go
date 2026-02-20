@@ -7,14 +7,27 @@ import (
 	"github.com/go-softwarelab/common/pkg/is"
 )
 
-// HydrateTransactionFromBEEF hydrates the source transactions for each input of the given transaction
-// using the transactions stored in the BEEF. This is necessary for operations like script verification
-// that need access to the source transactions' outputs.
-func HydrateTransactionFromBEEF(tx *transaction.Transaction, beef *transaction.Beef) error {
-	for _, input := range tx.Inputs {
-		err := hydrateInput(input, beef, 0)
-		if err != nil {
-			return fmt.Errorf("failed to hydrate input %s of tx %s: %w", input.SourceTXID.String(), tx.TxID().String(), err)
+// HydrateBEEF hydrates the source transactions for each input using the transactions stored in the BEEF.
+// This is necessary for operations like script verification that need access to the source transactions'
+// outputs.
+func HydrateBEEF(beef *transaction.Beef) error {
+	for txIDHash, beefTx := range beef.Transactions {
+		if beefTx.Transaction == nil {
+			continue
+		}
+		// skip already mined txs - their inputs don't need hydration
+		if beefTx.Transaction.MerklePath != nil {
+			continue
+		}
+
+		for _, input := range beefTx.Transaction.Inputs {
+			if input.SourceTXID == nil {
+				continue
+			}
+			err := hydrateInput(input, beef, 0)
+			if err != nil {
+				return fmt.Errorf("failed to hydrate input %s of tx %s: %w", input.SourceTXID.String(), txIDHash.String(), err)
+			}
 		}
 	}
 	return nil

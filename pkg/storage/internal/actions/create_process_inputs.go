@@ -147,6 +147,11 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 		}
 	}
 
+	// hydrate txs in beef
+	if err := txutils.HydrateBEEF(proc.beef); err != nil {
+		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
+	}
+
 	// verify scripts for all unmined transactions in BEEF
 	for txIDHash, beefTx := range proc.beef.Transactions {
 		// no raw tx available or skip already mined txs
@@ -154,12 +159,7 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 			continue
 		}
 
-		tx := beefTx.Transaction
-		if err := txutils.HydrateTransactionFromBEEF(tx, proc.beef); err != nil {
-			return nil, fmt.Errorf("failed to hydrate tx %s for script verification: %w", txIDHash, err)
-		}
-
-		if ok, err := proc.scriptsVerifier.VerifyScripts(proc.ctx, tx); err != nil {
+		if ok, err := proc.scriptsVerifier.VerifyScripts(proc.ctx, beefTx.Transaction); err != nil {
 			return nil, fmt.Errorf("script verification failed for tx %s : %w", txIDHash, err)
 		} else if !ok {
 			return nil, fmt.Errorf("scripts are not valid for tx %s", txIDHash)

@@ -509,6 +509,11 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}}, nil
 	}
 
+	// hydrate txs in beef
+	if err := txutils.HydrateBEEF(beef); err != nil {
+		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
+	}
+
 	for _, txID := range txIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
@@ -521,7 +526,11 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}
 
 		rawTx := tx.Bytes()
-		efHex, err := txutils.TxToEFHex(tx, beef)
+		efHex, err := tx.EFHex()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get efhex from tx %s: %w", tx.TxID().String(), err)
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
 		}
