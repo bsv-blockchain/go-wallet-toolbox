@@ -8,11 +8,13 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 )
 
+// RPCServer wraps a JSON-RPC server with request tracing.
 type RPCServer struct {
 	Handler *jsonrpc.RPCServer
 	logger  *slog.Logger
 }
 
+// NewRPCHandler creates an RPCServer that registers the given handler under name.
 func NewRPCHandler(parentLogger *slog.Logger, name string, handler any) *RPCServer {
 	logger := logging.Child(parentLogger, "RPCServer")
 

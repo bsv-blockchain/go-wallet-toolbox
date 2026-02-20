@@ -15,6 +15,7 @@ func (w testLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// NewTestLogger creates an slog.Logger that writes to the test log.
 func NewTestLogger(t testing.TB) *slog.Logger {
 	handler := slog.NewTextHandler(&testLogger{t: t}, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
