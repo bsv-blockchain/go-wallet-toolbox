@@ -8,7 +8,7 @@ import (
 // WhatsOnChain is a struct that configures WhatsOnChain service
 type WhatsOnChain struct {
 	Enabled                    bool            `mapstructure:"enabled"`
-	APIKey                     string          `mapstructure:"api_key"`
+	APIKey                     string          `mapstructure:"api_key"` //nolint:gosec // G117 - config field, not a hardcoded secret
 	BSVExchangeRate            BSVExchangeRate `mapstructure:"bsv_exchange_rate"`
 	BSVUpdateInterval          *time.Duration  `mapstructure:"bsv_update_interval"`
 	RootForHeightRetryInterval time.Duration   `mapstructure:"root_for_height_retry_interval"`
