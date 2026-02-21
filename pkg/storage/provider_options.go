@@ -21,10 +21,11 @@ type ProviderConfig struct {
 	DBConfig defs.Database
 	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
 
-	Funder              funder.Funder
-	Randomizer          wdk.Randomizer
-	BeefVerifierFactory func() wdk.BeefVerifier
-	Logger              *slog.Logger
+	Funder                 funder.Funder
+	Randomizer             wdk.Randomizer
+	BeefVerifierFactory    func() wdk.BeefVerifier
+	ScriptsVerifierFactory func() wdk.ScriptsVerifier
+	Logger                 *slog.Logger
 
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
@@ -62,6 +63,15 @@ func WithBeefVerifier(beefVerifier wdk.BeefVerifier) ProviderOption {
 	return func(o *ProviderConfig) {
 		o.BeefVerifierFactory = func() wdk.BeefVerifier {
 			return beefVerifier
+		}
+	}
+}
+
+// WithScriptsVerifier sets a custom ScriptsVerifier implementation for use in the provider options.
+func WithScriptsVerifier(scriptsVerifier wdk.ScriptsVerifier) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.ScriptsVerifierFactory = func() wdk.ScriptsVerifier {
+			return scriptsVerifier
 		}
 	}
 }
@@ -142,6 +152,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		DBConfig:                     defs.DefaultDBConfig(),
 		Randomizer:                   randomizer.New(),
 		BeefVerifierFactory:          func() wdk.BeefVerifier { return NewDefaultBeefVerifier(chaintracker) },
+		ScriptsVerifierFactory:       func() wdk.ScriptsVerifier { return NewDefaultScriptsVerifier() },
 		SynchronizeTxStatusesConfig:  defs.DefaultSynchronizeTxStatuses(),
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
 		FeeModel:                     defs.DefaultFeeModel(),
@@ -163,4 +174,8 @@ func (p *ProviderConfig) verify() error {
 
 func (p *ProviderConfig) beefVerifier() wdk.BeefVerifier {
 	return p.BeefVerifierFactory()
+}
+
+func (p *ProviderConfig) scriptsVerifier() wdk.ScriptsVerifier {
+	return p.ScriptsVerifierFactory()
 }

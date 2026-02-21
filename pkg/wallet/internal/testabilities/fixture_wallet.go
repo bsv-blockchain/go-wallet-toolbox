@@ -35,6 +35,7 @@ type WalletFixture interface {
 	InputForUser(user testusers.User) CreateActionInputBuilder
 	Services() ServicesFixture
 	BeefVerifier() testabilities.BeefVerifierFixture
+	ScriptsVerifier() testabilities.ScriptsVerifierFixture
 	CertifierServer() CertifierServerBuilder
 	MockLookupResolver(answer *lookup.LookupAnswer, err error) *lookup.LookupResolver
 }
@@ -105,6 +106,10 @@ func (w *walletFixture) Wallet() WalletBuilder {
 
 func (w *walletFixture) BeefVerifier() testabilities.BeefVerifierFixture {
 	return w.storageFixture.Provider().BeefVerifier()
+}
+
+func (w *walletFixture) ScriptsVerifier() testabilities.ScriptsVerifierFixture {
+	return w.storageFixture.Provider().ScriptsVerifier()
 }
 
 func (w *walletFixture) Faucet(userWallet *wallet.Wallet) FaucetFixture {

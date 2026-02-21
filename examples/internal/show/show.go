@@ -184,7 +184,7 @@ func RawTxOutput(result *wdk.RawTxResult) {
 }
 
 // PostBEEFOutput displays the results of PostBEEF operations from multiple services
-func PostBEEFOutput(results []*wdk.PostBEEFServiceResult) {
+func PostBEEFOutput(results []*wdk.PostFromBEEFServiceResult) {
 	if len(results) == 0 {
 		Error("No PostBEEF results to display")
 		return

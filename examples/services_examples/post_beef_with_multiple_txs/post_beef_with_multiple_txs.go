@@ -65,7 +65,7 @@ func main() {
 
 	show.Step("Wallet-Services", "broadcasting 3 chained transactions")
 
-	results, err := walletServices.PostBEEF(context.Background(), beef, []string{
+	results, err := walletServices.PostFromBEEF(context.Background(), beef, []string{
 		grandParentTx.TxID().String(),
 		parentTx.TxID().String(),
 		tx.TxID().String(),

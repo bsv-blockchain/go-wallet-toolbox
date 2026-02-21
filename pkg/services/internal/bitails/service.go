@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -61,29 +60,10 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
-// PostBEEF sends the given beef with selected txIDs to Bitails for broadcasting.
-func (b *Bitails) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
-	if beef == nil {
-		return nil, fmt.Errorf("beef is required to post transactions")
-	}
-	if len(txIDs) == 0 {
-		return nil, fmt.Errorf("no txIDs provided")
-	}
-
-	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract raw transactions: %w", err)
-	}
-
-	results := make([]wdk.PostedTxID, 0, len(txIDs))
-
-	for i := range txIDs {
-		raw := rawTxs[i]
-		broadcastResult := b.broadcast(ctx, raw)
-		results = append(results, broadcastResult)
-	}
-
-	return &wdk.PostedBEEF{TxIDResults: results}, nil
+// PostTX sends the given raw tx to Bitails for broadcasting.
+func (b *Bitails) PostTX(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
+	broadcastResult := b.broadcast(ctx, rawTx)
+	return &broadcastResult, nil
 }
 
 // IsValidRootForHeight checks if the supplied merkle-root belongs to the block at `height`.

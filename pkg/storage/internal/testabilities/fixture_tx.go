@@ -265,9 +265,9 @@ func (t *txGeneratorFixture) Unprocessed() (createActionResult *wdk.StorageCreat
 
 	createActionResult, signedTx = t.Created()
 
-	t.parent.Provider().BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+	t.parent.Provider().ScriptsVerifier().WillReturnError(fmt.Errorf("mock scripts verifier error"))
 	defer func() {
-		t.parent.Provider().BeefVerifier().DefaultBehavior()
+		t.parent.Provider().ScriptsVerifier().DefaultBehavior()
 	}()
 
 	err := t.performProcess(signedTx, createActionResult.Reference)
