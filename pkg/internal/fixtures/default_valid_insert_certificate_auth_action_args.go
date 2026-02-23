@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 const (
@@ -24,14 +25,14 @@ const (
 	Signature = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 )
 
-func DefaultInsertCertAuth(userID int) *wdk.TableCertificateX {
+func DefaultInsertCertAuth(userID int, subject primitives.PubKeyHex) *wdk.TableCertificateX {
 	return &wdk.TableCertificateX{
 		TableCertificate: wdk.TableCertificate{
 			UserID:             userID,
 			Type:               TypeField,
 			SerialNumber:       SerialNumber,
 			Certifier:          Certifier,
-			Subject:            SubjectPubKey,
+			Subject:            subject,
 			RevocationOutpoint: RevocationOutpoint,
 			Signature:          Signature,
 		},

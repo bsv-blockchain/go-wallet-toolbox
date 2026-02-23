@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -18,14 +17,13 @@ const (
 	mockBlockHeight = 123456
 )
 
-func TestWhatsOnChain_PostBEEF(t *testing.T) {
+func TestWhatsOnChain_PostTX(t *testing.T) {
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
 	givenTxID := txSpec.TX().TxID().String()
 
-	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
-	require.NoError(t, err)
+	rawTx := txSpec.TX().Bytes()
 
 	tests := map[string]struct {
 		setup        func(testabilities.WoCServiceFixture)
@@ -63,33 +61,30 @@ func TestWhatsOnChain_PostBEEF(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := woc.PostBEEF(t.Context(), beef, []string{givenTxID})
+			result, err := woc.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Len(t, result.TxIDResults, 1)
 
-			singleResult := result.TxIDResults[0]
-			assert.Equal(t, test.resultStatus, singleResult.Result)
-			assert.Equal(t, givenTxID, singleResult.TxID)
-			assert.Nil(t, singleResult.Error)
-			assert.False(t, singleResult.DoubleSpend)
-			assert.Equal(t, test.alreadyKnown, singleResult.AlreadyKnown)
-			assert.Len(t, singleResult.CompetingTxs, 0)
-			assert.Len(t, singleResult.Notes, 1)
+			assert.Equal(t, test.resultStatus, result.Result)
+			assert.Equal(t, givenTxID, result.TxID)
+			assert.Nil(t, result.Error)
+			assert.False(t, result.DoubleSpend)
+			assert.Equal(t, test.alreadyKnown, result.AlreadyKnown)
+			assert.Len(t, result.CompetingTxs, 0)
+			assert.Len(t, result.Notes, 1)
 		})
 	}
 }
 
-func TestWhatsOnChain_PostBEEF_ErrorCases(t *testing.T) {
+func TestWhatsOnChain_PostTX_ErrorCases(t *testing.T) {
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
 	givenTxID := txSpec.TX().TxID().String()
 
-	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
-	require.NoError(t, err)
+	rawTx := txSpec.TX().Bytes()
 
 	tests := map[string]struct {
 		setup         func(testabilities.WoCServiceFixture)
@@ -139,22 +134,20 @@ func TestWhatsOnChain_PostBEEF_ErrorCases(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := woc.PostBEEF(t.Context(), beef, []string{givenTxID})
+			result, err := woc.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Len(t, result.TxIDResults, 1)
 
-			singleResult := result.TxIDResults[0]
-			assert.Equal(t, test.resultStatus, singleResult.Result)
-			assert.Equal(t, givenTxID, singleResult.TxID)
-			assert.Equal(t, test.doubleSpend, singleResult.DoubleSpend)
-			assert.False(t, singleResult.AlreadyKnown)
-			assert.Len(t, singleResult.Notes, 1)
+			assert.Equal(t, test.resultStatus, result.Result)
+			assert.Equal(t, givenTxID, result.TxID)
+			assert.Equal(t, test.doubleSpend, result.DoubleSpend)
+			assert.False(t, result.AlreadyKnown)
+			assert.Len(t, result.Notes, 1)
 
 			if test.additionalErr {
-				assert.Error(t, singleResult.Error)
+				assert.Error(t, result.Error)
 			}
 		})
 	}

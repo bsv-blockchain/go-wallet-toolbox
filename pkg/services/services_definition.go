@@ -18,8 +18,10 @@ type Named[T any] struct {
 type (
 	// RawTxFunc is a function type for RawTx service method.
 	RawTxFunc = func(ctx context.Context, txID string) (*wdk.RawTxResult, error)
-	// PostBEEFFunc is a function type for PostBEEF service method.
-	PostBEEFFunc = func(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error)
+	// PostTXFunc is a function type for PostTX service method (broadcasts raw transaction).
+	PostTXFunc = func(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error)
+	// PostEFFunc is a function type for PostEF service method (broadcasts EF format transaction).
+	PostEFFunc = func(ctx context.Context, efHex string, txID string) (*wdk.PostedTxID, error)
 	// MerklePathFunc is a function type for MerklePath service method.
 	MerklePathFunc = func(ctx context.Context, txID string) (*wdk.MerklePathResult, error)
 	// FindChainTipHeaderFunc is a function type for FindChainTipHeader service method.
@@ -49,7 +51,8 @@ type (
 // When a field is nil, it indicates that the particular service function doesn't have an implementation available - other services will be tried in that case.
 type Implementation struct {
 	RawTx                RawTxFunc
-	PostBEEF             PostBEEFFunc
+	PostTX               PostTXFunc
+	PostEF               PostEFFunc
 	MerklePath           MerklePathFunc
 	FindChainTipHeader   FindChainTipHeaderFunc
 	IsValidRootForHeight IsValidRootForHeightFunc

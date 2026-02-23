@@ -5,23 +5,23 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 )
 
-// PostBeefResult is a list of results from the PostBEEF method of all services.
-type PostBeefResult []*PostBEEFServiceResult
+// PostFromBeefResult is a list of results from the PostFromBEEF method of all services.
+type PostFromBeefResult []*PostFromBEEFServiceResult
 
 // Success checks if one of the results is a success.
-func (it PostBeefResult) Success() bool {
-	return seq.Exists(seq.FromSlice(it), func(it *PostBEEFServiceResult) bool {
+func (it PostFromBeefResult) Success() bool {
+	return seq.Exists(seq.FromSlice(it), func(it *PostFromBEEFServiceResult) bool {
 		return it.Success()
 	})
 }
 
 // Aggregated gets results from all services and aggregates them by txid, calculating status and counts.
-func (it PostBeefResult) Aggregated(txids []string) AggregatedPostBEEF {
-	return newAggregatedPostBEEF(it, txids)
+func (it PostFromBeefResult) Aggregated(txids []string) AggregatedPostFromBEEF {
+	return newAggregatedPostFromBEEF(it, txids)
 }
 
-// ServiceErrors returns a map containing service names and their corresponding errors for failed PostBEEF results.
-func (it PostBeefResult) ServiceErrors() map[string]error {
+// ServiceErrors returns a map containing service names and their corresponding errors for failed PostFromBEEF results.
+func (it PostFromBeefResult) ServiceErrors() map[string]error {
 	errs := make(map[string]error)
 	for _, result := range it {
 		if result.Error != nil {
@@ -31,17 +31,17 @@ func (it PostBeefResult) ServiceErrors() map[string]error {
 	return errs
 }
 
-// PostBEEFServiceResult is the result of the PostBEEF method of a single service.
+// PostFromBEEFServiceResult is the result of the PostFromBEEF method of a single service.
 // It contains the name of the service that produced the result and the result itself.
 // The result could be either a success or an error.
-type PostBEEFServiceResult struct {
+type PostFromBEEFServiceResult struct {
 	Name             string
 	PostedBEEFResult *PostedBEEF
 	Error            error
 }
 
 // Success checks if the result is a success.
-func (it *PostBEEFServiceResult) Success() bool {
+func (it *PostFromBEEFServiceResult) Success() bool {
 	return it.PostedBEEFResult != nil && it.Error == nil
 }
 

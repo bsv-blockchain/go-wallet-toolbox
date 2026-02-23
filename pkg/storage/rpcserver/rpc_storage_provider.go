@@ -1,4 +1,4 @@
-package server
+package rpcserver
 
 import (
 	"context"
@@ -6,18 +6,20 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/is"
 )
 
 var _ wdk.WalletStorageProvider = (*RPCStorageProvider)(nil)
 
+// RPCStorageProvider wraps a WalletStorageProvider with identity verification.
 type RPCStorageProvider struct {
 	localProvider wdk.WalletStorageProvider
 	log           *slog.Logger
 }
 
+// NewRPCStorageProvider creates an RPCStorageProvider that delegates to localProvider.
 func NewRPCStorageProvider(logger *slog.Logger, localProvider wdk.WalletStorageProvider) *RPCStorageProvider {
 	return &RPCStorageProvider{
 		localProvider: localProvider,
@@ -25,6 +27,7 @@ func NewRPCStorageProvider(logger *slog.Logger, localProvider wdk.WalletStorageP
 	}
 }
 
+// FindOrInsertUser verifies the caller's identity then delegates to the local provider.
 func (p *RPCStorageProvider) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
 	err := p.verifyIdentityKey(ctx, identityKey)
 	if err != nil {

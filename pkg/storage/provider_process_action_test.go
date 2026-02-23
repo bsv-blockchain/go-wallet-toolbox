@@ -472,8 +472,8 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	txID := signedTx.TxID().String()
 
 	// and:
-	beefVerifyMockError := fmt.Errorf("mock beef verifier error")
-	given.Provider().BeefVerifier().WillReturnError(beefVerifyMockError)
+	scriptsVerifyMockError := fmt.Errorf("mock scripts verifier error")
+	given.Provider().ScriptsVerifier().WillReturnError(scriptsVerifyMockError)
 
 	// when:
 	args := wdk.ProcessActionArgs{
@@ -486,7 +486,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	require.ErrorIs(t, err, beefVerifyMockError)
+	require.ErrorIs(t, err, scriptsVerifyMockError)
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -504,7 +504,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
 
 	// when, retry:
-	given.Provider().BeefVerifier().DefaultBehavior()
+	given.Provider().ScriptsVerifier().DefaultBehavior()
 	args = wdk.ProcessActionArgs{
 		IsNewTx: false,
 		TxID:    to.Ptr(primitives.TXIDHexString(txID)),
@@ -577,6 +577,8 @@ func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {
 			defer cleanup()
 
 			test.setupService(given)
+			// These tests are supposed to check nLockTime and not scripts verification so we mock it here
+			given.Provider().ScriptsVerifier().WillReturnBool(true)
 
 			activeStorage := given.Provider().
 				WithRandomizer(randomizer.NewTestRandomizer()).
@@ -746,6 +748,9 @@ func TestProcessActionNLockTimeIsFinalThresholdBoundary(t *testing.T) {
 	activeStorage := given.Provider().
 		WithRandomizer(randomizer.NewTestRandomizer()).
 		GORM()
+
+	// These tests are supposed to check nLockTime and not scripts verification so we mock it here
+	given.Provider().ScriptsVerifier().WillReturnBool(true)
 
 	createActionResult, originalTx := given.Action(activeStorage).Created()
 

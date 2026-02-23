@@ -14,42 +14,12 @@ import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 )
-
-// ProtocolIssuanceRequest represents the certificate signing request sent to the certifier
-// as part of the issuance protocol.
-type ProtocolIssuanceRequest struct {
-	Type          string            `json:"type"`
-	Nonce         string            `json:"clientNonce"`
-	Fields        map[string]string `json:"fields"`
-	MasterKeyring map[string]string `json:"masterKeyring"`
-}
-
-// ProtocolIssuanceResponse represents the response from the certifier containing the signed certificate
-// and server nonce for verification.
-type ProtocolIssuanceResponse struct {
-	Protocol    string       `json:"protocol"`
-	Certificate *Certificate `json:"certificate"`
-	ServerNonce string       `json:"serverNonce"`
-	Timestamp   string       `json:"timestamp"`
-	Version     string       `json:"version"`
-}
-
-// Certificate represents a certificate as returned by the certifier in the issuance protocol response.
-type Certificate struct {
-	Type               string            `json:"type"`
-	SerialNumber       string            `json:"serialNumber"`
-	Subject            string            `json:"subject"`
-	Certifier          string            `json:"certifier"`
-	RevocationOutpoint string            `json:"revocationOutpoint"`
-	Fields             map[string]string `json:"fields"`
-	Signature          string            `json:"signature"`
-}
 
 // PrepareIssuanceActionDataParams contains parameters for preparing the certificate issuance request
 type PrepareIssuanceActionDataParams struct {
@@ -137,7 +107,7 @@ func PrepareIssuanceActionData(ctx context.Context, p PrepareIssuanceActionDataP
 
 	// Build certificate signing request
 	certTypeB64 := base64.StdEncoding.EncodeToString(p.Args.Type[:])
-	body, err := json.Marshal(&ProtocolIssuanceRequest{
+	body, err := json.Marshal(&walletcerts.ProtocolIssuanceRequest{
 		Type:          certTypeB64,
 		Nonce:         p.Nonce,
 		Fields:        fields,
@@ -168,7 +138,7 @@ func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertifica
 		return nil, fmt.Errorf("unexpected HTTP status code %d: %s", p.Response.StatusCode, string(responseBytes))
 	}
 
-	var response ProtocolIssuanceResponse
+	var response walletcerts.ProtocolIssuanceResponse
 	if err := json.Unmarshal(responseBytes, &response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
@@ -213,7 +183,7 @@ func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertifica
 		return nil, fmt.Errorf("failed to parse signature: %w", err)
 	}
 
-	certFields, err := mapping.MapToCertificateFields(response.Certificate.Fields)
+	certFields, err := walletcerts.MapToCertificateFields(response.Certificate.Fields)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map certificate fields: %w", err)
 	}
@@ -246,8 +216,8 @@ func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertifica
 // VerifyCertificateIssuance verifies the certificate against the original request parameters
 func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsedCert *ParseCertificateResponseResult, nonce string, issuanceActionData *PrepareIssuanceActionDataResult, subject, certifier *ec.PublicKey, originator string) error {
 	// Verify if serial number has correct length
-	if len(parsedCert.SerialNumber) != utils.NonceHMACSize {
-		return fmt.Errorf("invalid serialNumber length: got %d, want %d", len(parsedCert.SerialNumber), utils.NonceHMACSize)
+	if len(parsedCert.SerialNumber) != walletcerts.NonceHMACSize {
+		return fmt.Errorf("invalid serialNumber length: got %d, want %d", len(parsedCert.SerialNumber), walletcerts.NonceHMACSize)
 	}
 
 	// Decode both nonces from base64 and concatenate the raw bytes
@@ -330,7 +300,7 @@ func VerifyCertificateIssuance(ctx context.Context, wallet sdk.Interface, parsed
 
 // TestCertificateDecryption verifies that the certificate fields can be decrypted
 func TestCertificateDecryption(ctx context.Context, wallet sdk.Interface, certFields map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64, masterKeyring map[string]string, counterParty sdk.Counterparty, args sdk.AcquireCertificateArgs) error {
-	certMasterKeyring, err := mapping.MapToCertificateFields(masterKeyring)
+	certMasterKeyring, err := walletcerts.MapToCertificateFields(masterKeyring)
 	if err != nil {
 		return fmt.Errorf("failed to map certificate master keyring fields: %w", err)
 	}

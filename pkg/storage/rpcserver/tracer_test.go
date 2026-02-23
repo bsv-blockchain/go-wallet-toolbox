@@ -1,4 +1,4 @@
-package server_test
+package rpcserver_test
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/server"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +27,7 @@ func TestTracer(t *testing.T) {
 
 	// given server:
 	handler := &mockHandler{}
-	rpcServer := server.NewRPCHandler(logger, "MockHandler", handler)
+	rpcServer := rpcserver.NewRPCHandler(logger, "MockHandler", handler)
 
 	mux := http.NewServeMux()
 	rpcServer.Register(mux)

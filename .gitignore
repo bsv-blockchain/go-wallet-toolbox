@@ -41,6 +41,9 @@ infra-config.*.yaml
 chaintracks-config.yaml
 chaintracks-config.*.yaml
 !chaintracks-config.example.yaml
+certifier-config.yaml
+certifier-config.*.yaml
+!certifier-config.example.yaml
 
 # SQLite databases
 storage.sqlite

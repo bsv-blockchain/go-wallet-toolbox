@@ -9,7 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -183,7 +183,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 }
 
 // ListenAndServe starts the JSON-RPC server
-func (s *Server) ListenAndServe() error {
+func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.txBroadcastedCh != nil {
 		go s.consumeTxBroadcasted()
 	}
@@ -198,7 +198,7 @@ func (s *Server) ListenAndServe() error {
 		}
 	}
 
-	if err := s.monitor.Start(s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
+	if err := s.monitor.Start(ctx, s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
 		return fmt.Errorf("failed to start storage monitor: %w", err)
 	}
 

@@ -47,7 +47,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		if res != nil {
 			woc.logger.DebugContext(ctx, "broadcast request failed with response", "url", url, "error", err, "status_code", res.StatusCode(), "response", res.String())
 		}
-		return StatusError, "", fmt.Errorf("failed to send request to WoC: %w", err)
+		return StatusError, txid, fmt.Errorf("failed to send request to WoC: %w", err)
 	}
 
 	if res.StatusCode() != http.StatusOK {
@@ -61,7 +61,7 @@ func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (Broadcast
 		case containsI(responseText, "missing inputs"):
 			return StatusMissingInputs, txid, nil
 		default:
-			return StatusError, "", fmt.Errorf("woc returned unexpected error %d: %s", res.StatusCode(), responseText)
+			return StatusError, txid, fmt.Errorf("woc returned unexpected error %d: %s", res.StatusCode(), responseText)
 		}
 	}
 
@@ -112,10 +112,10 @@ func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoR
 	}, nil
 }
 
-func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx []byte) wdk.PostedTxID {
+func (woc *WhatsOnChain) processSingleTx(ctx context.Context, rawTx []byte) wdk.PostedTxID {
 	status, returnedTxid, err := woc.broadcast(ctx, rawTx)
 	if err != nil {
-		return woc.errorPostedTxID(rawTx, txid, fmt.Errorf("broadcast failed for txid %s: %w", txid, err))
+		return woc.errorPostedTxID(rawTx, returnedTxid, fmt.Errorf("broadcast failed for txid %s: %w", returnedTxid, err))
 	}
 
 	result := wdk.PostedTxID{
@@ -124,15 +124,15 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, txid string, rawTx
 
 	shouldReturnError := classifyBroadcastStatus(status, &result)
 	if shouldReturnError {
-		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
+		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", returnedTxid, result.Result)
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
-		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Bytes(rawTx), []string{txid}, msg).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Bytes(rawTx), []string{returnedTxid}, msg).Note().AsList()
 		return result
 	}
 
-	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, []string{txid}).Note().AsList()
+	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, []string{returnedTxid}).Note().AsList()
 
 	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {

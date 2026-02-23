@@ -7,11 +7,11 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -35,6 +35,7 @@ type internalize struct {
 	outputRepo         OutputRepo
 	random             wdk.Randomizer
 	beefVerifier       wdk.BeefVerifier
+	scriptsVerifier    wdk.ScriptsVerifier
 	blockHeaderService wdk.BlockHeaderLoader
 }
 
@@ -46,6 +47,7 @@ func newInternalizeAction(
 	outputRepo OutputRepo,
 	random wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
 	blockHeader wdk.BlockHeaderLoader,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
@@ -57,6 +59,7 @@ func newInternalizeAction(
 		outputRepo:         outputRepo,
 		random:             random,
 		beefVerifier:       beefVerifier,
+		scriptsVerifier:    scriptsVerifier,
 		blockHeaderService: blockHeader,
 	}
 }
@@ -90,6 +93,29 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	} else if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
+	}
+
+	// hydrate txs in beef
+	if err := txutils.HydrateBEEF(beef); err != nil {
+		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
+	}
+
+	// verify scripts for all unmined transactions in BEEF
+	for txIDHash, beefTx := range beef.Transactions {
+		// there shouldn't happen a situation when transaction will be nil in beef
+		if beefTx.Transaction == nil {
+			return nil, fmt.Errorf("failed to find raw tx inside beef, txHash: %s", txIDHash.String())
+		}
+		// skip already mined txs
+		if beefTx.Transaction.MerklePath != nil {
+			continue
+		}
+
+		if ok, err := in.scriptsVerifier.VerifyScripts(ctx, beefTx.Transaction); err != nil {
+			return nil, fmt.Errorf("script verification failed for tx %s : %w", txIDHash, err)
+		} else if !ok {
+			return nil, fmt.Errorf("scripts are not valid for tx %s", txIDHash)
+		}
 	}
 
 	tx := beef.FindAtomicTransactionByHash(txIDHash)
@@ -392,7 +418,7 @@ func (in *internalize) makeOutputs(
 			if err != nil {
 				return nil, 0, fmt.Errorf("failed to find existing output: %w", err)
 			}
-			//NOTE: FindOutput can return nil if the output is not found
+			// NOTE: FindOutput can return nil if the output is not found
 		}
 
 		wasChangeOutput := existingOutput != nil && existingOutput.BasketName != nil && *existingOutput.BasketName == wdk.BasketNameForChange

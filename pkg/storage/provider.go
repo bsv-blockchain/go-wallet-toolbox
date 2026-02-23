@@ -9,13 +9,13 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
@@ -89,6 +89,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			services,
 			options.SynchronizeTxStatusesConfig,
 			options.beefVerifier(),
+			options.scriptsVerifier(),
 			options.BackgroundBroadcasterChannel,
 		),
 		options:  &options,
@@ -198,7 +199,7 @@ func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, c
 		tracing.EndTracing(span, err)
 	}()
 
-	if auth.UserID == nil || certificate.UserID != *auth.UserID {
+	if auth.UserID == nil || string(certificate.Subject) != auth.IdentityKey {
 		return 0, ErrAuthorization
 	}
 

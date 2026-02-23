@@ -19,10 +19,11 @@ import (
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -782,23 +783,23 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 	}
 
 	// Validate nonce length (should be 16 bytes data + 32 bytes HMAC = 48 bytes)
-	if len(buffer) < utils.TotalNonceSize {
-		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", utils.TotalNonceSize, len(buffer))
+	if len(buffer) < walletcerts.TotalNonceSize {
+		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", walletcerts.TotalNonceSize, len(buffer))
 	}
 
 	// Split the nonce buffer
-	data := buffer[:utils.NonceDataSize]
-	hmacSlice := buffer[utils.NonceDataSize:]
+	data := buffer[:walletcerts.NonceDataSize]
+	hmacSlice := buffer[walletcerts.NonceDataSize:]
 
 	// Convert hmac slice to [32]byte array
-	if len(hmacSlice) != utils.NonceHMACSize {
+	if len(hmacSlice) != walletcerts.NonceHMACSize {
 		return fmt.Errorf("invalid hmac length: expected 32 bytes, got %d", len(hmacSlice))
 	}
 
 	var hmacArray [32]byte
 	copy(hmacArray[:], hmacSlice)
 
-	keyID := utils.BytesToUTF8(data)
+	keyID := walletcerts.BytesToUTF8(data)
 
 	// Verify the HMAC
 	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
@@ -826,7 +827,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 
 // createNonce generates a nonce for authentication and replay protection.
 func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) (string, error) {
-	nonce, err := utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
+	nonce, err := walletcerts.CreateNonce(ctx, w, w.randomizer, certifier, originator)
 	if err != nil {
 		return "", fmt.Errorf("failed to create nonce for wallet: %w", err)
 	}

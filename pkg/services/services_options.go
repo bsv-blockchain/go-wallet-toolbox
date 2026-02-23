@@ -13,7 +13,8 @@ type Options struct {
 	RestyClientFactory *httpx.RestyClientFactory
 
 	RawTxMethodsModifier         func([]Named[RawTxFunc]) []Named[RawTxFunc]
-	PostBEEFMethodsModifier      func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]
+	PostEFMethodsModifier        func([]Named[PostEFFunc]) []Named[PostEFFunc]
+	PostTXMethodsModifier        func([]Named[PostTXFunc]) []Named[PostTXFunc]
 	MerklePathMethodsModifier    func([]Named[MerklePathFunc]) []Named[MerklePathFunc]
 	FindChainTipHeaderModifier   func([]Named[FindChainTipHeaderFunc]) []Named[FindChainTipHeaderFunc]
 	IsValidRootForHeightModifier func([]Named[IsValidRootForHeightFunc]) []Named[IsValidRootForHeightFunc]
@@ -68,13 +69,23 @@ func WithRawTxMethodsModifier(modifier func([]Named[RawTxFunc]) []Named[RawTxFun
 	}
 }
 
-// WithPostBEEFMethodsModifier is designed to modify the list of PostBEEFFunc implementations.
+// WithPostEFMethodsModifier is designed to modify the list of PostEFFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithPostBEEFMethodsModifier(modifier func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]) func(*Options) {
+func WithPostEFMethodsModifier(modifier func([]Named[PostEFFunc]) []Named[PostEFFunc]) func(*Options) {
 	return func(o *Options) {
-		o.PostBEEFMethodsModifier = modifier
+		o.PostEFMethodsModifier = modifier
+	}
+}
+
+// WithPostTXMethodsModifier is designed to modify the list of PostBEEFFunc implementations.
+// The modifier function takes the current list of implementations and returns a modified list.
+// The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
+// This allows you to change the order of implementations, add new ones, or remove existing ones.
+func WithPostTXMethodsModifier(modifier func([]Named[PostTXFunc]) []Named[PostTXFunc]) func(*Options) {
+	return func(o *Options) {
+		o.PostTXMethodsModifier = modifier
 	}
 }
 

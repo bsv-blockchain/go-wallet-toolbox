@@ -10,7 +10,7 @@ import (
 
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"

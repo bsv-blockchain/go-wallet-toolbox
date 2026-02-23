@@ -12,12 +12,12 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -75,18 +75,19 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 }
 
 type create struct {
-	logger         *slog.Logger
-	funder         funder.Funder
-	basketRepo     BasketRepo
-	txRepo         TransactionsRepo
-	outputRepo     OutputRepo
-	knownTxRepo    KnownTxRepo
-	commissionRepo CommissionRepo
-	commission     *commission.ScriptGenerator
-	commissionCfg  defs.Commission
-	random         wdk.Randomizer
-	chaintracker   chaintracker.ChainTracker
-	beefVerifier   wdk.BeefVerifier
+	logger          *slog.Logger
+	funder          funder.Funder
+	basketRepo      BasketRepo
+	txRepo          TransactionsRepo
+	outputRepo      OutputRepo
+	knownTxRepo     KnownTxRepo
+	commissionRepo  CommissionRepo
+	commission      *commission.ScriptGenerator
+	commissionCfg   defs.Commission
+	random          wdk.Randomizer
+	chaintracker    chaintracker.ChainTracker
+	beefVerifier    wdk.BeefVerifier
+	scriptsVerifier wdk.ScriptsVerifier
 }
 
 func newCreateAction(
@@ -101,20 +102,22 @@ func newCreateAction(
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:         logger,
-		funder:         funder,
-		basketRepo:     basketRepo,
-		txRepo:         txRepo,
-		commissionCfg:  commissionCfg,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		random:         random,
-		chaintracker:   chaintracker,
-		beefVerifier:   beefVerifier,
+		logger:          logger,
+		funder:          funder,
+		basketRepo:      basketRepo,
+		txRepo:          txRepo,
+		commissionCfg:   commissionCfg,
+		outputRepo:      outputRepo,
+		knownTxRepo:     knownTxRepo,
+		commissionRepo:  commissionRepo,
+		random:          random,
+		chaintracker:    chaintracker,
+		beefVerifier:    beefVerifier,
+		scriptsVerifier: scriptsVerifier,
 	}
 
 	if commissionCfg.Enabled() {
@@ -168,7 +171,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputBEEFSize", len(params.InputBEEF)),
 	)
 
-	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.beefVerifier)
+	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.beefVerifier, c.scriptsVerifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inputs processor: %w", err)
 	}
@@ -607,7 +610,6 @@ func (c *create) newOutputs(
 func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCreateTransactionSdkOutput {
 	resultOutputs := make([]*wdk.StorageCreateTransactionSdkOutput, len(newOutputs))
 	for i, output := range newOutputs {
-
 		resultOutputs[i] = &wdk.StorageCreateTransactionSdkOutput{
 			Vout:             output.Vout,
 			ProvidedBy:       output.ProvidedBy,

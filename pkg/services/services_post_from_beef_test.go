@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostBEEF(t *testing.T) {
-	t.Run("successfully post BEEF with single tx IDs", func(t *testing.T) {
+func TestPostFromBEEF(t *testing.T) {
+	t.Run("successfully post from BEEF with single tx IDs", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
@@ -34,13 +34,13 @@ func TestPostBEEF(t *testing.T) {
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		response, err := services.PostBEEF(t.Context(), beef, txids)
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
+		slices.ForEach(response, func(item *wdk.PostFromBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
 			assert.NoError(t, item.Error)
 			if assert.NotNil(t, item.PostedBEEFResult) {
@@ -50,7 +50,7 @@ func TestPostBEEF(t *testing.T) {
 		})
 	})
 
-	t.Run("successfully post BEEF with multiple tx IDs", func(t *testing.T) {
+	t.Run("successfully post from BEEF with multiple tx IDs", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
@@ -78,30 +78,28 @@ func TestPostBEEF(t *testing.T) {
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		response, err := services.PostBEEF(t.Context(), beef, txids)
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
 		assert.NoError(t, err)
 		assert.NotEmpty(t, response)
 
-		slices.ForEach(response, func(item *wdk.PostBEEFServiceResult) {
-			assert.NotEmpty(t, item.Name)
-			assert.NoError(t, item.Error)
-			if assert.NotNil(t, item.PostedBEEFResult) {
-				result := item.PostedBEEFResult
-				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
-			}
-		})
+		// and then: grouped by service and verify each service handled both txIDs
+		resultsByService := groupResultsByService(response)
+		for serviceName, results := range resultsByService {
+			assert.Len(t, results, 2, "service %s should have 2 results (one per txID)", serviceName)
+		}
 	})
 }
 
-func TestPostBEEF_BroadcastFailures(t *testing.T) {
+func TestPostFromBEEF_BroadcastFailures(t *testing.T) {
+	// NOTE: We only broadcast the childTx (the unmined tx in the BEEF).
+	// The parentTx is just a source input for childTx and doesn't need to be broadcast separately.
 	parentTx := txtestabilities.GivenTX().
 		WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
 		WithInput(100).
 		WithP2PKHOutput(99).
 		TX()
-	parentTxID := parentTx.TxID().String()
 
 	childTx := txtestabilities.GivenTX().WithInputFromUTXO(parentTx, 0).WithP2PKHOutput(98).TX()
 	childTxID := childTx.TxID().String()
@@ -109,38 +107,41 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 	beef, err := sdk.NewBeefFromTransaction(childTx)
 	require.NoError(t, err)
 
-	txids := []string{parentTxID, childTxID}
+	// Only the child tx needs to be broadcast - parent is just a source tx (input)
+	txids := []string{childTxID}
 
 	t.Run("WoC returns error, rest return success", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
-		for range txids {
-			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
-		}
+		given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 
-		for _, txid := range txids {
-			given.Bitails().WillReturnSuccessAndTxInfo(txid, "mocked-block-hash", 99999)
-		}
+		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
 
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		response, err := services.PostBEEF(t.Context(), beef, txids)
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
 		require.NoError(t, err)
 		require.NotEmpty(t, response)
 
-		for _, res := range response {
-			switch res.Name {
-			case "WhatsOnChain":
-				assertWoCErrorResult(t, res, txids)
-			default:
-				assertServiceSuccess(t, res, txids)
-			}
+		resultsByService := groupResultsByService(response)
+
+		// and then: WoC should have errors
+		for _, res := range resultsByService["WhatsOnChain"] {
+			assertSingleResultHasError(t, res)
+		}
+
+		// and then: ARC and Bitails should succeed
+		for _, res := range resultsByService["ARC"] {
+			assertSingleResultHasSuccess(t, res)
+		}
+		for _, res := range resultsByService["Bitails"] {
+			assertSingleResultHasSuccess(t, res)
 		}
 	})
 
@@ -148,30 +149,34 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 
-		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txids...)
+		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(childTxID)
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 
-		for _, txid := range txids {
-			given.Bitails().WillReturnSuccessAndTxInfo(txid, "mocked-block-hash", 99999)
-		}
+		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
 
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		response, err := services.PostBEEF(t.Context(), beef, txids)
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
 		require.NoError(t, err)
 		require.NotEmpty(t, response)
 
-		for _, res := range response {
-			switch res.Name {
-			case "ARC":
-				assertArcErrorResult(t, res)
-			default:
-				assertServiceSuccess(t, res, txids)
-			}
+		resultsByService := groupResultsByService(response)
+
+		// and then: ARC should have errors
+		for _, res := range resultsByService["ARC"] {
+			assertSingleResultHasError(t, res)
+		}
+
+		// and then: WoC and Bitails should succeed
+		for _, res := range resultsByService["WhatsOnChain"] {
+			assertSingleResultHasSuccess(t, res)
+		}
+		for _, res := range resultsByService["Bitails"] {
+			assertSingleResultHasSuccess(t, res)
 		}
 	})
 
@@ -179,9 +184,7 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 
-		for range txids {
-			given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
-		}
+		given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
 		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
 		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
 		given.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
@@ -189,54 +192,42 @@ func TestPostBEEF_BroadcastFailures(t *testing.T) {
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
-		response, err := services.PostBEEF(t.Context(), beef, txids)
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
 		require.NoError(t, err)
 		require.NotEmpty(t, response)
 
 		for _, res := range response {
-			switch res.Name {
-			case "WhatsOnChain":
-				assertWoCErrorResult(t, res, txids)
-			case "ARC":
-				assertArcErrorResult(t, res)
-			case "Bitails":
-				assertBitailsErrorResult(t, res, txids)
-			default:
-				t.Fatalf("Unexpected service name: %s", res.Name)
-			}
+			assertSingleResultHasError(t, res)
 		}
 	})
 }
 
-func assertWoCErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
-	require.NoError(t, res.Error)
-	require.NotNil(t, res.PostedBEEFResult)
-	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))
-	for _, txResult := range res.PostedBEEFResult.TxIDResults {
-		require.Equal(t, wdk.PostedTxIDResultError, txResult.Result)
-		require.NotEmpty(t, txResult.Notes)
+func groupResultsByService(results wdk.PostFromBeefResult) map[string][]*wdk.PostFromBEEFServiceResult {
+	grouped := make(map[string][]*wdk.PostFromBEEFServiceResult)
+	for _, res := range results {
+		grouped[res.Name] = append(grouped[res.Name], res)
 	}
+	return grouped
 }
 
-func assertArcErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult) {
-	require.Error(t, res.Error)
-	require.Nil(t, res.PostedBEEFResult)
+func assertSingleResultHasError(t *testing.T, res *wdk.PostFromBEEFServiceResult) {
+	t.Helper()
+
+	require.NoError(t, res.Error, "unexpected service-level error for %s", res.Name)
+	require.NotNil(t, res.PostedBEEFResult, "expected result for service %s", res.Name)
+	require.Len(t, res.PostedBEEFResult.TxIDResults, 1)
+	assert.Equal(t, wdk.PostedTxIDResultError, res.PostedBEEFResult.TxIDResults[0].Result, "expected error result for service %s", res.Name)
 }
 
-func assertBitailsErrorResult(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
-	require.NoError(t, res.Error)
-	require.NotNil(t, res.PostedBEEFResult)
-	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))
-	for _, txResult := range res.PostedBEEFResult.TxIDResults {
-		require.Equal(t, wdk.PostedTxIDResultError, txResult.Result)
-		require.NotEmpty(t, txResult.Notes)
-	}
-}
+func assertSingleResultHasSuccess(t *testing.T, res *wdk.PostFromBEEFServiceResult) {
+	t.Helper()
 
-func assertServiceSuccess(t *testing.T, res *wdk.PostBEEFServiceResult, txids []string) {
-	require.NoError(t, res.Error)
-	require.NotNil(t, res.PostedBEEFResult)
-	require.Len(t, res.PostedBEEFResult.TxIDResults, len(txids))
+	require.NoError(t, res.Error, "unexpected service-level error for %s: %w", res.Name, res.Error)
+	require.NotNil(t, res.PostedBEEFResult, "expected result for service %s", res.Name)
+	require.Len(t, res.PostedBEEFResult.TxIDResults, 1)
+	assert.Equal(t, wdk.PostedTxIDResultSuccess, res.PostedBEEFResult.TxIDResults[0].Result,
+		"expected success result for service %s", res.Name)
+	require.NotNil(t, res.PostedBEEFResult.TxIDResults[0].Notes)
 }

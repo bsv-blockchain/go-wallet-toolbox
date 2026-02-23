@@ -1,6 +1,6 @@
 package wdk
 
-// AggregatedPostedTxIDStatus represents the aggregated status of postBEEF process for single txid
+// AggregatedPostedTxIDStatus represents the aggregated status of postFromBEEF process for single txid
 type AggregatedPostedTxIDStatus string
 
 // Possible values for AggregatedPostedTxIDStatus
@@ -11,7 +11,7 @@ const (
 	AggregatedPostedTxIDServiceError AggregatedPostedTxIDStatus = "serviceError"
 )
 
-// AggregatedPostedTxID represents postBEEF result, aggregated from all broadcasters for particular TxID
+// AggregatedPostedTxID represents postFromBEEF result, aggregated from all broadcasters for particular TxID
 type AggregatedPostedTxID struct {
 	TxID              string
 	TxIDResults       []*PostedTxID
@@ -23,10 +23,10 @@ type AggregatedPostedTxID struct {
 	CompetingTxs      map[string]struct{}
 }
 
-// AggregatedPostBEEF is a map of AggregatedPostedTxID results, indexed by txid
-type AggregatedPostBEEF map[string]*AggregatedPostedTxID
+// AggregatedPostFromBEEF is a map of AggregatedPostedTxID results, indexed by txid
+type AggregatedPostFromBEEF map[string]*AggregatedPostedTxID
 
-func (a AggregatedPostBEEF) getOrDefault(txid string) *AggregatedPostedTxID {
+func (a AggregatedPostFromBEEF) getOrDefault(txid string) *AggregatedPostedTxID {
 	if agg, ok := a[txid]; ok {
 		return agg
 	}
@@ -40,7 +40,7 @@ func (a AggregatedPostBEEF) getOrDefault(txid string) *AggregatedPostedTxID {
 	return agg
 }
 
-func (a AggregatedPostBEEF) summarize(txID string) {
+func (a AggregatedPostFromBEEF) summarize(txID string) {
 	agg, ok := a[txID]
 	if !ok {
 		agg = &AggregatedPostedTxID{
@@ -64,8 +64,8 @@ func (a AggregatedPostBEEF) summarize(txID string) {
 	}
 }
 
-func newAggregatedPostBEEF(results PostBeefResult, txids []string) AggregatedPostBEEF {
-	aggregatedTxs := make(AggregatedPostBEEF)
+func newAggregatedPostFromBEEF(results PostFromBeefResult, txids []string) AggregatedPostFromBEEF {
+	aggregatedTxs := make(AggregatedPostFromBEEF)
 
 	for _, result := range results {
 		if !result.Success() {

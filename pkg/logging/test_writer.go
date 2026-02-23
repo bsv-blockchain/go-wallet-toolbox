@@ -22,10 +22,12 @@ func (w *TestWriter) String() string {
 	return w.builder.String()
 }
 
+// Lines returns the written content split into lines.
 func (w *TestWriter) Lines() []string {
 	return seq.Collect(strings.Lines(w.builder.String()))
 }
 
+// Clear resets the writer's buffer.
 func (w *TestWriter) Clear() {
 	w.builder.Reset()
 }
