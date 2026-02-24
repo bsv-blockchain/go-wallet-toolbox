@@ -25,7 +25,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
@@ -101,7 +100,7 @@ type Wallet struct {
 	storage                 wdk.WalletStorage
 	keyDeriver              *sdk.KeyDeriver
 	flags                   *wallet_opts.Flags
-	services                *services.WalletServices
+	services                wdk.Services
 	chain                   defs.BSVNetwork
 	pendingSignActionsCache pending.SignActionsRepository
 	logger                  *slog.Logger
@@ -157,7 +156,7 @@ func WithTrustSelf(value sdk.TrustSelf) func(*wallet_opts.Opts) {
 }
 
 // WithServices allows to set the wallet services that will be used by the wallet.
-func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
+func WithServices(services wdk.Services) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.Services = services
 	}
