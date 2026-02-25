@@ -294,7 +294,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 				tx.Model(&models.Output{}).
 					Select("id").
 					Where(
-						"transaction_id = (?)",
+						"transaction_id in (?)",
 						tx.Model(&models.Transaction{}).
 							Select("id").
 							Where(p.query.Transaction.TxID.Eq(knownTxAsMined.TxID)),
