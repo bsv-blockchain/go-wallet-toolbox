@@ -316,4 +316,4 @@ The most basic way to show your support is to star :star2: the project, or to ra
 
 ## 📝 License
 
-[![License](https://img.shields.io/github/license/bsv-blockchain/go-wallet-toolbox?style=flat-square&color=blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-OpenBSV-blue?style=flat&logo=springsecurity&logoColor=white)](LICENSE)
