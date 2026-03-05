@@ -299,7 +299,7 @@ Read the [AI Usage & Assistant Guidelines](.github/tech-conventions/ai-complianc
 ## 👥 Maintainers
 | [<img src="https://github.com/icellan.png" height="50" alt="Siggi" />](https://github.com/icellan) | [<img src="https://github.com/galt-tr.png" height="50" alt="Galt" />](https://github.com/galt-tr) | [<img src="https://github.com/mrz1836.png" height="50" alt="MrZ" />](https://github.com/mrz1836) |
 |:--------------------------------------------------------------------------------------------------:|:-------------------------------------------------------------------------------------------------:|:------------------------------------------------------------------------------------------------:|
-|                                [Siggi](https://github.com/icellan)                                 |                                [Dylan](https://github.com/galt-tr)                                 |                                [MrZ](https://github.com/mrz1836)                                 |
+|                                [Siggi](https://github.com/icellan)                                 |                                [Dylan](https://github.com/galt-tr)                                |                                [MrZ](https://github.com/mrz1836)                                 |
 
 <br/>
 
@@ -310,10 +310,10 @@ View the [contributing guidelines](.github/CONTRIBUTING.md) and please follow th
 All kinds of contributions are welcome :raised_hands:!
 The most basic way to show your support is to star :star2: the project, or to raise issues :speech_balloon:.
 
-[![Stars](https://img.shields.io/github/stars/bsv-blockchain/go-chaincfg?label=Please%20like%20us&style=social&v=1)](https://github.com/bsv-blockchain/go-chaincfg/stargazers)
+[![Stars](https://img.shields.io/github/stars/bsv-blockchain/go-wallet-toolbox?label=Please%20like%20us&style=social&v=1)](https://github.com/bsv-blockchain/go-wallet-toolbox/stargazers)
 
 <br/>
 
 ## 📝 License
 
-[![License](https://img.shields.io/github/license/bsv-blockchain/go-chaincfg?style=flat-square&color=blue)](LICENSE)
+[![License](https://img.shields.io/github/license/bsv-blockchain/go-wallet-toolbox?style=flat-square&color=blue)](LICENSE)
