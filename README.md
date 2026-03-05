@@ -310,7 +310,7 @@ View the [contributing guidelines](.github/CONTRIBUTING.md) and please follow th
 All kinds of contributions are welcome :raised_hands:!
 The most basic way to show your support is to star :star2: the project, or to raise issues :speech_balloon:.
 
-[![Stars](https://img.shields.io/github/stars/bsv-blockchain/go-wallet-toolbox?label=Please%20like%20us&style=social&v=1)](https://github.com/bsv-blockchain/go-wallet-toolbox/stargazers)
+[![Stars](https://img.shields.io/github/stars/bsv-blockchain%2Fgo-wallet-toolbox?label=Please%20like%20us&style=social&v=1)](https://github.com/bsv-blockchain/go-wallet-toolbox/stargazers)
 
 <br/>
 
