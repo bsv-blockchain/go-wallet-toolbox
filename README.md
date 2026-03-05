@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🧬&nbsp;&nbsp;go-wallet-toolbox
+# 🧰&nbsp;&nbsp;go-wallet-toolbox
 
 **BSV wallet toolbox for blockchain interactions and wallet management.**
 
@@ -98,9 +98,9 @@
 
 ## 📖 About
 
-Welcome to the BSV Blockchain Wallet Toolbox for Go — BRC-100 conforming wallet components providing wallet, storage, services, and a minimal storage server. Built on top of the official [Go SDK](https://github.com/bsv-blockchain/go-sdk), this toolbox helps you assemble scalable wallet-backed applications and services.
+Welcome to the BSV Blockchain Wallet Toolbox for Go — a BRC-100 conforming collection of wallet components that provide storage, services, and a minimal storage server, all built on top of the official [Go SDK](https://github.com/bsv-blockchain/go-sdk). This toolbox gives you everything you need to assemble scalable, production-ready wallet-backed applications and services.
 
-Provide interlocking, production-ready building blocks for BSV wallet applications: persistent storage, protocol-based key derivation, wallet orchestration, and integrations with blockchain services. The toolbox complements the lower-level primitives in the Go SDK, enabling SPV-friendly, privacy-preserving, scalable wallet workflows.
+The toolbox provides interlocking, production-ready building blocks for BSV wallet applications: persistent storage, protocol-based key derivation, wallet orchestration, and seamless integrations with blockchain services. By complementing the lower-level primitives in the Go SDK, it enables SPV-friendly, privacy-preserving, and scalable wallet workflows.
 
 ### Features
 - Protocol-aligned wallet flows (BRC-100 concepts).
@@ -158,7 +158,7 @@ For a guided walkthrough (including faucet and local setup), see the examples ov
 
 ### Examples & Usage Guides
 
-Examples live under `./examples` and are grouped by purpose:
+Examples live under [`./examples`](/examples) and are grouped by purpose:
 - `wallet_examples/`: end-to-end wallet actions (create P2PKH/data tx, balance, encryption, internalize, batching).
 - `services_examples/`: interactions with external services (headers, BEEF, status checks, WOC/ARC helpers, etc.).
 - `complex_wallet_examples/create_faucet_server/`: a runnable faucet server with Docker support.
