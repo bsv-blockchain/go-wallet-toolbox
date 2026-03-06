@@ -27,6 +27,7 @@ type NewTx struct {
 	TxID *string
 
 	ReservedOutputIDs []uint
+	SpentOutputIDs    []uint
 	Outputs           []*NewOutput
 	UTXOStatus        wdk.UTXOStatus
 
