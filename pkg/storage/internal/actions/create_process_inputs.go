@@ -180,9 +180,7 @@ func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, er
 
 		var newXInput *xinputDefinition
 		if output != nil {
-			if output.Change {
-				changeOutputIDs = append(changeOutputIDs, output.ID)
-			}
+			changeOutputIDs = append(changeOutputIDs, output.ID)
 			newXInput, err = proc.xinputDefOnKnownUTXO(&xinput, output)
 		} else {
 			newXInput, err = proc.xinputDefOnUnknownUTXO(&xinput)
