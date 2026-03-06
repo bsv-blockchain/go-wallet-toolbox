@@ -346,7 +346,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Description:       params.Description,
 		Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
 		Outputs:           newOutputs,
-		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+		ReservedOutputIDs: c.mapReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+		SpentOutputIDs:    c.mapReservedOutputIDs(funding.AllocatedUTXOs, append(processedInputs.ChangeOutputIDs, processedInputs.KnownOutputIDs...)),
 		Labels:            params.Labels,
 		InputBeef:         inputBeef,
 		Commission:        c.createCommissionEntity(userID, commOut),
@@ -739,7 +740,7 @@ func (c *create) randomReference() (string, error) {
 	return reference, nil
 }
 
-func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsIDs []uint) []uint {
+func (c *create) mapReservedOutputIDs(allocated []*funder.UTXO, providedOutputsIDs []uint) []uint {
 	ids := make([]uint, 0, len(allocated)+len(providedOutputsIDs))
 	ids = append(ids, providedOutputsIDs...)
 	for _, utxo := range allocated {

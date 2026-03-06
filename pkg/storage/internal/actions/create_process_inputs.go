@@ -62,6 +62,7 @@ type processedInputsResult struct {
 	Inputs          xinputDefinitions
 	Beef            *transaction.Beef
 	ChangeOutputIDs []uint
+	KnownOutputIDs  []uint
 }
 
 type inputsProcessor struct {
@@ -172,6 +173,7 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, error) {
 	xinputDefs := make([]*xinputDefinition, 0, len(proc.providedInputs))
 	var changeOutputIDs []uint
+	var knownOutputIDs []uint
 	for _, xinput := range proc.providedInputs {
 		output, err := proc.parent.outputRepo.FindOutput(proc.ctx, proc.userID, xinput.Outpoint)
 		if err != nil {
@@ -182,6 +184,8 @@ func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, er
 		if output != nil {
 			if output.Change {
 				changeOutputIDs = append(changeOutputIDs, output.ID)
+			} else {
+				knownOutputIDs = append(knownOutputIDs, output.ID)
 			}
 			newXInput, err = proc.xinputDefOnKnownUTXO(&xinput, output)
 		} else {
@@ -199,6 +203,7 @@ func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, er
 		Inputs:          xinputDefs,
 		Beef:            proc.beef,
 		ChangeOutputIDs: changeOutputIDs,
+		KnownOutputIDs:  knownOutputIDs,
 	}, nil
 }
 
