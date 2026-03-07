@@ -101,6 +101,58 @@ func TestStringUnder50Bytes(t *testing.T) {
 	}
 }
 
+func TestNewIdentifier(t *testing.T) {
+	t.Run("lowercase input is unchanged", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("protocolname")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("protocolname"), result)
+	})
+
+	t.Run("uppercase input is lowercased", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("UPPERCASE")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("uppercase"), result)
+	})
+
+	t.Run("mixed case input is normalized", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("protocolName")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("protocolname"), result)
+	})
+
+	t.Run("leading and trailing whitespace is trimmed", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("  basket  ")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("basket"), result)
+	})
+
+	t.Run("whitespace-only input produces empty identifier that fails Validate", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("   ")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300(""), result)
+		require.Error(t, result.Validate())
+	})
+
+	t.Run("empty input produces empty identifier that fails Validate", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300(""), result)
+		require.Error(t, result.Validate())
+	})
+}
+
 func TestStringUnder300(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		// when:
