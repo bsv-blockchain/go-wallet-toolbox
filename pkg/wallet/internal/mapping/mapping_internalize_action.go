@@ -15,13 +15,17 @@ func MapInternalizeActionArgs(args sdk.InternalizeActionArgs) wdk.InternalizeAct
 		Tx:             args.Tx,
 		Outputs:        slices.Map(args.Outputs, mapInternalizeOutput),
 		Description:    primitives.String5to2000Bytes(args.Description),
-		Labels:         slices.Map(args.Labels, stringToStringUnder300),
+		Labels:         slices.Map(args.Labels, stringToLabel),
 		SeekPermission: mapSeekPermission(args.SeekPermission),
 	}
 }
 
-func stringToStringUnder300(s string) primitives.StringUnder300 {
-	return primitives.StringUnder300(s)
+func stringToTag(s string) primitives.StringUnder300 {
+	return primitives.NewTag(s)
+}
+
+func stringToLabel(s string) primitives.StringUnder300 {
+	return primitives.NewLabel(s)
 }
 
 // mapInternalizeOutput maps sdk.InternalizeOutput to wdk.InternalizeOutput
@@ -71,7 +75,7 @@ func mapInsertionRemittance(insertion *sdk.BasketInsertion) *wdk.BasketInsertion
 	return &wdk.BasketInsertion{
 		Basket:             primitives.StringUnder300(insertion.Basket),
 		CustomInstructions: customInstructions,
-		Tags:               slices.Map(insertion.Tags, stringToStringUnder300),
+		Tags:               slices.Map(insertion.Tags, stringToTag),
 	}
 }
 

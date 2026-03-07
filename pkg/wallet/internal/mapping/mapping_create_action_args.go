@@ -28,7 +28,7 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.
 		Outputs:     slices.Map(args.Outputs, mapCreateActionOutput),
 		LockTime:    to.Value(args.LockTime),
 		Version:     to.ValueOr(args.Version, 1),
-		Labels:      slices.Map(args.Labels, stringToStringUnder300),
+		Labels:      slices.Map(args.Labels, stringToLabel),
 		Options:     options,
 		Reference:   to.ValueOr(args.Reference, ""),
 
@@ -91,7 +91,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 		OutputDescription:  primitives.String5to2000Bytes(output.OutputDescription),
 		Basket:             basket,
 		CustomInstructions: customInstructions,
-		Tags:               slices.Map(output.Tags, stringToStringUnder300),
+		Tags:               slices.Map(output.Tags, stringToTag),
 	}
 }
 

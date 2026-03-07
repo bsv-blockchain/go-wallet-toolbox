@@ -76,6 +76,18 @@ func (b StringUnder300) Validate() error {
 	return nil
 }
 
+// NewTag creates a normalized StringUnder300 for use as an output tag.
+// Matches the TypeScript SDK's validateIdentifier behavior: trim + lowercase.
+func NewTag(s string) StringUnder300 {
+	return StringUnder300(strings.TrimSpace(strings.ToLower(s)))
+}
+
+// NewLabel creates a normalized StringUnder300 for use as a transaction label.
+// Matches the TypeScript SDK's validateIdentifier behavior: trim + lowercase.
+func NewLabel(s string) StringUnder300 {
+	return StringUnder300(strings.TrimSpace(strings.ToLower(s)))
+}
+
 // HexString is a string in hexadecimal format
 type HexString string
 
