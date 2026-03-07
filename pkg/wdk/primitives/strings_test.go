@@ -131,6 +131,71 @@ func TestStringUnder300(t *testing.T) {
 	}
 }
 
+func TestNewIdentifier(t *testing.T) {
+	t.Run("lowercase input is unchanged", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("basket")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("basket"), result)
+		require.NoError(t, result.Validate())
+	})
+
+	t.Run("uppercase input is lowercased", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("BASKET")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("basket"), result)
+		require.NoError(t, result.Validate())
+	})
+
+	t.Run("mixed-case input is normalized to lowercase", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("MyBasket")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("mybasket"), result)
+		require.NoError(t, result.Validate())
+	})
+
+	t.Run("leading and trailing whitespace is trimmed", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("  basket  ")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("basket"), result)
+		require.NoError(t, result.Validate())
+	})
+
+	t.Run("whitespace and mixed-case are both normalized", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("  MyTag  ")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300("mytag"), result)
+		require.NoError(t, result.Validate())
+	})
+
+	t.Run("empty string produces empty StringUnder300 that fails Validate", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300(""), result)
+		require.Error(t, result.Validate())
+	})
+
+	t.Run("whitespace-only string produces empty StringUnder300 that fails Validate", func(t *testing.T) {
+		// when:
+		result := primitives.NewIdentifier("   ")
+
+		// then:
+		require.Equal(t, primitives.StringUnder300(""), result)
+		require.Error(t, result.Validate())
+	})
+}
+
 func TestHexString(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		// when:
