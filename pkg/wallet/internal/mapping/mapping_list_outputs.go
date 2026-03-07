@@ -20,7 +20,7 @@ import (
 func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 	result := wdk.ListOutputsArgs{
 		Basket:                    primitives.NewIdentifier(args.Basket),
-		Tags:                      slices.Map(args.Tags, func(tag string) primitives.StringUnder300 { return primitives.NewIdentifier(tag) }),
+		Tags:                      slices.Map(args.Tags, stringToIdentifier),
 		Limit:                     primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
 		Offset:                    primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
 		IncludeCustomInstructions: optional.OfPtr(args.IncludeCustomInstructions).OrZeroValue(),
