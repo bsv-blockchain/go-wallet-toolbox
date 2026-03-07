@@ -17,7 +17,7 @@ import (
 // MapListActionsArgs maps sdk.ListActionsArgs to wdk.ListActionsArgs
 func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	result := wdk.ListActionsArgs{
-		Labels: slices.Map(args.Labels, func(label string) primitives.StringUnder300 { return primitives.NewLabel(label) }),
+		Labels: slices.Map(args.Labels, func(label string) primitives.StringUnder300 { return primitives.NewIdentifier(label) }),
 		Limit:  primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
 		Offset: primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
 	}
