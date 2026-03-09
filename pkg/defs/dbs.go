@@ -79,7 +79,7 @@ type MySQL struct {
 type SQLCommon struct {
 	Host     string `mapstructure:"host"`
 	DBName   string `mapstructure:"db_name"`
-	Password string `mapstructure:"password"` //nolint:gosec // G117 - config field, not a hardcoded secret
+	Password string `mapstructure:"password"`
 	Port     string `mapstructure:"port"`
 	TimeZone string `mapstructure:"time_zone"`
 	User     string `mapstructure:"user"`
