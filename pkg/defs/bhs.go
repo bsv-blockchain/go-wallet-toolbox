@@ -7,7 +7,7 @@ import "fmt"
 type BHS struct {
 	Enabled bool   `mapstructure:"enabled"` // Enabled indicates whether the BHS service is enabled.
 	URL     string `mapstructure:"url"`     // URL is the base endpoint of the BHS service.
-	APIKey  string `mapstructure:"api_key"`
+	APIKey  string `mapstructure:"api_key"` //nolint:gosec // G117 - config field, not a hardcoded secret
 }
 
 // Validate checks if the BHS configuration is valid.

@@ -13,7 +13,7 @@ type Config struct {
 		Network defs.BSVNetwork `mapstructure:"network"`
 	} `mapstructure:"server"`
 	CertifierWallet struct {
-		PrivateKey string `mapstructure:"private_key"`
+		PrivateKey string `mapstructure:"private_key"` //nolint:gosec // G117: config field, not serialized to JSON
 	} `mapstructure:"certifier_wallet"`
 	Storage struct {
 		URL string `mapstructure:"url"`
