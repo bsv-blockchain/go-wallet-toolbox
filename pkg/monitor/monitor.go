@@ -265,7 +265,7 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 	}
 
 	timeout := time.Duration(float64(untilNext) * safetyMargin)
-	return context.WithTimeout(ctx, timeout)
+	return context.WithTimeout(ctx, timeout) //nolint:gosec // G118 - cancel func is returned to be called by the caller
 }
 
 func (d *Daemon) handleReorgEvents(ctx context.Context) {
