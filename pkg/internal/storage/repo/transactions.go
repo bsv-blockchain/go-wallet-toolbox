@@ -57,7 +57,7 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 			return fmt.Errorf("failed to create new transaction model: %w", err)
 		}
 
-		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
 			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
 		}
 

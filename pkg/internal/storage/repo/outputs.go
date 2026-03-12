@@ -653,18 +653,22 @@ func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionI
 	}()
 
 	err = o.query.DBTransaction(func(query *genquery.Query) error {
-		filterScope := func(dao gen.Dao) gen.Dao {
+		allSpentScope := func(dao gen.Dao) gen.Dao {
+			return dao.Where(query.Output.SpentBy.Eq(spendingTransactionID))
+		}
+
+		changeSpentScope := func(dao gen.Dao) gen.Dao {
 			return dao.
 				Where(query.Output.SpentBy.Eq(spendingTransactionID)).
 				Scopes(isChangeDaoScope(query))
 		}
 
-		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+		changeOutputs, err := getOutputsWithTxStatus(ctx, query, changeSpentScope)
 		if err != nil {
 			return err
 		}
 
-		err = makeOutputsSpendable(ctx, query, filterScope)
+		err = makeOutputsSpendable(ctx, query, allSpentScope)
 		if err != nil {
 			return err
 		}
