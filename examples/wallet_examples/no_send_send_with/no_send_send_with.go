@@ -43,7 +43,7 @@ func main() {
 
 func mint(ctx context.Context, alice *example_setup.Setup, aliceWallet wallet.Interface, keyID string) token.Tokens {
 	var prevNoSentChange []transaction.Outpoint
-	var tokens token.Tokens
+	tokens := make(token.Tokens, 0, tokensCount)
 
 	show.Step("Mint multiple tokens", "all mints are done with noSend = true, so they are not broadcasted immediately")
 	// Mint multiple tokens with noSend = true, each time passing the change from the previous mint as noSendChange to the next mint
