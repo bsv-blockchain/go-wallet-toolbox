@@ -83,7 +83,7 @@ func applyTransactionMethodWorkaround() {
 
 	newContent := strings.Replace(fileContent, originalMethodSignature, replacementMethodSignature, 1)
 
-	err = os.WriteFile(genFilePath, []byte(newContent), 0600)
+	err = os.WriteFile(genFilePath, []byte(newContent), 0600) //nolint:gosec // G703 - genFilePath is a hardcoded constant, not user input
 	if err != nil {
 		log.Fatalf("WORKAROUND FAILED: Could not write changes to generated file %q: %v", genFilePath, err)
 	}
