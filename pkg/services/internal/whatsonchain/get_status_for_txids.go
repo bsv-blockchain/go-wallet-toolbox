@@ -10,7 +10,7 @@ import (
 
 func (woc *WhatsOnChain) getStatusForTxIDs(ctx context.Context, url string, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
 	chunks := slices.Collect(slices.Chunk(txIDs, 20))
-	responses := make([]wdk.TxStatusDetail, len(txIDs))
+	responses := make([]wdk.TxStatusDetail, 0, len(txIDs))
 
 	for _, chunk := range chunks {
 		response, err := woc.doStatusRequest(ctx, url, chunk)
