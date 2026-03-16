@@ -72,11 +72,11 @@ func (arc *ARC) isLocalNetworkHost(hostname string) bool {
 	if ip != nil {
 		// RFC 1918 / RFC 5735 well-known private and reserved CIDR ranges used
 		// for local-network detection — these are not hardcoded service addresses.
-		_, private10, _ := net.ParseCIDR("10.0.0.0/8")       //nolint:gosec // well-known RFC 1918 range
-		_, private172, _ := net.ParseCIDR("172.16.0.0/12")    //nolint:gosec // well-known RFC 1918 range
-		_, private192, _ := net.ParseCIDR("192.168.0.0/16")   //nolint:gosec // well-known RFC 1918 range
-		_, loopback, _ := net.ParseCIDR("127.0.0.0/8")        //nolint:gosec // well-known loopback range
-		_, linkLocal, _ := net.ParseCIDR("169.254.0.0/16")    //nolint:gosec // well-known link-local range
+		_, private10, _ := net.ParseCIDR("10.0.0.0/8")      //nolint:gosec // well-known RFC 1918 range
+		_, private172, _ := net.ParseCIDR("172.16.0.0/12")  //nolint:gosec // well-known RFC 1918 range
+		_, private192, _ := net.ParseCIDR("192.168.0.0/16") //nolint:gosec // well-known RFC 1918 range
+		_, loopback, _ := net.ParseCIDR("127.0.0.0/8")      //nolint:gosec // well-known loopback range
+		_, linkLocal, _ := net.ParseCIDR("169.254.0.0/16")  //nolint:gosec // well-known link-local range
 
 		return private10.Contains(ip) || private172.Contains(ip) || private192.Contains(ip) || loopback.Contains(ip) || linkLocal.Contains(ip)
 	}
