@@ -56,6 +56,11 @@ func (p *RPCStorageProvider) ensureUserID(ctx context.Context, auth *wdk.AuthID)
 	return nil
 }
 
+// Destroy is a no-op on the server side. Remote clients call destroy when
+// cleaning up their local wallet instance, but that should not shut down
+// the server's storage. Matches the TypeScript StorageServer behavior.
+func (p *RPCStorageProvider) Destroy() {}
+
 func (p *RPCStorageProvider) verifyAuthenticated(ctx context.Context) error {
 	if middleware.IsNotAuthenticated(ctx) {
 		return fmt.Errorf("function may only access authenticated user")
