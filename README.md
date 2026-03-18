@@ -18,7 +18,7 @@
        <code>CI / CD</code> &nbsp;&nbsp;
     </td>
     <td align="left">
-       <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/actions"><img src="https://img.shields.io/github/actions/workflow/status/bsv-blockchain/go-wallet-toolbox/fortress.yml?branch=master&label=build&logo=github&style=flat-square" alt="Build"></a>
+       <!-- <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/actions"><img src="https://img.shields.io/github/actions/workflow/status/bsv-blockchain/go-wallet-toolbox/fortress.yml?branch=master&label=build&logo=github&style=flat-square" alt="Build"></a> -->
        <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/actions"><img src="https://img.shields.io/github/last-commit/bsv-blockchain/go-wallet-toolbox?style=flat-square&logo=git&logoColor=white&label=last%20update" alt="Last Commit"></a>
     </td>
     <td align="right">
@@ -26,7 +26,7 @@
     </td>
     <td align="left">
        <a href="https://goreportcard.com/report/github.com/bsv-blockchain/go-wallet-toolbox"><img src="https://goreportcard.com/badge/github.com/bsv-blockchain/go-wallet-toolbox?style=flat-square" alt="Go Report"></a>
-       <a href="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox"><img src="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox/branch/master/graph/badge.svg?style=flat-square" alt="Coverage"></a>
+       <!-- <a href="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox"><img src="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox/branch/master/graph/badge.svg?style=flat-square" alt="Coverage"></a> -->
     </td>
   </tr>
 
