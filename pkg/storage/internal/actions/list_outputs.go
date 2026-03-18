@@ -8,9 +8,10 @@ import (
 	"log/slog"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -47,6 +48,26 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
+
+	if specops.IsWalletBalanceSpecOp(string(args.Basket)) {
+		balanceFilter := entity.ListOutputsFilter{
+			UserID: userID,
+			Basket: "default",
+			Limit:  -1,
+		}
+		outputModels, _, err := l.outputsRepo.ListAndCountOutputs(ctx, balanceFilter)
+		if err != nil {
+			return nil, fmt.Errorf("error listing outputs for balance: %w", err)
+		}
+		var totalSatoshis uint64
+		for _, o := range outputModels {
+			totalSatoshis += must.ConvertToUInt64(o.Satoshis)
+		}
+		return &wdk.ListOutputsResult{
+			TotalOutputs: primitives.PositiveInteger(totalSatoshis),
+			Outputs:      []*wdk.WalletOutput{},
+		}, nil
+	}
 
 	filter := l.toFilterParams(userID, args)
 

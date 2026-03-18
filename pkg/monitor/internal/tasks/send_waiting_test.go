@@ -21,7 +21,7 @@ func TestSendWaitingMonitorTask(t *testing.T) {
 	daemon := given.Daemon()
 
 	// when:
-	err := daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
+	err := daemon.Start(t.Context(), map[defs.MonitorTask]defs.TaskConfig{
 		defs.SendWaitingMonitorTask: {
 			Enabled:          true,
 			IntervalSeconds:  seconds,
@@ -45,7 +45,7 @@ func TestSendWaitingMonitorTask_StartedImmediately(t *testing.T) {
 	daemon := given.Daemon()
 
 	// when:
-	err := daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
+	err := daemon.Start(t.Context(), map[defs.MonitorTask]defs.TaskConfig{
 		defs.SendWaitingMonitorTask: {
 			Enabled:          true,
 			IntervalSeconds:  1,

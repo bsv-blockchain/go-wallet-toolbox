@@ -129,6 +129,9 @@ func (s *WalletTestSuite) Test_AcquireCertificate_IssuanceProtocol() {
 	// and: create a certifier server wallet (the server that will issue certificates)
 	certifierWallet := given.BobWalletWithStorage(s.StorageType) // Bob acts as certifier
 
+	// and: fund the certifier wallet (needed for creating revocation transaction)
+	given.Faucet(certifierWallet).TopUp(1000)
+
 	// and: create a test server with auth middleware
 	certifierServer := given.
 		CertifierServer().

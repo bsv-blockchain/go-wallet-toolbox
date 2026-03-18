@@ -662,7 +662,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNewNotEnoughFundsError() {
 		// then:
 		assert.Error(t, err)
 		require.Nil(t, result)
-
 	})
 
 	s.Run("return error when user have not enough funds and when sign&process is false", func() {
@@ -682,7 +681,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNewNotEnoughFundsError() {
 		// then:
 		assert.Error(t, err)
 		require.Nil(t, result)
-
 	})
 }
 
@@ -744,7 +742,6 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		// then:
 		assert.NoError(t, err, "Wallet should not fail for signable transaction when all services are down")
 		require.NotNil(t, result, "Wallet should return signable transaction when all services are down")
-
 	})
 }
 
@@ -913,7 +910,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// and:
-		given.BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+		given.ScriptsVerifier().WillReturnError(fmt.Errorf("mock scripts verifier error"))
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -928,7 +925,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 
 		// when:
 		txIDToRetry := txError.TxID
-		given.BeefVerifier().DefaultBehavior()
+		given.ScriptsVerifier().DefaultBehavior()
 		createActionResult, err = aliceWallet.CreateAction(t.Context(), sdk.CreateActionArgs{
 			Options: &sdk.CreateActionOptions{
 				SendWith: []chainhash.Hash{txIDToRetry},

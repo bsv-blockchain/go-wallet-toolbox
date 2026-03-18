@@ -9,7 +9,7 @@ import (
 	"github.com/bsv-blockchain/go-chaintracks/config"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	p2p "github.com/bsv-blockchain/go-teranode-p2p-client"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 

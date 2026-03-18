@@ -10,7 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/pushdrop"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 )
 
 func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.Logger, lookupAns *lookup.LookupAnswer) []certificates.VerifiableCertificate {

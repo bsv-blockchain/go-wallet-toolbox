@@ -43,7 +43,6 @@ linters:
     - gosec
     - govet
     - ineffassign
-    - nolintlint
     - prealloc
     - revive
     - sqlclosecheck

@@ -9,7 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
@@ -105,7 +105,7 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *Daem
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
-func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
+func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
 	d.startLock.Lock()
 	defer d.startLock.Unlock()
 
@@ -128,11 +128,11 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 	}
 
 	if d.eventChannels.OnReorg != nil {
-		go d.handleReorgEvents()
+		go d.handleReorgEvents(ctx)
 	}
 
 	if d.eventChannels.OnTip != nil {
-		go d.handleNewTipEvents(context.Background())
+		go d.handleNewTipEvents(ctx)
 	}
 
 	d.scheduler.Start()
@@ -265,10 +265,10 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 	}
 
 	timeout := time.Duration(float64(untilNext) * safetyMargin)
-	return context.WithTimeout(ctx, timeout)
+	return context.WithTimeout(ctx, timeout) //nolint:gosec // G118 - cancel func is returned to be called by the caller
 }
 
-func (d *Daemon) handleReorgEvents() {
+func (d *Daemon) handleReorgEvents(ctx context.Context) {
 	d.logger.Info("Starting reorg event handler")
 
 	for event := range d.eventChannels.OnReorg {
@@ -282,7 +282,7 @@ func (d *Daemon) handleReorgEvents() {
 			orphanedHashes[i] = hash.String()
 		}
 
-		if err := d.storage.HandleReorg(context.Background(), orphanedHashes); err != nil {
+		if err := d.storage.HandleReorg(ctx, orphanedHashes); err != nil {
 			d.logger.Error("Failed to handle reorg", "error", err)
 		}
 	}
@@ -300,18 +300,18 @@ func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 		)
 
 		go func(h *chaintracks.BlockHeader) {
-			results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
+			results, err := d.storage.ProcessNewTip(ctx, h.Height, h.Hash.String())
 			if err != nil {
 				d.logger.Error("ProcessNewTip failed", "error", err)
 				return
 			}
 
-			d.sendProvenEvents(ctx, results)
+			d.sendProvenEvents(results)
 		}(header)
 	}
 }
 
-func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchronizedStatus) {
+func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
 	if d.eventChannels.OnTxProven == nil {
 		return
 	}
@@ -329,8 +329,6 @@ func (d *Daemon) sendProvenEvents(ctx context.Context, results []wdk.TxSynchroni
 
 		select {
 		case d.eventChannels.OnTxProven <- msg:
-		case <-ctx.Done():
-			return
 		default:
 			d.logger.Warn("OnTxProven channel in monitor is full, dropping event")
 		}

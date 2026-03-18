@@ -9,13 +9,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -114,14 +114,15 @@ func newStorageFixture(t testing.TB, identityKey string, name string, configModi
 
 		ServicesFixture: servicesFixture,
 
-		network:             network,
-		commission:          defs.Commission{},
-		feeModel:            defs.DefaultFeeModel(),
-		failAbandoned:       defs.DefaultFailAbandoned(),
-		randomizer:          randomizer.New(),
-		beefVerifierFixture: newBeefVerifierFixture(),
-		storagePrivKey:      s.storagePrivKey,
-		storageName:         s.storageName,
+		network:                network,
+		commission:             defs.Commission{},
+		feeModel:               defs.DefaultFeeModel(),
+		failAbandoned:          defs.DefaultFailAbandoned(),
+		randomizer:             randomizer.New(),
+		beefVerifierFixture:    newBeefVerifierFixture(),
+		scriptsVerifierFixture: newScriptsVerifierFixture(),
+		storagePrivKey:         s.storagePrivKey,
+		storageName:            s.storageName,
 	}
 
 	return s, func() {
