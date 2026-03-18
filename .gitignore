@@ -28,9 +28,6 @@ go.work.sum
 .idea/
 *.iml
 
-# Visual Studio Code
-.vscode/
-
 # OSX
 .DS_Store
 
@@ -57,3 +54,6 @@ examples/examples-config.yaml
 manual_tests/*.sqlite
 manual_tests/*.log
 manual_tests/*.sqlite-journal
+
+# Fuzz Tests
+testdata

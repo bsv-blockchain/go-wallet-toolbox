@@ -76,7 +76,7 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create daemon: %w", err)
 		}
-		if err = daemon.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
+		if err = daemon.Start(ctx, cfg.Monitor.Tasks.EnabledTasks()); err != nil {
 			return nil, nil, fmt.Errorf("failed to start storage monitor: %w", err)
 		}
 	}
