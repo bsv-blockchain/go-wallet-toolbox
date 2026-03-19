@@ -316,6 +316,8 @@ runs:
     - name: 🏗️ Warm build cache (build cache miss)
       if: steps.setup-go.outputs.build-cache-hit != 'true'
       shell: bash
+      env:
+        GOGC: "50"
       run: |
         set -euo pipefail
         GO_MODULE_DIR="${{ env.GO_MODULE_DIR }}"
