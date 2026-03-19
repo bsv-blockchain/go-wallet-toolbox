@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type SyncKnownTx struct {
@@ -62,7 +63,6 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("transaction failed: %w", err)
 	}
@@ -125,7 +125,6 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 
 		return nil
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("transaction failed: %w", err)
 	}

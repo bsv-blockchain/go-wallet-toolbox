@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSyncProcess(t *testing.T) {
@@ -214,7 +215,7 @@ func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 		WithCountHavingTxID(numberOfTxs)
 
 	// and:
-	const fee = 4 //NOTE: Minimum fee to cover so many UTXOs as inputs
+	const fee = 4 // NOTE: Minimum fee to cover so many UTXOs as inputs
 	thenDBState.CanCreateActionForSatoshis(
 		testusers.Alice,
 		seed.GetAvailableBalance()-4*fee,
@@ -226,7 +227,7 @@ func TestSyncProcessWithMergeUser(t *testing.T) {
 	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
 	defer cleanup()
 
-	//NOTE: Backup storage is created first, so the user data will be older than in the source storage - so the merge will happen
+	// NOTE: Backup storage is created first, so the user data will be older than in the source storage - so the merge will happen
 	backupProvider := givenBackupDB.Provider().GORM()
 
 	// and:

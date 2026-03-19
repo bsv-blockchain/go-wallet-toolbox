@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestPostBeefResult(t *testing.T) {

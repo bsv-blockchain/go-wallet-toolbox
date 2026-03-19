@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 )
 
 func TestMapParallel(t *testing.T) {
@@ -85,7 +86,6 @@ func TestMapParallel(t *testing.T) {
 	}
 
 	t.Run("handle nil sequence", func(t *testing.T) {
-
 		// when:
 		taskResults := internal.MapParallel(t.Context(), nil, func(_ context.Context, task *Task) *types.Result[string] {
 			return task.Run(t)

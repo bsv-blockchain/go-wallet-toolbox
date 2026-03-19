@@ -3,8 +3,9 @@ package randomizer_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 )
 
 func TestRandomBase64ByTestRandomizer(t *testing.T) {
@@ -118,5 +119,4 @@ func TestRandomManyBase64Values(t *testing.T) {
 		// and:
 		lookup[randomized] = struct{}{}
 	}
-
 }

@@ -10,6 +10,12 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seq2"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
@@ -22,11 +28,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/seq2"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 const transactionBatchLength = 16
@@ -362,7 +363,7 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 		txStatus = wdk.TxStatusUnprocessed
 	}
 
-	return
+	return txStatus, reqStatus
 }
 
 func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool) (*wdk.ProcessActionResult, error) {
@@ -629,7 +630,7 @@ func (p *process) updateSingleTx(
 
 	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID, serviceErrors, reference)
 	if err != nil {
-		return
+		return sendWithResult, reviewActionResult, err
 	}
 
 	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
@@ -637,24 +638,24 @@ func (p *process) updateSingleTx(
 	err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
 	if err != nil {
 		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-		return
+		return sendWithResult, reviewActionResult, err
 	}
 
 	err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
 	if err != nil {
 		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-		return
+		return sendWithResult, reviewActionResult, err
 	}
 
 	if spendable {
 		err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 		if err != nil {
 			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
-			return
+			return sendWithResult, reviewActionResult, err
 		}
 	}
 
-	return
+	return sendWithResult, reviewActionResult, err
 }
 
 func (p *process) failedResultForTxID(txID string) (wdk.SendWithResult, wdk.ReviewActionResult) {
@@ -781,7 +782,7 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 		err = fmt.Errorf("unknown AggregatedPostedTxIDStatus %s", aggBroadcastResult.Status)
 	}
 
-	return
+	return reqStatus, txStatus, spendable, reviewActionResult, sendWithResult, err
 }
 
 func (p *process) StopBackgroundBroadcaster() {

@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 

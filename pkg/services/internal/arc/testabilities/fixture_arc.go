@@ -3,11 +3,12 @@ package testabilities
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type ARCFServiceFixture interface {

@@ -12,11 +12,10 @@ import (
 
 // WalletStorageProvider is an interface for writing to the wallet storage
 type WalletStorageProvider interface {
-
 	// Migrate migrates a wallet storage database.
 	// @Write
 	// @NonRPC
-	Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error)
+	Migrate(ctx context.Context, storageName, storageIdentityKey string) (string, error)
 
 	// MakeAvailable makes the storage available storage for user.
 	// @Write

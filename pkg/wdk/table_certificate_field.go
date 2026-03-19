@@ -25,7 +25,7 @@ type TableCertificateFieldSlice []TableCertificateField
 // ParseToTableCertificateFieldSlice converts a map of certificate fields into a slice of TableCertificateField pointers.
 // Each entry in the `fields` map becomes a TableCertificateField, populated with the user ID, field name, field value,
 // and the corresponding master key from `keyringForSubject`. Returns an error if any field name is missing in `keyringForSubject`.
-func ParseToTableCertificateFieldSlice(userID int, fields map[string]string, keyringForSubject map[string]string) ([]*TableCertificateField, error) {
+func ParseToTableCertificateFieldSlice(userID int, fields, keyringForSubject map[string]string) ([]*TableCertificateField, error) {
 	tableCertificateFields := make([]*TableCertificateField, 0, len(fields))
 
 	for name, value := range fields {

@@ -4,11 +4,12 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 )
 
 type MonitorFixture interface {

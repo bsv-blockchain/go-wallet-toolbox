@@ -12,7 +12,7 @@ const (
 )
 
 // UtxoSuccessJSON returns a valid JSON response for a confirmed UTXO.
-func UtxoSuccessJSON(scriptHash string, txid string, index uint32, height int64, value uint64) string {
+func UtxoSuccessJSON(scriptHash, txid string, index uint32, height int64, value uint64) string {
 	return fmt.Sprintf(`{
 		"script": "%s",
 		"result": [{

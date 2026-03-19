@@ -42,7 +42,7 @@ func TestTransactionSize(t *testing.T) {
 		"two inputs, two outputs": {
 			inputSizes:  seq.Of[uint64](100, 200),
 			outputSizes: seq.Of[uint64](300, 400),
-			expected: 8 + //tx envelope size
+			expected: 8 + // tx envelope size
 				1 + // varint size of inputs count
 				141 + // 40+100+1 // input [0] size
 				241 + // 40+200+1 // input [1] size
@@ -53,7 +53,7 @@ func TestTransactionSize(t *testing.T) {
 		"zero inputs, two outputs": {
 			inputSizes:  seq.Of[uint64](),
 			outputSizes: seq.Of[uint64](300, 400),
-			expected: 8 + //tx envelope size
+			expected: 8 + // tx envelope size
 				1 + // varint size of inputs count
 				1 + // varint size of outputs count
 				311 + // 8+300+3// output [0] size
@@ -62,7 +62,7 @@ func TestTransactionSize(t *testing.T) {
 		"two inputs, zero outputs": {
 			inputSizes:  seq.Of[uint64](100, 200),
 			outputSizes: seq.Of[uint64](),
-			expected: 8 + //tx envelope size
+			expected: 8 + // tx envelope size
 				1 + // varint size of inputs count
 				141 + // 40+100+1 // input [0] size
 				241 + // 40+200+1 // input [1] size
@@ -71,7 +71,7 @@ func TestTransactionSize(t *testing.T) {
 		"300 inputs, 400 outputs": {
 			inputSizes:  seq.Repeat[uint64](100, 300),
 			outputSizes: seq.Repeat[uint64](200, 400),
-			expected: 8 + //tx envelope size
+			expected: 8 + // tx envelope size
 				3 + // varint size of inputs count
 				300*141 + // 40+100+1 // inputs size
 				3 + // varint size of outputs count

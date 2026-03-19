@@ -5,17 +5,20 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 )
 
-const secondArgument = "test"
-const thirdArgument = 1
-const fourthArgument = true
+const (
+	secondArgument = "test"
+	thirdArgument  = 1
+	fourthArgument = true
+)
 
 var errorFromPanic = errors.New("some panic occurred")
 
@@ -594,7 +597,6 @@ func TestQueueParallel(t *testing.T) {
 			})
 		})
 	}
-
 }
 
 type TestServiceResult struct {

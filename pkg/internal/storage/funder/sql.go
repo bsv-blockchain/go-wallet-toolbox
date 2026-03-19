@@ -6,6 +6,10 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seqerr"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -15,9 +19,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seqerr"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 var changeOutputSize = txutils.P2PKHOutputSize
@@ -163,7 +164,7 @@ type utxoCollector struct {
 	minimumChange           uint64
 }
 
-func newCollector(txSats satoshi.Value, txSize uint64, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
+func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
 	c = &utxoCollector{
 		txSats:                  txSats,
 		outputCount:             outputCount,

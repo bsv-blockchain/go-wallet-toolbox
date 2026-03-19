@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAbortAbandoned_AbortByStatus(t *testing.T) {

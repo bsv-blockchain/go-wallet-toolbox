@@ -4,9 +4,10 @@ import (
 	"encoding/base64"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/slices"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 // MapInternalizeActionArgs maps sdk.InternalizeActionArgs to wdk.InternalizeActionArgs

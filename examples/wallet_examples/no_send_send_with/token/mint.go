@@ -7,8 +7,9 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/pushdrop"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 )
 
 // MintPushDropToken mints a PushDrop token using the provided context, identity key, wallet, and other parameters.

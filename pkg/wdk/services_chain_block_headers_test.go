@@ -4,8 +4,9 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {

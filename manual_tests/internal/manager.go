@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"

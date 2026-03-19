@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -15,7 +17,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/require"
 )
 
 type StorageType string
@@ -137,6 +138,6 @@ func (w *walletBuilder) storageForUser(user testusers.User) (storage wdk.WalletS
 		return w.givenStorage.MockProvider(), nil
 	default:
 		w.Fatalf("invalid test setup: not implemented support for storage type: %s", w.storageType)
-		return
+		return storage, cleanup
 	}
 }

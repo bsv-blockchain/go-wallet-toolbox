@@ -8,9 +8,10 @@ import (
 	"runtime"
 
 	"github.com/bsv-blockchain/certifier-server-example/internal/constants"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gopkg.in/yaml.v3"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type Config struct {

@@ -16,13 +16,12 @@ import (
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	gosdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 )
 
-var (
-	CertifierAddress = "http://localhost"
-)
+var CertifierAddress = "http://localhost"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{

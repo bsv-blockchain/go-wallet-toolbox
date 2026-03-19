@@ -3,9 +3,10 @@ package tui
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type ListOutputsWaiting struct {
@@ -19,7 +20,7 @@ type ListOutputsWaiting struct {
 	basket        string
 }
 
-func NewListOutputsWaiting(manager ManagerInterface, user *fixtures.UserConfig, limit uint32, offset uint32, includeLabels bool, basket string) *ListOutputsWaiting {
+func NewListOutputsWaiting(manager ManagerInterface, user *fixtures.UserConfig, limit, offset uint32, includeLabels bool, basket string) *ListOutputsWaiting {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	return &ListOutputsWaiting{

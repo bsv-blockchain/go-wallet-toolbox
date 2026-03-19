@@ -16,12 +16,10 @@ const (
 	sendWaitingItemsPerPage = 1000
 )
 
-var (
-	statusesOfWaitingTxs = []wdk.ProvenTxReqStatus{
-		wdk.ProvenTxStatusUnsent,
-		wdk.ProvenTxStatusSending,
-	}
-)
+var statusesOfWaitingTxs = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusUnsent,
+	wdk.ProvenTxStatusSending,
+}
 
 func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error) {
 	var err error

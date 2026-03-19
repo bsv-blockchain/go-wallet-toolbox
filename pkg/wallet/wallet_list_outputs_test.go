@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListOutputsOriginatorValidation(t *testing.T) {
@@ -250,5 +251,4 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.Contains(t, result.Outputs[0].Tags, "tag2", "Should contain expected tag")
 		assert.NotEmpty(t, result.Outputs[0].CustomInstructions, "Custom instructions should be included")
 	})
-
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -21,7 +22,7 @@ type (
 	// PostTXFunc is a function type for PostTX service method (broadcasts raw transaction).
 	PostTXFunc = func(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error)
 	// PostEFFunc is a function type for PostEF service method (broadcasts EF format transaction).
-	PostEFFunc = func(ctx context.Context, efHex string, txID string) (*wdk.PostedTxID, error)
+	PostEFFunc = func(ctx context.Context, efHex, txID string) (*wdk.PostedTxID, error)
 	// MerklePathFunc is a function type for MerklePath service method.
 	MerklePathFunc = func(ctx context.Context, txID string) (*wdk.MerklePathResult, error)
 	// FindChainTipHeaderFunc is a function type for FindChainTipHeader service method.

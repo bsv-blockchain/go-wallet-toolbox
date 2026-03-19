@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
+
+	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 )
 
 func TestIsValidRootForHeight(t *testing.T) {

@@ -4,15 +4,16 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"gorm.io/gorm"
 )
 
-var FirstCreatedAt = time.Date(2006, 02, 01, 15, 4, 5, 7, time.UTC)
+var FirstCreatedAt = time.Date(2006, 0o2, 0o1, 15, 4, 5, 7, time.UTC)
 
 type UserUTXOFixture interface {
 	OwnedBy(user testusers.User) UserUTXOFixture

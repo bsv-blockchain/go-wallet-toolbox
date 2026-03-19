@@ -7,16 +7,17 @@ import (
 	"log/slog"
 	"time"
 
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
+
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type ChunkProcessor struct {
@@ -236,7 +237,7 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 	return nil
 }
 
-func (p *ChunkProcessor) getHistoryNotes(txID string, encoded string) ([]*pkgentity.TxHistoryNote, error) {
+func (p *ChunkProcessor) getHistoryNotes(txID, encoded string) ([]*pkgentity.TxHistoryNote, error) {
 	const minLength = 12 // len of `{"notes":[]}`
 	if len(encoded) < minLength {
 		return nil, nil
@@ -385,7 +386,7 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		Purpose:            chunkOutput.Purpose,
 		Type:               chunkOutput.Type,
 		SenderIdentityKey:  chunkOutput.SenderIdentityKey,
-		Tags:               nil, //TODO: Implement it along with tags backup support.
+		Tags:               nil, // TODO: Implement it along with tags backup support.
 		BasketName:         basketName,
 	}
 
@@ -401,7 +402,7 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 			Satoshis:           satoshis,
 			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
 			CreatedAt:          chunkOutput.CreatedAt,
-			ReservedByID:       nil, //TODO: Talk to Damian how to deal with this - as it cannot be deduced from the output.
+			ReservedByID:       nil, // TODO: Talk to Damian how to deal with this - as it cannot be deduced from the output.
 		}
 	}
 

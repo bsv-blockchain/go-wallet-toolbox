@@ -3,14 +3,15 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -117,7 +118,6 @@ func TestOutputBasketsCRUD(t *testing.T) {
 		assert.Equal(t, savingsBasketName, baskets[0].Name)
 		assert.Equal(t, int64(savingsNumberOfUTXOs), baskets[0].NumberOfDesiredUTXOs)
 	})
-
 }
 
 func TestOutputBasketExposedGetter(t *testing.T) {

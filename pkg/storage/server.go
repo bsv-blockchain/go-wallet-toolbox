@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"

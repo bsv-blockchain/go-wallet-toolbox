@@ -17,8 +17,7 @@ type Package struct {
 }
 
 // NewPackage creates a new Package instance.
-func NewPackage(name string, originalName string, originalFullName string, isSamePackage bool) *Package {
-
+func NewPackage(name, originalName, originalFullName string, isSamePackage bool) *Package {
 	pkg := &Package{
 		Name:             name,
 		OriginalName:     originalName,

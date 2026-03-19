@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // KnownTx provides query-building capabilities for retrieving and filtering known transaction records from a data source.

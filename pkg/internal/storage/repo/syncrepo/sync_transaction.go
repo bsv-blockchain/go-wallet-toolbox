@@ -4,6 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -11,10 +16,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type SyncTransaction struct {
@@ -137,7 +138,6 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 
 		return nil
 	})
-
 	if err != nil {
 		return false, 0, fmt.Errorf("transaction failed: %w", err)
 	}
@@ -161,7 +161,7 @@ func (s *SyncTransaction) mapModelToTableTransaction(model *TransactionWithKnown
 		TxID:          model.TxID,
 		InputBEEF:     model.InputBeef,
 
-		//NOTE: ProvenTxID is set only if the transaction is known to be mined (has a numeric ID in the KnownTx table).
+		// NOTE: ProvenTxID is set only if the transaction is known to be mined (has a numeric ID in the KnownTx table).
 		ProvenTxID: to.IfThen(model.BlockHeight != nil, model.KnownTxNumID).ElseThen(nil),
 	}
 }

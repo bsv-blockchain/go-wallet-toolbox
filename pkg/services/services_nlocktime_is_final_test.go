@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_NLockTimeIsFinal_Primary_WoC(t *testing.T) {

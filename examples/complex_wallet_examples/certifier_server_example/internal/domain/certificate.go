@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bsv-blockchain/certifier-server-example/internal/constants"
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/certifier-server-example/internal/constants"
 )
 
 type CertificateService interface {

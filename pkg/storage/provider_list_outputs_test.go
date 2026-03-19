@@ -3,6 +3,11 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -12,10 +17,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListOutputs_MinimalFilter(t *testing.T) {
@@ -411,5 +412,5 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Len(t, result.Outputs, 0) //NOTE: After create action that uses all of owned UTXOs, they should be reserved and not spendable
+	require.Len(t, result.Outputs, 0) // NOTE: After create action that uses all of owned UTXOs, they should be reserved and not spendable
 }

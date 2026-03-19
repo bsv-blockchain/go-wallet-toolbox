@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSendWaitingTransactions(t *testing.T) {
@@ -150,7 +151,7 @@ func TestSendWaitingTransactions_ConcurrentCalls(t *testing.T) {
 	const tries = 100
 	var wg sync.WaitGroup
 
-	//and:
+	// and:
 	given.Provider().ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
 	given.Provider().ARC().HoldBroadcasting() // simulate long blocking broadcasting
 

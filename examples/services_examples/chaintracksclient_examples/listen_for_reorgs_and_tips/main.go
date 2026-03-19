@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-chaintracks/config"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 )
 

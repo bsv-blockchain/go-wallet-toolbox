@@ -4,14 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.uber.org/mock/gomock"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.uber.org/mock/gomock"
 )
 
 var DefaultTimestamp time.Time = time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)

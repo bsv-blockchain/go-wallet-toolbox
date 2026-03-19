@@ -5,7 +5,7 @@ type Headers map[string]string
 type HeaderValueSetter interface {
 	Value(value string) Headers
 	IfNotEmpty(value string) Headers
-	OrDefault(value string, defaultValue string) Headers
+	OrDefault(value, defaultValue string) Headers
 }
 
 func NewHeaders() Headers {
@@ -73,7 +73,7 @@ func (s *headersSetter) IfNotEmpty(value string) Headers {
 	return s.headers
 }
 
-func (s *headersSetter) OrDefault(value string, defaultValue string) Headers {
+func (s *headersSetter) OrDefault(value, defaultValue string) Headers {
 	if value == "" {
 		s.headers[s.key] = s.valuePrefix + defaultValue
 	} else {

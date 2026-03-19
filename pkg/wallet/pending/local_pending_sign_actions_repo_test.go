@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestLocalPendingSignActionsCache_SetGetDelete_Success(t *testing.T) {

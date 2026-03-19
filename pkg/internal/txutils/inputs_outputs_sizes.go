@@ -4,8 +4,10 @@ import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 const P2PKHUnlockingScriptLength = 107
 
-var P2PKHOutputSize = TransactionOutputSize(25)
-var P2PKHEstimatedInputSize = TransactionInputSize(P2PKHUnlockingScriptLength)
+var (
+	P2PKHOutputSize         = TransactionOutputSize(25)
+	P2PKHEstimatedInputSize = TransactionInputSize(P2PKHUnlockingScriptLength)
+)
 
 // EstimatedInputSizeByType returns the estimated size of a transaction output based on its type.
 func EstimatedInputSizeByType(txType wdk.OutputType) uint64 {

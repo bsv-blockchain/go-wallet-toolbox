@@ -7,29 +7,30 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // getTxStatus retrieves the status of a transaction by its txid from Bitails.
-func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, mined bool, height uint32, err error) {
+func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found, mined bool, height uint32, err error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
 		err = fmt.Errorf("build tx status URL: %w", err)
-		return
+		return found, mined, height, err
 	}
 
 	var info dto.FetchInfoResponse
 	found, err = b.handleJSON(ctx, url, &info, http.StatusOK, true /* allow 404 */)
 	if err != nil {
 		err = fmt.Errorf("fetch tx status: %w", err)
-		return
+		return found, mined, height, err
 	}
 
 	mined = info.BlockHeight > 0
 	height = info.BlockHeight
-	return
+	return found, mined, height, err
 }
 
 // fetchRemoteRoot retrieves the Merkle root for a given block height from Bitails.
@@ -192,7 +193,6 @@ func (b *Bitails) fetchMerkleHeader(ctx context.Context, blockHash string) (*wdk
 //	found = false   when allow404=true and the server returned 404
 //	found = true    otherwise
 func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode int, notFoundIsOK bool) (found bool, err error) {
-
 	res, err := b.httpClient.R().SetContext(ctx).SetResult(out).Get(url)
 	if err != nil {
 		return false, fmt.Errorf("error performing GET %s: %w", url, err)

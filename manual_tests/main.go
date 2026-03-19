@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/tui"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
@@ -41,11 +42,11 @@ func main() {
 
 func setupSlog() (cleanup func()) {
 	startTime := time.Now().Format("2006-01-02_15-04-05")
-	var logFilePath = "manual_tests_" + startTime + ".log"
+	logFilePath := "manual_tests_" + startTime + ".log"
 
 	cleanupOldLogs("manual_tests_", 3)
 
-	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		panic(fmt.Sprintf("failed to open log file: %v", err))
 	}
@@ -63,7 +64,7 @@ func setupSlog() (cleanup func()) {
 		slog.Info("Closing log file.")
 		logFile.Close()
 	}
-	return
+	return cleanup
 }
 
 func cleanupOldLogs(prefix string, maxFiles int) {

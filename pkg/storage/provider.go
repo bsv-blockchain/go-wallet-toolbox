@@ -7,6 +7,11 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
@@ -22,10 +27,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -120,7 +121,7 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 }
 
 // Migrate migrates the storage and saves the settings.
-func (p *Provider) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
+func (p *Provider) Migrate(ctx context.Context, storageName, storageIdentityKey string) (string, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-Migrate", attribute.String("storageName", storageName))
 	defer func() {

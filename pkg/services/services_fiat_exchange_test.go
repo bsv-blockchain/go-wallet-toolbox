@@ -3,9 +3,10 @@ package services_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestWalletServices_FiatExchangeRate(t *testing.T) {

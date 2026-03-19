@@ -48,7 +48,7 @@ func (s *DefaultRandomizer) Base64(length uint64) (string, error) {
 
 // Shuffle randomizes the order of n elements using the provided swap function.
 // Uses crypto/rand for cryptographically secure shuffling (Fisher-Yates).
-func (s *DefaultRandomizer) Shuffle(n int, swap func(i int, j int)) {
+func (s *DefaultRandomizer) Shuffle(n int, swap func(i, j int)) {
 	for i := n - 1; i > 0; i-- {
 		jBig, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(i+1)))
 		if err != nil {

@@ -4,8 +4,9 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 )
 
 func New(tb testing.TB) (given WalletFixture, then WalletAssertions, cleanup func()) {

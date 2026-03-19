@@ -4,8 +4,9 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
 )
 
 const (

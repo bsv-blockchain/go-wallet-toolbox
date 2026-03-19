@@ -6,9 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
+	"github.com/go-softwarelab/common/pkg/is"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/is"
 )
 
 var _ wdk.WalletStorageProvider = (*RPCStorageProvider)(nil)

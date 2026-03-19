@@ -3,9 +3,10 @@ package storage_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 )
 
 func TestFindOrInsertUser(t *testing.T) {

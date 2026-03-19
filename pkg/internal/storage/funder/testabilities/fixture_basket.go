@@ -3,9 +3,10 @@ package testabilities
 import (
 	"testing"
 
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"gorm.io/gorm"
 )
 
 const (

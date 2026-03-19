@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCaseInsensitiveEnums(t *testing.T) {

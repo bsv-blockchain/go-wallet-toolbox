@@ -47,7 +47,7 @@ func Given(t testing.TB) (given StorageFixture, cleanup func()) {
 	}, cleanupFunc
 }
 
-func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
+func GivenCustomStorage(t testing.TB, identityKey, name string) (given StorageFixture, cleanup func()) {
 	storageFxt, cleanupFunc := testabilities.GivenCustomStorage(t, identityKey, name)
 
 	return &storageFixture{

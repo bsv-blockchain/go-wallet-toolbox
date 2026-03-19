@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 

@@ -7,6 +7,15 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gen"
+	"gorm.io/gen/field"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -17,14 +26,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"go.opentelemetry.io/otel/attribute"
-	"gorm.io/gen"
-	"gorm.io/gen/field"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type Outputs struct {
@@ -63,7 +64,6 @@ func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[u
 		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
 		Where(outTable.ID.In(idsClause...)).
 		Scan(&txIDsModel)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
 	}
@@ -95,7 +95,6 @@ func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]
 		}).
 		Where("id IN ?", idsClause).
 		Find(&outputs).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
 	}
@@ -287,7 +286,6 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to unlink output from basket: %w", err)
 	}
@@ -361,7 +359,6 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 				Where("tx_id = ?", outpoint.TxID),
 		).
 		First(&output).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = nil
@@ -378,14 +375,14 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 // FindInputsAndOutputsWithBaskets retrieves inputs and outputs for given transaction IDs, including basket information.
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
-func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error) {
+func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs, outputs map[uint][]*pkgentity.Output, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-FindInputsAndOutputsWithBaskets")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
 	if len(txIDs) == 0 {
-		return
+		return inputs, outputs, err
 	}
 
 	query := o.db.WithContext(ctx).
@@ -480,7 +477,7 @@ func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity
 }
 
 // buildOutputsJoinQuery constructs the JOIN query to fetch outputs (and tags) for selected actions
-func (o *Outputs) buildOutputsJoinQuery(tx *gorm.DB, selected *gorm.DB, userID int, includeLockingScripts bool) *gorm.DB {
+func (o *Outputs) buildOutputsJoinQuery(tx, selected *gorm.DB, userID int, includeLockingScripts bool) *gorm.DB {
 	outputTable := o.query.Output.TableName()
 	txTable := o.query.Transaction.TableName()
 	otTable := o.query.OutputTag.TableName()
@@ -637,7 +634,6 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 		}
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
 	}

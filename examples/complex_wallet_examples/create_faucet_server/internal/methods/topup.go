@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -41,7 +42,7 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txi
 	if err != nil {
 		return fmt.Errorf("failed to derive faucet address: %w", err)
 	}
-	
+
 	addr, err := script.NewAddressFromString(addrStr)
 	if err != nil {
 		return fmt.Errorf("failed to parse faucet address: %w", err)
@@ -65,7 +66,7 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txi
 	if err != nil {
 		return fmt.Errorf("failed to decode derivation prefix: %w", err)
 	}
-	
+
 	derivationSuffixBytes, err := base64.StdEncoding.DecodeString(constants.FaucetAddressKeyIDSuffix)
 	if err != nil {
 		return fmt.Errorf("failed to decode derivation suffix: %w", err)

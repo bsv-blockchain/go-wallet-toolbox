@@ -77,7 +77,7 @@ func (t *txAssertion) HasMinimalFee() BSVTransactionAssertion {
 
 	size := t.tx.Size()
 
-	var expectedFee = must.ConvertToUInt64(to.IfThen(size%kilobyte == 0, size/kilobyte).ElseThen(size/kilobyte + 1))
+	expectedFee := must.ConvertToUInt64(to.IfThen(size%kilobyte == 0, size/kilobyte).ElseThen(size/kilobyte + 1))
 
 	totalOutputs := t.tx.TotalOutputSatoshis()
 

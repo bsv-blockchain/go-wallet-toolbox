@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestRawTxSuccess(t *testing.T) {
@@ -208,7 +209,6 @@ func TestRawTxFailure(t *testing.T) {
 		assert.Contains(t, err.Error(), "decode hex failed")
 		assert.Contains(t, err.Error(), "Bitails")
 	})
-
 }
 
 func TestWalletServices_RawTx_ErrorCases(t *testing.T) {

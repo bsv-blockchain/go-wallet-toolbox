@@ -3,12 +3,13 @@ package funder_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFunderSQLFund(t *testing.T) {
@@ -16,7 +17,7 @@ func TestFunderSQLFund(t *testing.T) {
 	const transactionSizeForHigherFee = 1001
 	const noOutputs = uint64(0)
 	const oneOutput = uint64(1)
-	var ctx = t.Context()
+	ctx := t.Context()
 
 	testCasesErrors := map[string]struct {
 		thereAreUTXOInDB func(testabilities.FunderFixture, *entity.OutputBasket)
@@ -80,7 +81,6 @@ func TestFunderSQLFund(t *testing.T) {
 		},
 		"return error when user has utxos but in other basket": {
 			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
-
 				otherBasket := *basket
 				otherBasket.Name = "other_basket"
 
@@ -336,7 +336,6 @@ func TestFunderSQLFund(t *testing.T) {
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
-
 		})
 	}
 
@@ -567,5 +566,4 @@ func TestFunderSQLFund(t *testing.T) {
 				HasChangeCount(test.expectedNumberOfChangeOutputs).ForAmount(test.expectedChangeValue)
 		})
 	}
-
 }

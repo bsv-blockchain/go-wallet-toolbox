@@ -3,9 +3,10 @@ package repo
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
 type cachedBasketMaker struct {
@@ -36,7 +37,6 @@ func (c *cachedBasketMaker) createIfNotExist(tx *gorm.DB, name string, numberOfD
 			NumberOfDesiredUTXOs:    numberOfDesiredUTXOs,
 			MinimumDesiredUTXOValue: minimumDesiredUTXOValue,
 		}).Error
-
 	if err != nil {
 		return fmt.Errorf("failed to upsert output basket: %w", err)
 	}

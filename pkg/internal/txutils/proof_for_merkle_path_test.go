@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 )
 
 func TestConvertTscProofToMerklePath(t *testing.T) {

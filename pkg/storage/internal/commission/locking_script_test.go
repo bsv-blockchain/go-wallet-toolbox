@@ -5,9 +5,10 @@ import (
 
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 )
 
 func TestLockScriptWithKeyOffsetFromPubKey(t *testing.T) {

@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestTransactionError_Success(t *testing.T) {

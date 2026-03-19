@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type ItemSelector[T ~string] struct {
@@ -72,6 +73,7 @@ func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
+
 func (m ItemSelector[T]) handleEnterKey() (tea.Model, tea.Cmd) {
 	if m.isBackOptionSelected() {
 		return m.handleBackSelection()

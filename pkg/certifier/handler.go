@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/auth/brc104"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+
 	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 )
 

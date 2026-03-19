@@ -8,7 +8,7 @@ import (
 
 const defaultChannelBuffer = 100
 
-func MapParallel[E any, R any](ctx context.Context, sequence iter.Seq[E], runner func(context.Context, E) R) iter.Seq[R] {
+func MapParallel[E, R any](ctx context.Context, sequence iter.Seq[E], runner func(context.Context, E) R) iter.Seq[R] {
 	if sequence == nil {
 		return func(yield func(R) bool) {}
 	}

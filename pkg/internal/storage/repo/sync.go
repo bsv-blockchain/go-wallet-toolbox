@@ -1,9 +1,10 @@
 package repo
 
 import (
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo/syncrepo"
-	"gorm.io/gorm"
 )
 
 type Sync struct {

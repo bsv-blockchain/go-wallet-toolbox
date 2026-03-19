@@ -86,7 +86,7 @@ func ProcessComplete(processName string) {
 }
 
 // WalletSuccess displays a successful wallet method call with its arguments and result
-func WalletSuccess(methodName string, args interface{}, result interface{}) {
+func WalletSuccess(methodName string, args, result interface{}) {
 	fmt.Printf("\n%s WALLET CALL:%s %s%s%s\n", ColorBlue+ColorBold, ColorReset, ColorGreen, methodName, ColorReset)
 	fmt.Printf("%sArgs:%s %+v\n", ColorCyan, ColorReset, args)
 	fmt.Printf("%s✅ Result:%s %+v\n", ColorGreen+ColorBold, ColorReset, result)

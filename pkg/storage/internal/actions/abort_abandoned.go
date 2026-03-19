@@ -17,12 +17,10 @@ const (
 	failAbandonedItemsPerPage = 1000
 )
 
-var (
-	statusesOfAbandonedTxs = []wdk.TxStatus{
-		wdk.TxStatusUnprocessed,
-		wdk.TxStatusUnsigned,
-	}
-)
+var statusesOfAbandonedTxs = []wdk.TxStatus{
+	wdk.TxStatusUnprocessed,
+	wdk.TxStatusUnsigned,
+}
 
 func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time.Duration) error {
 	var err error

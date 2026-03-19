@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/go-softwarelab/common/pkg/seq"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 )
 
 type Randomizer func(max uint64) uint64

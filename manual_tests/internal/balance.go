@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -25,7 +26,7 @@ func (m *Manager) Balance(user fixtures.UserConfig) (uint64, error) {
 			Limit:  &limit,
 			Offset: &offset,
 		}
-		
+
 		outputs, err := userWallet.ListOutputs(m.ctx, args, "")
 		if err != nil {
 			return 0, fmt.Errorf("failed to list outputs for user %s: %w", user.Name, err)

@@ -8,18 +8,19 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type BitailsFixture interface {
 	WillRespondWithEmptyBlockHeight()
 	WillBeUnreachable() error
 	WillReturnInternalError()
-	WillReturnTxInfo(txid string, blockHash string, blockHeight int64)
-	WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64)
+	WillReturnTxInfo(txid, blockHash string, blockHeight int64)
+	WillReturnSuccessAndTxInfo(txid, blockHash string, blockHeight int64)
 	WillReturnTscProof(txid, target string, index int, nodes []string)
 	WillReturnBlockHeader(blockHash, rawHeader string)
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
@@ -125,7 +126,7 @@ func (b *bitailsFixture) WillReturnInternalError() {
 	)
 }
 
-func (b *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHeight int64) {
+func (b *bitailsFixture) WillReturnTxInfo(txid, blockHash string, blockHeight int64) {
 	body := map[string]any{
 		"block_hash":   blockHash,
 		"block_height": blockHeight,
@@ -137,7 +138,7 @@ func (b *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHe
 	)
 }
 
-func (b *bitailsFixture) WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64) {
+func (b *bitailsFixture) WillReturnSuccessAndTxInfo(txid, blockHash string, blockHeight int64) {
 	b.WillReturnTxInfo(txid, blockHash, blockHeight)
 	b.OnBroadcast().WillReturnSuccess(txid)
 }
@@ -415,6 +416,7 @@ func (b *bitailsFixture) WillReturnMalformedBlockHeader(blockHash string) {
 		httpmock.NewStringResponder(http.StatusOK, `invalid-json}`),
 	)
 }
+
 func (b *bitailsFixture) ScriptHistoryData() ScriptHistoryDataBuilder {
 	return &bitailsScriptHistoryBuilder{
 		fixture:          b,
@@ -436,7 +438,7 @@ type bitailsScriptHistoryBuilder struct {
 	unconfirmedStatusCode int
 }
 
-func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
+func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactions(count, startHeight int) ScriptHistoryDataBuilder {
 	b.confirmedCount = count
 	b.startHeight = startHeight
 	return b

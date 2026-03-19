@@ -5,8 +5,9 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/go-softwarelab/common/pkg/seqerr"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 )
 
 type AssembledTransaction struct {
