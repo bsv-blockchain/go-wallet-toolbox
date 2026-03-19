@@ -234,7 +234,7 @@ The system is configured via [`.github/env/`](.github/env/README.md) and provide
 </details>
 
 <details>
-<summary><strong>GitHub Workflows</strong></summary>
+<summary><strong><code>GitHub Workflows</code></strong></summary>
 <br/>
 
 All workflows are driven by modular configuration in [`.github/env/`](.github/env/README.md) — no YAML editing required.
