@@ -18,7 +18,7 @@ func FindOutput[T any](
 	index := slices.IndexFunc(outputs, finder)
 	require.GreaterOrEqual(t, index, 0)
 
-	return outputs[index], uint32(index)
+	return outputs[index], uint32(index) //nolint:gosec // index is always a valid slice index, fits in uint32
 }
 
 func CountOutputsWithCondition[T any](

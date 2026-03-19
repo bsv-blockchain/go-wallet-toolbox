@@ -16,6 +16,7 @@ type Sync struct {
 	*syncrepo.SyncLabelMap
 	*syncrepo.SyncTag
 	*syncrepo.SyncTagMap
+
 	db *gorm.DB
 }
 

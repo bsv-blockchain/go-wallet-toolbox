@@ -27,7 +27,7 @@ func (s TxStatus) String() string {
 
 // ToUTXOStatus converts a TxStatus value to its corresponding UTXOStatus based on predefined status mappings.
 func (s TxStatus) ToUTXOStatus() UTXOStatus {
-	switch s { //nolint:exhaustive
+	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case TxStatusCompleted:
 		return UTXOStatusMined
 	case TxStatusSending:
@@ -91,7 +91,7 @@ func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
 
 // Sending returns true if the ProvenTxReqStatus is considered still in the sending or processing phase.
 func (s ProvenTxReqStatus) Sending() bool {
-	switch s { //nolint:exhaustive
+	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case ProvenTxStatusUnknown,
 		ProvenTxStatusNonFinal,
 		ProvenTxStatusInvalid,
@@ -108,7 +108,7 @@ func (s ProvenTxReqStatus) Sending() bool {
 
 // AlreadySent returns true if the transaction status indicates it has already been sent or processed.
 func (s ProvenTxReqStatus) AlreadySent() bool {
-	switch s { //nolint:exhaustive
+	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case ProvenTxStatusUnmined,
 		ProvenTxStatusCallback,
 		ProvenTxStatusUnconfirmed,

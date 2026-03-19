@@ -60,7 +60,7 @@ func TestListActions_HappyPath(t *testing.T) {
 		createdTxInput.SourceOutpoint,
 	)
 
-	require.Equal(t, len(ownedTransaction.Outputs), len(createdTx.Outputs))
+	require.Len(t, createdTx.Outputs, len(ownedTransaction.Outputs))
 
 	resultOutput := createdTx.Outputs[0]
 	assert.Contains(t, resultOutput.Tags, fixtures.CreateActionTestTag)

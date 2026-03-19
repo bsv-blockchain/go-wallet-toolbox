@@ -51,7 +51,7 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 			Name:        trustedCertifier.Name,
 			IconUrl:     to.Value(trustedCertifier.IconURL),
 			Description: trustedCertifier.Description,
-			//nolint:gosec
+			//nolint:gosec // trust level is a small value (0-100) defined by the certifier config
 			Trust: uint8(trustedCertifier.Trust),
 		}
 
@@ -98,7 +98,7 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 	})
 
 	return &wallet.DiscoverCertificatesResult{
-		//nolint:gosec
+		//nolint:gosec // len(results) is always a non-negative int that fits in uint32
 		TotalCertificates: uint32(len(results)),
 		Certificates:      results,
 	}, nil

@@ -73,11 +73,11 @@ func TestBitails_FindChainTipHeader(t *testing.T) {
 		{
 			name: "happy path",
 			setup: func(given testabilities.BitailsServiceFixture) {
-				given.Bitails().WillReturnLatestBlock(blockHash, uint32(height))
+				given.Bitails().WillReturnLatestBlock(blockHash, uint32(height)) //nolint:gosec // block height fits in uint32
 				given.Bitails().WillReturnBlockHeader(blockHash, headerHex)
 			},
 			want: func() *wdk.ChainBlockHeader {
-				want, err := bitails.ConvertHeader(rawHeader, uint32(height))
+				want, err := bitails.ConvertHeader(rawHeader, uint32(height)) //nolint:gosec // block height fits in uint32
 				require.NoError(t, err)
 				return want
 			}(),
@@ -225,7 +225,7 @@ func TestBitails_PostTX(t *testing.T) {
 
 			assert.Equal(t, test.resultStatus, result.Result)
 			assert.Equal(t, givenTxID, result.TxID)
-			assert.NoError(t, result.Error)
+			require.NoError(t, result.Error)
 			assert.False(t, result.DoubleSpend)
 			assert.Equal(t, test.alreadyKnown, result.AlreadyKnown)
 			assert.Empty(t, result.CompetingTxs)
@@ -402,7 +402,7 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 			_, err := service.RawTx(t.Context(), txID)
 
 			// then:
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 		})
 	}
@@ -423,6 +423,6 @@ func TestBitails_RawTx_NotFound(t *testing.T) {
 	res, err := service.RawTx(t.Context(), txID)
 
 	// then:
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, res)
 }

@@ -93,7 +93,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 
 		expectedHeader := &wdk.ChainBlockHeader{
 			ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-				Version:      uint32(first.Version),
+				Version:      uint32(first.Version), //nolint:gosec // block header version is always small positive
 				PreviousHash: first.PreviousBlock,
 				MerkleRoot:   first.MerkleRoot,
 				Time:         first.Timestamp,
@@ -134,7 +134,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
 
-		assert.ErrorContains(t, err, expectedSubstr)
+		require.ErrorContains(t, err, expectedSubstr)
 		assert.Nil(t, header)
 	})
 
@@ -159,7 +159,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 	})
 

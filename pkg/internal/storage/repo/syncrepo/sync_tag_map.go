@@ -38,6 +38,7 @@ func NewSyncTagMap(db *gorm.DB, query *genquery.Query) *SyncTagMap {
 
 type TagsMapReadModel struct {
 	models.OutputTag
+
 	NumID uint
 }
 

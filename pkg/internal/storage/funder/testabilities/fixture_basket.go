@@ -21,6 +21,7 @@ type BasketFixture interface {
 
 type basketFixture struct {
 	testing.TB
+
 	db   *gorm.DB
 	user testusers.User
 }

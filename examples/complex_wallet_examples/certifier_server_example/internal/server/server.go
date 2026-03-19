@@ -87,5 +87,5 @@ func (s *Server) Start() error {
 
 	s.logger.Info("Starting certificate server", "addr", addr, "network", s.config.Server.Network)
 
-	return http.ListenAndServe(addr, handler)
+	return http.ListenAndServe(addr, handler) //nolint:gosec // example server, timeouts not required
 }

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -460,7 +461,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Where("reference = ?", *filter.Reference)
 		}
 
-		if err := query.Count(&total).Error; err != nil {
+		if err = query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
 
@@ -468,7 +469,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			return nil
 		}
 
-		if err := query.
+		if err = query.
 			Limit(filter.Limit).
 			Offset(filter.Offset).
 			Order("id ASC").
@@ -518,7 +519,8 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
 		var closeErr error
-		rows, err := tx.Table("bsv_transaction_labels tl").
+		var rows *sql.Rows
+		rows, err = tx.Table("bsv_transaction_labels tl").
 			Select("tl.transaction_id, tl.label_name").
 			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
 			Where("tl.label_name IS NOT NULL").
@@ -536,10 +538,13 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 		for rows.Next() {
 			var txID uint
 			var label string
-			if err := rows.Scan(&txID, &label); err != nil {
+			if err = rows.Scan(&txID, &label); err != nil {
 				return fmt.Errorf("scan failed: %w", err)
 			}
 			labelsMap[txID] = append(labelsMap[txID], label)
+		}
+		if err = rows.Err(); err != nil {
+			return fmt.Errorf("rows iteration failed: %w", err)
 		}
 		return closeErr
 	})
@@ -600,7 +605,7 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 	transactionModel := models.Transaction{}
 
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(models.Transaction{}).
+		err = tx.Model(models.Transaction{}).
 			Select("*").
 			Where("id = ?", transactionID).
 			Preload("Labels").

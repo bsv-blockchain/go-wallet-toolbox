@@ -41,7 +41,7 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err = cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
@@ -144,7 +144,7 @@ func (s *Server) setupRoutes() http.Handler {
 	return authMiddleware.HTTPHandler(mux)
 }
 
-func createCertifierWallet(ctx context.Context, cfg *Config, logger *slog.Logger) (*wallet.Wallet, func(), error) {
+func createCertifierWallet(_ context.Context, cfg *Config, logger *slog.Logger) (*wallet.Wallet, func(), error) {
 	privateKey, err := primitives.PrivateKeyFromHex(cfg.CertifierWallet.PrivateKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create private key from hex %s: %w", cfg.CertifierWallet.PrivateKey, err)

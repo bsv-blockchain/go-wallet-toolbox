@@ -39,7 +39,7 @@ func TestRelinquishOutput(t *testing.T) {
 		Basket: wdk.BasketNameForChange,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 0, int(listOutputsResult.TotalOutputs))
+	require.Equal(t, 0, int(listOutputsResult.TotalOutputs)) //nolint:gosec // test assertion, TotalOutputs fits in int
 
 	// and:
 	_, err = activeStorage.CreateAction(
@@ -76,7 +76,7 @@ func TestRelinquishOutputWithoutBasketSpecified(t *testing.T) {
 		Basket: wdk.BasketNameForChange,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 0, int(listOutputsResult.TotalOutputs))
+	require.Equal(t, 0, int(listOutputsResult.TotalOutputs)) //nolint:gosec // test assertion, TotalOutputs fits in int
 
 	// and:
 	_, err = activeStorage.CreateAction(
@@ -135,7 +135,7 @@ func TestRelinquishOutputOneOfTwo(t *testing.T) {
 		Basket: wdk.BasketNameForChange,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 1, int(listOutputsResult.TotalOutputs))
+	require.Equal(t, 1, int(listOutputsResult.TotalOutputs)) //nolint:gosec // safe: TotalOutputs is a small count value
 }
 
 func TestRelinquishOutputWithNotMatchingBasket(t *testing.T) {

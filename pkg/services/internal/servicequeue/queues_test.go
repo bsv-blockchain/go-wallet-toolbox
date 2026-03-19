@@ -651,22 +651,22 @@ func (s TestService) NewTest(t testing.TB) *TestService {
 	return &s
 }
 
-func (s *TestService) Do(ctx context.Context) (*TestServiceResult, error) {
+func (s TestService) Do(ctx context.Context) (*TestServiceResult, error) {
 	assert.NotNil(s.t, ctx, "expect to receive non-nil context as 1st argument")
 	return s.createResult()
 }
 
-func (s *TestService) Do1(ctx context.Context, str string) (*TestServiceResult, error) {
+func (s TestService) Do1(ctx context.Context, str string) (*TestServiceResult, error) {
 	assert.Equal(s.t, secondArgument, str, "expect to receive %#v as 2nd argument", secondArgument)
 	return s.Do(ctx)
 }
 
-func (s *TestService) Do2(ctx context.Context, str string, i int) (*TestServiceResult, error) {
+func (s TestService) Do2(ctx context.Context, str string, i int) (*TestServiceResult, error) {
 	assert.Equal(s.t, thirdArgument, i, "expect to receive %#v as 3rd argument", thirdArgument)
 	return s.Do1(ctx, str)
 }
 
-func (s *TestService) Do3(ctx context.Context, str string, i int, boolean bool) (*TestServiceResult, error) {
+func (s TestService) Do3(ctx context.Context, str string, i int, boolean bool) (*TestServiceResult, error) {
 	assert.Equal(s.t, fourthArgument, boolean, "expect to receive %#v as 4th argument", fourthArgument)
 	return s.Do2(ctx, str, i)
 }

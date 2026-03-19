@@ -373,8 +373,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 		reader.Notified().Equals(false)
 
 		// then:
-		count, err := reader.Count(t.Context())
-		require.NoError(t, err)
+		count, countErr := reader.Count(t.Context())
+		require.NoError(t, countErr)
 		assert.Equal(t, int64(1), count)
 	})
 
@@ -384,8 +384,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 		reader.Notified().NotEquals(true)
 
 		// then:
-		count, err := reader.Count(t.Context())
-		require.NoError(t, err)
+		count, countErr := reader.Count(t.Context())
+		require.NoError(t, countErr)
 		assert.Equal(t, int64(1), count)
 	})
 

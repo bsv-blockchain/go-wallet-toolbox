@@ -70,7 +70,7 @@ func TestWhatsOnChain_PostTX(t *testing.T) {
 
 			assert.Equal(t, test.resultStatus, result.Result)
 			assert.Equal(t, givenTxID, result.TxID)
-			assert.NoError(t, result.Error)
+			require.NoError(t, result.Error)
 			assert.False(t, result.DoubleSpend)
 			assert.Equal(t, test.alreadyKnown, result.AlreadyKnown)
 			assert.Empty(t, result.CompetingTxs)

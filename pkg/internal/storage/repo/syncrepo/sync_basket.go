@@ -28,6 +28,7 @@ func NewSyncBasket(db *gorm.DB, query *genquery.Query) *SyncBasket {
 
 type OutputBasketWithNum struct {
 	models.OutputBasket
+
 	NumID int
 }
 
@@ -84,7 +85,8 @@ func (s *SyncBasket) UpsertOutputBasketForSync(ctx context.Context, entity entit
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		numID, err := s.saveNumericIDForOutputBasket(ctx, tx, entity.UserID, entity.Name)
+		var numID uint
+		numID, err = s.saveNumericIDForOutputBasket(ctx, tx, entity.UserID, entity.Name)
 		if err != nil {
 			return err
 		}
@@ -103,8 +105,7 @@ func (s *SyncBasket) UpsertOutputBasketForSync(ctx context.Context, entity entit
 			return nil
 		}
 
-		err = tx.Create(&model).Error
-		if err != nil {
+		if err = tx.Create(&model).Error; err != nil {
 			return fmt.Errorf("failed to create output basket: %w", err)
 		}
 

@@ -38,8 +38,8 @@ func TestRawTxSuccess(t *testing.T) {
 		result, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
-		assert.EqualValues(t, expectedResult, result)
+		require.NoError(t, err)
+		assert.Equal(t, expectedResult, result)
 	})
 	t.Run("returns raw transaction from Bitails when found", func(t *testing.T) {
 		// given:
@@ -63,8 +63,8 @@ func TestRawTxSuccess(t *testing.T) {
 		result, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
-		assert.EqualValues(t, expectedResult, result)
+		require.NoError(t, err)
+		assert.Equal(t, expectedResult, result)
 	})
 }
 
@@ -82,7 +82,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to fetch raw tx hex")
 		assert.Contains(t, err.Error(), "WhatsOnChain")
 	})
@@ -100,7 +100,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to fetch raw tx hex")
 		assert.Contains(t, err.Error(), "WhatsOnChain")
 	})
@@ -118,7 +118,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), fmt.Sprintf("transaction with txID: %s not found", txID))
 	})
 
@@ -135,7 +135,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to retrieve successful response from WOC")
 	})
 
@@ -152,7 +152,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to decode raw transaction hex")
 	})
 
@@ -171,7 +171,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "doesn't match requested value otherTransactionId")
 	})
 
@@ -190,7 +190,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "all services failed")
 	})
 	t.Run("Bitails returns error when raw tx hex is malformed", func(t *testing.T) {
@@ -205,7 +205,7 @@ func TestRawTxFailure(t *testing.T) {
 		_, err := services.RawTx(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "decode hex failed")
 		assert.Contains(t, err.Error(), "Bitails")
 	})

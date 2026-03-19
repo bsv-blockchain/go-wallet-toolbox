@@ -47,7 +47,7 @@ func TestRPCCommunication(t *testing.T) {
 		migrationVersion, err := client.Migrate(t.Context(), fixtures.StorageName, fixtures.StorageIdentityKey)
 
 		// then:
-		assert.ErrorContains(t, err, "method not allowed to be called via RPC")
+		require.ErrorContains(t, err, "method not allowed to be called via RPC")
 		assert.Empty(t, migrationVersion)
 	})
 
@@ -83,7 +83,7 @@ func TestRPCCommunication(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		assert.EqualValues(t, storageResult, response)
+		assert.Equal(t, storageResult, response)
 	})
 
 	t.Run("FindOrInsertUser", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestRPCCommunication(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, response)
-		assert.EqualValues(t, storageResult, response)
+		assert.Equal(t, storageResult, response)
 	})
 
 	t.Run("Internalize", func(t *testing.T) {
@@ -177,9 +177,9 @@ func TestRPCCommunication(t *testing.T) {
 		result, err := client.InternalizeAction(t.Context(), testusers.Alice.AuthID(), args)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.EqualValues(t, storageResult, result)
+		assert.Equal(t, storageResult, result)
 	})
 
 	t.Run("CreateAction", func(t *testing.T) {
@@ -294,9 +294,9 @@ func TestRPCCommunication(t *testing.T) {
 		result, err := client.CreateAction(t.Context(), testusers.Alice.AuthID(), args)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.EqualValues(t, storageResult, result)
+		assert.Equal(t, storageResult, result)
 	})
 
 	t.Run("ProcessAction", func(t *testing.T) {
@@ -356,9 +356,9 @@ func TestRPCCommunication(t *testing.T) {
 		result, err := client.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.EqualValues(t, storageResult, result)
+		assert.Equal(t, storageResult, result)
 	})
 
 	t.Run("InsertCertificate", func(t *testing.T) {
@@ -521,7 +521,7 @@ func TestRPCCommunication(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.NotNil(t, actualResult)
-		assert.EqualValues(t, expectedResult, actualResult)
+		assert.Equal(t, expectedResult, actualResult)
 	})
 
 	t.Run("ListActions", func(t *testing.T) {
@@ -570,7 +570,7 @@ func TestRPCCommunication(t *testing.T) {
 		// Then:
 		require.NoError(t, err)
 		require.NotNil(t, actualResult)
-		assert.EqualValues(t, expectedResult, actualResult)
+		assert.Equal(t, expectedResult, actualResult)
 	})
 }
 
@@ -665,8 +665,8 @@ func TestServerAuthentication(t *testing.T) {
 			InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).
 			Do(func(_ any, authID wdk.AuthID, _ any) {
 				if assert.NotNil(t, authID.UserID) {
-					assert.EqualValues(t, testusers.Alice.ID, *authID.UserID)
-					assert.NotEqualValues(t, testusers.Bob.ID, *authID.UserID)
+					assert.Equal(t, testusers.Alice.ID, *authID.UserID)
+					assert.NotEqual(t, testusers.Bob.ID, *authID.UserID)
 				}
 			})
 

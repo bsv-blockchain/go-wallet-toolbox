@@ -64,7 +64,7 @@ func (m *InternalizeWaiting) Init() tea.Cmd {
 func (m *InternalizeWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := m.focus.CurrentItem()
 			if current.Type == ElementButton {

@@ -688,10 +688,11 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 			LabelQueryMode:                   args.LabelQueryMode,
 		}
 
-		if err := validate.ListFailedActionsArgs(&failedArgs); err != nil {
+		if err = validate.ListFailedActionsArgs(&failedArgs); err != nil {
 			return nil, fmt.Errorf("invalid listFailedActions args: %w", err)
 		}
-		result, err := p.actions.ListFailedActions(ctx, auth, &failedArgs)
+		var result *wdk.ListActionsResult
+		result, err = p.actions.ListFailedActions(ctx, auth, &failedArgs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list failed actions: %w", err)
 		}
@@ -699,7 +700,7 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 	}
 
 	args.Labels = filtered
-	if err := validate.ListActionsArgs(&args); err != nil {
+	if err = validate.ListActionsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listActions args: %w", err)
 	}
 
@@ -728,7 +729,7 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("fromStorageIdentityKey %s does not match the storage identity key %s", args.FromStorageIdentityKey, settings.StorageIdentityKey)
 	}
 
-	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
+	if err = validate.ValidRequestSyncChunkArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 

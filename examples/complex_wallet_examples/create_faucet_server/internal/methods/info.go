@@ -61,7 +61,7 @@ func ComputeBalance(ctx context.Context, w sdk.Interface, basket string) (uint64
 			balance += output.Satoshis
 		}
 
-		offset += uint32(len(outputs.Outputs))
+		offset += uint32(len(outputs.Outputs)) //nolint:gosec // safe: output count fits in uint32
 		if len(outputs.Outputs) < int(balanceListLimit) {
 			break
 		}

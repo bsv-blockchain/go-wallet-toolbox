@@ -51,7 +51,7 @@ func (m *PaginatedResultsView) Init() tea.Cmd {
 func (m *PaginatedResultsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 
@@ -105,10 +105,11 @@ func (m *PaginatedResultsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *PaginatedResultsView) handleEnter() (tea.Model, tea.Cmd) {
 	if m.showingResults {
-		if m.cursor == 0 {
+		switch m.cursor {
+		case 0:
 			selectAction := NewSelectAction(m.manager, m.user)
 			return selectAction, selectAction.Init()
-		} else if m.cursor == 1 {
+		case 1:
 			m.showingResults = false
 			m.cursor = 0
 			return m, nil
@@ -164,14 +165,14 @@ func (m *PaginatedResultsView) viewSummary() string {
 
 	b.WriteString("NoSend/SendWith Test Results\n\n")
 
-	b.WriteString(fmt.Sprintf("✓ Created %d NoSend transactions and broadcast them via SendWith\n\n", m.result.TotalTxCount))
+	fmt.Fprintf(&b, "✓ Created %d NoSend transactions and broadcast them via SendWith\n\n", m.result.TotalTxCount)
 
 	b.WriteString("NoSend Creation Performance:\n")
-	b.WriteString(fmt.Sprintf("  Min time: %v\n", m.result.MinNoSendTime))
-	b.WriteString(fmt.Sprintf("  Max time: %v\n", m.result.MaxNoSendTime))
-	b.WriteString(fmt.Sprintf("  Avg time: %v\n\n", m.result.AvgNoSendTime))
+	fmt.Fprintf(&b, "  Min time: %v\n", m.result.MinNoSendTime)
+	fmt.Fprintf(&b, "  Max time: %v\n", m.result.MaxNoSendTime)
+	fmt.Fprintf(&b, "  Avg time: %v\n\n", m.result.AvgNoSendTime)
 
-	b.WriteString(fmt.Sprintf("SendWith broadcast operation: %v\n\n", m.result.SendWithTime))
+	fmt.Fprintf(&b, "SendWith broadcast operation: %v\n\n", m.result.SendWithTime)
 
 	options := []string{
 		"Continue to menu",
@@ -204,7 +205,7 @@ func (m *PaginatedResultsView) viewTxList() string {
 	totalTx := len(m.result.BroadcastedTxIds)
 	maxPage := m.getMaxPage()
 
-	b.WriteString(fmt.Sprintf("Transaction List (Page %d/%d)\n\n", m.currentPage+1, maxPage+1))
+	fmt.Fprintf(&b, "Transaction List (Page %d/%d)\n\n", m.currentPage+1, maxPage+1)
 
 	startIdx := m.currentPage * m.itemsPerPage
 	endIdx := startIdx + m.itemsPerPage
@@ -247,7 +248,7 @@ func (m *PaginatedResultsView) viewTxList() string {
 	}
 	b.WriteString(backLine + "\n\n")
 
-	b.WriteString(fmt.Sprintf("Showing %d-%d of %d transactions\n", startIdx+1, endIdx, totalTx))
+	fmt.Fprintf(&b, "Showing %d-%d of %d transactions\n", startIdx+1, endIdx, totalTx)
 
 	instructions := "↑/↓ Navigate, Enter to view full hash, ←/→ Change page, Tab for summary"
 	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render(instructions))

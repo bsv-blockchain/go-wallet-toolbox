@@ -59,6 +59,7 @@ func GivenSyncFixture(t testing.TB) (SyncFixture, func()) {
 
 type requestSyncChunkFixture struct {
 	testing.TB
+
 	args wdk.RequestSyncChunkArgs
 }
 

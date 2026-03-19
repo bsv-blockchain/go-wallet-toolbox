@@ -105,7 +105,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 			slog.String("reference", to.Value(args.Reference)),
 			slog.Int("rawTxSize", len(args.RawTx)),
 		)
-		if err := p.processNewTx(ctx, userID, args); err != nil {
+		if err = p.processNewTx(ctx, userID, args); err != nil {
 			return nil, err
 		}
 	}
@@ -130,7 +130,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 			slog.Int("batchSize", len(txIDs)),
 		)
 
-		if err := p.setBatchForTxs(ctx, txIDs); err != nil {
+		if err = p.setBatchForTxs(ctx, txIDs); err != nil {
 			return nil, fmt.Errorf("failed to set batch for transactions: %w", err)
 		}
 	}
@@ -242,7 +242,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 			slog.Uint64("commissionSatoshis", p.commissionCfg.Satoshis),
 		)
 
-		if err := p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
+		if err = p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
 			return fmt.Errorf("commission validation failed: %w", err)
 		}
 	}
@@ -454,7 +454,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	// hydrate txs in beef
-	if err := txutils.HydrateBEEF(beef); err != nil {
+	if err = txutils.HydrateBEEF(beef); err != nil {
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
@@ -469,9 +469,12 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 			return nil, fmt.Errorf("transaction %s not found in beef", txID)
 		}
 
-		if ok, err := p.scriptsVerifier.VerifyScripts(ctx, tx); err != nil {
+		var ok bool
+		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
+		if err != nil {
 			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
-		} else if !ok {
+		}
+		if !ok {
 			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
 		}
 	}
@@ -480,7 +483,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("txIDsCount", len(txIDs)),
 	)
 
-	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
+	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
 		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
@@ -489,7 +492,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 		)
 
-		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
+		var resultsForDelayedTxs []wdk.SendWithResult
+		resultsForDelayedTxs, err = p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process delayed transactions: %w", err)
 		}

@@ -104,7 +104,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 			WithTxID(signActionResult.Txid.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -186,7 +186,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 			WithTxID(signActionResult.Txid.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -257,7 +257,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 			WithoutTxID().
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -344,7 +344,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 			WithTxID(signActionResult.Txid.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).

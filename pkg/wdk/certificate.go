@@ -175,6 +175,7 @@ func (m KeyringMap) ToMap() map[string]string {
 // extended with keyring and verifier
 type CertificateResult struct {
 	WalletCertificate
+
 	Keyring  KeyringMap     `json:"keyring"`
 	Verifier VerifierString `json:"verifier"`
 }

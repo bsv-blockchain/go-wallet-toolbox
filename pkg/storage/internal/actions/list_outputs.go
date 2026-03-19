@@ -56,7 +56,8 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 			Basket: "default",
 			Limit:  -1,
 		}
-		outputModels, _, err := l.outputsRepo.ListAndCountOutputs(ctx, balanceFilter)
+		var outputModels []*pkgentity.Output
+		outputModels, _, err = l.outputsRepo.ListAndCountOutputs(ctx, balanceFilter)
 		if err != nil {
 			return nil, fmt.Errorf("error listing outputs for balance: %w", err)
 		}

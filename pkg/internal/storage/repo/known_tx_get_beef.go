@@ -100,7 +100,9 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.ErrNotFoundError)
 		}
 
-		rawTx, merklePath, err := options.TxGetterFcn(ctx, txID)
+		var rawTx []byte
+		var merklePath *transaction.MerklePath
+		rawTx, merklePath, err = options.TxGetterFcn(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
 		}
@@ -116,7 +118,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	} else if err != nil {
 		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
 	} else if options.TrustsSelfAsKnown() {
-		txIDHash, err := chainhash.NewHashFromHex(txID)
+		var txIDHash *chainhash.Hash
+		txIDHash, err = chainhash.NewHashFromHex(txID)
 		if err != nil {
 			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
 		}
@@ -135,7 +138,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 
 	ignoreMerkleProof := options.MinProofLevel > 0 && depth < options.MinProofLevel // If enabled, we intentionally skip attaching the merkle proof at this depth
 	if model.HasMerklePath() && !ignoreMerkleProof {
-		merklePath, err := transaction.NewMerklePathFromBinary(model.MerklePath)
+		var merklePath *transaction.MerklePath
+		merklePath, err = transaction.NewMerklePathFromBinary(model.MerklePath)
 		if err != nil {
 			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
 		}

@@ -152,7 +152,7 @@ func TestBackgroundBroadcaster_WhenProducerIsSlowerThanConsumer(t *testing.T) {
 
 func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{
-		sleep: 100 * time.Millisecond, // Simulate a slow broadcast
+		sleep: 5 * time.Second, // Simulate a very slow broadcast so channel fills before consumers drain it
 	}
 
 	logger, _ := loggerForTestBroadcaster()
@@ -181,7 +181,7 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 
 func TestBackgroundBroadcast_StopDuringProcessing(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{
-		sleep: 25 * time.Millisecond, // Simulate a slow broadcast
+		sleep: 5 * time.Second, // Long delay ensures Stop() cancels context before any broadcast completes
 	}
 
 	logger, _ := loggerForTestBroadcaster()

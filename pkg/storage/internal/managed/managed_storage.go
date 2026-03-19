@@ -9,6 +9,7 @@ import (
 
 type Storage struct {
 	wdk.WalletStorageProvider
+
 	Settings *wdk.TableSettings
 	User     *wdk.TableUser
 }

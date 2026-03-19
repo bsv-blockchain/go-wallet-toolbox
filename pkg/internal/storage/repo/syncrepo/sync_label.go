@@ -36,6 +36,7 @@ func NewSyncLabel(db *gorm.DB, query *genquery.Query) *SyncLabel {
 
 type LabelReadModel struct {
 	models.Label
+
 	NumID uint
 }
 

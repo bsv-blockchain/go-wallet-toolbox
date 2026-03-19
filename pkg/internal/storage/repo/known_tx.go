@@ -258,7 +258,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 	}()
 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&models.KnownTx{}).
+		err = tx.Model(&models.KnownTx{}).
 			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
 			Updates(&models.KnownTx{
 				Status:      wdk.ProvenTxStatusCompleted,
@@ -493,7 +493,7 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 			BlockHash string
 		}
 
-		if err := tx.Model(&models.KnownTx{}).
+		if err = tx.Model(&models.KnownTx{}).
 			Select("tx_id", "block_hash").
 			Where("block_hash IN ?", blockHashes).
 			Find(&affectedTxs).Error; err != nil {

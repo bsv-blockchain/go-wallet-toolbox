@@ -28,6 +28,7 @@ func NewSyncOutput(db *gorm.DB, query *genquery.Query) *SyncOutput {
 
 type OutputReadModel struct {
 	models.Output
+
 	BasketNumID *int `gorm:"column:basket_num_id"`
 }
 

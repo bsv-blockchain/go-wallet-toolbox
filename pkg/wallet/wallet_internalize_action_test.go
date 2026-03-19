@@ -125,7 +125,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
 
@@ -137,7 +137,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		thenInternalizedAction := thenState.ActionAtIndex(0)
 		thenInternalizedAction.
 			WithTxID(internalizedTx.TxID().String()).
-			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)).
+			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)). //nolint:gosec // safe: satoshis fit in int64
 			WithDescription(args.Description)
 
 		thenInternalizedAction.OutputAtIndex(0).
@@ -167,7 +167,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
 

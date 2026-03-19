@@ -18,6 +18,7 @@ import (
 
 type WalletTestSuite struct {
 	suite.Suite
+
 	StorageType testabilities.StorageType
 }
 

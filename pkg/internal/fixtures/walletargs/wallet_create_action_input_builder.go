@@ -97,7 +97,7 @@ func (b *createActionInputBuilder) CreateActionInput() sdk.CreateActionInput {
 
 	unlockingScript := inputUnlockingScript.Bytes()
 	if b.noUnlocking {
-		actionInput.UnlockingScriptLength = uint32(len(unlockingScript))
+		actionInput.UnlockingScriptLength = uint32(len(unlockingScript)) //nolint:gosec // script length fits in uint32
 	} else {
 		actionInput.UnlockingScript = unlockingScript
 	}

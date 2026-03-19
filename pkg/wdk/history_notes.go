@@ -58,7 +58,7 @@ func (n *HistoryNote) UnmarshalJSON(data []byte) error {
 	type alias HistoryNote // use a type alias to avoid an infinite recursion loop.
 	var aux alias          // This allows us to use the default json.Unmarshal logic for the known fields.
 
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := json.Unmarshal(data, &aux); err != nil { //nolint:musttag // Attributes field is handled explicitly by custom unmarshal logic below
 		return fmt.Errorf("failed to unmarshal history note known fields: %w", err)
 	}
 

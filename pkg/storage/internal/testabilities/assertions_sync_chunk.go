@@ -127,6 +127,7 @@ func (s *syncChunkAssertion) WithError(err error) {
 
 type syncChunkAssertion struct {
 	testing.TB
+
 	chunk *wdk.SyncChunk
 }
 

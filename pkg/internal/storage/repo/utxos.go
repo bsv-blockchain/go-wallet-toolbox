@@ -120,7 +120,8 @@ func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID st
 				Scopes(isChangeDaoScope(query))
 		}
 
-		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+		var changeOutputs []*outputWithTxStatus
+		changeOutputs, err = getOutputsWithTxStatus(ctx, query, filterScope)
 		if err != nil {
 			return err
 		}

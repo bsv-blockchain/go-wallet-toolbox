@@ -74,7 +74,7 @@ func (s *WalletTestSuite) TestWalletGetNetwork() {
 			result, err := aliceWallet.GetNetwork(t.Context(), test.args, test.originator)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, test.expectedNetwork, result.Network, "Should return the correct network")
 		})

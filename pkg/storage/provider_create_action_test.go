@@ -64,7 +64,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 32, len(result.Outputs))
+	assert.Len(t, result.Outputs, 32)
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -88,7 +88,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Equal(t, providedOutput.CustomInstructions, resultOutput.CustomInstructions)
 	assert.Contains(t, resultOutput.Tags, primitives.StringUnder300(fixtures.CreateActionTestTag))
 
-	require.Equal(t, 1, len(result.Inputs))
+	require.Len(t, result.Inputs, 1)
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
 	assert.NotEmpty(t, input.SourceTxID)
@@ -273,7 +273,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 33, len(result.Outputs))
+	assert.Len(t, result.Outputs, 33)
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -287,7 +287,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Equal(t, wdk.ProvidedByStorage, commissionOutput.ProvidedBy)
 	assert.Nil(t, commissionOutput.DerivationSuffix)
 	assert.NotEmpty(t, commissionOutput.LockingScript)
-	assert.NoError(t, commissionOutput.LockingScript.Validate())
+	require.NoError(t, commissionOutput.LockingScript.Validate())
 	assert.Empty(t, commissionOutput.OutputDescription)
 	assert.Nil(t, commissionOutput.CustomInstructions)
 	assert.Empty(t, commissionOutput.Tags)
@@ -463,7 +463,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 31, len(result.Outputs))
+	assert.Len(t, result.Outputs, 31)
 	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -475,7 +475,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
-	require.Equal(t, 1, len(result.Inputs))
+	require.Len(t, result.Inputs, 1)
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
 	assert.Equal(t, input.SourceTxID, ownedTx.TxID().String())
@@ -528,7 +528,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 32, len(result.Outputs))
+	assert.Len(t, result.Outputs, 32)
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -540,7 +540,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
-	require.Equal(t, 1, len(result.Inputs))
+	require.Len(t, result.Inputs, 1)
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
 	assert.Equal(t, input.SourceTxID, unknownParentTx.ID().String())
@@ -592,7 +592,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 33, len(result.Outputs))
+	assert.Len(t, result.Outputs, 33)
 	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -604,7 +604,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
-	require.Equal(t, 1, len(result.Inputs))
+	require.Len(t, result.Inputs, 1)
 	input := result.Inputs[0]
 	assert.Equal(t, 0, input.Vin)
 	assert.Equal(t, input.SourceTxID, unknownParentTx.ID().String())
@@ -659,7 +659,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 9, len(result.Outputs))
+	assert.Len(t, result.Outputs, 9)
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(7999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -671,7 +671,7 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 		assert.Equal(t, "change", p.Purpose)
 	})
 
-	require.Equal(t, 2, len(result.Inputs))
+	require.Len(t, result.Inputs, 2)
 	providedInput := result.Inputs[0]
 	assert.Equal(t, 0, providedInput.Vin)
 	assert.Equal(t, providedInput.SourceTxID, unknownParentTx.ID().String())

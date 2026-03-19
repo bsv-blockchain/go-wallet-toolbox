@@ -154,7 +154,7 @@ func TestChangeDistribution(t *testing.T) {
 			values := dist.Distribute(test.count, test.amount)
 
 			// then:
-			require.EqualValues(t, test.expected, seq.Collect(values))
+			require.Equal(t, test.expected, seq.Collect(values))
 		})
 	}
 }

@@ -205,7 +205,7 @@ func validateUint[T ~uint | ~uint64](value T) error {
 
 func validateGeneric(value any) error {
 	v := reflect.ValueOf(value)
-	//nolint:exhaustive
+	//nolint:exhaustive // only numeric kinds are supported; default case handles unsupported types
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return validateInt(v.Int())

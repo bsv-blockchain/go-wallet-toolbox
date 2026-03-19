@@ -35,7 +35,7 @@ func (m *ExpandedTxView) Init() tea.Cmd {
 func (m *ExpandedTxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc, tea.KeyEnter:
 			return m.parentView, nil
 		}

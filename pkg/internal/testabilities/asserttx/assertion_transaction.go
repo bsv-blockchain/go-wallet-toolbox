@@ -109,7 +109,7 @@ func (t *txAssertion) HasTotalInputValue(sats int) BSVInputsAssertion {
 		return t
 	}
 
-	assert.EqualValues(t, sats, int(totalInputs), "expect transaction to have total input value")
+	assert.Equal(t, sats, int(totalInputs), "expect transaction to have total input value") //nolint:gosec // test assertion, totalInputs fits in int
 	return t
 }
 

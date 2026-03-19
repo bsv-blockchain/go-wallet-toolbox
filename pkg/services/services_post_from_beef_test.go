@@ -38,12 +38,12 @@ func TestPostFromBEEF(t *testing.T) {
 		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEmpty(t, response)
 
 		slices.ForEach(response, func(item *wdk.PostFromBEEFServiceResult) {
 			assert.NotEmpty(t, item.Name)
-			assert.NoError(t, item.Error)
+			require.NoError(t, item.Error)
 			if assert.NotNil(t, item.PostedBEEFResult) {
 				result := item.PostedBEEFResult
 				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
@@ -82,7 +82,7 @@ func TestPostFromBEEF(t *testing.T) {
 		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEmpty(t, response)
 
 		// and then: grouped by service and verify each service handled both txIDs

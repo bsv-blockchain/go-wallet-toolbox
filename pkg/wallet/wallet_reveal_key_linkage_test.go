@@ -81,7 +81,7 @@ func TestWallet_RevealCounterpartyKeyLinkage(t *testing.T) {
 		},
 	}, fixtures.DefaultOriginator)
 	require.NoError(t, err)
-	assert.Equal(t, 98, len(decryptedProof.Plaintext))
+	assert.Len(t, decryptedProof.Plaintext, 98)
 }
 
 func TestRevealSpecificKeyLinkageOriginatorValidation(t *testing.T) {

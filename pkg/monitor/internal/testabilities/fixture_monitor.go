@@ -44,5 +44,9 @@ func (m *monitorFixture) Daemon() *monitor.Daemon {
 
 	m.daemon = daemon
 
+	m.t.Cleanup(func() {
+		_ = daemon.Stop()
+	})
+
 	return daemon
 }

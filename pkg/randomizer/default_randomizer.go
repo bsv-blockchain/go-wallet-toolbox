@@ -60,8 +60,8 @@ func (s *DefaultRandomizer) Shuffle(n int, swap func(i, j int)) {
 
 // Uint64 generates a cryptographically secure random unsigned integer between 0 and max-1.
 // Panics if random number generation fails.
-func (s *DefaultRandomizer) Uint64(max uint64) uint64 {
-	nBig, err := cryptorand.Int(cryptorand.Reader, big.NewInt(must.ConvertToInt64FromUnsigned(max)))
+func (s *DefaultRandomizer) Uint64(maxVal uint64) uint64 {
+	nBig, err := cryptorand.Int(cryptorand.Reader, big.NewInt(must.ConvertToInt64FromUnsigned(maxVal)))
 	if err != nil {
 		panic(fmt.Errorf("failed to generate random number: %w", err))
 	}

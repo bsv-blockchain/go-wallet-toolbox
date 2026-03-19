@@ -38,6 +38,7 @@ type TxGeneratorFixture interface {
 
 type txGeneratorFixture struct {
 	testing.TB
+
 	parent                *storageFixture
 	satoshisToInternalize uint64
 	satoshisToSend        uint64
@@ -216,7 +217,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 	return result, signedTx
 }
 
-func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, parentTx *transaction.Transaction) *transaction.Transaction {
+func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, _ *transaction.Transaction) *transaction.Transaction {
 	t.Helper()
 	keyDeriver := sdk.NewKeyDeriver(t.sender.PrivateKey(t))
 

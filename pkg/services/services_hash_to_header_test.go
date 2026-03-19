@@ -35,7 +35,6 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 		{
 			name: "Bitails returns valid header",
 			setup: func(f testservices.ServicesFixture) {
-				blockHash := btb.TestHex
 				rawHeader := btb.ValidBlockHeaderRaw()
 
 				err := f.WhatsOnChain().WillBeUnreachable()

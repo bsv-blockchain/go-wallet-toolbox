@@ -152,7 +152,7 @@ func TestWalletServices_NLockTimeIsFinal_TimestampPath(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// given:
-			now := uint32(time.Now().Unix())
+			now := uint32(time.Now().Unix()) //nolint:gosec // unix timestamp fits in uint32 until year 2106
 
 			given := testservices.GivenServices(t)
 			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()

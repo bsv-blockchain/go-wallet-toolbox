@@ -78,7 +78,7 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 			return nil
 		}
 
-		err := tx.Create(&model).Error
+		err = tx.Create(&model).Error
 		if err != nil {
 			return fmt.Errorf("failed to create new output basket: %w", err)
 		}

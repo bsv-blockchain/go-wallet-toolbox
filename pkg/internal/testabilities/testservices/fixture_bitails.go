@@ -58,6 +58,7 @@ type BitailsBroadcastFixture interface {
 
 type bitailsFixture struct {
 	testing.TB
+
 	transport *httpmock.MockTransport
 	network   defs.BSVNetwork
 }
@@ -145,6 +146,7 @@ func (b *bitailsFixture) WillReturnSuccessAndTxInfo(txid, blockHash string, bloc
 
 type bitailsBroadcastFixture struct {
 	testing.TB
+
 	transport *httpmock.MockTransport
 	network   defs.BSVNetwork
 }
@@ -153,11 +155,11 @@ func (b *bitailsBroadcastFixture) WillReturnSuccess(txid string) {
 	body := []map[string]any{
 		{"txid": txid},
 	}
-	b.registerBroadcastResponder(http.StatusCreated, body)
+	b.registerBroadcastResponder(body)
 }
 
 func (b *bitailsBroadcastFixture) WillReturnAlreadyInMempool(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -169,7 +171,7 @@ func (b *bitailsBroadcastFixture) WillReturnAlreadyInMempool(txid string, err er
 }
 
 func (b *bitailsBroadcastFixture) WillReturnDoubleSpend(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -181,7 +183,7 @@ func (b *bitailsBroadcastFixture) WillReturnDoubleSpend(txid string, err error) 
 }
 
 func (b *bitailsBroadcastFixture) WillReturnMissingInputs(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -193,7 +195,7 @@ func (b *bitailsBroadcastFixture) WillReturnMissingInputs(txid string, err error
 }
 
 func (b *bitailsBroadcastFixture) WillReturnMalformedResponse() {
-	b.registerBroadcastResponder(http.StatusCreated, map[string]any{"malformed": true})
+	b.registerBroadcastResponder(map[string]any{"malformed": true})
 }
 
 func (b *bitailsBroadcastFixture) WillReturnHttpError(status int) {
@@ -205,7 +207,7 @@ func (b *bitailsBroadcastFixture) WillReturnHttpError(status int) {
 }
 
 func (b *bitailsBroadcastFixture) WillReturnEconnRefused(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -218,7 +220,7 @@ func (b *bitailsBroadcastFixture) WillReturnEconnRefused(txid string, err error)
 }
 
 func (b *bitailsBroadcastFixture) WillReturnEconnReset(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -230,7 +232,7 @@ func (b *bitailsBroadcastFixture) WillReturnEconnReset(txid string, err error) {
 	})
 }
 
-func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body any) {
+func (b *bitailsBroadcastFixture) registerBroadcastResponder(body any) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		b.Fatalf("failed to marshal broadcast response: %v", err)
@@ -239,7 +241,7 @@ func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body an
 	headers := http.Header{}
 	headers.Set("Content-Type", "application/json")
 
-	responder := httpmock.NewStringResponder(status, string(data)).
+	responder := httpmock.NewStringResponder(http.StatusCreated, string(data)).
 		HeaderSet(headers)
 
 	b.transport.RegisterRegexpResponder(

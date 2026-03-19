@@ -120,12 +120,14 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 			return nil, fmt.Errorf("cannot parse source transaction on input %d returned from storage: %w", it.Vin, err)
 		}
 	} else {
-		lockingScript, err := script.NewFromHex(it.SourceLockingScript)
+		var lockingScript *script.Script
+		lockingScript, err = script.NewFromHex(it.SourceLockingScript)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse input %d locking script: %w", it.Vin, err)
 		}
 
-		satoshis, err := to.UInt64(it.SourceSatoshis)
+		var satoshis uint64
+		satoshis, err = to.UInt64(it.SourceSatoshis)
 		if err != nil {
 			return nil, fmt.Errorf("cannot convert input %d source satoshis to uint64: %w", it.Vin, err)
 		}

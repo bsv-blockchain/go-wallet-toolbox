@@ -20,6 +20,7 @@ type FaucetFixture interface {
 
 type faucetFixture struct {
 	testing.TB
+
 	userWallet *wallet.Wallet
 	index      int
 }

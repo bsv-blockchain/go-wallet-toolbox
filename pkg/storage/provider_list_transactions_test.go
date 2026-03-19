@@ -34,7 +34,7 @@ func TestListTransactions_HappyPath(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.GreaterOrEqual(t, int(result.TotalTransactions), 1)
+	assert.GreaterOrEqual(t, int(result.TotalTransactions), 1) //nolint:gosec // test assertion, TotalTransactions fits in int
 }
 
 func TestListTransactions_InvalidAuth(t *testing.T) {
@@ -187,5 +187,5 @@ func TestListTransactions_NilReferenceReturnsAll(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.GreaterOrEqual(t, int(result.TotalTransactions), 2)
+	assert.GreaterOrEqual(t, int(result.TotalTransactions), 2) //nolint:gosec // test assertion, TotalTransactions fits in int
 }

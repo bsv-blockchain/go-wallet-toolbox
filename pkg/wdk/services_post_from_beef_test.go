@@ -88,7 +88,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -97,8 +97,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 1, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 1)
 		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
 	})
 
@@ -123,7 +123,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -132,8 +132,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 1, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 1)
 		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
 	})
 
@@ -169,7 +169,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -178,8 +178,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 2, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 2)
 		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
 	})
 
@@ -216,7 +216,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID1, txID2})
 
 		// then:
-		require.Equal(t, 2, len(aggregated))
+		require.Len(t, aggregated, 2)
 
 		for _, txid := range []string{txID1, txID2} {
 			require.Contains(t, aggregated, txid)
@@ -224,8 +224,8 @@ func TestAggregated(t *testing.T) {
 			require.Equal(t, 0, aggregated[txid].DoubleSpendCount)
 			require.Equal(t, 0, aggregated[txid].StatusErrorCount)
 			require.Equal(t, 0, aggregated[txid].ServiceErrorCount)
-			require.Equal(t, 0, len(aggregated[txid].CompetingTxs))
-			require.Equal(t, 1, len(aggregated[txid].TxIDResults))
+			require.Empty(t, aggregated[txid].CompetingTxs)
+			require.Len(t, aggregated[txid].TxIDResults, 1)
 			require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggregated[txid].Status)
 		}
 	})
@@ -271,7 +271,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID1, txID2})
 
 		// then:
-		require.Equal(t, 2, len(aggregated))
+		require.Len(t, aggregated, 2)
 
 		for _, txid := range []string{txID1, txID2} {
 			require.Contains(t, aggregated, txid)
@@ -279,8 +279,8 @@ func TestAggregated(t *testing.T) {
 			require.Equal(t, 0, aggregated[txid].DoubleSpendCount)
 			require.Equal(t, 0, aggregated[txid].StatusErrorCount)
 			require.Equal(t, 0, aggregated[txid].ServiceErrorCount)
-			require.Equal(t, 0, len(aggregated[txid].CompetingTxs))
-			require.Equal(t, 2, len(aggregated[txid].TxIDResults))
+			require.Empty(t, aggregated[txid].CompetingTxs)
+			require.Len(t, aggregated[txid].TxIDResults, 2)
 			require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggregated[txid].Status)
 		}
 	})
@@ -306,7 +306,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -315,8 +315,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 1, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 1, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 1)
 		require.Equal(t, wdk.AggregatedPostedTxIDInvalidTx, aggTxID.Status)
 	})
 
@@ -334,7 +334,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -344,8 +344,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 0, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Empty(t, aggTxID.TxIDResults)
 		require.Equal(t, wdk.AggregatedPostedTxIDServiceError, aggTxID.Status)
 	})
 
@@ -371,7 +371,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -381,8 +381,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 1, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 1, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 1)
 		require.Equal(t, wdk.AggregatedPostedTxIDServiceError, aggTxID.Status)
 	})
 
@@ -419,7 +419,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -428,8 +428,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 1, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 2, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 2)
 		require.Equal(t, wdk.AggregatedPostedTxIDSuccess, aggTxID.Status)
 	})
 
@@ -455,7 +455,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -464,8 +464,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 1, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 1, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 1)
 		require.Equal(t, wdk.AggregatedPostedTxIDDoubleSpend, aggTxID.Status)
 	})
 
@@ -506,7 +506,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -515,8 +515,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 2, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 1, len(aggTxID.CompetingTxs))
-		require.Equal(t, 2, len(aggTxID.TxIDResults))
+		require.Len(t, aggTxID.CompetingTxs, 1)
+		require.Len(t, aggTxID.TxIDResults, 2)
 		require.Equal(t, wdk.AggregatedPostedTxIDDoubleSpend, aggTxID.Status)
 	})
 
@@ -553,7 +553,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -562,8 +562,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 1, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 2, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Len(t, aggTxID.TxIDResults, 2)
 		require.Equal(t, wdk.AggregatedPostedTxIDDoubleSpend, aggTxID.Status)
 	})
 
@@ -576,7 +576,7 @@ func TestAggregated(t *testing.T) {
 		aggregated := result.Aggregated([]string{txID})
 
 		// then:
-		require.Equal(t, 1, len(aggregated))
+		require.Len(t, aggregated, 1)
 
 		aggTxID, ok := aggregated[txID]
 		require.True(t, ok)
@@ -585,8 +585,8 @@ func TestAggregated(t *testing.T) {
 		require.Equal(t, 0, aggTxID.DoubleSpendCount)
 		require.Equal(t, 0, aggTxID.StatusErrorCount)
 		require.Equal(t, 0, aggTxID.ServiceErrorCount)
-		require.Equal(t, 0, len(aggTxID.CompetingTxs))
-		require.Equal(t, 0, len(aggTxID.TxIDResults))
+		require.Empty(t, aggTxID.CompetingTxs)
+		require.Empty(t, aggTxID.TxIDResults)
 		require.Equal(t, wdk.AggregatedPostedTxIDServiceError, aggTxID.Status)
 	})
 }

@@ -50,7 +50,7 @@ func TestWalletServices_FiatExchangeRate(t *testing.T) {
 		rate := services.FiatExchangeRate(eur, &usd)
 
 		// then:
-		assert.Equal(t, 0.85, rate)
+		assert.InDelta(t, 0.85, rate, 0.001)
 	})
 
 	t.Run("converts correctly from GBP to EUR", func(t *testing.T) {
@@ -95,6 +95,6 @@ func TestWalletServices_FiatExchangeRate(t *testing.T) {
 		rate := services.FiatExchangeRate(gbp, &usd)
 
 		// then:
-		assert.Equal(t, 0.0, rate)
+		assert.InDelta(t, 0.0, rate, 0.001)
 	})
 }

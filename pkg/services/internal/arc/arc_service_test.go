@@ -39,7 +39,7 @@ func TestPostEFWithARCService(t *testing.T) {
 		res, err := service.PostEF(t.Context(), efTX, txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, res)
 
 		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
@@ -70,7 +70,7 @@ func TestPostEFWithARCService(t *testing.T) {
 		res, err := service.PostEF(t.Context(), efTX, txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, res)
 
 		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
@@ -109,7 +109,7 @@ func TestPostEFWithARCService(t *testing.T) {
 			res, err := service.PostEF(t.Context(), txEF, txID)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, res)
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
 			assert.Error(t, res.Error)
@@ -163,7 +163,7 @@ func TestPostEFWithARCService(t *testing.T) {
 			res, err := service.PostEF(t.Context(), efHex, tx.TxID().String())
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, res)
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
 			assert.Error(t, res.Error)
@@ -243,7 +243,7 @@ func TestPostEFWithARCService(t *testing.T) {
 			res, err := service.PostEF(t.Context(), efHex, txID)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, res)
 
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
@@ -360,7 +360,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 			res, err := service.MerklePath(t.Context(), txID)
 
 			// then:
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, res)
 		})
 	}
@@ -382,7 +382,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, res)
 		assert.Equal(t, arc.ServiceName, res.Name)
 		assert.Nil(t, res.MerklePath)
@@ -428,7 +428,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Equal(t, arc.ServiceName, res.Name)
 		assert.Equal(t, merklePath, *res.MerklePath)

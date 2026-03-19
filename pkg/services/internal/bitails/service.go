@@ -160,7 +160,7 @@ func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	}
 
 	var payload dto.NetworkInfoResponse
-	found, err := b.handleJSON(ctx, url, &payload, http.StatusOK, false)
+	found, err := b.handleJSON(ctx, url, &payload, false)
 	if err != nil {
 		return 0, fmt.Errorf("error fetching current height: %w", err)
 	}

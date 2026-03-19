@@ -67,6 +67,7 @@ type ArcBroadcastFixture interface {
 
 type arcFixture struct {
 	testing.TB
+
 	transport                    *httpmock.MockTransport
 	knownTransactions            sync.Map
 	broadcastWithoutResponseBody bool
@@ -109,15 +110,11 @@ func (f *arcFixture) IsUpAndRunning() {
 		defer f.holdBroadcastExecution.RUnlock()
 
 		b, err := io.ReadAll(req.Body)
-		if !assert.NoError(f, err) {
-			return nil, err
-		}
+		require.NoError(f, err)
 
 		var body map[string]any
 		err = json.Unmarshal(b, &body)
-		if !assert.NoError(f, err) {
-			return nil, err
-		}
+		require.NoError(f, err)
 
 		rawTx := body["rawTx"]
 		if !assert.NotNil(f, rawTx) {
@@ -276,6 +273,7 @@ func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
 
 type arcQueryFixture struct {
 	testing.TB
+
 	parent *arcFixture
 	txID   string
 }

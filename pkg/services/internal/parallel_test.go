@@ -174,7 +174,7 @@ func SlowTask(result *types.Result[string]) *Task {
 			return result.GetError().Error()
 		}),
 		process: func(t testing.TB) types.Result[string] {
-			delay := rand.IntN(500)
+			delay := rand.IntN(500) //nolint:gosec // math/rand is sufficient for test timing delays
 			time.Sleep(time.Duration(delay) * time.Millisecond)
 			return *result
 		},

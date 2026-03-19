@@ -259,7 +259,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 		}
 
 		var output models.Output
-		if err := query.First(&output).Error; err != nil {
+		if err = query.First(&output).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				var basketMsg string
 				if basketName != nil {
@@ -279,7 +279,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 			return fmt.Errorf("failed to unlink output from basket: %w", result.Error)
 		}
 
-		err := tx.Delete(models.UserUTXO{}, "reserved_by_id IS NULL and output_id = ?", output.ID).Error
+		err = tx.Delete(models.UserUTXO{}, "reserved_by_id IS NULL and output_id = ?", output.ID).Error
 		if err != nil {
 			return fmt.Errorf("failed to delete user utxo for output %d (it can be reserved): %w", output.ID, err)
 		}
@@ -319,6 +319,7 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 
 	type outputWithTxID struct {
 		*models.Output
+
 		TxID *string
 	}
 
@@ -431,7 +432,8 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 		selected := o.selectedActionsSubquery(tx, userID, filter)
 		dbq := o.buildOutputsJoinQuery(tx, selected, userID, includeLockingScripts)
 
-		rows, err := dbq.Rows()
+		var rows *sql.Rows
+		rows, err = dbq.Rows()
 		if err != nil {
 			return fmt.Errorf("failed to fetch inputs/outputs via joins: %w", err)
 		}
@@ -504,6 +506,7 @@ func (o *Outputs) buildOutputsJoinQuery(tx, selected *gorm.DB, userID int, inclu
 func (o *Outputs) readOutputsIntoMaps(tx *gorm.DB, rows *sql.Rows) (map[uint][]*pkgentity.Output, map[uint][]*pkgentity.Output, error) {
 	type readRow struct {
 		models.Output
+
 		TxID *string `gorm:"column:tx_id"`
 		Tag  *string `gorm:"column:tag_name"`
 	}
@@ -618,7 +621,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 
 	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, model := range modelsToStore {
-			err := tx.Save(&model.Output).Error
+			err = tx.Save(&model.Output).Error
 			if err != nil {
 				return fmt.Errorf("failed to save output: %w", err)
 			}
@@ -659,7 +662,8 @@ func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionI
 				Scopes(isChangeDaoScope(query))
 		}
 
-		changeOutputs, err := getOutputsWithTxStatus(ctx, query, changeSpentScope)
+		var changeOutputs []*outputWithTxStatus
+		changeOutputs, err = getOutputsWithTxStatus(ctx, query, changeSpentScope)
 		if err != nil {
 			return err
 		}
@@ -695,6 +699,7 @@ func isChangeDaoScope(query *genquery.Query) func(dao gen.Dao) gen.Dao {
 
 type outputWithTxStatus struct {
 	models.Output
+
 	TxStatus wdk.TxStatus `gorm:"column:tx_status"`
 }
 

@@ -49,7 +49,7 @@ func (m *ListOutputsWaiting) listOutputs() tea.Msg {
 
 func (m *ListOutputsWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.Type {
+		switch keyMsg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}

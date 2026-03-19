@@ -45,6 +45,7 @@ type WalletBuilder interface {
 
 type walletBuilder struct {
 	testing.TB
+
 	walletFixture *walletFixture
 	storageType   StorageType
 	withServices  bool

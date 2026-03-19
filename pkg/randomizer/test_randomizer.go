@@ -93,6 +93,6 @@ func (t *TestRandomizer) Shuffle(n int, swap func(i, j int)) {
 }
 
 // Uint64 returns a deterministic uint64 value, which is always 0 in this implementation.
-func (t *TestRandomizer) Uint64(max uint64) uint64 {
+func (t *TestRandomizer) Uint64(_ uint64) uint64 {
 	return 0
 }

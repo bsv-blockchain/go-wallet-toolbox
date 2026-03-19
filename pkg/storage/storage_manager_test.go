@@ -218,7 +218,7 @@ func TestWalletStorageManager_SetActive(t *testing.T) {
 		// then:
 		outputs, err := storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
 		require.NoError(t, err)
-		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+		require.Equal(t, topUpAmount, int(outputs.Outputs[0].Satoshis)) //nolint:gosec // safe: satoshis fit in int for test values
 
 		// when: switch to backup
 		err = storageManager.SetActive(t.Context(), fixtures.SecondStorageIdentityKey)
@@ -230,7 +230,7 @@ func TestWalletStorageManager_SetActive(t *testing.T) {
 		// and:
 		outputs, err = storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
 		require.NoError(t, err)
-		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+		require.Equal(t, topUpAmount, int(outputs.Outputs[0].Satoshis)) //nolint:gosec // safe: satoshis fit in int for test values
 	})
 
 	t.Run("one active on unexisting storage", func(t *testing.T) {
@@ -297,7 +297,7 @@ func TestWalletStorageManager_FindOutputs(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Len(t, outputs, 0)
+		require.Empty(t, outputs)
 
 		// when: top up
 		const topUpAmount = 1000
@@ -312,6 +312,6 @@ func TestWalletStorageManager_FindOutputs(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.Len(t, outputs, 1)
-		require.Equal(t, int(outputs[0].Satoshis), topUpAmount)
+		require.Equal(t, topUpAmount, int(outputs[0].Satoshis))
 	})
 }

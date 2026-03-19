@@ -39,7 +39,7 @@ func (m *Manager) SelectNetwork(network defs.BSVNetwork) {
 }
 
 func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {
-	switch storageType {
+	switch storageType { //nolint:exhaustive // StorageTypeRemotePostgres is not yet implemented
 	case fixtures.StorageTypeLocalSQLite:
 		storage, err := CreateLocalStorage(m.ctx, m.config.BSVNetwork, m.config.ServerPrivateKey)
 		if err != nil {

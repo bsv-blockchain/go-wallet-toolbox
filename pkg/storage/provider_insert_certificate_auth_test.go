@@ -267,7 +267,7 @@ func TestListCertificates(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		assert.Equal(t, primitives.PositiveInteger(3), certs.TotalCertificates)
-		require.Equal(t, 1, len(certs.Certificates))
+		require.Len(t, certs.Certificates, 1)
 
 		// when: listing certificates with limit 2
 		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
@@ -277,7 +277,7 @@ func TestListCertificates(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		assert.Equal(t, primitives.PositiveInteger(3), certs.TotalCertificates)
-		require.Equal(t, 2, len(certs.Certificates))
+		require.Len(t, certs.Certificates, 2)
 
 		// when: listing certificates with limit 1 and offset 2
 		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
@@ -287,6 +287,6 @@ func TestListCertificates(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		assert.Equal(t, primitives.PositiveInteger(3), certs.TotalCertificates)
-		require.Equal(t, 1, len(certs.Certificates))
+		require.Len(t, certs.Certificates, 1)
 	})
 }

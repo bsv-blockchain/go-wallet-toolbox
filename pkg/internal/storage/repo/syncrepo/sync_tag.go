@@ -36,6 +36,7 @@ func NewSyncTag(db *gorm.DB, query *genquery.Query) *SyncTag {
 
 type TagReadModel struct {
 	models.Tag
+
 	NumID uint
 }
 

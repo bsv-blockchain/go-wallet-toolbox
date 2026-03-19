@@ -64,7 +64,8 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
 
 	if cfg.TracingConfig.Enabled {
-		tracingCleanup, err := tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
+		var tracingCleanup func()
+		tracingCleanup, err = tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable tracing: %w", err)
 		}

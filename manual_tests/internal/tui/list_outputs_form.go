@@ -59,9 +59,8 @@ func NewListOutputsForm(manager ManagerInterface, user *fixtures.UserConfig) *Li
 	}
 
 	// Set up focus items: Back, all inputs, Continue
-	items := []FocusItem{
-		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
-	}
+	items := make([]FocusItem, 0, 1+len(inputs)+1)
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack})
 	for i := range inputs {
 		items = append(items, FocusItem{
 			Type:  ElementInput,
@@ -96,7 +95,7 @@ func (m *ListOutputsForm) Init() tea.Cmd {
 func (m *ListOutputsForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := m.focus.CurrentItem()
 			if current.Type == ElementButton {

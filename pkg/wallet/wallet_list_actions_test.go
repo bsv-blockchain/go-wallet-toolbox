@@ -94,7 +94,7 @@ func (s *WalletTestSuite) TestWalletListActions() {
 		result, err := aliceWallet.ListActions(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, uint32(0), result.TotalActions, "Should have zero total actions")
 		assert.Empty(t, result.Actions, "Actions list should be empty")

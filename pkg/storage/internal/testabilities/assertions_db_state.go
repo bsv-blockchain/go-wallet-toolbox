@@ -98,6 +98,7 @@ func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
 
 type dbStateAssertion struct {
 	testing.TB
+
 	storage StorageReader
 }
 
@@ -164,6 +165,7 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 
 type knownTxAssertion struct {
 	testing.TB
+
 	knownTx *pkgentity.KnownTx
 }
 
@@ -243,6 +245,7 @@ func (d *knownTxAssertion) IsNotified(expected bool) KnownTxAssertion {
 
 type txNotesAssertion struct {
 	testing.TB
+
 	txNotes      []*pkgentity.TxHistoryNote
 	currentIndex int
 }
@@ -356,6 +359,7 @@ func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID st
 
 type userTransactionAssertion struct {
 	testing.TB
+
 	transaction *pkgentity.Transaction
 }
 
@@ -423,11 +427,13 @@ func (d *dbStateAssertion) AllOutputs(user testusers.User) OutputsListAssertion 
 
 type outputsListAssertion struct {
 	testing.TB
+
 	outputs []*outputInfo
 }
 
 type outputInfo struct {
 	wdk.WalletActionOutput
+
 	txID string
 }
 

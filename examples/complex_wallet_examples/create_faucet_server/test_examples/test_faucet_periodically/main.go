@@ -67,17 +67,17 @@ func main() {
 			fmt.Printf("\n--- Faucet Call #%d ---\n", counter)
 			fmt.Printf("Time: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 
-			body, _ := json.Marshal(faucetReq{
+			body, _ := json.Marshal(faucetReq{ //nolint:errchkjson // error not possible for this well-typed struct
 				Outputs: []methods.FaucetOutput{
 					{Address: address, Amount: amount},
 				},
 			})
-			resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body))
+			resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body)) //nolint:noctx // example script, context not needed
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				continue
 			}
-			defer resp.Body.Close()
+			defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in example code
 
 			var out faucetResp
 			_ = json.NewDecoder(resp.Body).Decode(&out)

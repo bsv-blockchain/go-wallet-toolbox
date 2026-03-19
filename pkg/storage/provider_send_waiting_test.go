@@ -111,7 +111,7 @@ func TestSendWaitingTransactions_SeveralFailures(t *testing.T) {
 		_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and db state:
 		thenDBState := testabilities.ThenDBState(t, activeStorage)

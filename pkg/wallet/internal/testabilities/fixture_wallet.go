@@ -43,6 +43,7 @@ type WalletFixture interface {
 
 type walletFixture struct {
 	testing.TB
+
 	storageFixture testabilities.StorageFixture
 	usersSetups    map[testusers.User]*userWalletSetup
 	usersFaucets   map[string]*faucetFixture

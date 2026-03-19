@@ -17,7 +17,7 @@ func TestTransactionError_Success(t *testing.T) {
 	err := pkgerrors.NewTransactionError(chainhash.Hash{}).Wrap(rootCause)
 	require.NotNil(t, err)
 	assert.Equal(t, "transaction error (txID: 0000000000000000000000000000000000000000000000000000000000000000)", err.Error())
-	assert.EqualError(t, err.Unwrap(), "root cause")
+	require.EqualError(t, err.Unwrap(), "root cause")
 	assert.True(t, err.Is(err))
 	assert.ErrorIs(t, err, rootCause)
 }
@@ -26,7 +26,7 @@ func TestTransactionError_ErrorCases(t *testing.T) {
 	t.Run("error without cause", func(t *testing.T) {
 		err := pkgerrors.NewTransactionError(chainhash.Hash{})
 		require.NotNil(t, err)
-		assert.NoError(t, err.Unwrap())
+		require.NoError(t, err.Unwrap())
 		assert.False(t, err.Is(nil))
 	})
 }
@@ -36,7 +36,7 @@ func TestCreateActionError_Success(t *testing.T) {
 
 	require.NotNil(t, err)
 	assert.Contains(t, err.Error(), "create action failed (reference: ref1)")
-	assert.EqualError(t, err.Unwrap(), "build failure")
+	require.EqualError(t, err.Unwrap(), "build failure")
 	assert.True(t, err.Is(err))
 	assert.False(t, err.Is(nil))
 }
@@ -45,7 +45,7 @@ func TestCreateActionError_ErrorCases(t *testing.T) {
 	t.Run("error without cause", func(t *testing.T) {
 		err := pkgerrors.NewCreateActionError("ref2")
 		require.NotNil(t, err)
-		assert.NoError(t, err.Unwrap())
+		require.NoError(t, err.Unwrap())
 		assert.False(t, err.Is(nil))
 	})
 }

@@ -30,6 +30,7 @@ type MockedStorageAssertion interface {
 
 type walletAssertions struct {
 	testing.TB
+
 	fixture *walletFixture
 }
 
@@ -56,7 +57,7 @@ func (w *walletAssertions) Storage() MockedStorageAssertion {
 		break
 	}
 	require.NotNil(w, setup)
-	require.Equalf(w, setup.storageType, StorageTypeMocked, "invalid test setup: expected storage type to be mocked for check on storage calls")
+	require.Equalf(w, StorageTypeMocked, setup.storageType, "invalid test setup: expected storage type to be mocked for check on storage calls")
 	require.IsType(w, &mocks.MockWalletStorageProvider{}, setup.storage, "invalid test setup: expected storage to be mocked for check on storage calls")
 
 	return &mockedStorageAssertion{

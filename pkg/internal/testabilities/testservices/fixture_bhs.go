@@ -44,6 +44,7 @@ type BHSFixture interface {
 
 type bhsFixture struct {
 	testing.TB
+
 	transport                  *httpmock.MockTransport
 	longestChainTip            *longestChainTipResponse
 	headerByHeightResponse     *headerByHeightResponse

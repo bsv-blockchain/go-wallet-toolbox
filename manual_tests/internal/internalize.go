@@ -94,7 +94,7 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 		Tx: atomicBeef,
 		Outputs: slices.Map(vouts, func(vout int) sdk.InternalizeOutput {
 			return sdk.InternalizeOutput{
-				OutputIndex: uint32(vout),
+				OutputIndex: uint32(vout), //nolint:gosec // safe: vout index is small positive value
 				Protocol:    "wallet payment",
 				PaymentRemittance: &sdk.Payment{
 					DerivationPrefix:  derivationPrefixBytes,

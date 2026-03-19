@@ -17,7 +17,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) {
+func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) { //nolint:unparam // error return reserved for future validation
 	labelNames := commonslices.Map(args.Labels, func(label primitives.StringUnder300) string {
 		return string(label)
 	})

@@ -26,6 +26,7 @@ func Given(t testing.TB) ARCFServiceFixture {
 
 type arcServiceFixture struct {
 	testservices.ServicesFixture
+
 	t testing.TB
 }
 

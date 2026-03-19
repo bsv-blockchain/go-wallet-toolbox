@@ -46,7 +46,7 @@ func setupSlog() (cleanup func()) {
 
 	cleanupOldLogs("manual_tests_", 3)
 
-	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path is constructed from a controlled prefix
 	if err != nil {
 		panic(fmt.Sprintf("failed to open log file: %v", err))
 	}
@@ -62,7 +62,7 @@ func setupSlog() (cleanup func()) {
 
 	cleanup = func() {
 		slog.Info("Closing log file.")
-		logFile.Close()
+		logFile.Close() //nolint:errcheck,gosec // best-effort cleanup, error not actionable
 	}
 	return cleanup
 }

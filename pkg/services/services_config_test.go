@@ -412,6 +412,7 @@ func (m *mockPartialRawTxImplementation) RawTx(context.Context, string) (*wdk.Ra
 
 type mockImplementation struct {
 	mockPartialRawTxImplementation
+
 	postEFCounter               int
 	postTXCounter               int
 	merklePathCounter           int

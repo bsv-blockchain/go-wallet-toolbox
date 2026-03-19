@@ -23,11 +23,13 @@ type CertifierServerFixture interface {
 
 type certifierServerBuilder struct {
 	testing.TB
+
 	serverWallet sdk.Interface
 }
 
 type certifierServerFixture struct {
 	testing.TB
+
 	server *httptest.Server
 }
 

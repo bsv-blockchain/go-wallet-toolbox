@@ -16,6 +16,7 @@ type BHSServiceFixture interface {
 
 type bhsServiceFixture struct {
 	testservices.ServicesFixture
+
 	t testing.TB
 }
 

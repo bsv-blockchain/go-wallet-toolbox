@@ -49,7 +49,7 @@ func (cs *CertificateService) SignCertificate(masterCertificate *certificates.Ma
 		return nil, err
 	}
 
-	if err := cs.validator.ValidateDecryptedFields(fields); err != nil {
+	if err = cs.validator.ValidateDecryptedFields(fields); err != nil {
 		return nil, err
 	}
 

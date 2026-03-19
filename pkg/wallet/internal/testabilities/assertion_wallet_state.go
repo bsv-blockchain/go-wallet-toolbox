@@ -63,6 +63,7 @@ func ThenWalletState(t testing.TB, wallet WalletReader) WalletStateAssertion {
 
 type walletStateAssertion struct {
 	testing.TB
+
 	wallet WalletReader
 }
 
@@ -128,6 +129,7 @@ func (a *walletStateAssertion) listActions(labels ...string) *sdk.ListActionsRes
 
 type walletActionAssertion struct {
 	testing.TB
+
 	wallet WalletReader
 	action *sdk.Action
 }
@@ -192,6 +194,7 @@ func (a *walletActionAssertion) OutputAtIndex(index int) WalletActionOutputAsser
 
 type walletActionOutputAssertion struct {
 	testing.TB
+
 	wallet WalletReader
 	output *sdk.ActionOutput
 	txID   chainhash.Hash

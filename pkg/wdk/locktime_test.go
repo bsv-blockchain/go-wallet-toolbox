@@ -60,13 +60,13 @@ func TestNLockTimeIsFinal_TimestampComparisons(t *testing.T) {
 	// given:
 	ctx := t.Context()
 	h := testutils.NewStubHeight(0, nil)
-	now := uint32(time.Now().Unix())
+	now := uint32(time.Now().Unix()) //nolint:gosec // unix timestamp fits in uint32 until year 2106
 	earlier := now - 60
 	later := now + 60
 
 	// when:
 	gotEarlier, errEarlier := wdk.NLockTimeIsFinal(ctx, h, earlier)
-	now2 := uint32(time.Now().Unix())
+	now2 := uint32(time.Now().Unix()) //nolint:gosec // unix timestamp fits in uint32 until year 2106
 	gotEqual, errEqual := wdk.NLockTimeIsFinal(ctx, h, now2)
 	gotLater, errLater := wdk.NLockTimeIsFinal(ctx, h, later)
 

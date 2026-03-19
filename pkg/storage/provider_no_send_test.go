@@ -79,7 +79,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// step 3:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 0)
+		assert.Empty(t, noSendChangeOutpoints)
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.

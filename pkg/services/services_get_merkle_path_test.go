@@ -38,7 +38,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 	})
 
@@ -58,7 +58,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, arc.ServiceName, response.Name)
 		assert.Nil(t, response.MerklePath)
@@ -102,7 +102,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, arc.ServiceName, response.Name)
 		assert.Equal(t, merklePath, *response.MerklePath)
@@ -161,7 +161,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), tst.TestTxID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, whatsonchain.ServiceName, response.Name)
 		assert.Equal(t, merklePath, *response.MerklePath)
@@ -221,7 +221,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 
 		require.Equal(t, bitails.ServiceName, response.Name)

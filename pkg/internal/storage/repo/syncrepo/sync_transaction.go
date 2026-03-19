@@ -29,6 +29,7 @@ func NewSyncTransaction(db *gorm.DB, query *genquery.Query) *SyncTransaction {
 
 type TransactionWithKnownTx struct {
 	models.Transaction
+
 	KnownTxNumID *int `gorm:"column:num_id"`
 	BlockHeight  *uint32
 }
@@ -124,8 +125,7 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 			return nil
 		}
 
-		err := tx.Create(&model).Error
-		if err != nil {
+		if err = tx.Create(&model).Error; err != nil {
 			return fmt.Errorf("failed to create transaction: %w", err)
 		}
 

@@ -28,6 +28,7 @@ func NewSyncKnownTx(db *gorm.DB, query *genquery.Query) *SyncKnownTx {
 
 type KnownTxWithNum struct {
 	models.KnownTx
+
 	NumID int
 }
 
@@ -101,23 +102,22 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		}
 
 		if updateTx.RowsAffected > 0 {
-			if err := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; err != nil {
-				return fmt.Errorf("failed to delete existing transaction notes: %w", err)
+			if deleteErr := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; deleteErr != nil {
+				return fmt.Errorf("failed to delete existing transaction notes: %w", deleteErr)
 			}
 
-			if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
-				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", err)
+			if noteErr := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); noteErr != nil {
+				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", noteErr)
 			}
 
 			return nil
 		}
 
-		err := tx.Create(&model).Error
-		if err != nil {
+		if err = tx.Create(&model).Error; err != nil {
 			return fmt.Errorf("failed to create proven tx req: %w", err)
 		}
 
-		if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+		if err = s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
 			return fmt.Errorf("failed to add transaction history notes while creating knownTx: %w", err)
 		}
 

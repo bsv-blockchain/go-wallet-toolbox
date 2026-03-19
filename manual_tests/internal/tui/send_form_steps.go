@@ -39,7 +39,7 @@ func (s *TransactionTypeStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := s.form.focus.CurrentItem()
 			if current.Type == ElementButton {
@@ -128,9 +128,8 @@ func (s *TransactionDetailsStep) Init() tea.Cmd {
 		s.form.inputs[1].Prompt = ""
 	}
 
-	items := []FocusItem{
-		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
-	}
+	items := make([]FocusItem, 0, 1+len(s.form.inputs)+1)
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack})
 	for i := range s.form.inputs {
 		items = append(items, FocusItem{
 			Type:  ElementInput,
@@ -154,7 +153,7 @@ func (s *TransactionDetailsStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := s.form.focus.CurrentItem()
 			if current.Type == ElementButton {
@@ -187,7 +186,7 @@ func (s *TransactionDetailsStep) View() string {
 	b.WriteString(backStyle.Render(fixtures.ButtonBack) + "\n")
 
 	for i := range s.form.inputs {
-		b.WriteString(fmt.Sprintf("%s\n", s.form.inputs[i].View()))
+		fmt.Fprintf(&b, "%s\n", s.form.inputs[i].View())
 	}
 
 	continueStyle := &fixtures.BlurredButton
@@ -250,17 +249,17 @@ func (s *TransactionDetailsStep) validateAndProceedWithP2PKH() (tea.Model, tea.C
 func (s *TransactionDetailsStep) validateP2PKHInputs() error {
 	addr := strings.TrimSpace(s.form.inputs[0].Value())
 	if addr == "" {
-		return fmt.Errorf("Recipient address is required")
+		return fmt.Errorf("recipient address is required")
 	}
 
 	amountStr := strings.TrimSpace(s.form.inputs[1].Value())
 	if amountStr == "" {
-		return fmt.Errorf("Satoshis amount is required")
+		return fmt.Errorf("satoshis amount is required")
 	}
 
 	amt, err := strconv.ParseUint(amountStr, 10, 64)
 	if err != nil || amt == 0 {
-		return fmt.Errorf("Invalid satoshis amount")
+		return fmt.Errorf("invalid satoshis amount")
 	}
 
 	// Store validated values
@@ -301,7 +300,7 @@ func (s *PeriodicChoiceStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := s.form.focus.CurrentItem()
 			if current.Type == ElementButton {
@@ -318,10 +317,10 @@ func (s *PeriodicChoiceStep) View() string {
 	b.WriteString("Choose sending method:\n\n")
 
 	if s.form.config.transactionType == TransactionTypeData {
-		b.WriteString(fmt.Sprintf("Data: %s\n\n", s.form.config.data))
+		fmt.Fprintf(&b, "Data: %s\n\n", s.form.config.data)
 	} else {
-		b.WriteString(fmt.Sprintf("Recipient: %s\n", s.form.config.address))
-		b.WriteString(fmt.Sprintf("Amount: %d satoshis\n\n", s.form.config.amount))
+		fmt.Fprintf(&b, "Recipient: %s\n", s.form.config.address)
+		fmt.Fprintf(&b, "Amount: %d satoshis\n\n", s.form.config.amount)
 	}
 
 	buttons := []struct {
@@ -399,7 +398,7 @@ func (s *PeriodConfigStep) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := s.form.focus.CurrentItem()
 			if current.Type == ElementButton {
@@ -421,10 +420,10 @@ func (s *PeriodConfigStep) View() string {
 	b.WriteString("Configure periodic sending:\n")
 
 	if s.form.config.transactionType == TransactionTypeData {
-		b.WriteString(fmt.Sprintf("Data: %s\n", s.form.config.data))
+		fmt.Fprintf(&b, "Data: %s\n", s.form.config.data)
 	} else {
-		b.WriteString(fmt.Sprintf("Recipient: %s\n", s.form.config.address))
-		b.WriteString(fmt.Sprintf("Amount: %d satoshis\n", s.form.config.amount))
+		fmt.Fprintf(&b, "Recipient: %s\n", s.form.config.address)
+		fmt.Fprintf(&b, "Amount: %d satoshis\n", s.form.config.amount)
 	}
 
 	backStyle := &fixtures.BlurredButton

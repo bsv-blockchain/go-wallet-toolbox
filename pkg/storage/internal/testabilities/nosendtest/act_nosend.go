@@ -35,6 +35,7 @@ type NoSendAct interface {
 
 type noSendAct struct {
 	testing.TB
+
 	user                    testusers.User
 	activeProvider          *storage.Provider
 	lastCreateActionResult  *wdk.StorageCreateActionResult
@@ -105,7 +106,7 @@ func (f *noSendAct) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPo
 	createdNoSendChange = slices.Map(createActionResult.NoSendChangeOutputVouts, func(vout int) wdk.OutPoint {
 		return wdk.OutPoint{
 			TxID: txID,
-			Vout: uint32(vout),
+			Vout: uint32(vout), //nolint:gosec // test fixture, vout is always small
 		}
 	})
 

@@ -38,7 +38,7 @@ func (m *Manager) Balance(user fixtures.UserConfig) (uint64, error) {
 		}
 
 		// Update offset for next page
-		offset += uint32(len(outputs.Outputs))
+		offset += uint32(len(outputs.Outputs)) //nolint:gosec // safe: output count fits in uint32
 
 		// Break if we've retrieved all outputs
 		if len(outputs.Outputs) < int(limit) {

@@ -38,16 +38,16 @@ func main() {
 	fmt.Printf("Amount:  %d satoshis\n", amount)
 	fmt.Println("================================")
 
-	body, _ := json.Marshal(faucetReq{
+	body, _ := json.Marshal(faucetReq{ //nolint:errchkjson // error not possible for this well-typed struct
 		Outputs: []methods.FaucetOutput{
 			{Address: address, Amount: amount},
 		},
 	})
-	resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body)) //nolint:noctx // example script, context not needed
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in example code
 
 	var out faucetResp
 	_ = json.NewDecoder(resp.Body).Decode(&out)

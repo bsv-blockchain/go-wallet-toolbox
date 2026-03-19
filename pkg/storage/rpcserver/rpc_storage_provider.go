@@ -35,7 +35,7 @@ func (p *RPCStorageProvider) FindOrInsertUser(ctx context.Context, identityKey s
 		return nil, err
 	}
 
-	return p.localProvider.FindOrInsertUser(ctx, identityKey) //nolint:wrapcheck
+	return p.localProvider.FindOrInsertUser(ctx, identityKey) //nolint:wrapcheck // direct delegation to underlying provider
 }
 
 func (p *RPCStorageProvider) ensureUserID(ctx context.Context, auth *wdk.AuthID) error {

@@ -52,6 +52,7 @@ type WhatsOnChainFixture interface {
 
 type wocFixture struct {
 	testing.TB
+
 	getBeefFixture *minedTransactionFixture
 	transport      *httpmock.MockTransport
 	network        defs.BSVNetwork
@@ -200,7 +201,7 @@ func (f *wocFixture) WillRespondWithRates(status int, content string, err error)
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/exchangerate", f.network),
-		responder(status, content),
+		responder(status, content), //nolint:bodyclose // mock responder for test fixture, not an actual HTTP response
 	)
 }
 
@@ -220,7 +221,7 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/hex", f.network, txID),
-		responder(status, rawTx),
+		responder(status, rawTx), //nolint:bodyclose // mock responder for test fixture, not an actual HTTP response
 	)
 }
 

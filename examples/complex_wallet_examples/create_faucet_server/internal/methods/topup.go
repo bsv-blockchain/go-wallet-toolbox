@@ -58,7 +58,7 @@ func TopUpInternalize(ctx context.Context, deps FaucetDeps, w sdk.Interface, txi
 		return fmt.Errorf("failed to parse tx: %w", err)
 	}
 
-	if outputIndex >= uint32(len(tx.Outputs)) || !tx.Outputs[outputIndex].LockingScript.Equals(expectedLock) {
+	if outputIndex >= uint32(len(tx.Outputs)) || !tx.Outputs[outputIndex].LockingScript.Equals(expectedLock) { //nolint:gosec // safe: output count fits in uint32
 		return fmt.Errorf("tx output[%d] does not match faucet address", outputIndex)
 	}
 

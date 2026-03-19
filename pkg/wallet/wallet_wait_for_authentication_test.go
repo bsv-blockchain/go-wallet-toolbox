@@ -82,7 +82,7 @@ func (s *WalletTestSuite) TestWalletWaitForAuthentication() {
 			result, err := aliceWallet.WaitForAuthentication(t.Context(), test.args, test.originator)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.True(t, result.Authenticated, "Should return authenticated as true")
 		})

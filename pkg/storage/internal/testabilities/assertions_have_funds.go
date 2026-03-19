@@ -31,6 +31,7 @@ func ThenFunds(t testing.TB, sender testusers.User, activeStorage wdk.WalletStor
 
 type thenFundsAssertion struct {
 	testing.TB
+
 	activeStorage wdk.WalletStorageProvider
 	sender        testusers.User
 }

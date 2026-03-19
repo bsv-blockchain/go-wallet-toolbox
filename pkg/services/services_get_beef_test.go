@@ -26,7 +26,7 @@ func TestGetBeef(t *testing.T) {
 		beef, err := services.GetBEEF(t.Context(), txID, nil)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, beef)
 	})
 

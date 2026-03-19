@@ -286,7 +286,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			// given::
 			args = argsFixture.
 				WithOffset(wdk.OutputBasketEntityName, 1).
-				WithOffset(wdk.ProvenTxEntityName, uint64(i)).
+				WithOffset(wdk.ProvenTxEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:
@@ -306,7 +306,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			// given:
 			args = argsFixture.
 				WithOffset(wdk.ProvenTxEntityName, 2).
-				WithOffset(wdk.TransactionEntityName, uint64(i)).
+				WithOffset(wdk.TransactionEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:
@@ -327,7 +327,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			// given:
 			args = argsFixture.
 				WithOffset(wdk.TransactionEntityName, 2).
-				WithOffset(wdk.OutputEntityName, uint64(i)).
+				WithOffset(wdk.OutputEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:
@@ -371,7 +371,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			// given:
 			args = argsFixture.
 				WithOffset(wdk.TxLabelEntityName, 1).
-				WithOffset(wdk.TxLabelMapEntityName, uint64(i)).
+				WithOffset(wdk.TxLabelMapEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:
@@ -396,7 +396,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			// given:
 			args = argsFixture.
 				WithOffset(wdk.TxLabelMapEntityName, 2).
-				WithOffset(wdk.OutputTagEntityName, uint64(i)).
+				WithOffset(wdk.OutputTagEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:
@@ -422,7 +422,7 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			// given:
 			args = argsFixture.
 				WithOffset(wdk.OutputTagEntityName, 3).
-				WithOffset(wdk.OutputTagMapEntityName, uint64(i)).
+				WithOffset(wdk.OutputTagMapEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:

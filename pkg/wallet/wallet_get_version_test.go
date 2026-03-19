@@ -83,7 +83,7 @@ func (s *WalletTestSuite) TestWalletGetVersion() {
 			result, err := aliceWallet.GetVersion(t.Context(), test.args, test.originator)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, defs.Version, result.Version)
 		})

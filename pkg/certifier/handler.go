@@ -26,7 +26,7 @@ func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req walletcerts.ProtocolIssuanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.config.Logger.Error("failed to decode request", "error", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return

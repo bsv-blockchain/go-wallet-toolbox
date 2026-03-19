@@ -38,6 +38,7 @@ func NewSyncLabelMap(db *gorm.DB, query *genquery.Query) *SyncLabelMap {
 
 type LabelsMapReadModel struct {
 	models.TransactionLabel
+
 	NumID uint
 }
 

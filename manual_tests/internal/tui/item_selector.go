@@ -49,7 +49,7 @@ func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch keyMsg.Type {
+	switch keyMsg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 	case tea.KeyCtrlC, tea.KeyEsc:
 		return m, tea.Quit
 	case tea.KeyEnter:

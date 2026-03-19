@@ -43,7 +43,7 @@ func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var masterCert certificates.MasterCertificate
-	if err := json.Unmarshal(body, &masterCert); err != nil {
+	if err = json.Unmarshal(body, &masterCert); err != nil {
 		h.logger.Error("Failed to unmarshal JSON", "error", err, "body", string(body))
 		h.writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -73,7 +73,7 @@ func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CertificateHandler) readRequestBody(r *http.Request) ([]byte, error) {
-	defer r.Body.Close()
+	defer r.Body.Close() //nolint:errcheck // body close error is not actionable in a request handler
 	return io.ReadAll(r.Body)
 }
 

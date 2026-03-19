@@ -61,7 +61,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	s.tx = assembler.NewAssembledTxFromPendingSignAction(pendingSignAction)
 
 	s.attachUnlockingScripts(args)
-	if err := s.allInputsCanBeUnlocked(); err != nil {
+	if err = s.allInputsCanBeUnlocked(); err != nil {
 		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
 	}
 

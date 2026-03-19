@@ -39,6 +39,7 @@ type ChangeAssertion interface {
 
 type funderAssertion struct {
 	testing.TB
+
 	result  *funder.Result
 	fixture *funderFixture
 }
@@ -64,7 +65,7 @@ func (a *funderAssertion) WithError(err error) {
 
 func (a *funderAssertion) WithoutError(err error) SuccessFundingResultAssertion {
 	a.Helper()
-	assert.NoError(a, err, "Expected success result")
+	require.NoError(a, err, "Expected success result")
 	require.NotNil(a, a.result, "Expected success result")
 	return a
 }

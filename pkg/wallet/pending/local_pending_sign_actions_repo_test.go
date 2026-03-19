@@ -32,7 +32,7 @@ func TestLocalPendingSignActionsCache_SetGetDelete_Success(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.EqualValues(t, *action, *got)
+	assert.Equal(t, *action, *got)
 
 	// when:
 	err = cache.Delete(ref)
@@ -95,7 +95,7 @@ func TestLocalPendingSignActionsCache_TTL_Cleanup_KeepsFresh_Success(t *testing.
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.EqualValues(t, *action, *got)
+	assert.Equal(t, *action, *got)
 
 	// when:
 	got, err = cache.Get(oldRef)

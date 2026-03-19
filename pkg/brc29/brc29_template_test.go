@@ -19,12 +19,12 @@ func TestBRC29TemplateLock(t *testing.T) {
 		// when:
 		lockingScript, err := brc29.LockForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, brc29.PubHex(recipientPublicKeyHex))
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, lockingScript)
 
 		// and:
 		address, err := lockingScript.Address()
-		assert.NoError(t, err, "Must get address from BRC29 locking script")
+		require.NoError(t, err, "Must get address from BRC29 locking script")
 		require.NotNil(t, address, "Must get address from BRC29 locking script")
 
 		assert.Equal(t, expectedAddress, address.AddressString)
@@ -126,12 +126,12 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		// when:
 		lockingScript, err := brc29.LockForSelf(brc29.PubHex(senderPublicKeyHex), keyID, brc29.PrivHex(recipientPrivateKeyHex))
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, lockingScript)
 
 		// and:
 		address, err := lockingScript.Address()
-		assert.NoError(t, err, "Must get address from BRC29 locking script")
+		require.NoError(t, err, "Must get address from BRC29 locking script")
 		require.NotNil(t, address, "Must get address from BRC29 locking script")
 
 		assert.Equal(t, expectedAddress, address.AddressString)
@@ -145,7 +145,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(keyDeriver, keyID, brc29.PrivHex(recipientPrivateKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -157,7 +157,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(pub, keyID, brc29.PrivHex(recipientPrivateKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -169,7 +169,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(brc29.PubHex(senderPublicKeyHex), keyID, keyDeriver)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -181,7 +181,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(brc29.PubHex(senderPublicKeyHex), keyID, priv)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 

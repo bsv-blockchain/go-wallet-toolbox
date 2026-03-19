@@ -63,7 +63,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 
 	txObj := spec.TX()
 	if options.Mined {
-		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String(), 1000+uint32(f.index)))
+		txObj.MerklePath = to.Ptr(testutils.MockValidMerklePath(f.t, spec.ID().String(), 1000+uint32(f.index))) //nolint:gosec // test fixture, f.index is always small
 	}
 
 	beef, err := txObj.BEEF()

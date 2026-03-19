@@ -16,6 +16,7 @@ import (
 
 type Opts struct {
 	Flags
+
 	Services               wdk.Services
 	Logger                 *slog.Logger
 	PendingSignActionsRepo pending.SignActionsRepository

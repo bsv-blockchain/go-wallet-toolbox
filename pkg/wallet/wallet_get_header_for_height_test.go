@@ -150,7 +150,7 @@ func TestWallet_GetHeaderForHeight_ServiceErrors(t *testing.T) {
 			)
 
 			// Then
-			require.NotNil(t, err, "Expected error for height %d: %s", tc.height, tc.expectedError)
+			require.Errorf(t, err, "Expected error for height %d: %s", tc.height, tc.expectedError)
 			require.Nil(t, result, "Expected nil result for height %d", tc.height)
 		})
 	}

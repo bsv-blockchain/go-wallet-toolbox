@@ -136,7 +136,7 @@ func TestProcessActionTwice(t *testing.T) {
 	assert.Equal(t, txID, string(sendWithResult.TxID))
 	assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
 
-	require.Len(t, result.NotDelayedResults, 0)
+	require.Empty(t, result.NotDelayedResults)
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -184,7 +184,7 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 	assert.Equal(t, txID, string(sendWithResult.TxID))
 	assert.Equal(t, wdk.SendWithResultStatusSending, sendWithResult.Status)
 
-	require.Len(t, result.NotDelayedResults, 0)
+	require.Empty(t, result.NotDelayedResults)
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -271,7 +271,7 @@ func TestProcessAction_DelayedBroadcastForManyTransactions(t *testing.T) {
 		assert.Equal(t, txID, string(sendWithResult.TxID))
 		assert.Equal(t, wdk.SendWithResultStatusSending, sendWithResult.Status)
 
-		require.Len(t, results[i].NotDelayedResults, 0)
+		require.Empty(t, results[i].NotDelayedResults)
 	}
 
 	// and db state:
@@ -565,7 +565,7 @@ func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {
 			setupService: func(given testabilities.StorageFixture) {
 				// No special setup needed for timestamp validation
 			},
-			lockTime:    uint32(time.Now().Unix() - 3600),
+			lockTime:    uint32(time.Now().Unix() - 3600), //nolint:gosec // unix timestamp fits in uint32
 			sequences:   []uint32{0},
 			description: "past timestamp locktime should be final",
 		},
@@ -636,7 +636,7 @@ func TestProcessActionNLockTimeIsFinalFailure(t *testing.T) {
 			setupService: func(given testabilities.StorageFixture) {
 				// No special setup needed for timestamp validation
 			},
-			lockTime:  uint32(time.Now().Unix() + 7200),
+			lockTime:  uint32(time.Now().Unix() + 7200), //nolint:gosec // unix timestamp fits in uint32
 			sequences: []uint32{0},
 		},
 		"mixed sequences with future block height": {

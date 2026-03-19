@@ -137,7 +137,7 @@ func (a *Adapter) GetTip(ctx context.Context) (*wdk.ChainBlockHeader, error) {
 
 	return &wdk.ChainBlockHeader{
 		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      uint32(tip.Version), //nolint:gosec
+			Version:      uint32(tip.Version), //nolint:gosec // block header version is always small positive
 			PreviousHash: tip.PrevHash.String(),
 			MerkleRoot:   tip.MerkleRoot.String(),
 			Time:         tip.Timestamp,
@@ -158,7 +158,7 @@ func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (*wdk.Ch
 
 	return &wdk.ChainBlockHeader{
 		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      uint32(header.Version), //nolint:gosec
+			Version:      uint32(header.Version), //nolint:gosec // block header version is always small positive
 			PreviousHash: header.PrevHash.String(),
 			MerkleRoot:   header.MerkleRoot.String(),
 			Time:         header.Timestamp,
@@ -184,7 +184,7 @@ func (a *Adapter) GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainB
 
 	return &wdk.ChainBlockHeader{
 		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      uint32(header.Version), //nolint:gosec
+			Version:      uint32(header.Version), //nolint:gosec // block header version is always small positive
 			PreviousHash: header.PrevHash.String(),
 			MerkleRoot:   header.MerkleRoot.String(),
 			Time:         header.Timestamp,

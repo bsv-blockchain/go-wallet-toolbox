@@ -140,7 +140,7 @@ func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertifica
 	}
 
 	var response walletcerts.ProtocolIssuanceResponse
-	if err := json.Unmarshal(responseBytes, &response); err != nil {
+	if err = json.Unmarshal(responseBytes, &response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 

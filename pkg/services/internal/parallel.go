@@ -18,22 +18,22 @@ func MapParallel[E, R any](ctx context.Context, sequence iter.Seq[E], runner fun
 
 		results := make(chan R, defaultChannelBuffer)
 
-		ctx, cancel := context.WithCancel(ctx)
+		childCtx, cancel := context.WithCancel(ctx)
 
 	startGoRoutines:
 		for v := range sequence {
 			select {
-			case <-ctx.Done():
+			case <-childCtx.Done():
 				break startGoRoutines
 			default:
 				wg.Add(1)
 				go func(v E) {
 					defer wg.Done()
 
-					result := runner(ctx, v)
+					result := runner(childCtx, v)
 
 					select {
-					case <-ctx.Done():
+					case <-childCtx.Done():
 						return
 					default:
 						results <- result
@@ -49,7 +49,7 @@ func MapParallel[E, R any](ctx context.Context, sequence iter.Seq[E], runner fun
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-childCtx.Done():
 				cancel()
 				return
 			case res, ok := <-results:
