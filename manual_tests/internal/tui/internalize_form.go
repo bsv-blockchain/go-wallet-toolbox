@@ -157,8 +157,8 @@ func (m *InternalizeForm) View() string {
  %s
  %s
 
- %s  
- %s  
+ %s
+ %s
 
  %s
  %s

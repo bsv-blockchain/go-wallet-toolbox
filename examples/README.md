@@ -44,7 +44,7 @@ When you run any example, the custom setup function will automatically create `e
 
 The file defines two test users—**Alice** and **Bob**—each with an `identity_key` (public key) and a `private_key` (hex-encoded private key string). It also sets the BSV `network` (e.g., `test`), `server_url` for the Wallet Toolbox instance, and `server_private_key` for server authentication.
 
-Example of config file below: 
+Example of config file below:
 
 ```yaml
 alice:

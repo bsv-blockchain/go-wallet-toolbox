@@ -41,7 +41,7 @@ The Atomic BEEF format ensures that:
 
 The payment remittance includes:
 - **`DerivationPrefix`**: Decoded base64 derivation prefix
-- **`DerivationSuffix`**: Decoded base64 derivation suffix  
+- **`DerivationSuffix`**: Decoded base64 derivation suffix
 - **`SenderIdentityKey`**: Public key parsed from the provided hex-encoded identity key
 
 ### Response Analysis

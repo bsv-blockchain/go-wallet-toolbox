@@ -82,4 +82,3 @@ To integrate current height retrieval into your application:
 
 - [Get Current Block Height Example](./get_current_block_height.go) - Complete code example for getting current block height
 - [Get Chain Tip Header Documentation](../get_chain_tip_header/get_chain_tip_header.md) - Get complete block header data
- 
