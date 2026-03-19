@@ -2,7 +2,6 @@ package whatsonchain_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 	"testing"
@@ -80,7 +79,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 			got, err := svc.IsValidRootForHeight(t.Context(), tc.root, tst.TestBlockHeight)
 
 			// then:
-			require.True(t, errors.Is(err, tc.want1.err))
+			require.ErrorIs(t, err, tc.want1.err)
 			require.Equal(t, tc.want1.ok, got)
 
 			// when:
@@ -88,7 +87,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 			got, err = svc.IsValidRootForHeight(t.Context(), tc.root, tst.TestBlockHeight)
 
 			// then:
-			require.True(t, errors.Is(err, tc.want2.err))
+			require.ErrorIs(t, err, tc.want2.err)
 			require.Equal(t, tc.want2.ok, got)
 			require.Equal(t, 0, tr.GetTotalCallCount())
 		})
@@ -115,7 +114,7 @@ func TestIsValidRootForHeight_ContextCancelled(t *testing.T) {
 	got, err := svc.IsValidRootForHeight(ctx, root, tst.TestBlockHeight)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, got)
 
 	// when:
@@ -123,7 +122,7 @@ func TestIsValidRootForHeight_ContextCancelled(t *testing.T) {
 	got, err = svc.IsValidRootForHeight(ctx, root, tst.TestBlockHeight)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, got)
 	require.Equal(t, 0, tr.GetTotalCallCount())
 }

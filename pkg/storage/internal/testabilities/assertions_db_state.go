@@ -188,7 +188,7 @@ func (d *knownTxAssertion) NotMined() KnownTxAssertion {
 	assert.Empty(d, d.knownTx.MerklePath)
 	assert.Empty(d, d.knownTx.MerkleRoot)
 	assert.Empty(d, d.knownTx.BlockHash)
-	assert.NotEqual(d, d.knownTx.Status, wdk.ProvenTxStatusCompleted)
+	assert.NotEqual(d, wdk.ProvenTxStatusCompleted, d.knownTx.Status)
 	return d
 }
 

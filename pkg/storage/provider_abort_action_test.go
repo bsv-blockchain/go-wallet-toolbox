@@ -167,7 +167,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				)
 				require.NoError(t, err)
 				require.NotEmpty(t, abortResult)
-				require.Equal(t, true, abortResult.Aborted)
+				require.True(t, abortResult.Aborted)
 
 				return createResult.Reference, testusers.Alice.AuthID()
 			},

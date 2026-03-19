@@ -20,7 +20,7 @@ const (
 	fourthArgument = true
 )
 
-var errorFromPanic = errors.New("some panic occurred")
+var errFromPanic = errors.New("some panic occurred")
 
 func TestQueueOneByOne(t *testing.T) {
 	tests := map[string]struct {
@@ -145,7 +145,7 @@ func TestQueueOneByOne(t *testing.T) {
 			},
 			expectedResult: nil,
 			errorExpectation: func(t assert.TestingT, err error, msgAndArgs ...interface{}) bool {
-				return assert.ErrorIs(t, err, errorFromPanic, msgAndArgs...)
+				return assert.ErrorIs(t, err, errFromPanic, msgAndArgs...)
 			},
 		},
 		"return result of second service if first service would panic": {
@@ -411,7 +411,7 @@ func TestQueueParallel(t *testing.T) {
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
 				// Error is not exactly the same, because it contains more context about the source of the panic, but ErrorIs should be the same.
-				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errorFromPanic)),
+				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errFromPanic)),
 			},
 			errorExpectation: assert.NoError,
 		},
@@ -423,7 +423,7 @@ func TestQueueParallel(t *testing.T) {
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
 				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, "success"})),
-				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errorFromPanic)),
+				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errFromPanic)),
 				servicequeue.NewNamedResult("ok", types.SuccessResult(&TestServiceResult{200, "success"})),
 			},
 			errorExpectation: assert.NoError,
@@ -633,7 +633,7 @@ func (s TestService) ReturningNilResult() TestService {
 
 func (s TestService) Panicking() TestService {
 	s.createResult = func() (*TestServiceResult, error) {
-		panic(errorFromPanic)
+		panic(errFromPanic)
 	}
 	return s
 }

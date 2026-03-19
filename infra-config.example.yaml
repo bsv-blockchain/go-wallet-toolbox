@@ -100,7 +100,7 @@ wallet_services:
     p2p_storage_path: ""
     remote_url: http://localhost:3011
     storage_path: ""
-  exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
+  exchangerates_api_key: 1234567
   fiat_exchange_rates:
     base: USD
     rates:

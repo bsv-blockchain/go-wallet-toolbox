@@ -220,7 +220,7 @@ func (b *basketAssertion) WithUserID(userID int) BasketAssertion {
 
 func (b *basketAssertion) HasValidID() BasketAssertion {
 	b.parent.Helper()
-	assert.True(b.parent, b.basket.BasketID > 0, "Expected basket to have a valid ID")
+	assert.Positive(b.parent, b.basket.BasketID, "Expected basket to have a valid ID")
 	return b
 }
 

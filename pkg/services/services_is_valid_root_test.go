@@ -2,7 +2,6 @@ package services_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 	"testing"
@@ -113,7 +112,7 @@ func TestWalletServices_IsValidRootForHeight_WoC_ContextCancelled(t *testing.T) 
 	ok, err := svc.IsValidRootForHeight(ctx, root, height)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 }
 
@@ -230,13 +229,13 @@ func TestWalletServices_IsValidRootForHeight_Bitails_ContextCancelled(t *testing
 	ok, err := svc.IsValidRootForHeight(ctx, root, height)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 
 	fix.Bitails().Transport().Reset()
 	ok, err = svc.IsValidRootForHeight(ctx, root, height)
 
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 	require.Equal(t, 0, fix.Bitails().Transport().GetTotalCallCount())
 }
@@ -310,7 +309,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_Unreachable(t *testing.T) {
 	_ = given.WhatsOnChain().WillBeUnreachable()
 	_ = given.Bitails().WillBeUnreachable()
 	target := given.BHS().WillBeUnreachable()
-	given.Chaintracks().WillFail()
+	_ = given.Chaintracks().WillFail()
 
 	svc := given.Services().Config(
 		testservices.WithEnabledBitails(true),
@@ -352,7 +351,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled_DuringCall(t *
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 }
 
@@ -371,7 +370,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextAlreadyCancelled(t *test
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 	require.Equal(t, 0, given.BHS().Transport().GetTotalCallCount())
 }

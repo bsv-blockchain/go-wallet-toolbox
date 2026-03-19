@@ -203,7 +203,6 @@ func (l *label) fillFieldMap() {
 	l.fieldMap["deleted_at"] = l.DeletedAt
 	l.fieldMap["name"] = l.Name
 	l.fieldMap["user_id"] = l.UserID
-
 }
 
 func (l label) clone(db *gorm.DB) label {

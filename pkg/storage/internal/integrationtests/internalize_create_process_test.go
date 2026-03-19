@@ -437,7 +437,7 @@ func TestInternalizePlusTooHighCreate(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, true, result.Accepted)
+		require.True(t, result.Accepted)
 	})
 
 	t.Run("Create", func(t *testing.T) {
@@ -475,7 +475,7 @@ func TestInternalizeBasketInsertionThenCreate(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, true, result.Accepted)
+		require.True(t, result.Accepted)
 	})
 
 	t.Run("Create", func(t *testing.T) {

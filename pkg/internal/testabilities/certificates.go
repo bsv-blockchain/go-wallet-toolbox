@@ -114,14 +114,14 @@ func CreateSampleAcquireCertificateArgs(t *testing.T) wallet.AcquireCertificateA
 
 func AssertCertificateResultEquality(t *testing.T, actual wallet.CertificateResult, expected *wallet.Certificate, keyring map[string]string) {
 	t.Helper()
-	require.Equal(t, actual.Certifier, expected.Certifier)
+	require.Equal(t, expected.Certifier, actual.Certifier)
 
 	// Compare Fields
-	require.Equal(t, len(expected.Fields), len(actual.Fields), "Fields map length mismatch")
+	require.Len(t, actual.Fields, len(expected.Fields), "Fields map length mismatch")
 	require.Equal(t, expected.Fields, actual.Fields)
 
 	// Compare Keyring
-	require.Equal(t, len(keyring), len(actual.Keyring), "Keyring map length mismatch")
+	require.Len(t, actual.Keyring, len(keyring), "Keyring map length mismatch")
 
 	require.Equal(t, keyring, actual.Keyring)
 	require.Equal(t, actual.Signature.Serialize(), expected.Signature.Serialize())
@@ -151,5 +151,5 @@ func AssertWalletCertificateEquality(t *testing.T, actual *wallet.Certificate, a
 		Signature:          args.Signature,
 	}
 
-	require.Equal(t, actual, expected)
+	require.Equal(t, expected, actual)
 }

@@ -18,8 +18,9 @@ type StorageFixture interface {
 }
 
 type storageFixture struct {
-	t testing.TB
 	testabilities.StorageFixture
+
+	t testing.TB
 }
 
 func (s *storageFixture) StorageManagerForUser(user testusers.User, activeStorage wdk.WalletStorageProvider, backups ...wdk.WalletStorageProvider) *storage.WalletStorageManager {

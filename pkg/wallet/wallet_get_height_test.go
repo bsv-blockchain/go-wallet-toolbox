@@ -40,7 +40,7 @@ func TestWallet_GetHeight(t *testing.T) {
 	}
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Greater(t, result.Height, uint32(0))
+	require.Positive(t, result.Height)
 	t.Logf("Successfully got height: %d", result.Height)
 }
 
@@ -69,7 +69,7 @@ func TestWallet_GetHeight_ValidOriginators(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Greater(t, result.Height, uint32(0))
+			require.Positive(t, result.Height)
 		})
 	}
 }

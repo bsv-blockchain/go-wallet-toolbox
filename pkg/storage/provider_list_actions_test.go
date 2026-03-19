@@ -47,7 +47,7 @@ func TestListActions_HappyPath(t *testing.T) {
 
 	internalizedTx := result.Actions[0]
 	assert.Equal(t, ownedTransaction.Inputs[0].SourceTXID.String(), internalizedTx.TxID)
-	assert.Len(t, internalizedTx.Inputs, 0)
+	assert.Empty(t, internalizedTx.Inputs)
 
 	createdTx := result.Actions[1]
 	assert.Equal(t, ownedTransaction.TxID().String(), createdTx.TxID)
@@ -322,7 +322,7 @@ func TestListActions_FilterByReferenceNoMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, primitives.PositiveInteger(0), result.TotalActions)
-	assert.Len(t, result.Actions, 0)
+	assert.Empty(t, result.Actions)
 }
 
 func TestListActions_EmptyReferenceReturnsAll(t *testing.T) {

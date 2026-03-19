@@ -25,6 +25,7 @@ import (
 
 type OutputToInternalize struct {
 	*entity.NewOutput
+
 	existingOutputID *uint
 }
 

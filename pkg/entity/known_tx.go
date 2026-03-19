@@ -32,6 +32,7 @@ type KnownTx struct {
 // TxHistoryNote represents a single transaction event note, combining general event metadata with a transaction ID.
 type TxHistoryNote struct {
 	wdk.HistoryNote
+
 	TxID string
 }
 

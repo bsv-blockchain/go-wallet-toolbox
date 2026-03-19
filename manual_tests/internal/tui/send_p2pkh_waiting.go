@@ -11,13 +11,11 @@ import (
 )
 
 type SendP2pkhWaiting struct {
-	manager  ManagerInterface
-	user     *fixtures.UserConfig
-	address  string
-	amount   uint64
-	spinner  spinner.Model
-	quitting bool
-	err      error
+	manager ManagerInterface
+	user    *fixtures.UserConfig
+	address string
+	amount  uint64
+	spinner spinner.Model
 }
 
 func NewSendP2pkhWaiting(manager ManagerInterface, user *fixtures.UserConfig, address string, amount uint64) *SendP2pkhWaiting {

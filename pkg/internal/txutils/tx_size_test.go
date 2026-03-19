@@ -85,7 +85,7 @@ func TestTransactionSize(t *testing.T) {
 
 			// then:
 			require.NoError(t, err)
-			require.Equal(t, size, test.expected)
+			require.Equal(t, test.expected, size)
 		})
 	}
 }

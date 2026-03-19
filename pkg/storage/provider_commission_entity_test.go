@@ -224,7 +224,7 @@ func TestCommissionFind(t *testing.T) {
 	assert.Equal(t, uint(1), commissions[0].ID)
 	assert.Equal(t, testusers.Alice.ID, commissions[0].UserID)
 	assert.Equal(t, "key_offset_0", commissions[0].KeyOffset)
-	assert.Equal(t, false, commissions[0].IsRedeemed)
+	assert.False(t, commissions[0].IsRedeemed)
 }
 
 func TestCommissionPagedFind(t *testing.T) {

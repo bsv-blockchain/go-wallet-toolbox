@@ -164,7 +164,7 @@ func (m *NoSendSendWithForm) View() string {
 
 	for i := range m.inputs {
 		b.WriteString(labels[i] + "\n")
-		b.WriteString(fmt.Sprintf("%s\n\n", m.inputs[i].View()))
+		fmt.Fprintf(&b, "%s\n\n", m.inputs[i].View())
 	}
 
 	if m.errorMsg != "" {

@@ -36,7 +36,6 @@ func (m *Manager) Ctx() context.Context {
 
 func (m *Manager) SelectNetwork(network defs.BSVNetwork) {
 	m.config.BSVNetwork = network
-	return
 }
 
 func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {

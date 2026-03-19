@@ -119,7 +119,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		_ = given.Bitails().WillBeUnreachable()
 		_ = given.WhatsOnChain().WillBeUnreachable()
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
-		given.Chaintracks().WillFail()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
 		services := given.Services().Config(
@@ -144,7 +144,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 		given.Bitails().WillRespondWithInternalFailure()
-		given.Chaintracks().WillFail()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
 		services := given.Services().Config(
@@ -159,7 +159,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
 
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		assert.Nil(t, response)
 	})
 
@@ -169,7 +169,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given.BHS().WillRespondWithEmptyBlockHeight()
 		given.WhatsOnChain().WillRespondWithEmptyBlockHeight()
 		given.Bitails().WillRespondWithEmptyBlockHeight()
-		given.Chaintracks().WillFail()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
 		service := given.Services().Config(

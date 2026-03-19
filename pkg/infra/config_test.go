@@ -222,7 +222,7 @@ func TestValidMonitor(t *testing.T) {
 
 	// and:
 
-	require.Equal(t, false, infraSrv.Config.Monitor.Enabled)
+	require.False(t, infraSrv.Config.Monitor.Enabled)
 }
 
 func TestMonitorTaskCustomInterval(t *testing.T) {

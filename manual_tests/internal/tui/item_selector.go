@@ -129,7 +129,7 @@ func (m ItemSelector[T]) getMaxCursorPosition() int {
 
 func (m ItemSelector[T]) View() string {
 	s := strings.Builder{}
-	s.WriteString(fmt.Sprintf("%s\n\n", m.title))
+	fmt.Fprintf(&s, "%s\n\n", m.title)
 
 	for i, item := range m.items {
 		if m.cursor == i {

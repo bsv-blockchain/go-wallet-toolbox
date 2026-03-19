@@ -189,7 +189,7 @@ func (m *ListOutputsForm) parseLimit(config *outputsConfig) error {
 
 	n, err := strconv.ParseUint(v, 10, 32)
 	if err != nil {
-		return fmt.Errorf("Invalid limit")
+		return fmt.Errorf("invalid limit")
 	}
 
 	config.limit = uint32(n)
@@ -204,7 +204,7 @@ func (m *ListOutputsForm) parseOffset(config *outputsConfig) error {
 
 	n, err := strconv.ParseUint(v, 10, 32)
 	if err != nil {
-		return fmt.Errorf("Invalid offset")
+		return fmt.Errorf("invalid offset")
 	}
 
 	config.offset = uint32(n)
@@ -230,7 +230,7 @@ func (m *ListOutputsForm) parseIncludeLabels(config *outputsConfig) error {
 	case "false", "f", "n", "no":
 		config.includeLabels = false
 	default:
-		return fmt.Errorf("Invalid include labels (true/false)")
+		return fmt.Errorf("invalid include labels (true/false)")
 	}
 
 	return nil

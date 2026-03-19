@@ -11,12 +11,10 @@ import (
 )
 
 type SendDataWaiting struct {
-	manager  ManagerInterface
-	user     *fixtures.UserConfig
-	data     string
-	spinner  spinner.Model
-	quitting bool
-	err      error
+	manager ManagerInterface
+	user    *fixtures.UserConfig
+	data    string
+	spinner spinner.Model
 }
 
 func NewSendDataWaiting(manager ManagerInterface, user *fixtures.UserConfig, data string) *SendDataWaiting {

@@ -66,8 +66,8 @@ func TestLockScriptWithKeyOffset_Uniqueness(t *testing.T) {
 	}
 
 	// then:
-	assert.Equal(t, iterations, len(lockingScripts), "Locking script should be unique")
-	assert.Equal(t, iterations, len(keyOffsets), "Key offset should be unique")
+	assert.Len(t, lockingScripts, iterations, "Locking script should be unique")
+	assert.Len(t, keyOffsets, iterations, "Key offset should be unique")
 }
 
 func TestLockScriptWithKeyOffset_WrongPubKey(t *testing.T) {

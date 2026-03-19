@@ -15,7 +15,6 @@ type ListOutputsWaiting struct {
 	limit         uint32
 	offset        uint32
 	spinner       spinner.Model
-	quitting      bool
 	includeLabels bool
 	basket        string
 }

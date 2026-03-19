@@ -71,7 +71,7 @@ func (a *funderAssertion) WithoutError(err error) SuccessFundingResultAssertion 
 
 func (a *funderAssertion) DoesNotAllocateUTXOs() SuccessFundingResultAssertion {
 	a.Helper()
-	assert.Len(a, a.result.AllocatedUTXOs, 0, "Expected no allocated UTXOs")
+	assert.Empty(a, a.result.AllocatedUTXOs, "Expected no allocated UTXOs")
 	return a
 }
 

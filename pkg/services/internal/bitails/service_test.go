@@ -225,10 +225,10 @@ func TestBitails_PostTX(t *testing.T) {
 
 			assert.Equal(t, test.resultStatus, result.Result)
 			assert.Equal(t, givenTxID, result.TxID)
-			assert.Nil(t, result.Error)
+			assert.NoError(t, result.Error)
 			assert.False(t, result.DoubleSpend)
 			assert.Equal(t, test.alreadyKnown, result.AlreadyKnown)
-			assert.Len(t, result.CompetingTxs, 0)
+			assert.Empty(t, result.CompetingTxs)
 			assert.Len(t, result.Notes, 1)
 		})
 	}

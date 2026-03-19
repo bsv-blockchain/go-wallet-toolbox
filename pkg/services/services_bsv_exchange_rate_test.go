@@ -33,7 +33,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 
 		// then:
 		assert.NoError(t, err)
-		assert.Equal(t, cachedRate.Rate, result)
+		assert.InDelta(t, cachedRate.Rate, result, 0.001)
 	})
 
 	t.Run("returns updated exchange rate when outside threshold", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 
 		// then:
 		assert.NoError(t, err)
-		assert.Equal(t, 50.5, result)
+		assert.InDelta(t, 50.5, result, 0.001)
 	})
 }
 

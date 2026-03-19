@@ -301,7 +301,7 @@ func TestPostLoadHook(t *testing.T) {
 func tempConfig(t *testing.T, content, extension string) string {
 	tmpDir := t.TempDir()
 	configFilePath := fmt.Sprintf("%s/config.%s", tmpDir, extension)
-	err := os.WriteFile(configFilePath, []byte(content), 0o644)
+	err := os.WriteFile(configFilePath, []byte(content), 0o600)
 	require.NoError(t, err)
 
 	return configFilePath

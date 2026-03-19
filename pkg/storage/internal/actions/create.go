@@ -452,6 +452,7 @@ func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.Ne
 
 type serviceChargeOutput struct {
 	wdk.ValidCreateActionOutput
+
 	KeyOffset          string
 	LockingScriptBytes []byte
 }

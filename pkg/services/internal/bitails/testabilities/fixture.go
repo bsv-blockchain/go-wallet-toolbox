@@ -19,6 +19,7 @@ type BitailsServiceFixture interface {
 
 type bitailsServiceFixture struct {
 	testservices.ServicesFixture
+
 	t testing.TB
 }
 

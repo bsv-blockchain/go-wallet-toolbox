@@ -60,8 +60,8 @@ func TestCreateActionHappyPath(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
+	assert.Len(t, result.DerivationPrefix, 24)
+	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 32, len(result.Outputs))
@@ -269,8 +269,8 @@ func TestCreateActionWithCommission(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
+	assert.Len(t, result.DerivationPrefix, 24)
+	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 33, len(result.Outputs))
@@ -459,8 +459,8 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
+	assert.Len(t, result.DerivationPrefix, 24)
+	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 31, len(result.Outputs))
@@ -524,8 +524,8 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
+	assert.Len(t, result.DerivationPrefix, 24)
+	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 32, len(result.Outputs))
@@ -588,8 +588,8 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
+	assert.Len(t, result.DerivationPrefix, 24)
+	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 33, len(result.Outputs))
@@ -655,8 +655,8 @@ func TestCreateActionWithProvidedInputAndGreaterOutput(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 24, len(result.DerivationPrefix))
-	assert.Equal(t, 16, len(result.Reference))
+	assert.Len(t, result.DerivationPrefix, 24)
+	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
 	assert.Equal(t, 9, len(result.Outputs))

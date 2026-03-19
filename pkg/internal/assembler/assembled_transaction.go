@@ -12,6 +12,7 @@ import (
 
 type AssembledTransaction struct {
 	*transaction.Transaction
+
 	inputBEEF *transaction.Beef
 }
 

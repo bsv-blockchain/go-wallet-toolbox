@@ -70,7 +70,7 @@ func TestServicesConfig_CustomServicePartialImplementation(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, 50.5, rate)
+	require.InDelta(t, 50.5, rate, 0.001)
 }
 
 func TestServicesConfig_UseModifiers(t *testing.T) {
@@ -283,7 +283,7 @@ func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, 50.5, rate)
+		require.InDelta(t, 50.5, rate, 0.001)
 		require.Equal(t, 0, customServiceCalled)
 	})
 
@@ -317,7 +317,7 @@ func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, customServiceRate, rate)
+		require.InDelta(t, customServiceRate, rate, 0.001)
 		require.Equal(t, 1, customServiceCalled)
 	})
 }

@@ -118,7 +118,6 @@ func (u *user) fillFieldMap() {
 	u.fieldMap["user_id"] = u.UserID
 	u.fieldMap["identity_key"] = u.IdentityKey
 	u.fieldMap["active_storage"] = u.ActiveStorage
-
 }
 
 func (u user) clone(db *gorm.DB) user {

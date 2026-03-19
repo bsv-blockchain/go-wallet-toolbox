@@ -25,7 +25,7 @@ func TestFindOrInsertUser(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, true, tableUser.IsNew)
+	assert.True(t, tableUser.IsNew)
 	assert.Equal(t, userIdentityKey, tableUser.User.IdentityKey)
 
 	// and when:
@@ -34,6 +34,6 @@ func TestFindOrInsertUser(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, false, tableUser.IsNew)
+	assert.False(t, tableUser.IsNew)
 	assert.Equal(t, userIdentityKey, tableUser.User.IdentityKey)
 }

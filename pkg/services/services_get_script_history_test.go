@@ -2,7 +2,6 @@ package services_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -248,7 +247,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
 
 		// then:
-		require.True(t, errors.Is(err, context.Canceled))
+		require.ErrorIs(t, err, context.Canceled)
 		require.Nil(t, result)
 	})
 
@@ -270,7 +269,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
 
 		// then:
-		require.True(t, errors.Is(err, context.Canceled))
+		require.ErrorIs(t, err, context.Canceled)
 		require.Nil(t, result)
 	})
 }

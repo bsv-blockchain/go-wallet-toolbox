@@ -34,6 +34,7 @@ var readyToBeInputProvenTxStatuses = []wdk.ProvenTxReqStatus{
 
 type xinputDefinition struct {
 	*wdk.ValidCreateActionInput
+
 	Satoshis      satoshi.Value
 	LockingScript []byte
 

@@ -31,11 +31,11 @@ func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
 	txID := tx.TxID()
 
 	root, err := tx.MerklePath.ComputeRoot(txID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, root)
 
 	atomicBEEF, err := tx.AtomicBEEF(false)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, atomicBEEF)
 
 	// and:
@@ -60,7 +60,7 @@ func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
 	)
 
 	// then:
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, expectedResult, actualResult)
 
 	// and db state:
@@ -102,8 +102,8 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, true, result.Accepted)
-	assert.Equal(t, false, result.IsMerge)
+	assert.True(t, result.Accepted)
+	assert.False(t, result.IsMerge)
 	assert.Equal(t, int64(fixtures.ExpectedValueToInternalize), result.Satoshis)
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
@@ -141,8 +141,8 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, true, result.Accepted)
-	assert.Equal(t, false, result.IsMerge)
+	assert.True(t, result.Accepted)
+	assert.False(t, result.IsMerge)
 	assert.Equal(t, int64(0), result.Satoshis)
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 

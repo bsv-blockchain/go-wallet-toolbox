@@ -11,6 +11,7 @@ import (
 
 type outputAssertion struct {
 	testing.TB
+
 	index  int
 	output *transaction.TransactionOutput
 }

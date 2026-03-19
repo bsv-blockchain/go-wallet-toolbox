@@ -53,7 +53,7 @@ func (m *ExpandedTxView) View() string {
 
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("Transaction %d Details\n\n", m.txIndex+1))
+	fmt.Fprintf(&b, "Transaction %d Details\n\n", m.txIndex+1)
 
 	b.WriteString("Full Transaction Hash:\n")
 	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Render(fullHash) + "\n\n")

@@ -49,6 +49,7 @@ func RestoredFromBEEFBytes(t testing.TB, bytes []byte) BSVTransactionAssertion {
 
 type txAssertion struct {
 	testing.TB
+
 	tx *transaction.Transaction
 }
 

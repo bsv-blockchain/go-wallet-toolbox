@@ -43,6 +43,7 @@ func NewCreateActionInputBuilder(t testing.TB, user testusers.User) CreateAction
 
 type createActionInputBuilder struct {
 	testing.TB
+
 	user        testusers.User
 	description string
 	satoshis    uint64

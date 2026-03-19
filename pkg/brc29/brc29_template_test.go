@@ -38,7 +38,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(keyDeriver, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -50,7 +50,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(priv, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -62,7 +62,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, keyDeriver)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -74,7 +74,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, pub)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 

@@ -11,13 +11,11 @@ import (
 
 // Migrate migrates a wallet storage database.
 func (m *WalletStorageManager) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
-
 	return m.getActiveWriter().Migrate(ctx, storageName, storageIdentityKey)
 }
 
 // FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
 func (m *WalletStorageManager) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
-
 	return m.getActiveWriter().FindOrInsertUser(ctx, identityKey)
 }
 
