@@ -201,7 +201,7 @@ func newCollector(txSats satoshi.Value, txSize uint64, outputCount uint64, numbe
 	// Calculate dust floor: the minimum satoshi value for a change output to be worth spending.
 	// We model the smallest possible future spend (1 P2PKH input + 1 P2PKH output)
 	// and require each output to be worth at least 2× that future fee.
-	// The absolute floor of 1 prevents nonsensical behaviour at fee rate 0.
+	// The absolute floor of 1 prevents nonsensical behavior at fee rate 0.
 	minSpendTxSize := txutils.TransactionSizeFromScriptLengths(
 		[]uint64{txutils.P2PKHUnlockingScriptLength},
 		[]uint64{txutils.P2PKHLockingScriptLength},
