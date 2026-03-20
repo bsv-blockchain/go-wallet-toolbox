@@ -14,6 +14,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 )
 
+const mustGetAddressMsg = "Must get address from BRC29 locking script"
+
 func TestBRC29TemplateLock(t *testing.T) {
 	t.Run("should lock with P2PKH and BRC29 calculated address", func(t *testing.T) {
 		// when:
@@ -24,8 +26,8 @@ func TestBRC29TemplateLock(t *testing.T) {
 
 		// and:
 		address, err := lockingScript.Address()
-		require.NoError(t, err, "Must get address from BRC29 locking script")
-		require.NotNil(t, address, "Must get address from BRC29 locking script")
+		require.NoError(t, err, mustGetAddressMsg)
+		require.NotNil(t, address, mustGetAddressMsg)
 
 		assert.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -131,8 +133,8 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 
 		// and:
 		address, err := lockingScript.Address()
-		require.NoError(t, err, "Must get address from BRC29 locking script")
-		require.NotNil(t, address, "Must get address from BRC29 locking script")
+		require.NoError(t, err, mustGetAddressMsg)
+		require.NotNil(t, address, mustGetAddressMsg)
 
 		assert.Equal(t, expectedAddress, address.AddressString)
 	})

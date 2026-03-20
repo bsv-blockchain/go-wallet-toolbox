@@ -67,6 +67,8 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 	}
 }
 
+const shouldHaveAtLeastOneOutputMsg = "Should have at least one output after internalize"
+
 func (s *WalletTestSuite) TestWalletListOutputs() {
 	s.Run("list outputs with empty result when no outputs exist", func() {
 		t := s.T()
@@ -117,7 +119,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.NotEmpty(t, result.Outputs, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.Equal(t, uint64(fixtures.ExpectedValueToInternalize), result.Outputs[0].Satoshis, "Output value should match internalized amount")
 	})
 
@@ -147,7 +149,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.NotEmpty(t, result.Outputs, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 	})
 
 	s.Run("list outputs with include entire transactions after internalize action", func() {
@@ -176,7 +178,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.NotEmpty(t, result.Outputs, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.NotNil(t, result.BEEF, "BEEF should be included when requesting entire transactions")
 	})
 
@@ -206,7 +208,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.NotEmpty(t, result.Outputs, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.NotNil(t, result.Outputs[0].LockingScript, "Locking script should be included")
 		assert.NotEmpty(t, result.Outputs[0].LockingScript, "Locking script should not be empty")
 	})
