@@ -33,10 +33,10 @@ func (f *FeeModel) Validate() error {
 	return nil
 }
 
-// DefaultFeeModel returns minimal fee model.
+// DefaultFeeModel returns the standard fee model (100 sat/KB).
 func DefaultFeeModel() FeeModel {
 	return FeeModel{
 		Type:  SatPerKB,
-		Value: 1,
+		Value: 100,
 	}
 }

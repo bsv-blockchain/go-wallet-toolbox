@@ -43,7 +43,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bsv-blockchain/go-batcher v1.2.10 // indirect
-	github.com/bsv-blockchain/go-bsv-middleware v0.12.6 // indirect
+	github.com/bsv-blockchain/go-bsv-middleware v0.13.0 // indirect
 	github.com/bsv-blockchain/go-bt/v2 v2.6.1 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.5.6 // indirect
 	github.com/bsv-blockchain/go-chaintracks v1.1.5 // indirect
@@ -141,7 +141,7 @@ require (
 	github.com/joho/godotenv v1.6.0-pre.2 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.4 // indirect
+	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/koron/go-ssdp v0.1.0 // indirect
 	github.com/labstack/echo/v4 v4.15.1 // indirect

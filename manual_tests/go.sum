@@ -115,8 +115,8 @@ github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kB
 github.com/bketelsen/crypt v0.0.4/go.mod h1:aI6NrJ0pMGgvZKL1iVgXLnfIFJtfV+bKCoqOes/6LfM=
 github.com/bsv-blockchain/go-batcher v1.2.10 h1:MBdKx9RO9HkR3emDZRKTReIJBLw0rLBnGXzqw8M0bjg=
 github.com/bsv-blockchain/go-batcher v1.2.10/go.mod h1:dvaESIp34v2WkJG75k9MEauCHGd4GaBYJGwgol2c4Is=
-github.com/bsv-blockchain/go-bsv-middleware v0.12.6 h1:/pQd6hSbOHgk/e6tHvFRle4c1toRns25qBsAlvmRCC4=
-github.com/bsv-blockchain/go-bsv-middleware v0.12.6/go.mod h1:/2imcNsZ+r2a1jTfweGwj9kNGVgsOOJz12uk4kmQ1M4=
+github.com/bsv-blockchain/go-bsv-middleware v0.13.0 h1:wSImhie5Du0Zq6kOA9j7jCB3srEm+vidRt0VQqZ/FGc=
+github.com/bsv-blockchain/go-bsv-middleware v0.13.0/go.mod h1:o8Jgs4ybqgnmM7tUZFF/YS067byBAIQV9ZpQhew0cqk=
 github.com/bsv-blockchain/go-bt/v2 v2.6.1 h1:cqtRlqOPUb0qWCAvhtdBqWZmBhVlPND8yCZ3yPNFYtM=
 github.com/bsv-blockchain/go-bt/v2 v2.6.1/go.mod h1:Roub1gyqaLT2X2QuCO/3A3sPbIqRztOMeVr6gLcijWE=
 github.com/bsv-blockchain/go-chaincfg v1.5.6 h1:fjTngPQLG0Z9H3U/c8YVJKvr63gy4oqjiflqQvvWggU=
@@ -519,8 +519,8 @@ github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfV
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/kisielk/sqlstruct v0.0.0-20201105191214-5f3e10d3ab46/go.mod h1:yyMNCyc/Ib3bDTKd379tNMpB/7/H5TjM2Y9QJ5THLbE=
-github.com/klauspost/compress v1.18.4 h1:RPhnKRAQ4Fh8zU2FY/6ZFDwTVTxgJ/EMydqSTzE9a2c=
-github.com/klauspost/compress v1.18.4/go.mod h1:R0h/fSBs8DE4ENlcrlib3PsXS61voFxhIs2DeRhCvJ4=
+github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBFW2IE=
+github.com/klauspost/compress v1.18.5/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/klauspost/cpuid/v2 v2.3.0 h1:S4CRMLnYUhGeDFDqkGriYKdfoFlDnMtqTiI/sFzhA9Y=
 github.com/klauspost/cpuid/v2 v2.3.0/go.mod h1:hqwkgyIinND0mEev00jJYCxPNVRVXFQeu1XKlok6oO0=
 github.com/koron/go-ssdp v0.1.0 h1:ckl5x5H6qSNFmi+wCuROvvGUu2FQnMbQrU95IHCcv3Y=

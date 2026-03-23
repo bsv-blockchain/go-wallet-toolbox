@@ -29,8 +29,8 @@ db:
 fail_abandoned:
   min_transaction_age_seconds: 300
 fee_model:
-  type: sat/kb
-  value: 1
+    type: sat/kb
+    value: 100
 http:
   port: 8100
   request_price: 0
