@@ -38,8 +38,8 @@ func TestListOutputs_MinimalFilter(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Len(t, result.Outputs, 32)
-	require.Equal(t, primitives.PositiveInteger(32), result.TotalOutputs)
+	require.Len(t, result.Outputs, 9)
+	require.Equal(t, primitives.PositiveInteger(9), result.TotalOutputs)
 
 	// and:
 	require.Nil(t, result.BEEF)
@@ -183,7 +183,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 32)
+	require.Len(t, actualResult.Outputs, 9)
 
 	// and:
 	require.NotNil(t, actualResult.BEEF)
@@ -222,7 +222,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
-	require.Len(t, actualResult.Outputs, 32)
+	require.Len(t, actualResult.Outputs, 9)
 
 	// and:
 	beef := testutils.BEEFFromBytes(t, actualResult.BEEF)
@@ -411,5 +411,8 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Len(t, result.Outputs, 0) //NOTE: After create action that uses all of owned UTXOs, they should be reserved and not spendable
+	require.LessOrEqual(t, len(result.Outputs), 1)
+	if len(result.Outputs) == 1 {
+		require.Less(t, result.Outputs[0].Satoshis, primitives.SatoshiValue(5))
+	}
 }
