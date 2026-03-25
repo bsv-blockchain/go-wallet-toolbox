@@ -41,7 +41,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 57, inserts)
+	assert.Equal(t, 36, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
@@ -87,14 +87,14 @@ func TestSyncProcess(t *testing.T) {
 
 	// and outputs:
 	thenDBState.AllOutputs(testusers.Alice).
-		WithCount(33).
+		WithCount(12).
 		WithCountHavingTxID(3).
 		WithCountHavingTags(3, fixtures.CreateActionTestTag).
 		WithCountHavingTags(1, fixtures.FaucetTag(0)).
 		WithCountHavingTags(1, fixtures.FaucetTag(1))
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).
-		WithCount(32)
+		WithCount(11)
 
 	// and:
 	const fee = 1

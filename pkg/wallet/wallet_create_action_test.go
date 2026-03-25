@@ -163,7 +163,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
@@ -231,7 +231,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			HasActionsCount(1).
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(0)
 		thenCreatedAction.
 			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
@@ -304,7 +304,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
@@ -366,7 +366,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(result.Txid.String()).
@@ -634,7 +634,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput
 			HasActionsCount(1).
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(0)
 		thenCreatedAction.
 			WithTxID(result.Txid.String()).
@@ -947,7 +947,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(txIDToRetry.String()).
@@ -1024,7 +1024,7 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		thenState := testabilities.ThenWalletState(t, bobWallet)
 		thenState.ActionAtIndex(0).
 			WithDescription("test transaction").
-			WithSatoshis(41998).
+			WithSatoshis(41999).
 			WithStatus(sdk.ActionStatusUnproven).
 			WithNotEmptyTxID()
 	})
@@ -1085,7 +1085,7 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		thenState := testabilities.ThenWalletState(t, bobWallet)
 		thenState.ActionAtIndex(0).
 			WithDescription("test transaction").
-			WithSatoshis(41998).
+			WithSatoshis(41999).
 			WithStatus(sdk.ActionStatusUnproven).
 			WithNotEmptyTxID()
 	})
