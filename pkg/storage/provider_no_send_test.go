@@ -25,7 +25,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
@@ -111,7 +111,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
@@ -149,7 +149,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
@@ -209,7 +209,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:

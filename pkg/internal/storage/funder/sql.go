@@ -28,18 +28,16 @@ const (
 	utxoBatchSize = 1000
 )
 
-var (
-	// MaxChangeOutputsPerTransaction limits how aggressively the wallet builds up its UTXO pool in one shot.
-	// When a user first imports a large UTXO, without this cap the wallet would
-	// attempt to create numberOfDesiredUTXOs change outputs in a single transaction.
-	// That produces a very large transaction whose raw bytes are embedded in the BEEF
-	// of every subsequent child transaction, bloating those BEEFs and slowing down external processors.
-	//
-	// With this cap the UTXO pool builds gradually — at most 8 net new change
-	// outputs per transaction — so no single transaction becomes unreasonably large.
-	// A pool of 144 desired UTXOs fills over roughly 18 transactions rather than 1.
-	MaxChangeOutputsPerTransaction uint64 = 8
-)
+// MaxChangeOutputsPerTransaction limits how aggressively the wallet builds up its UTXO pool in one shot.
+// When a user first imports a large UTXO, without this cap the wallet would
+// attempt to create numberOfDesiredUTXOs change outputs in a single transaction.
+// That produces a very large transaction whose raw bytes are embedded in the BEEF
+// of every subsequent child transaction, bloating those BEEFs and slowing down external processors.
+//
+// With this cap the UTXO pool builds gradually — at most 8 net new change
+// outputs per transaction — so no single transaction becomes unreasonably large.
+// A pool of 144 desired UTXOs fills over roughly 18 transactions rather than 1.
+var MaxChangeOutputsPerTransaction uint64 = 8
 
 type UTXORepository interface {
 	FindNotReservedUTXOs(

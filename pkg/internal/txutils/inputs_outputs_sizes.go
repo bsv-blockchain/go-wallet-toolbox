@@ -7,8 +7,10 @@ const (
 	P2PKHLockingScriptLength   = 25
 )
 
-var P2PKHOutputSize = TransactionOutputSize(P2PKHLockingScriptLength)
-var P2PKHEstimatedInputSize = TransactionInputSize(P2PKHUnlockingScriptLength)
+var (
+	P2PKHOutputSize         = TransactionOutputSize(P2PKHLockingScriptLength)
+	P2PKHEstimatedInputSize = TransactionInputSize(P2PKHUnlockingScriptLength)
+)
 
 // EstimatedInputSizeByType returns the estimated size of a transaction output based on its type.
 func EstimatedInputSizeByType(txType wdk.OutputType) uint64 {
