@@ -64,7 +64,7 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 9, len(result.Outputs))
+	assert.Len(t, result.Outputs, 9)
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -273,7 +273,7 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 10, len(result.Outputs))
+	assert.Len(t, result.Outputs, 10)
 	assert.Equal(t, 9, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -463,7 +463,7 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 8, len(result.Outputs))
+	assert.Len(t, result.Outputs, 8)
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -528,7 +528,7 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 8, len(result.Outputs))
+	assert.Len(t, result.Outputs, 8)
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(99999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
@@ -592,7 +592,7 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Equal(t, 9, len(result.Outputs))
+	assert.Len(t, result.Outputs, 9)
 	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
 	assert.Equal(t, primitives.SatoshiValue(57999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 

@@ -591,7 +591,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 
 		// then: change outputs must be capped at MaxChangeOutputsPerTransaction, not 100
 		then.Result(result).WithoutError(err).
-			HasChangeCount(int(funder.MaxChangeOutputsPerTransaction)).
+			HasChangeCount(int(funder.MaxChangeOutputsPerTransaction)). //nolint:gosec // MaxChangeOutputsPerTransaction is a small constant
 			ForAmount(100_000_000)
 	})
 
@@ -613,7 +613,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		// then: only MaxChangeOutputsPerTransaction outputs created, not 20
 		then.Result(result).WithoutError(err)
 
-		require.LessOrEqual(t, int(result.ChangeOutputsCount), int(funder.MaxChangeOutputsPerTransaction),
+		require.LessOrEqual(t, result.ChangeOutputsCount, funder.MaxChangeOutputsPerTransaction,
 			"ChangeOutputsCount should not exceed MaxChangeOutputsPerTransaction")
 	})
 
@@ -655,8 +655,8 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		// dustFloor = 44 sats; each output must be well above that
 		require.Positive(t, int(result.ChangeAmount), "change must be positive")
 		if result.ChangeOutputsCount > 0 {
-			avgPerOutput := int(result.ChangeAmount) / int(result.ChangeOutputsCount)
-			require.GreaterOrEqual(t, avgPerOutput, 44,
+			avgPerOutput := int64(result.ChangeAmount) / int64(result.ChangeOutputsCount) //nolint:gosec // test values are small
+			require.GreaterOrEqual(t, avgPerOutput, int64(44),
 				"average change per output must be >= dustFloor (44 sats at 110 sat/kb)")
 		}
 	})
@@ -682,9 +682,9 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 
 		// Verify that no individual output would be below the dust floor
 		if result.ChangeOutputsCount > 0 {
-			perOutput := int(result.ChangeAmount) / int(result.ChangeOutputsCount)
+			perOutput := int64(result.ChangeAmount) / int64(result.ChangeOutputsCount) //nolint:gosec // test values are small
 			// dustFloor at 1000 sat/kb = ceil(192/1000*1000)*2 = 192*2 = 384
-			require.GreaterOrEqualf(t, perOutput, 384,
+			require.GreaterOrEqualf(t, perOutput, int64(384),
 				"per-output value %d must be >= dustFloor 384 at 1000 sat/kb", perOutput)
 		}
 	})
