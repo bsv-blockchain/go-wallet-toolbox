@@ -286,7 +286,6 @@ func TestService_OnTipCallbackError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 
 	var callbackInvoked atomic.Bool
 
@@ -305,6 +304,11 @@ func TestService_OnTipCallbackError(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return callbackInvoked.Load()
 	}, 1*time.Second, 10*time.Millisecond, "callback should be invoked even if it returns error")
+
+	// Cancel context and wait briefly for the goroutine to finish logging the error,
+	// otherwise the test logger (backed by t) panics on write-after-completion.
+	cancel()
+	time.Sleep(50 * time.Millisecond)
 }
 
 func TestService_OnReorgCallbackError(t *testing.T) {
@@ -325,7 +329,6 @@ func TestService_OnReorgCallbackError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 
 	var callbackInvoked atomic.Bool
 
@@ -344,4 +347,9 @@ func TestService_OnReorgCallbackError(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return callbackInvoked.Load()
 	}, 1*time.Second, 10*time.Millisecond, "callback should be invoked even if it returns error")
+
+	// Cancel context and wait briefly for the goroutine to finish logging the error,
+	// otherwise the test logger (backed by t) panics on write-after-completion.
+	cancel()
+	time.Sleep(50 * time.Millisecond)
 }
