@@ -3,10 +3,11 @@ package repo
 import (
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/go-softwarelab/common/pkg/types"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 )
 
 type fieldExpr[T types.Ordered] interface {
@@ -16,8 +17,8 @@ type fieldExpr[T types.Ordered] interface {
 	Gte(value T) field.Expr
 	Lte(value T) field.Expr
 	Neq(value T) field.Expr
-	Between(left T, right T) field.Expr
-	NotBetween(left T, right T) field.Expr
+	Between(left, right T) field.Expr
+	NotBetween(left, right T) field.Expr
 	Like(value T) field.Expr
 	NotLike(value T) field.Expr
 	In(values ...T) field.Expr
@@ -102,6 +103,7 @@ func orderedTime(a, b time.Time) (time.Time, time.Time) {
 	}
 	return a, b
 }
+
 func cmpTimeCondition(f field.Time, cmp *entity.Comparable[time.Time]) gen.Condition {
 	switch cmp.Cmp {
 	case entity.Equal:

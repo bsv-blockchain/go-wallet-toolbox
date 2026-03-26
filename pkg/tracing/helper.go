@@ -10,6 +10,8 @@ import (
 )
 
 // StartTracing starts a new tracing span with the given name and attributes.
+//
+//nolint:spancheck // span is returned to caller who is responsible for ending it via EndTracing
 func StartTracing(ctx context.Context, spanName string, attributes ...attribute.KeyValue) (context.Context, trace.Span) {
 	var span trace.Span
 	tracer := otel.Tracer("")

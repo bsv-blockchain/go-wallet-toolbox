@@ -3,10 +3,11 @@ package logging_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/stretchr/testify/require"
 )
 
 func TestChildLogger(t *testing.T) {

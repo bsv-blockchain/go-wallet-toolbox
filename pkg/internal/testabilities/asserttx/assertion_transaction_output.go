@@ -11,6 +11,7 @@ import (
 
 type outputAssertion struct {
 	testing.TB
+
 	index  int
 	output *transaction.TransactionOutput
 }
@@ -31,7 +32,7 @@ func (a *outputAssertion) HasSatoshis(expectedSats uint64) BSVOutputAssertion {
 	if a.output == nil {
 		return a
 	}
-	assert.EqualValuesf(a, expectedSats, a.output.Satoshis, "unexpected satoshis value of output %d", a.index)
+	assert.Equalf(a, expectedSats, a.output.Satoshis, "unexpected satoshis value of output %d", a.index)
 	return a
 }
 

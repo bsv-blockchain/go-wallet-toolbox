@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type ItemSelector[T ~string] struct {
@@ -48,7 +49,7 @@ func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch keyMsg.Type {
+	switch keyMsg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 	case tea.KeyCtrlC, tea.KeyEsc:
 		return m, tea.Quit
 	case tea.KeyEnter:
@@ -72,6 +73,7 @@ func (m ItemSelector[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
+
 func (m ItemSelector[T]) handleEnterKey() (tea.Model, tea.Cmd) {
 	if m.isBackOptionSelected() {
 		return m.handleBackSelection()
@@ -127,7 +129,7 @@ func (m ItemSelector[T]) getMaxCursorPosition() int {
 
 func (m ItemSelector[T]) View() string {
 	s := strings.Builder{}
-	s.WriteString(fmt.Sprintf("%s\n\n", m.title))
+	fmt.Fprintf(&s, "%s\n\n", m.title)
 
 	for i, item := range m.items {
 		if m.cursor == i {

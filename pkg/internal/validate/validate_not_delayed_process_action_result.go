@@ -3,8 +3,9 @@ package validate
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/seq"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func NotDelayedProcessActionResult(result *wdk.ProcessActionResult) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 )
@@ -21,7 +22,7 @@ var (
 	protocolID = "encryption"
 
 	// ciphertext is the encrypted version of the plaintext
-	ciphertext = []byte{} //example []byte{220, 119, 136, 203, 17, 165, 76, 206, 75, 228, 144, 225, 235, 47, 193, 218, 155, 164, 179, 233, 45, 112, 160, 238, 33, 21, 110, 175, 176, 161, 88, 157, 37, 181, 228, 183, 194, 110, 216, 84, 109, 233, 220, 130, 43, 252, 193, 241, 151, 47, 58, 62, 246, 139, 62, 117, 44, 213, 191, 45, 130}
+	ciphertext = []byte{} // example []byte{220, 119, 136, 203, 17, 165, 76, 206, 75, 228, 144, 225, 235, 47, 193, 218, 155, 164, 179, 233, 45, 112, 160, 238, 33, 21, 110, 175, 176, 161, 88, 157, 37, 181, 228, 183, 194, 110, 216, 84, 109, 233, 220, 130, 43, 252, 193, 241, 151, 47, 58, 62, 246, 139, 62, 117, 44, 213, 191, 45, 130}
 )
 
 // This example shows how to decrypt a message using the go-sdk wallet.

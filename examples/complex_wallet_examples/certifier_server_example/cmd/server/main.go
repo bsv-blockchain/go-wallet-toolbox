@@ -19,7 +19,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err = cfg.Validate(); err != nil {
 		logger.Error("Invalid configuration", "error", err)
 		os.Exit(1)
 	}

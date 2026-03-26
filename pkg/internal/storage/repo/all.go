@@ -1,8 +1,9 @@
 package repo
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 )
 
 type Repositories struct {

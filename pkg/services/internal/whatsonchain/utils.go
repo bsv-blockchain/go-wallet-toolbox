@@ -41,7 +41,7 @@ func classifyBroadcastStatus(status BroadcastStatus, result *wdk.PostedTxID) (sh
 		shouldReturnError = true
 	}
 
-	return
+	return shouldReturnError
 }
 
 func validateScriptHash(scriptHash string) error {

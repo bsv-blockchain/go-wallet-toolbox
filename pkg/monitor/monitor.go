@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
+	"github.com/go-co-op/gocron/v2"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
-	"github.com/go-co-op/gocron/v2"
-	"gorm.io/gorm"
 )
 
 const safetyMargin = 0.95 // Safety margin to ensure tasks complete before the next scheduled run
@@ -265,7 +266,7 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 	}
 
 	timeout := time.Duration(float64(untilNext) * safetyMargin)
-	return context.WithTimeout(ctx, timeout) //nolint:gosec // G118 - cancel func is returned to be called by the caller
+	return context.WithTimeout(ctx, timeout)
 }
 
 func (d *Daemon) handleReorgEvents(ctx context.Context) {

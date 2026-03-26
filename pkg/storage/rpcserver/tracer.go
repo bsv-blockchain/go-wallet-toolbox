@@ -7,9 +7,10 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 )
 
 type rpcCallTracer struct {
@@ -22,7 +23,7 @@ type rpcCallTracer struct {
 }
 
 func newTracer(logger *slog.Logger) jsonrpc.Tracer {
-	return func(method string, params []reflect.Value, results []reflect.Value, err error) {
+	return func(method string, params, results []reflect.Value, err error) {
 		tracer := rpcCallTracer{
 			debug:   logging.IsDebug(logger),
 			logger:  logger,

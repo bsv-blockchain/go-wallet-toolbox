@@ -21,7 +21,7 @@ func newChunkingState(args *wdk.RequestSyncChunkArgs) *chunkingState {
 	}
 }
 
-func (s *chunkingState) update(num uint64, roughSize uint64) {
+func (s *chunkingState) update(num, roughSize uint64) {
 	s.prevItemsCounter = s.itemsCounter
 	s.itemsCounter += num
 	s.roughSize = roughSize

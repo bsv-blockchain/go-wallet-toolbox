@@ -5,6 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seq2"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gen"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -14,13 +22,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/seq2"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"go.opentelemetry.io/otel/attribute"
-	"gorm.io/gen"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const (
@@ -257,7 +258,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 	}()
 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&models.KnownTx{}).
+		err = tx.Model(&models.KnownTx{}).
 			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
 			Updates(&models.KnownTx{
 				Status:      wdk.ProvenTxStatusCompleted,
@@ -492,7 +493,7 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 			BlockHash string
 		}
 
-		if err := tx.Model(&models.KnownTx{}).
+		if err = tx.Model(&models.KnownTx{}).
 			Select("tx_id", "block_hash").
 			Where("block_hash IN ?", blockHashes).
 			Find(&affectedTxs).Error; err != nil {

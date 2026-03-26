@@ -3,9 +3,10 @@ package tui
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type ListOutputsWaiting struct {
@@ -14,12 +15,11 @@ type ListOutputsWaiting struct {
 	limit         uint32
 	offset        uint32
 	spinner       spinner.Model
-	quitting      bool
 	includeLabels bool
 	basket        string
 }
 
-func NewListOutputsWaiting(manager ManagerInterface, user *fixtures.UserConfig, limit uint32, offset uint32, includeLabels bool, basket string) *ListOutputsWaiting {
+func NewListOutputsWaiting(manager ManagerInterface, user *fixtures.UserConfig, limit, offset uint32, includeLabels bool, basket string) *ListOutputsWaiting {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	return &ListOutputsWaiting{
@@ -49,7 +49,7 @@ func (m *ListOutputsWaiting) listOutputs() tea.Msg {
 
 func (m *ListOutputsWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.Type {
+		switch keyMsg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}

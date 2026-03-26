@@ -3,13 +3,14 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListTransactions_HappyPath(t *testing.T) {
@@ -33,7 +34,7 @@ func TestListTransactions_HappyPath(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.GreaterOrEqual(t, int(result.TotalTransactions), 1)
+	assert.GreaterOrEqual(t, int(result.TotalTransactions), 1) //nolint:gosec // test assertion, TotalTransactions fits in int
 }
 
 func TestListTransactions_InvalidAuth(t *testing.T) {
@@ -186,5 +187,5 @@ func TestListTransactions_NilReferenceReturnsAll(t *testing.T) {
 	// Then:
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.GreaterOrEqual(t, int(result.TotalTransactions), 2)
+	assert.GreaterOrEqual(t, int(result.TotalTransactions), 2) //nolint:gosec // test assertion, TotalTransactions fits in int
 }

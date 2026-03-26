@@ -6,12 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
 )
 
 func TestTracer(t *testing.T) {
@@ -97,7 +98,6 @@ func TestTracer(t *testing.T) {
 		assert.Contains(t, msg2, expectedResultMessage)
 		assert.Contains(t, msg2, `method=set`)
 		assert.Contains(t, msg2, expectedHandlerArgMessage)
-
 	})
 }
 

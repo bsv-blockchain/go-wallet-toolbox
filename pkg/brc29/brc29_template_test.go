@@ -8,23 +8,26 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script/interpreter"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 )
+
+const mustGetAddressMsg = "Must get address from BRC29 locking script"
 
 func TestBRC29TemplateLock(t *testing.T) {
 	t.Run("should lock with P2PKH and BRC29 calculated address", func(t *testing.T) {
 		// when:
 		lockingScript, err := brc29.LockForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, brc29.PubHex(recipientPublicKeyHex))
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, lockingScript)
 
 		// and:
 		address, err := lockingScript.Address()
-		assert.NoError(t, err, "Must get address from BRC29 locking script")
-		require.NotNil(t, address, "Must get address from BRC29 locking script")
+		require.NoError(t, err, mustGetAddressMsg)
+		require.NotNil(t, address, mustGetAddressMsg)
 
 		assert.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -37,7 +40,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(keyDeriver, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -49,7 +52,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(priv, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -61,7 +64,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, keyDeriver)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -73,7 +76,7 @@ func TestBRC29TemplateLock(t *testing.T) {
 		lockingScript, err := brc29.LockForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, pub)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -125,13 +128,13 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		// when:
 		lockingScript, err := brc29.LockForSelf(brc29.PubHex(senderPublicKeyHex), keyID, brc29.PrivHex(recipientPrivateKeyHex))
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, lockingScript)
 
 		// and:
 		address, err := lockingScript.Address()
-		assert.NoError(t, err, "Must get address from BRC29 locking script")
-		require.NotNil(t, address, "Must get address from BRC29 locking script")
+		require.NoError(t, err, mustGetAddressMsg)
+		require.NotNil(t, address, mustGetAddressMsg)
 
 		assert.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -144,7 +147,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(keyDeriver, keyID, brc29.PrivHex(recipientPrivateKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -156,7 +159,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(pub, keyID, brc29.PrivHex(recipientPrivateKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -168,7 +171,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(brc29.PubHex(senderPublicKeyHex), keyID, keyDeriver)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 
@@ -180,7 +183,7 @@ func TestBRC29TemplateLockForSelf(t *testing.T) {
 		lockingScript, err := brc29.LockForSelf(brc29.PubHex(senderPublicKeyHex), keyID, priv)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, lockingScript)
 	})
 

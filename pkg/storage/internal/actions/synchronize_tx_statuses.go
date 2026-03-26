@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/slices"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -16,8 +19,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 const (
@@ -196,7 +197,7 @@ func (s *synchronizeTxStatuses) setLastBlock(ctx context.Context, height uint, h
 // filterTxsByConfirmationDepth filters transactions to only those that have at least BlocksDelay confirmations.
 // This prevents unnecessary MerklePath calls for transactions that are not yet sufficiently confirmed.
 // If the status service is unavailable, it returns an empty slice to skip synchronization.
-func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) {
+func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) { //nolint:unparam // error return reserved for future validation
 	if len(txs) == 0 {
 		return txs, nil
 	}
@@ -300,7 +301,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	var txsToSync []*entity.KnownTxForStatusSync
 	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
 	for range syncTxStatusMaxPages {
-		txsPage, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statuses, queryopts.WithPage(paging))
+		var txsPage []*entity.KnownTxForStatusSync
+		txsPage, err = s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statuses, queryopts.WithPage(paging))
 		if err != nil {
 			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
 		}
@@ -347,7 +349,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 		s.logger.Debug("synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
 
-		merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
+		var merkleResult *wdk.MerklePathResult
+		merkleResult, err = s.services.MerklePath(ctx, txToSync.TxID)
 		if err != nil {
 			s.logger.Warn(
 				"failed to get merkle path for transaction",
@@ -374,7 +377,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			continue
 		}
 
-		transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
+		var transactionIDs []uint
+		transactionIDs, err = s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
 		}

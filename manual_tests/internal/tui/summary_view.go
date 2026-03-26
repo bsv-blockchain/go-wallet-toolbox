@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 const (
@@ -55,7 +56,7 @@ func (m *SummaryView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if m.expanded >= 0 && !m.continueIsFocused {
-			switch msg.Type {
+			switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 			case tea.KeyLeft, tea.KeyCtrlB:
 				if m.expandedPage > 0 {
 					m.expandedPage--
@@ -71,14 +72,14 @@ func (m *SummaryView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyUp:
 			if m.continueIsFocused {
 				m.continueIsFocused = false
 				m.cursor = len(m.summary) - 1
 			} else if m.cursor > 0 {
 				m.cursor--
-				m.expandedPage = 0 
+				m.expandedPage = 0
 			}
 		case tea.KeyDown:
 			if m.cursor == len(m.summary)-1 {

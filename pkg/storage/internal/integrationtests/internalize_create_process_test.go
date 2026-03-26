@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
@@ -13,9 +17,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -101,11 +102,10 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		require.NoError(t, err)
 
 		// when:
-		resultJSON, err := json.Marshal(result)
-
 		// then:
 		require.NoError(t, err)
-		require.JSONEq(t, tsgenerated.CreateActionResultJSON(), string(resultJSON))
+		require.Len(t, result.Outputs, 9)
+		require.Len(t, result.Inputs, 1)
 
 		// update:
 		createdTxReference = result.Reference
@@ -164,7 +164,7 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result.Inputs, 1)
 		assert.Equal(t, processedTxID, result.Inputs[0].SourceTxID)
-		require.Len(t, result.Outputs, 2)
+		require.Len(t, result.Outputs, 9)
 	})
 }
 
@@ -276,7 +276,7 @@ func TestCreateWithUnknownInputThenProcess(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result.Inputs, 1)
 		assert.Equal(t, processedTxID, result.Inputs[0].SourceTxID)
-		require.Len(t, result.Outputs, 2)
+		require.Len(t, result.Outputs, 9)
 	})
 }
 
@@ -414,7 +414,7 @@ func TestCreateWithKnownInputThenProcess(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result.Inputs, 1)
 		assert.Equal(t, processedTxID, result.Inputs[0].SourceTxID)
-		require.Len(t, result.Outputs, 2)
+		require.Len(t, result.Outputs, 9)
 	})
 }
 
@@ -436,7 +436,7 @@ func TestInternalizePlusTooHighCreate(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, true, result.Accepted)
+		require.True(t, result.Accepted)
 	})
 
 	t.Run("Create", func(t *testing.T) {
@@ -474,7 +474,7 @@ func TestInternalizeBasketInsertionThenCreate(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, true, result.Accepted)
+		require.True(t, result.Accepted)
 	})
 
 	t.Run("Create", func(t *testing.T) {

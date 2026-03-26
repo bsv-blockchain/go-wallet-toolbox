@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
@@ -86,5 +87,5 @@ func (s *Server) Start() error {
 
 	s.logger.Info("Starting certificate server", "addr", addr, "network", s.config.Server.Network)
 
-	return http.ListenAndServe(addr, handler)
+	return http.ListenAndServe(addr, handler) //nolint:gosec // example server, timeouts not required
 }

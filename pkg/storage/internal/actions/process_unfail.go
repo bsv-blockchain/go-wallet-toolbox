@@ -19,11 +19,9 @@ const (
 	unfailItemsPerPage = 1000
 )
 
-var (
-	statusesOfUnfailTxs = []wdk.ProvenTxReqStatus{
-		wdk.ProvenTxStatusUnfail,
-	}
-)
+var statusesOfUnfailTxs = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusUnfail,
+}
 
 // UnFail scans known transactions with status 'unfail' and attempts to move them forward.
 // If MerklePath is found: set KnownTx to 'unmined', set Transaction to 'unproven', and create UTXOs for spendable outputs.

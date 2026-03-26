@@ -45,7 +45,6 @@ func (sm SyncMap) MaxUpdatedAt() *time.Time {
 		}
 		if maxUpdatedAt == nil || entity.MaxUpdatedAt.After(*maxUpdatedAt) {
 			maxUpdatedAt = entity.MaxUpdatedAt
-
 		}
 	}
 	return maxUpdatedAt

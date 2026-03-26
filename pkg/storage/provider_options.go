@@ -6,11 +6,12 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"gorm.io/gorm"
 )
 
 // ProviderOption is function for additional setup of Provider itself.

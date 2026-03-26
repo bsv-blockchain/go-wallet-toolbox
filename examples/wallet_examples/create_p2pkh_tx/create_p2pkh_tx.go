@@ -7,17 +7,18 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 var (
 	// RecipientAddress is the address to send satoshis to (P2PKH address)
-	RecipientAddress = "" //example: 1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq
+	RecipientAddress = "" // example: 1A6ut1tWnfg5mAD8s1drDLM6gNsLNGvgWq
 
 	// SatoshisToSend is the amount to send to the recipient
-	SatoshisToSend = uint64(1) //example: 100
+	SatoshisToSend = uint64(1) // example: 100
 
 	// OutputDescription describes the purpose of this output
 	OutputDescription = "Payment to recipient"

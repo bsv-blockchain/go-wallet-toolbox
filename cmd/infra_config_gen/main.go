@@ -7,11 +7,11 @@ import (
 	"log"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
 
 func main() {
-
 	genKey := flag.Bool("gen-key", false, "Generate a server private key")
 	flag.BoolVar(genKey, "k", false, "Generate a server private key (shorthand)")
 

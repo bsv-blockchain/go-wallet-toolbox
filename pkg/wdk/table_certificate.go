@@ -25,5 +25,6 @@ type TableCertificate struct {
 // TableCertificateX extends TableCertificate with optional fields
 type TableCertificateX struct {
 	TableCertificate
+
 	Fields []*TableCertificateField `json:"fields,omitempty"`
 }

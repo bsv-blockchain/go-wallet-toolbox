@@ -92,4 +92,3 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 
 	return activeStorage, cleanup, nil
 }
-

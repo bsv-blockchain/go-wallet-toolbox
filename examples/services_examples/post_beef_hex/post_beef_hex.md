@@ -53,7 +53,7 @@ Results from each service are processed and displayed, showing success status an
 
 ## Running the Example
 
-**Prerequisites**: 
+**Prerequisites**:
 - Update `transactionID` with your transaction ID
 - Update `beefHex` with valid BEEF hex data
 - Ensure the transaction matches the BEEF content

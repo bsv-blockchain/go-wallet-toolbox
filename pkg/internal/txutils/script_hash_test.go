@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHashOutputScript_SuccessCases(t *testing.T) {
@@ -41,7 +42,7 @@ func TestHashOutputScript_SuccessCases(t *testing.T) {
 			got, err := HashOutputScript(tt.scriptHex)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedLE, got)
 		})
 	}

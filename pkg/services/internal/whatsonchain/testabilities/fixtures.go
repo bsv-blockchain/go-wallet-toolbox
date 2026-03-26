@@ -24,6 +24,7 @@ func Given(t testing.TB) WoCServiceFixture {
 
 type wocServiceFixture struct {
 	testservices.ServicesFixture
+
 	t testing.TB
 }
 

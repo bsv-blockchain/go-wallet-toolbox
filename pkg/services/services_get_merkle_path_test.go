@@ -6,6 +6,11 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
+	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
@@ -13,10 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetMerklePath(t *testing.T) {
@@ -37,7 +38,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 	})
 
@@ -57,7 +58,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, arc.ServiceName, response.Name)
 		assert.Nil(t, response.MerklePath)
@@ -101,7 +102,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, arc.ServiceName, response.Name)
 		assert.Equal(t, merklePath, *response.MerklePath)
@@ -160,7 +161,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), tst.TestTxID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 		assert.Equal(t, whatsonchain.ServiceName, response.Name)
 		assert.Equal(t, merklePath, *response.MerklePath)
@@ -220,7 +221,7 @@ func TestGetMerklePath(t *testing.T) {
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, response)
 
 		require.Equal(t, bitails.ServiceName, response.Name)

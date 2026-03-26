@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
 type Migrator struct {

@@ -4,18 +4,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type SendDataWaiting struct {
-	manager  ManagerInterface
-	user     *fixtures.UserConfig
-	data     string
-	spinner  spinner.Model
-	quitting bool
-	err      error
+	manager ManagerInterface
+	user    *fixtures.UserConfig
+	data    string
+	spinner spinner.Model
 }
 
 func NewSendDataWaiting(manager ManagerInterface, user *fixtures.UserConfig, data string) *SendDataWaiting {
@@ -52,7 +51,7 @@ func (m *SendDataWaiting) sendData() tea.Msg {
 
 func (m *SendDataWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.Type {
+		switch keyMsg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}

@@ -47,7 +47,7 @@ func RenderTestnetFaucetInstructions(address string) string {
 	b.WriteString("\n\n")
 
 	// Notice
-	b.WriteString(fmt.Sprintf("%s %s\n", noticeLabelStyle.Render("💡 NOTICE:"), "You need to fund this address from a testnet faucet"))
+	fmt.Fprintf(&b, "%s %s\n", noticeLabelStyle.Render("💡 NOTICE:"), "You need to fund this address from a testnet faucet")
 	b.WriteString("\n")
 
 	// Address
@@ -59,12 +59,12 @@ func RenderTestnetFaucetInstructions(address string) string {
 	// Faucet List
 	b.WriteString(faucetHeaderStyle.Render("Available Testnet Faucets:"))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("• %s\n", linkStyle.Render("https://scrypt.io/faucet")))
-	b.WriteString(fmt.Sprintf("• %s\n", linkStyle.Render("https://witnessonchain.com/faucet/tbsv")))
+	fmt.Fprintf(&b, "• %s\n", linkStyle.Render("https://scrypt.io/faucet"))
+	fmt.Fprintf(&b, "• %s\n", linkStyle.Render("https://witnessonchain.com/faucet/tbsv"))
 	b.WriteString("\n")
 
 	// Warning
-	b.WriteString(fmt.Sprintf("%s %s\n", noticeLabelStyle.Render("⚠️  WARNING:"), "Make sure to use TESTNET faucets only!"))
+	fmt.Fprintf(&b, "%s %s\n", noticeLabelStyle.Render("⚠️  WARNING:"), "Make sure to use TESTNET faucets only!")
 	b.WriteString("\n")
 
 	return b.String()

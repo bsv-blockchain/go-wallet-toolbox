@@ -3,9 +3,10 @@ package services
 import (
 	"context"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/slices"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 )
 
 func applyModifierIfExists[F any](modifier func([]Named[F]) []Named[F], predefined []Named[F]) []Named[F] {

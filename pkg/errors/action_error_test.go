@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestTransactionError_Success(t *testing.T) {
@@ -16,9 +17,8 @@ func TestTransactionError_Success(t *testing.T) {
 	err := pkgerrors.NewTransactionError(chainhash.Hash{}).Wrap(rootCause)
 	require.NotNil(t, err)
 	assert.Equal(t, "transaction error (txID: 0000000000000000000000000000000000000000000000000000000000000000)", err.Error())
-	assert.EqualError(t, err.Unwrap(), "root cause")
+	require.EqualError(t, err.Unwrap(), "root cause")
 	assert.True(t, err.Is(err))
-	assert.ErrorIs(t, err, err)
 	assert.ErrorIs(t, err, rootCause)
 }
 
@@ -26,7 +26,7 @@ func TestTransactionError_ErrorCases(t *testing.T) {
 	t.Run("error without cause", func(t *testing.T) {
 		err := pkgerrors.NewTransactionError(chainhash.Hash{})
 		require.NotNil(t, err)
-		assert.NoError(t, err.Unwrap())
+		require.NoError(t, err.Unwrap())
 		assert.False(t, err.Is(nil))
 	})
 }
@@ -36,9 +36,8 @@ func TestCreateActionError_Success(t *testing.T) {
 
 	require.NotNil(t, err)
 	assert.Contains(t, err.Error(), "create action failed (reference: ref1)")
-	assert.EqualError(t, err.Unwrap(), "build failure")
+	require.EqualError(t, err.Unwrap(), "build failure")
 	assert.True(t, err.Is(err))
-	assert.ErrorIs(t, err, err)
 	assert.False(t, err.Is(nil))
 }
 
@@ -46,7 +45,7 @@ func TestCreateActionError_ErrorCases(t *testing.T) {
 	t.Run("error without cause", func(t *testing.T) {
 		err := pkgerrors.NewCreateActionError("ref2")
 		require.NotNil(t, err)
-		assert.Nil(t, err.Unwrap())
+		require.NoError(t, err.Unwrap())
 		assert.False(t, err.Is(nil))
 	})
 }
@@ -99,6 +98,6 @@ func TestProcessActionError_ErrorCases(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Equal(t, "process action failed", err.Error())
 		assert.False(t, err.Is(nil))
-		assert.Nil(t, err.Unwrap())
+		assert.NoError(t, err.Unwrap())
 	})
 }

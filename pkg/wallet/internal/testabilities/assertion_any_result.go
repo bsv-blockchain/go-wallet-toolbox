@@ -9,6 +9,7 @@ import (
 
 type anyResultAssertion struct {
 	testing.TB
+
 	result any
 }
 

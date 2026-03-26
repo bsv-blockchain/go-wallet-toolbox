@@ -6,6 +6,12 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/is"
+	"github.com/go-softwarelab/common/pkg/optional"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -15,15 +21,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/is"
-	"github.com/go-softwarelab/common/pkg/optional"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type OutputToInternalize struct {
 	*entity.NewOutput
+
 	existingOutputID *uint
 }
 
@@ -89,14 +91,16 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		slog.String("description", string(args.Description)),
 	)
 
-	if ok, err := in.beefVerifier.VerifyBeef(ctx, beef, false); err != nil {
+	ok, err := in.beefVerifier.VerifyBeef(ctx, beef, false)
+	if err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
-	} else if !ok {
+	}
+	if !ok {
 		return nil, fmt.Errorf("provided beef is not valid")
 	}
 
 	// hydrate txs in beef
-	if err := txutils.HydrateBEEF(beef); err != nil {
+	if err = txutils.HydrateBEEF(beef); err != nil {
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
@@ -111,9 +115,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 			continue
 		}
 
-		if ok, err := in.scriptsVerifier.VerifyScripts(ctx, beefTx.Transaction); err != nil {
+		var txScriptsOk bool
+		txScriptsOk, err = in.scriptsVerifier.VerifyScripts(ctx, beefTx.Transaction)
+		if err != nil {
 			return nil, fmt.Errorf("script verification failed for tx %s : %w", txIDHash, err)
-		} else if !ok {
+		}
+		if !txScriptsOk {
 			return nil, fmt.Errorf("scripts are not valid for tx %s", txIDHash)
 		}
 	}
@@ -297,7 +304,8 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 	for _, toInternalize := range outputs {
 		outputID := optional.OfPtr(toInternalize.existingOutputID).OrZeroValue() // Zero means it's a new output
 
-		output, err := toInternalize.ToOutput(outputID, existingTx.UserID, existingTx.ID)
+		var output *pkgentity.Output
+		output, err = toInternalize.ToOutput(outputID, existingTx.UserID, existingTx.ID)
 		if err != nil {
 			return fmt.Errorf("failed to convert output-to-internalize spec to entity: %w", err)
 		}
@@ -310,12 +318,14 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 			if output.Satoshis == 0 {
 				return fmt.Errorf("change output with zero satoshis")
 			}
-			sats, err := satoshi.Value(output.Satoshis).UInt64()
+			var sats uint64
+			sats, err = satoshi.Value(output.Satoshis).UInt64()
 			if err != nil {
 				return fmt.Errorf("failed to convert satoshis to uint64: %w", err)
 			}
 
-			utxoStatus, err := in.utxoStatusByTxStatusForMerge(existingTx.Status)
+			var utxoStatus wdk.UTXOStatus
+			utxoStatus, err = in.utxoStatusByTxStatusForMerge(existingTx.Status)
 			if err != nil {
 				return fmt.Errorf("failed to get UTXO status by transaction status: %w", err)
 			}

@@ -69,7 +69,7 @@ func buildLevel0PathElement(txid string, txidHash *chainhash.Hash, node string, 
 	return level0, nextIndex, nil
 }
 
-func buildUpperLevels(nodes []string, startLevel int, startIndex int) ([][]*transaction.PathElement, error) {
+func buildUpperLevels(nodes []string, startLevel, startIndex int) ([][]*transaction.PathElement, error) {
 	treeHeight := len(nodes)
 	path := make([][]*transaction.PathElement, treeHeight)
 

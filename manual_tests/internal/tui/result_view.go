@@ -72,7 +72,7 @@ func (m *ResultView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if len(m.summary) > 0 {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch msg.Type {
+			switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 			case tea.KeyEnter:
 				if m.summaryView.ContinueFocused() {
 					if m.nextView != nil {
@@ -107,7 +107,7 @@ func (m *ResultView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the model.
 func (m *ResultView) View() string {
 	var style lipgloss.Style
-	switch m.mode {
+	switch m.mode { //nolint:exhaustive // ResultViewSuccess uses default styling
 	case ResultViewError:
 		style = resultViewErrorStyle
 	default:

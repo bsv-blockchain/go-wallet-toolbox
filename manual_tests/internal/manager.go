@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -35,11 +36,10 @@ func (m *Manager) Ctx() context.Context {
 
 func (m *Manager) SelectNetwork(network defs.BSVNetwork) {
 	m.config.BSVNetwork = network
-	return
 }
 
 func (m *Manager) SelectStorageType(storageType fixtures.StorageType) error {
-	switch storageType {
+	switch storageType { //nolint:exhaustive // StorageTypeRemotePostgres is not yet implemented
 	case fixtures.StorageTypeLocalSQLite:
 		storage, err := CreateLocalStorage(m.ctx, m.config.BSVNetwork, m.config.ServerPrivateKey)
 		if err != nil {

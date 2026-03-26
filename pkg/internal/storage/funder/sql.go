@@ -5,6 +5,11 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"math"
+
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/seqerr"
+	"github.com/go-softwarelab/common/pkg/to"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -15,14 +20,26 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seqerr"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 var changeOutputSize = txutils.P2PKHOutputSize
 
-const utxoBatchSize = 1000
+const (
+	utxoBatchSize = 1000
+)
+
+var (
+	// MaxChangeOutputsPerTransaction limits how aggressively the wallet builds up its UTXO pool in one shot.
+	// When a user first imports a large UTXO, without this cap the wallet would
+	// attempt to create numberOfDesiredUTXOs change outputs in a single transaction.
+	// That produces a very large transaction whose raw bytes are embedded in the BEEF
+	// of every subsequent child transaction, bloating those BEEFs and slowing down external processors.
+	//
+	// With this cap the UTXO pool builds gradually — at most 8 net new change
+	// outputs per transaction — so no single transaction becomes unreasonably large.
+	// A pool of 144 desired UTXOs fills over roughly 18 transactions rather than 1.
+	MaxChangeOutputsPerTransaction uint64 = 8
+)
 
 type UTXORepository interface {
 	FindNotReservedUTXOs(
@@ -161,9 +178,12 @@ type utxoCollector struct {
 	minimumDesiredUTXOValue uint64
 	changeOutputsCount      uint64
 	minimumChange           uint64
+	// dustFloor is the minimum satoshi value a change output must have to be economically viable.
+	// An output below this threshold costs more to spend in a future transaction than it is worth.
+	dustFloor satoshi.Value
 }
 
-func newCollector(txSats satoshi.Value, txSize uint64, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
+func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
 	c = &utxoCollector{
 		txSats:                  txSats,
 		outputCount:             outputCount,
@@ -178,6 +198,16 @@ func newCollector(txSats satoshi.Value, txSize uint64, outputCount uint64, numbe
 	}
 
 	c.numberOfDesiredUTXOs = must.ConvertToUInt64(to.NoLessThan(numberOfDesiredUTXOs, 1))
+
+	// Calculate dust floor: the minimum satoshi value for a change output to be worth spending.
+	// We model the smallest possible future spend (1 P2PKH input + 1 P2PKH output)
+	// and require each output to be worth at least 2× that future fee.
+	// The absolute floor of 1 prevents nonsensical behavior at fee rate 0.
+	minSpendTxSize := txutils.TransactionSizeFromScriptLengths(
+		[]uint64{txutils.P2PKHUnlockingScriptLength},
+		[]uint64{txutils.P2PKHLockingScriptLength},
+	)
+	c.dustFloor = satoshi.Value(math.Max(1, math.Ceil(float64(minSpendTxSize)/1000*feeCalculator.value)*2))
 
 	c.calculateMinimumChange()
 
@@ -274,9 +304,9 @@ func (c *utxoCollector) change() satoshi.Value {
 func (c *utxoCollector) prepareResult() (*Result, error) {
 	changeAmount := c.change()
 
-	// If adding a change output increases the fee to the point where no change remains,
-	// the change outputs are discarded, and the additional amount is given as a higher fee to the miner.
-	if changeAmount == 0 {
+	// If the change amount is below the dust floor, it is uneconomical to create any change output.
+	// Discard all change outputs and give the amount as extra fee to the miner.
+	if changeAmount < c.dustFloor {
 		c.changeOutputsCount = 0
 	}
 
@@ -285,6 +315,7 @@ func (c *utxoCollector) prepareResult() (*Result, error) {
 		Fee:                c.fee,
 		ChangeAmount:       changeAmount,
 		ChangeOutputsCount: c.changeOutputsCount,
+		DustFloor:          c.dustFloor,
 	}, nil
 }
 
@@ -311,7 +342,17 @@ func (c *utxoCollector) calculateChangeCount(changeVal uint64) {
 		c.changeOutputsCount -= 1
 	}
 
-	c.changeOutputsCount = to.ValueBetween(c.changeOutputsCount, 1, c.numberOfDesiredUTXOs)
+	capCount := c.numberOfDesiredUTXOs
+	if MaxChangeOutputsPerTransaction < capCount {
+		capCount = MaxChangeOutputsPerTransaction
+	}
+
+	c.changeOutputsCount = to.ValueBetween(c.changeOutputsCount, 1, capCount)
+
+	dustFloorU64 := c.dustFloor.MustUInt64()
+	for c.changeOutputsCount > 1 && changeVal/c.changeOutputsCount < dustFloorU64 {
+		c.changeOutputsCount--
+	}
 }
 
 // calculateMinimumChange determines the minimum change amount based on the **Desired** minimum UTXO value.

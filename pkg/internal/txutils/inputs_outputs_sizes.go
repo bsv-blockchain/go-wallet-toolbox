@@ -2,9 +2,12 @@ package txutils
 
 import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
-const P2PKHUnlockingScriptLength = 107
+const (
+	P2PKHUnlockingScriptLength = 107
+	P2PKHLockingScriptLength   = 25
+)
 
-var P2PKHOutputSize = TransactionOutputSize(25)
+var P2PKHOutputSize = TransactionOutputSize(P2PKHLockingScriptLength)
 var P2PKHEstimatedInputSize = TransactionInputSize(P2PKHUnlockingScriptLength)
 
 // EstimatedInputSizeByType returns the estimated size of a transaction output based on its type.

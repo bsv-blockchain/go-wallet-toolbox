@@ -6,9 +6,10 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/go-softwarelab/common/pkg/seq"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/seq"
 )
 
 func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) (iter.Seq[wdk.ScriptHistoryItem], error) {

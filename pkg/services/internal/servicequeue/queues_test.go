@@ -5,19 +5,22 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 )
 
-const secondArgument = "test"
-const thirdArgument = 1
-const fourthArgument = true
+const (
+	secondArgument = "test"
+	thirdArgument  = 1
+	fourthArgument = true
+)
 
-var errorFromPanic = errors.New("some panic occurred")
+var errFromPanic = errors.New("some panic occurred")
 
 func TestQueueOneByOne(t *testing.T) {
 	tests := map[string]struct {
@@ -142,7 +145,7 @@ func TestQueueOneByOne(t *testing.T) {
 			},
 			expectedResult: nil,
 			errorExpectation: func(t assert.TestingT, err error, msgAndArgs ...interface{}) bool {
-				return assert.ErrorIs(t, err, errorFromPanic, msgAndArgs...)
+				return assert.ErrorIs(t, err, errFromPanic, msgAndArgs...)
 			},
 		},
 		"return result of second service if first service would panic": {
@@ -408,7 +411,7 @@ func TestQueueParallel(t *testing.T) {
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
 				// Error is not exactly the same, because it contains more context about the source of the panic, but ErrorIs should be the same.
-				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errorFromPanic)),
+				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errFromPanic)),
 			},
 			errorExpectation: assert.NoError,
 		},
@@ -420,7 +423,7 @@ func TestQueueParallel(t *testing.T) {
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
 				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, "success"})),
-				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errorFromPanic)),
+				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errFromPanic)),
 				servicequeue.NewNamedResult("ok", types.SuccessResult(&TestServiceResult{200, "success"})),
 			},
 			errorExpectation: assert.NoError,
@@ -594,7 +597,6 @@ func TestQueueParallel(t *testing.T) {
 			})
 		})
 	}
-
 }
 
 type TestServiceResult struct {
@@ -631,7 +633,7 @@ func (s TestService) ReturningNilResult() TestService {
 
 func (s TestService) Panicking() TestService {
 	s.createResult = func() (*TestServiceResult, error) {
-		panic(errorFromPanic)
+		panic(errFromPanic)
 	}
 	return s
 }
@@ -649,22 +651,22 @@ func (s TestService) NewTest(t testing.TB) *TestService {
 	return &s
 }
 
-func (s *TestService) Do(ctx context.Context) (*TestServiceResult, error) {
+func (s TestService) Do(ctx context.Context) (*TestServiceResult, error) {
 	assert.NotNil(s.t, ctx, "expect to receive non-nil context as 1st argument")
 	return s.createResult()
 }
 
-func (s *TestService) Do1(ctx context.Context, str string) (*TestServiceResult, error) {
+func (s TestService) Do1(ctx context.Context, str string) (*TestServiceResult, error) {
 	assert.Equal(s.t, secondArgument, str, "expect to receive %#v as 2nd argument", secondArgument)
 	return s.Do(ctx)
 }
 
-func (s *TestService) Do2(ctx context.Context, str string, i int) (*TestServiceResult, error) {
+func (s TestService) Do2(ctx context.Context, str string, i int) (*TestServiceResult, error) {
 	assert.Equal(s.t, thirdArgument, i, "expect to receive %#v as 3rd argument", thirdArgument)
 	return s.Do1(ctx, str)
 }
 
-func (s *TestService) Do3(ctx context.Context, str string, i int, boolean bool) (*TestServiceResult, error) {
+func (s TestService) Do3(ctx context.Context, str string, i int, boolean bool) (*TestServiceResult, error) {
 	assert.Equal(s.t, fourthArgument, boolean, "expect to receive %#v as 4th argument", fourthArgument)
 	return s.Do2(ctx, str, i)
 }

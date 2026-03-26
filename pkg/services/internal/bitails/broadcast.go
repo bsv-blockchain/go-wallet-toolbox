@@ -117,7 +117,7 @@ func (b *Bitails) sendBroadcastRequest(ctx context.Context, rawHex string) ([]br
 func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.PostedTxID) (shouldReturnError bool) {
 	if resp.Error == nil {
 		result.Result = wdk.PostedTxIDResultSuccess
-		return
+		return shouldReturnError
 	}
 
 	msg := resp.Error.Message
@@ -148,7 +148,7 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 		shouldReturnError = true
 	}
 
-	return
+	return shouldReturnError
 }
 
 func (b *Bitails) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {

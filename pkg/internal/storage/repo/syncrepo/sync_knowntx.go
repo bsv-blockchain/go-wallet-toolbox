@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type SyncKnownTx struct {
@@ -27,6 +28,7 @@ func NewSyncKnownTx(db *gorm.DB, query *genquery.Query) *SyncKnownTx {
 
 type KnownTxWithNum struct {
 	models.KnownTx
+
 	NumID int
 }
 
@@ -62,7 +64,6 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("transaction failed: %w", err)
 	}
@@ -101,23 +102,22 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		}
 
 		if updateTx.RowsAffected > 0 {
-			if err := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; err != nil {
-				return fmt.Errorf("failed to delete existing transaction notes: %w", err)
+			if deleteErr := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; deleteErr != nil {
+				return fmt.Errorf("failed to delete existing transaction notes: %w", deleteErr)
 			}
 
-			if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
-				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", err)
+			if noteErr := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); noteErr != nil {
+				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", noteErr)
 			}
 
 			return nil
 		}
 
-		err := tx.Create(&model).Error
-		if err != nil {
+		if err = tx.Create(&model).Error; err != nil {
 			return fmt.Errorf("failed to create proven tx req: %w", err)
 		}
 
-		if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+		if err = s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
 			return fmt.Errorf("failed to add transaction history notes while creating knownTx: %w", err)
 		}
 
@@ -125,7 +125,6 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 
 		return nil
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("transaction failed: %w", err)
 	}

@@ -3,9 +3,10 @@ package storage_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 )
 
 func TestFindOrInsertUser(t *testing.T) {
@@ -24,7 +25,7 @@ func TestFindOrInsertUser(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, true, tableUser.IsNew)
+	assert.True(t, tableUser.IsNew)
 	assert.Equal(t, userIdentityKey, tableUser.User.IdentityKey)
 
 	// and when:
@@ -33,6 +34,6 @@ func TestFindOrInsertUser(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, false, tableUser.IsNew)
+	assert.False(t, tableUser.IsNew)
 	assert.Equal(t, userIdentityKey, tableUser.User.IdentityKey)
 }

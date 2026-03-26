@@ -8,16 +8,19 @@ import (
 	"log/slog"
 	"runtime/debug"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 )
 
-var ErrEmptyResult = fmt.Errorf("service returns an empty result")
-var ErrNoServicesRegistered = fmt.Errorf("no services registered")
+var (
+	ErrEmptyResult          = fmt.Errorf("service returns an empty result")
+	ErrNoServicesRegistered = fmt.Errorf("no services registered")
+)
 
 // Queue is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
 // Services are functions accepting a context and returning a result or an error.
@@ -61,7 +64,7 @@ func (q *Queue[R]) GetNames() (methodName string, serviceNames []string) {
 	for i, s := range q.services {
 		serviceNames[i] = s.Name()
 	}
-	return
+	return methodName, serviceNames
 }
 
 // Queue1 is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
@@ -107,7 +110,7 @@ func (q *Queue1[A, R]) GetNames() (methodName string, serviceNames []string) {
 	for i, s := range q.services {
 		serviceNames[i] = s.Name()
 	}
-	return
+	return methodName, serviceNames
 }
 
 // Queue2 is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
@@ -153,7 +156,7 @@ func (q *Queue2[A, B, R]) GetNames() (methodName string, serviceNames []string) 
 	for i, s := range q.services {
 		serviceNames[i] = s.Name()
 	}
-	return
+	return methodName, serviceNames
 }
 
 // Queue3 is a structure that holds a collection of services and abstracts away the details of calling them and error handling.
@@ -199,7 +202,7 @@ func (q *Queue3[A, B, C, R]) GetNames() (methodName string, serviceNames []strin
 	for i, s := range q.services {
 		serviceNames[i] = s.Name()
 	}
-	return
+	return methodName, serviceNames
 }
 
 type serv interface {
@@ -224,7 +227,7 @@ func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, se
 			}
 		}()
 		result = NewNamedResult(s.Name(), types.ResultOf(callService(ctxParallel, s)))
-		return
+		return result
 	})
 
 	results = seq.Map(results, func(result *NamedResult[R]) *NamedResult[R] {
@@ -277,7 +280,7 @@ func processOneByOne[S serv, R any](logger *slog.Logger, services []S, callServi
 		}()
 		res, err := callService(s)
 		result = NewNamedResult(s.Name(), types.ResultOf(res, err))
-		return
+		return result
 	})
 
 	results = takeUntilHaveResult[R](results)

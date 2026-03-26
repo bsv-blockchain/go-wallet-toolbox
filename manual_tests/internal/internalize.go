@@ -9,9 +9,10 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/slices"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
-	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID brc29.KeyID, address string) (fixtures.Summary, error) {
@@ -93,7 +94,7 @@ func (m *Manager) InternalizeTxID(txID string, user fixtures.UserConfig, keyID b
 		Tx: atomicBeef,
 		Outputs: slices.Map(vouts, func(vout int) sdk.InternalizeOutput {
 			return sdk.InternalizeOutput{
-				OutputIndex: uint32(vout),
+				OutputIndex: uint32(vout), //nolint:gosec // safe: vout index is small positive value
 				Protocol:    "wallet payment",
 				PaymentRemittance: &sdk.Payment{
 					DerivationPrefix:  derivationPrefixBytes,

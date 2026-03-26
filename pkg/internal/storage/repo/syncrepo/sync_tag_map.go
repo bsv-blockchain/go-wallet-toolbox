@@ -3,14 +3,15 @@ package syncrepo
 import (
 	"context"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"gorm.io/gorm"
 )
 
 type SyncTagMap struct {
@@ -37,6 +38,7 @@ func NewSyncTagMap(db *gorm.DB, query *genquery.Query) *SyncTagMap {
 
 type TagsMapReadModel struct {
 	models.OutputTag
+
 	NumID uint
 }
 

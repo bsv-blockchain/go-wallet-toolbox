@@ -72,7 +72,7 @@ Results from each service are processed and displayed, showing success status an
 
 ## Running the Example
 
-**Prerequisites**: 
+**Prerequisites**:
 - Update `sourceTxBEEF` with valid BEEF hex data
 - Update `wif` with your private key
 - Ensure the source transaction has unspent outputs

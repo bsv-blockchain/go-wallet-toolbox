@@ -87,7 +87,7 @@ func main() {
 	// Write the output
 	log.Printf("Writing to file://%s \n", targetFile)
 	//nolint:gosec
-	if err := os.WriteFile(targetFile, output, 0644); err != nil {
+	if err := os.WriteFile(targetFile, output, 0o644); err != nil {
 		log.Fatalf("Failed to write output to file: %v", err)
 	}
 }

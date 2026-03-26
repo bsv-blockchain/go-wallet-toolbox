@@ -3,8 +3,9 @@ package httpx_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 )
 
 func TestNewHeaders(t *testing.T) {

@@ -3,6 +3,8 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
@@ -10,7 +12,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAbortActionSuccess(t *testing.T) {
@@ -105,7 +106,8 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
-				"must be an outgoing transaction"},
+				"must be an outgoing transaction",
+			},
 		},
 		"transaction not outgoing - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
@@ -116,7 +118,8 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
-				"must be an outgoing transaction"},
+				"must be an outgoing transaction",
+			},
 		},
 		"different user transaction - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
@@ -164,13 +167,14 @@ func TestAbortActionErrorCases(t *testing.T) {
 				)
 				require.NoError(t, err)
 				require.NotEmpty(t, abortResult)
-				require.Equal(t, true, abortResult.Aborted)
+				require.True(t, abortResult.Aborted)
 
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
-				"action with status failed cannot be aborted"},
+				"action with status failed cannot be aborted",
+			},
 		},
 		"transaction with status unproven - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {

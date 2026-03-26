@@ -7,6 +7,11 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
@@ -22,10 +27,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -120,7 +121,7 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 }
 
 // Migrate migrates the storage and saves the settings.
-func (p *Provider) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
+func (p *Provider) Migrate(ctx context.Context, storageName, storageIdentityKey string) (string, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-Migrate", attribute.String("storageName", storageName))
 	defer func() {
@@ -687,10 +688,11 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 			LabelQueryMode:                   args.LabelQueryMode,
 		}
 
-		if err := validate.ListFailedActionsArgs(&failedArgs); err != nil {
+		if err = validate.ListFailedActionsArgs(&failedArgs); err != nil {
 			return nil, fmt.Errorf("invalid listFailedActions args: %w", err)
 		}
-		result, err := p.actions.ListFailedActions(ctx, auth, &failedArgs)
+		var result *wdk.ListActionsResult
+		result, err = p.actions.ListFailedActions(ctx, auth, &failedArgs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list failed actions: %w", err)
 		}
@@ -698,7 +700,7 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 	}
 
 	args.Labels = filtered
-	if err := validate.ListActionsArgs(&args); err != nil {
+	if err = validate.ListActionsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listActions args: %w", err)
 	}
 
@@ -727,7 +729,7 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("fromStorageIdentityKey %s does not match the storage identity key %s", args.FromStorageIdentityKey, settings.StorageIdentityKey)
 	}
 
-	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
+	if err = validate.ValidRequestSyncChunkArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 

@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"github.com/bsv-blockchain/go-sdk/overlay"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 

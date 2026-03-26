@@ -10,6 +10,14 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/optional"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seqerr"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
@@ -22,13 +30,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/optional"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/seqerr"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -274,7 +275,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		logging.Number("changeAmount", funding.ChangeAmount),
 	)
 
-	changeDistribution := txutils.NewChangeDistribution(satoshi.MustFrom(basket.MinimumDesiredUTXOValue), c.random.Uint64).
+	changeInitialValue := satoshi.MustFrom(basket.MinimumDesiredUTXOValue)
+	if funding.DustFloor > changeInitialValue {
+		changeInitialValue = funding.DustFloor
+	}
+
+	changeDistribution := txutils.NewChangeDistribution(changeInitialValue, c.random.Uint64).
 		Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
 
 	derivationPrefix, err := c.randomDerivation()
@@ -451,6 +457,7 @@ func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.Ne
 
 type serviceChargeOutput struct {
 	wdk.ValidCreateActionOutput
+
 	KeyOffset          string
 	LockingScriptBytes []byte
 }

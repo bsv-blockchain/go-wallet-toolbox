@@ -5,10 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gen"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
 //go:generate go run gorm_gen.go
@@ -83,7 +84,7 @@ func applyTransactionMethodWorkaround() {
 
 	newContent := strings.Replace(fileContent, originalMethodSignature, replacementMethodSignature, 1)
 
-	err = os.WriteFile(genFilePath, []byte(newContent), 0600) //nolint:gosec // G703 - genFilePath is a hardcoded constant, not user input
+	err = os.WriteFile(genFilePath, []byte(newContent), 0o600) //nolint:gosec // G703 - genFilePath is a hardcoded constant, not user input
 	if err != nil {
 		log.Fatalf("WORKAROUND FAILED: Could not write changes to generated file %q: %v", genFilePath, err)
 	}
