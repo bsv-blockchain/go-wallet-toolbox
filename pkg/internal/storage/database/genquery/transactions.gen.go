@@ -274,7 +274,6 @@ func (t *transaction) fillFieldMap() {
 	t.fieldMap["lock_time"] = t.LockTime
 	t.fieldMap["tx_id"] = t.TxID
 	t.fieldMap["input_beef"] = t.InputBeef
-
 }
 
 func (t transaction) clone(db *gorm.DB) transaction {

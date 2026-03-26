@@ -11,6 +11,10 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -21,9 +25,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const testValueForFunding = 99904
@@ -130,7 +131,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -163,13 +164,13 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -202,7 +203,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -231,13 +232,13 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTx() {
 			HasActionsCount(1).
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(0)
 		thenCreatedAction.
 			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(topUpValue - int64(args.Outputs[0].Satoshis) - fee)
+			WithSatoshis(topUpValue - int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
 	})
 }
 
@@ -304,13 +305,13 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID(). // NOTE: Signable transaction does not have txid in DB yet.
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee + inputValue) //nolint:gosec // satoshi value fits in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -344,7 +345,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -354,7 +355,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 		assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
 		assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
 		assert.Equal(t, result.SendWithResults[0].Txid, result.Txid, "Wallet result should have same txid as the one from send with result")
-		assert.Equal(t, result.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+		assert.Equal(t, sdk.ActionResultStatusUnproven, result.SendWithResults[0].Status, "Wallet send with result should have unproven status")
 
 		// and check the state of wallet:
 		thenState := testabilities.ThenWalletState(t, aliceWallet)
@@ -366,14 +367,14 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcast() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(result.Txid.String()).
 			WithStatus(sdk.ActionStatusUnproven).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is negative value (user spends balance).
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64 // Pay attention that this is negative value (user spends balance).
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -409,7 +410,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -616,7 +617,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// and:
 		require.NotNil(t, result, "Wallet should return result")
@@ -626,7 +627,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput
 		assert.NotEmpty(t, result.Tx, "Wallet result should have transaction bytes")
 		assert.Len(t, result.SendWithResults, 1, "Wallet result should have single send with results")
 		assert.Equal(t, result.SendWithResults[0].Txid, result.Txid, "Wallet result should have same txid as the one from send with result")
-		assert.Equal(t, result.SendWithResults[0].Status, sdk.ActionResultStatusUnproven, "Wallet send with result should have unproven status")
+		assert.Equal(t, sdk.ActionResultStatusUnproven, result.SendWithResults[0].Status, "Wallet send with result should have unproven status")
 
 		// and check the state of wallet:
 		thenState := testabilities.ThenWalletState(t, aliceWallet)
@@ -634,14 +635,14 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithBroadcastAndProvidedInput
 			HasActionsCount(1).
 			HasActionsCount(1, fixtures.CreateActionTestLabel)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(0)
 		thenCreatedAction.
 			WithTxID(result.Txid.String()).
 			WithStatus(sdk.ActionStatusUnproven).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(inputValue - int64(args.Outputs[0].Satoshis) - fee) // Pay attention that this is positive value, because provided input must be higher than output to fund the transaction.
+			WithSatoshis(inputValue - int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64 // Pay attention that this is positive value, because provided input must be higher than output to fund the transaction.
 	})
 }
 
@@ -660,9 +661,8 @@ func (s *WalletTestSuite) TestWalletCreateActionNewNotEnoughFundsError() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, result)
-
 	})
 
 	s.Run("return error when user have not enough funds and when sign&process is false", func() {
@@ -680,9 +680,8 @@ func (s *WalletTestSuite) TestWalletCreateActionNewNotEnoughFundsError() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, result)
-
 	})
 }
 
@@ -742,9 +741,8 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err, "Wallet should not fail for signable transaction when all services are down")
+		require.NoError(t, err, "Wallet should not fail for signable transaction when all services are down")
 		require.NotNil(t, result, "Wallet should return signable transaction when all services are down")
-
 	})
 }
 
@@ -774,7 +772,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		// and:
 		assert.NotEmpty(t, firstResult.Txid, "Wallet result should have transaction id")
 		assert.NotEmpty(t, firstResult.Tx, "Wallet result should have transaction bytes")
-		assert.Len(t, firstResult.SendWithResults, 0, "Wallet result should have no send with results")
+		assert.Empty(t, firstResult.SendWithResults, "Wallet result should have no send with results")
 
 		// when:
 		args = fixtures.DefaultWalletCreateActionArgs(t,
@@ -882,7 +880,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorF
 		// and:
 		assert.NotEmpty(t, firstResult.Txid, "Wallet result should have transaction id")
 		assert.NotEmpty(t, firstResult.Tx, "Wallet result should have transaction bytes")
-		assert.Len(t, firstResult.SendWithResults, 0, "Wallet result should have no send with results")
+		assert.Empty(t, firstResult.SendWithResults, "Wallet result should have no send with results")
 
 		// given:
 		given.Services().ARC().WhenQueryingTx(firstResult.Txid.String()).WillReturnDoubleSpending()
@@ -913,7 +911,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// and:
-		given.BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+		given.ScriptsVerifier().WillReturnError(fmt.Errorf("mock scripts verifier error"))
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t)
@@ -928,7 +926,7 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 
 		// when:
 		txIDToRetry := txError.TxID
-		given.BeefVerifier().DefaultBehavior()
+		given.ScriptsVerifier().DefaultBehavior()
 		createActionResult, err = aliceWallet.CreateAction(t.Context(), sdk.CreateActionArgs{
 			Options: &sdk.CreateActionOptions{
 				SendWith: []chainhash.Hash{txIDToRetry},
@@ -950,13 +948,13 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(txIDToRetry.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -1027,7 +1025,7 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		thenState := testabilities.ThenWalletState(t, bobWallet)
 		thenState.ActionAtIndex(0).
 			WithDescription("test transaction").
-			WithSatoshis(41998).
+			WithSatoshis(41999).
 			WithStatus(sdk.ActionStatusUnproven).
 			WithNotEmptyTxID()
 	})
@@ -1088,7 +1086,7 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		thenState := testabilities.ThenWalletState(t, bobWallet)
 		thenState.ActionAtIndex(0).
 			WithDescription("test transaction").
-			WithSatoshis(41998).
+			WithSatoshis(41999).
 			WithStatus(sdk.ActionStatusUnproven).
 			WithNotEmptyTxID()
 	})

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -44,7 +45,7 @@ func main() {
 
 	show.Step("Wallet-Services", fmt.Sprintf("broadcasting transaction %s", transactionID))
 
-	results, err := walletServices.PostBEEF(context.Background(), beef, []string{transactionID})
+	results, err := walletServices.PostFromBEEF(context.Background(), beef, []string{transactionID})
 	if err != nil {
 		panic(err)
 	}

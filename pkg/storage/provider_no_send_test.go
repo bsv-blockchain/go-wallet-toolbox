@@ -3,11 +3,12 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNoSendPlusSendWithScenario(t *testing.T) {
@@ -24,14 +25,14 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
-		assert.Len(t, noSendChangeOutpoints, 1)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
+		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
 		// step 2:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 1)
+		assert.Len(t, noSendChangeOutpoints, 2)
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
@@ -65,7 +66,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 1)
 
 		// and:
@@ -78,7 +79,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// step 3:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 0)
+		assert.Empty(t, noSendChangeOutpoints)
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
@@ -110,14 +111,14 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
-		assert.Len(t, noSendChangeOutpoints, 10)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
+		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
 		// step 2:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 1)
+		assert.Len(t, noSendChangeOutpoints, 2)
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
@@ -148,16 +149,16 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
-		assert.Len(t, noSendChangeOutpoints, 1)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
+		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
 		// step 2:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.
 			WillSendSats(largerUTXOToSend).
 			CreateAndProcessNoSendAction(noSendChangeOutpoints)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 1)
+		assert.Len(t, allocatedNoSendChangeOutpoints, 8)
+		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
@@ -208,26 +209,26 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
-		assert.Len(t, noSendChangeOutpoints, 3)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
+		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
 		// step 2:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 1)
+		assert.Len(t, noSendChangeOutpoints, 2)
 		allRemainedNoSendChangeBeforeStep3 := len(when.AllRemainedNoSendChange())
-		assert.Equal(t, 3, allRemainedNoSendChangeBeforeStep3, "three no-send change outputs should remain")
+		assert.Equal(t, 9, allRemainedNoSendChangeBeforeStep3, "8-1+2=9 no-send change outputs should remain")
 
 		// and:
 		// step 3:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.
 			WillSendSats(largerUTXOToSend).
 			CreateAndProcessNoSendAction(when.AllRemainedNoSendChange())
-		assert.Len(t, allocatedNoSendChangeOutpoints, 3)
-		assert.Len(t, noSendChangeOutpoints, 2)
+		assert.Len(t, allocatedNoSendChangeOutpoints, 9)
+		assert.Len(t, noSendChangeOutpoints, 8)
 		extraUTXOsOutOfNosendPool := len(when.LastCreateActionResult().Inputs) - len(allocatedNoSendChangeOutpoints)
-		assert.Equal(t, 15, extraUTXOsOutOfNosendPool, "funder should select at least one extra UTXO outside of no-send change outputs")
+		assert.Equal(t, 4, extraUTXOsOutOfNosendPool, "funder should select at least one extra UTXO outside of no-send change outputs")
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.

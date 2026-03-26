@@ -4,16 +4,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/stretchr/testify/require"
 )
 
 func TestForDefaultValidInsertCertificateAuthArgs(t *testing.T) {
 	// given:
-	args := fixtures.DefaultInsertCertAuth(1)
+	args := fixtures.DefaultInsertCertAuth(1, fixtures.SubjectPubKey)
 
 	// when:
 	err := validate.TableCertificateX(args)
@@ -99,7 +100,7 @@ func TestWrongInsertCertificateAuthArgs(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			defaultArgs := fixtures.DefaultInsertCertAuth(1)
+			defaultArgs := fixtures.DefaultInsertCertAuth(1, fixtures.SubjectPubKey)
 			modifiedArgs := test.modifier(defaultArgs)
 
 			// when:

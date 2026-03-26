@@ -10,23 +10,26 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 const (
@@ -49,6 +52,7 @@ type CreateActionParams struct {
 	TrustSelf                bool
 	IsNoSend                 bool
 	IsDelayed                bool
+	Reference                string
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -67,22 +71,24 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		NoSendChange:             args.Options.NoSendChange,
 		IsDelayed:                args.IsDelayed,
 		KnownTxIDs:               args.Options.KnownTxids,
+		Reference:                args.Reference,
 	}
 }
 
 type create struct {
-	logger         *slog.Logger
-	funder         funder.Funder
-	basketRepo     BasketRepo
-	txRepo         TransactionsRepo
-	outputRepo     OutputRepo
-	knownTxRepo    KnownTxRepo
-	commissionRepo CommissionRepo
-	commission     *commission.ScriptGenerator
-	commissionCfg  defs.Commission
-	random         wdk.Randomizer
-	chaintracker   chaintracker.ChainTracker
-	beefVerifier   wdk.BeefVerifier
+	logger          *slog.Logger
+	funder          funder.Funder
+	basketRepo      BasketRepo
+	txRepo          TransactionsRepo
+	outputRepo      OutputRepo
+	knownTxRepo     KnownTxRepo
+	commissionRepo  CommissionRepo
+	commission      *commission.ScriptGenerator
+	commissionCfg   defs.Commission
+	random          wdk.Randomizer
+	chaintracker    chaintracker.ChainTracker
+	beefVerifier    wdk.BeefVerifier
+	scriptsVerifier wdk.ScriptsVerifier
 }
 
 func newCreateAction(
@@ -97,20 +103,22 @@ func newCreateAction(
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
-		logger:         logger,
-		funder:         funder,
-		basketRepo:     basketRepo,
-		txRepo:         txRepo,
-		commissionCfg:  commissionCfg,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		random:         random,
-		chaintracker:   chaintracker,
-		beefVerifier:   beefVerifier,
+		logger:          logger,
+		funder:          funder,
+		basketRepo:      basketRepo,
+		txRepo:          txRepo,
+		commissionCfg:   commissionCfg,
+		outputRepo:      outputRepo,
+		knownTxRepo:     knownTxRepo,
+		commissionRepo:  commissionRepo,
+		random:          random,
+		chaintracker:    chaintracker,
+		beefVerifier:    beefVerifier,
+		scriptsVerifier: scriptsVerifier,
 	}
 
 	if commissionCfg.Enabled() {
@@ -121,9 +129,20 @@ func newCreateAction(
 }
 
 func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (*wdk.StorageCreateActionResult, error) {
-	reference, err := c.randomReference()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate reference number: %w", err)
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-Create", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	var reference string
+	if params.Reference != "" {
+		reference = params.Reference
+	} else {
+		reference, err = c.randomReference()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate reference number: %w", err)
+		}
 	}
 
 	c.logger.DebugContext(ctx, "Searching for change basket",
@@ -153,7 +172,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputBEEFSize", len(params.InputBEEF)),
 	)
 
-	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.beefVerifier)
+	inputProcessor, err := newInputsProcessor(ctx, c, userID, reference, params.Inputs, params.InputBEEF, params.TrustSelf, c.beefVerifier, c.scriptsVerifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inputs processor: %w", err)
 	}
@@ -229,7 +248,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	includeUTXOsInSendingState := params.IsDelayed
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
+	outputCount := uint64(len(params.Outputs))
+	if commOut != nil {
+		outputCount++
+	}
+
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
 	}
@@ -251,7 +275,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		logging.Number("changeAmount", funding.ChangeAmount),
 	)
 
-	changeDistribution := txutils.NewChangeDistribution(satoshi.MustFrom(basket.MinimumDesiredUTXOValue), c.random.Uint64).
+	changeInitialValue := satoshi.MustFrom(basket.MinimumDesiredUTXOValue)
+	if funding.DustFloor > changeInitialValue {
+		changeInitialValue = funding.DustFloor
+	}
+
+	changeDistribution := txutils.NewChangeDistribution(changeInitialValue, c.random.Uint64).
 		Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
 
 	derivationPrefix, err := c.randomDerivation()
@@ -323,7 +352,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		Description:       params.Description,
 		Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
 		Outputs:           newOutputs,
-		ReservedOutputIDs: c.allReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+		ReservedOutputIDs: c.mapReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+		SpentOutputIDs:    c.mapReservedOutputIDs(funding.AllocatedUTXOs, append(processedInputs.ChangeOutputIDs, processedInputs.KnownOutputIDs...)),
 		Labels:            params.Labels,
 		InputBeef:         inputBeef,
 		Commission:        c.createCommissionEntity(userID, commOut),
@@ -427,6 +457,7 @@ func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.Ne
 
 type serviceChargeOutput struct {
 	wdk.ValidCreateActionOutput
+
 	KeyOffset          string
 	LockingScriptBytes []byte
 }
@@ -587,7 +618,6 @@ func (c *create) newOutputs(
 func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCreateTransactionSdkOutput {
 	resultOutputs := make([]*wdk.StorageCreateTransactionSdkOutput, len(newOutputs))
 	for i, output := range newOutputs {
-
 		resultOutputs[i] = &wdk.StorageCreateTransactionSdkOutput{
 			Vout:             output.Vout,
 			ProvidedBy:       output.ProvidedBy,
@@ -717,7 +747,7 @@ func (c *create) randomReference() (string, error) {
 	return reference, nil
 }
 
-func (c *create) allReservedOutputIDs(allocated []*funder.UTXO, providedOutputsIDs []uint) []uint {
+func (c *create) mapReservedOutputIDs(allocated []*funder.UTXO, providedOutputsIDs []uint) []uint {
 	ids := make([]uint, 0, len(allocated)+len(providedOutputsIDs))
 	ids = append(ids, providedOutputsIDs...)
 	for _, utxo := range allocated {

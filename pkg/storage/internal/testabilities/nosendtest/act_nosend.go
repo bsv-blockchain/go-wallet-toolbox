@@ -6,15 +6,16 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 )
 
 type NoSendAct interface {
@@ -34,6 +35,7 @@ type NoSendAct interface {
 
 type noSendAct struct {
 	testing.TB
+
 	user                    testusers.User
 	activeProvider          *storage.Provider
 	lastCreateActionResult  *wdk.StorageCreateActionResult
@@ -104,14 +106,14 @@ func (f *noSendAct) CreateAndProcessNoSendAction(prevNoSendOutpoints []wdk.OutPo
 	createdNoSendChange = slices.Map(createActionResult.NoSendChangeOutputVouts, func(vout int) wdk.OutPoint {
 		return wdk.OutPoint{
 			TxID: txID,
-			Vout: uint32(vout),
+			Vout: uint32(vout), //nolint:gosec // test fixture, vout is always small
 		}
 	})
 
 	allocatedNoSendChangeAsInputs = f.updateAllRemainedNoSendChange(createActionResult, createdNoSendChange)
 	f.noSendTxsChain = append(f.noSendTxsChain, txID)
 
-	return
+	return createdNoSendChange, allocatedNoSendChangeAsInputs
 }
 
 func (f *noSendAct) updateAllRemainedNoSendChange(createActionResult *wdk.StorageCreateActionResult, createdNoSendChange []wdk.OutPoint) []wdk.OutPoint {

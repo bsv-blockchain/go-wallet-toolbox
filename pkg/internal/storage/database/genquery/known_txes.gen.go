@@ -129,7 +129,6 @@ func (k *knownTx) fillFieldMap() {
 	k.fieldMap["merkle_path"] = k.MerklePath
 	k.fieldMap["merkle_root"] = k.MerkleRoot
 	k.fieldMap["block_hash"] = k.BlockHash
-
 }
 
 func (k knownTx) clone(db *gorm.DB) knownTx {

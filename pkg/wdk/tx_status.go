@@ -1,5 +1,9 @@
 package wdk
 
+import (
+	"github.com/bsv-blockchain/go-sdk/transaction"
+)
+
 // TxStatus Transaction status stored in database
 type TxStatus string
 
@@ -23,7 +27,7 @@ func (s TxStatus) String() string {
 
 // ToUTXOStatus converts a TxStatus value to its corresponding UTXOStatus based on predefined status mappings.
 func (s TxStatus) ToUTXOStatus() UTXOStatus {
-	switch s { //nolint:exhaustive
+	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case TxStatusCompleted:
 		return UTXOStatusMined
 	case TxStatusSending:
@@ -32,6 +36,22 @@ func (s TxStatus) ToUTXOStatus() UTXOStatus {
 		return UTXOStatusUnproven
 	default:
 		return UTXOStatusUnknown
+	}
+}
+
+// ToStandardizedStatus returns standardized status of a transaction request based on its ProvenTxReqStatus.
+func (s TxStatus) ToStandardizedStatus() StandardizedTxStatus {
+	switch s {
+	case TxStatusCompleted:
+		return TxUpdateStatusMined
+	case TxStatusUnproven:
+		return TxUpdateStatusBroadcasted
+	case TxStatusSending, TxStatusUnprocessed, TxStatusNoSend, TxStatusNonFinal, TxStatusUnsigned, TxStatusUnfail:
+		return TxUpdateStatusWaiting
+	case TxStatusFailed:
+		return TxUpdateStatusInvalidTx
+	default:
+		return TxUpdateStatusUnknown
 	}
 }
 
@@ -50,9 +70,10 @@ const (
 	ProvenTxStatusCallback    ProvenTxReqStatus = "callback"
 	ProvenTxStatusUnconfirmed ProvenTxReqStatus = "unconfirmed"
 	ProvenTxStatusCompleted   ProvenTxReqStatus = "completed"
-	ProvenTxStatusInvalid     ProvenTxReqStatus = "invalid"
+	ProvenTxStatusInvalid     ProvenTxReqStatus = "invalidTx"
 	ProvenTxStatusDoubleSpend ProvenTxReqStatus = "doubleSpend"
 	ProvenTxStatusUnfail      ProvenTxReqStatus = "unfail"
+	ProvenTxStatusReorg       ProvenTxReqStatus = "reorg"
 )
 
 // SendWithResultStatus returns the status of a transaction request based on its ProvenTxReqStatus.
@@ -70,7 +91,7 @@ func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
 
 // Sending returns true if the ProvenTxReqStatus is considered still in the sending or processing phase.
 func (s ProvenTxReqStatus) Sending() bool {
-	switch s { //nolint:exhaustive
+	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case ProvenTxStatusUnknown,
 		ProvenTxStatusNonFinal,
 		ProvenTxStatusInvalid,
@@ -87,14 +108,35 @@ func (s ProvenTxReqStatus) Sending() bool {
 
 // AlreadySent returns true if the transaction status indicates it has already been sent or processed.
 func (s ProvenTxReqStatus) AlreadySent() bool {
-	switch s { //nolint:exhaustive
+	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case ProvenTxStatusUnmined,
 		ProvenTxStatusCallback,
 		ProvenTxStatusUnconfirmed,
-		ProvenTxStatusCompleted:
+		ProvenTxStatusCompleted,
+		ProvenTxStatusReorg:
 		return true
 	default:
 		return false
+	}
+}
+
+// ToStandardizedStatus returns standardized status of a transaction request based on its ProvenTxReqStatus.
+func (s ProvenTxReqStatus) ToStandardizedStatus() StandardizedTxStatus {
+	switch s {
+	case ProvenTxStatusCompleted:
+		return TxUpdateStatusMined
+	case ProvenTxStatusUnmined, ProvenTxStatusCallback, ProvenTxStatusUnconfirmed:
+		return TxUpdateStatusBroadcasted
+	case ProvenTxStatusSending, ProvenTxStatusUnsent, ProvenTxStatusUnprocessed, ProvenTxStatusNoSend, ProvenTxStatusNonFinal, ProvenTxStatusUnfail, ProvenTxStatusReorg:
+		return TxUpdateStatusWaiting
+	case ProvenTxStatusInvalid:
+		return TxUpdateStatusInvalidTx
+	case ProvenTxStatusDoubleSpend:
+		return TxUpdateStatusDoubleSpend
+	case ProvenTxStatusUnknown:
+		return TxUpdateStatusUnknown
+	default:
+		return TxUpdateStatusUnknown
 	}
 }
 
@@ -110,4 +152,41 @@ var ProvenTxReqProblematicStatuses = []ProvenTxReqStatus{
 var ProvenTxReqBeyondBroadcastStageStatuses = []ProvenTxReqStatus{
 	ProvenTxStatusUnmined,
 	ProvenTxStatusCompleted,
+}
+
+// CurrentTxStatus represents the response from a monitoring task
+type CurrentTxStatus struct {
+	TxID        string
+	Status      StandardizedTxStatus
+	BlockHash   string
+	BlockHeight uint32
+	MerklePath  *transaction.MerklePath
+	MerkleRoot  string
+	Error       *CurrentTxError
+	Reference   string
+}
+
+// CurrentTxError represents the error details for a transaction status update, including competing transactions and error messages.
+type CurrentTxError struct {
+	CompetingTxs []string         // only when double spend is detected, list of competing txids
+	Errors       map[string]error // error message describing the issue, e.g. "double spend detected", "transaction invalid", etc.
+}
+
+// StandardizedTxStatus represents the status of a transaction in a monitoring task response
+type StandardizedTxStatus string
+
+// Possible values for StandardizedTxStatus
+const (
+	TxUpdateStatusBroadcasted  StandardizedTxStatus = "broadcasted"
+	TxUpdateStatusDoubleSpend  StandardizedTxStatus = "doubleSpend"
+	TxUpdateStatusInvalidTx    StandardizedTxStatus = "invalidTx"
+	TxUpdateStatusServiceError StandardizedTxStatus = "serviceError"
+	TxUpdateStatusWaiting      StandardizedTxStatus = "waiting"
+	TxUpdateStatusMined        StandardizedTxStatus = "mined"
+	TxUpdateStatusUnknown      StandardizedTxStatus = "unknown"
+)
+
+// String returns the string representation of StandardizedTxStatus
+func (s StandardizedTxStatus) String() string {
+	return string(s)
 }

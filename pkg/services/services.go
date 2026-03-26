@@ -7,10 +7,16 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+	ctConfig "github.com/bsv-blockchain/go-chaintracks/config"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
@@ -18,8 +24,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // WalletServices is a struct that contains services used by a wallet
@@ -27,9 +31,12 @@ type WalletServices struct {
 	logger *slog.Logger
 	chain  defs.BSVNetwork
 	config *defs.WalletServices
+	// NOTE: add p2p client here when arcade is implemented so they can share clients
 
-	rawTxServices                servicequeue.Queue1[string, *wdk.RawTxResult]
-	postBEEFServices             servicequeue.Queue2[*transaction.Beef, []string, *wdk.PostedBEEF]
+	rawTxServices  servicequeue.Queue1[string, *wdk.RawTxResult]
+	postEFServices servicequeue.Queue2[string, string, *wdk.PostedTxID]
+	postTXServices servicequeue.Queue1[[]byte, *wdk.PostedTxID]
+
 	merklePathServices           servicequeue.Queue1[string, *wdk.MerklePathResult]
 	findChainTipHeaderServices   servicequeue.Queue[*wdk.ChainBlockHeader]
 	isValidRootForHeightServices servicequeue.Queue2[*chainhash.Hash, uint32, bool]
@@ -41,6 +48,11 @@ type WalletServices struct {
 	isUtxoServices               servicequeue.Queue2[string, *transaction.Outpoint, bool]
 	getStatusForTxIDsServices    servicequeue.Queue1[[]string, *wdk.GetStatusForTxIDsResult]
 	bsvExchangeRateServices      servicequeue.Queue[float64]
+
+	// chaintracks integration
+	chaintracks    *chaintracksclient.Adapter
+	reorgBroadcast *reorgBroadcaster
+	tipBroadcast   *tipBroadcaster
 }
 
 // New will return a new WalletServices
@@ -60,7 +72,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		predefined = append(predefined, Named[Implementation]{
 			Name: arc.ServiceName,
 			Item: Implementation{
-				PostBEEF:   arcService.PostBEEF,
+				PostEF:     arcService.PostEF,
 				MerklePath: arcService.MerklePath,
 			},
 		})
@@ -85,7 +97,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			Name: whatsonchain.ServiceName,
 			Item: Implementation{
 				RawTx:                wocService.RawTx,
-				PostBEEF:             wocService.PostBEEF,
+				PostTX:               wocService.PostTX,
 				MerklePath:           wocService.MerklePath,
 				FindChainTipHeader:   wocService.FindChainTipHeader,
 				IsValidRootForHeight: wocService.IsValidRootForHeight,
@@ -107,7 +119,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			Name: bitails.ServiceName,
 			Item: Implementation{
 				RawTx:                bitailsService.RawTx,
-				PostBEEF:             bitailsService.PostBEEF,
+				PostTX:               bitailsService.PostTX,
 				MerklePath:           bitailsService.MerklePath,
 				FindChainTipHeader:   bitailsService.FindChainTipHeader,
 				IsValidRootForHeight: bitailsService.IsValidRootForHeight,
@@ -116,6 +128,57 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				HashToHeader:         bitailsService.HashToHeader,
 				ChainHeaderByHeight:  bitailsService.ChainHeaderByHeight,
 				GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
+			},
+		})
+	}
+
+	var chaintracksAdapter *chaintracksclient.Adapter
+	var reorgBroadcast *reorgBroadcaster
+	var tipBroadcast *tipBroadcaster
+
+	if config.ChaintracksClient.Enabled {
+		if options.chaintracksAdapter != nil {
+			// Use injected adapter (mostly for testing)
+			chaintracksAdapter = options.chaintracksAdapter
+		} else {
+			// Create adapter from config
+			ctCfg := &ctConfig.Config{
+				Mode: ctConfig.ModeRemote,
+				URL:  config.ChaintracksClient.RemoteURL,
+			}
+
+			if config.ChaintracksClient.Mode == defs.ChaintracksClientModeEmbedded {
+				ctCfg.Mode = ctConfig.ModeEmbedded
+				ctCfg.BootstrapURL = config.ChaintracksClient.BootstrapURL
+				ctCfg.BootstrapMode = ctConfig.BootstrapMode(config.ChaintracksClient.BootstrapMode)
+				ctCfg.StoragePath = config.ChaintracksClient.StoragePath
+				ctCfg.P2P.Network = config.ChaintracksClient.P2PNetwork
+				ctCfg.P2P.StoragePath = config.ChaintracksClient.P2PStoragePath
+			}
+
+			// NOTE: when added Arcade we can add here P2P initialization if required
+			adapter, err := chaintracksclient.New(logger, ctCfg)
+			if err != nil {
+				panic(fmt.Errorf("failed to initialize chaintracks: %w", err))
+			}
+
+			chaintracksAdapter = adapter
+		}
+
+		reorgBroadcast = newReorgBroadcaster(logger)
+		tipBroadcast = newTipBroadcaster(logger)
+	}
+
+	// Register chaintracks implementation if adapter is available
+	if chaintracksAdapter != nil {
+		predefined = append(predefined, Named[Implementation]{
+			Name: defs.ChaintracksServiceName,
+			Item: Implementation{
+				CurrentHeight:        chaintracksAdapter.CurrentHeight,
+				ChainHeaderByHeight:  chaintracksAdapter.GetHeaderByHeight,
+				HashToHeader:         chaintracksAdapter.GetHeaderByHash,
+				FindChainTipHeader:   chaintracksAdapter.GetTip,
+				IsValidRootForHeight: chaintracksAdapter.IsValidRootForHeight,
 			},
 		})
 	}
@@ -137,13 +200,23 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 					})))...,
 		),
 
-		postBEEFServices: servicequeue.NewQueue2(
+		postEFServices: servicequeue.NewQueue2(
 			logger,
-			"PostBEEF",
+			"PostEF",
 			namedFuncsToServices2(
-				applyModifierIfExists(options.PostBEEFMethodsModifier,
-					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostBEEFFunc {
-						return it.PostBEEF
+				applyModifierIfExists(options.PostEFMethodsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostEFFunc {
+						return it.PostEF
+					})))...,
+		),
+
+		postTXServices: servicequeue.NewQueue1(
+			logger,
+			"PostTX",
+			namedFuncsToServices1(
+				applyModifierIfExists(options.PostTXMethodsModifier,
+					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostTXFunc {
+						return it.PostTX
 					})))...,
 		),
 
@@ -256,6 +329,10 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 						return it.BsvExchangeRate
 					})))...,
 		),
+
+		chaintracks:    chaintracksAdapter,
+		reorgBroadcast: reorgBroadcast,
+		tipBroadcast:   tipBroadcast,
 	}
 
 	walletServices.logActiveServices()
@@ -273,7 +350,8 @@ func (s *WalletServices) logActiveServices() {
 
 	services := []loggable{
 		&s.rawTxServices,
-		&s.postBEEFServices,
+		&s.postEFServices,
+		&s.postTXServices,
 		&s.merklePathServices,
 		&s.findChainTipHeaderServices,
 		&s.isValidRootForHeightServices,
@@ -293,6 +371,62 @@ func (s *WalletServices) logActiveServices() {
 	})
 
 	s.logger.Debug("Active services by methods", logAttrs...)
+}
+
+// StartChaintracks begins background chaintracks event subscription.
+// Must be called after New() to start listening for blockchain events.
+func (s *WalletServices) StartChaintracks(ctx context.Context) error {
+	if s.chaintracks == nil {
+		return nil // chaintracks is disabled
+	}
+
+	err := s.chaintracks.Start(ctx, chaintracksclient.Callbacks{
+		OnTip: func(bh *chaintracks.BlockHeader) error {
+			s.logger.Debug("new chain tip received",
+				"height", bh.Height,
+				"hash", bh.Hash.String(),
+			)
+			s.tipBroadcast.broadcast(bh)
+			return nil
+		},
+		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			s.logger.Info("reorg detected",
+				"depth", event.Depth,
+				"new_tip_hash", event.NewTip.Hash.String(),
+				"orphaned_count", len(event.OrphanedHashes),
+			)
+			s.reorgBroadcast.broadcast(event)
+			return nil
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start chaintracks: %w", err)
+	}
+
+	s.logger.Info("chaintracks started")
+	return nil
+}
+
+// SubscribeReorgs registers a user-provided channel to receive reorg events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function, or nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeReorgs(ch chan *chaintracks.ReorgEvent) func() {
+	if s.reorgBroadcast == nil {
+		return nil
+	}
+	return s.reorgBroadcast.Subscribe(ch)
+}
+
+// SubscribeTips registers a user-provided channel to receive new tip events.
+// The caller is responsible for creating the channel with an appropriate buffer size
+// and closing it after unsubscribing.
+// Returns an unsubscribe function, or nil if chaintracks is not enabled.
+func (s *WalletServices) SubscribeTips(ch chan *chaintracks.BlockHeader) func() {
+	if s.tipBroadcast == nil {
+		return nil
+	}
+	return s.tipBroadcast.Subscribe(ch)
 }
 
 // FindChainTipHeader queries multiple chain header services in sequence
@@ -361,27 +495,64 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 	return result, nil
 }
 
-// PostBEEF attempts to post beef with given txIDs
-func (s *WalletServices) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostBeefResult, error) {
-	res, err := s.postBEEFServices.All(ctx, beef, txIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to PostBEEF: %w", err)
+// PostFromBEEF attempts to broadcast transactions from BEEF to all configured services.
+func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostFromBeefResult, error) {
+	allResults := make([]*wdk.PostFromBEEFServiceResult, 0)
+
+	txutils.BindBumpsAndTransactions(beef, s.logger)
+
+	// check if beef contains only one child transaction
+	if err := txutils.ValidateSingleLeafTx(beef); err != nil {
+		// Return error as service error for each txID, not as Go error
+		return []*wdk.PostFromBEEFServiceResult{{
+			Name:  "PostFromBEEF Validation",
+			Error: err,
+		}}, nil
 	}
 
-	postBEEFResults := slices.Map(res, func(it *servicequeue.NamedResult[*wdk.PostedBEEF]) *wdk.PostBEEFServiceResult {
-		if it.IsError() {
-			return &wdk.PostBEEFServiceResult{
-				Name:  it.Name(),
-				Error: it.MustGetError(),
-			}
-		}
-		return &wdk.PostBEEFServiceResult{
-			Name:             it.Name(),
-			PostedBEEFResult: it.MustGetValue(),
-		}
-	})
+	// hydrate txs in beef
+	if err := txutils.HydrateBEEF(beef); err != nil {
+		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
+	}
 
-	return postBEEFResults, nil
+	for _, txID := range txIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return nil, fmt.Errorf("transaction %s not found in beef", txID)
+		}
+
+		// skip already mined txs
+		if tx.MerklePath != nil {
+			continue
+		}
+
+		rawTx := tx.Bytes()
+		efHex, err := tx.EFHex()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get efhex from tx %s: %w", tx.TxID().String(), err)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
+		}
+
+		efResults, efErr := s.postEFServices.All(ctx, efHex, txID)
+
+		txResults, txErr := s.postTXServices.All(ctx, rawTx)
+
+		if errors.Is(efErr, servicequeue.ErrNoServicesRegistered) && errors.Is(txErr, servicequeue.ErrNoServicesRegistered) {
+			return nil, fmt.Errorf("no services registered for broadcasting")
+		}
+
+		if efErr == nil {
+			allResults = append(allResults, slices.Map(efResults, s.mapToPostBEEFServiceResult)...)
+		}
+		if txErr == nil {
+			allResults = append(allResults, slices.Map(txResults, s.mapToPostBEEFServiceResult)...)
+		}
+	}
+
+	return allResults, nil
 }
 
 // UtxoStatus attempts to determine the UTXO status of a transaction output.
@@ -593,4 +764,17 @@ func (s *WalletServices) FiatExchangeRate(currency defs.Currency, base *defs.Cur
 	}
 
 	return currencyRate / baseRate
+}
+
+func (s *WalletServices) mapToPostBEEFServiceResult(r *servicequeue.NamedResult[*wdk.PostedTxID]) *wdk.PostFromBEEFServiceResult {
+	if r.IsError() {
+		return &wdk.PostFromBEEFServiceResult{
+			Name:  r.Name(),
+			Error: r.MustGetError(),
+		}
+	}
+	return &wdk.PostFromBEEFServiceResult{
+		Name:             r.Name(),
+		PostedBEEFResult: &wdk.PostedBEEF{TxIDResults: []wdk.PostedTxID{*r.MustGetValue()}},
+	}
 }

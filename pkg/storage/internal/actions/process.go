@@ -10,20 +10,24 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/seq2"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 const transactionBatchLength = 16
@@ -41,6 +45,7 @@ type process struct {
 	randomizer            wdk.Randomizer
 	sendWaitingLock       sync.Mutex
 	beefVerifier          wdk.BeefVerifier
+	scriptsVerifier       wdk.ScriptsVerifier
 }
 
 func newProcessAction(
@@ -55,27 +60,36 @@ func newProcessAction(
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
-		logger:         logger,
-		commissionCfg:  commissionCfg,
-		txRepo:         txRepo,
-		outputRepo:     outputRepo,
-		knownTxRepo:    knownTxRepo,
-		commissionRepo: commissionRepo,
-		utxoRepo:       utxoRepo,
-		services:       services,
-		randomizer:     randomizer,
-		beefVerifier:   beefVerifier,
+		logger:          logger,
+		commissionCfg:   commissionCfg,
+		txRepo:          txRepo,
+		outputRepo:      outputRepo,
+		knownTxRepo:     knownTxRepo,
+		commissionRepo:  commissionRepo,
+		utxoRepo:        utxoRepo,
+		services:        services,
+		randomizer:      randomizer,
+		beefVerifier:    beefVerifier,
+		scriptsVerifier: scriptsVerifier,
 	}
 
-	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p)
+	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel)
 	p.backgroundBroadcaster.Start()
 	return p
 }
 
 func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-Process", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	logger := p.logger.With(logging.UserID(userID))
 
 	logger.InfoContext(ctx, "Starting Process Action",
@@ -91,7 +105,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 			slog.String("reference", to.Value(args.Reference)),
 			slog.Int("rawTxSize", len(args.RawTx)),
 		)
-		if err := p.processNewTx(ctx, userID, args); err != nil {
+		if err = p.processNewTx(ctx, userID, args); err != nil {
 			return nil, err
 		}
 	}
@@ -116,7 +130,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 			slog.Int("batchSize", len(txIDs)),
 		)
 
-		if err := p.setBatchForTxs(ctx, txIDs); err != nil {
+		if err = p.setBatchForTxs(ctx, txIDs); err != nil {
 			return nil, fmt.Errorf("failed to set batch for transactions: %w", err)
 		}
 	}
@@ -228,7 +242,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 			slog.Uint64("commissionSatoshis", p.commissionCfg.Satoshis),
 		)
 
-		if err := p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
+		if err = p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
 			return fmt.Errorf("commission validation failed: %w", err)
 		}
 	}
@@ -349,7 +363,7 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 		txStatus = wdk.TxStatusUnprocessed
 	}
 
-	return
+	return txStatus, reqStatus
 }
 
 func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool) (*wdk.ProcessActionResult, error) {
@@ -361,6 +375,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	knownTxStatusesLookup, err := p.getKnownTxStatuses(ctx, txIDs...)
 	if err != nil {
 		return nil, err
+	}
+
+	txReferencesLookup, err := p.txRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
 	}
 
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
@@ -430,25 +449,41 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
-	logger.DebugContext(ctx, "Verifying built BEEF",
+	logger.DebugContext(ctx, "Verifying built EF",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	logger.DebugContext(ctx, "Verifying built BEEF",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
+	// hydrate txs in beef
+	if err = txutils.HydrateBEEF(beef); err != nil {
+		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
+	}
 
-	if ok, err := p.beefVerifier.VerifyBeef(ctx, beef, false); err != nil {
-		return nil, fmt.Errorf("failed to verify beef: %w", err)
-	} else if !ok {
-		return nil, fmt.Errorf("provided beef is not valid")
+	// Verify scripts for each transaction before broadcasting.
+	// We use scripts-only verification (not full BEEF verification) because:
+	// 1. We're sending EF format to ARC, not BEEF
+	// 2. Merkle path validation can fail during block reorgs
+	// 3. Input BEEF was validated when creating action with external inputs or during internalization, so there's no need to validate it again
+	for _, txID := range readyToSendTxIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return nil, fmt.Errorf("transaction %s not found in beef", txID)
+		}
+
+		var ok bool
+		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
+		}
+		if !ok {
+			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
+		}
 	}
 
 	logger.DebugContext(ctx, "Increasing attempt counters for transactions",
 		slog.Int("txIDsCount", len(txIDs)),
 	)
 
-	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
+	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
 		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
@@ -457,7 +492,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 		)
 
-		resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
+		var resultsForDelayedTxs []wdk.SendWithResult
+		resultsForDelayedTxs, err = p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process delayed transactions: %w", err)
 		}
@@ -473,7 +509,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	results, err := p.services.PostBEEF(ctx, beef, readyToSendTxIDs)
+	results, err := p.services.PostFromBEEF(ctx, beef, readyToSendTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
@@ -510,6 +546,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				results.ServiceErrors(),
 				beef,
 				readyToSendTxIDs,
+				txReferencesLookup[broadcastedTxID],
 			)
 			if err != nil {
 				return nil, fmt.Errorf(
@@ -543,8 +580,9 @@ func (p *process) setBatchForTxs(ctx context.Context, txIDs []string) error {
 
 	err = p.knownTxRepo.SetBatchForKnownTxs(ctx, txIDs, batch)
 	if err != nil {
-		return fmt.Errorf("failed to set batch for known txs: %w", err)
+		return fmt.Errorf("failed to set batch for txIDs: %w", err)
 	}
+
 	return nil
 }
 
@@ -582,6 +620,7 @@ func (p *process) updateSingleTx(
 	serviceErrors map[string]error,
 	beef *transaction.Beef,
 	txIDs []string,
+	reference string,
 ) (
 	sendWithResult wdk.SendWithResult,
 	reviewActionResult wdk.ReviewActionResult,
@@ -593,9 +632,9 @@ func (p *process) updateSingleTx(
 		spendable    bool
 	)
 
-	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID)
+	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID, serviceErrors, reference)
 	if err != nil {
-		return
+		return sendWithResult, reviewActionResult, err
 	}
 
 	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
@@ -603,24 +642,24 @@ func (p *process) updateSingleTx(
 	err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
 	if err != nil {
 		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-		return
+		return sendWithResult, reviewActionResult, err
 	}
 
 	err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
 	if err != nil {
 		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-		return
+		return sendWithResult, reviewActionResult, err
 	}
 
 	if spendable {
 		err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 		if err != nil {
 			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
-			return
+			return sendWithResult, reviewActionResult, err
 		}
 	}
 
-	return
+	return sendWithResult, reviewActionResult, err
 }
 
 func (p *process) failedResultForTxID(txID string) (wdk.SendWithResult, wdk.ReviewActionResult) {
@@ -698,7 +737,7 @@ func (p *process) getKnownTxStatuses(ctx context.Context, txIDs ...string) (map[
 	return lookup, nil
 }
 
-func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string) (
+func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string, serviceErrors map[string]error, reference string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
 	spendable bool,
@@ -707,7 +746,9 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	err error,
 ) {
 	reviewActionResult = wdk.ReviewActionResult{
-		TxID: primitives.TXIDHexString(txID),
+		TxID:      primitives.TXIDHexString(txID),
+		Errors:    serviceErrors,
+		Reference: reference,
 	}
 
 	sendWithResult = wdk.SendWithResult{
@@ -745,7 +786,7 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 		err = fmt.Errorf("unknown AggregatedPostedTxIDStatus %s", aggBroadcastResult.Status)
 	}
 
-	return
+	return reqStatus, txStatus, spendable, reviewActionResult, sendWithResult, err
 }
 
 func (p *process) StopBackgroundBroadcaster() {
@@ -754,33 +795,41 @@ func (p *process) StopBackgroundBroadcaster() {
 	}
 }
 
-func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) error {
-	results, err := p.services.PostBEEF(ctx, beef, txIDs)
+func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error) {
+	results, err := p.services.PostFromBEEF(ctx, beef, txIDs)
 	if err != nil {
-		return fmt.Errorf("failed to post BEEF in background: %w", err)
+		return nil, fmt.Errorf("failed to post BEEF in background: %w", err)
+	}
+
+	txReferencesLookup, err := p.txRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references for txIDs in background broadcast: %w", err)
 	}
 
 	aggregated := results.Aggregated(txIDs)
+	bResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 	for _, broadcastedTxID := range txIDs {
 		aggBroadcastResult, ok := aggregated[broadcastedTxID]
 		if !ok {
-			return fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
+			return nil, fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
 		}
 
-		sendWithResult, _, err := p.updateSingleTx(
+		_, reviewActionResult, err := p.updateSingleTx(
 			ctx,
 			broadcastedTxID,
 			aggBroadcastResult,
 			results.ServiceErrors(),
 			beef,
 			txIDs,
+			txReferencesLookup[broadcastedTxID],
 		)
 		if err != nil {
-			return fmt.Errorf("failed to update single tx after background broadcast (txID: %s): %w", broadcastedTxID, err)
+			return nil, fmt.Errorf("failed to update single tx after background broadcast (txID: %s): %w", broadcastedTxID, err)
 		}
 
-		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", sendWithResult.Status)
+		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", reviewActionResult.Status)
+		bResults = append(bResults, reviewActionResult)
 	}
 
-	return nil
+	return bResults, nil
 }

@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 )
 
 func TestTxNoteFilters(t *testing.T) {

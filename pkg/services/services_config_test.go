@@ -7,16 +7,20 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-var mockTxID = testvectors.GivenTX().WithInput(10).WithP2PKHOutput(9).ID().String()
+var (
+	mockTx   = testvectors.GivenTX().WithInput(10).WithP2PKHOutput(9)
+	mockTxID = mockTx.ID().String()
+)
 
 func TestServicesConfig_CustomServiceImplementation(t *testing.T) {
 	// given:
@@ -66,7 +70,7 @@ func TestServicesConfig_CustomServicePartialImplementation(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, 50.5, rate)
+	require.InDelta(t, 50.5, rate, 0.001)
 }
 
 func TestServicesConfig_UseModifiers(t *testing.T) {
@@ -82,10 +86,16 @@ func TestServicesConfig_UseModifiers(t *testing.T) {
 				Item: mock.RawTx,
 			}}, original...)
 		}),
-		services.WithPostBEEFMethodsModifier(func(original []services.Named[services.PostBEEFFunc]) []services.Named[services.PostBEEFFunc] {
-			return append([]services.Named[services.PostBEEFFunc]{{
+		services.WithPostEFMethodsModifier(func(original []services.Named[services.PostEFFunc]) []services.Named[services.PostEFFunc] {
+			return append([]services.Named[services.PostEFFunc]{{
 				Name: "custom",
-				Item: mock.PostBEEF,
+				Item: mock.PostEF,
+			}}, original...)
+		}),
+		services.WithPostTXMethodsModifier(func(original []services.Named[services.PostTXFunc]) []services.Named[services.PostTXFunc] {
+			return append([]services.Named[services.PostTXFunc]{{
+				Name: "custom",
+				Item: mock.PostTX,
 			}}, original...)
 		}),
 		services.WithMerklePathMethodsModifier(func(original []services.Named[services.MerklePathFunc]) []services.Named[services.MerklePathFunc] {
@@ -273,7 +283,7 @@ func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, 50.5, rate)
+		require.InDelta(t, 50.5, rate, 0.001)
 		require.Equal(t, 0, customServiceCalled)
 	})
 
@@ -307,7 +317,7 @@ func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, customServiceRate, rate)
+		require.InDelta(t, customServiceRate, rate, 0.001)
 		require.Equal(t, 1, customServiceCalled)
 	})
 }
@@ -323,7 +333,12 @@ func TestServicesConfig_ToImplementation(t *testing.T) {
 	require.NoError(t, err)
 
 	// when:
-	_, err = impl.PostBEEF(context.Background(), &transaction.Beef{}, []string{"txID"})
+	_, err = impl.PostEF(context.Background(), "efHex", "txID")
+	// then:
+	require.NoError(t, err)
+	//
+	// when:
+	_, err = impl.PostTX(context.Background(), []byte{})
 	// then:
 	require.NoError(t, err)
 
@@ -397,7 +412,9 @@ func (m *mockPartialRawTxImplementation) RawTx(context.Context, string) (*wdk.Ra
 
 type mockImplementation struct {
 	mockPartialRawTxImplementation
-	postBEEFCounter             int
+
+	postEFCounter               int
+	postTXCounter               int
 	merklePathCounter           int
 	findChainTipHeaderCounter   int
 	isValidRootForHeightCounter int
@@ -411,9 +428,14 @@ type mockImplementation struct {
 	bsvExchangeRateCounter      int
 }
 
-func (m *mockImplementation) PostBEEF(context.Context, *transaction.Beef, []string) (*wdk.PostedBEEF, error) {
-	m.postBEEFCounter++
-	return &wdk.PostedBEEF{}, nil
+func (m *mockImplementation) PostEF(context.Context, string, string) (*wdk.PostedTxID, error) {
+	m.postEFCounter++
+	return &wdk.PostedTxID{}, nil
+}
+
+func (m *mockImplementation) PostTX(context.Context, []byte) (*wdk.PostedTxID, error) {
+	m.postTXCounter++
+	return &wdk.PostedTxID{}, nil
 }
 
 func (m *mockImplementation) MerklePath(context.Context, string) (*wdk.MerklePathResult, error) {
@@ -478,7 +500,8 @@ func (m *mockImplementation) OtherMethod() {
 
 func (m *mockImplementation) allCalled(t testing.TB) {
 	assert.NotZero(t, m.rawTxCounter)
-	assert.NotZero(t, m.postBEEFCounter)
+	assert.NotZero(t, m.postEFCounter)
+	assert.NotZero(t, m.postTXCounter)
 	assert.NotZero(t, m.merklePathCounter)
 	assert.NotZero(t, m.findChainTipHeaderCounter)
 	assert.NotZero(t, m.isValidRootForHeightCounter)
@@ -498,7 +521,10 @@ func callAllMethods(t testing.TB, service *services.WalletServices) []error {
 	_, err := service.RawTx(t.Context(), mockTxID)
 	errs = append(errs, err)
 
-	_, err = service.PostBEEF(t.Context(), &transaction.Beef{}, []string{mockTxID})
+	beef, err := transaction.NewBeefFromTransaction(mockTx.TX())
+	require.NoError(t, err)
+
+	_, err = service.PostFromBEEF(t.Context(), beef, []string{mockTxID})
 	errs = append(errs, err)
 	_, err = service.MerklePath(t.Context(), mockTxID)
 	errs = append(errs, err)

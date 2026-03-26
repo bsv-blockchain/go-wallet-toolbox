@@ -1,0 +1,11 @@
+server:
+  port: "8080"
+  network: test
+certifier_wallet:
+  private_key: 01b2414a784...
+storage:
+  url: "http://localhost:8100"
+logging:
+  enabled: true
+  level: info
+  handler: text

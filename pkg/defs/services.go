@@ -24,19 +24,22 @@ const (
 	ArcURL = "https://arc.taal.com"
 
 	// ArcToken is the token for the ARC service - it's a well-known key and can be public
-	ArcToken = "mainnet_9596de07e92300c6287e4393594ae39c" //nolint:gosec
+	ArcToken = "mainnet_9596de07e92300c6287e4393594ae39c" //nolint:gosec // well-known public API key
 
 	// ArcTestURL is the URL for the ARC service on testnet
 	ArcTestURL = "https://arc-test.taal.com"
 
 	// ArcTestToken is the token for the ARC service on testnet - it's a well-known key and can be public
-	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec
+	ArcTestToken = "testnet_0e6cf72133b43ea2d7861da2a38684e3" //nolint:gosec // well-known public API key
 
 	// BHSTestURL is the URL for the BHS service
 	BHSTestURL = "http://localhost:8080"
 
 	// BHSApiKey is the token for the BHS service
 	BHSApiKey = ""
+
+	// ChaintracksTestURL is the URL for the ChaintracksClient service
+	ChaintracksTestURL = "http://localhost:3011"
 
 	// DefaultGetBeefMaxDepth is the maximum depth for GetBEEF requests
 	DefaultGetBeefMaxDepth = 100
@@ -48,6 +51,7 @@ const (
 	BitailsServiceName      = "Bitails"
 	ArcServiceName          = "ARC"
 	BHSServiceName          = "BHS"
+	ChaintracksServiceName  = "Chaintracks"
 )
 
 // WalletServices is a struct that has options for wallet services
@@ -55,13 +59,14 @@ type WalletServices struct {
 	Chain               BSVNetwork        `mapstructure:"-"`
 	FiatExchangeRates   FiatExchangeRates `mapstructure:"fiat_exchange_rates"`
 	FiatUpdateInterval  *time.Duration    `mapstructure:"fiat_update_interval"`
-	ExchangeratesApiKey string            `mapstructure:"exchangerates_api_key"`
+	ExchangeratesAPIKey string            `mapstructure:"exchangerates_api_key"`
 	GetBeefMaxDepth     uint              `mapstructure:"get_beef_max_depth"`
 
-	ArcConfig    ARC          `mapstructure:"arc"`
-	WhatsOnChain WhatsOnChain `mapstructure:"whats_on_chain"`
-	Bitails      Bitails      `mapstructure:"bitails"`
-	BHS          BHS          `mapstructure:"bhs"`
+	ArcConfig         ARC               `mapstructure:"arc"`
+	WhatsOnChain      WhatsOnChain      `mapstructure:"whats_on_chain"`
+	Bitails           Bitails           `mapstructure:"bitails"`
+	BHS               BHS               `mapstructure:"bhs"`
+	ChaintracksClient ChaintracksClient `mapstructure:"chaintracks"`
 }
 
 // Validate checks the validity of the WalletServices struct
@@ -88,6 +93,10 @@ func (ws *WalletServices) Validate() error {
 		return fmt.Errorf("invalid Bitails config: %w", err)
 	}
 
+	if err = ws.ChaintracksClient.Validate(); err != nil {
+		return fmt.Errorf("invalid Chaintracks config: %w", err)
+	}
+
 	return nil
 }
 
@@ -95,7 +104,7 @@ func (ws *WalletServices) Validate() error {
 func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
-	cfg := WalletServices{
+	cfg := WalletServices{ //nolint:gosec // G101 - not hardcoded credentials, default config values
 		Chain: chain,
 		ArcConfig: ARC{
 			Enabled: true,
@@ -122,6 +131,11 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			Enabled:                    false, // NOTE: Bitails is disabled by default
 			ScriptHashHistoryPageLimit: defaultScriptHashHistoryPageLimit,
 		},
+		ChaintracksClient: ChaintracksClient{
+			Enabled:   false,
+			Mode:      "remote",
+			RemoteURL: ChaintracksTestURL,
+		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,
 			Base:      USD,
@@ -132,7 +146,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			},
 		},
 		FiatUpdateInterval:  to.Ptr(DefaultFiatExchangeUpdateInterval),
-		ExchangeratesApiKey: "bd539d2ff492bcb5619d5f27726a766f",
+		ExchangeratesAPIKey: "bd539d2ff492bcb5619d5f27726a766f",
 		GetBeefMaxDepth:     DefaultGetBeefMaxDepth,
 	}
 

@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFailAbandoned(t *testing.T) {
@@ -20,7 +21,7 @@ func TestFailAbandoned(t *testing.T) {
 	daemon := given.Daemon()
 
 	// when:
-	err := daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
+	err := daemon.Start(t.Context(), map[defs.MonitorTask]defs.TaskConfig{
 		defs.FailAbandonedMonitorTask: {
 			Enabled:          true,
 			IntervalSeconds:  seconds,

@@ -2,8 +2,17 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/go-softwarelab/common/pkg/is"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gen"
+	"gorm.io/gen/field"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -17,13 +26,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/is"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
-	"gorm.io/gen"
-	"gorm.io/gen/field"
-	"gorm.io/gorm"
 )
 
 type Transactions struct {
@@ -57,7 +59,7 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 			return fmt.Errorf("failed to create new transaction model: %w", err)
 		}
 
-		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
 			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
 		}
 
@@ -251,6 +253,36 @@ func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID stri
 	}), nil
 }
 
+func (txs *Transactions) FindReferencesByTxIDs(ctx context.Context, txIDs []string) (map[string]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindReferencesByTxIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(txIDs) == 0 {
+		return make(map[string]string), nil
+	}
+
+	var transactions []*models.Transaction
+	err = txs.db.WithContext(ctx).
+		Select("tx_id", "reference").
+		Where("tx_id IN ?", txIDs).
+		Find(&transactions).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references by TxIDs: %w", err)
+	}
+
+	result := make(map[string]string, len(transactions))
+	for _, tx := range transactions {
+		if tx.TxID != nil {
+			result[*tx.TxID] = tx.Reference
+		}
+	}
+
+	return result, nil
+}
+
 func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionByReference", attribute.Int("UserID", userID), attribute.String("Reference", reference))
@@ -358,7 +390,6 @@ func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
-
 	if err != nil {
 		return fmt.Errorf("failed to update transaction status by txID: %w", err)
 	}
@@ -377,7 +408,6 @@ func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transa
 	_, err = table.WithContext(ctx).
 		Where(table.ID.Eq(transactionID)).
 		Update(table.Status, txStatus)
-
 	if err != nil {
 		return fmt.Errorf("update query for transaction status failed: %w", err)
 	}
@@ -427,7 +457,11 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
-		if err := query.Count(&total).Error; err != nil {
+		if filter.Reference != nil && *filter.Reference != "" {
+			query = query.Where("reference = ?", *filter.Reference)
+		}
+
+		if err = query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
 
@@ -435,7 +469,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			return nil
 		}
 
-		if err := query.
+		if err = query.
 			Limit(filter.Limit).
 			Offset(filter.Offset).
 			Order("id ASC").
@@ -445,7 +479,6 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, 0, fmt.Errorf("transaction failed: %w", err)
 	}
@@ -467,6 +500,9 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 	if len(filter.Labels) > 0 {
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 	}
+	if filter.Reference != nil && *filter.Reference != "" {
+		query = query.Where("reference = ?", *filter.Reference)
+	}
 
 	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
 }
@@ -483,7 +519,8 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
 		var closeErr error
-		rows, err := tx.Table("bsv_transaction_labels tl").
+		var rows *sql.Rows
+		rows, err = tx.Table("bsv_transaction_labels tl").
 			Select("tl.transaction_id, tl.label_name").
 			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
 			Where("tl.label_name IS NOT NULL").
@@ -501,10 +538,13 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 		for rows.Next() {
 			var txID uint
 			var label string
-			if err := rows.Scan(&txID, &label); err != nil {
+			if err = rows.Scan(&txID, &label); err != nil {
 				return fmt.Errorf("scan failed: %w", err)
 			}
 			labelsMap[txID] = append(labelsMap[txID], label)
+		}
+		if err = rows.Err(); err != nil {
+			return fmt.Errorf("rows iteration failed: %w", err)
 		}
 		return closeErr
 	})
@@ -565,7 +605,7 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 	transactionModel := models.Transaction{}
 
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(models.Transaction{}).
+		err = tx.Model(models.Transaction{}).
 			Select("*").
 			Where("id = ?", transactionID).
 			Preload("Labels").
@@ -585,7 +625,6 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to replace labels: %w", err)
 	}

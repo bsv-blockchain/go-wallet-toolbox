@@ -7,6 +7,10 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -14,9 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 )
 
 type TxGeneratorFixture interface {
@@ -25,6 +26,7 @@ type TxGeneratorFixture interface {
 	WithSender(sender testusers.User) TxGeneratorFixture
 	WithRecipient(recipient testusers.User) TxGeneratorFixture
 	WithDelayedBroadcast() TxGeneratorFixture
+	WithReference(reference string) TxGeneratorFixture
 	WillFailOnBroadcast() TxGeneratorFixture
 
 	PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction)
@@ -36,6 +38,7 @@ type TxGeneratorFixture interface {
 
 type txGeneratorFixture struct {
 	testing.TB
+
 	parent                *storageFixture
 	satoshisToInternalize uint64
 	satoshisToSend        uint64
@@ -44,6 +47,7 @@ type txGeneratorFixture struct {
 	recipient             testusers.User
 	delayedBroadcast      bool
 	failedBroadcast       bool
+	reference             string
 }
 
 func (t *txGeneratorFixture) WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture {
@@ -68,6 +72,11 @@ func (t *txGeneratorFixture) WithRecipient(recipient testusers.User) TxGenerator
 
 func (t *txGeneratorFixture) WithDelayedBroadcast() TxGeneratorFixture {
 	t.delayedBroadcast = true
+	return t
+}
+
+func (t *txGeneratorFixture) WithReference(reference string) TxGeneratorFixture {
+	t.reference = reference
 	return t
 }
 
@@ -154,6 +163,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 
 	args := wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
+		Reference:   t.reference,
 		Inputs: []wdk.ValidCreateActionInput{
 			{
 				Outpoint: wdk.OutPoint{
@@ -207,7 +217,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 	return result, signedTx
 }
 
-func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, parentTx *transaction.Transaction) *transaction.Transaction {
+func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, _ *transaction.Transaction) *transaction.Transaction {
 	t.Helper()
 	keyDeriver := sdk.NewKeyDeriver(t.sender.PrivateKey(t))
 
@@ -257,9 +267,9 @@ func (t *txGeneratorFixture) Unprocessed() (createActionResult *wdk.StorageCreat
 
 	createActionResult, signedTx = t.Created()
 
-	t.parent.Provider().BeefVerifier().WillReturnError(fmt.Errorf("mock beef verifier error"))
+	t.parent.Provider().ScriptsVerifier().WillReturnError(fmt.Errorf("mock scripts verifier error"))
 	defer func() {
-		t.parent.Provider().BeefVerifier().DefaultBehavior()
+		t.parent.Provider().ScriptsVerifier().DefaultBehavior()
 	}()
 
 	err := t.performProcess(signedTx, createActionResult.Reference)

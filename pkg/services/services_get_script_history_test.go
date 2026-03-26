@@ -2,14 +2,14 @@ package services_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_GetScriptHashHistory(t *testing.T) {
@@ -247,7 +247,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
 
 		// then:
-		require.True(t, errors.Is(err, context.Canceled))
+		require.ErrorIs(t, err, context.Canceled)
 		require.Nil(t, result)
 	})
 
@@ -269,7 +269,7 @@ func TestWalletServices_GetScriptHashHistory_ContextCancelled(t *testing.T) {
 		result, err := svc.GetScriptHashHistory(ctx, testScriptHash)
 
 		// then:
-		require.True(t, errors.Is(err, context.Canceled))
+		require.ErrorIs(t, err, context.Canceled)
 		require.Nil(t, result)
 	})
 }

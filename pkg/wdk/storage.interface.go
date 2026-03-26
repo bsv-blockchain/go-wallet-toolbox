@@ -7,16 +7,15 @@ import (
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/client_gen.go
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out wallet_storage_interface_gen.go -skip-methods "GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl wallet_storage.tpl
 //go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/storage_manager_gen.go -skip-methods "MakeAvailable,SetActive,GetSyncChunk,FindOrInsertSyncStateAuth,ProcessSyncChunk" -tmpl manager.tpl
-//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/internal/server/rpc_storage_provider.gen.go -tmpl rpc_storage_provider.tpl
+//go:generate go run -tags gen ../../tools/client-gen/main.go -out ../storage/rpcserver/rpc_storage_provider.gen.go -tmpl rpc_storage_provider.tpl
 //go:generate go tool mockgen -destination=../internal/mocks/mock_wallet_storage_writer.go -package=mocks github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk WalletStorageProvider
 
 // WalletStorageProvider is an interface for writing to the wallet storage
 type WalletStorageProvider interface {
-
 	// Migrate migrates a wallet storage database.
 	// @Write
 	// @NonRPC
-	Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error)
+	Migrate(ctx context.Context, storageName, storageIdentityKey string) (string, error)
 
 	// MakeAvailable makes the storage available storage for user.
 	// @Write
@@ -92,4 +91,8 @@ type WalletStorageProvider interface {
 	// FindOutputsAuth finds outputs for the authenticated user based on the provided filters.
 	// @Read
 	FindOutputsAuth(ctx context.Context, auth AuthID, filters FindOutputsArgs) (TableOutputs, error)
+
+	// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+	// @Read
+	ListTransactions(ctx context.Context, auth AuthID, args ListTransactionsArgs) (*ListTransactionsResult, error)
 }

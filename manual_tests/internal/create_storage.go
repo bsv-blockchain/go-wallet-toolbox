@@ -7,12 +7,11 @@ import (
 	"strings"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
 
 type StorageInfra struct {
@@ -62,7 +61,7 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 			return nil, fmt.Errorf("failed to create daemon: %w", err)
 		}
 
-		if err = daemon.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
+		if err = daemon.Start(ctx, cfg.Monitor.Tasks.EnabledTasks()); err != nil {
 			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
 		}
 	}

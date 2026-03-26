@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_NLockTimeIsFinal_Primary_WoC(t *testing.T) {
@@ -106,8 +107,13 @@ func TestWalletServices_NLockTimeIsFinal_AllProvidersFail(t *testing.T) {
 	given.Bitails().WillReturnNetworkInfo(http.StatusBadGateway, 0)
 	err = given.BHS().WillBeUnreachable()
 	require.Error(t, err)
+	_ = given.Chaintracks().WillFail()
 
-	svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+	svc := given.Services().Config(
+		testservices.WithEnabledBitails(true),
+		testservices.WithEnabledBHS(true),
+		testservices.WithEnabledChaintracks(true),
+	).New()
 
 	// when:
 	_, err = svc.NLockTimeIsFinal(t.Context(), uint32(400_000_000))
@@ -146,7 +152,7 @@ func TestWalletServices_NLockTimeIsFinal_TimestampPath(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// given:
-			now := uint32(time.Now().Unix())
+			now := uint32(time.Now().Unix()) //nolint:gosec // unix timestamp fits in uint32 until year 2106
 
 			given := testservices.GivenServices(t)
 			svc := given.Services().Config(testservices.WithEnabledBitails(true)).New()

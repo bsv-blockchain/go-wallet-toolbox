@@ -4,11 +4,12 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testmode"
-	"github.com/stretchr/testify/require"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 )
 
 func DBConfigForTests() defs.Database {

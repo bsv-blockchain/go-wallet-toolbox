@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gen"
+	"gorm.io/gen/field"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"go.opentelemetry.io/otel/attribute"
-	"gorm.io/gen"
-	"gorm.io/gen/field"
-	"gorm.io/gorm"
 )
 
 type UTXOs struct {
@@ -119,7 +120,8 @@ func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID st
 				Scopes(isChangeDaoScope(query))
 		}
 
-		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+		var changeOutputs []*outputWithTxStatus
+		changeOutputs, err = getOutputsWithTxStatus(ctx, query, filterScope)
 		if err != nil {
 			return err
 		}

@@ -29,7 +29,7 @@ func FakeHeaderHexWithMerkleRoot(t testing.TB, merkleRootHex string) string {
 	header := make([]byte, TestBlockHeaderLength) // 80 bytes
 	merkleRootBytes, err := hex.DecodeString(merkleRootHex)
 	require.NoError(t, err, "cannot decode merkle root hex")
-	require.Equal(t, TestMerkleRootLength, len(merkleRootBytes), "merkle root must be 32 bytes")
+	require.Len(t, merkleRootBytes, TestMerkleRootLength, "merkle root must be 32 bytes")
 
 	for i := 0; i < TestMerkleRootLength; i++ {
 		header[TestMerkleRootOffset+i] = merkleRootBytes[TestMerkleRootLength-1-i]

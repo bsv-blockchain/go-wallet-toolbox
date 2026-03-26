@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/require"
 )
 
 const wocEndpointRegex = "whatsonchain(.*)headers"
@@ -29,9 +30,13 @@ func TestSynchronizeTx(t *testing.T) {
 	// and:
 	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -78,9 +83,13 @@ func TestSynchronizeManyTxs(t *testing.T) {
 
 	// and:
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -120,20 +129,21 @@ func TestSynchronizeTxEvenIfChainTipIsUnreachable(t *testing.T) {
 	_ = givenProvider.WhatsOnChain().WillBeUnreachable()
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
-	// and:
+	// then: synchronization should succeed but no transactions should be processed
+	// because we can't get status for txIDs when WhatsOnChain is unreachable
+	require.NoError(t, err)
+
+	// and: transaction should remain unmined since we couldn't filter transactions
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.
 		HasKnownTX(txSpec.ID().String()).
-		WithStatus(wdk.ProvenTxStatusCompleted).
-		IsMined()
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		NotMined()
 
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, txSpec.ID().String()).
-		WithStatus(wdk.TxStatusCompleted)
-
-	// then:
-	require.NoError(t, err)
+		WithStatus(wdk.TxStatusUnproven)
 }
 
 func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
@@ -150,9 +160,13 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	// and:
 	servicesSniffer := givenProvider.ServicesSniffer()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -166,7 +180,7 @@ func TestSynchronizeTxForTheSameBlockHeightTwice(t *testing.T) {
 	require.Equal(t, 1, servicesSniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", txSpec.ID())))
 
 	// when:
-	err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -196,9 +210,13 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	// and:
 	servicesSniffer := givenProvider.ServicesSniffer()
 	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
 	// when:
-	err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -220,7 +238,7 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 		)
 
 	// when:
-	err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 	// then:
 	require.NoError(t, err)
@@ -249,10 +267,14 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 
 	// and:
 	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
 	// when:
 	for attempt := range defs.DefaultSynchronizeTxStatuses().MaxAttempts {
-		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
 
 		// then:
@@ -302,10 +324,14 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 			// and:
 			arcQueryFixture := givenProvider.ARC().WhenQueryingTx(txSpec.ID().String())
 			givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+			givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+				ExpectBlockHash:   testservices.TestBlockHash,
+				ExpectBlockHeight: int64(testservices.TestBlockHeight),
+			})
 			test.setupARCMock(arcQueryFixture)
 
 			// when:
-			err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+			_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 			// then:
 			require.NoError(t, err)
@@ -313,6 +339,66 @@ func TestSynchronizeTxEdgeCases(t *testing.T) {
 			// NOTE: Error is not returned, because this action tries to synchronize all transactions and skips those that are not found or have no Merkle Path.
 		})
 	}
+}
+
+func TestSynchronizeTxForSameHeightDifferentHash(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	txID := txSpec.ID().String()
+
+	// and: setup mocks for first sync
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// when: first sync - transaction gets mined
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: transaction is mined
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+
+	// when: reorg happens - invalidate proofs for the block
+	err = activeStorage.HandleReorg(t.Context(), []string{testservices.TestBlockHash})
+	require.NoError(t, err)
+
+	// then: transaction status is now 'reorg' and proof is invalidated
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusReorg).
+		NotMined()
+
+	// given: new chain tip has SAME height but DIFFERENT hash (competing block won)
+	const newBlockHash = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b9999"
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().
+		OnTipBlockHeaderWillRespondWithOneElementList(
+			testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight),
+			testservices.WithTipBlockHeaderHash(newBlockHash),
+		)
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   newBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// when: second sync - same height but different hash should not skip
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: transaction is mined again (re-proven in the new winning block)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
 }
 
 func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
@@ -334,8 +420,12 @@ func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 		// and:
 		noSendTxID := when.NoSendTxs()[0]
 		given.Provider().ARC().WhenQueryingTx(noSendTxID).WillReturnWithMindedTx()
+		given.Provider().WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+			ExpectBlockHash:   testservices.TestBlockHash,
+			ExpectBlockHeight: int64(testservices.TestBlockHeight),
+		})
 
-		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 		// then:
 		require.NoError(t, err)
@@ -361,9 +451,15 @@ func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 		// and:
 		given.UserOwnsGivenUTXOsToSpend(inputSatoshis)
 
+		// and:
+		given.Provider().WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+			ExpectBlockHash:   testservices.TestBlockHash,
+			ExpectBlockHeight: int64(testservices.TestBlockHeight),
+		})
+
 		// when:
 		when.WillSendSats(1).CreateAndProcessNoSendAction(nil)
-		err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 
 		// then:
 		require.NoError(t, err)

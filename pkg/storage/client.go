@@ -10,10 +10,11 @@ import (
 
 	clients "github.com/bsv-blockchain/go-sdk/auth/clients/authhttp"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 )
 
 // NewClient returns WalletStorageWriterClient that allows connection to rpc server.
@@ -94,11 +95,11 @@ const maxLogBodySize = 32 * 1024 // 32KB
 type loggableResponse http.Response
 
 func (r *loggableResponse) LogValue() slog.Value {
-	attrs := []slog.Attr{
+	attrs := make([]slog.Attr, 0, 4)
+	attrs = append(attrs,
 		slog.Int("statusCode", r.StatusCode),
 		slog.String("status", r.Status),
-	}
-
+	)
 	attrs = append(attrs, r.bodyLogAttributes()...)
 
 	return slog.GroupValue(attrs...)

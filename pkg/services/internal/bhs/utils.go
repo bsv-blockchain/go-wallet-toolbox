@@ -7,8 +7,10 @@ import (
 	"strings"
 )
 
-const apiPrefix = "api"
-const apiVersion = "v1"
+const (
+	apiPrefix  = "api"
+	apiVersion = "v1"
+)
 
 func buildURL(baseURL string, segments ...string) (string, error) {
 	u, err := url.Parse(baseURL)

@@ -3,8 +3,9 @@ package funder
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/go-softwarelab/common/pkg/seq"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 )
 
 type Result struct {
@@ -12,6 +13,7 @@ type Result struct {
 	ChangeOutputsCount uint64
 	ChangeAmount       satoshi.Value
 	Fee                satoshi.Value
+	DustFloor          satoshi.Value
 }
 
 func (fr *Result) TotalAllocated() (satoshi.Value, error) {

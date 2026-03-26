@@ -1,18 +1,20 @@
 package storage_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestKnownTxAttemptsFilters(t *testing.T) {
@@ -26,10 +28,15 @@ func TestKnownTxAttemptsFilters(t *testing.T) {
 	tx1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).WillReturnTransactionWithoutMerklePath()
+	provider.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
 	// when:
 	for i := 0; i < 3; i++ {
-		require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
 	}
 
 	// then:
@@ -92,8 +99,13 @@ func TestKnownTxBlockHeightFilters(t *testing.T) {
 	tx1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).WillReturnTransactionWithBlockHeight(12345)
+	provider.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(tx1.ID().String()).
@@ -155,8 +167,13 @@ func TestKnownTxBlockHashFilters(t *testing.T) {
 	mp := testutils.MockValidMerklePath(t, tx1.ID().String(), 2000)
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
+	provider.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	expectedBlockHash := testservices.TestBlockHash
 
@@ -211,8 +228,13 @@ func TestKnownTxMerkleRootFilters(t *testing.T) {
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
+	provider.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	txidHash, err := chainhash.NewHashFromHex(tx1.ID().String())
 	require.NoError(t, err)
@@ -272,7 +294,13 @@ func TestKnownTxStatusFilters(t *testing.T) {
 	provider.ARC().WhenQueryingTx(txMined.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
 
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	provider.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(txUnmined.ID().String()).
@@ -327,7 +355,13 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithoutMerklePath()
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	provider.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(tx1.ID().String()).
@@ -339,8 +373,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 		reader.Notified().Equals(false)
 
 		// then:
-		count, err := reader.Count(t.Context())
-		require.NoError(t, err)
+		count, countErr := reader.Count(t.Context())
+		require.NoError(t, countErr)
 		assert.Equal(t, int64(1), count)
 	})
 
@@ -350,8 +384,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 		reader.Notified().NotEquals(true)
 
 		// then:
-		count, err := reader.Count(t.Context())
-		require.NoError(t, err)
+		count, countErr := reader.Count(t.Context())
+		require.NoError(t, countErr)
 		assert.Equal(t, int64(1), count)
 	})
 
@@ -359,7 +393,8 @@ func TestKnownTxNotifiedFilters(t *testing.T) {
 	mp := testutils.MockValidMerklePath(t, tx1.ID().String(), 2000)
 	provider.ARC().WhenQueryingTx(tx1.ID().String()).
 		WillReturnTransactionWithMerklePath(mp)
-	require.NoError(t, activeStorage.SynchronizeTransactionStatuses(t.Context()))
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
 
 	// then:
 	testabilities.ThenDBState(t, activeStorage).

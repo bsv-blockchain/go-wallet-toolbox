@@ -7,8 +7,9 @@ import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // WalletCertificateFieldMap represents a mapping of wallet certificate fields.
@@ -174,6 +175,7 @@ func (m KeyringMap) ToMap() map[string]string {
 // extended with keyring and verifier
 type CertificateResult struct {
 	WalletCertificate
+
 	Keyring  KeyringMap     `json:"keyring"`
 	Verifier VerifierString `json:"verifier"`
 }

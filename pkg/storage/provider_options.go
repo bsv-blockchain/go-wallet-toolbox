@@ -6,11 +6,12 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"gorm.io/gorm"
 )
 
 // ProviderOption is function for additional setup of Provider itself.
@@ -21,10 +22,11 @@ type ProviderConfig struct {
 	DBConfig defs.Database
 	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
 
-	Funder              funder.Funder
-	Randomizer          wdk.Randomizer
-	BeefVerifierFactory func() wdk.BeefVerifier
-	Logger              *slog.Logger
+	Funder                 funder.Funder
+	Randomizer             wdk.Randomizer
+	BeefVerifierFactory    func() wdk.BeefVerifier
+	ScriptsVerifierFactory func() wdk.ScriptsVerifier
+	Logger                 *slog.Logger
 
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
@@ -33,6 +35,7 @@ type ProviderConfig struct {
 	Commission defs.Commission
 
 	BackgroundBroadcasterContext context.Context
+	BackgroundBroadcasterChannel chan<- wdk.CurrentTxStatus
 }
 
 // WithConfig returns a ProviderOption that sets the ProviderConfig to the supplied cfg value.
@@ -61,6 +64,15 @@ func WithBeefVerifier(beefVerifier wdk.BeefVerifier) ProviderOption {
 	return func(o *ProviderConfig) {
 		o.BeefVerifierFactory = func() wdk.BeefVerifier {
 			return beefVerifier
+		}
+	}
+}
+
+// WithScriptsVerifier sets a custom ScriptsVerifier implementation for use in the provider options.
+func WithScriptsVerifier(scriptsVerifier wdk.ScriptsVerifier) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.ScriptsVerifierFactory = func() wdk.ScriptsVerifier {
+			return scriptsVerifier
 		}
 	}
 }
@@ -120,6 +132,15 @@ func WithBackgroundBroadcasterContext(ctx context.Context) ProviderOption {
 	}
 }
 
+// WithBackgroundBroadcasterChannel sets the notification channel for the background broadcaster in provider options.
+// This channel is used to send transaction status updates when transactions are broadcasted in the background.
+// This same channel which is passed to the monitor to receive broadcasted transaction updates should be used.
+func WithBackgroundBroadcasterChannel(txBroadcastedChannel chan<- wdk.CurrentTxStatus) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.BackgroundBroadcasterChannel = txBroadcastedChannel
+	}
+}
+
 // WithDBConfig sets the database configuration for the storage provider using the given defs.Database configuration.
 func WithDBConfig(dbConfig defs.Database) ProviderOption {
 	return func(o *ProviderConfig) {
@@ -132,6 +153,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		DBConfig:                     defs.DefaultDBConfig(),
 		Randomizer:                   randomizer.New(),
 		BeefVerifierFactory:          func() wdk.BeefVerifier { return NewDefaultBeefVerifier(chaintracker) },
+		ScriptsVerifierFactory:       func() wdk.ScriptsVerifier { return NewDefaultScriptsVerifier() },
 		SynchronizeTxStatusesConfig:  defs.DefaultSynchronizeTxStatuses(),
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
 		FeeModel:                     defs.DefaultFeeModel(),
@@ -153,4 +175,8 @@ func (p *ProviderConfig) verify() error {
 
 func (p *ProviderConfig) beefVerifier() wdk.BeefVerifier {
 	return p.BeefVerifierFactory()
+}
+
+func (p *ProviderConfig) scriptsVerifier() wdk.ScriptsVerifier {
+	return p.ScriptsVerifierFactory()
 }

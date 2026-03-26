@@ -8,9 +8,10 @@ import (
 	"runtime"
 
 	"github.com/bsv-blockchain/certifier-server-example/internal/constants"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gopkg.in/yaml.v3"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type Config struct {
@@ -38,7 +39,7 @@ type Config struct {
 func LoadConfig(path string, log *slog.Logger) (*Config, error) {
 	path = to.IfThen(path != "", path).ElseThen(getConfigFilePath())
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is resolved from environment/defaults, not user input
 	if err != nil {
 		log.Warn("Could not read config file, using defaults", "error", err)
 		return nil, fmt.Errorf("could not read config file: %w", err)

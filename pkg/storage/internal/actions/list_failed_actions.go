@@ -4,14 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/must"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // ListFailedActions lists only actions with status 'failed'.
 func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, args *wdk.ListFailedActionsArgs) (*wdk.ListActionsResult, error) {
 	userID := *auth.UserID
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-ListFailedActions", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
 
 	filter, err := l.toFilterParams(userID, &wdk.ListActionsArgs{
 		Labels:                           nil,

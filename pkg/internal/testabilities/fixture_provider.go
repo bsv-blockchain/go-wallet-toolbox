@@ -4,6 +4,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/go-resty/resty/v2"
+	"github.com/jarcoal/httpmock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
@@ -12,9 +16,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-resty/resty/v2"
-	"github.com/jarcoal/httpmock"
-	"github.com/stretchr/testify/require"
 )
 
 type ServicesFixture interface {
@@ -41,21 +42,23 @@ type ProviderFixture interface {
 	StorageIdentityKey() string
 
 	BeefVerifier() BeefVerifierFixture
+	ScriptsVerifier() ScriptsVerifierFixture
 }
 
 type providerFixture struct {
 	testservices.ServicesFixture
 
-	network             defs.BSVNetwork
-	commission          defs.Commission
-	feeModel            defs.FeeModel
-	failAbandoned       defs.FailAbandoned
-	randomizer          wdk.Randomizer
-	services            wdk.Services
-	beefVerifierFixture *beefVerifierFixture
-	storagePrivKey      string
-	storageName         string
-	providers           []*storage.Provider
+	network                defs.BSVNetwork
+	commission             defs.Commission
+	feeModel               defs.FeeModel
+	failAbandoned          defs.FailAbandoned
+	randomizer             wdk.Randomizer
+	services               wdk.Services
+	beefVerifierFixture    *beefVerifierFixture
+	scriptsVerifierFixture *scriptsVerifierFixture
+	storagePrivKey         string
+	storageName            string
+	providers              []*storage.Provider
 
 	t               testing.TB
 	require         *require.Assertions
@@ -136,6 +139,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithGORM(p.db.DB),
 		storage.WithRandomizer(p.randomizer),
 		storage.WithBeefVerifier(p.beefVerifierFixture.Verifier(p.services)),
+		storage.WithScriptsVerifier(p.scriptsVerifierFixture.Verifier()),
 		storage.WithFeeModel(p.feeModel),
 		storage.WithCommission(p.commission),
 		storage.WithFailAbandoned(p.failAbandoned),
@@ -177,4 +181,9 @@ func (p *providerFixture) Cleanup() {
 func (p *providerFixture) BeefVerifier() BeefVerifierFixture {
 	p.t.Helper()
 	return p.beefVerifierFixture
+}
+
+func (p *providerFixture) ScriptsVerifier() ScriptsVerifierFixture {
+	p.t.Helper()
+	return p.scriptsVerifierFixture
 }

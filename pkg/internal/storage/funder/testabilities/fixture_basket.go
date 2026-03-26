@@ -3,9 +3,10 @@ package testabilities
 import (
 	"testing"
 
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"gorm.io/gorm"
 )
 
 const (
@@ -20,6 +21,7 @@ type BasketFixture interface {
 
 type basketFixture struct {
 	testing.TB
+
 	db   *gorm.DB
 	user testusers.User
 }

@@ -70,6 +70,8 @@ func (arc *ARC) isLocalNetworkHost(hostname string) bool {
 
 	ip := net.ParseIP(hostname)
 	if ip != nil {
+		// RFC 1918 / RFC 5735 well-known private and reserved CIDR ranges used
+		// for local-network detection — these are not hardcoded service addresses.
 		_, private10, _ := net.ParseCIDR("10.0.0.0/8")
 		_, private172, _ := net.ParseCIDR("172.16.0.0/12")
 		_, private192, _ := net.ParseCIDR("192.168.0.0/16")

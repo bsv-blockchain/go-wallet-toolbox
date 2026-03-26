@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSendWaitingMonitorTask(t *testing.T) {
@@ -21,7 +22,7 @@ func TestSendWaitingMonitorTask(t *testing.T) {
 	daemon := given.Daemon()
 
 	// when:
-	err := daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
+	err := daemon.Start(t.Context(), map[defs.MonitorTask]defs.TaskConfig{
 		defs.SendWaitingMonitorTask: {
 			Enabled:          true,
 			IntervalSeconds:  seconds,
@@ -45,7 +46,7 @@ func TestSendWaitingMonitorTask_StartedImmediately(t *testing.T) {
 	daemon := given.Daemon()
 
 	// when:
-	err := daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
+	err := daemon.Start(t.Context(), map[defs.MonitorTask]defs.TaskConfig{
 		defs.SendWaitingMonitorTask: {
 			Enabled:          true,
 			IntervalSeconds:  1,
@@ -65,7 +66,8 @@ func TestSendWaitingMonitorTask_FirstRunWithZeroMinTransactionAge(t *testing.T) 
 	t.Parallel()
 	// given:
 	mockStorage := &testabilities.MockStorage{}
-	task := tasks.NewSendWaitingTask(mockStorage)
+	// pass nil channel and nil logger to match new constructor signature; task will return early because channel is nil
+	task := tasks.NewSendWaitingTask(mockStorage, nil, nil)
 
 	// when:
 	err := task.Run(t.Context())

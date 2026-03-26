@@ -6,11 +6,12 @@ import (
 	"log/slog"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Setup struct {
@@ -71,31 +72,20 @@ func (c *SetupConfig) Validate() error {
 }
 
 func (s *Setup) CreateWallet(ctx context.Context, privkey *ec.PrivateKey) (*wallet.Wallet, func()) {
-	var storageProvider wdk.WalletStorageProvider
-	var cleanup func()
-	var err error
-
 	remoteStorage := s.Environment.ServerURL != ""
 
-	if remoteStorage {
-		slog.Info("Using remote storage", s.Environment.ServerURL)
-		storageProvider, cleanup, err = storage.NewClient(s.Environment.ServerURL)
-	} else {
-		slog.Info("Using local storage", SQLiteStorageFile)
-		storageProvider, cleanup, err = CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
-	}
-
+	userWallet, err := wallet.NewWithStorageFactory(s.Environment.BSVNetwork, privkey, func(userWallet sdk.Interface) (wdk.WalletStorageProvider, func(), error) {
+		if remoteStorage {
+			slog.Info("Using remote storage", "url", s.Environment.ServerURL)
+			return storage.NewClient(s.Environment.ServerURL, userWallet)
+		}
+		slog.Info("Using local storage", "file", SQLiteStorageFile)
+		return CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
+	})
 	if err != nil {
-		name := to.IfThen(remoteStorage, "remote").ElseThen("local")
-		panic(fmt.Errorf("failed to create %s storage provider: %w", name, err))
-	}
-
-	userWallet, err := wallet.New(s.Environment.BSVNetwork, privkey, storageProvider)
-	if err != nil {
-		cleanup()
 		panic(fmt.Errorf("failed to create wallet: %w", err))
 	}
 
-	slog.Info("CreateWallet", s.IdentityKey.ToDERHex())
-	return userWallet, cleanup
+	slog.Info("CreateWallet", "identityKey", s.IdentityKey.ToDERHex())
+	return userWallet, userWallet.Close
 }

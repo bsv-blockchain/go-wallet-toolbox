@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
@@ -149,7 +150,7 @@ func TestWallet_GetHeaderForHeight_ServiceErrors(t *testing.T) {
 			)
 
 			// Then
-			require.NotNil(t, err, "Expected error for height %d: %s", tc.height, tc.expectedError)
+			require.Errorf(t, err, "Expected error for height %d: %s", tc.height, tc.expectedError)
 			require.Nil(t, result, "Expected nil result for height %d", tc.height)
 		})
 	}

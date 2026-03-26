@@ -7,15 +7,16 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSignAction_ValidationError(t *testing.T) {
@@ -97,13 +98,13 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(signActionResult.Txid.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -179,13 +180,13 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(signActionResult.Txid.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -250,13 +251,13 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID().
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -337,13 +338,13 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(signActionResult.Txid.String()).
 			WithDescription(args.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee)
+			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
 
 		thenCreatedAction.OutputAtIndex(0).
 			WithSatoshis(args.Outputs[0].Satoshis).
@@ -482,7 +483,7 @@ func (s *WalletTestSuite) TestWalletSignAction_PendingSignActions_CacheErrors() 
 			setup: func(cache *testabilities.MockPendingSignActionRepo) {
 				cache.ErrOnDelete = mockErr
 			},
-			errOnSignAction: false, //NOTE: delete error is only logged, not returned
+			errOnSignAction: false, // NOTE: delete error is only logged, not returned
 		},
 	}
 	for name, test := range tests {

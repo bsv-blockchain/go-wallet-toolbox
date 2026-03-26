@@ -5,15 +5,15 @@ import (
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 )
 
 func TestBRC29AddressByRecipientCreation(t *testing.T) {
 	t.Run("return valid address with hex string as sender public key source", func(t *testing.T) {
 		address, err := brc29.AddressForSelf(brc29.PubHex(senderPublicKeyHex), keyID, brc29.PrivHex(recipientPrivateKeyHex))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -22,7 +22,7 @@ func TestBRC29AddressByRecipientCreation(t *testing.T) {
 		pub, err := ec.PublicKeyFromString(senderPublicKeyHex)
 		require.NoError(t, err)
 		address, err := brc29.AddressForSelf(pub, keyID, brc29.PrivHex(recipientPrivateKeyHex))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -32,7 +32,7 @@ func TestBRC29AddressByRecipientCreation(t *testing.T) {
 		require.NoError(t, err)
 		keyDeriver := sdk.NewKeyDeriver(priv)
 		address, err := brc29.AddressForSelf(keyDeriver, keyID, brc29.PrivHex(recipientPrivateKeyHex))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -41,14 +41,14 @@ func TestBRC29AddressByRecipientCreation(t *testing.T) {
 		priv, err := ec.PrivateKeyFromHex(recipientPrivateKeyHex)
 		require.NoError(t, err)
 		address, err := brc29.AddressForSelf(brc29.PubHex(senderPublicKeyHex), keyID, priv)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
 
 	t.Run("return testnet address created with brc29 by recipient", func(t *testing.T) {
 		address, err := brc29.AddressForSelf(brc29.PubHex(senderPublicKeyHex), keyID, brc29.PrivHex(recipientPrivateKeyHex), brc29.WithTestNet())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedTestnetAddress, address.AddressString)
 	})
@@ -97,28 +97,28 @@ func TestBRC29AddressByRecipientErrors(t *testing.T) {
 	t.Run("return error when nil is passed as sender public key deriver", func(t *testing.T) {
 		var keyDeriver *sdk.KeyDeriver
 		address, err := brc29.AddressForSelf(keyDeriver, keyID, brc29.PrivHex(recipientPrivateKeyHex))
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 
 	t.Run("return error when nil is passed as sender public key", func(t *testing.T) {
 		var pub *ec.PublicKey
 		address, err := brc29.AddressForSelf(pub, keyID, brc29.PrivHex(recipientPrivateKeyHex))
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 
 	t.Run("return error when nil is passed as recipient private key deriver", func(t *testing.T) {
 		var keyDeriver *sdk.KeyDeriver
 		address, err := brc29.AddressForSelf(brc29.PubHex(senderPublicKeyHex), keyID, keyDeriver)
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 
 	t.Run("return error when nil is passed as recipient private key", func(t *testing.T) {
 		var priv *ec.PrivateKey
 		address, err := brc29.AddressForSelf(brc29.PubHex(senderPublicKeyHex), keyID, priv)
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 }
@@ -129,7 +129,7 @@ func TestBRC29AddressCreation(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -139,7 +139,7 @@ func TestBRC29AddressCreation(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(brc29.WIF(senderWIFString), keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -153,7 +153,7 @@ func TestBRC29AddressCreation(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(priv, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -169,7 +169,7 @@ func TestBRC29AddressCreation(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(keyDeriver, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -183,7 +183,7 @@ func TestBRC29AddressCreation(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, pub)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedAddress, address.AddressString)
 	})
@@ -197,7 +197,7 @@ func TestBRC29AddressCreation(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, pub, brc29.WithTestNet())
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, address)
 		require.Equal(t, expectedTestnetAddress, address.AddressString)
 	})
@@ -254,7 +254,7 @@ func TestBRC29AddressErrors(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(keyDeriver, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 
@@ -266,7 +266,7 @@ func TestBRC29AddressErrors(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(priv, keyID, brc29.PubHex(recipientPublicKeyHex))
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 
@@ -278,7 +278,7 @@ func TestBRC29AddressErrors(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, keyDeriver)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 
@@ -290,7 +290,7 @@ func TestBRC29AddressErrors(t *testing.T) {
 		address, err := brc29.AddressForCounterparty(brc29.PrivHex(senderPrivateKeyHex), keyID, pub)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		require.Nil(t, address)
 	})
 }

@@ -3,11 +3,12 @@ package entity
 import (
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/is"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/is"
 )
 
 // NewTx represents all the information necessary to store a transaction with additional information like labels, tags, inputs, and outputs.
@@ -27,6 +28,7 @@ type NewTx struct {
 	TxID *string
 
 	ReservedOutputIDs []uint
+	SpentOutputIDs    []uint
 	Outputs           []*NewOutput
 	UTXOStatus        wdk.UTXOStatus
 

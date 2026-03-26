@@ -17,6 +17,7 @@ type MinedTransactionFixture interface {
 
 type minedTransactionFixture struct {
 	testing.TB
+
 	woc                   WhatsOnChainFixture
 	beefHex               string
 	merklePathWoCResponse string

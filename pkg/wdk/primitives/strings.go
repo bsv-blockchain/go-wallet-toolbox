@@ -76,6 +76,12 @@ func (b StringUnder300) Validate() error {
 	return nil
 }
 
+// NewIdentifier creates a normalized StringUnder300 for use as a tag, label, or basket name.
+// Matches the TypeScript SDK's validateIdentifier behavior: trim + lowercase.
+func NewIdentifier(s string) StringUnder300 {
+	return StringUnder300(strings.TrimSpace(strings.ToLower(s)))
+}
+
 // HexString is a string in hexadecimal format
 type HexString string
 

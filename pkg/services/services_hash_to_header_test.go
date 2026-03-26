@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	btb "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
@@ -34,7 +35,6 @@ func TestWalletServices_HashToHeader_SuccessCases(t *testing.T) {
 		{
 			name: "Bitails returns valid header",
 			setup: func(f testservices.ServicesFixture) {
-				blockHash := btb.TestHex
 				rawHeader := btb.ValidBlockHeaderRaw()
 
 				err := f.WhatsOnChain().WillBeUnreachable()

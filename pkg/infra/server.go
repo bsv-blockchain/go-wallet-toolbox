@@ -7,15 +7,17 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+	"github.com/go-softwarelab/common/pkg/must"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // Server is a struct that holds the "infra" server configuration
@@ -23,10 +25,15 @@ type Server struct {
 	Config Config
 
 	logger        *slog.Logger
+	services      *services.WalletServices
 	storage       *storage.Provider
 	storageServer *storage.Server
 	monitor       *monitor.Daemon
-	cleanupFunc   []func()
+
+	txBroadcastedCh <-chan wdk.CurrentTxStatus
+	txProvenCh      <-chan wdk.CurrentTxStatus
+
+	cleanupFunc []func()
 }
 
 // NewServer creates a new server instance with given options, like config file path or a prefix for environment variables
@@ -57,7 +64,8 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
 
 	if cfg.TracingConfig.Enabled {
-		tracingCleanup, err := tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
+		var tracingCleanup func()
+		tracingCleanup, err = tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable tracing: %w", err)
 		}
@@ -93,15 +101,61 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to create server wallet: %w", err)
 	}
 
-	var daemon *monitor.Daemon
+	var (
+		daemon          *monitor.Daemon
+		txBroadcastedCh chan wdk.CurrentTxStatus
+		txProvenCh      chan wdk.CurrentTxStatus
+	)
 	if cfg.Monitor.Enabled {
-		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create daemon: %w", err)
+		var monitorOpts []monitor.DaemonEventOption
+
+		if cfg.Monitor.Events.TxBroadcasted.Enabled {
+			txBroadcastedCh = make(chan wdk.CurrentTxStatus, cfg.Monitor.Events.TxBroadcasted.ChannelSize)
+			monitorOpts = append(monitorOpts, monitor.WithBroadcastedTxChannel(txBroadcastedCh))
+
+			cleanupFuncs = append(cleanupFuncs, func() {
+				close(txBroadcastedCh)
+			})
 		}
 
-		if err = daemon.Start(cfg.Monitor.Tasks.EnabledTasks()); err != nil {
-			return nil, fmt.Errorf("failed to start storage monitor: %w", err)
+		if cfg.Monitor.Events.TxProven.Enabled {
+			txProvenCh = make(chan wdk.CurrentTxStatus, cfg.Monitor.Events.TxProven.ChannelSize)
+			monitorOpts = append(monitorOpts, monitor.WithProvenTxChannel(txProvenCh))
+
+			cleanupFuncs = append(cleanupFuncs, func() {
+				close(txProvenCh)
+			})
+		}
+
+		if cfg.Services.ChaintracksClient.Enabled {
+			reorgChan := make(chan *chaintracks.ReorgEvent, 10)
+			unsubReorg := activeServices.SubscribeReorgs(reorgChan)
+			if unsubReorg != nil {
+				monitorOpts = append(monitorOpts, monitor.WithReorgChannel(reorgChan))
+				cleanupFuncs = append(cleanupFuncs, func() {
+					unsubReorg()
+					close(reorgChan)
+				})
+			} else {
+				close(reorgChan)
+			}
+
+			tipChan := make(chan *chaintracks.BlockHeader, 10)
+			unsubTips := activeServices.SubscribeTips(tipChan)
+			if unsubTips != nil {
+				monitorOpts = append(monitorOpts, monitor.WithTipChannel(tipChan))
+				cleanupFuncs = append(cleanupFuncs, func() {
+					unsubTips()
+					close(tipChan)
+				})
+			} else {
+				close(tipChan)
+			}
+		}
+
+		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB, monitorOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create daemon: %w", err)
 		}
 	}
 
@@ -119,16 +173,37 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	return &Server{
 		Config: cfg,
 
-		logger:        logger,
-		storage:       activeStorage,
-		monitor:       daemon,
-		storageServer: storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
-		cleanupFunc:   cleanupFuncs,
+		logger:          logger,
+		services:        activeServices,
+		storage:         activeStorage,
+		monitor:         daemon,
+		storageServer:   storage.NewServer(logger, activeStorage, serverWallet, serverOptions),
+		txBroadcastedCh: txBroadcastedCh,
+		txProvenCh:      txProvenCh,
+		cleanupFunc:     cleanupFuncs,
 	}, nil
 }
 
 // ListenAndServe starts the JSON-RPC server
-func (s *Server) ListenAndServe() error {
+func (s *Server) ListenAndServe(ctx context.Context) error {
+	if s.txBroadcastedCh != nil {
+		go s.consumeTxBroadcasted()
+	}
+
+	if s.txProvenCh != nil {
+		go s.consumeTxProven()
+	}
+
+	if s.Config.Services.ChaintracksClient.Enabled {
+		if err := s.services.StartChaintracks(context.Background()); err != nil {
+			return fmt.Errorf("failed to start chaintracks: %w", err)
+		}
+	}
+
+	if err := s.monitor.Start(ctx, s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
+		return fmt.Errorf("failed to start storage monitor: %w", err)
+	}
+
 	err := s.storageServer.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start storage server: %w", err)
@@ -140,8 +215,42 @@ func (s *Server) ListenAndServe() error {
 // Cleanup releases all resources held by the server
 func (s *Server) Cleanup() {
 	s.logger.Info("Cleaning up resources...")
+
+	if s.monitor != nil {
+		_ = s.monitor.Stop()
+	}
+
 	for _, fn := range s.cleanupFunc {
 		fn()
+	}
+}
+
+func (s *Server) consumeTxBroadcasted() {
+	for msg := range s.txBroadcastedCh {
+		s.logger.Info(
+			"tx broadcasted",
+			slog.String("tx_id", msg.TxID),
+			slog.String("reference", msg.Reference),
+			slog.String("status", msg.Status.String()),
+		)
+
+		if msg.Error != nil {
+			s.logger.Error(
+				"tx broadcast error",
+				slog.String("tx_id", msg.TxID),
+				slog.Any("error", msg.Error.Errors),
+			)
+		}
+	}
+}
+
+func (s *Server) consumeTxProven() {
+	for msg := range s.txProvenCh {
+		s.logger.Info(
+			"tx proven",
+			slog.String("tx_id", msg.TxID),
+			slog.String("status", msg.Status.String()),
+		)
 	}
 }
 

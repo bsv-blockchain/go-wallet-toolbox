@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"sync"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -35,6 +38,12 @@ func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsR
 }
 
 func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-AbortAction", attribute.Int("userID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	referenceStr := string(args.Reference)
 	logger := a.logger.With(
 		logging.UserID(userID),

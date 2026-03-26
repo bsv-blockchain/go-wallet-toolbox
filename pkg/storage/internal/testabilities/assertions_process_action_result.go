@@ -4,9 +4,10 @@ import (
 	stdslices "slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/stretchr/testify/assert"
 )
 
 type NotDelayedResultsAsserter []wdk.ReviewActionResult

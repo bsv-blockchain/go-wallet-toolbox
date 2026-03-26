@@ -8,17 +8,20 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/party"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type SignAction struct {
@@ -38,7 +41,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	s.originator = originator
 	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
 
-	err := s.validate()
+	err = s.validate()
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +56,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	s.tx = assembler.NewAssembledTxFromPendingSignAction(pendingSignAction)
 
 	s.attachUnlockingScripts(args)
-	if err := s.allInputsCanBeUnlocked(); err != nil {
+	if err = s.allInputsCanBeUnlocked(); err != nil {
 		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
 	}
 
@@ -108,6 +111,12 @@ func (s *SignAction) attachUnlockingScripts(args wallet.SignActionArgs) {
 }
 
 func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction-handleProcessAction")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(s.txID, s.tx, s.reference, s.wdkArgs)
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)

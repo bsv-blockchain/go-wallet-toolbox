@@ -5,19 +5,17 @@ package storage
 import (
 	"context"
 	"fmt"
-)
 
-import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
 
 // Migrate migrates a wallet storage database.
 func (m *WalletStorageManager) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
-
 	return m.getActiveWriter().Migrate(ctx, storageName, storageIdentityKey)
 }
 
 // FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
 func (m *WalletStorageManager) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
-
 	return m.getActiveWriter().FindOrInsertUser(ctx, identityKey)
 }
 
@@ -139,4 +137,14 @@ func (m *WalletStorageManager) FindOutputsAuth(ctx context.Context, filters wdk.
 	}
 
 	return m.getActiveReader().FindOutputsAuth(ctx, auth, filters)
+}
+
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+func (m *WalletStorageManager) ListTransactions(ctx context.Context, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().ListTransactions(ctx, auth, args)
 }

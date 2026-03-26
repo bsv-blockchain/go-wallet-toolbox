@@ -3,8 +3,10 @@ package services
 import (
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/go-resty/resty/v2"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 )
 
 // Options represents configurable options for the wallet services component.
@@ -12,7 +14,8 @@ type Options struct {
 	RestyClientFactory *httpx.RestyClientFactory
 
 	RawTxMethodsModifier         func([]Named[RawTxFunc]) []Named[RawTxFunc]
-	PostBEEFMethodsModifier      func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]
+	PostEFMethodsModifier        func([]Named[PostEFFunc]) []Named[PostEFFunc]
+	PostTXMethodsModifier        func([]Named[PostTXFunc]) []Named[PostTXFunc]
 	MerklePathMethodsModifier    func([]Named[MerklePathFunc]) []Named[MerklePathFunc]
 	FindChainTipHeaderModifier   func([]Named[FindChainTipHeaderFunc]) []Named[FindChainTipHeaderFunc]
 	IsValidRootForHeightModifier func([]Named[IsValidRootForHeightFunc]) []Named[IsValidRootForHeightFunc]
@@ -26,6 +29,8 @@ type Options struct {
 	BsvExchangeRateModifier      func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]
 
 	customImplementations []Named[Implementation]
+
+	chaintracksAdapter *chaintracksclient.Adapter
 }
 
 // WithHttpClient sets the http client for the service.
@@ -65,13 +70,23 @@ func WithRawTxMethodsModifier(modifier func([]Named[RawTxFunc]) []Named[RawTxFun
 	}
 }
 
-// WithPostBEEFMethodsModifier is designed to modify the list of PostBEEFFunc implementations.
+// WithPostEFMethodsModifier is designed to modify the list of PostEFFunc implementations.
 // The modifier function takes the current list of implementations and returns a modified list.
 // The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
 // This allows you to change the order of implementations, add new ones, or remove existing ones.
-func WithPostBEEFMethodsModifier(modifier func([]Named[PostBEEFFunc]) []Named[PostBEEFFunc]) func(*Options) {
+func WithPostEFMethodsModifier(modifier func([]Named[PostEFFunc]) []Named[PostEFFunc]) func(*Options) {
 	return func(o *Options) {
-		o.PostBEEFMethodsModifier = modifier
+		o.PostEFMethodsModifier = modifier
+	}
+}
+
+// WithPostTXMethodsModifier is designed to modify the list of PostBEEFFunc implementations.
+// The modifier function takes the current list of implementations and returns a modified list.
+// The current list is made of the implementations provided via WithCustomImplementation and the built-in implementations.
+// This allows you to change the order of implementations, add new ones, or remove existing ones.
+func WithPostTXMethodsModifier(modifier func([]Named[PostTXFunc]) []Named[PostTXFunc]) func(*Options) {
+	return func(o *Options) {
+		o.PostTXMethodsModifier = modifier
 	}
 }
 
@@ -182,5 +197,15 @@ func WithIsUtxoMethodsModifier(modifier func([]Named[IsUtxo]) []Named[IsUtxo]) f
 func WithBsvExchangeRateMethodsModifier(modifier func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]) func(*Options) {
 	return func(o *Options) {
 		o.BsvExchangeRateModifier = modifier
+	}
+}
+
+// WithChaintracksAdapter allows injecting a pre-configured chaintracks adapter.
+// This is primarily useful for testing, where a mock chaintracks implementation
+// can be injected to avoid real network calls and control test scenarios.
+// When provided, the adapter will be used instead of creating one from config.
+func WithChaintracksAdapter(adapter *chaintracksclient.Adapter) func(*Options) {
+	return func(o *Options) {
+		o.chaintracksAdapter = adapter
 	}
 }

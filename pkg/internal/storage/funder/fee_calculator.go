@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type feeCalc struct {
@@ -40,9 +41,9 @@ func (f *feeCalc) Calculate(txSize uint64) (satoshi.Value, error) {
 		return 0, fmt.Errorf("invalid transaction size: %w", err)
 	}
 
-	multiplier := math.Ceil(size / f.bytes)
+	feeAmount := math.Ceil(size / f.bytes * f.value)
 
-	fee, err := to.Int64(multiplier * f.value)
+	fee, err := to.Int64(feeAmount)
 	if err != nil {
 		return 0, fmt.Errorf("failed to calculate fee value: %w", err)
 	}

@@ -5,9 +5,10 @@ import (
 
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
 )
 
 func TestLockScriptWithKeyOffsetFromPubKey(t *testing.T) {
@@ -65,8 +66,8 @@ func TestLockScriptWithKeyOffset_Uniqueness(t *testing.T) {
 	}
 
 	// then:
-	assert.Equal(t, iterations, len(lockingScripts), "Locking script should be unique")
-	assert.Equal(t, iterations, len(keyOffsets), "Key offset should be unique")
+	assert.Len(t, lockingScripts, iterations, "Locking script should be unique")
+	assert.Len(t, keyOffsets, iterations, "Key offset should be unique")
 }
 
 func TestLockScriptWithKeyOffset_WrongPubKey(t *testing.T) {

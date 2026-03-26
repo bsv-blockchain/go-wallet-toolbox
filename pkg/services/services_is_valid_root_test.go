@@ -2,16 +2,16 @@ package services_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	wocTst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_IsValidRootForHeight_WoC(t *testing.T) {
@@ -112,7 +112,7 @@ func TestWalletServices_IsValidRootForHeight_WoC_ContextCancelled(t *testing.T) 
 	ok, err := svc.IsValidRootForHeight(ctx, root, height)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 }
 
@@ -229,13 +229,13 @@ func TestWalletServices_IsValidRootForHeight_Bitails_ContextCancelled(t *testing
 	ok, err := svc.IsValidRootForHeight(ctx, root, height)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 
 	fix.Bitails().Transport().Reset()
 	ok, err = svc.IsValidRootForHeight(ctx, root, height)
 
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 	require.Equal(t, 0, fix.Bitails().Transport().GetTotalCallCount())
 }
@@ -309,8 +309,13 @@ func TestWalletServices_IsValidRootForHeight_BHS_Unreachable(t *testing.T) {
 	_ = given.WhatsOnChain().WillBeUnreachable()
 	_ = given.Bitails().WillBeUnreachable()
 	target := given.BHS().WillBeUnreachable()
+	_ = given.Chaintracks().WillFail()
 
-	svc := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
+	svc := given.Services().Config(
+		testservices.WithEnabledBitails(true),
+		testservices.WithEnabledBHS(true),
+		testservices.WithEnabledChaintracks(true),
+	).New()
 	root, err := chainhash.NewHashFromHex(rootHex)
 	require.NoError(t, err)
 
@@ -346,7 +351,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextCancelled_DuringCall(t *
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 }
 
@@ -365,7 +370,7 @@ func TestWalletServices_IsValidRootForHeight_BHS_ContextAlreadyCancelled(t *test
 	ok, err := svc.IsValidRootForHeight(ctx, root, bhsHeight)
 
 	// then:
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	require.False(t, ok)
 	require.Equal(t, 0, given.BHS().Transport().GetTotalCallCount())
 }

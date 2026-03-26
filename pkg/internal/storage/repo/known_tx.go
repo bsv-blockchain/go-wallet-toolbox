@@ -5,6 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/seq2"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gen"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -14,12 +22,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/seq2"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"go.opentelemetry.io/otel/attribute"
-	"gorm.io/gen"
-	"gorm.io/gorm"
 )
 
 const (
@@ -45,7 +47,6 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return upsertKnownTx(tx, req, txNote)
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
 	}
@@ -79,14 +80,14 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	model.RawTx = req.RawTx
 	model.InputBeef = req.InputBeef
 
-	err = addTxNote(tx, txNote.Entity(req.TxID))
-	if err != nil {
-		return err
-	}
-
 	err = tx.Save(&model).Error
 	if err != nil {
 		return fmt.Errorf("cannot save known tx: %w", err)
+	}
+
+	err = addTxNote(tx, txNote.Entity(req.TxID))
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -257,7 +258,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 	}()
 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&models.KnownTx{}).
+		err = tx.Model(&models.KnownTx{}).
 			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
 			Updates(&models.KnownTx{
 				Status:      wdk.ProvenTxStatusCompleted,
@@ -294,7 +295,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 				tx.Model(&models.Output{}).
 					Select("id").
 					Where(
-						"transaction_id = (?)",
+						"transaction_id in (?)",
 						tx.Model(&models.Transaction{}).
 							Select("id").
 							Where(p.query.Transaction.TxID.Eq(knownTxAsMined.TxID)),
@@ -309,7 +310,6 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("db transaction failed: %w", err)
 	}
@@ -336,24 +336,29 @@ func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []s
 	return nil
 }
 
-func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) error {
-	var err error
+func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) ([]models.KnownTx, error) {
+	var (
+		err        error
+		updatedTxs []models.KnownTx
+	)
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetStatusForKnownTxsAboveAttempts", attribute.String("Status", string(status)), attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
 	if attempts == 0 {
-		return nil
+		return nil, nil
 	}
 
 	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
 		Where("attempts >= ? ", attempts).
-		UpdateColumn("status", status).Error
+		Clauses(clause.Returning{}).
+		UpdateColumn("status", status).
+		Scan(&updatedTxs).Error
 	if err != nil {
-		return fmt.Errorf("failed to set status for known transactions above attempts: %w", err)
+		return nil, fmt.Errorf("failed to set status for known transactions above attempts: %w", err)
 	}
-	return nil
+	return updatedTxs, nil
 }
 
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
@@ -435,6 +440,9 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	if spec.TxID != nil {
 		return []gen.Condition{table.TxID.Eq(*spec.TxID)}
 	}
+	if len(spec.TxIDs) > 0 {
+		return []gen.Condition{table.TxID.In(spec.TxIDs...)}
+	}
 
 	var conditions []gen.Condition
 	if spec.Attempts != nil {
@@ -457,6 +465,78 @@ func (p *KnownTx) conditionsBySpec(spec *pkgentity.KnownTxReadSpecification) []g
 	}
 
 	return conditions
+}
+
+// InvalidateMerkleProofsByBlockHash sets MerklePath, BlockHeight, MerkleRoot, and BlockHash
+// to NULL for all KnownTx records where BlockHash matches any of the provided hashes.
+// Also sets status to 'reorg' so CheckForProofsTask will re-fetch proofs.
+// Adds a history note to each affected transaction.
+// Returns the number of affected records.
+func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHashes []string) (int64, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-InvalidMerkleProofsByClockHash",
+		attribute.Int("block_hashes_count", len(blockHashes)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(blockHashes) == 0 {
+		return 0, nil
+	}
+
+	var affected int64
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var affectedTxs []struct {
+			TxID      string
+			BlockHash string
+		}
+
+		if err = tx.Model(&models.KnownTx{}).
+			Select("tx_id", "block_hash").
+			Where("block_hash IN ?", blockHashes).
+			Find(&affectedTxs).Error; err != nil {
+			return fmt.Errorf("failed to find affected transactions: %w", err)
+		}
+		if len(affectedTxs) == 0 {
+			return nil
+		}
+
+		res := tx.Model(&models.KnownTx{}).
+			Where("block_hash IN ?", blockHashes).
+			Updates(map[string]any{
+				"merkle_path":  nil,
+				"block_height": nil,
+				"merkle_root":  nil,
+				"block_hash":   nil,
+				"attempts":     0,
+				"status":       wdk.ProvenTxStatusReorg,
+			})
+		if res.Error != nil {
+			err = res.Error
+			return fmt.Errorf("failed to invalidate merkle proofs: %w", err)
+		}
+
+		affected = res.RowsAffected
+
+		// add history notes about reorg
+		notes := make([]*pkgentity.TxHistoryNote, 0, len(affectedTxs))
+		for _, tx := range affectedTxs {
+			note := history.NewBuilder().
+				ReorgInvalidatedProof(tx.BlockHash).
+				Entity(tx.TxID)
+			notes = append(notes, note)
+		}
+
+		if err := addTxNotes(tx, notes); err != nil {
+			return fmt.Errorf("failed to add reorg history notes: %w", err)
+		}
+
+		return nil
+	})
+
+	return affected, nil
 }
 
 func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {

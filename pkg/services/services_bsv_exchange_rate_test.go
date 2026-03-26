@@ -4,9 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
@@ -31,8 +33,8 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		result, err := services.BsvExchangeRate(t.Context())
 
 		// then:
-		assert.NoError(t, err)
-		assert.Equal(t, cachedRate.Rate, result)
+		require.NoError(t, err)
+		assert.InDelta(t, cachedRate.Rate, result, 0.001)
 	})
 
 	t.Run("returns updated exchange rate when outside threshold", func(t *testing.T) {
@@ -57,8 +59,8 @@ func TestUpdateBsvExchangeRateSuccess(t *testing.T) {
 		result, err := services.BsvExchangeRate(t.Context())
 
 		// then:
-		assert.NoError(t, err)
-		assert.Equal(t, 50.5, result)
+		require.NoError(t, err)
+		assert.InDelta(t, 50.5, result, 0.001)
 	})
 }
 
@@ -75,7 +77,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		_, err := services.BsvExchangeRate(t.Context())
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to fetch exchange rate")
 	})
 
@@ -91,7 +93,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 		_, err := services.BsvExchangeRate(t.Context())
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to retrieve successful response from WOC")
 	})
 
@@ -109,7 +111,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 
 		_, err := services.BsvExchangeRate(t.Context())
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported currency")
 	})
 }

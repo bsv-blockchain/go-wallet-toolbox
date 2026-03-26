@@ -4,9 +4,10 @@ import (
 	"encoding/base64"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/slices"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
 )
 
 // MapInternalizeActionArgs maps sdk.InternalizeActionArgs to wdk.InternalizeActionArgs
@@ -15,13 +16,13 @@ func MapInternalizeActionArgs(args sdk.InternalizeActionArgs) wdk.InternalizeAct
 		Tx:             args.Tx,
 		Outputs:        slices.Map(args.Outputs, mapInternalizeOutput),
 		Description:    primitives.String5to2000Bytes(args.Description),
-		Labels:         slices.Map(args.Labels, stringToStringUnder300),
+		Labels:         slices.Map(args.Labels, stringToIdentifier),
 		SeekPermission: mapSeekPermission(args.SeekPermission),
 	}
 }
 
-func stringToStringUnder300(s string) primitives.StringUnder300 {
-	return primitives.StringUnder300(s)
+func stringToIdentifier(s string) primitives.StringUnder300 {
+	return primitives.NewIdentifier(s)
 }
 
 // mapInternalizeOutput maps sdk.InternalizeOutput to wdk.InternalizeOutput
@@ -69,9 +70,9 @@ func mapInsertionRemittance(insertion *sdk.BasketInsertion) *wdk.BasketInsertion
 	}
 
 	return &wdk.BasketInsertion{
-		Basket:             primitives.StringUnder300(insertion.Basket),
+		Basket:             primitives.NewIdentifier(insertion.Basket),
 		CustomInstructions: customInstructions,
-		Tags:               slices.Map(insertion.Tags, stringToStringUnder300),
+		Tags:               slices.Map(insertion.Tags, stringToIdentifier),
 	}
 }
 

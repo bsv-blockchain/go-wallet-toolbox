@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/go-softwarelab/common/pkg/must"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 type listActions struct {
@@ -32,6 +34,12 @@ func newListActions(logger *slog.Logger, transactions TransactionsRepo, outputs 
 
 func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
 	userID := *auth.UserID
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-Internalize")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	filter, err := l.toFilterParams(userID, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert filter params: %w", err)

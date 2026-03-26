@@ -8,19 +8,20 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // MapListOutputsArgs maps sdk.ListOutputsArgs to wdk.ListOutputsArgs
 func MapListOutputsArgs(args sdk.ListOutputsArgs) wdk.ListOutputsArgs {
 	result := wdk.ListOutputsArgs{
-		Basket:                    primitives.StringUnder300(args.Basket),
-		Tags:                      slices.Map(args.Tags, func(tag string) primitives.StringUnder300 { return primitives.StringUnder300(tag) }),
+		Basket:                    primitives.NewIdentifier(args.Basket),
+		Tags:                      slices.Map(args.Tags, stringToIdentifier),
 		Limit:                     primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
 		Offset:                    primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
 		IncludeCustomInstructions: optional.OfPtr(args.IncludeCustomInstructions).OrZeroValue(),
@@ -112,9 +113,7 @@ func MapListOutputsResult(result *wdk.ListOutputsResult) (*sdk.ListOutputsResult
 		Outputs:      outputs,
 	}
 
-	if result.BEEF != nil {
-		sdkResult.BEEF = *result.BEEF
-	}
+	sdkResult.BEEF = result.BEEF
 
 	return sdkResult, nil
 }

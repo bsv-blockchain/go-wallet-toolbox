@@ -7,16 +7,17 @@ import (
 	"slices"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/optional"
+	commonslices "github.com/go-softwarelab/common/pkg/slices"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/optional"
-	commonslices "github.com/go-softwarelab/common/pkg/slices"
 )
 
-func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) {
+func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) { //nolint:unparam // error return reserved for future validation
 	labelNames := commonslices.Map(args.Labels, func(label primitives.StringUnder300) string {
 		return string(label)
 	})
@@ -46,6 +47,7 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 		LabelQueryMode: args.LabelQueryMode.MustGetValue(),
 		Limit:          must.ConvertToIntFromUnsigned(args.Limit),
 		Offset:         must.ConvertToIntFromUnsigned(args.Offset),
+		Reference:      args.Reference,
 	}, nil
 }
 

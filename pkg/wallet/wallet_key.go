@@ -13,7 +13,7 @@ type WIF string
 
 // PrivateKey returns the private key from the WIF string.
 func (w WIF) PrivateKey() (*ec.PrivateKey, error) {
-	return ec.PrivateKeyFromWif(string(w)) //nolint:wrapcheck
+	return ec.PrivateKeyFromWif(string(w)) //nolint:wrapcheck // direct pass-through, wrapping would add no value
 }
 
 // PrivateKeySource represents a source of wallet owner private key.

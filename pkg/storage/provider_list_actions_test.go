@@ -3,6 +3,10 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -11,9 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListActions_HappyPath(t *testing.T) {
@@ -46,7 +47,7 @@ func TestListActions_HappyPath(t *testing.T) {
 
 	internalizedTx := result.Actions[0]
 	assert.Equal(t, ownedTransaction.Inputs[0].SourceTXID.String(), internalizedTx.TxID)
-	assert.Len(t, internalizedTx.Inputs, 0)
+	assert.Empty(t, internalizedTx.Inputs)
 
 	createdTx := result.Actions[1]
 	assert.Equal(t, ownedTransaction.TxID().String(), createdTx.TxID)
@@ -59,7 +60,7 @@ func TestListActions_HappyPath(t *testing.T) {
 		createdTxInput.SourceOutpoint,
 	)
 
-	require.Equal(t, len(ownedTransaction.Outputs), len(createdTx.Outputs))
+	require.Len(t, createdTx.Outputs, len(ownedTransaction.Outputs))
 
 	resultOutput := createdTx.Outputs[0]
 	assert.Contains(t, resultOutput.Tags, fixtures.CreateActionTestTag)
@@ -273,4 +274,80 @@ func TestListActions_SeekPermissionFalse(t *testing.T) {
 	// Then:
 	require.Error(t, err)
 	require.ErrorContains(t, err, "seekPermission=false")
+}
+
+func TestListActions_FilterByReference(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	customReference := "custom-ref-123"
+	given.Action(activeStorage).WithSatoshisToInternalize(42001).WithReference(customReference).Processed()
+	given.Action(activeStorage).WithSatoshisToInternalize(42002).Processed()
+
+	listArgs := wdk.ListActionsArgs{
+		Limit:     10,
+		Offset:    0,
+		Reference: &customReference,
+	}
+	result, err := activeStorage.ListActions(t.Context(), testusers.Alice.AuthID(), listArgs)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, primitives.PositiveInteger(1), result.TotalActions)
+	assert.Len(t, result.Actions, 1)
+}
+
+func TestListActions_FilterByReferenceNoMatch(t *testing.T) {
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), fixtures.DefaultValidCreateActionArgs())
+	require.NoError(t, err)
+
+	nonExistentRef := "non-existent-reference"
+	listArgs := wdk.ListActionsArgs{
+		Limit:     10,
+		Offset:    0,
+		Reference: &nonExistentRef,
+	}
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), listArgs)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, primitives.PositiveInteger(0), result.TotalActions)
+	assert.Empty(t, result.Actions)
+}
+
+func TestListActions_EmptyReferenceReturnsAll(t *testing.T) {
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+
+	someReference := "some-reference"
+	argsWithRef := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Reference = someReference
+	})
+	_, err := activeStorage.CreateAction(ctx, testusers.Alice.AuthID(), argsWithRef)
+	require.NoError(t, err)
+
+	listArgs := wdk.ListActionsArgs{
+		Limit:     10,
+		Offset:    0,
+		Reference: nil,
+	}
+	result, err := activeStorage.ListActions(ctx, testusers.Alice.AuthID(), listArgs)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, primitives.PositiveInteger(2), result.TotalActions)
 }

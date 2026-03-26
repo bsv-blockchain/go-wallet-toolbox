@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type ExpandedTxView struct {
@@ -34,7 +35,7 @@ func (m *ExpandedTxView) Init() tea.Cmd {
 func (m *ExpandedTxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc, tea.KeyEnter:
 			return m.parentView, nil
 		}
@@ -52,7 +53,7 @@ func (m *ExpandedTxView) View() string {
 
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("Transaction %d Details\n\n", m.txIndex+1))
+	fmt.Fprintf(&b, "Transaction %d Details\n\n", m.txIndex+1)
 
 	b.WriteString("Full Transaction Hash:\n")
 	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Render(fullHash) + "\n\n")

@@ -6,8 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -16,14 +17,18 @@ const (
 	failAbandonedItemsPerPage = 1000
 )
 
-var (
-	statusesOfAbandonedTxs = []wdk.TxStatus{
-		wdk.TxStatusUnprocessed,
-		wdk.TxStatusUnsigned,
-	}
-)
+var statusesOfAbandonedTxs = []wdk.TxStatus{
+	wdk.TxStatusUnprocessed,
+	wdk.TxStatusUnsigned,
+}
 
 func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time.Duration) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-AbortAbandoned")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	log := a.logger.With("action", "failAbandonedTransactions").With(slog.Duration("minTransactionAge", minTransactionAge))
 	log.InfoContext(ctx, "Attempting to fail abandoned transactions")
 

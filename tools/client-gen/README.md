@@ -1,11 +1,11 @@
 # Client-Gen: Code Generation Tool
 
-Client-Gen is a code generation tool designed to automatically create client implementations from Go interface definitions. 
+Client-Gen is a code generation tool designed to automatically create client implementations from Go interface definitions.
 It simplifies the process of creating client code by analyzing interface declarations and generating corresponding client implementations based on customizable templates.
 
 ## Purpose
 
-The primary purpose of Client-Gen was to reduce boilerplate code when implementing storage interface. 
+The primary purpose of Client-Gen was to reduce boilerplate code when implementing storage interface.
 By defining your service contract as a Go interface and adding appropriate annotations, you can automatically generate client code that adheres to that contract.
 
 ## Adding a New Template

@@ -28,9 +28,6 @@ go.work.sum
 .idea/
 *.iml
 
-# Visual Studio Code
-.vscode/
-
 # OSX
 .DS_Store
 
@@ -41,6 +38,9 @@ infra-config.*.yaml
 chaintracks-config.yaml
 chaintracks-config.*.yaml
 !chaintracks-config.example.yaml
+certifier-config.yaml
+certifier-config.*.yaml
+!certifier-config.example.yaml
 
 # SQLite databases
 storage.sqlite
@@ -54,3 +54,6 @@ examples/examples-config.yaml
 manual_tests/*.sqlite
 manual_tests/*.log
 manual_tests/*.sqlite-journal
+
+# Fuzz Tests
+testdata

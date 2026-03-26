@@ -32,12 +32,12 @@ func main() {
 	fmt.Printf("Outpoint: %s\n", outpoint)
 	fmt.Println("=====================================")
 
-	body, _ := json.Marshal(topupReq{Outpoint: outpoint})
-	resp, err := http.Post(server+"/topup", "application/json", bytes.NewReader(body))
+	body, _ := json.Marshal(topupReq{Outpoint: outpoint})                              //nolint:errchkjson // error not possible for this well-typed struct
+	resp, err := http.Post(server+"/topup", "application/json", bytes.NewReader(body)) //nolint:noctx // example script, context not needed
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in example code
 
 	var out topupResp
 	_ = json.NewDecoder(resp.Body).Decode(&out)

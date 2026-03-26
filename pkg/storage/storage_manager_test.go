@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/mocks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletStorageManager_GetAuth(t *testing.T) {
-
 	t.Run("get auth successfully", func(t *testing.T) {
 		// given:
 		given, cleanup := testabilities.Given(t)
@@ -39,7 +39,6 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 			IdentityKey: testusers.Alice.IdentityKey(t),
 			IsActive:    to.Ptr(true),
 		}, auth)
-
 	})
 
 	errorCases := map[string]struct {
@@ -127,7 +126,6 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 			IdentityKey: testusers.Alice.IdentityKey(t),
 			IsActive:    to.Ptr(true),
 		}, auth)
-
 	})
 }
 
@@ -220,7 +218,7 @@ func TestWalletStorageManager_SetActive(t *testing.T) {
 		// then:
 		outputs, err := storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
 		require.NoError(t, err)
-		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+		require.Equal(t, topUpAmount, int(outputs.Outputs[0].Satoshis)) //nolint:gosec // safe: satoshis fit in int for test values
 
 		// when: switch to backup
 		err = storageManager.SetActive(t.Context(), fixtures.SecondStorageIdentityKey)
@@ -232,7 +230,7 @@ func TestWalletStorageManager_SetActive(t *testing.T) {
 		// and:
 		outputs, err = storageManager.ListOutputs(t.Context(), wdk.ListOutputsArgs{Limit: 1000})
 		require.NoError(t, err)
-		require.Equal(t, int(outputs.Outputs[0].Satoshis), topUpAmount)
+		require.Equal(t, topUpAmount, int(outputs.Outputs[0].Satoshis)) //nolint:gosec // safe: satoshis fit in int for test values
 	})
 
 	t.Run("one active on unexisting storage", func(t *testing.T) {
@@ -299,7 +297,7 @@ func TestWalletStorageManager_FindOutputs(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Len(t, outputs, 0)
+		require.Empty(t, outputs)
 
 		// when: top up
 		const topUpAmount = 1000
@@ -314,6 +312,6 @@ func TestWalletStorageManager_FindOutputs(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		require.Len(t, outputs, 1)
-		require.Equal(t, int(outputs[0].Satoshis), topUpAmount)
+		require.Equal(t, topUpAmount, int(outputs[0].Satoshis))
 	})
 }

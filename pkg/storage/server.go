@@ -8,9 +8,10 @@ import (
 
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/server"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/server"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -34,9 +35,9 @@ func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, wallet sd
 
 // Handler returns an http.Handler configured with the storage RPC endpoints.
 func (s *Server) Handler() http.Handler {
-	provider := server.NewRPCStorageProvider(s.logger, s.provider)
+	provider := rpcserver.NewRPCStorageProvider(s.logger, s.provider)
 
-	rpcServer := server.NewRPCHandler(s.logger, "remote_storage", provider)
+	rpcServer := rpcserver.NewRPCHandler(s.logger, "remote_storage", provider)
 
 	mux := http.NewServeMux()
 	rpcServer.Register(mux)

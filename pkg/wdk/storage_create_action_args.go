@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // ValidCreateActionInput represents the input for a transaction action
@@ -76,6 +77,7 @@ type ValidCreateActionArgs struct {
 	IsSignAction                 bool                          `json:"isSignAction,omitempty"`
 	RandomVals                   *[]int                        `json:"randomVals,omitempty"`
 	IncludeAllSourceTransactions bool                          `json:"includeAllSourceTransactions,omitempty"`
+	Reference                    string                        `json:"reference,omitempty"`
 
 	Options ValidCreateActionOptions `json:"options"`
 

@@ -6,13 +6,14 @@ import (
 	"log/slog"
 	stdslices "slices"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/managed"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/managed"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 var _ wdk.WalletStorage = (*WalletStorageManager)(nil)
@@ -170,7 +171,7 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 		slog.String("identityKey", m.identityKey),
 	)
 
-	return
+	return inserts, updates, err
 }
 
 // SetActive Updates backups and switches to new active storage provider from among current backup providers.
@@ -181,7 +182,7 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 	}
 
 	if m.activeStorage != nil && m.activeStorage.Settings.StorageIdentityKey == storageIdentityKey {
-		//already active
+		// already active
 		return nil
 	}
 

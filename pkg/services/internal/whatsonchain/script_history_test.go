@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 )
 
 func TestWhatsOnChain_GetScriptHistory_ValidResponse(t *testing.T) {

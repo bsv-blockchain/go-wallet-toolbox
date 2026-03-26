@@ -1,8 +1,9 @@
 package testservices
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type FixtureOptions struct {

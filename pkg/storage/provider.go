@@ -7,25 +7,26 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/must"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // ErrAuthorization is an error that indicates that the user is not authorized to perform the action.
@@ -89,6 +90,8 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			services,
 			options.SynchronizeTxStatusesConfig,
 			options.beefVerifier(),
+			options.scriptsVerifier(),
+			options.BackgroundBroadcasterChannel,
 		),
 		options:  &options,
 		logger:   log,
@@ -118,7 +121,7 @@ func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *Pro
 }
 
 // Migrate migrates the storage and saves the settings.
-func (p *Provider) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
+func (p *Provider) Migrate(ctx context.Context, storageName, storageIdentityKey string) (string, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-Migrate", attribute.String("storageName", storageName))
 	defer func() {
@@ -197,7 +200,7 @@ func (p *Provider) InsertCertificateAuth(ctx context.Context, auth wdk.AuthID, c
 		tracing.EndTracing(span, err)
 	}()
 
-	if auth.UserID == nil || certificate.UserID != *auth.UserID {
+	if auth.UserID == nil || string(certificate.Subject) != auth.IdentityKey {
 		return 0, ErrAuthorization
 	}
 
@@ -382,7 +385,7 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidCreateActionArgs(&args); err != nil {
+	if err = validate.ValidCreateActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
@@ -425,7 +428,7 @@ func (p *Provider) InternalizeAction(ctx context.Context, auth wdk.AuthID, args 
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ValidInternalizeActionArgs(&args); err != nil {
+	if err = validate.ValidInternalizeActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid internalizeAction args: %w", err)
 	}
 
@@ -447,7 +450,7 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 	if auth.UserID == nil {
 		return nil, ErrAuthorization
 	}
-	if err := validate.ProcessActionArgs(&args); err != nil {
+	if err = validate.ProcessActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid processAction args: %w", err)
 	}
 
@@ -470,7 +473,7 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ValidAbortActionArgs(&args); err != nil {
+	if err = validate.ValidAbortActionArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid abortActionArgs args: %w", err)
 	}
 
@@ -482,33 +485,33 @@ func (p *Provider) AbortAction(ctx context.Context, auth wdk.AuthID, args wdk.Ab
 }
 
 // SynchronizeTransactionStatuses synchronizes the statuses of tracked transactions with the current network state.
-func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) error {
+func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.TxSynchronizedStatus, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SynchronizeTransactionStatuses")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.actions.SynchronizeTxStatuses(ctx)
+	results, err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+		return nil, fmt.Errorf("failed to synchronize transaction statuses: %w", err)
 	}
-	return nil
+	return results, nil
 }
 
 // SendWaitingTransactions tries to broadcast transactions that are waiting to be sent
-func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) error {
+func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageProvider-SendWaitingTransactions")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.actions.SendWaitingTransactions(ctx, minTransactionAge)
+	results, err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
-		return fmt.Errorf("failed to send waiting transactions: %w", err)
+		return nil, fmt.Errorf("failed to send waiting transactions: %w", err)
 	}
-	return nil
+	return results, nil
 }
 
 // AbortAbandoned marks transactions as failed if they have been unprocessed for longer than the specified minimum age.
@@ -540,7 +543,7 @@ func (p *Provider) UnFail(ctx context.Context) error {
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := p.actions.UnFail(ctx); err != nil {
+	if err = p.actions.UnFail(ctx); err != nil {
 		return fmt.Errorf("failed to recheck failed transactions: %w", err)
 	}
 	return nil
@@ -558,7 +561,7 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 		return nil, ErrAuthorization
 	}
 
-	if err := validate.ListOutputsArgs(&args); err != nil {
+	if err = validate.ListOutputsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listOutputs args: %w", err)
 	}
 
@@ -586,7 +589,7 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return ErrAuthorization
 	}
 
-	if err := validate.ValidRelinquishOutputArgs(&args); err != nil {
+	if err = validate.ValidRelinquishOutputArgs(&args); err != nil {
 		return fmt.Errorf("invalid relinquishOutput args: %w", err)
 	}
 
@@ -628,7 +631,7 @@ func (p *Provider) ConfigureBasket(ctx context.Context, auth wdk.AuthID, args wd
 		return ErrAuthorization
 	}
 
-	if err := validate.ValidBasketConfiguration(&args); err != nil {
+	if err = validate.ValidBasketConfiguration(&args); err != nil {
 		return fmt.Errorf("invalid basket configuration: %w", err)
 	}
 
@@ -685,10 +688,11 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 			LabelQueryMode:                   args.LabelQueryMode,
 		}
 
-		if err := validate.ListFailedActionsArgs(&failedArgs); err != nil {
+		if err = validate.ListFailedActionsArgs(&failedArgs); err != nil {
 			return nil, fmt.Errorf("invalid listFailedActions args: %w", err)
 		}
-		result, err := p.actions.ListFailedActions(ctx, auth, &failedArgs)
+		var result *wdk.ListActionsResult
+		result, err = p.actions.ListFailedActions(ctx, auth, &failedArgs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list failed actions: %w", err)
 		}
@@ -696,7 +700,7 @@ func (p *Provider) ListActions(ctx context.Context, auth wdk.AuthID, args wdk.Li
 	}
 
 	args.Labels = filtered
-	if err := validate.ListActionsArgs(&args); err != nil {
+	if err = validate.ListActionsArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid listActions args: %w", err)
 	}
 
@@ -725,7 +729,7 @@ func (p *Provider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkAr
 		return nil, fmt.Errorf("fromStorageIdentityKey %s does not match the storage identity key %s", args.FromStorageIdentityKey, settings.StorageIdentityKey)
 	}
 
-	if err := validate.ValidRequestSyncChunkArgs(&args); err != nil {
+	if err = validate.ValidRequestSyncChunkArgs(&args); err != nil {
 		return nil, fmt.Errorf("invalid requestSyncChunk args: %w", err)
 	}
 
@@ -943,4 +947,164 @@ func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters
 	return slices.Map(entities, func(o *entity.Output) wdk.TableOutput {
 		return *o.ToWDK()
 	}), nil
+}
+
+// HandleReorg invalidates merkle proofs for transactions in orphaned blocks.
+// This is called when a blockchain reorganization is detected.
+func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string) error {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-HandleReorg",
+		attribute.Int("orphaned_blocks", len(orphanedBlockHashes)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(orphanedBlockHashes) == 0 {
+		return nil
+	}
+
+	affected, err := p.repo.InvalidateMerkleProofsByBlockHash(ctx, orphanedBlockHashes)
+	if err != nil {
+		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
+	}
+
+	p.logger.Info("Handled reorg - invalidated merkle proofs",
+		"orphaned_blocks", len(orphanedBlockHashes),
+		"affected_transactions", affected,
+	)
+
+	return nil
+}
+
+// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
+// It fetches transactions from the KnownTx table and converts them to CurrentTxStatus format.
+func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ListTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if auth.UserID == nil {
+		return nil, ErrAuthorization
+	}
+
+	hasTxIDsFilter := len(args.TxIDs) > 0
+	hasReferencesFilter := len(args.References) > 0
+
+	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
+
+	if hasReferencesFilter {
+		txQuery = txQuery.Reference().In(args.References...)
+	}
+	if hasTxIDsFilter {
+		txQuery = txQuery.TxID().In(args.TxIDs...)
+	}
+
+	userTxs, txErr := txQuery.Find(ctx)
+	if txErr != nil {
+		return nil, fmt.Errorf("error finding transactions: %w", txErr)
+	}
+
+	if len(userTxs) == 0 {
+		return &wdk.ListTransactionsResult{
+			TotalTransactions: 0,
+			Transactions:      []wdk.CurrentTxStatus{},
+		}, nil
+	}
+
+	txStatusMap := make(map[string]wdk.TxStatus, len(userTxs))
+	txReferenceMap := make(map[string]string, len(userTxs))
+	txIDs := make([]string, 0, len(userTxs))
+	for _, tx := range userTxs {
+		if tx.TxID != nil {
+			txIDs = append(txIDs, *tx.TxID)
+			txStatusMap[*tx.TxID] = tx.Status
+			txReferenceMap[*tx.TxID] = tx.Reference
+		}
+	}
+
+	if len(txIDs) == 0 {
+		return &wdk.ListTransactionsResult{
+			TotalTransactions: 0,
+			Transactions:      []wdk.CurrentTxStatus{},
+		}, nil
+	}
+
+	query := p.KnownTxEntity().Read().Paged(must.ConvertToIntFromUnsigned(args.Limit), must.ConvertToIntFromUnsigned(args.Offset), false)
+
+	if args.Status != nil {
+		query = query.Status().Equals(wdk.ProvenTxReqStatus(*args.Status))
+	}
+
+	knownTxs, err := query.TxIDs(txIDs...).Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing transactions: %w", err)
+	}
+
+	totalCount := uint64(len(knownTxs))
+
+	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
+	for _, ktx := range knownTxs {
+		var status wdk.StandardizedTxStatus
+		if s, ok := txStatusMap[ktx.TxID]; ok {
+			status = s.ToStandardizedStatus()
+		} else {
+			status = ktx.Status.ToStandardizedStatus()
+		}
+
+		txUpdate := wdk.CurrentTxStatus{
+			TxID:   ktx.TxID,
+			Status: status,
+		}
+
+		if ref, ok := txReferenceMap[ktx.TxID]; ok {
+			txUpdate.Reference = ref
+		}
+
+		if ktx.BlockHash != nil {
+			txUpdate.BlockHash = *ktx.BlockHash
+		}
+		if ktx.BlockHeight != nil {
+			txUpdate.BlockHeight = *ktx.BlockHeight
+		}
+		if ktx.MerkleRoot != nil {
+			txUpdate.MerkleRoot = *ktx.MerkleRoot
+		}
+		if len(ktx.MerklePath) > 0 {
+			merklePath, parseErr := transaction.NewMerklePathFromBinary(ktx.MerklePath)
+			if parseErr == nil {
+				txUpdate.MerklePath = merklePath
+			}
+		}
+
+		transactions = append(transactions, txUpdate)
+	}
+
+	return &wdk.ListTransactionsResult{
+		TotalTransactions: primitives.PositiveInteger(totalCount),
+		Transactions:      transactions,
+	}, nil
+}
+
+// ProcessNewTip updates the last checked block and runs transaction synchronization.
+// Called when a new chain tip is received from chaintracks.
+func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessNewTip",
+		attribute.Int("height", int(height)),
+		attribute.String("hash", hash),
+	)
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	results, err := p.actions.SynchronizeTxStatusesForTip(ctx, height, hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to synchronize transaction statuses for tip: %w", err)
+	}
+
+	return results, nil
 }

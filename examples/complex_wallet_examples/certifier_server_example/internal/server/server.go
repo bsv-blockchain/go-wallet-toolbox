@@ -12,6 +12,8 @@ import (
 	httpTransport "github.com/bsv-blockchain/certifier-server-example/internal/transport/http"
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
@@ -48,33 +50,25 @@ func (s *Server) initializeCertifierWallet() error {
 		return fmt.Errorf("identity key does not match the public key derived from private key")
 	}
 
-	storageProvider, _, err := s.createStorageProvider()
-	if err != nil {
-		return fmt.Errorf("failed to create storage provider: %w", err)
-	}
-
-	s.wallet, err = wallet.New(
+	s.wallet, err = wallet.NewWithStorageFactory(
 		defs.BSVNetwork(s.config.Server.Network),
 		s.config.CertifierWallet.PrivateKey,
-		storageProvider,
+		func(userWallet sdk.Interface) (wdk.WalletStorageProvider, func(), error) {
+			if s.config.Storage.URL != "" {
+				return storage.NewClient(s.config.Storage.URL, userWallet)
+			}
+			return example_setup.CreateLocalStorage(
+				context.Background(),
+				defs.BSVNetwork(s.config.Server.Network),
+				s.config.Storage.PrivateKey,
+			)
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create wallet: %w", err)
 	}
 
 	return nil
-}
-
-func (s *Server) createStorageProvider() (wdk.WalletStorageProvider, func(), error) {
-	if s.config.Storage.URL != "" {
-		return storage.NewClient(s.config.Storage.URL)
-	}
-
-	return example_setup.CreateLocalStorage(
-		context.Background(),
-		defs.BSVNetwork(s.config.Server.Network),
-		s.config.Storage.PrivateKey,
-	)
 }
 
 func (s *Server) setupRoutes() http.Handler {
@@ -93,5 +87,5 @@ func (s *Server) Start() error {
 
 	s.logger.Info("Starting certificate server", "addr", addr, "network", s.config.Server.Network)
 
-	return http.ListenAndServe(addr, handler)
+	return http.ListenAndServe(addr, handler) //nolint:gosec // example server, timeouts not required
 }

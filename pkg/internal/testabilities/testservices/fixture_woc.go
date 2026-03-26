@@ -11,10 +11,11 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type WhatsOnChainFixture interface {
@@ -26,8 +27,8 @@ type WhatsOnChainFixture interface {
 	WillBeUnreachable() error
 	WillRespondWithInternalFailure()
 	WillRespondWithMerkleRoot(root string)
-	WillRespondWithMerklePath(status int, txID string, responseBody string)
-	WillRespondWithBlockHeader(status int, blockHash string, responseBody string)
+	WillRespondWithMerklePath(status int, txID, responseBody string)
+	WillRespondWithBlockHeader(status int, blockHash, responseBody string)
 	WillRespondWithBlockHeaderByHeight(status int, height uint32, merkleRoot string)
 	WhenQueryingMerklePath(txID string) WhatsOnChainMerklePathQueryFixture
 	WhenQueryingBlockHeader(blockHash string) WhatsOnChainBlockHeaderQueryFixture
@@ -36,21 +37,22 @@ type WhatsOnChainFixture interface {
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	WillRespondWithChainInfo(status int, blocks uint32)
 	WillReturnMalformedBlockHeader(blockHash string)
-	WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string)
+	WillRespondWithUtxoStatus(status int, scriptHash, responseJSON string)
 	Transport() *httpmock.MockTransport
 	HttpClient() *resty.Client
 
-	WillRespondWithConfirmedScriptHistory(status int, scriptHash string, responseJSON string)
-	WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, responseJSON string)
-	WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string)
+	WillRespondWithConfirmedScriptHistory(status int, scriptHash, responseJSON string)
+	WillRespondWithUnconfirmedScriptHistory(status int, scriptHash, responseJSON string)
+	WillRespondWithScriptHistoryError(status int, scriptHash, errorMsg string)
 	WhenQueryingScriptHistory(scriptHash string) WhatsOnChainScriptHistoryQueryFixture
 	ScriptHistoryData() ScriptHistoryDataBuilder
-	WithScriptHistoryValidationError(scriptHash string, expectedError string)
+	WithScriptHistoryValidationError(scriptHash, expectedError string)
 	MinedTransaction() MinedTransactionFixture
 }
 
 type wocFixture struct {
 	testing.TB
+
 	getBeefFixture *minedTransactionFixture
 	transport      *httpmock.MockTransport
 	network        defs.BSVNetwork
@@ -111,6 +113,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 
 type TipBlockHeaderOptions struct {
 	Height uint
+	Hash   string
 }
 
 type TipBlockHeaderOption = func(*TipBlockHeaderOptions)
@@ -118,6 +121,12 @@ type TipBlockHeaderOption = func(*TipBlockHeaderOptions)
 func WithTipBlockHeaderHeight(height uint) TipBlockHeaderOption {
 	return func(opts *TipBlockHeaderOptions) {
 		opts.Height = height
+	}
+}
+
+func WithTipBlockHeaderHash(hash string) TipBlockHeaderOption {
+	return func(opts *TipBlockHeaderOptions) {
+		opts.Hash = hash
 	}
 }
 
@@ -135,6 +144,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBl
 
 	options := to.OptionsWithDefault(TipBlockHeaderOptions{
 		Height: TestBlockHeight,
+		Hash:   TestBlockHash,
 	}, opts...)
 
 	f.transport.RegisterResponder(
@@ -142,7 +152,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBl
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, []wocBlockResponseItem{
 			{
-				Hash:              TestBlockHash,
+				Hash:              options.Hash,
 				Confirmations:     TestBlockConfirmations,
 				Size:              TestBlockSize,
 				Height:            options.Height,
@@ -191,7 +201,7 @@ func (f *wocFixture) WillRespondWithRates(status int, content string, err error)
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/exchangerate", f.network),
-		responder(status, content),
+		responder(status, content), //nolint:bodyclose // mock responder for test fixture, not an actual HTTP response
 	)
 }
 
@@ -211,7 +221,7 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/hex", f.network, txID),
-		responder(status, rawTx),
+		responder(status, rawTx), //nolint:bodyclose // mock responder for test fixture, not an actual HTTP response
 	)
 }
 
@@ -466,7 +476,7 @@ type WhatsOnChainScriptHistoryQueryFixture interface {
 }
 
 type ScriptHistoryDataBuilder interface {
-	WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder
+	WithConfirmedTransactions(count, startHeight int) ScriptHistoryDataBuilder
 	WithUnconfirmedTransactions(count int) ScriptHistoryDataBuilder
 	WithEmptyHistory() ScriptHistoryDataBuilder
 	WithScriptHash(scriptHash string) ScriptHistoryDataBuilder
@@ -481,7 +491,7 @@ type ScriptHistoryDataBuilder interface {
 	WillBeReturned()
 }
 
-func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHash string, responseJSON string) {
+func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHash, responseJSON string) {
 	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/confirmed/history", f.network, scriptHash)
 
@@ -494,7 +504,7 @@ func (f *wocFixture) WillRespondWithConfirmedScriptHistory(status int, scriptHas
 	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
-func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptHash string, responseJSON string) {
+func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptHash, responseJSON string) {
 	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unconfirmed/history", f.network, scriptHash)
 
@@ -507,7 +517,7 @@ func (f *wocFixture) WillRespondWithUnconfirmedScriptHistory(status int, scriptH
 	f.transport.RegisterResponder(http.MethodGet, url, responder)
 }
 
-func (f *wocFixture) WillRespondWithScriptHistoryError(status int, scriptHash string, errorMsg string) {
+func (f *wocFixture) WillRespondWithScriptHistoryError(status int, scriptHash, errorMsg string) {
 	f.Helper()
 
 	errorResponseJSON := fmt.Sprintf(`{
@@ -525,7 +535,7 @@ func (f *wocFixture) WhenQueryingScriptHistory(scriptHash string) WhatsOnChainSc
 	}
 }
 
-func (f *wocFixture) WithScriptHistoryValidationError(scriptHash string, expectedError string) {
+func (f *wocFixture) WithScriptHistoryValidationError(scriptHash, expectedError string) {
 	f.Helper()
 }
 
@@ -634,7 +644,7 @@ func (b *scriptHistoryDataBuilder) WithUnconfirmedTransactionsInternalError(erro
 	return b.WithUnconfirmedTransactionsError(errorMsg).WithUnconfirmedStatusCode(http.StatusInternalServerError)
 }
 
-func (b *scriptHistoryDataBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
+func (b *scriptHistoryDataBuilder) WithConfirmedTransactions(count, startHeight int) ScriptHistoryDataBuilder {
 	b.confirmedCount = count
 	b.startHeight = startHeight
 	b.emptyHistory = false
@@ -738,7 +748,7 @@ func (b *scriptHistoryDataBuilder) WillBeReturned() {
 	b.fixture.WillRespondWithUnconfirmedScriptHistory(b.unconfirmedStatusCode, b.scriptHash, unconfirmedResp)
 }
 
-func (f *wocFixture) WillRespondWithUtxoStatus(status int, scriptHash string, responseJSON string) {
+func (f *wocFixture) WillRespondWithUtxoStatus(status int, scriptHash, responseJSON string) {
 	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/script/%s/unspent/all", f.network, scriptHash)
 	responder := func(*http.Request) (*http.Response, error) {

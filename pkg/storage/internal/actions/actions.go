@@ -31,6 +31,8 @@ func New(
 	services wdk.Services,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
 	beefVerifier wdk.BeefVerifier,
+	scriptsVerifier wdk.ScriptsVerifier,
+	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 ) *Actions {
 	return &Actions{
 		create: newCreateAction(
@@ -45,6 +47,7 @@ func New(
 			randomizer,
 			services,
 			beefVerifier,
+			scriptsVerifier,
 		),
 		internalize: newInternalizeAction(
 			logger,
@@ -54,6 +57,7 @@ func New(
 			repos.Outputs,
 			randomizer,
 			beefVerifier,
+			scriptsVerifier,
 			services,
 		),
 		process: newProcessAction(
@@ -68,6 +72,8 @@ func New(
 			services,
 			randomizer,
 			beefVerifier,
+			scriptsVerifier,
+			txBroadcastedChannel,
 		),
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions),

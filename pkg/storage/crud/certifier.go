@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // Certifier provides query-building capabilities for retrieving distinct certifiers.

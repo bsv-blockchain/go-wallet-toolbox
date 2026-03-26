@@ -11,7 +11,7 @@ import (
 type Services interface {
 	BlockHeaderLoader
 	chaintracker.ChainTracker
-	PostBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (PostBeefResult, error)
+	PostFromBEEF(ctx context.Context, beef *transaction.Beef, txids []string) (PostFromBeefResult, error)
 	MerklePath(ctx context.Context, txid string) (*MerklePathResult, error)
 	FindChainTipHeader(ctx context.Context) (*ChainBlockHeader, error)
 	RawTx(ctx context.Context, txID string) (RawTxResult, error)

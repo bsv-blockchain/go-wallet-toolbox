@@ -7,14 +7,15 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // MapCreateActionArgs maps sdk.CreateActionArgs to wdk.ValidCreateActionArgs
@@ -28,8 +29,9 @@ func MapCreateActionArgs(args sdk.CreateActionArgs, opts wallet_opts.Flags) wdk.
 		Outputs:     slices.Map(args.Outputs, mapCreateActionOutput),
 		LockTime:    to.Value(args.LockTime),
 		Version:     to.ValueOr(args.Version, 1),
-		Labels:      slices.Map(args.Labels, stringToStringUnder300),
+		Labels:      slices.Map(args.Labels, stringToIdentifier),
 		Options:     options,
+		Reference:   to.ValueOr(args.Reference, ""),
 
 		RandomVals:                   nil,
 		IncludeAllSourceTransactions: opts.IncludeAllSourceTransactions,
@@ -75,7 +77,7 @@ func mapCreateActionInput(input sdk.CreateActionInput) wdk.ValidCreateActionInpu
 func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionOutput {
 	var basket *primitives.StringUnder300
 	if output.Basket != "" {
-		b := primitives.StringUnder300(output.Basket)
+		b := primitives.NewIdentifier(output.Basket)
 		basket = &b
 	}
 
@@ -90,7 +92,7 @@ func mapCreateActionOutput(output sdk.CreateActionOutput) wdk.ValidCreateActionO
 		OutputDescription:  primitives.String5to2000Bytes(output.OutputDescription),
 		Basket:             basket,
 		CustomInstructions: customInstructions,
-		Tags:               slices.Map(output.Tags, stringToStringUnder300),
+		Tags:               slices.Map(output.Tags, stringToIdentifier),
 	}
 }
 

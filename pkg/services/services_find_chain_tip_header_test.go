@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFindChainTipHeader_Bitails(t *testing.T) {
@@ -56,7 +57,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		actualBlock, err := service.FindChainTipHeader(t.Context())
 
 		// then:
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.NotEmpty(t, actualBlock)
 		require.EqualValues(t, expectedBlockHeight, actualBlock.Height)
 	})
@@ -67,9 +68,14 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 		given.Bitails().WillReturnInternalError()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())
@@ -87,9 +93,14 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		target1 := given.BHS().WillBeUnreachable()
 		target2 := given.WhatsOnChain().WillBeUnreachable()
 		target3 := given.Bitails().WillBeUnreachable()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())
@@ -109,9 +120,14 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.BHS().WillRespondWithEmptyLongestTipBlockHeader()
 		given.WhatsOnChain().OnTipBlockHeaderWillRespondWithEmptyList()
 		given.Bitails().WillReturnLatestBlock("", 0)
+		_ = given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.FindChainTipHeader(t.Context())

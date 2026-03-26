@@ -11,16 +11,17 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const ServiceName = defs.WhatsOnChainServiceName
@@ -188,7 +189,6 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 		SetContext(ctx).
 		SetResult(&blocks).
 		Get(url)
-
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching block headers from WhatsOnChain (URL: %s): %w", url, err)
 	}
@@ -210,28 +210,10 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 	return header, nil
 }
 
-// PostBEEF attempts to post beef with given txIDs
-func (woc *WhatsOnChain) PostBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (*wdk.PostedBEEF, error) {
-	if len(txIDs) == 0 {
-		return nil, fmt.Errorf("no txIDs provided")
-	}
-	if beef == nil {
-		return nil, fmt.Errorf("beef is required to post transactions")
-	}
-
-	rawTxs, err := txutils.ExtractRawTransactions(beef, txIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract raw transactions: %w", err)
-	}
-
-	txResults := make([]wdk.PostedTxID, 0, len(txIDs))
-
-	for i, txid := range txIDs {
-		result := woc.processSingleTx(ctx, txid, rawTxs[i])
-		txResults = append(txResults, result)
-	}
-
-	return &wdk.PostedBEEF{TxIDResults: txResults}, nil
+// PostTX broadcasts a single raw transaction to WhatsOnChain
+func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
+	result := woc.processSingleTx(ctx, rawTx)
+	return &result, nil
 }
 
 // IsValidRootForHeight checks if the provided Merkle root is valid for the given block height.

@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // KnownTx provides query-building capabilities for retrieving and filtering known transaction records from a data source.
@@ -29,6 +30,7 @@ type KnownTxReader interface {
 	KnownTxReadOperations
 
 	TxID(txID string) KnownTxReadOperations
+	TxIDs(txIDs ...string) KnownTxReadOperations
 	Attempts() NumericCondition[KnownTxReader, uint64]
 	Status() StringEnumCondition[KnownTxReader, wdk.ProvenTxReqStatus]
 	Notified() BoolCondition[KnownTxReader]
@@ -84,6 +86,11 @@ func (k *knownTx) TxID(txID string) KnownTxReadOperations {
 	return k
 }
 
+func (k *knownTx) TxIDs(txIDs ...string) KnownTxReadOperations {
+	k.spec.TxIDs = txIDs
+	return k
+}
+
 func (k *knownTx) Since(value time.Time, column entity.SinceField) KnownTxReader {
 	k.pagingAndSince.since = &queryopts.Since{
 		Time:  value,
@@ -96,7 +103,7 @@ func (k *knownTx) Paged(limit, offset int, desc bool) KnownTxReader {
 	k.pagingAndSince.paging = &queryopts.Paging{
 		Limit:  limit,
 		Offset: offset,
-		SortBy: "id",
+		SortBy: "tx_id",
 		Sort:   to.IfThen(desc, "DESC").ElseThen("ASC"),
 	}
 	return k

@@ -5,10 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 const (
@@ -25,7 +26,6 @@ type NoSendSendWithWaiting struct {
 	dataPrefix       string
 	progress         progress.Model
 	phase            string
-	err              error
 	completed        bool
 	currentPhase     int
 	expectedTxCount  int
@@ -82,7 +82,7 @@ func (m *NoSendSendWithWaiting) tickCmd() tea.Cmd {
 func (m *NoSendSendWithWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}
@@ -152,38 +152,7 @@ func (m *NoSendSendWithWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *NoSendSendWithWaiting) formatResults(result *NoSendSendWithResult) string {
-	var b strings.Builder
-
-	b.WriteString("NoSend/SendWith Test Results:\n\n")
-
-	b.WriteString(fmt.Sprintf("Total NoSend transactions: %d\n", result.TotalTxCount))
-	b.WriteString(fmt.Sprintf("Min NoSend time: %v\n", result.MinNoSendTime))
-	b.WriteString(fmt.Sprintf("Max NoSend time: %v\n", result.MaxNoSendTime))
-	b.WriteString(fmt.Sprintf("Avg NoSend time: %v\n\n", result.AvgNoSendTime))
-	b.WriteString(fmt.Sprintf("SendWith broadcast time: %v\n\n", result.SendWithTime))
-
-	if len(result.BroadcastedTxIds) > 0 {
-		b.WriteString(fmt.Sprintf("Broadcasted transactions (%d):\n", len(result.BroadcastedTxIds)))
-		for i, txHash := range result.BroadcastedTxIds {
-			fullHash := txHash.String()
-			shortHash := fullHash[:8] + "..." + fullHash[len(fullHash)-8:]
-			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, shortHash))
-		}
-		b.WriteString("\n")
-	}
-
-	b.WriteString("All transactions created and broadcast successfully!")
-
-	return b.String()
-}
-
 func (m *NoSendSendWithWaiting) View() string {
-	const (
-		dotCycleDur = 4e8
-		spnCycleDur = 2e8
-	)
-
 	pad := strings.Repeat(" ", padding)
 
 	var b strings.Builder
@@ -223,45 +192,6 @@ func (m *NoSendSendWithWaiting) View() string {
 
 	b.WriteString(pad)
 	b.WriteString(helpStyle("Press Ctrl+C to cancel"))
-
-	return b.String()
-}
-
-func (m *NoSendSendWithWaiting) formatCompactResults(result *NoSendSendWithResult) string {
-	var b strings.Builder
-
-	b.WriteString("NoSend/SendWith Test Results:\n\n")
-
-	b.WriteString(fmt.Sprintf("✓ Successfully created and broadcast %d transactions\n\n", result.TotalTxCount))
-
-	b.WriteString("NoSend Performance:\n")
-	b.WriteString(fmt.Sprintf("  Min time: %v\n", result.MinNoSendTime))
-	b.WriteString(fmt.Sprintf("  Max time: %v\n", result.MaxNoSendTime))
-	b.WriteString(fmt.Sprintf("  Avg time: %v\n\n", result.AvgNoSendTime))
-
-	b.WriteString(fmt.Sprintf("SendWith broadcast time: %v\n\n", result.SendWithTime))
-
-	if len(result.BroadcastedTxIds) > 0 {
-		b.WriteString("Broadcasted transactions:\n")
-
-		maxShow := 3
-		if len(result.BroadcastedTxIds) < maxShow {
-			maxShow = len(result.BroadcastedTxIds)
-		}
-
-		for i := 0; i < maxShow; i++ {
-			fullHash := result.BroadcastedTxIds[i].String()
-			shortHash := fullHash[:8] + "..." + fullHash[len(fullHash)-8:]
-			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, shortHash))
-		}
-
-		if len(result.BroadcastedTxIds) > maxShow {
-			b.WriteString(fmt.Sprintf("  ... and %d more transactions\n", len(result.BroadcastedTxIds)-maxShow))
-		}
-		b.WriteString("\n")
-	}
-
-	b.WriteString("All transactions completed successfully!")
 
 	return b.String()
 }

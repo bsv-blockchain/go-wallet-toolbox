@@ -6,5 +6,6 @@ import (
 
 type UpsertOutputForSync struct {
 	pkgentity.Output
+
 	BasketNumID *uint
 }

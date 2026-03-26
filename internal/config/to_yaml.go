@@ -21,7 +21,7 @@ func ToYAMLFile(config any, filename string) error {
 		return fmt.Errorf("failed to marshal map to yaml: %w", err)
 	}
 
-	err = os.WriteFile(filename, yamlData, 0600)
+	err = os.WriteFile(filename, yamlData, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write yaml to file: %w", err)
 	}

@@ -15,6 +15,7 @@ type NosendAssertion interface {
 
 type nosendAssertion struct {
 	testing.TB
+
 	act *noSendAct
 }
 

@@ -5,11 +5,12 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T) {
@@ -92,7 +93,7 @@ func TestGetChainHeaderByHeight_AtLeastOneChainServiceIsResponsive(t *testing.T)
 
 		expectedHeader := &wdk.ChainBlockHeader{
 			ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-				Version:      uint32(first.Version),
+				Version:      uint32(first.Version), //nolint:gosec // block header version is always small positive
 				PreviousHash: first.PreviousBlock,
 				MerkleRoot:   first.MerkleRoot,
 				Time:         first.Timestamp,
@@ -115,12 +116,17 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 	t.Run("return error when all services are unreachable", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		given.Bitails().WillBeUnreachable()
-		given.WhatsOnChain().WillBeUnreachable()
+		_ = given.Bitails().WillBeUnreachable()
+		_ = given.WhatsOnChain().WillBeUnreachable()
 		expectedSubstr := given.BHS().WillBeUnreachable().Error()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
-		services := given.Services().Config(testservices.WithEnabledBitails(true), testservices.WithEnabledBHS(true)).New()
+		services := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		header, err := services.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
@@ -128,7 +134,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
 
-		assert.ErrorContains(t, err, expectedSubstr)
+		require.ErrorContains(t, err, expectedSubstr)
 		assert.Nil(t, header)
 	})
 
@@ -138,9 +144,14 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 		given.Bitails().WillRespondWithInternalFailure()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
-		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		services := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		response, err := services.ChainHeaderByHeight(t.Context(), testservices.TestBlockHeight)
@@ -148,7 +159,7 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		// then:
 		testabilities.IsNotMockTransportResponderError(t, err)
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 	})
 
@@ -158,9 +169,14 @@ func TestGetChainHeaderByHeight_NegativePaths(t *testing.T) {
 		given.BHS().WillRespondWithEmptyBlockHeight()
 		given.WhatsOnChain().WillRespondWithEmptyBlockHeight()
 		given.Bitails().WillRespondWithEmptyBlockHeight()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
-		service := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		service := given.Services().Config(
+			testservices.WithEnabledBitails(true),
+			testservices.WithEnabledBHS(true),
+			testservices.WithEnabledChaintracks(true),
+		).New()
 
 		// when:
 		actualBlock, err := service.ChainHeaderByHeight(t.Context(), 0) // Assuming height 0 for empty response scenario

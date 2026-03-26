@@ -19,12 +19,16 @@ import (
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/slogx"
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
+	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/actions"
@@ -32,13 +36,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/party"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/utils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
-	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slogx"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 var _ sdk.Interface = (*Wallet)(nil)
@@ -101,7 +102,7 @@ type Wallet struct {
 	storage                 wdk.WalletStorage
 	keyDeriver              *sdk.KeyDeriver
 	flags                   *wallet_opts.Flags
-	services                *services.WalletServices
+	services                wdk.Services
 	chain                   defs.BSVNetwork
 	pendingSignActionsCache pending.SignActionsRepository
 	logger                  *slog.Logger
@@ -157,7 +158,7 @@ func WithTrustSelf(value sdk.TrustSelf) func(*wallet_opts.Opts) {
 }
 
 // WithServices allows to set the wallet services that will be used by the wallet.
-func WithServices(services *services.WalletServices) func(*wallet_opts.Opts) {
+func WithServices(services wdk.Services) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.Services = services
 	}
@@ -408,13 +409,13 @@ func (w *Wallet) AbortAction(ctx context.Context, args sdk.AbortActionArgs, orig
 	}()
 
 	w.logger.DebugContext(ctx, "AbortAction call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
 	wdkArgs := mapping.MapAbortActionArgs(args)
 
-	if err := validate.ValidAbortActionArgs(&wdkArgs); err != nil {
+	if err = validate.ValidAbortActionArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid abort action args: %w", err)
 	}
 
@@ -435,13 +436,13 @@ func (w *Wallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, orig
 	}()
 
 	w.logger.DebugContext(ctx, "ListActions call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
 	wdkArgs := mapping.MapListActionsArgs(args)
 
-	if err := validate.ListActionsArgs(&wdkArgs); err != nil {
+	if err = validate.ListActionsArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid list actions args: %w", err)
 	}
 
@@ -467,7 +468,7 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 	}()
 
 	w.logger.DebugContext(ctx, "ListFailedActions call", slogx.String("originator", originator), slog.Bool("unfail", unfail))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
@@ -478,7 +479,7 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 
 	wdkArgs := mapping.MapListActionsArgs(args)
 
-	if err := validate.ListActionsArgs(&wdkArgs); err != nil {
+	if err = validate.ListActionsArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid list actions args: %w", err)
 	}
 
@@ -495,6 +496,27 @@ func (w *Wallet) ListFailedActions(ctx context.Context, args sdk.ListActionsArgs
 	return mappedResult, nil
 }
 
+// ListTransactions retrieves a list of transactions with their status updates (merkle proofs, block info).
+func (w *Wallet) ListTransactions(ctx context.Context, args wdk.ListTransactionsArgs, originator string) (*wdk.ListTransactionsResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-ListTransactions", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	w.logger.DebugContext(ctx, "ListTransactions call", slogx.String("originator", originator))
+	if err = validate.Originator(originator); err != nil {
+		return nil, fmt.Errorf("invalid originator: %w", err)
+	}
+
+	result, err := w.storage.ListTransactions(ctx, args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list transactions: %w", err)
+	}
+
+	return result, nil
+}
+
 // InternalizeAction submits a transaction to be internalized and optionally labeled, outputs paid to the wallet balance,
 // inserted into baskets, and/or tagged.
 func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error) {
@@ -505,13 +527,13 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 	}()
 
 	w.logger.DebugContext(ctx, "InternalizeAction call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
 	wdkArgs := mapping.MapInternalizeActionArgs(args)
 
-	if err := validate.WalletInternalizeAction(w.keyDeriver, &wdkArgs); err != nil {
+	if err = validate.WalletInternalizeAction(w.keyDeriver, &wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid internalize action args: %w", err)
 	}
 
@@ -532,13 +554,13 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 	}()
 
 	w.logger.DebugContext(ctx, "ListOutputs call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
 	wdkArgs := mapping.MapListOutputsArgs(args)
 
-	if err := validate.ListOutputsArgs(&wdkArgs); err != nil {
+	if err = validate.ListOutputsArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid list outputs args: %w", err)
 	}
 
@@ -578,13 +600,13 @@ func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutput
 	}()
 
 	w.logger.DebugContext(ctx, "RelinquishOutput call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
 	wdkArgs := mapping.MapRelinquishOutputArgs(args)
 
-	if err := validate.ValidRelinquishOutputArgs(&wdkArgs); err != nil {
+	if err = validate.ValidRelinquishOutputArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid relinquish output args: %w", err)
 	}
 
@@ -608,7 +630,7 @@ func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.Reve
 	}()
 
 	w.logger.DebugContext(ctx, "RevealCounterpartyKeyLinkage call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
@@ -630,7 +652,7 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 	}()
 
 	w.logger.DebugContext(ctx, "RevealSpecificKeyLinkage call", slogx.String("originator", originator))
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
@@ -712,7 +734,6 @@ func (w *Wallet) acquireIssuanceCertificate(ctx context.Context, args sdk.Acquir
 	parsedCert, err := actions.ParseCertificateResponse(actions.ParseCertificateResponseParams{
 		Response:    res,
 		Args:        args,
-		Nonce:       nonce,
 		IdentityKey: key.PublicKey,
 	})
 	if err != nil {
@@ -781,21 +802,23 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 	}
 
 	// Validate nonce length (should be 16 bytes data + 32 bytes HMAC = 48 bytes)
-	if len(buffer) < utils.TotalNonceSize {
-		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", utils.TotalNonceSize, len(buffer))
+	if len(buffer) < walletcerts.TotalNonceSize {
+		return fmt.Errorf("invalid nonce length: expected at least %d bytes, got %d", walletcerts.TotalNonceSize, len(buffer))
 	}
 
 	// Split the nonce buffer
-	data := buffer[:utils.NonceDataSize]
-	hmacSlice := buffer[utils.NonceDataSize:]
+	data := buffer[:walletcerts.NonceDataSize]
+	hmacSlice := buffer[walletcerts.NonceDataSize:]
 
 	// Convert hmac slice to [32]byte array
-	if len(hmacSlice) != utils.NonceHMACSize {
+	if len(hmacSlice) != walletcerts.NonceHMACSize {
 		return fmt.Errorf("invalid hmac length: expected 32 bytes, got %d", len(hmacSlice))
 	}
 
 	var hmacArray [32]byte
 	copy(hmacArray[:], hmacSlice)
+
+	keyID := walletcerts.BytesToUTF8(data)
 
 	// Verify the HMAC
 	verifyHMACResult, err := w.VerifyHMAC(ctx, sdk.VerifyHMACArgs{
@@ -806,7 +829,7 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 				SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty,
 				Protocol:      "server hmac",
 			},
-			KeyID:        string(data),
+			KeyID:        keyID,
 			Counterparty: counterparty,
 		},
 	}, originator)
@@ -822,10 +845,10 @@ func (w *Wallet) verifyNonce(ctx context.Context, nonce string, counterparty sdk
 }
 
 // createNonce generates a nonce for authentication and replay protection.
-func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) ([]byte, error) {
-	nonce, err := utils.CreateNonce(ctx, w, w.randomizer, certifier, originator)
+func (w *Wallet) createNonce(ctx context.Context, certifier *ec.PublicKey, originator string) (string, error) {
+	nonce, err := walletcerts.CreateNonce(ctx, w, w.randomizer, certifier, originator)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create nonce for wallet: %w", err)
+		return "", fmt.Errorf("failed to create nonce for wallet: %w", err)
 	}
 
 	return nonce, nil
@@ -918,7 +941,7 @@ func (w *Wallet) ListCertificates(ctx context.Context, args sdk.ListCertificates
 
 	w.logger.DebugContext(ctx, "ListCertificates call", slogx.String("originator", originator))
 
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
@@ -971,10 +994,10 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 	w.logger.DebugContext(ctx, "ProveCertificate call", slogx.String("originator", originator))
 
 	// Validation arguments and originator
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
-	if err := validate.ProveCertificateArgs(args); err != nil {
+	if err = validate.ProveCertificateArgs(args); err != nil {
 		return nil, fmt.Errorf("failed to validate sdk.ProveCertificateArgs: %w", err)
 	}
 
@@ -1102,11 +1125,11 @@ func (w *Wallet) DiscoverByIdentityKey(ctx context.Context, args sdk.DiscoverByI
 	now := time.Now()
 	w.logger.DebugContext(ctx, "DiscoverByIdentityKey call", slogx.String("originator", originator))
 
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
-	if err := validate.DiscoverByIdentityKeyArgs(args); err != nil {
+	if err = validate.DiscoverByIdentityKeyArgs(args); err != nil {
 		return nil, fmt.Errorf("failed to validate sdk.DiscoverByIdentityKeyArgs: %w", err)
 	}
 
@@ -1142,11 +1165,11 @@ func (w *Wallet) DiscoverByAttributes(ctx context.Context, args sdk.DiscoverByAt
 	now := time.Now()
 	w.logger.DebugContext(ctx, "DiscoverByAttributes call", slogx.String("originator", originator))
 
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
-	if err := validate.DiscoverByAttributesArgs(args); err != nil {
+	if err = validate.DiscoverByAttributesArgs(args); err != nil {
 		return nil, fmt.Errorf("failed to validate sdk.DiscoverByAttributesArgs: %w", err)
 	}
 
@@ -1225,7 +1248,7 @@ func (w *Wallet) GetHeight(ctx context.Context, _ any, originator string) (*sdk.
 		return nil, fmt.Errorf("services are not configured for this wallet")
 	}
 
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
@@ -1252,7 +1275,7 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 		return nil, fmt.Errorf("wallet services not configured: cannot retrieve block header")
 	}
 
-	if err := validate.Originator(originator); err != nil {
+	if err = validate.Originator(originator); err != nil {
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 

@@ -8,18 +8,19 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 type BitailsFixture interface {
 	WillRespondWithEmptyBlockHeight()
 	WillBeUnreachable() error
 	WillReturnInternalError()
-	WillReturnTxInfo(txid string, blockHash string, blockHeight int64)
-	WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64)
+	WillReturnTxInfo(txid, blockHash string, blockHeight int64)
+	WillReturnSuccessAndTxInfo(txid, blockHash string, blockHeight int64)
 	WillReturnTscProof(txid, target string, index int, nodes []string)
 	WillReturnBlockHeader(blockHash, rawHeader string)
 	WillReturnBranchProof(txid, blockHash, merkleRoot string, branches []map[string]string)
@@ -57,6 +58,7 @@ type BitailsBroadcastFixture interface {
 
 type bitailsFixture struct {
 	testing.TB
+
 	transport *httpmock.MockTransport
 	network   defs.BSVNetwork
 }
@@ -125,7 +127,7 @@ func (b *bitailsFixture) WillReturnInternalError() {
 	)
 }
 
-func (b *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHeight int64) {
+func (b *bitailsFixture) WillReturnTxInfo(txid, blockHash string, blockHeight int64) {
 	body := map[string]any{
 		"block_hash":   blockHash,
 		"block_height": blockHeight,
@@ -137,13 +139,14 @@ func (b *bitailsFixture) WillReturnTxInfo(txid string, blockHash string, blockHe
 	)
 }
 
-func (b *bitailsFixture) WillReturnSuccessAndTxInfo(txid string, blockHash string, blockHeight int64) {
+func (b *bitailsFixture) WillReturnSuccessAndTxInfo(txid, blockHash string, blockHeight int64) {
 	b.WillReturnTxInfo(txid, blockHash, blockHeight)
 	b.OnBroadcast().WillReturnSuccess(txid)
 }
 
 type bitailsBroadcastFixture struct {
 	testing.TB
+
 	transport *httpmock.MockTransport
 	network   defs.BSVNetwork
 }
@@ -152,11 +155,11 @@ func (b *bitailsBroadcastFixture) WillReturnSuccess(txid string) {
 	body := []map[string]any{
 		{"txid": txid},
 	}
-	b.registerBroadcastResponder(http.StatusCreated, body)
+	b.registerBroadcastResponder(body)
 }
 
 func (b *bitailsBroadcastFixture) WillReturnAlreadyInMempool(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -168,7 +171,7 @@ func (b *bitailsBroadcastFixture) WillReturnAlreadyInMempool(txid string, err er
 }
 
 func (b *bitailsBroadcastFixture) WillReturnDoubleSpend(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -180,7 +183,7 @@ func (b *bitailsBroadcastFixture) WillReturnDoubleSpend(txid string, err error) 
 }
 
 func (b *bitailsBroadcastFixture) WillReturnMissingInputs(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -192,7 +195,7 @@ func (b *bitailsBroadcastFixture) WillReturnMissingInputs(txid string, err error
 }
 
 func (b *bitailsBroadcastFixture) WillReturnMalformedResponse() {
-	b.registerBroadcastResponder(http.StatusCreated, map[string]any{"malformed": true})
+	b.registerBroadcastResponder(map[string]any{"malformed": true})
 }
 
 func (b *bitailsBroadcastFixture) WillReturnHttpError(status int) {
@@ -204,7 +207,7 @@ func (b *bitailsBroadcastFixture) WillReturnHttpError(status int) {
 }
 
 func (b *bitailsBroadcastFixture) WillReturnEconnRefused(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -217,7 +220,7 @@ func (b *bitailsBroadcastFixture) WillReturnEconnRefused(txid string, err error)
 }
 
 func (b *bitailsBroadcastFixture) WillReturnEconnReset(txid string, err error) {
-	b.registerBroadcastResponder(http.StatusCreated, []map[string]any{
+	b.registerBroadcastResponder([]map[string]any{
 		{
 			"txid": txid,
 			"error": map[string]any{
@@ -229,7 +232,7 @@ func (b *bitailsBroadcastFixture) WillReturnEconnReset(txid string, err error) {
 	})
 }
 
-func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body any) {
+func (b *bitailsBroadcastFixture) registerBroadcastResponder(body any) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		b.Fatalf("failed to marshal broadcast response: %v", err)
@@ -238,7 +241,7 @@ func (b *bitailsBroadcastFixture) registerBroadcastResponder(status int, body an
 	headers := http.Header{}
 	headers.Set("Content-Type", "application/json")
 
-	responder := httpmock.NewStringResponder(status, string(data)).
+	responder := httpmock.NewStringResponder(http.StatusCreated, string(data)).
 		HeaderSet(headers)
 
 	b.transport.RegisterRegexpResponder(
@@ -415,6 +418,7 @@ func (b *bitailsFixture) WillReturnMalformedBlockHeader(blockHash string) {
 		httpmock.NewStringResponder(http.StatusOK, `invalid-json}`),
 	)
 }
+
 func (b *bitailsFixture) ScriptHistoryData() ScriptHistoryDataBuilder {
 	return &bitailsScriptHistoryBuilder{
 		fixture:          b,
@@ -436,7 +440,7 @@ type bitailsScriptHistoryBuilder struct {
 	unconfirmedStatusCode int
 }
 
-func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactions(count int, startHeight int) ScriptHistoryDataBuilder {
+func (b *bitailsScriptHistoryBuilder) WithConfirmedTransactions(count, startHeight int) ScriptHistoryDataBuilder {
 	b.confirmedCount = count
 	b.startHeight = startHeight
 	return b

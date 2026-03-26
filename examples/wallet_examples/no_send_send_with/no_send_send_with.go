@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/wallet_examples/no_send_send_with/token"
@@ -43,7 +44,7 @@ func main() {
 
 func mint(ctx context.Context, alice *example_setup.Setup, aliceWallet wallet.Interface, keyID string) token.Tokens {
 	var prevNoSentChange []transaction.Outpoint
-	var tokens token.Tokens
+	tokens := make(token.Tokens, 0, tokensCount)
 
 	show.Step("Mint multiple tokens", "all mints are done with noSend = true, so they are not broadcasted immediately")
 	// Mint multiple tokens with noSend = true, each time passing the change from the previous mint as noSendChange to the next mint

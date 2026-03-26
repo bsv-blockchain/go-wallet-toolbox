@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type GetSyncChunkAction struct {
@@ -66,7 +67,7 @@ func (s *GetSyncChunkAction) process(ctx context.Context, userID int, result *wd
 	})
 
 	for chunker := range state.getNextChunkerUntilReachedMax(applicableChunkers) {
-		var firstPage = chunker.FirstPage(offsetsLookup)
+		firstPage := chunker.FirstPage(offsetsLookup)
 
 		for page := range state.doWhileChunkProcessed(firstPage) {
 			if err := ctx.Err(); err != nil {

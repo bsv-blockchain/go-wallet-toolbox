@@ -3,35 +3,42 @@ package funder_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFunderSQLFund(t *testing.T) {
 	const smallTransactionSize = 44
 	const transactionSizeForHigherFee = 1001
-	var ctx = t.Context()
+	const noOutputs = uint64(0)
+	const oneOutput = uint64(1)
+	ctx := t.Context()
 
 	testCasesErrors := map[string]struct {
 		thereAreUTXOInDB func(testabilities.FunderFixture, *entity.OutputBasket)
 		targetSatoshis   satoshi.Value
 		txSize           uint64
+		outputCount      uint64
 	}{
 		"return error when user has no utxo": {
 			thereAreUTXOInDB: func(testabilities.FunderFixture, *entity.OutputBasket) {},
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 		},
 		"return error when user fund the transaction by himself but has not enough utxo to cover the fee": {
 			thereAreUTXOInDB: func(testabilities.FunderFixture, *entity.OutputBasket) {},
 
 			targetSatoshis: 0,
 			txSize:         smallTransactionSize,
+			outputCount:    noOutputs,
 		},
 		"return error when user has not enough utxo to cover the transaction": {
 			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
@@ -40,6 +47,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 		},
 		"return error when user has not enough utxos to cover fee": {
 			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
@@ -48,6 +56,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 		},
 		"return error when user has not enough utxos to cover fee for bigger tx": {
 			// Because the transaction size makes the fee = 2, one satoshi above the target satoshis is not enough.
@@ -57,6 +66,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         transactionSizeForHigherFee,
+			outputCount:    oneOutput,
 		},
 		"return error when user has no utxos but there are other users utxos": {
 			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
@@ -68,10 +78,10 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 		},
 		"return error when user has utxos but in other basket": {
 			thereAreUTXOInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
-
 				otherBasket := *basket
 				otherBasket.Name = "other_basket"
 
@@ -82,6 +92,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 		},
 	}
 	for name, test := range testCasesErrors {
@@ -100,7 +111,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.thereAreUTXOInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			then.Result(result).WithError(err)
@@ -113,11 +124,13 @@ func TestFunderSQLFund(t *testing.T) {
 		possessedUTXOs int64
 		targetSatoshis satoshi.Value
 		txSize         uint64
+		outputCount    uint64
 		expectations   func(testabilities.SuccessFundingResultAssertion)
 	}{
 		"user has funded exactly the transaction and fee by himself": {
 			targetSatoshis: -1,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.DoesNotAllocateUTXOs().
@@ -128,6 +141,7 @@ func TestFunderSQLFund(t *testing.T) {
 		"user has funded exactly the transaction and fee for bigger size of tx by himself": {
 			targetSatoshis: -2,
 			txSize:         transactionSizeForHigherFee,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.DoesNotAllocateUTXOs().
@@ -138,6 +152,7 @@ func TestFunderSQLFund(t *testing.T) {
 		"user has funded by himself more then the transaction and fee": {
 			targetSatoshis: -1001,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.DoesNotAllocateUTXOs().
@@ -150,6 +165,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 0,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().ForTotalAmount(1).
@@ -162,6 +178,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: -1,
 			txSize:         transactionSizeForHigherFee,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().ForTotalAmount(1).
@@ -186,7 +203,7 @@ func TestFunderSQLFund(t *testing.T) {
 			given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(test.possessedUTXOs).P2PKH().Stored()
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
@@ -197,6 +214,7 @@ func TestFunderSQLFund(t *testing.T) {
 		havingUTXOsInDB func(testabilities.FunderFixture, *entity.OutputBasket)
 		targetSatoshis  satoshi.Value
 		txSize          uint64
+		outputCount     uint64
 		expectations    func(testabilities.SuccessFundingResultAssertion)
 	}{
 		"target satoshis and fee are equal to the only one utxo satoshis": {
@@ -206,6 +224,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0).
@@ -220,6 +239,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         999,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0).
@@ -237,6 +257,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 1363,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().ForTotalAmount(1600).
@@ -250,6 +271,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0).
@@ -268,6 +290,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 100,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(2).
@@ -285,6 +308,7 @@ func TestFunderSQLFund(t *testing.T) {
 
 			targetSatoshis: 549,
 			txSize:         smallTransactionSize,
+			outputCount:    oneOutput,
 
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
 				thenResult.HasAllocatedUTXOs().RowIndexes(0, 1, 3).
@@ -309,11 +333,10 @@ func TestFunderSQLFund(t *testing.T) {
 			test.havingUTXOsInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
-
 		})
 	}
 
@@ -329,7 +352,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -102, 990, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -102, 990, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -349,7 +372,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -2, 999, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -2, 999, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -369,7 +392,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(0)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -388,7 +411,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(-5)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -413,7 +436,7 @@ func TestFunderSQLFund(t *testing.T) {
 		}
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -437,7 +460,7 @@ func TestFunderSQLFund(t *testing.T) {
 		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
 
 		// when:
-		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
+		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
 
 		// then:
 		require.Error(t, err)
@@ -460,7 +483,7 @@ func TestFunderSQLFund(t *testing.T) {
 		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
 
 		// when:
-		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, true)
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true)
 
 		// then:
 		require.NoError(t, err)
@@ -537,12 +560,132 @@ func TestFunderSQLFund(t *testing.T) {
 			basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
 
 			// when:
-			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
 
 			// then:
 			then.Result(result).WithoutError(err).
 				HasChangeCount(test.expectedNumberOfChangeOutputs).ForAmount(test.expectedChangeValue)
 		})
 	}
+}
 
+func TestFunderSQLFundChangeManagement(t *testing.T) {
+	const smallTransactionSize = 44
+	const noOutputs = uint64(0)
+	const oneOutput = uint64(1)
+	ctx := t.Context()
+
+	t.Run("cap: output count never exceeds MaxChangeOutputsPerTransaction even when numberOfDesiredUTXOs is much larger", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and: basket wants 100 UTXOs, each at 1000 sats
+		funderSvc := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(100)
+
+		// and: a single large UTXO covers the full desired pool value many times over
+		// 100_000_000 sats = 1 BSV
+		// when:
+		result, err := funderSvc.Fund(ctx, -100_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+
+		// then: change outputs must be capped at MaxChangeOutputsPerTransaction, not 100
+		then.Result(result).WithoutError(err).
+			HasChangeCount(int(funder.MaxChangeOutputsPerTransaction)). //nolint:gosec // MaxChangeOutputsPerTransaction is a small constant
+			ForAmount(100_000_000)
+	})
+
+	t.Run("cap: gradual pool build-up – each transaction adds at most MaxChangeOutputsPerTransaction net new outputs", func(t *testing.T) {
+		// given: fee rate 1 sat/kb (default)
+		const desiredUTXOs = 20
+		const largeInputSats = satoshi.Value(-10_000_001)
+
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funderSvc := given.NewFunderService()
+
+		// and: basket with 20 desired UTXOs – 0 already in the pool, so numberOfDesiredUTXOs-existing = 20
+		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(desiredUTXOs)
+
+		// when:
+		result, err := funderSvc.Fund(ctx, largeInputSats, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+
+		// then: only MaxChangeOutputsPerTransaction outputs created, not 20
+		then.Result(result).WithoutError(err)
+
+		require.LessOrEqual(t, result.ChangeOutputsCount, funder.MaxChangeOutputsPerTransaction,
+			"ChangeOutputsCount should not exceed MaxChangeOutputsPerTransaction")
+	})
+
+	t.Run("dust floor: change below dust floor (at high fee rate) is given to the miner instead of creating an output", func(t *testing.T) {
+		// given:
+		const feeRate = int64(500)
+
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		funderSvc := given.NewFunderServiceWithFeeRate(feeRate)
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+
+		// when:
+		result, err := funderSvc.Fund(ctx, -50, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+
+		// then: no change output created; extra sats go to the miner (ChangeAmount > 0 is fine)
+		then.Result(result).WithoutError(err)
+		require.Zero(t, result.ChangeOutputsCount, "expected 0 change outputs when change is below dustFloor")
+		require.Positive(t, int(result.ChangeAmount), "sub-dust change amount should be positive (given to miner as fee)")
+		require.Less(t, int(result.ChangeAmount), 192, "change amount must be below dustFloor (192 at 500 sat/kb)")
+	})
+
+	t.Run("dust floor: large change at high fee rate still produces outputs above the dust floor", func(t *testing.T) {
+		// given:
+		const feeRate = int64(110)
+
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		funderSvc := given.NewFunderServiceWithFeeRate(feeRate)
+		// basket with 3 desired UTXOs, minimum 1000 sats each
+		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
+
+		// when: over-fund by 3500 sats – enough for 3 change outputs × 1000+ sats each
+		result, err := funderSvc.Fund(ctx, -3501, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+
+		then.Result(result).WithoutError(err)
+		// dustFloor = 44 sats; each output must be well above that
+		require.Positive(t, int(result.ChangeAmount), "change must be positive")
+		if result.ChangeOutputsCount > 0 {
+			avgPerOutput := int64(result.ChangeAmount) / int64(result.ChangeOutputsCount) //nolint:gosec // test values are small
+			require.GreaterOrEqual(t, avgPerOutput, int64(44),
+				"average change per output must be >= dustFloor (44 sats at 110 sat/kb)")
+		}
+	})
+
+	t.Run("dust floor: reduces output count so no individual output falls below floor", func(t *testing.T) {
+		const feeRate = int64(1000)
+
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		funderSvc := given.NewFunderServiceWithFeeRate(feeRate)
+
+		basket := &entity.OutputBasket{
+			UserID:                  testusers.Alice.ID,
+			Name:                    "default",
+			NumberOfDesiredUTXOs:    5,
+			MinimumDesiredUTXOValue: 400,
+		}
+
+		result, err := funderSvc.Fund(ctx, -801, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+
+		then.Result(result).WithoutError(err)
+
+		// Verify that no individual output would be below the dust floor
+		if result.ChangeOutputsCount > 0 {
+			perOutput := int64(result.ChangeAmount) / int64(result.ChangeOutputsCount) //nolint:gosec // test values are small
+			// dustFloor at 1000 sat/kb = ceil(192/1000*1000)*2 = 192*2 = 384
+			require.GreaterOrEqualf(t, perOutput, int64(384),
+				"per-output value %d must be >= dustFloor 384 at 1000 sat/kb", perOutput)
+		}
+	})
 }

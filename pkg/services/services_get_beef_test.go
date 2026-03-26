@@ -3,10 +3,11 @@ package services_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 )
 
 func TestGetBeef(t *testing.T) {
@@ -25,7 +26,7 @@ func TestGetBeef(t *testing.T) {
 		beef, err := services.GetBEEF(t.Context(), txID, nil)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, beef)
 	})
 

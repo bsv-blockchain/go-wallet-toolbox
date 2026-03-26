@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 )
 
 func TestForDefaultValidCreateActionArgs(t *testing.T) {
@@ -238,6 +239,13 @@ func TestWrongCreateActionArgs(t *testing.T) {
 						Vout: 0,
 					},
 				}
+				return args
+			},
+		},
+		"Reference too long": {
+			modifier: func(args wdk.ValidCreateActionArgs) wdk.ValidCreateActionArgs {
+				longRef := string(bytes.Repeat([]byte{'a'}, 501))
+				args.Reference = longRef
 				return args
 			},
 		},

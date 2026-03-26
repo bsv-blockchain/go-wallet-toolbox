@@ -7,17 +7,18 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // MapListActionsArgs maps sdk.ListActionsArgs to wdk.ListActionsArgs
 func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 	result := wdk.ListActionsArgs{
-		Labels: slices.Map(args.Labels, func(label string) primitives.StringUnder300 { return primitives.StringUnder300(label) }),
+		Labels: slices.Map(args.Labels, stringToIdentifier),
 		Limit:  primitives.PositiveIntegerDefault10Max10000(to.ValueOr(args.Limit, 10)),
 		Offset: primitives.PositiveInteger(to.ValueOr(args.Offset, 0)),
 	}
@@ -60,6 +61,10 @@ func MapListActionsArgs(args sdk.ListActionsArgs) wdk.ListActionsArgs {
 
 	if args.IncludeOutputLockingScripts != nil {
 		result.IncludeOutputLockingScripts = to.Ptr(primitives.BooleanDefaultFalse(*args.IncludeOutputLockingScripts))
+	}
+
+	if args.Reference != nil && *args.Reference != "" {
+		result.Reference = args.Reference
 	}
 
 	return result

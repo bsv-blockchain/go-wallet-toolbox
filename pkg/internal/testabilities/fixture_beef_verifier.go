@@ -5,6 +5,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -38,18 +39,18 @@ func (b *beefVerifierFixture) DefaultBehavior() {
 }
 
 func (b *beefVerifierFixture) Verifier(chaintracker chaintracker.ChainTracker) wdk.BeefVerifier {
-	return &mockVerifier{
+	return &mockBeefVerifier{
 		fixture:         b,
 		defaultVerifier: storage.NewDefaultBeefVerifier(chaintracker),
 	}
 }
 
-type mockVerifier struct {
+type mockBeefVerifier struct {
 	fixture         *beefVerifierFixture
 	defaultVerifier wdk.BeefVerifier
 }
 
-func (b *mockVerifier) VerifyBeef(ctx context.Context, beef *transaction.Beef, allowTxidOnly bool) (bool, error) {
+func (b *mockBeefVerifier) VerifyBeef(ctx context.Context, beef *transaction.Beef, allowTxidOnly bool) (bool, error) {
 	if b.fixture.willReturnError != nil {
 		return false, b.fixture.willReturnError
 	}

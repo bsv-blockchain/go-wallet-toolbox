@@ -7,14 +7,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const safetyMargin = 0.95 // Safety margin to ensure tasks complete before the next scheduled run
@@ -30,6 +33,21 @@ type Daemon struct {
 
 	started   bool
 	startLock sync.Mutex
+
+	eventChannels EventChannels
+}
+
+// EventChannels holds channels for bidirectional communication with the monitor.
+// Outbound channels (chan<-) are used by monitor to send notifications back to other components.
+// Inbound channels (<-chan) are used by monitor to receive external events.
+type EventChannels struct {
+	// Outbound channels:
+	OnTxBroadcasted chan<- wdk.CurrentTxStatus
+	OnTxProven      chan<- wdk.CurrentTxStatus
+
+	// Inbound channels:
+	OnReorg <-chan *chaintracks.ReorgEvent
+	OnTip   <-chan *chaintracks.BlockHeader
 }
 
 // ActiveTask represents a scheduled monitoring task with its instance and associated scheduler job.
@@ -42,7 +60,7 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
-func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB) (*Daemon, error) {
+func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...DaemonEventOption) (*Daemon, error) {
 	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
@@ -57,26 +75,38 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, gocron.WithDistributedLocker(locker))
+	options := defaultDaemonEventOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, options, gocron.WithDistributedLocker(locker))
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
-func NewDaemon(logger *slog.Logger, storage MonitoredStorage, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
+func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *DaemonEventOptions, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}
+
 	return &Daemon{
 		scheduler:   scheduler,
 		logger:      logging.Child(logger, "monitor"),
 		activeTasks: make(map[defs.MonitorTask]*ActiveTask),
 		storage:     storage,
+		eventChannels: EventChannels{
+			OnTxBroadcasted: eventOptions.onTxBroadcasted,
+			OnTxProven:      eventOptions.onTxProven,
+			OnReorg:         eventOptions.onReorg,
+			OnTip:           eventOptions.onTip,
+		},
 	}, nil
 }
 
 // Start initializes and begins running the configured monitor tasks according to their schedules.
-func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
+func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]defs.TaskConfig) error {
 	d.startLock.Lock()
 	defer d.startLock.Unlock()
 
@@ -96,6 +126,14 @@ func (d *Daemon) Start(tasksToStart map[defs.MonitorTask]defs.TaskConfig) error 
 		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
 			return err
 		}
+	}
+
+	if d.eventChannels.OnReorg != nil {
+		go d.handleReorgEvents(ctx)
+	}
+
+	if d.eventChannels.OnTip != nil {
+		go d.handleNewTipEvents(ctx)
 	}
 
 	d.scheduler.Start()
@@ -229,4 +267,71 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 
 	timeout := time.Duration(float64(untilNext) * safetyMargin)
 	return context.WithTimeout(ctx, timeout)
+}
+
+func (d *Daemon) handleReorgEvents(ctx context.Context) {
+	d.logger.Info("Starting reorg event handler")
+
+	for event := range d.eventChannels.OnReorg {
+		d.logger.Info("Received reorg event",
+			"depth", event.Depth,
+			"orphaned_count", len(event.OrphanedHashes),
+		)
+
+		orphanedHashes := make([]string, len(event.OrphanedHashes))
+		for i, hash := range event.OrphanedHashes {
+			orphanedHashes[i] = hash.String()
+		}
+
+		if err := d.storage.HandleReorg(ctx, orphanedHashes); err != nil {
+			d.logger.Error("Failed to handle reorg", "error", err)
+		}
+	}
+
+	d.logger.Info("reorg event handler stopped")
+}
+
+func (d *Daemon) handleNewTipEvents(ctx context.Context) {
+	d.logger.Info("Starting new tip event handler")
+
+	for header := range d.eventChannels.OnTip {
+		d.logger.Info("New tip received and processing",
+			"height", header.Height,
+			"hash", header.Hash.String(),
+		)
+
+		go func(h *chaintracks.BlockHeader) {
+			results, err := d.storage.ProcessNewTip(ctx, h.Height, h.Hash.String())
+			if err != nil {
+				d.logger.Error("ProcessNewTip failed", "error", err)
+				return
+			}
+
+			d.sendProvenEvents(results)
+		}(header)
+	}
+}
+
+func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
+	if d.eventChannels.OnTxProven == nil {
+		return
+	}
+
+	for _, res := range results {
+		msg := wdk.CurrentTxStatus{
+			TxID:        res.TxID,
+			Status:      res.Status.ToStandardizedStatus(),
+			MerklePath:  res.MerklePath,
+			MerkleRoot:  res.MerkleRoot,
+			BlockHash:   res.BlockHash,
+			BlockHeight: res.BlockHeight,
+			Reference:   res.Reference,
+		}
+
+		select {
+		case d.eventChannels.OnTxProven <- msg:
+		default:
+			d.logger.Warn("OnTxProven channel in monitor is full, dropping event")
+		}
+	}
 }

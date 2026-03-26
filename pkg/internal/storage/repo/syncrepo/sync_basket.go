@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -11,9 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type SyncBasket struct {
@@ -27,6 +28,7 @@ func NewSyncBasket(db *gorm.DB, query *genquery.Query) *SyncBasket {
 
 type OutputBasketWithNum struct {
 	models.OutputBasket
+
 	NumID int
 }
 
@@ -65,7 +67,6 @@ func (s *SyncBasket) FindBasketsForSync(ctx context.Context, userID int, opts ..
 		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("db transaction failed while finding baskets for sync: %w", err)
 	}
@@ -84,7 +85,8 @@ func (s *SyncBasket) UpsertOutputBasketForSync(ctx context.Context, entity entit
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		numID, err := s.saveNumericIDForOutputBasket(ctx, tx, entity.UserID, entity.Name)
+		var numID uint
+		numID, err = s.saveNumericIDForOutputBasket(ctx, tx, entity.UserID, entity.Name)
 		if err != nil {
 			return err
 		}
@@ -103,8 +105,7 @@ func (s *SyncBasket) UpsertOutputBasketForSync(ctx context.Context, entity entit
 			return nil
 		}
 
-		err = tx.Create(&model).Error
-		if err != nil {
+		if err = tx.Create(&model).Error; err != nil {
 			return fmt.Errorf("failed to create output basket: %w", err)
 		}
 
@@ -112,12 +113,11 @@ func (s *SyncBasket) UpsertOutputBasketForSync(ctx context.Context, entity entit
 
 		return nil
 	})
-
 	if err != nil {
 		return false, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return
+	return isNew, basketNumID, err
 }
 
 func (s *SyncBasket) FindBasketNameByNumIDForSync(ctx context.Context, basketNumID uint) (string, error) {

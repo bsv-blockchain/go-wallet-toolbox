@@ -41,7 +41,7 @@ func DerivationParts() *sdk.Payment {
 	return paymentRemittance
 }
 
-func derivationBytes(prefix string, suffix string) DerivationBytesResult {
+func derivationBytes(prefix, suffix string) DerivationBytesResult {
 	var derivationPrefix []byte
 	var derivationSuffix []byte
 	var err error

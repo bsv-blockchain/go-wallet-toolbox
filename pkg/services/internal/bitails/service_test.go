@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestBitails_GetHeight(t *testing.T) {
@@ -73,11 +73,11 @@ func TestBitails_FindChainTipHeader(t *testing.T) {
 		{
 			name: "happy path",
 			setup: func(given testabilities.BitailsServiceFixture) {
-				given.Bitails().WillReturnLatestBlock(blockHash, uint32(height))
+				given.Bitails().WillReturnLatestBlock(blockHash, uint32(height)) //nolint:gosec // block height fits in uint32
 				given.Bitails().WillReturnBlockHeader(blockHash, headerHex)
 			},
 			want: func() *wdk.ChainBlockHeader {
-				want, err := bitails.ConvertHeader(rawHeader, uint32(height))
+				want, err := bitails.ConvertHeader(rawHeader, uint32(height)) //nolint:gosec // block height fits in uint32
 				require.NoError(t, err)
 				return want
 			}(),
@@ -178,14 +178,13 @@ func TestBitails_MerklePath(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), result.Notes[0].When, 2*time.Second)
 }
 
-func TestBitails_PostBEEF(t *testing.T) {
+func TestBitails_PostTX(t *testing.T) {
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
 	givenTxID := txSpec.TX().TxID().String()
 
-	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
-	require.NoError(t, err)
+	rawTx := txSpec.TX().Bytes()
 
 	tests := map[string]struct {
 		setup        func(testabilities.BitailsServiceFixture)
@@ -218,33 +217,30 @@ func TestBitails_PostBEEF(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := bitailsService.PostBEEF(t.Context(), beef, []string{givenTxID})
+			result, err := bitailsService.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Len(t, result.TxIDResults, 1)
 
-			singleResult := result.TxIDResults[0]
-			assert.Equal(t, test.resultStatus, singleResult.Result)
-			assert.Equal(t, givenTxID, singleResult.TxID)
-			assert.Nil(t, singleResult.Error)
-			assert.False(t, singleResult.DoubleSpend)
-			assert.Equal(t, test.alreadyKnown, singleResult.AlreadyKnown)
-			assert.Len(t, singleResult.CompetingTxs, 0)
-			assert.Len(t, singleResult.Notes, 1)
+			assert.Equal(t, test.resultStatus, result.Result)
+			assert.Equal(t, givenTxID, result.TxID)
+			require.NoError(t, result.Error)
+			assert.False(t, result.DoubleSpend)
+			assert.Equal(t, test.alreadyKnown, result.AlreadyKnown)
+			assert.Empty(t, result.CompetingTxs)
+			assert.Len(t, result.Notes, 1)
 		})
 	}
 }
 
-func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
+func TestBitails_PostTX_ErrorCases(t *testing.T) {
 	txSpec := testvectors.GivenTX().
 		WithInput(100).
 		WithP2PKHOutput(90)
 	givenTxID := txSpec.TX().TxID().String()
 
-	beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
-	require.NoError(t, err)
+	rawTx := txSpec.TX().Bytes()
 
 	tests := map[string]struct {
 		setup         func(testabilities.BitailsServiceFixture)
@@ -311,22 +307,20 @@ func TestBitails_PostBEEF_ErrorCases(t *testing.T) {
 			test.setup(given)
 
 			// when:
-			result, err := bitailsService.PostBEEF(t.Context(), beef, []string{givenTxID})
+			result, err := bitailsService.PostTX(t.Context(), rawTx)
 
 			// then:
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Len(t, result.TxIDResults, 1)
 
-			singleResult := result.TxIDResults[0]
-			assert.Equal(t, test.resultStatus, singleResult.Result)
-			assert.Equal(t, givenTxID, singleResult.TxID)
-			assert.Equal(t, test.doubleSpend, singleResult.DoubleSpend)
-			assert.False(t, singleResult.AlreadyKnown)
-			assert.Len(t, singleResult.Notes, 1)
+			assert.Equal(t, test.resultStatus, result.Result)
+			assert.Equal(t, givenTxID, result.TxID)
+			assert.Equal(t, test.doubleSpend, result.DoubleSpend)
+			assert.False(t, result.AlreadyKnown)
+			assert.Len(t, result.Notes, 1)
 
 			if test.additionalErr {
-				assert.Error(t, singleResult.Error)
+				assert.Error(t, result.Error)
 			}
 		})
 	}
@@ -393,7 +387,7 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 		{
 			name: "network/client failure",
 			setup: func() {
-				given.Bitails().WillBeUnreachable()
+				_ = given.Bitails().WillBeUnreachable()
 			},
 			wantErr: "unexpected HTTP",
 		},
@@ -408,9 +402,8 @@ func TestBitails_RawTx_ErrorCases(t *testing.T) {
 			_, err := service.RawTx(t.Context(), txID)
 
 			// then:
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
-
 		})
 	}
 }
@@ -430,6 +423,6 @@ func TestBitails_RawTx_NotFound(t *testing.T) {
 	res, err := service.RawTx(t.Context(), txID)
 
 	// then:
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, res)
 }

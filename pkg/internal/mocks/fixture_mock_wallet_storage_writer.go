@@ -4,14 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.uber.org/mock/gomock"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.uber.org/mock/gomock"
 )
 
 var DefaultTimestamp time.Time = time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
@@ -279,7 +280,7 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 		ListOutputs: StorageProviderMethodResponse[*wdk.ListOutputsResult]{
 			Success: &wdk.ListOutputsResult{
 				TotalOutputs: 1,
-				BEEF:         to.Ptr(primitives.BEEF([]byte{0x01, 0x02})),
+				BEEF:         primitives.ExplicitByteArray{1, 2},
 				Outputs: []*wdk.WalletOutput{
 					{
 						Satoshis:  1000,
