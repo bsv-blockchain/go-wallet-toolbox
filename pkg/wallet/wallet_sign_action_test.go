@@ -98,7 +98,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(signActionResult.Txid.String()).
@@ -180,7 +180,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(signActionResult.Txid.String()).
@@ -251,7 +251,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithoutTxID().
@@ -338,7 +338,7 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 2
+		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
 			WithTxID(signActionResult.Txid.String()).

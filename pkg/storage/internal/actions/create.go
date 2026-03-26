@@ -275,7 +275,12 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		logging.Number("changeAmount", funding.ChangeAmount),
 	)
 
-	changeDistribution := txutils.NewChangeDistribution(satoshi.MustFrom(basket.MinimumDesiredUTXOValue), c.random.Uint64).
+	changeInitialValue := satoshi.MustFrom(basket.MinimumDesiredUTXOValue)
+	if funding.DustFloor > changeInitialValue {
+		changeInitialValue = funding.DustFloor
+	}
+
+	changeDistribution := txutils.NewChangeDistribution(changeInitialValue, c.random.Uint64).
 		Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
 
 	derivationPrefix, err := c.randomDerivation()

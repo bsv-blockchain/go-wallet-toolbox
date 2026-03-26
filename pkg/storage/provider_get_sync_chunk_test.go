@@ -81,26 +81,26 @@ func TestGetSyncChunk(t *testing.T) {
 		WithoutProvenTxID()
 
 	// and outputs:
-	thenChunk.OutputsCount(33)
+	thenChunk.OutputsCount(12)
 	thenChunk.OutputAtIndex(0).
 		WithTransactionID(chunk.Transactions[0].TransactionID).
 		WithoutBasketID()
 
-	for i := 1; i <= 29; i++ {
+	for i := 1; i <= 8; i++ {
 		thenChunk.OutputAtIndex(i).
 			WithTransactionID(chunk.Transactions[0].TransactionID).
 			WithBasketID(chunk.OutputBaskets[0].BasketID)
 	}
 
-	thenChunk.OutputAtIndex(30).
+	thenChunk.OutputAtIndex(9).
 		WithTransactionID(chunk.Transactions[1].TransactionID).
 		WithBasketID(chunk.OutputBaskets[0].BasketID)
 
-	thenChunk.OutputAtIndex(31).
+	thenChunk.OutputAtIndex(10).
 		WithTransactionID(chunk.Transactions[2].TransactionID).
 		WithBasketID(chunk.OutputBaskets[0].BasketID)
 
-	thenChunk.OutputAtIndex(32).
+	thenChunk.OutputAtIndex(11).
 		WithTransactionID(chunk.Transactions[3].TransactionID).
 		WithBasketID(chunk.OutputBaskets[0].BasketID)
 
@@ -115,8 +115,8 @@ func TestGetSyncChunk(t *testing.T) {
 		TagsCount(3).
 		TagsMapCount(5).
 		WithOutputTag(chunk.Outputs[0].OutputID, fixtures.CreateActionTestTag).
-		WithOutputTag(chunk.Outputs[31].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(1)).
-		WithOutputTag(chunk.Outputs[32].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(0))
+		WithOutputTag(chunk.Outputs[10].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(1)).
+		WithOutputTag(chunk.Outputs[11].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(0))
 
 	// TODO: Remember to add more assertions for other entities when implemented
 }

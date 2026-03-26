@@ -64,9 +64,9 @@ func TestCreateActionHappyPath(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Len(t, result.Outputs, 32)
-	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 9, len(result.Outputs))
+	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
 	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: faucetTx.ID().String(),
@@ -146,7 +146,7 @@ func TestCreateActionWithNoSendChangeHappyPath(t *testing.T) {
 	assert.NotNil(t, result)
 	const (
 		firstNoSendChangeVout = 1
-		lastNoSendChangeVout  = 30
+		lastNoSendChangeVout  = 8
 	)
 	expectedNoSendChangeOutputs := seq.Collect(seq.Range(firstNoSendChangeVout, lastNoSendChangeVout+1)) // [firstNoSendChangeVout ... lastNoSendChangeVout]
 	assert.Equal(t, expectedNoSendChangeOutputs, result.NoSendChangeOutputVouts)
@@ -273,9 +273,9 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Len(t, result.Outputs, 33)
-	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57_998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 10, len(result.Outputs))
+	assert.Equal(t, 9, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
 	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: faucetTx.ID().String(),
@@ -463,9 +463,9 @@ func TestCreateActionWithProvidedKnownInput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Len(t, result.Outputs, 31)
-	assert.Equal(t, 31, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 8, len(result.Outputs))
+	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(99999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
 	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: ownedTxSpec.ID().String(),
@@ -528,9 +528,9 @@ func TestCreateActionWithProvidedUnknownInput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Len(t, result.Outputs, 32)
-	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(99998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 8, len(result.Outputs))
+	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(99999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
 	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: unknownParentTx.ID().String(),
@@ -592,9 +592,9 @@ func TestCreateActionWithProvidedInputAndSmallerOutput(t *testing.T) {
 	assert.Len(t, result.Reference, 16)
 	assert.Equal(t, args.Version, result.Version)
 	assert.Equal(t, args.LockTime, result.LockTime)
-	assert.Len(t, result.Outputs, 33)
-	assert.Equal(t, 32, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
-	assert.Equal(t, primitives.SatoshiValue(57998), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, 9, len(result.Outputs))
+	assert.Equal(t, 8, testutils.CountOutputsWithCondition(t, result.Outputs, testutils.ProvidedByStorageCondition))
+	assert.Equal(t, primitives.SatoshiValue(57999), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
 
 	pkgtestabilities.AssertBEEFState(t, result.InputBeef, pkgtestabilities.ExpectedBeefTransactionState{
 		ID: unknownParentTx.ID().String(),

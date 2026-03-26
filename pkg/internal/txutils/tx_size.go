@@ -61,6 +61,27 @@ func TransactionSize(inputSizes, outputSizes iter.Seq2[uint64, error]) (uint64, 
 		nil
 }
 
+// TransactionSizeFromScriptLengths calculates the total size of a transaction
+// from concrete slices of input unlocking-script lengths and output locking-script lengths.
+// This is the equivalent of the TS function: transactionSize(inputs: number[], outputs: number[])
+func TransactionSizeFromScriptLengths(inputScriptLengths []uint64, outputScriptLengths []uint64) uint64 {
+	var inputsSize uint64
+	for _, scriptLen := range inputScriptLengths {
+		inputsSize += TransactionInputSize(scriptLen)
+	}
+
+	var outputsSize uint64
+	for _, scriptLen := range outputScriptLengths {
+		outputsSize += TransactionOutputSize(scriptLen)
+	}
+
+	return txEnvelopeSize +
+		varIntSize(uint64(len(inputScriptLengths))) +
+		inputsSize +
+		varIntSize(uint64(len(outputScriptLengths))) +
+		outputsSize
+}
+
 func varIntSize(val uint64) uint64 {
 	length := sdk.VarInt(val).Length()
 	return toU64(length)

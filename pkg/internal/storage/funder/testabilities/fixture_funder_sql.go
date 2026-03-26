@@ -15,6 +15,7 @@ import (
 
 type FunderFixture interface {
 	NewFunderService() *funder.SQL
+	NewFunderServiceWithFeeRate(satPerKb int64) *funder.SQL
 	UTXO() UserUTXOFixture
 	BasketFor(user testusers.User) BasketFixture
 }
@@ -39,8 +40,13 @@ func newFixture(t testing.TB, db *database.Database) FunderFixture {
 }
 
 func (f *funderFixture) NewFunderService() *funder.SQL {
+	return f.NewFunderServiceWithFeeRate(feeModel.Value)
+}
+
+func (f *funderFixture) NewFunderServiceWithFeeRate(satPerKb int64) *funder.SQL {
 	repo := f.db.CreateRepositories().UTXOs
-	return funder.NewSQL(logging.NewTestLogger(f.t), repo, feeModel)
+	model := defs.FeeModel{Type: defs.SatPerKB, Value: satPerKb}
+	return funder.NewSQL(logging.NewTestLogger(f.t), repo, model)
 }
 
 func (f *funderFixture) UTXO() UserUTXOFixture {
