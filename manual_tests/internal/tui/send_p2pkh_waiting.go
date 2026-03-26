@@ -4,19 +4,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type SendP2pkhWaiting struct {
-	manager  ManagerInterface
-	user     *fixtures.UserConfig
-	address  string
-	amount   uint64
-	spinner  spinner.Model
-	quitting bool
-	err      error
+	manager ManagerInterface
+	user    *fixtures.UserConfig
+	address string
+	amount  uint64
+	spinner spinner.Model
 }
 
 func NewSendP2pkhWaiting(manager ManagerInterface, user *fixtures.UserConfig, address string, amount uint64) *SendP2pkhWaiting {
@@ -55,7 +54,7 @@ func (m *SendP2pkhWaiting) sendPayment() tea.Msg {
 
 func (m *SendP2pkhWaiting) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.Type {
+		switch keyMsg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}

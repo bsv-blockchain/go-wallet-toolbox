@@ -317,7 +317,6 @@ func (o *output) fillFieldMap() {
 	o.fieldMap["purpose"] = o.Purpose
 	o.fieldMap["type"] = o.Type
 	o.fieldMap["sender_identity_key"] = o.SenderIdentityKey
-
 }
 
 func (o output) clone(db *gorm.DB) output {

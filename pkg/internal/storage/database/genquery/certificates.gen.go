@@ -125,7 +125,6 @@ func (c *certificate) fillFieldMap() {
 	c.fieldMap["revocation_outpoint"] = c.RevocationOutpoint
 	c.fieldMap["signature"] = c.Signature
 	c.fieldMap["user_id"] = c.UserID
-
 }
 
 func (c certificate) clone(db *gorm.DB) certificate {

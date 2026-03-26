@@ -6,8 +6,9 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 func (m *Manager) CreateActionWithData(user fixtures.UserConfig, data string) (string, fixtures.Summary, error) {

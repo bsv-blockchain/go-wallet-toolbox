@@ -7,6 +7,10 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -14,9 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 )
 
 type TxGeneratorFixture interface {
@@ -37,6 +38,7 @@ type TxGeneratorFixture interface {
 
 type txGeneratorFixture struct {
 	testing.TB
+
 	parent                *storageFixture
 	satoshisToInternalize uint64
 	satoshisToSend        uint64
@@ -215,7 +217,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 	return result, signedTx
 }
 
-func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, parentTx *transaction.Transaction) *transaction.Transaction {
+func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, _ *transaction.Transaction) *transaction.Transaction {
 	t.Helper()
 	keyDeriver := sdk.NewKeyDeriver(t.sender.PrivateKey(t))
 

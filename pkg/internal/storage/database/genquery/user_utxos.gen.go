@@ -234,7 +234,6 @@ func (u *userUTXO) fillFieldMap() {
 	u.fieldMap["estimated_input_size"] = u.EstimatedInputSize
 	u.fieldMap["created_at"] = u.CreatedAt
 	u.fieldMap["reserved_by_id"] = u.ReservedByID
-
 }
 
 func (u userUTXO) clone(db *gorm.DB) userUTXO {

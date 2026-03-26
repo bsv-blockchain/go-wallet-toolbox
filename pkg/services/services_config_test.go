@@ -7,13 +7,14 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -69,7 +70,7 @@ func TestServicesConfig_CustomServicePartialImplementation(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	require.Equal(t, 50.5, rate)
+	require.InDelta(t, 50.5, rate, 0.001)
 }
 
 func TestServicesConfig_UseModifiers(t *testing.T) {
@@ -282,7 +283,7 @@ func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, 50.5, rate)
+		require.InDelta(t, 50.5, rate, 0.001)
 		require.Equal(t, 0, customServiceCalled)
 	})
 
@@ -316,7 +317,7 @@ func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
 
 		// then:
 		require.NoError(t, err)
-		require.Equal(t, customServiceRate, rate)
+		require.InDelta(t, customServiceRate, rate, 0.001)
 		require.Equal(t, 1, customServiceCalled)
 	})
 }
@@ -411,6 +412,7 @@ func (m *mockPartialRawTxImplementation) RawTx(context.Context, string) (*wdk.Ra
 
 type mockImplementation struct {
 	mockPartialRawTxImplementation
+
 	postEFCounter               int
 	postTXCounter               int
 	merklePathCounter           int

@@ -3,10 +3,11 @@ package scopes
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 )
 
 func PaginateForGen(getter genTableGetter, page *queryopts.Paging) func(gen.Dao) gen.Dao {

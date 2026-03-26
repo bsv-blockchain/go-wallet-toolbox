@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"

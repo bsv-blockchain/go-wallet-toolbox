@@ -12,14 +12,15 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/spv"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 )
 
 const (
@@ -66,6 +67,7 @@ type ArcBroadcastFixture interface {
 
 type arcFixture struct {
 	testing.TB
+
 	transport                    *httpmock.MockTransport
 	knownTransactions            sync.Map
 	broadcastWithoutResponseBody bool
@@ -108,15 +110,11 @@ func (f *arcFixture) IsUpAndRunning() {
 		defer f.holdBroadcastExecution.RUnlock()
 
 		b, err := io.ReadAll(req.Body)
-		if !assert.NoError(f, err) {
-			return nil, err
-		}
+		require.NoError(f, err)
 
 		var body map[string]any
 		err = json.Unmarshal(b, &body)
-		if !assert.NoError(f, err) {
-			return nil, err
-		}
+		require.NoError(f, err)
 
 		rawTx := body["rawTx"]
 		if !assert.NotNil(f, rawTx) {
@@ -275,6 +273,7 @@ func (f *arcFixture) verifyTxScripts(tx *sdk.Transaction) (isValid bool) {
 
 type arcQueryFixture struct {
 	testing.TB
+
 	parent *arcFixture
 	txID   string
 }

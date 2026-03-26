@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 

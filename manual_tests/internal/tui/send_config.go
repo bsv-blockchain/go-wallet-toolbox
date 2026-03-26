@@ -4,10 +4,11 @@ package tui
 import (
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 // TransactionType represents the type of transaction to send
@@ -161,7 +162,7 @@ func (b *BaseStep) updateInputFocus() {
 func (b *BaseStep) handleCommonKeys(msg tea.Msg) (handled bool, model tea.Model, cmd tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyEnter:
 			current := b.form.focus.CurrentItem()
 			if current.Type == ElementButton {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -50,14 +51,24 @@ func main() {
 		}
 	}
 
-	body, _ := json.Marshal(faucetReq{
+	body, err := json.Marshal(faucetReq{
 		Outputs: outputs,
 	})
-	resp, err := http.Post(server+"/faucet", "application/json", bytes.NewReader(body))
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server+"/faucet", bytes.NewReader(body))
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 
 	var out faucetResp
 	_ = json.NewDecoder(resp.Body).Decode(&out)

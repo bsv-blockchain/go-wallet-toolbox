@@ -69,7 +69,7 @@ Results from each service are processed and displayed, showing success status, t
 
 ## Running the Example
 
-**Prerequisites**: 
+**Prerequisites**:
 - Update the `wif` constant with your private key
 - Update `sourceTxBEEF` with valid BEEF data from a transaction you control
 - Ensure the source transaction has unspent outputs
@@ -146,7 +146,7 @@ Service: Bitails
     Competing TXs: []
     Notes: [0xc00007c340]
     Data:
-	
+
 ============================================================
 🎉 COMPLETED: Post BEEF
 

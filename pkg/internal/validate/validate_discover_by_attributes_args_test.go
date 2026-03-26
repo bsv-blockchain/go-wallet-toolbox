@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 )
 
 func TestDiscoverByAttributesArgs_Success(t *testing.T) {

@@ -1,8 +1,9 @@
 package servicequeue
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/go-softwarelab/common/pkg/types"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 )
 
 type NamedResult[R any] = internal.NamedResult[R]

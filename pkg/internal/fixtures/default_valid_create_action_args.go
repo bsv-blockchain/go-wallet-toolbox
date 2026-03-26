@@ -5,10 +5,11 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/script"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 const DefaultCreateActionOutputSatoshis = 42000
@@ -16,7 +17,7 @@ const DefaultCreateActionOutputSatoshis = 42000
 func DefaultWalletCreateActionArgs(t *testing.T, opts ...func(*sdk.CreateActionArgs)) sdk.CreateActionArgs {
 	t.Helper()
 
-	var lockingScript, err = script.NewFromHex("76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac")
+	lockingScript, err := script.NewFromHex("76a914dbc0a7c84983c5bf199b7b2d41b3acf0408ee5aa88ac")
 	require.NoError(t, err, "Failed to decode locking script: INVALID TEST SETUP")
 
 	args := to.OptionsWithDefault(sdk.CreateActionArgs{

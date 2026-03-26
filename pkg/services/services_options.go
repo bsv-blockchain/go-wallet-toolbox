@@ -3,9 +3,10 @@ package services
 import (
 	"net/http"
 
+	"github.com/go-resty/resty/v2"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
-	"github.com/go-resty/resty/v2"
 )
 
 // Options represents configurable options for the wallet services component.

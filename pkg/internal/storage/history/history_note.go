@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-viper/mapstructure/v2"
 )
 
 const (

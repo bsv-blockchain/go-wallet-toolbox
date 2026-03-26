@@ -6,6 +6,12 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/slogx"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -19,11 +25,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/slogx"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 type StorageFixture interface {
@@ -86,11 +87,11 @@ func Given(t testing.TB, configModifiers ...dbfixtures.DBConfigModifier) (given 
 	return newStorageFixture(t, fixtures.StorageServerPrivKey, fixtures.StorageName, configModifiers...)
 }
 
-func GivenCustomStorage(t testing.TB, identityKey string, name string) (given StorageFixture, cleanup func()) {
+func GivenCustomStorage(t testing.TB, identityKey, name string) (given StorageFixture, cleanup func()) {
 	return newStorageFixture(t, identityKey, name, dbfixtures.WithSQLiteFileName(name))
 }
 
-func newStorageFixture(t testing.TB, identityKey string, name string, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
+func newStorageFixture(t testing.TB, identityKey, name string, configModifiers ...dbfixtures.DBConfigModifier) (given StorageFixture, cleanup func()) {
 	db, dbCleanup := dbfixtures.TestDatabase(t, configModifiers...)
 
 	s := &storageFixture{

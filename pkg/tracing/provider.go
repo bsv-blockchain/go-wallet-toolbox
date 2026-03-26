@@ -46,7 +46,7 @@ func NewTraceProvider(ctx context.Context, serviceName string, sample int, opts 
 }
 
 // Enable sets up OpenTelemetry tracing with the given logger, service name, dial address, and sampling rate.
-func Enable(logger *slog.Logger, serviceName string, dialAddr string, sample int) (func(), error) {
+func Enable(logger *slog.Logger, serviceName, dialAddr string, sample int) (func(), error) {
 	if dialAddr == "" {
 		return nil, errors.New("tracing enabled, but tracing address empty")
 	}

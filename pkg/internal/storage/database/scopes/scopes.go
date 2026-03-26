@@ -1,9 +1,10 @@
 package scopes
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 )
 
 // Paginate is a Scope function that handles pagination.

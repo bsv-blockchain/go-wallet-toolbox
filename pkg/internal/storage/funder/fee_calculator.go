@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type feeCalc struct {

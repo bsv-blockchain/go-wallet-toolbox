@@ -10,6 +10,10 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -18,9 +22,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-resty/resty/v2"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 type Bitails struct {
@@ -159,7 +160,7 @@ func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 	}
 
 	var payload dto.NetworkInfoResponse
-	found, err := b.handleJSON(ctx, url, &payload, http.StatusOK, false)
+	found, err := b.handleJSON(ctx, url, &payload, false)
 	if err != nil {
 		return 0, fmt.Errorf("error fetching current height: %w", err)
 	}

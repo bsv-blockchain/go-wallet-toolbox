@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gen"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"gorm.io/gen"
-	"gorm.io/gorm"
 )
 
 type UserUTXOs struct {
@@ -121,7 +122,6 @@ func (r *UserUTXOs) Count(ctx context.Context, spec *entity.UserUTXOReadSpecific
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
 		Where(r.conditionsBySpec(spec)...).
 		Count()
-
 	if err != nil {
 		return 0, fmt.Errorf("failed to count user utxos: %w", err)
 	}

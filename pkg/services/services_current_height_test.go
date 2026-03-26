@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWalletServices_CurrentHeight(t *testing.T) {
@@ -68,7 +69,6 @@ func TestWalletServices_CurrentHeight(t *testing.T) {
 }
 
 func TestWalletServices_CurrentHeight_ErrorCases(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		setup       func(testservices.ServicesFixture)

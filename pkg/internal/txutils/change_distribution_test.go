@@ -4,11 +4,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 )
 
 func mockZeroRandomizer(_ uint64) uint64 {
@@ -153,7 +154,7 @@ func TestChangeDistribution(t *testing.T) {
 			values := dist.Distribute(test.count, test.amount)
 
 			// then:
-			require.EqualValues(t, test.expected, seq.Collect(values))
+			require.Equal(t, test.expected, seq.Collect(values))
 		})
 	}
 }

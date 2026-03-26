@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/must"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/must"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // ListFailedActions lists only actions with status 'failed'.

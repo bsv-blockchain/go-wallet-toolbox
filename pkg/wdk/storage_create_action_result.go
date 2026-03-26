@@ -22,6 +22,7 @@ type StorageCreateTransactionSdkInput struct {
 // StorageCreateTransactionSdkOutput represents the output for SDK transaction creation
 type StorageCreateTransactionSdkOutput struct {
 	ValidCreateActionOutput
+
 	// Additional fields
 	Vout             uint32     `json:"vout"`
 	ProvidedBy       ProvidedBy `json:"providedBy"`

@@ -4,12 +4,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const (
@@ -69,10 +70,10 @@ func TestWhatsOnChain_PostTX(t *testing.T) {
 
 			assert.Equal(t, test.resultStatus, result.Result)
 			assert.Equal(t, givenTxID, result.TxID)
-			assert.Nil(t, result.Error)
+			require.NoError(t, result.Error)
 			assert.False(t, result.DoubleSpend)
 			assert.Equal(t, test.alreadyKnown, result.AlreadyKnown)
-			assert.Len(t, result.CompetingTxs, 0)
+			assert.Empty(t, result.CompetingTxs)
 			assert.Len(t, result.Notes, 1)
 		})
 	}

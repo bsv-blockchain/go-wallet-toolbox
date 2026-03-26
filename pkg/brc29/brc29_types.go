@@ -28,7 +28,7 @@ type WIF string
 
 // PrivateKey returns the private key from the WIF string.
 func (w WIF) PrivateKey() (*ec.PrivateKey, error) {
-	return ec.PrivateKeyFromWif(string(w)) //nolint:wrapcheck
+	return ec.PrivateKeyFromWif(string(w)) //nolint:wrapcheck // simple type conversion wrapper, no additional context to add
 }
 
 // PrivHex represents a string holding private key in HEX format.
@@ -37,7 +37,7 @@ type PrivHex string
 
 // PrivateKey returns the private key from the PrivHex string.
 func (k PrivHex) PrivateKey() (*ec.PrivateKey, error) {
-	return ec.PrivateKeyFromHex(string(k)) //nolint:wrapcheck
+	return ec.PrivateKeyFromHex(string(k)) //nolint:wrapcheck // simple type conversion wrapper, no additional context to add
 }
 
 // CounterpartyPrivateKey represents a source of counterparty private key.
@@ -56,7 +56,7 @@ type PubHex string
 
 // PublicKey returns the public key from the PubHex string.
 func (k PubHex) PublicKey() (*ec.PublicKey, error) {
-	return ec.PublicKeyFromString(string(k)) //nolint:wrapcheck
+	return ec.PublicKeyFromString(string(k)) //nolint:wrapcheck // direct pass-through, wrapping would add no value
 }
 
 // CounterpartyPublicKey represents a source of counterparty identity (public) key.

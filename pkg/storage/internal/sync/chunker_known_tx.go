@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/must"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 const (

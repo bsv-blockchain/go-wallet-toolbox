@@ -5,8 +5,9 @@ import (
 	"iter"
 	"reflect"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/types"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 type Value int64
@@ -49,7 +50,7 @@ func MustFrom[T types.Integer](value T) Value {
 	return v
 }
 
-func Add[A types.Integer, B types.Integer](a A, b B) (Value, error) {
+func Add[A, B types.Integer](a A, b B) (Value, error) {
 	satsA, err := From(a)
 	if err != nil {
 		return 0, err
@@ -65,7 +66,7 @@ func Add[A types.Integer, B types.Integer](a A, b B) (Value, error) {
 	return c, nil
 }
 
-func MustAdd[A types.Integer, B types.Integer](a A, b B) Value {
+func MustAdd[A, B types.Integer](a A, b B) Value {
 	added, err := Add(a, b)
 	if err != nil {
 		panic(err)
@@ -73,7 +74,7 @@ func MustAdd[A types.Integer, B types.Integer](a A, b B) Value {
 	return added
 }
 
-func Subtract[A types.Integer, B types.Integer](a A, b B) (Value, error) {
+func Subtract[A, B types.Integer](a A, b B) (Value, error) {
 	satsA, err := From(a)
 	if err != nil {
 		return 0, err
@@ -89,7 +90,7 @@ func Subtract[A types.Integer, B types.Integer](a A, b B) (Value, error) {
 	return c, nil
 }
 
-func MustSubtract[A types.Integer, B types.Integer](a A, b B) Value {
+func MustSubtract[A, B types.Integer](a A, b B) Value {
 	subtracted, err := Subtract(a, b)
 	if err != nil {
 		panic(err)
@@ -97,7 +98,7 @@ func MustSubtract[A types.Integer, B types.Integer](a A, b B) Value {
 	return subtracted
 }
 
-func Multiply[A types.Integer, B types.Integer](a A, b B) (Value, error) {
+func Multiply[A, B types.Integer](a A, b B) (Value, error) {
 	satsA, err := From(a)
 	if err != nil {
 		return 0, err
@@ -113,7 +114,7 @@ func Multiply[A types.Integer, B types.Integer](a A, b B) (Value, error) {
 	return c, nil
 }
 
-func MustMultiply[A types.Integer, B types.Integer](a A, b B) Value {
+func MustMultiply[A, B types.Integer](a A, b B) Value {
 	multiplied, err := Multiply(a, b)
 	if err != nil {
 		panic(err)
@@ -148,7 +149,7 @@ func MustSum[T types.Integer](values iter.Seq[T]) Value {
 	return sum
 }
 
-func Equal[A types.Integer, B types.Integer](a A, b B) (bool, error) {
+func Equal[A, B types.Integer](a A, b B) (bool, error) {
 	satsA, err := From(a)
 	if err != nil {
 		return false, err
@@ -160,7 +161,7 @@ func Equal[A types.Integer, B types.Integer](a A, b B) (bool, error) {
 	return satsA == satsB, nil
 }
 
-func MustEqual[A types.Integer, B types.Integer](a A, b B) bool {
+func MustEqual[A, B types.Integer](a A, b B) bool {
 	equal, err := Equal(a, b)
 	if err != nil {
 		panic(err)
@@ -204,7 +205,7 @@ func validateUint[T ~uint | ~uint64](value T) error {
 
 func validateGeneric(value any) error {
 	v := reflect.ValueOf(value)
-	//nolint:exhaustive
+	//nolint:exhaustive // only numeric kinds are supported; default case handles unsupported types
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return validateInt(v.Int())

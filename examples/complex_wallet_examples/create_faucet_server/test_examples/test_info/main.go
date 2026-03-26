@@ -23,11 +23,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	resp, err := http.Get(server + "/info")
+	resp, err := http.Get(server + "/info") //nolint:noctx // example script, context not needed
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in example code
 
 	var out addressResp
 	_ = json.NewDecoder(resp.Body).Decode(&out)

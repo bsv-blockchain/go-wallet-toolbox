@@ -3,6 +3,11 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -12,10 +17,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListOutputs_MinimalFilter(t *testing.T) {
@@ -47,7 +48,7 @@ func TestListOutputs_MinimalFilter(t *testing.T) {
 	// and:
 	for _, output := range result.Outputs {
 		assert.NotEmpty(t, output.Outpoint)
-		assert.NoError(t, output.Outpoint.Validate())
+		require.NoError(t, output.Outpoint.Validate())
 		assert.NotEqual(t, primitives.SatoshiValue(0), output.Satoshis)
 
 		assert.Empty(t, output.LockingScript)
@@ -193,7 +194,7 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 	// and:
 	for _, output := range actualResult.Outputs {
 		assert.NotEmpty(t, output.Outpoint)
-		assert.NoError(t, output.Outpoint.Validate())
+		require.NoError(t, output.Outpoint.Validate())
 		assert.NotNil(t, beef.FindTransaction(output.Outpoint.MustGetTxID()))
 	}
 }
@@ -226,7 +227,7 @@ func TestListOutputs_BeforeProcessAction(t *testing.T) {
 
 	// and:
 	beef := testutils.BEEFFromBytes(t, actualResult.BEEF)
-	require.Len(t, beef.Transactions, 0)
+	require.Empty(t, beef.Transactions)
 }
 
 func TestListOutputs_FilterTags(t *testing.T) {
@@ -329,7 +330,7 @@ func TestListOutputs_FilterByBasketName(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, actualResult)
 	require.NotEmpty(t, actualResult.Outputs, "Expected outputs for basket %s", basketName)
-	assert.Greater(t, int(actualResult.TotalOutputs), 0, "Expected totalOutputs > 0 for basket %s", basketName)
+	assert.Positive(t, int(actualResult.TotalOutputs), "Expected totalOutputs > 0 for basket %s", basketName) //nolint:gosec // test assertion, totalOutputs fits in int
 }
 
 func TestListOutputs_NoOutputsToReturn(t *testing.T) {
@@ -396,7 +397,7 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 
 	// when:
 	createActionArgs := fixtures.DefaultValidCreateActionArgs()
-	createActionArgs.Outputs[0].Satoshis = primitives.SatoshiValue(satoshi.MustSubtract(balance, 5).Int64())
+	createActionArgs.Outputs[0].Satoshis = primitives.SatoshiValue(satoshi.MustSubtract(balance, 5).Int64()) //nolint:gosec // satoshi value is always non-negative
 	_, err = activeStorage.CreateAction(
 		t.Context(),
 		testusers.Alice.AuthID(),

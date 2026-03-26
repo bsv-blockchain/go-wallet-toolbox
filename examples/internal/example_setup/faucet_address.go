@@ -29,5 +29,4 @@ func FaucetAddress(wallet *Setup) {
 	}
 
 	show.FaucetInstructions(address.AddressString)
-
 }

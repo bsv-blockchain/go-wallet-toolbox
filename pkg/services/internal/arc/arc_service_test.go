@@ -6,14 +6,15 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
-	arctestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc/testabilities"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
+	arctestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestPostEFWithARCService(t *testing.T) {
@@ -38,7 +39,7 @@ func TestPostEFWithARCService(t *testing.T) {
 		res, err := service.PostEF(t.Context(), efTX, txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, res)
 
 		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
@@ -69,7 +70,7 @@ func TestPostEFWithARCService(t *testing.T) {
 		res, err := service.PostEF(t.Context(), efTX, txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, res)
 
 		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
@@ -108,7 +109,7 @@ func TestPostEFWithARCService(t *testing.T) {
 			res, err := service.PostEF(t.Context(), txEF, txID)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, res)
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
 			assert.Error(t, res.Error)
@@ -162,7 +163,7 @@ func TestPostEFWithARCService(t *testing.T) {
 			res, err := service.PostEF(t.Context(), efHex, tx.TxID().String())
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, res)
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
 			assert.Error(t, res.Error)
@@ -242,7 +243,7 @@ func TestPostEFWithARCService(t *testing.T) {
 			res, err := service.PostEF(t.Context(), efHex, txID)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, res)
 
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
@@ -359,7 +360,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 			res, err := service.MerklePath(t.Context(), txID)
 
 			// then:
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, res)
 		})
 	}
@@ -381,7 +382,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, res)
 		assert.Equal(t, arc.ServiceName, res.Name)
 		assert.Nil(t, res.MerklePath)
@@ -427,7 +428,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, res)
 		assert.Equal(t, arc.ServiceName, res.Name)
 		assert.Equal(t, merklePath, *res.MerklePath)

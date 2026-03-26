@@ -3,8 +3,9 @@ package tui
 import (
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 func NewSelectStorage(manager ManagerInterface) tea.Model {

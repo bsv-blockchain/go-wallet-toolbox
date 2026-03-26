@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"gorm.io/gorm"
 )
 
 type SyncTag struct {
@@ -35,6 +36,7 @@ func NewSyncTag(db *gorm.DB, query *genquery.Query) *SyncTag {
 
 type TagReadModel struct {
 	models.Tag
+
 	NumID uint
 }
 

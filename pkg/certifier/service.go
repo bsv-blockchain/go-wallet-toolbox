@@ -13,8 +13,9 @@ import (
 	script "github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
 )
 
 // CertificateService handles certificate signing operations.

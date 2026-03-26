@@ -5,8 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 )
 
 func TestToYAMLFile(t *testing.T) {
@@ -23,7 +24,7 @@ func TestToYAMLFile(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	yamlFile, err := os.ReadFile(configFilePath)
+	yamlFile, err := os.ReadFile(configFilePath) //nolint:gosec // configFilePath is a test-controlled temp file path
 	require.NoError(t, err)
 
 	require.Contains(t, string(yamlFile), "a: default_hello")

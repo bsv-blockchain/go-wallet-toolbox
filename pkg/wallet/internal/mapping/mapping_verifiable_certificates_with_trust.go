@@ -6,8 +6,9 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 )
 
 // identityGroup is a helper type used for grouping certificates by subject
@@ -50,7 +51,7 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 			Name:        trustedCertifier.Name,
 			IconUrl:     to.Value(trustedCertifier.IconURL),
 			Description: trustedCertifier.Description,
-			//nolint:gosec
+			//nolint:gosec // trust level is a small value (0-100) defined by the certifier config
 			Trust: uint8(trustedCertifier.Trust),
 		}
 
@@ -97,7 +98,7 @@ func MapVerifiableCertificatesWithTrust(logger *slog.Logger, trustSettings *wall
 	})
 
 	return &wallet.DiscoverCertificatesResult{
-		//nolint:gosec
+		//nolint:gosec // len(results) is always a non-negative int that fits in uint32
 		TotalCertificates: uint32(len(results)),
 		Certificates:      results,
 	}, nil

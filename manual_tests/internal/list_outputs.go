@@ -4,11 +4,12 @@ import (
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 // ListOutputs lists outputs with pagination and returns a textual summary for display in TUI.
-func (m *Manager) ListOutputs(user fixtures.UserConfig, limit uint32, offset uint32, includeLabels bool, basket string) (fixtures.Summary, error) {
+func (m *Manager) ListOutputs(user fixtures.UserConfig, limit, offset uint32, includeLabels bool, basket string) (fixtures.Summary, error) {
 	var summary fixtures.Summary
 
 	summary = append(summary, fmt.Sprintf("Using wallet for user %s", user.Name))

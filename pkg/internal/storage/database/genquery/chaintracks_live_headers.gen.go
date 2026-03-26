@@ -134,7 +134,6 @@ func (c *chaintracksLiveHeader) fillFieldMap() {
 	c.fieldMap["time"] = c.Time
 	c.fieldMap["bits"] = c.Bits
 	c.fieldMap["nonce"] = c.Nonce
-
 }
 
 func (c chaintracksLiveHeader) clone(db *gorm.DB) chaintracksLiveHeader {

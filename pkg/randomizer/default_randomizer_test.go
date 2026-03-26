@@ -3,8 +3,9 @@ package randomizer_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 )
 
 func TestRandomBase64(t *testing.T) {

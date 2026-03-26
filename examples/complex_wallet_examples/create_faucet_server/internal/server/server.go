@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/gofiber/fiber/v2"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/handlers"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/gofiber/fiber/v2"
 )
 
 type Server struct {

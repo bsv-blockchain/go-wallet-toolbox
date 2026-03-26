@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+	"github.com/go-softwarelab/common/pkg/must"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
@@ -16,7 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/must"
 )
 
 // Server is a struct that holds the "infra" server configuration
@@ -63,7 +64,8 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	logger := logging.Child(makeLogger(&cfg, &options), "infra")
 
 	if cfg.TracingConfig.Enabled {
-		tracingCleanup, err := tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
+		var tracingCleanup func()
+		tracingCleanup, err = tracing.Enable(logger, "server", cfg.TracingConfig.DialAddr, cfg.TracingConfig.Sample)
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable tracing: %w", err)
 		}

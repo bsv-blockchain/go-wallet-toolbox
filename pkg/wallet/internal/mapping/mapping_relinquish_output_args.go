@@ -2,6 +2,7 @@ package mapping
 
 import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 

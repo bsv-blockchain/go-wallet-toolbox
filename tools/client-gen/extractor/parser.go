@@ -10,8 +10,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/metadata"
 	"github.com/go-softwarelab/common/pkg/seq"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/tools/client-gen/metadata"
 )
 
 // InterfaceInfo holds information about an interface
@@ -204,7 +205,7 @@ func buildImportMap(file *ast.File) map[string]Import {
 // findImports recursively examines an AST type expression to find imported types
 func findImports(expr ast.Expr) (importNames iter.Seq[string]) {
 	if expr == nil {
-		return
+		return importNames
 	}
 
 	switch t := expr.(type) {

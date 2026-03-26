@@ -3,13 +3,14 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestInsertCertificateAuth(t *testing.T) {
@@ -266,7 +267,7 @@ func TestListCertificates(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		assert.Equal(t, primitives.PositiveInteger(3), certs.TotalCertificates)
-		require.Equal(t, 1, len(certs.Certificates))
+		require.Len(t, certs.Certificates, 1)
 
 		// when: listing certificates with limit 2
 		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
@@ -276,7 +277,7 @@ func TestListCertificates(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		assert.Equal(t, primitives.PositiveInteger(3), certs.TotalCertificates)
-		require.Equal(t, 2, len(certs.Certificates))
+		require.Len(t, certs.Certificates, 2)
 
 		// when: listing certificates with limit 1 and offset 2
 		certs, err = activeStorage.ListCertificates(t.Context(), testusers.Alice.AuthID(), wdk.ListCertificatesArgs{
@@ -286,6 +287,6 @@ func TestListCertificates(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 		assert.Equal(t, primitives.PositiveInteger(3), certs.TotalCertificates)
-		require.Equal(t, 1, len(certs.Certificates))
+		require.Len(t, certs.Certificates, 1)
 	})
 }

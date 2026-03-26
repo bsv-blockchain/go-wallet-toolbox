@@ -7,16 +7,17 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const nLockTimeThreshold = uint32(500_000_000)
@@ -135,7 +136,7 @@ func TestProcessActionTwice(t *testing.T) {
 	assert.Equal(t, txID, string(sendWithResult.TxID))
 	assert.Equal(t, wdk.SendWithResultStatusUnproven, sendWithResult.Status)
 
-	require.Len(t, result.NotDelayedResults, 0)
+	require.Empty(t, result.NotDelayedResults)
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -183,7 +184,7 @@ func TestProcessAction_DelayedBroadcast(t *testing.T) {
 	assert.Equal(t, txID, string(sendWithResult.TxID))
 	assert.Equal(t, wdk.SendWithResultStatusSending, sendWithResult.Status)
 
-	require.Len(t, result.NotDelayedResults, 0)
+	require.Empty(t, result.NotDelayedResults)
 
 	// and db state:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
@@ -270,7 +271,7 @@ func TestProcessAction_DelayedBroadcastForManyTransactions(t *testing.T) {
 		assert.Equal(t, txID, string(sendWithResult.TxID))
 		assert.Equal(t, wdk.SendWithResultStatusSending, sendWithResult.Status)
 
-		require.Len(t, results[i].NotDelayedResults, 0)
+		require.Empty(t, results[i].NotDelayedResults)
 	}
 
 	// and db state:
@@ -564,7 +565,7 @@ func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {
 			setupService: func(given testabilities.StorageFixture) {
 				// No special setup needed for timestamp validation
 			},
-			lockTime:    uint32(time.Now().Unix() - 3600),
+			lockTime:    uint32(time.Now().Unix() - 3600), //nolint:gosec // unix timestamp fits in uint32
 			sequences:   []uint32{0},
 			description: "past timestamp locktime should be final",
 		},
@@ -635,7 +636,7 @@ func TestProcessActionNLockTimeIsFinalFailure(t *testing.T) {
 			setupService: func(given testabilities.StorageFixture) {
 				// No special setup needed for timestamp validation
 			},
-			lockTime:  uint32(time.Now().Unix() + 7200),
+			lockTime:  uint32(time.Now().Unix() + 7200), //nolint:gosec // unix timestamp fits in uint32
 			sequences: []uint32{0},
 		},
 		"mixed sequences with future block height": {
