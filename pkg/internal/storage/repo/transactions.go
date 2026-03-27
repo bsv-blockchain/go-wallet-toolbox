@@ -457,7 +457,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
-		if err := query.Count(&total).Error; err != nil {
+		if err = query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
 

@@ -1049,7 +1049,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	totalCount := uint64(len(knownTxs))
 
-	txLabelsMap, err := p.repo.Transactions.GetLabelsForTxIDs(ctx, txIDs)
+	txLabelsMap, err := p.repo.GetLabelsForTxIDs(ctx, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching labels for transactions: %w", err)
 	}
