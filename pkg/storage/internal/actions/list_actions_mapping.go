@@ -47,7 +47,6 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 		LabelQueryMode: args.LabelQueryMode.MustGetValue(),
 		Limit:          must.ConvertToIntFromUnsigned(args.Limit),
 		Offset:         must.ConvertToIntFromUnsigned(args.Offset),
-		Reference:      args.Reference,
 	}, nil
 }
 

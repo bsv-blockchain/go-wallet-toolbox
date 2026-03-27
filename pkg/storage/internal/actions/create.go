@@ -52,7 +52,6 @@ type CreateActionParams struct {
 	TrustSelf                bool
 	IsNoSend                 bool
 	IsDelayed                bool
-	Reference                string
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -71,7 +70,6 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		NoSendChange:             args.Options.NoSendChange,
 		IsDelayed:                args.IsDelayed,
 		KnownTxIDs:               args.Options.KnownTxids,
-		Reference:                args.Reference,
 	}
 }
 
@@ -135,14 +133,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		tracing.EndTracing(span, err)
 	}()
 
-	var reference string
-	if params.Reference != "" {
-		reference = params.Reference
-	} else {
-		reference, err = c.randomReference()
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate reference number: %w", err)
-		}
+	reference, err := c.randomReference()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate reference number: %w", err)
 	}
 
 	c.logger.DebugContext(ctx, "Searching for change basket",

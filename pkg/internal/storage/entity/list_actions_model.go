@@ -12,5 +12,4 @@ type ListActionsFilter struct {
 	Status         []wdk.TxStatus
 	Limit          int
 	Offset         int
-	Reference      *string
 }

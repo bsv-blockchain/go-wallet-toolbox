@@ -27,6 +27,7 @@ type TxGeneratorFixture interface {
 	WithRecipient(recipient testusers.User) TxGeneratorFixture
 	WithDelayedBroadcast() TxGeneratorFixture
 	WithReference(reference string) TxGeneratorFixture
+	WithLabels(labels ...string) TxGeneratorFixture
 	WillFailOnBroadcast() TxGeneratorFixture
 
 	PreInternalized() (internalizeArgs *wdk.InternalizeActionArgs, toInternalize *transaction.Transaction)
@@ -48,6 +49,7 @@ type txGeneratorFixture struct {
 	delayedBroadcast      bool
 	failedBroadcast       bool
 	reference             string
+	labels                []string
 }
 
 func (t *txGeneratorFixture) WithSatoshisToInternalize(satoshis uint64) TxGeneratorFixture {
@@ -77,6 +79,11 @@ func (t *txGeneratorFixture) WithDelayedBroadcast() TxGeneratorFixture {
 
 func (t *txGeneratorFixture) WithReference(reference string) TxGeneratorFixture {
 	t.reference = reference
+	return t
+}
+
+func (t *txGeneratorFixture) WithLabels(labels ...string) TxGeneratorFixture {
+	t.labels = append(t.labels, labels...)
 	return t
 }
 
@@ -163,46 +170,51 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 
 	args := wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
-		Reference:   t.reference,
-		Inputs: []wdk.ValidCreateActionInput{
-			{
-				Outpoint: wdk.OutPoint{
-					TxID: parentTx.TxID().String(),
-					Vout: 0,
-				},
-				InputDescription:      "provided by previously internalized transaction",
-				UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
-			},
-		},
-		Outputs: []wdk.ValidCreateActionOutput{
-			{
-				LockingScript:      primitives.HexString(lockingScript.String()),
-				Satoshis:           primitives.SatoshiValue(t.satoshisToSend),
-				OutputDescription:  "output sent to Bob",
-				CustomInstructions: to.Ptr(fmt.Sprintf(`{"derivationPrefix":"%s","derivationSuffix":"%s","type":"BRC29"}`, fixtures.DerivationPrefix, fixtures.DerivationSuffix)),
-				Tags:               []primitives.StringUnder300{fixtures.CreateActionTestTag},
-			},
-		},
-		LockTime: 0,
-		Version:  1,
-		Labels:   []primitives.StringUnder300{fixtures.CreateActionTestLabel},
-		Options: wdk.ValidCreateActionOptions{
-			AcceptDelayedBroadcast: to.Ptr(primitives.BooleanDefaultTrue(t.delayedBroadcast)),
-			SendWith:               []primitives.TXIDHexString{},
-			SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
-			KnownTxids:             []primitives.TXIDHexString{},
-			NoSendChange:           []wdk.OutPoint{},
-			RandomizeOutputs:       false,
-			TrustSelf:              to.Ptr(sdk.TrustSelfKnown),
-		},
-		IsSendWith:                   false,
-		IsDelayed:                    t.delayedBroadcast,
-		IsNoSend:                     false,
-		IsNewTx:                      true,
-		IsRemixChange:                false,
-		IsSignAction:                 false,
-		IncludeAllSourceTransactions: false,
+		Labels:      []primitives.StringUnder300{fixtures.CreateActionTestLabel},
 	}
+	if t.reference != "" {
+		args.Labels = append(args.Labels, primitives.StringUnder300(t.reference))
+	}
+	args.Inputs = []wdk.ValidCreateActionInput{
+		{
+			Outpoint: wdk.OutPoint{
+				TxID: parentTx.TxID().String(),
+				Vout: 0,
+			},
+			InputDescription:      "provided by previously internalized transaction",
+			UnlockingScriptLength: to.Ptr(primitives.PositiveInteger(108)),
+		},
+	}
+	args.Outputs = []wdk.ValidCreateActionOutput{
+		{
+			LockingScript:      primitives.HexString(lockingScript.String()),
+			Satoshis:           primitives.SatoshiValue(t.satoshisToSend),
+			OutputDescription:  "output sent to Bob",
+			CustomInstructions: to.Ptr(fmt.Sprintf(`{"derivationPrefix":"%s","derivationSuffix":"%s","type":"BRC29"}`, fixtures.DerivationPrefix, fixtures.DerivationSuffix)),
+			Tags:               []primitives.StringUnder300{fixtures.CreateActionTestTag},
+		},
+	}
+	args.LockTime = 0
+	args.Version = 1
+	if len(t.labels) > 0 {
+		args.Labels = append(args.Labels, primitives.ToStringUnder300Slice(t.labels)...)
+	}
+	args.Options = wdk.ValidCreateActionOptions{
+		AcceptDelayedBroadcast: to.Ptr(primitives.BooleanDefaultTrue(t.delayedBroadcast)),
+		SendWith:               []primitives.TXIDHexString{},
+		SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
+		KnownTxids:             []primitives.TXIDHexString{},
+		NoSendChange:           []wdk.OutPoint{},
+		RandomizeOutputs:       false,
+		TrustSelf:              to.Ptr(sdk.TrustSelfKnown),
+	}
+	args.IsSendWith = false
+	args.IsDelayed = t.delayedBroadcast
+	args.IsNoSend = false
+	args.IsNewTx = true
+	args.IsRemixChange = false
+	args.IsSignAction = false
+	args.IncludeAllSourceTransactions = false
 
 	result, err := t.activeStorage.CreateAction(
 		t.Context(),

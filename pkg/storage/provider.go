@@ -991,15 +991,19 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	}
 
 	hasTxIDsFilter := len(args.TxIDs) > 0
-	hasReferencesFilter := len(args.References) > 0
 
 	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
 
-	if hasReferencesFilter {
-		txQuery = txQuery.Reference().In(args.References...)
-	}
 	if hasTxIDsFilter {
 		txQuery = txQuery.TxID().In(args.TxIDs...)
+	}
+
+	if len(args.Labels) > 0 {
+		if args.LabelQueryMode == defs.QueryModeAll {
+			txQuery = txQuery.Labels().ContainAll(args.Labels...)
+		} else {
+			txQuery = txQuery.Labels().ContainAny(args.Labels...)
+		}
 	}
 
 	userTxs, txErr := txQuery.Find(ctx)
@@ -1045,6 +1049,11 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	totalCount := uint64(len(knownTxs))
 
+	txLabelsMap, err := p.repo.GetLabelsForTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching labels for transactions: %w", err)
+	}
+
 	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
 		var status wdk.StandardizedTxStatus
@@ -1057,6 +1066,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		txUpdate := wdk.CurrentTxStatus{
 			TxID:   ktx.TxID,
 			Status: status,
+			Labels: txLabelsMap[ktx.TxID],
 		}
 
 		if ref, ok := txReferenceMap[ktx.TxID]; ok {

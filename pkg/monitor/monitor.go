@@ -326,6 +326,7 @@ func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
 			BlockHash:   res.BlockHash,
 			BlockHeight: res.BlockHeight,
 			Reference:   res.Reference,
+			Labels:      res.Labels,
 		}
 
 		select {

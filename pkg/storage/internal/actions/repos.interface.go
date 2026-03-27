@@ -45,6 +45,7 @@ type TransactionsRepo interface {
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*pkgentity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error)
+	GetLabelsForTxIDs(ctx context.Context, txIDs []string) (map[string][]string, error)
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
 	FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error)
