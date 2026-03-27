@@ -120,6 +120,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 			TxID:      res.TxID.String(),
 			Status:    res.Status.ToStandardizedStatus(),
 			Reference: res.Reference,
+			Labels:    res.Labels,
 		}
 
 		if len(res.Errors) > 0 {

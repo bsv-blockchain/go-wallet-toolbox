@@ -77,7 +77,6 @@ type ValidCreateActionArgs struct {
 	IsSignAction                 bool                          `json:"isSignAction,omitempty"`
 	RandomVals                   *[]int                        `json:"randomVals,omitempty"`
 	IncludeAllSourceTransactions bool                          `json:"includeAllSourceTransactions,omitempty"`
-	Reference                    string                        `json:"reference,omitempty"`
 
 	Options ValidCreateActionOptions `json:"options"`
 

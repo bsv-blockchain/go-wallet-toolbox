@@ -341,6 +341,11 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	s.logger.Info("synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
 
+	txLabelsLookup, err := s.transactionRepo.GetLabelsForTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
+	}
+
 	var failedAttempts []string
 	for _, txToSync := range txsToSync {
 		if err = ctx.Err(); err != nil {
@@ -407,6 +412,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			BlockHash:   merkleResult.BlockHeader.Hash,
 			MerklePath:  merkleResult.MerklePath,
 			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
+			Labels:      txLabelsLookup[txToSync.TxID],
 		})
 	}
 
@@ -428,6 +434,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			TxID:      updatedTx.TxID,
 			Status:    wdk.ProvenTxStatusInvalid,
 			Reference: txReferencesLookup[updatedTx.TxID],
+			Labels:    txLabelsLookup[updatedTx.TxID],
 		})
 	}
 

@@ -18,7 +18,6 @@ type ListActionsArgs struct {
 	IncludeInputSourceLockingScripts *primitives.BooleanDefaultFalse             `json:"includeInputSourceLockingScripts,omitempty"`
 	IncludeInputUnlockingScripts     *primitives.BooleanDefaultFalse             `json:"includeInputUnlockingScripts,omitempty"`
 	IncludeOutputLockingScripts      *primitives.BooleanDefaultFalse             `json:"includeOutputLockingScripts,omitempty"`
-	Reference                        *string                                     `json:"reference,omitempty"`
 }
 
 // ListActionsResult defines the result of listing actions

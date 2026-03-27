@@ -159,3 +159,12 @@ func (tt TXIDHexStrings) ToStringSlice() []string {
 	}
 	return slice
 }
+
+// ToStringUnder300Slice converts a slice of strings into a slice of StringUnder300.
+func ToStringUnder300Slice(ss []string) []StringUnder300 {
+	slice := make([]StringUnder300, len(ss))
+	for i, s := range ss {
+		slice[i] = StringUnder300(s)
+	}
+	return slice
+}

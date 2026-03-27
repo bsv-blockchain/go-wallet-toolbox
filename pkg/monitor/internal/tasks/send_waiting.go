@@ -44,6 +44,7 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 			TxID:      res.TxID.String(),
 			Status:    res.Status.ToStandardizedStatus(),
 			Reference: res.Reference,
+			Labels:    res.Labels,
 		}
 
 		if len(res.Errors) > 0 {

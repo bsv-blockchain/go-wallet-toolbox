@@ -220,7 +220,7 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 	}()
 
 	var transaction models.Transaction
-	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).First(&transaction).Error
+	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).Preload("Labels").First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = nil
@@ -457,10 +457,6 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
-		if filter.Reference != nil && *filter.Reference != "" {
-			query = query.Where("reference = ?", *filter.Reference)
-		}
-
 		if err = query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
@@ -499,9 +495,6 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 	}
 	if len(filter.Labels) > 0 {
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
-	}
-	if filter.Reference != nil && *filter.Reference != "" {
-		query = query.Where("reference = ?", *filter.Reference)
 	}
 
 	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
@@ -584,6 +577,42 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 	labelsMap := make(map[uint][]string)
 	for _, row := range rows {
 		labelsMap[row.TransactionID] = append(labelsMap[row.TransactionID], row.LabelName)
+	}
+	return labelsMap, nil
+}
+
+func (txs *Transactions) GetLabelsForTxIDs(ctx context.Context, txIDs []string) (map[string][]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-GetLabelsForTxIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(txIDs) == 0 {
+		return make(map[string][]string), nil
+	}
+
+	type resultRow struct {
+		TxID      string
+		LabelName string
+	}
+
+	var rows []resultRow
+	err = txs.db.WithContext(ctx).
+		Table("bsv_transactions t").
+		Select("t.tx_id, tl.label_name").
+		Joins("JOIN bsv_transaction_labels tl ON tl.transaction_id = t.id").
+		Where("t.tx_id IN ?", txIDs).
+		Where("tl.label_name IS NOT NULL").
+		Where("tl.deleted_at IS NULL").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch fetch labels by txID: %w", err)
+	}
+
+	labelsMap := make(map[string][]string)
+	for _, row := range rows {
+		labelsMap[row.TxID] = append(labelsMap[row.TxID], row.LabelName)
 	}
 	return labelsMap, nil
 }
