@@ -3,11 +3,12 @@ package wallet_test
 import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	certs_testabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/require"
 )
 
 func (s *WalletTestSuite) Test_AcquireCertificate() {
@@ -166,10 +167,10 @@ func (s *WalletTestSuite) Test_AcquireCertificate_IssuanceProtocol() {
 	require.Equal(t, certifierKey.PublicKey.ToDERHex(), actual.Certifier.ToDERHex(), "certificate certifier should be Bob's identity key")
 	require.NotNil(t, actual.Signature, "certificate should have a valid signature")
 	require.NotNil(t, actual.RevocationOutpoint, "certificate should have a revocation outpoint")
-	require.Equal(t, 32, len(actual.SerialNumber), "serial number should be 32 bytes")
+	require.Len(t, actual.SerialNumber, 32, "serial number should be 32 bytes")
 
 	// and: verify fields match what was requested
-	require.Equal(t, len(args.Fields), len(actual.Fields), "certificate should have same number of fields as requested")
+	require.Len(t, actual.Fields, len(args.Fields), "certificate should have same number of fields as requested")
 	for fieldName, fieldValue := range args.Fields {
 		actualValue, exists := actual.Fields[fieldName]
 		require.True(t, exists, "certificate should contain field: %s", fieldName)

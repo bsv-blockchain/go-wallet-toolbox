@@ -88,6 +88,7 @@ type MerkleRootVerifyResp struct {
 func (s merkleRootConfirmationState) IsConfirmed() bool {
 	return strings.EqualFold(string(s), string(confirmed))
 }
+
 func (s merkleRootConfirmationState) IsInvalid() bool {
 	return strings.EqualFold(string(s), string(invalid))
 }

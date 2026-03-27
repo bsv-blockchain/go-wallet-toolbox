@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	feemodel "github.com/bsv-blockchain/go-sdk/transaction/fee_model"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -61,7 +62,7 @@ func main() {
 	show.ProcessComplete("Post BEEF")
 }
 
-func prepareTransaction(sourceTxBEEF string, wif string, sourceOutputIndex uint32, network defs.BSVNetwork, outputsSatoshis ...uint64) (*transaction.Transaction, error) {
+func prepareTransaction(sourceTxBEEF, wif string, sourceOutputIndex uint32, network defs.BSVNetwork, outputsSatoshis ...uint64) (*transaction.Transaction, error) {
 	sourceTx, err := transaction.NewTransactionFromBEEFHex(sourceTxBEEF)
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare transaction: %w", err)

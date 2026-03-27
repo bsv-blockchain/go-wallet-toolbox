@@ -3,6 +3,10 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -11,9 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListActions_HappyPath(t *testing.T) {
@@ -46,7 +47,7 @@ func TestListActions_HappyPath(t *testing.T) {
 
 	internalizedTx := result.Actions[0]
 	assert.Equal(t, ownedTransaction.Inputs[0].SourceTXID.String(), internalizedTx.TxID)
-	assert.Len(t, internalizedTx.Inputs, 0)
+	assert.Empty(t, internalizedTx.Inputs)
 
 	createdTx := result.Actions[1]
 	assert.Equal(t, ownedTransaction.TxID().String(), createdTx.TxID)
@@ -59,7 +60,7 @@ func TestListActions_HappyPath(t *testing.T) {
 		createdTxInput.SourceOutpoint,
 	)
 
-	require.Equal(t, len(ownedTransaction.Outputs), len(createdTx.Outputs))
+	require.Len(t, createdTx.Outputs, len(ownedTransaction.Outputs))
 
 	resultOutput := createdTx.Outputs[0]
 	assert.Contains(t, resultOutput.Tags, fixtures.CreateActionTestTag)

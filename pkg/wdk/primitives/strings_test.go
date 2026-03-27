@@ -3,9 +3,10 @@ package primitives_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 func TestString5to2000Bytes(t *testing.T) {

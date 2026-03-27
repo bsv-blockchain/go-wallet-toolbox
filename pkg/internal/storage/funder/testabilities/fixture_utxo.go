@@ -4,15 +4,16 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"gorm.io/gorm"
 )
 
-var FirstCreatedAt = time.Date(2006, 02, 01, 15, 4, 5, 7, time.UTC)
+var FirstCreatedAt = time.Date(2006, 0o2, 0o1, 15, 4, 5, 7, time.UTC)
 
 type UserUTXOFixture interface {
 	OwnedBy(user testusers.User) UserUTXOFixture
@@ -54,7 +55,7 @@ func newUtxoFixture(t testing.TB, parent UTXODatabase, index uint) *userUtxoFixt
 		index:              index,
 		basket:             &basket,
 		userID:             1,
-		vout:               uint32(index),
+		vout:               uint32(index), //nolint:gosec // test fixture, index is always small
 		satoshis:           1,
 		estimatedInputSize: txutils.P2PKHEstimatedInputSize,
 		status:             wdk.UTXOStatusUnproven,
@@ -81,7 +82,7 @@ func (f *userUtxoFixture) WithSatoshis(satoshis int64) UserUTXOFixture {
 	if satoshis < 0 {
 		f.t.Fatalf("satoshis must be a positive number, got %d", satoshis)
 	}
-	f.satoshis = uint64(satoshis)
+	f.satoshis = uint64(satoshis) //nolint:gosec // test fixture, satoshis is always positive
 	return f
 }
 
@@ -100,7 +101,7 @@ func (f *userUtxoFixture) Stored() {
 		OutputID:           f.index,
 		Satoshis:           f.satoshis,
 		EstimatedInputSize: f.estimatedInputSize,
-		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second),
+		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second), //nolint:gosec // test fixture, index is always small
 		BasketName:         f.basket.Name,
 		UTXOStatus:         f.status,
 		Basket: &models.OutputBasket{

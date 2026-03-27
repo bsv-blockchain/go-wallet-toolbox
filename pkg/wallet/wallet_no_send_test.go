@@ -1,10 +1,11 @@
 package wallet_test
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 )
 
 func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
@@ -89,7 +90,7 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 
 		// then:
 		require.NoError(t, err)
-		require.NotEmpty(t, result.NoSendChange) //TODO: Maybe add more assertions here
+		require.NotEmpty(t, result.NoSendChange) // TODO: Maybe add more assertions here
 		firstNoSendChange := result.NoSendChange
 
 		// when creating the second noSend create action, providing noSendChange from the first one:

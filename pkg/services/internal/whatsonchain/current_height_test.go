@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/require"
+
+	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 )
 
 func TestWhatsOnChain_GetHeight(t *testing.T) {
@@ -24,12 +25,10 @@ func TestWhatsOnChain_GetHeight(t *testing.T) {
 }
 
 func TestWhatsOnChain_GetHeight_ErrorCases(t *testing.T) {
-
 	cases := []struct {
 		name   string
 		status int
 	}{
-
 		{"non-200", http.StatusInternalServerError},
 		{"zero height", http.StatusOK},
 	}

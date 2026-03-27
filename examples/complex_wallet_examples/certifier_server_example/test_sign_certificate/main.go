@@ -16,13 +16,12 @@ import (
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	gosdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 )
 
-var (
-	CertifierAddress = "http://localhost"
-)
+var CertifierAddress = "http://localhost"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -40,7 +39,7 @@ func main() {
 	}
 	defer cleanup()
 
-	masterCertificate, err := createCertificate(context.Background(), *aliceWallet, cfg, aliceIdentityKey, logger)
+	masterCertificate, err := createCertificate(context.Background(), aliceWallet, cfg, aliceIdentityKey, logger)
 	if err != nil {
 		logger.Error("Failed to create certificate", "error", err)
 		os.Exit(1)
@@ -100,7 +99,7 @@ func setupWallet(cfg *config.Config, logger *slog.Logger) (*wallet.Wallet, func(
 	return aliceWallet, cleanup, alicePrivateKey, aliceIdentityKey, nil
 }
 
-func createCertificate(ctx context.Context, aliceWallet wallet.Wallet, cfg *config.Config, aliceIdentityKey *primitives.PublicKey, logger *slog.Logger) (*certificates.MasterCertificate, error) {
+func createCertificate(ctx context.Context, aliceWallet *wallet.Wallet, cfg *config.Config, aliceIdentityKey *primitives.PublicKey, logger *slog.Logger) (*certificates.MasterCertificate, error) {
 	fields := map[gosdk.CertificateFieldNameUnder50Bytes]string{
 		constants.FirstNameField: "John",
 		constants.LastNameField:  "Doe",
@@ -121,7 +120,7 @@ func createCertificate(ctx context.Context, aliceWallet wallet.Wallet, cfg *conf
 
 	createCertificateResults, err := certificates.CreateCertificateFields(
 		ctx,
-		&aliceWallet,
+		aliceWallet,
 		certifierCounterparty,
 		fields,
 		false,
@@ -167,7 +166,7 @@ func sendCertificateToServer(masterCertificate *certificates.MasterCertificate, 
 	CertifierAddress = fmt.Sprintf("%s:%s", CertifierAddress, cfg.Server.Port)
 
 	logger.Info("Sending certificate to server", "address", CertifierAddress)
-	resp, err := http.Post(CertifierAddress, constants.ContentTypeJSON, bytes.NewReader(bytesToSend))
+	resp, err := http.Post(CertifierAddress, constants.ContentTypeJSON, bytes.NewReader(bytesToSend)) //nolint:gosec,noctx // example code, variable URL is intentional
 	if err != nil {
 		logger.Error("Failed to send request to certifier", "error", err)
 		return nil, err
@@ -177,13 +176,13 @@ func sendCertificateToServer(masterCertificate *certificates.MasterCertificate, 
 }
 
 func handleResponse(resp *http.Response, logger *slog.Logger) error {
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in this context
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			logger.Error("Certificate signing failed", "status", resp.Status, "error", err, "response", "<failed to read response body>")
-			return fmt.Errorf("certificate signing failed with status: %s (failed to read response body: %v)", resp.Status, err)
+			return fmt.Errorf("certificate signing failed with status: %s (failed to read response body: %w)", resp.Status, err)
 		}
 		logger.Error("Certificate signing failed", "status", resp.Status, "response", string(bodyBytes))
 		return fmt.Errorf("certificate signing failed with status: %s", resp.Status)

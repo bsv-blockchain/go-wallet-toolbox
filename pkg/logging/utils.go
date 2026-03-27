@@ -6,8 +6,9 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/go-softwarelab/common/pkg/types"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 // Standard structured logging keys.

@@ -2,10 +2,11 @@ package mapping
 
 import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 func MapProcessActionArgsForNewTx(txid *chainhash.Hash, tx *assembler.AssembledTransaction, reference string, wdkArgs wdk.ValidCreateActionArgs) wdk.ProcessActionArgs {

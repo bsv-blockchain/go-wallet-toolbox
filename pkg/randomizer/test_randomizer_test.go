@@ -3,8 +3,9 @@ package randomizer_test
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 )
 
 func TestRandomBase64ByTestRandomizer(t *testing.T) {
@@ -49,7 +50,7 @@ func TestLengthOfBase64TestImplEqualsDefaultRandomizer(t *testing.T) {
 		require.NoError(t, err)
 
 		// and:
-		require.Equal(t, len(actual), len(test))
+		require.Len(t, actual, len(test))
 	}
 }
 
@@ -76,7 +77,7 @@ func TestShuffleByTestRandomizer(t *testing.T) {
 	})
 
 	// then:
-	require.Equal(t, true, swapFcnCalled)
+	require.True(t, swapFcnCalled)
 	require.Equal(t, original, numbers, "Numbers should be in the same order")
 }
 
@@ -118,5 +119,4 @@ func TestRandomManyBase64Values(t *testing.T) {
 		// and:
 		lookup[randomized] = struct{}{}
 	}
-
 }

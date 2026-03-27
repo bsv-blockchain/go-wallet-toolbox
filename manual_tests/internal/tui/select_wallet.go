@@ -1,8 +1,9 @@
 package tui
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 func NewSelectWallet(manager ManagerInterface) tea.Model {

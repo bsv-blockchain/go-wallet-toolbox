@@ -7,29 +7,30 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // getTxStatus retrieves the status of a transaction by its txid from Bitails.
-func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found bool, mined bool, height uint32, err error) {
+func (b *Bitails) getTxStatus(ctx context.Context, txid string) (found, mined bool, height uint32, err error) {
 	url, err := txStatusURL(b.url, txid)
 	if err != nil {
 		err = fmt.Errorf("build tx status URL: %w", err)
-		return
+		return found, mined, height, err
 	}
 
 	var info dto.FetchInfoResponse
-	found, err = b.handleJSON(ctx, url, &info, http.StatusOK, true /* allow 404 */)
+	found, err = b.handleJSON(ctx, url, &info, true /* allow 404 */)
 	if err != nil {
 		err = fmt.Errorf("fetch tx status: %w", err)
-		return
+		return found, mined, height, err
 	}
 
 	mined = info.BlockHeight > 0
 	height = info.BlockHeight
-	return
+	return found, mined, height, err
 }
 
 // fetchRemoteRoot retrieves the Merkle root for a given block height from Bitails.
@@ -91,7 +92,7 @@ func (b *Bitails) getTscProof(ctx context.Context, txID string) (*dto.ProofRespo
 	}
 
 	var proof dto.ProofResponse
-	found, err := b.handleJSON(ctx, url, &proof, http.StatusOK, true)
+	found, err := b.handleJSON(ctx, url, &proof, true)
 	if err != nil {
 		return nil, fmt.Errorf("error handling TSC proof JSON: %w", err)
 	}
@@ -111,7 +112,7 @@ func (b *Bitails) fetchTxInfo(ctx context.Context, txid string) (*dto.FetchInfoR
 	}
 
 	var info dto.FetchInfoResponse
-	_, err = b.handleJSON(ctx, url, &info, http.StatusOK, false)
+	_, err = b.handleJSON(ctx, url, &info, false)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching transaction info: %w", err)
 	}
@@ -129,7 +130,7 @@ func (b *Bitails) latestBlock(ctx context.Context) (hash string, height uint32, 
 		Hash   string `json:"hash"`
 		Height uint32 `json:"height"`
 	}
-	_, err = b.handleJSON(ctx, url, &payload, http.StatusOK, false)
+	_, err = b.handleJSON(ctx, url, &payload, false)
 	if err != nil {
 		return "", 0, err
 	}
@@ -149,7 +150,7 @@ func (b *Bitails) rawHeader(ctx context.Context, blockHash string) ([]byte, erro
 	var payload struct {
 		Header string `json:"header"`
 	}
-	_, err = b.handleJSON(ctx, url, &payload, http.StatusOK, false)
+	_, err = b.handleJSON(ctx, url, &payload, false)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching block header: %w", err)
 	}
@@ -184,22 +185,20 @@ func (b *Bitails) fetchMerkleHeader(ctx context.Context, blockHash string) (*wdk
 
 // handleJSON performs a GET, unmarshals JSON into 'out' and validates status.
 //
-//	okCode       - the HTTP status you expect (usually 200)
-//	allow404     - if true, 404 is not an error (caller handles the "not found" case)
+//	notFoundIsOK - if true, 404 is not an error (caller handles the "not found" case)
 //
 // It returns:
 //
-//	found = false   when allow404=true and the server returned 404
+//	found = false   when notFoundIsOK=true and the server returned 404
 //	found = true    otherwise
-func (b *Bitails) handleJSON(ctx context.Context, url string, out any, okCode int, notFoundIsOK bool) (found bool, err error) {
-
+func (b *Bitails) handleJSON(ctx context.Context, url string, out any, notFoundIsOK bool) (found bool, err error) {
 	res, err := b.httpClient.R().SetContext(ctx).SetResult(out).Get(url)
 	if err != nil {
 		return false, fmt.Errorf("error performing GET %s: %w", url, err)
 	}
 
 	switch res.StatusCode() {
-	case okCode:
+	case http.StatusOK:
 		return true, nil
 	case http.StatusNotFound:
 		if notFoundIsOK {

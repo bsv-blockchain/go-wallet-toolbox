@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gorm"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
-	"go.opentelemetry.io/otel/attribute"
-	"gorm.io/gorm"
 )
 
 type SyncState struct {
@@ -38,7 +39,6 @@ func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdenti
 		Scopes(scopes.UserID(userID)).
 		Where("storage_identity_key = ?", storageIdentityKey).
 		First(&model).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

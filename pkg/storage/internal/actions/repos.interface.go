@@ -5,6 +5,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
@@ -24,8 +25,8 @@ type OutputRepo interface {
 	FindOutput(ctx context.Context, userID int, outpoint wdk.OutPoint) (*pkgentity.Output, error)
 	FindOutputsByTransactionID(ctx context.Context, transactionID uint) ([]*pkgentity.Output, error)
 	ListAndCountOutputs(ctx context.Context, filter entity.ListOutputsFilter) ([]*pkgentity.Output, int64, error)
-	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error)
-	FindInputsAndOutputsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter, includeLockingScripts bool) (inputs map[uint][]*pkgentity.Output, outputs map[uint][]*pkgentity.Output, err error)
+	FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []uint, includeLockingScripts bool) (inputs, outputs map[uint][]*pkgentity.Output, err error)
+	FindInputsAndOutputsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter, includeLockingScripts bool) (inputs, outputs map[uint][]*pkgentity.Output, err error)
 	FindOutputsByOutpoints(ctx context.Context, userID int, outpoints []wdk.OutPoint) ([]*pkgentity.Output, error)
 	SaveOutputs(ctx context.Context, output []*pkgentity.Output) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error

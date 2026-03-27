@@ -6,10 +6,11 @@ import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/constants"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 const (
@@ -60,7 +61,7 @@ func ComputeBalance(ctx context.Context, w sdk.Interface, basket string) (uint64
 			balance += output.Satoshis
 		}
 
-		offset += uint32(len(outputs.Outputs))
+		offset += uint32(len(outputs.Outputs)) //nolint:gosec // safe: output count fits in uint32
 		if len(outputs.Outputs) < int(balanceListLimit) {
 			break
 		}

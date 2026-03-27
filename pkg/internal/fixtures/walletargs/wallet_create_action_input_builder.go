@@ -6,12 +6,13 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	testTx "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 )
 
 type CreateActionInputSource interface {
@@ -42,6 +43,7 @@ func NewCreateActionInputBuilder(t testing.TB, user testusers.User) CreateAction
 
 type createActionInputBuilder struct {
 	testing.TB
+
 	user        testusers.User
 	description string
 	satoshis    uint64
@@ -95,7 +97,7 @@ func (b *createActionInputBuilder) CreateActionInput() sdk.CreateActionInput {
 
 	unlockingScript := inputUnlockingScript.Bytes()
 	if b.noUnlocking {
-		actionInput.UnlockingScriptLength = uint32(len(unlockingScript))
+		actionInput.UnlockingScriptLength = uint32(len(unlockingScript)) //nolint:gosec // script length fits in uint32
 	} else {
 		actionInput.UnlockingScript = unlockingScript
 	}

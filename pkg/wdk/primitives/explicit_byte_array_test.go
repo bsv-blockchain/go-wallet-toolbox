@@ -25,7 +25,7 @@ func TestExplicitByteArrayUnmarshall(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, 4, len(jVal.Tx))
+	assert.Len(t, jVal.Tx, 4)
 	assert.Equal(t, byte(1), jVal.Tx[0])
 	assert.Equal(t, byte(2), jVal.Tx[1])
 	assert.Equal(t, byte(33), jVal.Tx[2])
@@ -58,5 +58,5 @@ func TestExplicitByteArrayMarshall(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	assert.Equal(t, `{"tx":[1,2,33,255]}`, string(marshaled))
+	assert.JSONEq(t, `{"tx":[1,2,33,255]}`, string(marshaled))
 }

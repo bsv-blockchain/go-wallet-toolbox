@@ -8,8 +8,9 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/pushdrop"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/go-softwarelab/common/pkg/to"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 )
 
 // RedeemPushDropToken creates a transaction to redeem a PushDrop token using aliceWallet and associated token data.

@@ -4,8 +4,9 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 )
 
 func TestDerivationParts(t *testing.T) {

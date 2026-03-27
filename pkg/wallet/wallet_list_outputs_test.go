@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListOutputsOriginatorValidation(t *testing.T) {
@@ -66,6 +67,8 @@ func TestWalletListOutputsArgsValidation(t *testing.T) {
 	}
 }
 
+const shouldHaveAtLeastOneOutputMsg = "Should have at least one output after internalize"
+
 func (s *WalletTestSuite) TestWalletListOutputs() {
 	s.Run("list outputs with empty result when no outputs exist", func() {
 		t := s.T()
@@ -84,10 +87,10 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Equal(t, 0, len(result.Outputs), "Should have no outputs when none exist")
+		assert.Empty(t, result.Outputs, "Should have no outputs when none exist")
 		assert.Equal(t, uint32(0), result.TotalOutputs, "Total outputs should be zero")
 	})
 
@@ -113,10 +116,10 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.Equal(t, uint64(fixtures.ExpectedValueToInternalize), result.Outputs[0].Satoshis, "Output value should match internalized amount")
 	})
 
@@ -143,10 +146,10 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 	})
 
 	s.Run("list outputs with include entire transactions after internalize action", func() {
@@ -172,10 +175,10 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.NotNil(t, result.BEEF, "BEEF should be included when requesting entire transactions")
 	})
 
@@ -202,12 +205,12 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output after internalize")
+		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.NotNil(t, result.Outputs[0].LockingScript, "Locking script should be included")
-		assert.Greater(t, len(result.Outputs[0].LockingScript), 0, "Locking script should not be empty")
+		assert.NotEmpty(t, result.Outputs[0].LockingScript, "Locking script should not be empty")
 	})
 
 	s.Run("list outputs with basket insertion protocol", func() {
@@ -237,18 +240,17 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
-		assert.Greater(t, len(result.Outputs), 0, "Should have at least one output in custom basket")
+		assert.NotEmpty(t, result.Outputs, "Should have at least one output in custom basket")
 		assert.Equal(t, uint64(fixtures.ExpectedValueToInternalize), result.Outputs[0].Satoshis, "Output value should match internalized amount")
 
 		// and:
 		assert.NotNil(t, result.Outputs[0].Tags, "Tags should be included")
-		assert.Greater(t, len(result.Outputs[0].Tags), 0, "Should have tags")
+		assert.NotEmpty(t, result.Outputs[0].Tags, "Should have tags")
 		assert.Contains(t, result.Outputs[0].Tags, "tag1", "Should contain expected tag")
 		assert.Contains(t, result.Outputs[0].Tags, "tag2", "Should contain expected tag")
 		assert.NotEmpty(t, result.Outputs[0].CustomInstructions, "Custom instructions should be included")
 	})
-
 }

@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-manual-tests/internal/fixtures"
 )
 
 type NoSendSendWithForm struct {
@@ -42,9 +42,8 @@ func (m *NoSendSendWithForm) Init() tea.Cmd {
 	m.inputs[1].Width = 50
 	m.inputs[1].Prompt = ""
 
-	items := []FocusItem{
-		{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack},
-	}
+	items := make([]FocusItem, 0, 1+len(m.inputs)+1)
+	items = append(items, FocusItem{Type: ElementButton, Index: ButtonBack, Label: fixtures.ButtonBack})
 	for i := range m.inputs {
 		items = append(items, FocusItem{
 			Type:  ElementInput,
@@ -74,7 +73,7 @@ func (m *NoSendSendWithForm) updateInputFocus() {
 func (m *NoSendSendWithForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
+		switch msg.Type { //nolint:exhaustive // only specific keys handled, others ignored
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		case tea.KeyTab, tea.KeyDown:
@@ -163,11 +162,10 @@ func (m *NoSendSendWithForm) View() string {
 
 	for i := range m.inputs {
 		b.WriteString(labels[i] + "\n")
-		b.WriteString(fmt.Sprintf("%s\n\n", m.inputs[i].View()))
+		fmt.Fprintf(&b, "%s\n\n", m.inputs[i].View())
 	}
 
 	if m.errorMsg != "" {
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000"))
 		b.WriteString(errorStyle.Render(m.errorMsg) + "\n\n")
 	}
 

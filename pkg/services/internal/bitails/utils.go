@@ -7,9 +7,10 @@ import (
 	"path"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // ConvertHeader decodes an 80-byte raw header and fills all fields.

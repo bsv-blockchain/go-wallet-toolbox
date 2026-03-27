@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+
 	wallet_settings_manager "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_settings_manager"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/pending"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -15,6 +16,7 @@ import (
 
 type Opts struct {
 	Flags
+
 	Services               wdk.Services
 	Logger                 *slog.Logger
 	PendingSignActionsRepo pending.SignActionsRepository

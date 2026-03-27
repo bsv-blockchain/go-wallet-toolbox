@@ -64,6 +64,7 @@ type SQLite struct {
 // PostgreSQL is configuration struct for PostgreSQL database
 type PostgreSQL struct {
 	SQLCommon `mapstructure:",squash"`
+
 	// ssl mode  [disable|allow|prefer|require|verify-ca|verify-full]. Will default to disable if not provided
 	SslMode string `mapstructure:"ssl_mode"`
 }
@@ -71,6 +72,7 @@ type PostgreSQL struct {
 // MySQL is configuration struct for MySQL database
 type MySQL struct {
 	SQLCommon `mapstructure:",squash"`
+
 	// protocol for database connection [tcp|socket|pipe|memory]. Will default to tcp if not provided
 	Protocol string `mapstructure:"protocol"`
 }

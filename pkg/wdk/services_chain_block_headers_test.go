@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
@@ -76,7 +78,7 @@ func TestChainBaseBlockHeader_Bytes_PositivePaths(t *testing.T) {
 			actualBytes, err := tc.block.Bytes()
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectedBytes, actualBytes)
 			assertBlockHash(t, tc.expectedHash, actualBytes)
 		})
@@ -149,7 +151,7 @@ func TestChainBaseBlockHeader_Bytes_NegativePaths(t *testing.T) {
 			actualBytes, err := tc.block.Bytes()
 
 			// then:
-			assert.NotNil(t, err)
+			require.Error(t, err)
 			assert.Nil(t, actualBytes)
 		})
 	}
@@ -184,12 +186,12 @@ func TestChainBaseBlockHeader_ToAndFromBytes(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// when:
 			bytes, err := tc.block.Bytes()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			actualBlock, err := wdk.ChainBaseBlockHeaderFromBytes(bytes)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.block, actualBlock)
 		})
 	}

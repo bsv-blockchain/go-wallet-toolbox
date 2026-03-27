@@ -5,9 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 )
 
 type MockConfig struct {
@@ -300,7 +301,7 @@ func TestPostLoadHook(t *testing.T) {
 func tempConfig(t *testing.T, content, extension string) string {
 	tmpDir := t.TempDir()
 	configFilePath := fmt.Sprintf("%s/config.%s", tmpDir, extension)
-	err := os.WriteFile(configFilePath, []byte(content), 0644)
+	err := os.WriteFile(configFilePath, []byte(content), 0o600)
 	require.NoError(t, err)
 
 	return configFilePath

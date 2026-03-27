@@ -32,7 +32,7 @@ func TransactionOutputSize(scriptSize uint64) uint64 {
 // TransactionSize calculates the total size of a transaction in bytes
 // inputs is a sequence of input script sizes (and possibly error)
 // outputs is a sequence of output script sizes (and possibly error)
-func TransactionSize(inputSizes iter.Seq2[uint64, error], outputSizes iter.Seq2[uint64, error]) (uint64, error) {
+func TransactionSize(inputSizes, outputSizes iter.Seq2[uint64, error]) (uint64, error) {
 	var inputsCount uint64
 	var inputsSize uint64
 	for scriptSize, err := range inputSizes {
@@ -64,7 +64,7 @@ func TransactionSize(inputSizes iter.Seq2[uint64, error], outputSizes iter.Seq2[
 // TransactionSizeFromScriptLengths calculates the total size of a transaction
 // from concrete slices of input unlocking-script lengths and output locking-script lengths.
 // This is the equivalent of the TS function: transactionSize(inputs: number[], outputs: number[])
-func TransactionSizeFromScriptLengths(inputScriptLengths []uint64, outputScriptLengths []uint64) uint64 {
+func TransactionSizeFromScriptLengths(inputScriptLengths, outputScriptLengths []uint64) uint64 {
 	var inputsSize uint64
 	for _, scriptLen := range inputScriptLengths {
 		inputsSize += TransactionInputSize(scriptLen)

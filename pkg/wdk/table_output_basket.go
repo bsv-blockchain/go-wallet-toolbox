@@ -16,10 +16,11 @@ type BasketConfiguration struct {
 // TableOutputBasket is a struct that holds the output baskets details
 type TableOutputBasket struct {
 	BasketConfiguration `json:",inline"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
-	UserID              int       `json:"userId"`
-	IsDeleted           bool      `json:"isDeleted"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	UserID    int       `json:"userId"`
+	IsDeleted bool      `json:"isDeleted"`
 
 	// BasketNumID is to keep interoperability via API, NOTE that this field is not a primary key in the database
 	BasketID int `json:"basketId"`

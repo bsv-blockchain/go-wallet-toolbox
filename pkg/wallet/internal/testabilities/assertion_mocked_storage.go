@@ -8,6 +8,7 @@ import (
 
 type mockedStorageAssertion struct {
 	testing.TB
+
 	storage *mocks.MockWalletStorageProvider
 }
 

@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockBroadcaster struct {
@@ -151,7 +152,7 @@ func TestBackgroundBroadcaster_WhenProducerIsSlowerThanConsumer(t *testing.T) {
 
 func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{
-		sleep: 100 * time.Millisecond, // Simulate a slow broadcast
+		sleep: 5 * time.Second, // Simulate a very slow broadcast so channel fills before consumers drain it
 	}
 
 	logger, _ := loggerForTestBroadcaster()
@@ -180,7 +181,7 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 
 func TestBackgroundBroadcast_StopDuringProcessing(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{
-		sleep: 25 * time.Millisecond, // Simulate a slow broadcast
+		sleep: 5 * time.Second, // Long delay ensures Stop() cancels context before any broadcast completes
 	}
 
 	logger, _ := loggerForTestBroadcaster()

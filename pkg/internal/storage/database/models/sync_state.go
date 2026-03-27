@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type SyncState struct {

@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 func NewSelectNetwork(manager ManagerInterface) tea.Model {

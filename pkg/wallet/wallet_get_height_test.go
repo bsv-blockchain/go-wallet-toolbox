@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetHeightOriginatorValidation(t *testing.T) {
@@ -39,7 +40,7 @@ func TestWallet_GetHeight(t *testing.T) {
 	}
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Greater(t, result.Height, uint32(0))
+	require.Positive(t, result.Height)
 	t.Logf("Successfully got height: %d", result.Height)
 }
 
@@ -68,7 +69,7 @@ func TestWallet_GetHeight_ValidOriginators(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.Greater(t, result.Height, uint32(0))
+			require.Positive(t, result.Height)
 		})
 	}
 }

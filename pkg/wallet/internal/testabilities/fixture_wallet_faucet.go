@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
-	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/stretchr/testify/require"
 )
 
 type FaucetFixture interface {
@@ -19,6 +20,7 @@ type FaucetFixture interface {
 
 type faucetFixture struct {
 	testing.TB
+
 	userWallet *wallet.Wallet
 	index      int
 }
@@ -62,11 +64,12 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value) (txtestabilities.Transacti
 func (f *faucetFixture) internalizeTopUp(beef []byte, paymentRemittance *sdk.Payment) {
 	action, err := f.userWallet.InternalizeAction(f.Context(), sdk.InternalizeActionArgs{
 		Tx: beef,
-		Outputs: []sdk.InternalizeOutput{{
-			OutputIndex:       0,
-			Protocol:          sdk.InternalizeProtocolWalletPayment,
-			PaymentRemittance: paymentRemittance,
-		},
+		Outputs: []sdk.InternalizeOutput{
+			{
+				OutputIndex:       0,
+				Protocol:          sdk.InternalizeProtocolWalletPayment,
+				PaymentRemittance: paymentRemittance,
+			},
 		},
 		Labels: []string{
 			"faucet=mocked", "source=faucet",

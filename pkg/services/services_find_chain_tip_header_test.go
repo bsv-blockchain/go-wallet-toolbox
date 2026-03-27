@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFindChainTipHeader_Bitails(t *testing.T) {
@@ -56,7 +57,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		actualBlock, err := service.FindChainTipHeader(t.Context())
 
 		// then:
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.NotEmpty(t, actualBlock)
 		require.EqualValues(t, expectedBlockHeight, actualBlock.Height)
 	})
@@ -67,7 +68,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.BHS().WillRespondWithInternalFailure()
 		given.WhatsOnChain().WillRespondWithInternalFailure()
 		given.Bitails().WillReturnInternalError()
-		given.Chaintracks().WillFail()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
 		service := given.Services().Config(
@@ -92,7 +93,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		target1 := given.BHS().WillBeUnreachable()
 		target2 := given.WhatsOnChain().WillBeUnreachable()
 		target3 := given.Bitails().WillBeUnreachable()
-		given.Chaintracks().WillFail()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
 		service := given.Services().Config(
@@ -119,7 +120,7 @@ func TestFindChainTipHeader_Bitails(t *testing.T) {
 		given.BHS().WillRespondWithEmptyLongestTipBlockHeader()
 		given.WhatsOnChain().OnTipBlockHeaderWillRespondWithEmptyList()
 		given.Bitails().WillReturnLatestBlock("", 0)
-		given.Chaintracks().WillFail()
+		_ = given.Chaintracks().WillFail()
 
 		// and:
 		service := given.Services().Config(

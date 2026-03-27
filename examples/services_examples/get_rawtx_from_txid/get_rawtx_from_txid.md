@@ -86,4 +86,4 @@ To integrate raw transaction fetching into your application:
 - [Get Raw Transaction from Transaction ID Example](./get_rawtx_from_txid.go) - Complete code example for fetching raw transaction data
 - [Post BEEF Documentation](../post_beef/post_beef.md) - Broadcast a BSV transaction using BEEF format
 - [Post BEEF Hex Documentation](../post_beef_hex/post_beef_hex.md) - Broadcast from existing BEEF hex
-- [Post Multiple Transactions Documentation](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions 
+- [Post Multiple Transactions Documentation](../post_beef_with_multiple_txs/post_beef_with_multiple_txs.md) - Broadcasting multiple transactions

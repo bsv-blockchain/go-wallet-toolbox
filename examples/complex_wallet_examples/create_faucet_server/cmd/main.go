@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/subosito/gotenv"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/create_storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/server"
-	"github.com/subosito/gotenv"
 )
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
-	if err := cfg.Validate(); err != nil {
+	if err = cfg.Validate(); err != nil {
 		log.Fatalf("invalid config: %v", err)
 	}
 

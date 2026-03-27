@@ -17,6 +17,4 @@ const (
 	expectedTestnetAddress = "mp7uX4uQMaKzLktNpx71rS5QrMMTzDP12u"
 )
 
-var (
-	keyID = brc29.KeyID{DerivationPrefix: derivationPrefix, DerivationSuffix: derivationSuffix}
-)
+var keyID = brc29.KeyID{DerivationPrefix: derivationPrefix, DerivationSuffix: derivationSuffix}

@@ -7,16 +7,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/seq"
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
-	"github.com/go-softwarelab/common/pkg/seq"
-	"github.com/go-softwarelab/common/pkg/to"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type StorageReader interface {
@@ -97,6 +98,7 @@ func ThenDBState(t testing.TB, storage StorageReader) DBStateAssertion {
 
 type dbStateAssertion struct {
 	testing.TB
+
 	storage StorageReader
 }
 
@@ -163,6 +165,7 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 
 type knownTxAssertion struct {
 	testing.TB
+
 	knownTx *pkgentity.KnownTx
 }
 
@@ -187,7 +190,7 @@ func (d *knownTxAssertion) NotMined() KnownTxAssertion {
 	assert.Empty(d, d.knownTx.MerklePath)
 	assert.Empty(d, d.knownTx.MerkleRoot)
 	assert.Empty(d, d.knownTx.BlockHash)
-	assert.NotEqual(d, d.knownTx.Status, wdk.ProvenTxStatusCompleted)
+	assert.NotEqual(d, wdk.ProvenTxStatusCompleted, d.knownTx.Status)
 	return d
 }
 
@@ -242,6 +245,7 @@ func (d *knownTxAssertion) IsNotified(expected bool) KnownTxAssertion {
 
 type txNotesAssertion struct {
 	testing.TB
+
 	txNotes      []*pkgentity.TxHistoryNote
 	currentIndex int
 }
@@ -355,6 +359,7 @@ func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID st
 
 type userTransactionAssertion struct {
 	testing.TB
+
 	transaction *pkgentity.Transaction
 }
 
@@ -422,11 +427,13 @@ func (d *dbStateAssertion) AllOutputs(user testusers.User) OutputsListAssertion 
 
 type outputsListAssertion struct {
 	testing.TB
+
 	outputs []*outputInfo
 }
 
 type outputInfo struct {
 	wdk.WalletActionOutput
+
 	txID string
 }
 

@@ -8,12 +8,11 @@ import (
 	"runtime"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 )
 
 const (

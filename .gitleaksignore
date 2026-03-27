@@ -1,0 +1,60 @@
+# infra-config.example.yaml
+infra-config.example.yaml:generic-api-key:103
+
+# examples/complex_wallet_examples/certifier_server_example/config.example.yaml
+examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:6
+examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:7
+examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:10
+examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:11
+examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:15
+
+# examples/complex_wallet_examples/create_faucet_server/.env.example
+examples/complex_wallet_examples/create_faucet_server/.env.example:generic-api-key:1
+
+# examples/README.md
+examples/README.md:generic-api-key:51
+examples/README.md:generic-api-key:52
+examples/README.md:generic-api-key:54
+examples/README.md:generic-api-key:55
+examples/README.md:generic-api-key:57
+
+# examples/wallet_examples/no_send_send_with/no_send_send_with.md
+examples/wallet_examples/no_send_send_with/no_send_send_with.md:generic-api-key:74
+examples/wallet_examples/no_send_send_with/no_send_send_with.md:generic-api-key:76
+examples/wallet_examples/no_send_send_with/no_send_send_with.md:generic-api-key:78
+
+# manual_tests/internal/fixtures/config.go
+manual_tests/internal/fixtures/config.go:generic-api-key:19
+manual_tests/internal/fixtures/config.go:generic-api-key:22
+manual_tests/internal/fixtures/config.go:generic-api-key:26
+
+# pkg/brc29/fixtures_test.go
+pkg/brc29/fixtures_test.go:generic-api-key:8
+
+# pkg/defs/services.go
+pkg/defs/services.go:generic-api-key:149
+
+# pkg/internal/fixtures/consts_and_values_fixtures.go
+pkg/internal/fixtures/consts_and_values_fixtures.go:generic-api-key:13
+pkg/internal/fixtures/consts_and_values_fixtures.go:generic-api-key:14
+pkg/internal/fixtures/consts_and_values_fixtures.go:generic-api-key:16
+pkg/internal/fixtures/consts_and_values_fixtures.go:generic-api-key:17
+pkg/internal/fixtures/consts_and_values_fixtures.go:generic-api-key:20
+pkg/internal/fixtures/consts_and_values_fixtures.go:generic-api-key:25
+
+# pkg/internal/fixtures/testusers/test_users.go
+pkg/internal/fixtures/testusers/test_users.go:generic-api-key:27
+pkg/internal/fixtures/testusers/test_users.go:generic-api-key:33
+
+# pkg/internal/testabilities/tsgenerated/create_action_result.json
+pkg/internal/testabilities/tsgenerated/create_action_result.json:generic-api-key:4171
+
+# pkg/storage/internal/commission/locking_script_test.go
+pkg/storage/internal/commission/locking_script_test.go:generic-api-key:16
+
+# pkg/storage/provider_find_or_insert_user_test.go
+pkg/storage/provider_find_or_insert_user_test.go:generic-api-key:17
+
+# pkg/wallet/internal/wallet_settings_manager/wallet_settings_manager.go
+pkg/wallet/internal/wallet_settings_manager/wallet_settings_manager.go:generic-api-key:18
+pkg/wallet/internal/wallet_settings_manager/wallet_settings_manager.go:generic-api-key:25

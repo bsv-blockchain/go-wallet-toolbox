@@ -49,6 +49,7 @@ func RestoredFromBEEFBytes(t testing.TB, bytes []byte) BSVTransactionAssertion {
 
 type txAssertion struct {
 	testing.TB
+
 	tx *transaction.Transaction
 }
 
@@ -77,7 +78,7 @@ func (t *txAssertion) HasMinimalFee() BSVTransactionAssertion {
 
 	size := t.tx.Size()
 
-	var expectedFee = must.ConvertToUInt64(to.IfThen(size%kilobyte == 0, size/kilobyte).ElseThen(size/kilobyte + 1))
+	expectedFee := must.ConvertToUInt64(to.IfThen(size%kilobyte == 0, size/kilobyte).ElseThen(size/kilobyte + 1))
 
 	totalOutputs := t.tx.TotalOutputSatoshis()
 
@@ -108,7 +109,7 @@ func (t *txAssertion) HasTotalInputValue(sats int) BSVInputsAssertion {
 		return t
 	}
 
-	assert.EqualValues(t, sats, int(totalInputs), "expect transaction to have total input value")
+	assert.Equal(t, sats, int(totalInputs), "expect transaction to have total input value") //nolint:gosec // test assertion, totalInputs fits in int
 	return t
 }
 

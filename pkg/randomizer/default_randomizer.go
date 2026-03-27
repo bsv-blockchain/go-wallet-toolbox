@@ -48,7 +48,7 @@ func (s *DefaultRandomizer) Base64(length uint64) (string, error) {
 
 // Shuffle randomizes the order of n elements using the provided swap function.
 // Uses crypto/rand for cryptographically secure shuffling (Fisher-Yates).
-func (s *DefaultRandomizer) Shuffle(n int, swap func(i int, j int)) {
+func (s *DefaultRandomizer) Shuffle(n int, swap func(i, j int)) {
 	for i := n - 1; i > 0; i-- {
 		jBig, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(i+1)))
 		if err != nil {
@@ -60,8 +60,8 @@ func (s *DefaultRandomizer) Shuffle(n int, swap func(i int, j int)) {
 
 // Uint64 generates a cryptographically secure random unsigned integer between 0 and max-1.
 // Panics if random number generation fails.
-func (s *DefaultRandomizer) Uint64(max uint64) uint64 {
-	nBig, err := cryptorand.Int(cryptorand.Reader, big.NewInt(must.ConvertToInt64FromUnsigned(max)))
+func (s *DefaultRandomizer) Uint64(maxVal uint64) uint64 {
+	nBig, err := cryptorand.Int(cryptorand.Reader, big.NewInt(must.ConvertToInt64FromUnsigned(maxVal)))
 	if err != nil {
 		panic(fmt.Errorf("failed to generate random number: %w", err))
 	}

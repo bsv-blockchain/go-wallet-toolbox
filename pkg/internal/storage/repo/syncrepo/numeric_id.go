@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
 // upsertNumericIDLookup inserts string IDs into the numeric ID lookup table to ensure each string ID has a corresponding numeric ID.
@@ -32,7 +33,7 @@ func upsertNumericIDLookup(ctx context.Context, db, tx *gorm.DB, query *genquery
 
 // joinWithNumericIDLookupScope returns a GORM scope to join a numeric ID lookup table based on the provided string ID clause.
 // The entityName is used to specify the table_name of the entity, and the stringIDClause is used to match the string_id in the numeric ID lookup table.
-func joinWithNumericIDLookupScope(query *genquery.Query, stringIDClause string, entityName string, join clause.JoinType) func(*gorm.DB) *gorm.DB {
+func joinWithNumericIDLookupScope(query *genquery.Query, stringIDClause, entityName string, join clause.JoinType) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		joinQuery := fmt.Sprintf("%s JOIN %s as num on num.table_name = ? and num.string_id = %s", join, query.NumericIDLookup.TableName(), stringIDClause)
 
@@ -40,7 +41,7 @@ func joinWithNumericIDLookupScope(query *genquery.Query, stringIDClause string, 
 	}
 }
 
-func findNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, stringID string) (uint, error) {
+func findNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName, stringID string) (uint, error) {
 	var numericID uint
 	txScan := tx.WithContext(ctx).
 		Model(&models.NumericIDLookup{}).
@@ -58,7 +59,7 @@ func findNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, str
 	return numericID, nil
 }
 
-func saveNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName string, stringID string) error {
+func saveNumericIDLookup(ctx context.Context, tx *gorm.DB, tableName, stringID string) error {
 	stringIDLookup := &models.NumericIDLookup{
 		TableName: tableName,
 		StringID:  stringID,

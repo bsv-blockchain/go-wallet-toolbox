@@ -4,8 +4,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/filecoin-project/go-jsonrpc"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 )
 
 // RPCServer wraps a JSON-RPC server with request tracing.

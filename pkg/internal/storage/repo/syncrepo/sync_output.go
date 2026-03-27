@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type SyncOutput struct {
@@ -27,6 +28,7 @@ func NewSyncOutput(db *gorm.DB, query *genquery.Query) *SyncOutput {
 
 type OutputReadModel struct {
 	models.Output
+
 	BasketNumID *int `gorm:"column:basket_num_id"`
 }
 
@@ -111,7 +113,6 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 
 		return nil
 	})
-
 	if err != nil {
 		return false, 0, fmt.Errorf("transaction failed: %w", err)
 	}
@@ -153,40 +154,40 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 
 	if updateTx.Error != nil {
 		err = fmt.Errorf("failed to update output: %w", updateTx.Error)
-		return
+		return isNew, outputID, err
 	}
 
 	if updateTx.RowsAffected > 0 {
 		resultTxModel := models.Output{}
 		if err = updateTx.Scan(&resultTxModel).Error; err != nil {
 			err = fmt.Errorf("failed to scan updated output: %w", err)
-			return
+			return isNew, outputID, err
 		}
 
 		if resultTxModel.ID == 0 {
 			err = fmt.Errorf("output ID is zero after update, this should not happen")
-			return
+			return isNew, outputID, err
 		}
 
 		outputID = resultTxModel.ID
-		return
+		return isNew, outputID, err
 	}
 
 	err = tx.Create(&model).Error
 	if err != nil {
 		err = fmt.Errorf("failed to create output: %w", err)
-		return
+		return isNew, outputID, err
 	}
 
 	if model.ID == 0 {
 		err = fmt.Errorf("output ID is zero after update, this should not happen")
-		return
+		return isNew, outputID, err
 	}
 
 	isNew = true
 	outputID = model.ID
 
-	return
+	return isNew, outputID, err
 }
 
 func (s *SyncOutput) upsertUserUTXO(tx *gorm.DB, userUTXO *entity.UserUTXO) error {

@@ -6,13 +6,14 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestInternalizeActionOriginatorValidation(t *testing.T) {
@@ -124,7 +125,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
 
@@ -136,7 +137,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		thenInternalizedAction := thenState.ActionAtIndex(0)
 		thenInternalizedAction.
 			WithTxID(internalizedTx.TxID().String()).
-			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)).
+			WithSatoshis(int64(internalizedTx.Outputs[0].Satoshis)). //nolint:gosec // safe: satoshis fit in int64
 			WithDescription(args.Description)
 
 		thenInternalizedAction.OutputAtIndex(0).
@@ -166,7 +167,7 @@ func (s *WalletTestSuite) TestWalletInternalizeAction() {
 		result, err := aliceWallet.InternalizeAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Accepted, "Result should be accepted")
 

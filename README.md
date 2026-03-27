@@ -18,7 +18,7 @@
        <code>CI / CD</code> &nbsp;&nbsp;
     </td>
     <td align="left">
-       <!-- <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/actions"><img src="https://img.shields.io/github/actions/workflow/status/bsv-blockchain/go-wallet-toolbox/fortress.yml?branch=master&label=build&logo=github&style=flat-square" alt="Build"></a> -->
+       <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/actions"><img src="https://img.shields.io/github/actions/workflow/status/bsv-blockchain/go-wallet-toolbox/fortress.yml?branch=main&label=build&logo=github&style=flat-square" alt="Build"></a>
        <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/actions"><img src="https://img.shields.io/github/last-commit/bsv-blockchain/go-wallet-toolbox?style=flat-square&logo=git&logoColor=white&label=last%20update" alt="Last Commit"></a>
     </td>
     <td align="right">
@@ -26,7 +26,7 @@
     </td>
     <td align="left">
        <a href="https://goreportcard.com/report/github.com/bsv-blockchain/go-wallet-toolbox"><img src="https://goreportcard.com/badge/github.com/bsv-blockchain/go-wallet-toolbox?style=flat-square" alt="Go Report"></a>
-       <!-- <a href="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox"><img src="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox/branch/master/graph/badge.svg?style=flat-square" alt="Coverage"></a> -->
+       <a href="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox"><img src="https://codecov.io/gh/bsv-blockchain/go-wallet-toolbox/branch/main/graph/badge.svg?style=flat-square" alt="Coverage"></a>
     </td>
   </tr>
 
@@ -211,7 +211,7 @@ The release process is defined in the [.goreleaser.yml](.goreleaser.yml) configu
 Then create and push a new Git tag using:
 
 ```bash
-magex version:bump push=true bump=patch branch=master
+magex version:bump push=true bump=patch branch=main
 ```
 
 This process ensures consistent, repeatable releases with properly versioned artifacts and citation metadata.
@@ -234,7 +234,7 @@ The system is configured via [`.github/env/`](.github/env/README.md) and provide
 </details>
 
 <details>
-<summary><strong>GitHub Workflows</strong></summary>
+<summary><strong><code>GitHub Workflows</code></strong></summary>
 <br/>
 
 All workflows are driven by modular configuration in [`.github/env/`](.github/env/README.md) — no YAML editing required.
@@ -261,7 +261,7 @@ This command ensures all dependencies are brought up to date in a single step, i
 
 ## 🧪 Examples & Tests
 
-All unit tests and [examples](examples) run via [GitHub Actions](https://github.com/bsv-blockchain/go-wallet-toolbox/actions) and use [Go version 1.25.x](https://go.dev/doc/go1.25). View the [configuration file](.github/workflows/fortress.yml).
+All unit tests and [examples](examples) run via [GitHub Actions](https://github.com/bsv-blockchain/go-wallet-toolbox/actions) and use [Go version 1.26.x](https://go.dev/doc/go1.26). View the [configuration file](.github/workflows/fortress.yml).
 
 Run all tests (fast):
 

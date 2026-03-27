@@ -190,4 +190,4 @@ To integrate script hash history retrieval into your application:
 
 - [Get Script Hash History Example](./get_script_hash_history.go) - Complete code example for getting script hash transaction history
 - [Get Raw Transaction from Transaction ID Documentation](../get_rawtx_from_txid/get_rawtx_from_txid.md) - Get raw transaction data
-- [Get Merkle Path for Transaction Documentation](../get_merkle_path_for_tx/get_merkle_path_for_tx.md) - Get cryptographic proof for transactions 
+- [Get Merkle Path for Transaction Documentation](../get_merkle_path_for_tx/get_merkle_path_for_tx.md) - Get cryptographic proof for transactions

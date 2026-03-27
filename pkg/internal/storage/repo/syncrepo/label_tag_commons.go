@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 )
 
 type labelTagCommons[Model, RelationModel, ReadModel any] struct {
@@ -86,7 +87,6 @@ func (f *labelTagCommons[Model, _, ReadModel]) Upsert(ctx context.Context, userI
 
 		return nil
 	})
-
 	if err != nil {
 		return false, 0, fmt.Errorf("transaction failed for %s: %w", f.tableName, err)
 	}
@@ -116,7 +116,6 @@ func (f *labelTagCommons[_, _, _]) Delete(ctx context.Context, userID int, name 
 
 		return nil
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("transaction failed for %s: %w", f.tableName, err)
 	}

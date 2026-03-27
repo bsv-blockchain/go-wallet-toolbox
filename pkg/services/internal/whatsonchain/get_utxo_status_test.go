@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 )
 
 func TestWhatsOnChain_GetUtxoStatus_Success(t *testing.T) {

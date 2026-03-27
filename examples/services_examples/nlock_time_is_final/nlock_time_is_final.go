@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // examplePastLockTime demonstrates how to check NLockTime finality for timestamp.

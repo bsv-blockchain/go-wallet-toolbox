@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"sync"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type abortAction struct {

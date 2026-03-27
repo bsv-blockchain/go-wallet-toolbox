@@ -9,11 +9,12 @@ import (
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/bsv-blockchain/go-sdk/block"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const currentHeight = uint32(918934)
@@ -285,7 +286,6 @@ func TestService_OnTipCallbackError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 
 	var callbackInvoked atomic.Bool
 
@@ -304,6 +304,11 @@ func TestService_OnTipCallbackError(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return callbackInvoked.Load()
 	}, 1*time.Second, 10*time.Millisecond, "callback should be invoked even if it returns error")
+
+	// Cancel context and wait briefly for the goroutine to finish logging the error,
+	// otherwise the test logger (backed by t) panics on write-after-completion.
+	cancel()
+	time.Sleep(50 * time.Millisecond)
 }
 
 func TestService_OnReorgCallbackError(t *testing.T) {
@@ -324,7 +329,6 @@ func TestService_OnReorgCallbackError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 
 	var callbackInvoked atomic.Bool
 
@@ -343,4 +347,9 @@ func TestService_OnReorgCallbackError(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return callbackInvoked.Load()
 	}, 1*time.Second, 10*time.Millisecond, "callback should be invoked even if it returns error")
+
+	// Cancel context and wait briefly for the goroutine to finish logging the error,
+	// otherwise the test logger (backed by t) panics on write-after-completion.
+	cancel()
+	time.Sleep(50 * time.Millisecond)
 }

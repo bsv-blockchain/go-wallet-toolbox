@@ -3,11 +3,12 @@ package testabilities
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 )
 
 type FunderAssertion interface {
@@ -38,6 +39,7 @@ type ChangeAssertion interface {
 
 type funderAssertion struct {
 	testing.TB
+
 	result  *funder.Result
 	fixture *funderFixture
 }
@@ -63,14 +65,14 @@ func (a *funderAssertion) WithError(err error) {
 
 func (a *funderAssertion) WithoutError(err error) SuccessFundingResultAssertion {
 	a.Helper()
-	assert.NoError(a, err, "Expected success result")
+	require.NoError(a, err, "Expected success result")
 	require.NotNil(a, a.result, "Expected success result")
 	return a
 }
 
 func (a *funderAssertion) DoesNotAllocateUTXOs() SuccessFundingResultAssertion {
 	a.Helper()
-	assert.Len(a, a.result.AllocatedUTXOs, 0, "Expected no allocated UTXOs")
+	assert.Empty(a, a.result.AllocatedUTXOs, "Expected no allocated UTXOs")
 	return a
 }
 

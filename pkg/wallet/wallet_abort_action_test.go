@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAbortActionOriginatorValidation(t *testing.T) {
@@ -91,7 +92,7 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Aborted, "Action should be successfully aborted")
 
@@ -122,7 +123,7 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.True(t, result.Aborted, "Action should be successfully aborted")
 
@@ -157,14 +158,14 @@ func (s *WalletTestSuite) TestWalletAbortActionSuccess() {
 		abortResult, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err, "should be able to abort created transaction")
+		require.NoError(t, err, "should be able to abort created transaction")
 		assert.True(t, abortResult.Aborted, "Action should be aborted")
 
 		// when: we want to spend some more funds again
 		newCreateResult, err := aliceWallet.CreateAction(t.Context(), createArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.NoError(t, err, "Should be able to create new action after abort")
+		require.NoError(t, err, "Should be able to create new action after abort")
 		require.NotNil(t, newCreateResult, "New create result should not be nil")
 		assert.NotEmpty(t, newCreateResult.Txid, "New action should have a TxID")
 
@@ -189,7 +190,7 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "no transaction found with reference or txid")
 	})
@@ -208,7 +209,7 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "no transaction found with reference or txid")
 	})
@@ -230,7 +231,7 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "must be an outgoing transaction")
 	})
@@ -264,7 +265,7 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		result, err := aliceWallet.AbortAction(t.Context(), abortArgs, fixtures.DefaultOriginator)
 
 		// then:
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "action with status failed cannot be aborted")
 	})

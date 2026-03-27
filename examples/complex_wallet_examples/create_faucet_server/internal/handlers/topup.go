@@ -5,8 +5,9 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 )
 
 type TopUpRequest struct {

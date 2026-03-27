@@ -85,7 +85,7 @@ func (t *TestRandomizer) nextBytes(length uint64) []byte {
 
 // Shuffle performs a deterministic shuffle operation on a slice of size n.
 // It calls the provided swap function twice for each pair of indices to preserve the original order.
-func (t *TestRandomizer) Shuffle(n int, swap func(i int, j int)) {
+func (t *TestRandomizer) Shuffle(n int, swap func(i, j int)) {
 	for i := 0; i < n-1; i++ {
 		swap(i, i+1)
 		swap(i, i+1)
@@ -93,6 +93,6 @@ func (t *TestRandomizer) Shuffle(n int, swap func(i int, j int)) {
 }
 
 // Uint64 returns a deterministic uint64 value, which is always 0 in this implementation.
-func (t *TestRandomizer) Uint64(max uint64) uint64 {
+func (t *TestRandomizer) Uint64(_ uint64) uint64 {
 	return 0
 }

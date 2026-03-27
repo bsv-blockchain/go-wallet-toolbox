@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type SyncAssertion interface {
@@ -126,6 +127,7 @@ func (s *syncChunkAssertion) WithError(err error) {
 
 type syncChunkAssertion struct {
 	testing.TB
+
 	chunk *wdk.SyncChunk
 }
 
@@ -219,7 +221,7 @@ func (b *basketAssertion) WithUserID(userID int) BasketAssertion {
 
 func (b *basketAssertion) HasValidID() BasketAssertion {
 	b.parent.Helper()
-	assert.True(b.parent, b.basket.BasketID > 0, "Expected basket to have a valid ID")
+	assert.Positive(b.parent, b.basket.BasketID, "Expected basket to have a valid ID")
 	return b
 }
 

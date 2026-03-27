@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/certifier"
 	"github.com/go-softwarelab/common/pkg/slogx"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/certifier"
 )
 
 // CertifierServerBuilder is a builder interface for configuring a test certifier server.
@@ -22,11 +23,13 @@ type CertifierServerFixture interface {
 
 type certifierServerBuilder struct {
 	testing.TB
+
 	serverWallet sdk.Interface
 }
 
 type certifierServerFixture struct {
 	testing.TB
+
 	server *httptest.Server
 }
 

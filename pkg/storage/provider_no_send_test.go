@@ -3,11 +3,12 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNoSendPlusSendWithScenario(t *testing.T) {
@@ -24,7 +25,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
@@ -65,7 +66,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 1)
 
 		// and:
@@ -78,7 +79,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// step 3:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints = when.CreateAndProcessNoSendAction(noSendChangeOutpoints)
 		assert.Len(t, allocatedNoSendChangeOutpoints, 1)
-		assert.Len(t, noSendChangeOutpoints, 0)
+		assert.Empty(t, noSendChangeOutpoints)
 
 		// and:
 		// Call processAction using sendWith and IsNewTx set to false, including the two previous transactions in SendWithSlice.
@@ -110,7 +111,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
@@ -148,7 +149,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:
@@ -208,7 +209,7 @@ func TestNoSendPlusSendWithScenario(t *testing.T) {
 		// when:
 		// step 1:
 		noSendChangeOutpoints, allocatedNoSendChangeOutpoints := when.CreateAndProcessNoSendAction(nil)
-		assert.Len(t, allocatedNoSendChangeOutpoints, 0)
+		assert.Empty(t, allocatedNoSendChangeOutpoints)
 		assert.Len(t, noSendChangeOutpoints, 8)
 
 		// and:

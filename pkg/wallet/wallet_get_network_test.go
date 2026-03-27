@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetNetworkOriginatorValidation(t *testing.T) {
@@ -73,7 +74,7 @@ func (s *WalletTestSuite) TestWalletGetNetwork() {
 			result, err := aliceWallet.GetNetwork(t.Context(), test.args, test.originator)
 
 			// then:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, test.expectedNetwork, result.Network, "Should return the correct network")
 		})

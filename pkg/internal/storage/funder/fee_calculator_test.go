@@ -3,8 +3,9 @@ package funder
 import (
 	"testing"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
 // TestFeeCalculatorPerBytePrecision tests that the fee calculator uses per-byte precision

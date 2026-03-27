@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/wallet"
+
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"

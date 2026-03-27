@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bsv-blockchain/certifier-server-example/internal/constants"
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	"github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/certifier-server-example/internal/constants"
 )
 
 type CertificateService interface {
@@ -51,13 +51,13 @@ func (v *certificateValidator) ValidateRequest(masterCert *certificates.MasterCe
 func (v *certificateValidator) ValidateDecryptedFields(fields map[wallet.CertificateFieldNameUnder50Bytes]string) error {
 	var err error
 	if fields[constants.EmailField] == "" {
-		err = errors.Join(err, errors.New("Email field not decrypted"))
+		err = errors.Join(err, errors.New("email field not decrypted"))
 	}
 	if fields[constants.FirstNameField] == "" {
-		err = errors.Join(err, errors.New("FirstName field not decrypted"))
+		err = errors.Join(err, errors.New("firstName field not decrypted"))
 	}
 	if fields[constants.LastNameField] == "" {
-		err = errors.Join(err, errors.New("LastName field not decrypted"))
+		err = errors.Join(err, errors.New("lastName field not decrypted"))
 	}
 	return err
 }
