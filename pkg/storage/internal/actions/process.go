@@ -645,6 +645,21 @@ func (p *process) updateSingleTx(
 		return sendWithResult, reviewActionResult, err
 	}
 
+	if newTxStatus == wdk.TxStatusFailed {
+		var transactionIDs []uint
+		transactionIDs, err = p.txRepo.FindTransactionIDsByTxID(ctx, txID)
+		if err != nil {
+			err = fmt.Errorf("failed to find transaction IDs for failed tx %s: %w", txID, err)
+			return
+		}
+		for _, id := range transactionIDs {
+			if err = p.outputRepo.RecreateSpentOutputs(ctx, id); err != nil {
+				err = fmt.Errorf("failed to restore spent outputs for failed tx %s: %w", txID, err)
+				return
+			}
+		}
+	}
+
 	err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
 	if err != nil {
 		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
