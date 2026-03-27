@@ -761,4 +761,3 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 		DataFormat: to.Ptr(transaction.TxIDOnly),
 	})
 }
-

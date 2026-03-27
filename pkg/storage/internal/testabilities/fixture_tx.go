@@ -168,7 +168,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 
 	args := wdk.ValidCreateActionArgs{
 		Description: "outputBRC29",
-		Labels:   []primitives.StringUnder300{fixtures.CreateActionTestLabel},
+		Labels:      []primitives.StringUnder300{fixtures.CreateActionTestLabel},
 	}
 	if t.reference != "" {
 		args.Labels = append(args.Labels, primitives.StringUnder300(t.reference))

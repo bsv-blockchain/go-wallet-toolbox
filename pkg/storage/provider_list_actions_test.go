@@ -274,4 +274,3 @@ func TestListActions_SeekPermissionFalse(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "seekPermission=false")
 }
-
