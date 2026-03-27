@@ -14,4 +14,5 @@ type TxSynchronizedStatus struct {
 	MerklePath  *transaction.MerklePath
 	BlockHeight uint32
 	BlockHash   string
+	Labels      []string
 }

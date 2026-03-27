@@ -381,6 +381,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
 	}
 
+	txLabelsLookup, err := p.txRepo.GetLabelsForTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
+	}
+
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
 	notDelayedResults := make([]wdk.ReviewActionResult, 0, to.IfThen(!isDelayed, len(txIDs)).ElseThen(0))
 	var readyToSendTxIDs []string
@@ -542,6 +547,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				beef,
 				readyToSendTxIDs,
 				txReferencesLookup[broadcastedTxID],
+				txLabelsLookup[broadcastedTxID],
 			)
 			if err != nil {
 				return nil, fmt.Errorf(
@@ -616,6 +622,7 @@ func (p *process) updateSingleTx(
 	beef *transaction.Beef,
 	txIDs []string,
 	reference string,
+	labels []string,
 ) (
 	sendWithResult wdk.SendWithResult,
 	reviewActionResult wdk.ReviewActionResult,
@@ -631,6 +638,8 @@ func (p *process) updateSingleTx(
 	if err != nil {
 		return
 	}
+
+	reviewActionResult.Labels = labels
 
 	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
 
@@ -801,6 +810,11 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 		return nil, fmt.Errorf("failed to find references for txIDs in background broadcast: %w", err)
 	}
 
+	txLabelsLookup, err := p.txRepo.GetLabelsForTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find labels for txIDs in background broadcast: %w", err)
+	}
+
 	aggregated := results.Aggregated(txIDs)
 	bResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 	for _, broadcastedTxID := range txIDs {
@@ -817,6 +831,7 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 			beef,
 			txIDs,
 			txReferencesLookup[broadcastedTxID],
+			txLabelsLookup[broadcastedTxID],
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update single tx after background broadcast (txID: %s): %w", broadcastedTxID, err)

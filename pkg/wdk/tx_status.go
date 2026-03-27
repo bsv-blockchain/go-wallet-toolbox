@@ -164,6 +164,7 @@ type CurrentTxStatus struct {
 	MerkleRoot  string
 	Error       *CurrentTxError
 	Reference   string
+	Labels      []string
 }
 
 // CurrentTxError represents the error details for a transaction status update, including competing transactions and error messages.

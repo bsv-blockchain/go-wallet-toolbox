@@ -66,6 +66,7 @@ type ReviewActionResult struct {
 	CompetingTxs  []string                     `json:"competingTxs,omitempty"`
 	CompetingBeef primitives.ExplicitByteArray `json:"competingBeef,omitempty"`
 	Reference     string                       `json:"reference,omitempty"`
+	Labels        []string                     `json:"labels,omitempty"`
 	Errors        map[string]error             `json:"errors,omitempty"`
 }
 

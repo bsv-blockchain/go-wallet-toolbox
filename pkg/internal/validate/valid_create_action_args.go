@@ -58,10 +58,6 @@ func WalletCreateActionArgs(args *wdk.ValidCreateActionArgs) error {
 		return fmt.Errorf("the description parameter must be %w", err)
 	}
 
-	if len(args.Reference) > 500 {
-		return fmt.Errorf("reference must be 500 characters or less")
-	}
-
 	for i, label := range args.Labels {
 		if err := label.Validate(); err != nil {
 			return fmt.Errorf("label as %d must be %w", i, err)
