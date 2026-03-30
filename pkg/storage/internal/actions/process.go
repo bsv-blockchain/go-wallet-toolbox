@@ -639,12 +639,10 @@ func (p *process) updateSingleTx(
 		spendable    bool
 	)
 
-	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID, serviceErrors, reference)
+	newReqStatus, newTxStatus, spendable, reviewActionResult, sendWithResult, err = p.singleTxBroadcastResult(aggBroadcastResult, txID, serviceErrors, reference, labels)
 	if err != nil {
 		return sendWithResult, reviewActionResult, err
 	}
-
-	reviewActionResult.Labels = labels
 
 	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
 
@@ -746,7 +744,7 @@ func (p *process) getKnownTxStatuses(ctx context.Context, txIDs ...string) (map[
 	return lookup, nil
 }
 
-func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string, serviceErrors map[string]error, reference string) (
+func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPostedTxID, txID string, serviceErrors map[string]error, reference string, labels []string) (
 	reqStatus wdk.ProvenTxReqStatus,
 	txStatus wdk.TxStatus,
 	spendable bool,
@@ -758,6 +756,7 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 		TxID:      primitives.TXIDHexString(txID),
 		Errors:    serviceErrors,
 		Reference: reference,
+		Labels:    labels,
 	}
 
 	sendWithResult = wdk.SendWithResult{
