@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.19
-	github.com/bsv-blockchain/go-wallet-toolbox v0.179.0
+	github.com/bsv-blockchain/go-wallet-toolbox v0.180.0
 	github.com/go-softwarelab/common v1.8.0
 	gopkg.in/yaml.v3 v3.0.1
 )
