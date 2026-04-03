@@ -352,8 +352,8 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 			continue
 		}
 		seen[name] = true
-		if err := in.basketRepo.FindOrCreateBasket(ctx, existingTx.UserID, name); err != nil {
-			return fmt.Errorf("failed to ensure basket %q exists: %w", name, err)
+		if basketErr := in.basketRepo.FindOrCreateBasket(ctx, existingTx.UserID, name); basketErr != nil {
+			return fmt.Errorf("failed to ensure basket %q exists: %w", name, basketErr)
 		}
 	}
 
