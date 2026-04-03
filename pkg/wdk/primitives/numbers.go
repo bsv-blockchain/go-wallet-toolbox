@@ -24,6 +24,9 @@ type SatoshiValue uint64
 // MaxSatoshis is the maximum number of Satoshis in the Bitcoin supply
 const MaxSatoshis = 2100000000000000
 
+// SweepMaxSatoshis is a special value that when used as an output's value will sweep all available wallet funds to that output.
+const SweepMaxSatoshis = 2099999999999999
+
 // Validate checks if the value is less than the maximum number of Satoshis
 func (s SatoshiValue) Validate() error {
 	if s > MaxSatoshis {

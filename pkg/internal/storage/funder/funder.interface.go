@@ -18,6 +18,7 @@ type Funder interface {
 	// @param forbiddenOutputIDs - defines the output IDs that should not be used as sources to cover the target satoshis value.
 	// @param priorityOutputs - defines the outputs that should be used as source to cover the target satoshi value before fetching the required number of outputs from database.
 	// @param includeSending - defines whether to include currently sending outputs in the basket.
+	// @param isSweep - defines if the whole action intends to sweep the maximal balance.
 	Fund(
 		ctx context.Context,
 		targetSat satoshi.Value,
@@ -28,5 +29,6 @@ type Funder interface {
 		forbiddenOutputIDs []uint,
 		priorityOutputs []*entity.Output,
 		includeSending bool,
+		isSweep bool,
 	) (*Result, error)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -138,6 +139,22 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to generate reference number: %w", err)
 	}
 
+	isSweep := false
+	sweepOutputIndex := -1
+	for i, out := range params.Outputs {
+		if out.Satoshis == primitives.SweepMaxSatoshis {
+			if sweepOutputIndex != -1 {
+				return nil, fmt.Errorf("only one 'SweepMaxSatoshis' output allowed")
+			}
+			sweepOutputIndex = i
+			isSweep = true
+			
+			// Hide the sweep output entirely from targetSat calculation to prevent ANY fee/overflow issues.
+			// Funder will sweep all available UTXOs based on the isSweep flag instead.
+			params.Outputs[i].Satoshis = 0
+		}
+	}
+
 	c.logger.DebugContext(ctx, "Searching for change basket",
 		logging.UserID(userID),
 		logging.Reference(reference),
@@ -246,9 +263,19 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		outputCount++
 	}
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState)
+	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep)
 	if err != nil {
 		return nil, fmt.Errorf("funding failed: %w", err)
+	}
+
+	if isSweep {
+		adjSats := funding.ChangeAmount
+		if adjSats < 0 {
+			return nil, errfunder.ErrNotEnoughFunds
+		}
+		params.Outputs[sweepOutputIndex].Satoshis = primitives.SatoshiValue(adjSats)
+		funding.ChangeAmount = satoshi.Zero()
+		funding.ChangeOutputsCount = 0
 	}
 
 	c.logger.InfoContext(ctx, "Transaction funding completed",
