@@ -16,6 +16,7 @@ import (
 
 type BasketRepo interface {
 	FindBasketByName(ctx context.Context, userID int, name string) (*pkgentity.OutputBasket, error)
+	FindOrCreateBasket(ctx context.Context, userID int, name string) error
 }
 
 type OutputRepo interface {
