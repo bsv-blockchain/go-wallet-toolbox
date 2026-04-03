@@ -59,6 +59,23 @@ func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk
 	}
 }
 
+// AddWalletStorageProvider adds a new storage provider to the manager after construction.
+// This enables the remote-wallet pattern where the wallet is created with an empty storage manager,
+// then the storage client (which needs the wallet for auth) is added dynamically.
+// After adding, the manager re-partitions all stores by calling MakeAvailable.
+func (m *WalletStorageManager) AddWalletStorageProvider(ctx context.Context, provider wdk.WalletStorageProvider) error {
+	store := managed.NewManagedStorage(provider)
+	if _, err := store.MakeAvailableStorage(ctx, m.identityKey); err != nil {
+		return fmt.Errorf("failed to make new storage provider available: %w", err)
+	}
+	m.stores = append(m.stores, store)
+	m.isAvailable = false
+	if _, err := m.MakeAvailable(ctx); err != nil {
+		return fmt.Errorf("failed to re-partition after adding storage provider: %w", err)
+	}
+	return nil
+}
+
 // IsActiveEnabled The active storage is "enabled" only if its `storageIdentityKey` matches the user's currently selected `activeStorage`,
 // and only if there are no stores with conflicting `activeStorage` selections.
 //
