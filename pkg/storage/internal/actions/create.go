@@ -148,7 +148,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			}
 			sweepOutputIndex = i
 			isSweep = true
-			
+
 			// Hide the sweep output entirely from targetSat calculation to prevent ANY fee/overflow issues.
 			// Funder will sweep all available UTXOs based on the isSweep flag instead.
 			params.Outputs[i].Satoshis = 0
