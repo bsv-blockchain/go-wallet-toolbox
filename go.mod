@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.0
-	github.com/bsv-blockchain/go-chaintracks v1.2.0
+	github.com/bsv-blockchain/go-chaintracks v1.2.1
 	github.com/bsv-blockchain/go-sdk v1.2.20
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.0
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
@@ -73,7 +73,7 @@ require (
 	github.com/bsv-blockchain/go-subtree v1.3.0 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.3.4 // indirect
 	github.com/bsv-blockchain/go-wire v1.2.2 // indirect
-	github.com/bsv-blockchain/teranode v0.14.0 // indirect
+	github.com/bsv-blockchain/teranode v0.14.1-beta-3 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -267,8 +267,8 @@ require (
 	golang.org/x/tools v0.43.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260319201613-d00831a3d3e7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260319201613-d00831a3d3e7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260330182312-d5a96adf58d8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260330182312-d5a96adf58d8 // indirect
 	google.golang.org/grpc v1.81.0-dev // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -278,7 +278,7 @@ require (
 	k8s.io/apimachinery v0.35.3 // indirect
 	k8s.io/client-go v0.35.3 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260319004828-5883c5ee87b9 // indirect
+	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/libc v1.70.0 // indirect
