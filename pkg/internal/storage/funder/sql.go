@@ -78,13 +78,14 @@ func (f *SQL) Fund(
 	forbiddenOutputIDs []uint,
 	priorityOutputs []*entity.Output,
 	includeSending bool,
+	isSweep bool,
 ) (*Result, error) {
 	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
 	}
 
-	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator)
+	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, isSweep)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
@@ -179,15 +180,17 @@ type utxoCollector struct {
 	// dustFloor is the minimum satoshi value a change output must have to be economically viable.
 	// An output below this threshold costs more to spend in a future transaction than it is worth.
 	dustFloor satoshi.Value
+	isSweep   bool
 }
 
-func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
+func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, isSweep bool) (c *utxoCollector, err error) {
 	c = &utxoCollector{
 		txSats:                  txSats,
 		outputCount:             outputCount,
 		minimumDesiredUTXOValue: minimumDesiredUTXOValue,
 		feeCalculator:           feeCalculator,
 		allocatedUTXOs:          make([]*UTXO, 0),
+		isSweep:                 isSweep,
 	}
 
 	err = c.increaseSize(txSize)
@@ -235,11 +238,15 @@ func (c *utxoCollector) IsFunded() bool {
 		return c.satsCovered > c.satsToCover()
 	}
 
+	if c.isSweep {
+		return false
+	}
+
 	return c.satsCovered >= c.satsToCover()
 }
 
 func (c *utxoCollector) GetResult() (*Result, error) {
-	if c.IsFunded() {
+	if c.IsFunded() || c.isSweep {
 		return c.prepareResult()
 	}
 	return nil, errfunder.ErrNotEnoughFunds

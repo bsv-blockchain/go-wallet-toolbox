@@ -111,7 +111,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.thereAreUTXOInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false, false)
 
 			// then:
 			then.Result(result).WithError(err)
@@ -203,7 +203,7 @@ func TestFunderSQLFund(t *testing.T) {
 			given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(test.possessedUTXOs).P2PKH().Stored()
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false, false)
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
@@ -333,7 +333,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.havingUTXOsInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false, false)
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
@@ -352,7 +352,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -102, 990, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -102, 990, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -372,7 +372,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -2, 999, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -2, 999, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -392,7 +392,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(0)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -411,7 +411,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(-5)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -436,7 +436,7 @@ func TestFunderSQLFund(t *testing.T) {
 		}
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -460,7 +460,7 @@ func TestFunderSQLFund(t *testing.T) {
 		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
 
 		// when:
-		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then:
 		require.Error(t, err)
@@ -483,7 +483,7 @@ func TestFunderSQLFund(t *testing.T) {
 		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
 
 		// when:
-		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true)
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true, false)
 
 		// then:
 		require.NoError(t, err)
@@ -560,7 +560,7 @@ func TestFunderSQLFund(t *testing.T) {
 			basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
 
 			// when:
-			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 			// then:
 			then.Result(result).WithoutError(err).
@@ -587,7 +587,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		// and: a single large UTXO covers the full desired pool value many times over
 		// 100_000_000 sats = 1 BSV
 		// when:
-		result, err := funderSvc.Fund(ctx, -100_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -100_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then: change outputs must be capped at MaxChangeOutputsPerTransaction, not 100
 		then.Result(result).WithoutError(err).
@@ -608,7 +608,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(desiredUTXOs)
 
 		// when:
-		result, err := funderSvc.Fund(ctx, largeInputSats, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, largeInputSats, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then: only MaxChangeOutputsPerTransaction outputs created, not 20
 		then.Result(result).WithoutError(err)
@@ -628,7 +628,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funderSvc.Fund(ctx, -50, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -50, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		// then: no change output created; extra sats go to the miner (ChangeAmount > 0 is fine)
 		then.Result(result).WithoutError(err)
@@ -649,7 +649,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
 
 		// when: over-fund by 3500 sats – enough for 3 change outputs × 1000+ sats each
-		result, err := funderSvc.Fund(ctx, -3501, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -3501, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		then.Result(result).WithoutError(err)
 		// dustFloor = 44 sats; each output must be well above that
@@ -676,7 +676,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 			MinimumDesiredUTXOValue: 400,
 		}
 
-		result, err := funderSvc.Fund(ctx, -801, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -801, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
 		then.Result(result).WithoutError(err)
 
