@@ -341,6 +341,22 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 		outputsToInternalize = append(outputsToInternalize, output)
 	}
 
+	// Ensure baskets exist before saving outputs (matching TS findOrInsertOutputBasket behavior)
+	seen := make(map[string]bool)
+	for _, output := range outputsToInternalize {
+		if output.BasketName == nil {
+			continue
+		}
+		name := *output.BasketName
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		if basketErr := in.basketRepo.FindOrCreateBasket(ctx, existingTx.UserID, name); basketErr != nil {
+			return fmt.Errorf("failed to ensure basket %q exists: %w", name, basketErr)
+		}
+	}
+
 	err = in.outputRepo.SaveOutputs(ctx, outputsToInternalize)
 	if err != nil {
 		return fmt.Errorf("failed to save output: %w", err)

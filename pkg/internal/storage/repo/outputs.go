@@ -608,8 +608,13 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 		}
 
 		if output.UserUTXO != nil {
+			basketName := ""
+			if output.BasketName != nil {
+				basketName = *output.BasketName
+			}
 			res.Output.UserUTXO = &models.UserUTXO{
 				UserID:             output.UserUTXO.UserID,
+				BasketName:         basketName,
 				Satoshis:           output.UserUTXO.Satoshis,
 				EstimatedInputSize: output.UserUTXO.EstimatedInputSize,
 				UTXOStatus:         output.UserUTXO.Status,
