@@ -163,6 +163,16 @@ func WithServices(services wdk.Services) func(*wallet_opts.Opts) {
 	}
 }
 
+// WithStorageManager allows passing a pre-built WalletStorageManager instead of
+// having the wallet create one internally. This enables the remote-wallet pattern
+// where the wallet must exist before the storage client can be created (for auth),
+// and storage providers are added to the manager after wallet construction.
+func WithStorageManager(mgr wdk.WalletStorage) func(*wallet_opts.Opts) {
+	return func(opts *wallet_opts.Opts) {
+		opts.StorageManager = mgr
+	}
+}
+
 // WithPendingSignActionsRepository sets the SignActionsRepository for wallet options, allowing management of cached actions.
 func WithPendingSignActionsRepository(cache pending.SignActionsRepository) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
@@ -201,10 +211,6 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 	err := chain.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
-	}
-
-	if activeStorageFactory == nil {
-		return nil, fmt.Errorf("active storage factory must be provided")
 	}
 
 	options := to.OptionsWithDefault(wallet_opts.Opts{
@@ -255,14 +261,20 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 	}
 	w.auth = clients.New(w, clients.WithHttpClientTransport(options.Client.Transport))
 
-	activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create active storage: %w", err)
-	}
-	w.cleanup = w.cleanup.Add(storageCleanup)
+	if options.StorageManager != nil {
+		w.storage = options.StorageManager
+	} else {
+		if activeStorageFactory == nil {
+			return nil, fmt.Errorf("active storage factory must be provided when no StorageManager is set")
+		}
+		activeStorage, storageCleanup, err := toStorageProvider(w, activeStorageFactory)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create active storage: %w", err)
+		}
+		w.cleanup = w.cleanup.Add(storageCleanup)
 
-	storageManager := storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), logger, activeStorage)
-	w.storage = storageManager
+		w.storage = storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), logger, activeStorage)
+	}
 
 	return w, nil
 }
