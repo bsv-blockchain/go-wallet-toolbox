@@ -657,12 +657,12 @@ func (p *process) updateSingleTx(
 		transactionIDs, err = p.txRepo.FindTransactionIDsByTxID(ctx, txID)
 		if err != nil {
 			err = fmt.Errorf("failed to find transaction IDs for failed tx %s: %w", txID, err)
-			return
+			return sendWithResult, reviewActionResult, err
 		}
 		for _, id := range transactionIDs {
 			if err = p.outputRepo.RecreateSpentOutputs(ctx, id); err != nil {
 				err = fmt.Errorf("failed to restore spent outputs for failed tx %s: %w", txID, err)
-				return
+				return sendWithResult, reviewActionResult, err
 			}
 		}
 	}
