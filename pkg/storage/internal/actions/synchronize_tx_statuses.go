@@ -382,6 +382,25 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			continue
 		}
 
+		isValid, verifyErr := merkleResult.MerklePath.VerifyHex(ctx, txToSync.TxID, s.services)
+		if verifyErr != nil {
+			s.logger.Warn("failed to verify merkle proof",
+				slog.Any("err", verifyErr),
+				slog.String("txID", txToSync.TxID),
+				slog.Uint64("blockHeight", uint64(merkleResult.BlockHeader.Height)),
+			)
+			failedAttempts = append(failedAttempts, txToSync.TxID)
+			continue
+		}
+		if !isValid {
+			s.logger.Warn("merkle proof root does not match chaintracks",
+				slog.String("txID", txToSync.TxID),
+				slog.Uint64("blockHeight", uint64(merkleResult.BlockHeader.Height)),
+			)
+			failedAttempts = append(failedAttempts, txToSync.TxID)
+			continue
+		}
+
 		var transactionIDs []uint
 		transactionIDs, err = s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
 		if err != nil {

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -39,6 +41,7 @@ type internalize struct {
 	beefVerifier       wdk.BeefVerifier
 	scriptsVerifier    wdk.ScriptsVerifier
 	blockHeaderService wdk.BlockHeaderLoader
+	chainTracker       chaintracker.ChainTracker
 }
 
 func newInternalizeAction(
@@ -51,6 +54,7 @@ func newInternalizeAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	blockHeader wdk.BlockHeaderLoader,
+	chainTracker chaintracker.ChainTracker,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
@@ -63,6 +67,7 @@ func newInternalizeAction(
 		beefVerifier:       beefVerifier,
 		scriptsVerifier:    scriptsVerifier,
 		blockHeaderService: blockHeader,
+		chainTracker:       chainTracker,
 	}
 }
 
@@ -268,6 +273,18 @@ func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txI
 	root, err := tx.MerklePath.ComputeRootHex(to.Ptr(txID))
 	if err != nil {
 		return fmt.Errorf("failed to compute root hex: %w", err)
+	}
+
+	rootHash, err := chainhash.NewHashFromHex(root)
+	if err != nil {
+		return fmt.Errorf("failed to parse computed merkle root: %w", err)
+	}
+	isValid, err := in.chainTracker.IsValidRootForHeight(ctx, rootHash, tx.MerklePath.BlockHeight)
+	if err != nil {
+		return fmt.Errorf("failed to validate merkle root against chaintracks: %w", err)
+	}
+	if !isValid {
+		return fmt.Errorf("merkle root %s invalid for height %d", root, tx.MerklePath.BlockHeight)
 	}
 
 	err = in.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{

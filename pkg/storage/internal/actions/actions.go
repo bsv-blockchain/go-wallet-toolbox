@@ -59,6 +59,7 @@ func New(
 			beefVerifier,
 			scriptsVerifier,
 			services,
+			services,
 		),
 		process: newProcessAction(
 			ctx,
