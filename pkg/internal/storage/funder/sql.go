@@ -180,7 +180,7 @@ type utxoCollector struct {
 	// dustFloor is the minimum satoshi value a change output must have to be economically viable.
 	// An output below this threshold costs more to spend in a future transaction than it is worth.
 	dustFloor satoshi.Value
-	isSweep bool
+	isSweep   bool
 }
 
 func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, isSweep bool) (c *utxoCollector, err error) {
