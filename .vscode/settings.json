@@ -80,7 +80,7 @@
             "-.mage-cache"
         ],
         "formatting.gofumpt": true,
-        "formatting.local": "github.com/bsv-blockchain/go-template",
+        "formatting.local": "github.com/bsv-blockchain/go-wallet-toolbox",
         "symbolMatcher": "fastfuzzy",
         "symbolStyle": "full",
         "ui.completion.completeFunctionCalls": true,
