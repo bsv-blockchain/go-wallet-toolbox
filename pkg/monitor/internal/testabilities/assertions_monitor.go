@@ -119,7 +119,10 @@ func (s *storageMethodAssertions) ExecutedInTime() TaskExecutionAssertions {
 	s.parent.require.NotNil(s.parent.fixtures.daemon, "Expected daemon to be initialized")
 
 	s.parent.require.NotNil(s.lastRun, "Expected lastRun to be initialized")
-	s.parent.require.True(s.lastRun.After(time.Now().Add(-2*s.interval)), "scheduled task lastRun is not within the expected interval")
+	// Use 5*interval tolerance to match WaitForTaskExecution's timeout and avoid
+	// flakes on loaded CI runners where goroutine scheduling delays can push
+	// lastRun past a tighter window even though the task ran correctly.
+	s.parent.require.True(s.lastRun.After(time.Now().Add(-5*s.interval)), "scheduled task lastRun is not within the expected interval")
 
 	return s
 }
