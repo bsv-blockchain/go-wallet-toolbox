@@ -369,7 +369,7 @@ runs:
     # ────────────────────────────────────────────────────────────────────────────
     - name: 💾 Save Go build cache
       if: steps.setup-go.outputs.build-cache-hit != 'true'
-      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: |
           ~/.cache/go-build
@@ -381,7 +381,7 @@ runs:
     # ────────────────────────────────────────────────────────────────────────────
     - name: 💾 Save Go module cache
       if: steps.setup-go.outputs.module-cache-hit != 'true'
-      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
         path: ~/go/pkg/mod
         key: ${{ steps.cache-keys.outputs.module-key }}
