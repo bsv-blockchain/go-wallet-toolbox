@@ -98,7 +98,7 @@ func (s *storageMethodAssertions) WaitForTaskExecution(expectedInterval time.Dur
 	timeoutDuration := 5 * expectedInterval
 	timeout := time.Now().Add(timeoutDuration)
 	for time.Now().Before(timeout) {
-		lastRun, err := activeTask.Cronjob.LastRun()
+		lastRun, err := activeTask.Cronjob.LastRunStartedAt()
 		s.parent.require.NoError(err)
 
 		if lastRun.IsZero() {
