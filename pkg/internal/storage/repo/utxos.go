@@ -45,10 +45,10 @@ func (u *UTXOs) FindNotReservedUTXOs(
 
 	var result []*models.UserUTXO
 
+	page.ApplyDefaults()
 	query := u.db.WithContext(ctx).Scopes(
 		scopes.UserID(userID),
 		scopes.BasketName(basketName),
-		scopes.Paginate(page),
 		notReserved(),
 		outputNotIn(forbiddenOutputIDs),
 	)
@@ -57,7 +57,15 @@ func (u *UTXOs) FindNotReservedUTXOs(
 	if includeSending {
 		statuses = append(statuses, string(wdk.UTXOStatusSending))
 	}
-	query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
+	query = query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
+
+	// Order by safety tier (mined=0, unproven=1, sending=2) then by satoshis ascending
+	// so the collector picks the safest, smallest-sufficient UTXOs first.
+	orderClause := fmt.Sprintf(
+		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
+		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
+	)
+	query = query.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
 	err = query.Find(&result).Error
 	if err != nil {

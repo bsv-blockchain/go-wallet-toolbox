@@ -111,8 +111,7 @@ func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forb
 			return utxos, page, nil
 		},
 		&queryopts.Paging{
-			Limit:  utxoBatchSize,
-			SortBy: "satoshis",
+			Limit: utxoBatchSize,
 		})
 
 	standardUTXOs := seqerr.FlattenSlices(batches)
