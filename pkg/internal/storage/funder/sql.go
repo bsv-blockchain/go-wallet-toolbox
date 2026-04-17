@@ -117,7 +117,7 @@ func (f *SQL) Fund(
 			break
 		}
 
-		utxo := pool.selectBest(uint64(remaining)) //nolint:gosec // remaining is positive (checked above)
+		utxo := pool.selectBest(uint64(remaining))
 		if utxo == nil {
 			return nil, errfunder.ErrNotEnoughFunds
 		}
