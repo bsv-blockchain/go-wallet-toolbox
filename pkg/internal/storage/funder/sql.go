@@ -3,12 +3,10 @@ package funder
 import (
 	"context"
 	"fmt"
-	"iter"
 	"log/slog"
 	"math"
 
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -23,10 +21,6 @@ import (
 )
 
 var changeOutputSize = txutils.P2PKHOutputSize
-
-const (
-	utxoBatchSize = 1000
-)
 
 // MaxChangeOutputsPerTransaction limits how aggressively the wallet builds up its UTXO pool in one shot.
 // When a user first imports a large UTXO, without this cap the wallet would
@@ -90,75 +84,100 @@ func (f *SQL) Fund(
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
-	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs, priorityOutputs, includeSending)
+	// Phase 1: Allocate priority outputs (noSend change from prior TXs in same batch).
+	if err = f.allocatePriorityOutputs(collector, priorityOutputs, forbiddenOutputIDs, isSweep); err != nil {
+		return nil, err
+	}
+	if !isSweep && collector.IsFunded() {
+		return collector.GetResult()
+	}
 
-	err = collector.Allocate(utxos)
+	// Phase 2: Load all eligible UTXOs into a tiered pool.
+	pool, err := f.loadUTXOPool(ctx, userID, basket.Name, forbiddenOutputIDs, includeSending)
 	if err != nil {
-		return nil, fmt.Errorf("failed to allocate utxos: %w", err)
+		return nil, err
+	}
+
+	// Phase 3: Sweep mode — allocate everything.
+	if isSweep {
+		for _, utxo := range pool.all() {
+			if err = collector.allocateUTXO(utxo); err != nil {
+				return nil, fmt.Errorf("failed to allocate utxo in sweep: %w", err)
+			}
+		}
+		return collector.GetResult()
+	}
+
+	// Phase 4: Tiered best-fit selection.
+	// Each round: compute remaining need, pick optimal UTXO (exact → best-fit → largest),
+	// allocate it (which recalculates fee), repeat until funded.
+	for !collector.IsFunded() {
+		remaining := collector.remaining()
+		if remaining <= 0 {
+			break
+		}
+
+		utxo := pool.selectBest(uint64(remaining)) //nolint:gosec // remaining is positive (checked above)
+		if utxo == nil {
+			return nil, errfunder.ErrNotEnoughFunds
+		}
+		if err = collector.allocateUTXO(utxo); err != nil {
+			return nil, fmt.Errorf("failed to allocate utxo: %w", err)
+		}
 	}
 
 	return collector.GetResult()
 }
 
-func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output, includeSending bool) iter.Seq2[*models.UserUTXO, error] {
-	batches := seqerr.ProduceWithArg(
-		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
-			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs, includeSending)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to load utxos: %w", err)
-			}
-			page.Next()
-			return utxos, page, nil
-		},
-		&queryopts.Paging{
-			Limit: utxoBatchSize,
-		})
-
-	standardUTXOs := seqerr.FlattenSlices(batches)
-	if len(priorityOutputs) == 0 {
-		return seqerr.Concat(standardUTXOs)
-	}
-
-	return seqerr.Concat(noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs), standardUTXOs)
-}
-
-func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
-	forbiddenIDsLookup := make(map[uint]struct{}, len(forbiddenOutputIDs))
+func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs []*entity.Output, forbiddenOutputIDs []uint, isSweep bool) error {
+	forbiddenIDs := make(map[uint]struct{}, len(forbiddenOutputIDs))
 	for _, id := range forbiddenOutputIDs {
-		forbiddenIDsLookup[id] = struct{}{}
+		forbiddenIDs[id] = struct{}{}
 	}
 
-	return func(yield func(*models.UserUTXO, error) bool) {
-		for _, output := range priorityOutputs {
-			if _, ok := forbiddenIDsLookup[output.ID]; ok {
-				continue
-			}
+	for _, output := range priorityOutputs {
+		if _, ok := forbiddenIDs[output.ID]; ok {
+			continue
+		}
 
-			userID := output.UserID
+		sats, err := to.UInt64(output.Satoshis)
+		if err != nil {
+			return fmt.Errorf("failed to convert output satoshis: %d to uint64: %w", output.Satoshis, err)
+		}
 
-			var basket string
-			if output.BasketName != nil {
-				basket = *output.BasketName
-			}
+		var basket string
+		if output.BasketName != nil {
+			basket = *output.BasketName
+		}
 
-			satoshis, err := to.UInt64(output.Satoshis)
-			if err != nil {
-				yield(nil, fmt.Errorf("failed to convert output satoshis: %d to uint64: %w", output.Satoshis, err))
-				break
-			}
+		utxo := &models.UserUTXO{
+			UserID:             output.UserID,
+			OutputID:           output.ID,
+			BasketName:         basket,
+			Satoshis:           sats,
+			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+			CreatedAt:          output.CreatedAt,
+		}
 
-			if !yield(&models.UserUTXO{
-				UserID:             userID,
-				OutputID:           output.ID,
-				BasketName:         basket,
-				Satoshis:           satoshis,
-				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-				CreatedAt:          output.CreatedAt,
-			}, nil) {
-				break
-			}
+		if err = collector.allocateUTXO(utxo); err != nil {
+			return fmt.Errorf("failed to allocate priority output: %w", err)
+		}
+
+		if !isSweep && collector.IsFunded() {
+			return nil
 		}
 	}
+	return nil
+}
+
+func (f *SQL) loadUTXOPool(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
+	// Load all eligible UTXOs. The repository sorts by status tier + satoshis ASC,
+	// but the pool re-sorts internally per tier for 3-stage selection.
+	allUTXOs, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, &queryopts.Paging{}, forbiddenOutputIDs, includeSending)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load utxos: %w", err)
+	}
+	return newUTXOPool(allUTXOs), nil
 }
 
 type utxoCollector struct {
@@ -219,13 +238,8 @@ func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesi
 	return c, nil
 }
 
-func (c *utxoCollector) Allocate(utxos iter.Seq2[*models.UserUTXO, error]) error {
-	utxos = seqerr.TakeUntilTrue(utxos, c.IsFunded)
-	err := seqerr.ForEach(utxos, c.allocateUTXO)
-	if err != nil {
-		return fmt.Errorf("failed to allocate utxo: %w", err)
-	}
-	return nil
+func (c *utxoCollector) remaining() satoshi.Value {
+	return satoshi.MustSubtract(c.satsToCover(), c.satsCovered)
 }
 
 func (c *utxoCollector) IsFunded() bool {
