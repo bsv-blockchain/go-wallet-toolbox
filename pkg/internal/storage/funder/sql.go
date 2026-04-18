@@ -100,12 +100,7 @@ func (f *SQL) Fund(
 
 	// Phase 3: Sweep mode — allocate everything.
 	if isSweep {
-		for _, utxo := range pool.all() {
-			if err = collector.allocateUTXO(utxo); err != nil {
-				return nil, fmt.Errorf("failed to allocate utxo in sweep: %w", err)
-			}
-		}
-		return collector.GetResult()
+		return f.allocateSweep(collector, pool)
 	}
 
 	// Phase 4: Tiered best-fit selection.
@@ -126,6 +121,15 @@ func (f *SQL) Fund(
 		}
 	}
 
+	return collector.GetResult()
+}
+
+func (f *SQL) allocateSweep(collector *utxoCollector, pool *utxoPool) (*Result, error) {
+	for _, utxo := range pool.all() {
+		if err := collector.allocateUTXO(utxo); err != nil {
+			return nil, fmt.Errorf("failed to allocate utxo in sweep: %w", err)
+		}
+	}
 	return collector.GetResult()
 }
 
