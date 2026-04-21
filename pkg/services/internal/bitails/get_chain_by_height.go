@@ -6,10 +6,17 @@ import (
 	"net/http"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-func (b *Bitails) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
+func (b *Bitails) ChainHeaderByHeight(ctx context.Context, height uint32) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-ChainHeaderByHeight", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	url, err := blockByHeight(b.url, height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL to retrieve block by height from Bitails: %w", err)

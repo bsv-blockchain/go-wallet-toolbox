@@ -9,6 +9,8 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -45,6 +47,11 @@ func (e *broadcastError) UnmarshalJSON(data []byte) error {
 }
 
 func (b *Bitails) broadcast(ctx context.Context, rawTx []byte) wdk.PostedTxID {
+	ctx, span := tracing.StartTracing(ctx, "Services-Broadcast", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, nil)
+	}()
+
 	rawHex := hex.EncodeToString(rawTx)
 	txid := txutils.TransactionIDFromRawTx(rawTx)
 

@@ -8,6 +8,8 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -31,7 +33,12 @@ type txInfoResult struct {
 	BlockHeight uint32
 }
 
-func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (BroadcastStatus, string, error) {
+func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (_ BroadcastStatus, _ string, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-Broadcast", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	rawTxHex := hex.EncodeToString(rawTx)
 	txid := txutils.TransactionIDFromRawTx(rawTx)
 

@@ -21,6 +21,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -76,7 +78,12 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
-func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
+func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (_ *wdk.RawTxResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-RawTx", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	req := woc.httpClient.
 		R().
 		SetContext(ctx).
@@ -110,7 +117,12 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (*wdk.RawTxResu
 	}, nil
 }
 
-func (woc *WhatsOnChain) UpdateBsvExchangeRate(ctx context.Context) (float64, error) {
+func (woc *WhatsOnChain) UpdateBsvExchangeRate(ctx context.Context) (_ float64, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-UpdateBsvExchangeRate", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	nextUpdate := woc.bsvExchangeRate.Timestamp.Add(woc.bsvUpdateInterval)
 
 	// Check if the rate timestamp is newer than the threshold time
@@ -141,7 +153,12 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate(ctx context.Context) (float64, er
 }
 
 // MerklePath retrieves the merkle path for a transaction using WoC TSC proof.
-func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
+func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePathResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-MerklePath", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	proof, err := woc.getTscProof(ctx, txID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get TSC proof: %w", err)
@@ -180,7 +197,12 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (*wdk.Merk
 	}, nil
 }
 
-func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-FindChainTipHeader", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var blocks []dto.BlockHeader
 	url := fmt.Sprintf("%s/block/headers?limit=1", woc.url)
 	res, err := woc.
@@ -211,13 +233,23 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 }
 
 // PostTX broadcasts a single raw transaction to WhatsOnChain
-func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
+func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte) (_ *wdk.PostedTxID, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-PostTX", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result := woc.processSingleTx(ctx, rawTx)
 	return &result, nil
 }
 
 // IsValidRootForHeight checks if the provided Merkle root is valid for the given block height.
-func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-IsValidRootForHeight", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, err)
 	}
@@ -238,7 +270,12 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 	return remoteRoot.IsEqual(root), nil
 }
 
-func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (*wdk.ChainBlockHeader, error) {
+func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-HashToHeader", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	url, err := blockHeaderByHashURL(woc.url, blockHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct URL for block hash %s: %w", blockHash, err)
@@ -265,7 +302,12 @@ func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (*w
 }
 
 // GetUtxoStatus retrieves the UTXO status for a given script hash and outpoint.
-func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
+func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (_ *wdk.UtxoStatusResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetUtxoStatus", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if err := validateScriptHash(scriptHash); err != nil {
 		return nil, fmt.Errorf("invalid scripthash: %w", err)
 	}
@@ -313,7 +355,12 @@ func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, o
 }
 
 // IsUtxo checks if the given outpoint is a UTXO for the specified script hash.
-func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
+func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-IsUtxo", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if scriptHash == "" {
 		return false, fmt.Errorf("scriptHash is required")
 	}
@@ -329,7 +376,12 @@ func (woc *WhatsOnChain) IsUtxo(ctx context.Context, scriptHash string, outpoint
 	return status.IsUtxo, nil
 }
 
-func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) (_ *wdk.GetStatusForTxIDsResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetStatusForTxIDs", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return nil, fmt.Errorf("no txIDs provided")
 	}

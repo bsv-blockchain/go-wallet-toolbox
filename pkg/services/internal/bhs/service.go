@@ -14,6 +14,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -55,7 +57,12 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 	}
 }
 
-func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
+func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height uint32) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-ChainHeaderByHeight", attribute.String("service", "bhs"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	url, err := headerByHeight(b.cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("error building URL: %w", err)
@@ -88,7 +95,12 @@ func (b *BlockHeadersService) ChainHeaderByHeight(ctx context.Context, height ui
 	return first.ConvertChainBlockHeader(), nil
 }
 
-func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-IsValidRootForHeight", attribute.String("service", "bhs"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	url, err := verifyMerkleRootURL(b.cfg.URL)
 	if err != nil {
 		return false, fmt.Errorf("error building URL: %w", err)
@@ -127,7 +139,12 @@ func (b *BlockHeadersService) IsValidRootForHeight(ctx context.Context, root *ch
 
 // CurrentHeight returns the best-chain height reported by the Block-Headers
 // Service (`/chain/tip/longest`).
-func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error) {
+func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (_ uint32, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-CurrentHeight", attribute.String("service", "bhs"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	tip, err := b.FindChainTipHeader(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to find chain tip header: %w", err)
@@ -140,7 +157,12 @@ func (b *BlockHeadersService) CurrentHeight(ctx context.Context) (uint32, error)
 	return height, nil
 }
 
-func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+func (b *BlockHeadersService) FindChainTipHeader(ctx context.Context) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-FindChainTipHeader", attribute.String("service", "bhs"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var block dto.TipStateResponse
 	url, err := tipLongestURL(b.cfg.URL)
 	if err != nil {
