@@ -19,8 +19,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Custom ARC defined http status codes

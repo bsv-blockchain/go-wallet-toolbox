@@ -69,7 +69,7 @@ func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash st
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := validateScriptHash(scriptHash); err != nil {
+	if err = validateScriptHash(scriptHash); err != nil {
 		return nil, err
 	}
 

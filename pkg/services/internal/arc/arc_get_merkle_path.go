@@ -10,8 +10,8 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func (s *Service) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePathResult, err error) {

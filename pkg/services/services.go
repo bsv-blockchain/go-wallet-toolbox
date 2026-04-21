@@ -737,7 +737,9 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 		if depth > s.config.GetBeefMaxDepth {
 			return fmt.Errorf("max depth of recursion reached: %d", s.config.GetBeefMaxDepth)
 		}
-		rawTxResult, err := s.RawTx(ctx, txID)
+
+		var rawTxResult wdk.RawTxResult
+		rawTxResult, err = s.RawTx(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("failed to get raw transaction for txID %q: %w", txID, err)
 		}
@@ -746,12 +748,14 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 			return fmt.Errorf("raw transaction for txID %s is nil", txID)
 		}
 
-		tx, err := transaction.NewTransactionFromBytes(rawTxResult.RawTx)
+		var tx *transaction.Transaction
+		tx, err = transaction.NewTransactionFromBytes(rawTxResult.RawTx)
 		if err != nil {
 			return fmt.Errorf("failed to create transaction from raw bytes for txID %q: %w", txID, err)
 		}
 
-		merklePathResult, err := s.MerklePath(ctx, txID)
+		var merklePathResult *wdk.MerklePathResult
+		merklePathResult, err = s.MerklePath(ctx, txID)
 		if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
 			return fmt.Errorf("failed to get merkle path for txID %q: %w", txID, err)
 		}

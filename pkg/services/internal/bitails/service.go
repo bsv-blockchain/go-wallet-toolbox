@@ -22,8 +22,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Bitails struct {
@@ -277,7 +277,7 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := validateScriptHash(scriptHash); err != nil {
+	if err = validateScriptHash(scriptHash); err != nil {
 		return nil, fmt.Errorf("invalid script hash %s: %w", scriptHash, err)
 	}
 

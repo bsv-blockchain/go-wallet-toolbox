@@ -22,8 +22,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"go.opentelemetry.io/otel/attribute"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const ServiceName = defs.WhatsOnChainServiceName
@@ -250,7 +250,7 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := ctx.Err(); err != nil {
+	if err = ctx.Err(); err != nil {
 		return false, fmt.Errorf("context canceled while validating Merkle root for height %d: %w", height, err)
 	}
 
@@ -308,7 +308,7 @@ func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, o
 		tracing.EndTracing(span, err)
 	}()
 
-	if err := validateScriptHash(scriptHash); err != nil {
+	if err = validateScriptHash(scriptHash); err != nil {
 		return nil, fmt.Errorf("invalid scripthash: %w", err)
 	}
 
