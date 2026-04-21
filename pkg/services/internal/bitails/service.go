@@ -13,6 +13,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -21,6 +22,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -62,13 +64,23 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 }
 
 // PostTX sends the given raw tx to Bitails for broadcasting.
-func (b *Bitails) PostTX(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error) {
+func (b *Bitails) PostTX(ctx context.Context, rawTx []byte) (_ *wdk.PostedTxID, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-PostTX", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	broadcastResult := b.broadcast(ctx, rawTx)
 	return &broadcastResult, nil
 }
 
 // IsValidRootForHeight checks if the supplied merkle-root belongs to the block at `height`.
-func (b *Bitails) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+func (b *Bitails) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-IsValidRootForHeight", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if cached, ok := b.getRootFromCache(height); ok {
 		return cached.IsEqual(root), nil
 	}
@@ -86,7 +98,12 @@ func (b *Bitails) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash
 }
 
 // MerklePath fetches a Merkle-path proof for the given txID using Bitails
-func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathResult, error) {
+func (b *Bitails) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePathResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-MerklePath", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	proof, err := b.getTscProof(ctx, txID)
 	if err != nil {
 		return nil, err
@@ -139,7 +156,12 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (*wdk.MerklePathR
 }
 
 // FindChainTipHeader fetches the header of the current chain-tip block and converts it to *wdk.ChainBlockHeader.
-func (b *Bitails) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+func (b *Bitails) FindChainTipHeader(ctx context.Context) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-FindChainTipHeader", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	hash, height, err := b.latestBlock(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching latest block: %w", err)
@@ -153,7 +175,12 @@ func (b *Bitails) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader
 }
 
 // CurrentHeight contacts the Bitails API and returns the current best-chain height.
-func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
+func (b *Bitails) CurrentHeight(ctx context.Context) (_ uint32, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-CurrentHeight", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	url, err := buildURL(b.url, "network", "info")
 	if err != nil {
 		return 0, fmt.Errorf("error building URL: %w", err)
@@ -181,7 +208,12 @@ func (b *Bitails) CurrentHeight(ctx context.Context) (uint32, error) {
 }
 
 // RawTx fetches and validates the raw transaction for a given txID.
-func (b *Bitails) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, error) {
+func (b *Bitails) RawTx(ctx context.Context, txID string) (_ *wdk.RawTxResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-RawTx", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	url, err := rawTxURL(b.url, txID)
 	if err != nil {
 		return nil, fmt.Errorf("error building raw tx URL: %w", err)
@@ -224,7 +256,12 @@ func (b *Bitails) RawTx(ctx context.Context, txID string) (*wdk.RawTxResult, err
 }
 
 // HashToHeader fetches and decodes a block header by its hash.
-func (b *Bitails) HashToHeader(ctx context.Context, blockHash string) (*wdk.ChainBlockHeader, error) {
+func (b *Bitails) HashToHeader(ctx context.Context, blockHash string) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-HashToHeader", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	raw, err := b.rawHeader(ctx, blockHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch raw header for hash %s: %w", blockHash, err)
@@ -234,8 +271,13 @@ func (b *Bitails) HashToHeader(ctx context.Context, blockHash string) (*wdk.Chai
 }
 
 // GetScriptHashHistory fetches the script hash history for a given script hash.
-func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-	if err := validateScriptHash(scriptHash); err != nil {
+func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (_ *wdk.ScriptHistoryResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetScriptHashHistory", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if err = validateScriptHash(scriptHash); err != nil {
 		return nil, fmt.Errorf("invalid script hash %s: %w", scriptHash, err)
 	}
 
@@ -259,7 +301,12 @@ func (b *Bitails) GetScriptHashHistory(ctx context.Context, scriptHash string) (
 }
 
 // GetStatusForTxIDs returns depth/status info for a list of txIDs using Bitails.
-func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+func (b *Bitails) GetStatusForTxIDs(ctx context.Context, txIDs []string) (_ *wdk.GetStatusForTxIDsResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetStatusForTxIDs", attribute.String("service", "bitails"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return nil, fmt.Errorf("no txIDs provided")
 	}
