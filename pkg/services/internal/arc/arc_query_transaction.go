@@ -7,8 +7,9 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 )
 
 func (s *Service) queryTransaction(ctx context.Context, txID string) (_ *TXInfo, err error) {

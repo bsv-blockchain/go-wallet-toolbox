@@ -7,11 +7,11 @@ import (
 	"net/http"
 
 	"github.com/go-softwarelab/common/pkg/seq"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 func (woc *WhatsOnChain) getUnconfirmedScriptHistory(ctx context.Context, scriptHash string) (iter.Seq[wdk.ScriptHistoryItem], error) {

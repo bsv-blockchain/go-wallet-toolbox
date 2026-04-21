@@ -8,9 +8,9 @@ import (
 	"net/http"
 
 	"github.com/go-softwarelab/common/pkg/is"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type broadcastRequestBody struct {

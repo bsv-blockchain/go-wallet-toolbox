@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 )
 
 // GET /v1/bsv/<network>/chain/info
