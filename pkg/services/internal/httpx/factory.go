@@ -1,10 +1,14 @@
 package httpx
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -56,11 +60,19 @@ func NewRestyClientFactoryWithBase(base *resty.Client) *RestyClientFactory {
 }
 
 func NewRestyClientFactory() *RestyClientFactory {
+	transport := otelhttp.NewTransport(
+		http.DefaultTransport,
+		otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+			return otelhttptrace.NewClientTrace(ctx)
+		}),
+	)
+
 	return &RestyClientFactory{
 		base: resty.New().
 			SetRetryCount(defaultRetryCount).
 			SetRetryWaitTime(defaultRetryInterval).
 			SetRetryMaxWaitTime(defaultRetryCount * defaultRetryInterval).
+			SetTransport(transport).
 			AddRetryCondition(retryOnTooManyRequestsStatus),
 	}
 }

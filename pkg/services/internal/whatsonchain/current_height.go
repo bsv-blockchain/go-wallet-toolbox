@@ -6,6 +6,9 @@ import (
 	"net/http"
 
 	"github.com/go-softwarelab/common/pkg/to"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 )
 
 // GET /v1/bsv/<network>/chain/info
@@ -14,7 +17,12 @@ type chainInfoDTO struct {
 }
 
 // CurrentHeight returns the current best-chain height.
-func (woc *WhatsOnChain) CurrentHeight(ctx context.Context) (uint32, error) {
+func (woc *WhatsOnChain) CurrentHeight(ctx context.Context) (_ uint32, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-CurrentHeight", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	var info chainInfoDTO
 
 	url, err := chainInfoURL(woc.url)
