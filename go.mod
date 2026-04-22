@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.2
 	github.com/bsv-blockchain/go-chaintracks v1.2.3
-	github.com/bsv-blockchain/go-sdk v1.2.21
+	github.com/bsv-blockchain/go-sdk v1.2.22
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.1
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.1
@@ -68,12 +68,12 @@ require (
 	github.com/bsv-blockchain/go-bt/v2 v2.6.2 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.5.6 // indirect
 	github.com/bsv-blockchain/go-lockfree-queue v1.1.2 // indirect
-	github.com/bsv-blockchain/go-p2p-message-bus v0.1.15 // indirect
+	github.com/bsv-blockchain/go-p2p-message-bus v0.1.16 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.1.2 // indirect
 	github.com/bsv-blockchain/go-subtree v1.3.0 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.3.4 // indirect
 	github.com/bsv-blockchain/go-wire v1.2.2 // indirect
-	github.com/bsv-blockchain/teranode v0.14.3-beta-5 // indirect
+	github.com/bsv-blockchain/teranode v0.14.3-beta-6 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -226,8 +226,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/twmb/franz-go v1.20.7 // indirect
-	github.com/twmb/franz-go/pkg/kadm v1.17.2 // indirect
+	github.com/twmb/franz-go v1.21.0 // indirect
+	github.com/twmb/franz-go/pkg/kadm v1.18.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
