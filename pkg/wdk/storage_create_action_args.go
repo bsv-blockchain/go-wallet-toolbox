@@ -36,7 +36,7 @@ func (i *ValidCreateActionInput) ScriptLength() (uint64, error) {
 // ValidCreateActionOutput represents the output for a transaction action
 type ValidCreateActionOutput struct {
 	LockingScript      primitives.HexString          `json:"lockingScript,omitempty"`
-	Satoshis           primitives.SatoshiValue       `json:"satoshis,omitempty"`
+	Satoshis           primitives.SatoshiValue       `json:"satoshis"`
 	OutputDescription  primitives.String5to2000Bytes `json:"outputDescription,omitempty"`
 	Basket             *primitives.StringUnder300    `json:"basket,omitempty"`
 	CustomInstructions *string                       `json:"customInstructions,omitempty"`

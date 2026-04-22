@@ -12,12 +12,14 @@ import (
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -75,7 +77,12 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 }
 
 // PostEF attempts to post EF with given txIDs
-func (s *Service) PostEF(ctx context.Context, efHex, txID string) (*wdk.PostedTxID, error) {
+func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.PostedTxID, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-PostEF", attribute.String("service", "arc"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	response, err := s.broadcast(ctx, efHex)
 	if err != nil {
 		result := wdk.PostedTxID{

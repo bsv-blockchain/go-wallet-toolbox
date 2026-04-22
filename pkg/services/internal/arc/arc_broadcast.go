@@ -8,6 +8,9 @@ import (
 	"net/http"
 
 	"github.com/go-softwarelab/common/pkg/is"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 )
 
 type broadcastRequestBody struct {
@@ -17,7 +20,12 @@ type broadcastRequestBody struct {
 	RawTx string `json:"rawTx"`
 }
 
-func (s *Service) broadcast(ctx context.Context, txHex string) (*TXInfo, error) {
+func (s *Service) broadcast(ctx context.Context, txHex string) (_ *TXInfo, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-Broadcast", attribute.String("service", "arc"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result := &TXInfo{}
 	arcErr := &APIError{}
 

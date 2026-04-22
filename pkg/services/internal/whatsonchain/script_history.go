@@ -7,8 +7,10 @@ import (
 	"net/http"
 
 	"github.com/go-softwarelab/common/pkg/seq"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/internal/dto"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -61,8 +63,13 @@ func (woc *WhatsOnChain) getConfirmedScriptHistory(ctx context.Context, scriptHa
 }
 
 // GetScriptHashHistory retrieves both confirmed and unconfirmed script history.
-func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
-	if err := validateScriptHash(scriptHash); err != nil {
+func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash string) (_ *wdk.ScriptHistoryResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetScriptHashHistory", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if err = validateScriptHash(scriptHash); err != nil {
 		return nil, err
 	}
 
