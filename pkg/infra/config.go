@@ -26,6 +26,7 @@ type Config struct {
 	SynchronizeTxStatuses defs.SynchronizeTxStatuses `mapstructure:"synchronize_tx_statuses"`
 	FailAbandoned         defs.FailAbandoned         `mapstructure:"fail_abandoned"`
 	TracingConfig         defs.TracingConfig         `mapstructure:"tracing"`
+	ChangeBasket          defs.ChangeBasket          `mapstructure:"change_basket"`
 }
 
 // DBConfig is the configuration for the database
@@ -76,6 +77,7 @@ func Defaults() Config {
 		SynchronizeTxStatuses: defs.DefaultSynchronizeTxStatuses(),
 		FailAbandoned:         defs.DefaultFailAbandoned(),
 		TracingConfig:         defs.DefaultTracingConfig(),
+		ChangeBasket:          defs.DefaultChangeBasket(),
 	}
 }
 

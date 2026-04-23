@@ -31,8 +31,9 @@ type ProviderConfig struct {
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
 
-	FeeModel   defs.FeeModel
-	Commission defs.Commission
+	FeeModel     defs.FeeModel
+	Commission   defs.Commission
+	ChangeBasket defs.ChangeBasket
 
 	BackgroundBroadcasterContext context.Context
 	BackgroundBroadcasterChannel chan<- wdk.CurrentTxStatus
@@ -148,6 +149,16 @@ func WithDBConfig(dbConfig defs.Database) ProviderOption {
 	}
 }
 
+// WithChangeBasket sets the initial change basket configuration for the provider.
+// NumberOfDesiredUTXOs and MinimumDesiredUTXOValue are used as defaults when creating new users.
+// MaxChangeOutputsPerTx limits how many change outputs are created per transaction.
+// All three values can also be updated at runtime via Provider methods.
+func WithChangeBasket(cfg defs.ChangeBasket) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.ChangeBasket = cfg
+	}
+}
+
 func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConfig {
 	return ProviderConfig{
 		DBConfig:                     defs.DefaultDBConfig(),
@@ -158,6 +169,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
 		FeeModel:                     defs.DefaultFeeModel(),
 		Commission:                   defs.DefaultCommission(),
+		ChangeBasket:                 defs.DefaultChangeBasket(),
 		Logger:                       slog.Default(),
 		BackgroundBroadcasterContext: context.Background(),
 	}

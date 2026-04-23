@@ -35,6 +35,7 @@ type ProviderFixture interface {
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
 	WithFailAbandonedMinTxAge(seconds uint) ProviderFixture
+	WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -52,6 +53,7 @@ type providerFixture struct {
 	commission             defs.Commission
 	feeModel               defs.FeeModel
 	failAbandoned          defs.FailAbandoned
+	changeBasket           defs.ChangeBasket
 	randomizer             wdk.Randomizer
 	services               wdk.Services
 	beefVerifierFixture    *beefVerifierFixture
@@ -91,6 +93,11 @@ func (p *providerFixture) WithFailAbandonedMinTxAge(seconds uint) ProviderFixtur
 	p.failAbandoned = defs.FailAbandoned{
 		MinTransactionAgeSeconds: seconds,
 	}
+	return p
+}
+
+func (p *providerFixture) WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture {
+	p.changeBasket = cfg
 	return p
 }
 
@@ -143,6 +150,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithFeeModel(p.feeModel),
 		storage.WithCommission(p.commission),
 		storage.WithFailAbandoned(p.failAbandoned),
+		storage.WithChangeBasket(p.changeBasket),
 	)
 	p.require.NoError(err)
 

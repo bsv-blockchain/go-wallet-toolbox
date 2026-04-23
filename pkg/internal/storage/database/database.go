@@ -64,9 +64,9 @@ func (d *Database) CreateRepositories() *repo.Repositories {
 	return repo.NewSQLRepositories(d.DB)
 }
 
-func (d *Database) CreateFunder(feeModel defs.FeeModel) funder.Funder {
+func (d *Database) CreateFunder(feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) funder.Funder {
 	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB))
-	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel)
+	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel, maxChangeOutputsPerTx)
 }
 
 func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Database, logger glogger.Interface) (*gorm.DB, error) {
