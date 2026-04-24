@@ -141,6 +141,7 @@ db.Engine = defs.DBTypePostgres
 db.PostgreSQL.SQLCommon = defs.SQLCommon{
     Host: "localhost", Port: "5432", User: "postgres", Password: "postgres", DBName: "storage", TimeZone: "UTC",
 }
+db.PostgreSQL.Schema = "my_custom_schema"
 provider, _ := storage.NewGORMProvider(
     defs.BSVNetworkMainnet, services, storage.WithDBConfig(db),
 )
