@@ -38,6 +38,11 @@ func postgresDialector(cfg defs.Database) gorm.Dialector {
 		cfg.PostgreSQL.Host, cfg.PostgreSQL.User, cfg.PostgreSQL.Password, cfg.PostgreSQL.DBName,
 		cfg.PostgreSQL.Port, cfg.PostgreSQL.SslMode, cfg.PostgreSQL.TimeZone,
 	)
+
+	if cfg.PostgreSQL.Schema != "" {
+		dsn = fmt.Sprintf("%s search_path=%s", dsn, cfg.PostgreSQL.Schema)
+	}
+
 	return postgres.New(postgres.Config{
 		PreferSimpleProtocol: true, // turn to TRUE to disable implicit prepared statement usage
 		WithoutReturning:     false,

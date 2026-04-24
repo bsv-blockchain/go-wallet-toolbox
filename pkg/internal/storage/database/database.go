@@ -77,6 +77,12 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 		return nil, fmt.Errorf("failed to initialize GORM database connection: %w", err)
 	}
 
+	if cfg.Engine == defs.DBTypePostgres && cfg.PostgreSQL.Schema != "" {
+		if err = db.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS "%s";`, cfg.PostgreSQL.Schema)).Error; err != nil {
+			return nil, fmt.Errorf("failed to create postgres schema: %w", err)
+		}
+	}
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve underlying SQL database connection: %w", err)
