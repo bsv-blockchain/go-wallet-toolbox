@@ -1,5 +1,5 @@
 # infra-config.example.yaml
-infra-config.example.yaml:generic-api-key:103
+infra-config.example.yaml:generic-api-key:107
 
 # examples/complex_wallet_examples/certifier_server_example/config.example.yaml
 examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:6
@@ -51,6 +51,10 @@ pkg/internal/testabilities/tsgenerated/create_action_result.json:generic-api-key
 
 # pkg/storage/internal/commission/locking_script_test.go
 pkg/storage/internal/commission/locking_script_test.go:generic-api-key:16
+
+# pkg/storage/provider_change_basket_test.go
+pkg/storage/provider_change_basket_test.go:generic-api-key:15
+pkg/storage/provider_change_basket_test.go:generic-api-key:16
 
 # pkg/storage/provider_find_or_insert_user_test.go
 pkg/storage/provider_find_or_insert_user_test.go:generic-api-key:17

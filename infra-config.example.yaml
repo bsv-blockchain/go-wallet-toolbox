@@ -1,4 +1,8 @@
 bsv_network: main
+change_basket:
+  max_change_outputs_per_tx: 8
+  minimum_desired_utxo_value: 1000
+  number_of_desired_utxos: 32
 commission:
   pub_key_hex: ""
   satoshis: 0
@@ -81,7 +85,7 @@ wallet_services:
     callback_url: ""
     deployment_id: ""
     enabled: true
-    token: mainnet_9596de07e92300c6287e4393594ae39c
+    token: mainnet_abc
     url: https://arc.taal.com
     wait_for: ""
   bhs:
@@ -101,7 +105,7 @@ wallet_services:
     p2p_storage_path: ""
     remote_url: http://localhost:3011
     storage_path: ""
-  exchangerates_api_key: 1234567
+  exchangerates_api_key: 123456
   fiat_exchange_rates:
     base: USD
     rates:

@@ -314,6 +314,23 @@ func TestInvalidRequestPrice(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestChangeBasketEnvVars(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_CHANGE_BASKET_NUMBER_OF_DESIRED_UTXOS", "10000")
+	t.Setenv("TEST_CHANGE_BASKET_MINIMUM_DESIRED_UTXO_VALUE", "2000")
+	t.Setenv("TEST_CHANGE_BASKET_MAX_CHANGE_OUTPUTS_PER_TX", "50")
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, int64(10000), infraSrv.Config.ChangeBasket.NumberOfDesiredUTXOs)
+	require.Equal(t, uint64(2000), infraSrv.Config.ChangeBasket.MinimumDesiredUTXOValue)
+	require.Equal(t, uint64(50), infraSrv.Config.ChangeBasket.MaxChangeOutputsPerTx)
+}
+
 // setRequiredEnvs sets necessary environment variables for test configuration.
 // It ensures TEST_SERVER_PRIVATE_KEY is set with a valid private key value for proper test initialization.
 func setRequiredEnvs(t *testing.T) {
