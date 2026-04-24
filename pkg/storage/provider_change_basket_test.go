@@ -7,17 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-const (
-	aliceIdentityKey = "03f17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86beb"
-	bobIdentityKey   = "02b17660f611ce531402a2ce1e070380b6fde57aca211d707bfab27bce42d86bec"
-)
-
 func TestWithChangeBasket_SetsDefaultsForNewUsers(t *testing.T) {
-	// given: provider initialised with custom change basket config
+	// given: provider initialized with custom change basket config
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
@@ -30,7 +26,7 @@ func TestWithChangeBasket_SetsDefaultsForNewUsers(t *testing.T) {
 		GORMWithCleanDatabase()
 
 	// when: new user is created
-	resp, err := activeStorage.FindOrInsertUser(t.Context(), aliceIdentityKey)
+	resp, err := activeStorage.FindOrInsertUser(t.Context(), testusers.Alice.IdentityKey(t))
 
 	// then:
 	require.NoError(t, err)
@@ -55,7 +51,7 @@ func TestSetDefaultChangeBasket_AffectsOnlySubsequentNewUsers(t *testing.T) {
 	activeStorage := given.Provider().GORMWithCleanDatabase()
 
 	// and: alice is created with the original defaults
-	respAlice, err := activeStorage.FindOrInsertUser(t.Context(), aliceIdentityKey)
+	respAlice, err := activeStorage.FindOrInsertUser(t.Context(), testusers.Alice.IdentityKey(t))
 	require.NoError(t, err)
 
 	// when: default change basket is updated at runtime
@@ -66,7 +62,7 @@ func TestSetDefaultChangeBasket_AffectsOnlySubsequentNewUsers(t *testing.T) {
 	})
 
 	// and: bob is created after the update
-	respBob, err := activeStorage.FindOrInsertUser(t.Context(), bobIdentityKey)
+	respBob, err := activeStorage.FindOrInsertUser(t.Context(), testusers.Bob.IdentityKey(t))
 	require.NoError(t, err)
 
 	// then: alice keeps original defaults
@@ -96,13 +92,13 @@ func TestUpdateChangeBasket_UpdatesSpecificUserInDB(t *testing.T) {
 
 	activeStorage := given.Provider().GORMWithCleanDatabase()
 
-	respAlice, err := activeStorage.FindOrInsertUser(t.Context(), aliceIdentityKey)
+	respAlice, err := activeStorage.FindOrInsertUser(t.Context(), testusers.Alice.IdentityKey(t))
 	require.NoError(t, err)
-	respBob, err := activeStorage.FindOrInsertUser(t.Context(), bobIdentityKey)
+	respBob, err := activeStorage.FindOrInsertUser(t.Context(), testusers.Bob.IdentityKey(t))
 	require.NoError(t, err)
 
 	// when: only alice's basket is updated
-	err = activeStorage.UpdateChangeBasket(t.Context(), aliceIdentityKey, wdk.BasketConfiguration{
+	err = activeStorage.UpdateChangeBasket(t.Context(), testusers.Alice.IdentityKey(t), wdk.BasketConfiguration{
 		NumberOfDesiredUTXOs:    9999,
 		MinimumDesiredUTXOValue: 777,
 	})

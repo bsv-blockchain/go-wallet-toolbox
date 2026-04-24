@@ -591,7 +591,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 
 		// then: change outputs must be capped at MaxChangeOutputsPerTx, not 100
 		then.Result(result).WithoutError(err).
-			HasChangeCount(int(defs.DefaultChangeBasket().MaxChangeOutputsPerTx)). //nolint:gosec
+			HasChangeCount(int(defs.DefaultChangeBasket().MaxChangeOutputsPerTx)). //nolint:gosec // uint64 to int conversion is safe, value is bounded by config
 			ForAmount(100_000_000)
 	})
 
