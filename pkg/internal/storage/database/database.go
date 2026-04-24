@@ -78,7 +78,7 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 	}
 
 	if cfg.Engine == defs.DBTypePostgres && cfg.PostgreSQL.Schema != "" {
-		if err := db.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS "%s";`, cfg.PostgreSQL.Schema)).Error; err != nil {
+		if err = db.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS "%s";`, cfg.PostgreSQL.Schema)).Error; err != nil {
 			return nil, fmt.Errorf("failed to create postgres schema: %w", err)
 		}
 	}
