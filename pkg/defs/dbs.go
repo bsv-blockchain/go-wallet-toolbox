@@ -67,6 +67,9 @@ type PostgreSQL struct {
 
 	// ssl mode  [disable|allow|prefer|require|verify-ca|verify-full]. Will default to disable if not provided
 	SslMode string `mapstructure:"ssl_mode"`
+
+	// Schema allows separating instances within a single Postgres DB (default is empty/public)
+	Schema string `mapstructure:"schema"`
 }
 
 // MySQL is configuration struct for MySQL database
