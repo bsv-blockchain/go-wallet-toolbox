@@ -6,7 +6,7 @@ require (
 	github.com/bsv-blockchain/go-sdk v1.2.21
 	github.com/bsv-blockchain/go-wallet-toolbox v0.181.2
 	github.com/go-softwarelab/common v1.8.0
-	github.com/gofiber/fiber/v2 v2.52.12
+	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/subosito/gotenv v1.6.0
 )
 
