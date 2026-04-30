@@ -92,8 +92,28 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 	builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
 	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); err != nil {
 		log.ErrorContext(ctx, "Failed to set known tx to 'invalid'", slog.String("txID", txID), logging.Error(err))
-	} else {
-		log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid'", slog.String("txID", txID))
+		return
+	}
+
+	log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid' — cascading to user transactions", slog.String("txID", txID))
+
+	// Cascade: mark user Transactions as failed and restore spent input UTXOs.
+	// This mirrors the broadcast-rejection cascade in updateSingleTx (process.go).
+	if err := p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusFailed); err != nil {
+		log.ErrorContext(ctx, "Failed to set user transactions to 'failed'", slog.String("txID", txID), logging.Error(err))
+		return
+	}
+
+	transactionIDs, err := p.txRepo.FindTransactionIDsByTxID(ctx, txID)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to find transaction IDs for failed tx", slog.String("txID", txID), logging.Error(err))
+		return
+	}
+
+	for _, id := range transactionIDs {
+		if err := p.outputRepo.RecreateSpentOutputs(ctx, id); err != nil {
+			log.ErrorContext(ctx, "Failed to restore spent outputs for failed tx", slog.String("txID", txID), logging.Error(err))
+		}
 	}
 }
 

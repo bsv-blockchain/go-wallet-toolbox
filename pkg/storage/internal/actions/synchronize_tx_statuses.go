@@ -426,9 +426,29 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	// Transactions that have exceeded MaxAttempts are reset to "unsent" so that the
 	// send_waiting task rebroadcasts them. Only explicit network rejection (double spend,
 	// script error at broadcast time) should mark a transaction as truly invalid.
-	_, err = s.provenTxRepo.ResetOverAttemptedKnownTxsToUnsent(ctx, s.syncTxStatusesConfig.MaxAttempts)
+	resetTxs, err := s.provenTxRepo.ResetOverAttemptedKnownTxsToUnsent(ctx, s.syncTxStatusesConfig.MaxAttempts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reset over-attempted txs to unsent: %w", err)
+	}
+
+	if len(resetTxs) > 0 {
+		s.logger.Info("rebroadcasting over-attempted transactions", logging.Number("count", len(resetTxs)))
+	}
+
+	// Circuit breaker: if MaxRebroadcastAttempts > 0, mark transactions that have been
+	// rebroadcasted too many times as invalid so they no longer consume resources.
+	if s.syncTxStatusesConfig.MaxRebroadcastAttempts > 0 {
+		exceededTxs, err := s.provenTxRepo.SetInvalidForExceededRebroadcasts(ctx, s.syncTxStatusesConfig.MaxRebroadcastAttempts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set invalid for exceeded rebroadcasts: %w", err)
+		}
+		if len(exceededTxs) > 0 {
+			s.logger.Warn(
+				"circuit breaker fired: transactions exceeded MaxRebroadcastAttempts and have been marked invalid",
+				logging.Number("count", len(exceededTxs)),
+				slog.Uint64("maxRebroadcastAttempts", s.syncTxStatusesConfig.MaxRebroadcastAttempts),
+			)
+		}
 	}
 
 	return txStatuses, nil

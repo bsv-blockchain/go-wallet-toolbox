@@ -383,12 +383,41 @@ func (p *KnownTx) ResetOverAttemptedKnownTxsToUnsent(ctx context.Context, attemp
 		}).
 		Clauses(clause.Returning{}).
 		Updates(map[string]interface{}{
-			"status":   string(wdk.ProvenTxStatusUnsent),
-			"attempts": 0,
+			"status":               string(wdk.ProvenTxStatusUnsent),
+			"attempts":             0,
+			"rebroadcast_attempts": gorm.Expr("rebroadcast_attempts + 1"),
 		}).
 		Scan(&updatedTxs).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to reset over-attempted known transactions to unsent: %w", err)
+	}
+	return updatedTxs, nil
+}
+
+// SetInvalidForExceededRebroadcasts marks known transactions as invalid when their rebroadcast_attempts
+// have reached or exceeded maxRebroadcastAttempts. Only unsent transactions are eligible.
+// Returns the list of affected transactions.
+func (p *KnownTx) SetInvalidForExceededRebroadcasts(ctx context.Context, maxRebroadcastAttempts uint64) ([]models.KnownTx, error) {
+	var (
+		err        error
+		updatedTxs []models.KnownTx
+	)
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetInvalidForExceededRebroadcasts", attribute.String("MaxRebroadcastAttempts", fmt.Sprintf("%d", maxRebroadcastAttempts)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if maxRebroadcastAttempts == 0 {
+		return nil, nil
+	}
+
+	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
+		Where("rebroadcast_attempts >= ? AND status = ?", maxRebroadcastAttempts, string(wdk.ProvenTxStatusUnsent)).
+		Clauses(clause.Returning{}).
+		UpdateColumn("status", wdk.ProvenTxStatusInvalid).
+		Scan(&updatedTxs).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to set invalid for exceeded rebroadcasts: %w", err)
 	}
 	return updatedTxs, nil
 }

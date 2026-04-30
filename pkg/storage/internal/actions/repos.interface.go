@@ -64,6 +64,7 @@ type KnownTxRepo interface {
 	IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
 	SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) ([]models.KnownTx, error)
 	ResetOverAttemptedKnownTxsToUnsent(ctx context.Context, attempts uint64) ([]models.KnownTx, error)
+	SetInvalidForExceededRebroadcasts(ctx context.Context, maxRebroadcastAttempts uint64) ([]models.KnownTx, error)
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
 	SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error

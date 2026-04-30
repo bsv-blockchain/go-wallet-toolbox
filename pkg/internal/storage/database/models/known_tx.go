@@ -12,10 +12,11 @@ type KnownTx struct {
 
 	TxID string `gorm:"type:varchar(64);primaryKey"`
 
-	Status   wdk.ProvenTxReqStatus `gorm:"default:unknown"`
-	Attempts uint64
-	Notified bool
-	Batch    *string `gorm:"index"`
+	Status              wdk.ProvenTxReqStatus `gorm:"default:unknown"`
+	Attempts            uint64
+	RebroadcastAttempts uint64 `gorm:"column:rebroadcast_attempts;default:0"`
+	Notified            bool
+	Batch               *string `gorm:"index"`
 
 	RawTx     []byte
 	InputBeef []byte
