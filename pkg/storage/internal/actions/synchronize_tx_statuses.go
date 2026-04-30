@@ -421,21 +421,14 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
 
-	// NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
-	// updates matching (user) transactions to "failed" and tidies outputs
-	// TODO: Consider if we want to do the same or do it right away here
-	updatedTxs, err := s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
+	// NOTE: If MaxAttempts == 0, the behavior is unlimited retries — the guard inside
+	// ResetOverAttemptedKnownTxsToUnsent returns nil immediately in that case.
+	// Transactions that have exceeded MaxAttempts are reset to "unsent" so that the
+	// send_waiting task rebroadcasts them. Only explicit network rejection (double spend,
+	// script error at broadcast time) should mark a transaction as truly invalid.
+	_, err = s.provenTxRepo.ResetOverAttemptedKnownTxsToUnsent(ctx, s.syncTxStatusesConfig.MaxAttempts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set status for txs above attempts: %w", err)
-	}
-
-	for _, updatedTx := range updatedTxs {
-		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
-			TxID:      updatedTx.TxID,
-			Status:    wdk.ProvenTxStatusInvalid,
-			Reference: txReferencesLookup[updatedTx.TxID],
-			Labels:    txLabelsLookup[updatedTx.TxID],
-		})
+		return nil, fmt.Errorf("failed to reset over-attempted txs to unsent: %w", err)
 	}
 
 	return txStatuses, nil

@@ -361,6 +361,38 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 	return updatedTxs, nil
 }
 
+func (p *KnownTx) ResetOverAttemptedKnownTxsToUnsent(ctx context.Context, attempts uint64) ([]models.KnownTx, error) {
+	var (
+		err        error
+		updatedTxs []models.KnownTx
+	)
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-ResetOverAttemptedKnownTxsToUnsent", attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if attempts == 0 {
+		return nil, nil
+	}
+
+	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
+		Where("attempts >= ? AND status NOT IN ?", attempts, []string{
+			string(wdk.ProvenTxStatusCompleted),
+			string(wdk.ProvenTxStatusDoubleSpend),
+			string(wdk.ProvenTxStatusInvalid),
+		}).
+		Clauses(clause.Returning{}).
+		Updates(map[string]interface{}{
+			"status":   string(wdk.ProvenTxStatusUnsent),
+			"attempts": 0,
+		}).
+		Scan(&updatedTxs).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to reset over-attempted known transactions to unsent: %w", err)
+	}
+	return updatedTxs, nil
+}
+
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxs")

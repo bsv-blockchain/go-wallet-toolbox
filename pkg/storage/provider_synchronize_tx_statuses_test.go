@@ -277,15 +277,17 @@ func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
 		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
 
-		// then:
-		testabilities.ThenDBState(t, activeStorage).HasKnownTX(txSpec.ID().String()).WithAttempts(attempt + 1)
+		// then: attempts increment up to MaxAttempts, at which point the tx is reset
+		if attempt+1 < defs.DefaultSynchronizeTxStatuses().MaxAttempts {
+			testabilities.ThenDBState(t, activeStorage).HasKnownTX(txSpec.ID().String()).WithAttempts(attempt + 1)
+		}
 	}
 
-	// and:
+	// and: once MaxAttempts is reached, the tx is reset to unsent with attempts = 0 for rebroadcast
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(txSpec.ID().String()).
-		WithStatus(wdk.ProvenTxStatusInvalid).
-		WithAttempts(defs.DefaultSynchronizeTxStatuses().MaxAttempts).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithAttempts(0).
 		NotMined()
 }
 
