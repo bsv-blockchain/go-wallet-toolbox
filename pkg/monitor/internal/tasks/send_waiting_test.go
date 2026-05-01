@@ -74,7 +74,7 @@ func TestSendWaitingMonitorTask_FirstRunWithZeroMinTransactionAge(t *testing.T) 
 	require.NoError(t, err, "task should run without error")
 
 	// then:
-	require.Equal(t, 1, mockStorage.SendWaitingTransactionsCalled)
+	require.EqualValues(t, 1, mockStorage.SendWaitingTransactionsCalled.Load())
 	require.Equal(t, time.Duration(0), mockStorage.SendWaitingLastMinTransactionAge)
 
 	// when:
@@ -82,6 +82,6 @@ func TestSendWaitingMonitorTask_FirstRunWithZeroMinTransactionAge(t *testing.T) 
 
 	// then:
 	require.NoError(t, err, "task should run without error on subsequent call")
-	require.Equal(t, 2, mockStorage.SendWaitingTransactionsCalled)
+	require.EqualValues(t, 2, mockStorage.SendWaitingTransactionsCalled.Load())
 	require.NotZero(t, mockStorage.SendWaitingLastMinTransactionAge)
 }
