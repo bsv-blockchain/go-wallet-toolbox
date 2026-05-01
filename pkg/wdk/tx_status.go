@@ -120,6 +120,20 @@ func (s ProvenTxReqStatus) AlreadySent() bool {
 	}
 }
 
+// WasBroadcastStatus returns true for states proving the transaction was accepted by the network.
+func (s ProvenTxReqStatus) WasBroadcastStatus() bool {
+	switch s { //nolint:exhaustive // default case handles remaining statuses
+	case ProvenTxStatusUnmined,
+		ProvenTxStatusCallback,
+		ProvenTxStatusUnconfirmed,
+		ProvenTxStatusCompleted,
+		ProvenTxStatusReorg:
+		return true
+	default:
+		return false
+	}
+}
+
 // ToStandardizedStatus returns standardized status of a transaction request based on its ProvenTxReqStatus.
 func (s ProvenTxReqStatus) ToStandardizedStatus() StandardizedTxStatus {
 	switch s {
@@ -151,7 +165,10 @@ var ProvenTxReqProblematicStatuses = []ProvenTxReqStatus{
 // ProvenTxReqBeyondBroadcastStageStatuses contains statuses indicating a proven transaction has passed the broadcast stage.
 var ProvenTxReqBeyondBroadcastStageStatuses = []ProvenTxReqStatus{
 	ProvenTxStatusUnmined,
+	ProvenTxStatusCallback,
+	ProvenTxStatusUnconfirmed,
 	ProvenTxStatusCompleted,
+	ProvenTxStatusReorg,
 }
 
 // CurrentTxStatus represents the response from a monitoring task

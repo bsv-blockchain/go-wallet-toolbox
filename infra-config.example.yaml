@@ -74,7 +74,8 @@ server_private_key: ""
 synchronize_tx_statuses:
   blocks_delay: 1
   check_no_send_period_hours: 24
-  max_attempts: 10
+  max_attempts: 100
+  max_rebroadcast_attempts: 0
 tracing:
   dialAddr: http://localhost:4317
   enabled: false
