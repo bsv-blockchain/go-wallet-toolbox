@@ -6,6 +6,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 )
 
 //go:generate go run ../../cmd/infra_config_gen/main.go -o ../../infra-config.example.yaml
@@ -36,8 +38,10 @@ type DBConfig struct {
 
 // HTTPConfig is the configuration for the HTTP server related settings
 type HTTPConfig struct {
-	Port         uint `mapstructure:"port"`
-	RequestPrice uint `mapstructure:"request_price"`
+	Port                uint              `mapstructure:"port"`
+	RequestPrice        uint              `mapstructure:"request_price"`
+	MaxRequestBodyBytes int64             `mapstructure:"max_request_body_bytes"`
+	CORS                server.CORSConfig `mapstructure:"cors"`
 }
 
 // Validate validates the HTTP configuration
@@ -45,6 +49,12 @@ func (c *HTTPConfig) Validate() error {
 	const maxPort = 65535
 	if c.Port > maxPort {
 		return fmt.Errorf("invalid port: %d", c.Port)
+	}
+	if c.MaxRequestBodyBytes <= 0 {
+		return fmt.Errorf("max_request_body_bytes must be greater than 0")
+	}
+	if err := c.CORS.Validate(); err != nil {
+		return fmt.Errorf("invalid CORS config: %w", err)
 	}
 
 	_, err := satoshi.From(c.RequestPrice)
@@ -66,8 +76,10 @@ func Defaults() Config {
 		BSVNetwork: network,
 		DBConfig:   defs.DefaultDBConfig(),
 		HTTPConfig: HTTPConfig{
-			Port:         8100,
-			RequestPrice: 0,
+			Port:                8100,
+			RequestPrice:        0,
+			MaxRequestBodyBytes: server.DefaultMaxRequestBodyBytes,
+			CORS:                storage.DefaultCORSConfig(),
 		},
 		FeeModel:              defs.DefaultFeeModel(),
 		Logging:               defs.DefaultLogConfig(),
@@ -119,7 +131,7 @@ func (c *Config) Validate() (err error) {
 	}
 
 	if err = c.Logging.Validate(); err != nil {
-		return fmt.Errorf("invalid HTTP config: %w", err)
+		return fmt.Errorf("invalid logging config: %w", err)
 	}
 
 	if err = c.Commission.Validate(); err != nil {

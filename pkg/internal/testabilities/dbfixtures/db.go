@@ -16,6 +16,10 @@ func DBConfigForTests() defs.Database {
 	dbConfig := defs.DefaultDBConfig()
 	dbConfig.MaxIdleConnections = 1
 	dbConfig.MaxOpenConnections = 1
+	// In-memory SQLite databases live only as long as their backing connection.
+	// Keep the single test connection alive for long integration tests.
+	dbConfig.MaxConnectionIdleTime = 0
+	dbConfig.MaxConnectionTime = 0
 
 	switch mode := testmode.GetMode().(type) {
 	case *testmode.SQLiteFileMode:

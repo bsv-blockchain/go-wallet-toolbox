@@ -100,12 +100,12 @@ func DefaultDBConfig() Database {
 		MaxConnectionTime:     60 * time.Second,
 		MaxOpenConnections:    5,
 		PostgreSQL: PostgreSQL{
-			SslMode: "disable",
+			SslMode: "verify-full",
 			SQLCommon: SQLCommon{
 				Host:     "localhost",
 				DBName:   "storage",
 				User:     "postgres",
-				Password: "postgres",
+				Password: "<set-via-secret>",
 				Port:     "5432",
 				TimeZone: "UTC",
 			},
