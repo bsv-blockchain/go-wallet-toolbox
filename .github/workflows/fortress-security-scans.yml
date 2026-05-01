@@ -151,8 +151,16 @@ jobs:
           OSSI_TOKEN: ${{ secrets.ossi-token }}
         run: |
           echo "🔍 Running Nancy security scan..."
+          NANCY_AUTH_ARGS=()
+          if [[ -n "${OSSI_USERNAME:-}" && -n "${OSSI_TOKEN:-}" ]]; then
+            echo "🔐 Using OSS Index credentials for Nancy scan"
+            NANCY_AUTH_ARGS=(--username "$OSSI_USERNAME" --token "$OSSI_TOKEN")
+          else
+            echo "⚠️ OSS Index credentials are not configured; Nancy will use unauthenticated requests"
+          fi
+
           set +e
-          nancy sleuth --loud --exclude-vulnerability ${{ env.NANCY_EXCLUDES }} < go.list 2>&1 | tee nancy-output.log
+          nancy sleuth --loud --exclude-vulnerability "${{ env.NANCY_EXCLUDES }}" "${NANCY_AUTH_ARGS[@]}" < go.list 2>&1 | tee nancy-output.log
           NANCY_EXIT_CODE=${PIPESTATUS[0]}
           set -e
 

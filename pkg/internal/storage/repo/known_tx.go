@@ -462,19 +462,19 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 			query = withReadyForStatusSyncFilter(query, statuses)
 		}
 
-		if err := query.
+		if findErr := query.
 			Select("tx_id, status, attempts, was_broadcast, rebroadcast_attempts").
-			Find(&timedOut).Error; err != nil {
-			return fmt.Errorf("failed to find known transactions above attempts: %w", err)
+			Find(&timedOut).Error; findErr != nil {
+			return fmt.Errorf("failed to find known transactions above attempts: %w", findErr)
 		}
 
 		updatedTxs = make([]models.KnownTx, 0, len(timedOut))
 		for _, knownTx := range timedOut {
 			updates := proofTimeoutUpdates(knownTx, maxRebroadcastAttempts)
-			if err := tx.Model(&models.KnownTx{}).
+			if updateErr := tx.Model(&models.KnownTx{}).
 				Where("tx_id = ?", knownTx.TxID).
-				UpdateColumns(updates).Error; err != nil {
-				return fmt.Errorf("failed to apply proof timeout for known transaction %s: %w", knownTx.TxID, err)
+				UpdateColumns(updates).Error; updateErr != nil {
+				return fmt.Errorf("failed to apply proof timeout for known transaction %s: %w", knownTx.TxID, updateErr)
 			}
 
 			knownTx.Status = updates["status"].(wdk.ProvenTxReqStatus)

@@ -323,8 +323,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	if len(txsToSync) == 0 {
 		s.logger.Info("no transactions need synchronization", slog.Any("height", heightForCheck))
-		if err := s.reviewKnownTxStatuses(ctx); err != nil {
-			return nil, fmt.Errorf("failed to review known tx statuses: %w", err)
+		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
+			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
 		}
 		return nil, nil
 	}
@@ -336,8 +336,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	if len(txsToSync) == 0 {
 		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
-		if err := s.reviewKnownTxStatuses(ctx); err != nil {
-			return nil, fmt.Errorf("failed to review known tx statuses: %w", err)
+		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
+			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
 		}
 		return nil, nil
 	}
