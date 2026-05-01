@@ -22,10 +22,12 @@ import (
 )
 
 const (
-	syncTxStatusMaxPages  = 10
-	syncTxStatusesPerPage = 1000
-	lastBlockKey          = "synchronize_tx_statuses_last_block"
-	noSendLastCheck       = "synchronize_tx_statuses_last_check_no_send"
+	syncTxStatusMaxPages          = 10
+	syncTxStatusesPerPage         = 1000
+	reviewKnownTxStatusesMaxPages = 10
+	reviewKnownTxStatusesPerPage  = 1000
+	lastBlockKey                  = "synchronize_tx_statuses_last_block"
+	noSendLastCheck               = "synchronize_tx_statuses_last_check_no_send"
 )
 
 var statusesReadyToSync = []wdk.ProvenTxReqStatus{
@@ -457,28 +459,44 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 }
 
 func (s *synchronizeTxStatuses) reviewKnownTxStatuses(ctx context.Context) error {
-	failedKnownTxs, err := s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, []wdk.ProvenTxReqStatus{
+	terminalFailureStatuses := []wdk.ProvenTxReqStatus{
 		wdk.ProvenTxStatusInvalid,
 		wdk.ProvenTxStatusDoubleSpend,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to find terminal failed known txs: %w", err)
 	}
 
-	for _, failedTx := range failedKnownTxs {
-		if err := s.transactionRepo.UpdateTransactionStatusByTxID(ctx, failedTx.TxID, wdk.TxStatusFailed); err != nil {
-			return fmt.Errorf("failed to set failed transaction status for tx %s: %w", failedTx.TxID, err)
-		}
-
-		transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, failedTx.TxID)
+	for range reviewKnownTxStatusesMaxPages {
+		failedKnownTxs, err := s.provenTxRepo.FindKnownTxIDsByStatusesNeedingFailureReview(
+			ctx,
+			terminalFailureStatuses,
+			reviewKnownTxStatusesPerPage,
+		)
 		if err != nil {
-			return fmt.Errorf("failed to find transaction IDs for terminal failed tx %s: %w", failedTx.TxID, err)
+			return fmt.Errorf("failed to find terminal failed known txs needing review: %w", err)
 		}
 
-		for _, transactionID := range transactionIDs {
-			if err := s.outputRepo.RecreateSpentOutputs(ctx, transactionID); err != nil {
-				return fmt.Errorf("failed to restore spent outputs for terminal failed tx %s: %w", failedTx.TxID, err)
+		if len(failedKnownTxs) == 0 {
+			return nil
+		}
+
+		for _, failedTx := range failedKnownTxs {
+			transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, failedTx.TxID)
+			if err != nil {
+				return fmt.Errorf("failed to find transaction IDs for terminal failed tx %s: %w", failedTx.TxID, err)
 			}
+
+			for _, transactionID := range transactionIDs {
+				if err := s.transactionRepo.UpdateTransactionStatusByID(ctx, transactionID, wdk.TxStatusFailed); err != nil {
+					return fmt.Errorf("failed to set failed transaction status for tx %s: %w", failedTx.TxID, err)
+				}
+
+				if err := s.outputRepo.RecreateSpentOutputs(ctx, transactionID); err != nil {
+					return fmt.Errorf("failed to restore spent outputs for terminal failed tx %s: %w", failedTx.TxID, err)
+				}
+			}
+		}
+
+		if len(failedKnownTxs) < reviewKnownTxStatusesPerPage {
+			return nil
 		}
 	}
 

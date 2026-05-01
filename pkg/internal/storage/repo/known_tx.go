@@ -248,6 +248,56 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 		return nil, fmt.Errorf("failed to find known tx ids by statuses: %w", err)
 	}
 
+	return mapKnownTxRowsForStatusSync(rows), nil
+}
+
+func (p *KnownTx) FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.KnownTxForStatusSync, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsByStatusesNeedingFailureReview")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(txStatus) == 0 {
+		return nil, nil
+	}
+
+	if limit <= 0 {
+		limit = 1000
+	}
+
+	knownTxTable := p.query.KnownTx.TableName()
+	transactionTable := p.query.Transaction.TableName()
+	outputTable := p.query.Output.TableName()
+
+	var rows []*models.KnownTx
+	err = p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Select("tx_id, status, attempts, was_broadcast, rebroadcast_attempts, batch").
+		Where("status IN ? ", txStatus).
+		Where(fmt.Sprintf(`
+			EXISTS (
+				SELECT 1
+				FROM %s
+				LEFT JOIN %s
+					ON %s.spent_by = %s.id
+					AND %s.deleted_at IS NULL
+				WHERE %s.tx_id = %s.tx_id
+					AND %s.deleted_at IS NULL
+					AND (%s.status <> ? OR %s.id IS NOT NULL)
+			)
+		`, transactionTable, outputTable, outputTable, transactionTable, outputTable, transactionTable, knownTxTable, transactionTable, transactionTable, outputTable), wdk.TxStatusFailed).
+		Order(fmt.Sprintf("%s.created_at ASC", knownTxTable)).
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find failed known tx ids needing review: %w", err)
+	}
+
+	return mapKnownTxRowsForStatusSync(rows), nil
+}
+
+func mapKnownTxRowsForStatusSync(rows []*models.KnownTx) []*entity.KnownTxForStatusSync {
 	return slices.Map(rows, func(row *models.KnownTx) *entity.KnownTxForStatusSync {
 		return &entity.KnownTxForStatusSync{
 			TxID:                row.TxID,
@@ -257,7 +307,7 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 			WasBroadcast:        row.WasBroadcast || row.Status.WasBroadcastStatus(),
 			Batch:               row.Batch,
 		}
-	}), nil
+	})
 }
 
 func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *entity.KnownTxAsMined) error {
@@ -369,7 +419,9 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 			query = query.Where("status IN ?", statuses)
 		}
 
-		if err := query.Find(&timedOut).Error; err != nil {
+		if err := query.
+			Select("tx_id, status, attempts, was_broadcast, rebroadcast_attempts").
+			Find(&timedOut).Error; err != nil {
 			return fmt.Errorf("failed to find known transactions above attempts: %w", err)
 		}
 

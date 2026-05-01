@@ -71,6 +71,7 @@ func backfillKnownTxBroadcastState(db *gorm.DB) error {
 			string(wdk.ProvenTxStatusCompleted),
 			string(wdk.ProvenTxStatusReorg),
 		}).
-		Update("was_broadcast", true).
+		Where("was_broadcast = ?", false).
+		UpdateColumn("was_broadcast", true).
 		Error
 }
