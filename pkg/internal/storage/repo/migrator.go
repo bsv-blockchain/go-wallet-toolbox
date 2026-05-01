@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 type Migrator struct {
@@ -44,6 +45,10 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		return fmt.Errorf("failed to auto migrate models: %w", err)
 	}
 
+	if err = backfillKnownTxBroadcastState(m.db.WithContext(ctx)); err != nil {
+		return fmt.Errorf("failed to backfill known tx broadcast state: %w", err)
+	}
+
 	err = m.db.SetupJoinTable(&models.Transaction{}, "Labels", &models.TransactionLabel{})
 	if err != nil {
 		return fmt.Errorf("failed to setup join table for Transaction and Labels: %w", err)
@@ -55,4 +60,18 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func backfillKnownTxBroadcastState(db *gorm.DB) error {
+	return db.Model(&models.KnownTx{}).
+		Where("status IN ?", []string{
+			string(wdk.ProvenTxStatusUnmined),
+			string(wdk.ProvenTxStatusCallback),
+			string(wdk.ProvenTxStatusUnconfirmed),
+			string(wdk.ProvenTxStatusCompleted),
+			string(wdk.ProvenTxStatusReorg),
+		}).
+		Where("was_broadcast = ?", false).
+		UpdateColumn("was_broadcast", true).
+		Error
 }

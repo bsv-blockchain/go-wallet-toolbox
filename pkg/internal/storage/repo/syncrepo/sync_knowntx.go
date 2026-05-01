@@ -78,18 +78,20 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 
 func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
 	model := models.KnownTx{
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
-		TxID:        entity.TxID,
-		Status:      entity.Status,
-		Attempts:    entity.Attempts,
-		Notified:    entity.Notified,
-		RawTx:       entity.RawTx,
-		InputBeef:   entity.InputBEEF,
-		BlockHeight: entity.BlockHeight,
-		MerklePath:  entity.MerklePath,
-		MerkleRoot:  entity.MerkleRoot,
-		BlockHash:   entity.BlockHash,
+		CreatedAt:           entity.CreatedAt,
+		UpdatedAt:           entity.UpdatedAt,
+		TxID:                entity.TxID,
+		Status:              entity.Status,
+		Attempts:            entity.Attempts,
+		WasBroadcast:        entity.WasBroadcast || entity.Status.WasBroadcastStatus(),
+		RebroadcastAttempts: entity.RebroadcastAttempts,
+		Notified:            entity.Notified,
+		RawTx:               entity.RawTx,
+		InputBeef:           entity.InputBEEF,
+		BlockHeight:         entity.BlockHeight,
+		MerklePath:          entity.MerklePath,
+		MerkleRoot:          entity.MerkleRoot,
+		BlockHash:           entity.BlockHash,
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -187,18 +189,20 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (
 	}
 
 	return &wdk.TableProvenTxReq{
-		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
-		ProvenTxReqID: model.NumID,
-		Status:        model.Status,
-		Attempts:      model.Attempts,
-		Notified:      model.Notified,
-		TxID:          model.TxID,
-		Batch:         nil, // TODO: For now batch broadcasting is not supported, will be added later
-		History:       historyNotes,
-		Notify:        "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
-		RawTx:         model.RawTx,
-		InputBEEF:     model.InputBeef,
+		CreatedAt:           model.CreatedAt,
+		UpdatedAt:           model.UpdatedAt,
+		ProvenTxReqID:       model.NumID,
+		Status:              model.Status,
+		Attempts:            model.Attempts,
+		WasBroadcast:        model.WasBroadcast || model.Status.WasBroadcastStatus(),
+		RebroadcastAttempts: model.RebroadcastAttempts,
+		Notified:            model.Notified,
+		TxID:                model.TxID,
+		Batch:               nil, // TODO: For now batch broadcasting is not supported, will be added later
+		History:             historyNotes,
+		Notify:              "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
+		RawTx:               model.RawTx,
+		InputBEEF:           model.InputBeef,
 	}, nil
 }
 

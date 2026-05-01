@@ -22,10 +22,12 @@ import (
 )
 
 const (
-	syncTxStatusMaxPages  = 10
-	syncTxStatusesPerPage = 1000
-	lastBlockKey          = "synchronize_tx_statuses_last_block"
-	noSendLastCheck       = "synchronize_tx_statuses_last_check_no_send"
+	syncTxStatusMaxPages          = 10
+	syncTxStatusesPerPage         = 1000
+	reviewKnownTxStatusesMaxPages = 10
+	reviewKnownTxStatusesPerPage  = 1000
+	lastBlockKey                  = "synchronize_tx_statuses_last_block"
+	noSendLastCheck               = "synchronize_tx_statuses_last_check_no_send"
 )
 
 var statusesReadyToSync = []wdk.ProvenTxReqStatus{
@@ -45,6 +47,7 @@ type synchronizeTxStatuses struct {
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
 	transactionRepo      TransactionsRepo
+	outputRepo           OutputRepo
 	checkNoSendDuration  time.Duration
 }
 
@@ -55,6 +58,7 @@ func newSynchronizeTxStatuses(
 	provenTxRepo KnownTxRepo,
 	keyValueRepo KeyValueRepo,
 	transactionRepo TransactionsRepo,
+	outputRepo OutputRepo,
 ) *synchronizeTxStatuses {
 	logger = logging.Child(logger, "synchronize_tx_statuses")
 
@@ -69,6 +73,7 @@ func newSynchronizeTxStatuses(
 		syncTxStatusesConfig: syncTxStatusesConfig,
 		services:             services,
 		transactionRepo:      transactionRepo,
+		outputRepo:           outputRepo,
 		checkNoSendDuration:  time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
 	}
 }
@@ -302,9 +307,9 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
 	for range syncTxStatusMaxPages {
 		var txsPage []*entity.KnownTxForStatusSync
-		txsPage, err = s.provenTxRepo.FindKnownTxIDsByStatuses(ctx, statuses, queryopts.WithPage(paging))
+		txsPage, err = s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, queryopts.WithPage(paging))
 		if err != nil {
-			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsByStatuses failed: %w", err)
+			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsReadyForStatusSync failed: %w", err)
 		}
 
 		txsToSync = append(txsToSync, txsPage...)
@@ -318,6 +323,9 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	if len(txsToSync) == 0 {
 		s.logger.Info("no transactions need synchronization", slog.Any("height", heightForCheck))
+		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
+			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
+		}
 		return nil, nil
 	}
 
@@ -328,6 +336,9 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	if len(txsToSync) == 0 {
 		s.logger.Info("no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
+		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
+			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
+		}
 		return nil, nil
 	}
 
@@ -421,22 +432,73 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
 
-	// NOTE: In TS, there is a periodic "review status" job that gets all the "invalid" proven tx transactions and
-	// updates matching (user) transactions to "failed" and tidies outputs
-	// TODO: Consider if we want to do the same or do it right away here
-	updatedTxs, err := s.provenTxRepo.SetStatusForKnownTxsAboveAttempts(ctx, s.syncTxStatusesConfig.MaxAttempts, wdk.ProvenTxStatusInvalid)
+	updatedTxs, err := s.provenTxRepo.ApplyProofTimeouts(
+		ctx,
+		s.syncTxStatusesConfig.MaxAttempts,
+		s.syncTxStatusesConfig.MaxRebroadcastAttempts,
+		statuses,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set status for txs above attempts: %w", err)
+		return nil, fmt.Errorf("failed to apply proof timeouts for txs above attempts: %w", err)
 	}
 
 	for _, updatedTx := range updatedTxs {
 		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
 			TxID:      updatedTx.TxID,
-			Status:    wdk.ProvenTxStatusInvalid,
+			Status:    updatedTx.Status,
 			Reference: txReferencesLookup[updatedTx.TxID],
 			Labels:    txLabelsLookup[updatedTx.TxID],
 		})
 	}
 
+	if err := s.reviewKnownTxStatuses(ctx); err != nil {
+		return nil, fmt.Errorf("failed to review known tx statuses: %w", err)
+	}
+
 	return txStatuses, nil
+}
+
+func (s *synchronizeTxStatuses) reviewKnownTxStatuses(ctx context.Context) error {
+	terminalFailureStatuses := []wdk.ProvenTxReqStatus{
+		wdk.ProvenTxStatusInvalid,
+		wdk.ProvenTxStatusDoubleSpend,
+	}
+
+	for range reviewKnownTxStatusesMaxPages {
+		failedKnownTxs, err := s.provenTxRepo.FindKnownTxIDsByStatusesNeedingFailureReview(
+			ctx,
+			terminalFailureStatuses,
+			reviewKnownTxStatusesPerPage,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to find terminal failed known txs needing review: %w", err)
+		}
+
+		if len(failedKnownTxs) == 0 {
+			return nil
+		}
+
+		for _, failedTx := range failedKnownTxs {
+			transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, failedTx.TxID)
+			if err != nil {
+				return fmt.Errorf("failed to find transaction IDs for terminal failed tx %s: %w", failedTx.TxID, err)
+			}
+
+			for _, transactionID := range transactionIDs {
+				if err := s.transactionRepo.UpdateTransactionStatusByID(ctx, transactionID, wdk.TxStatusFailed); err != nil {
+					return fmt.Errorf("failed to set failed transaction status for tx %s: %w", failedTx.TxID, err)
+				}
+
+				if err := s.outputRepo.RecreateSpentOutputs(ctx, transactionID); err != nil {
+					return fmt.Errorf("failed to restore spent outputs for terminal failed tx %s: %w", failedTx.TxID, err)
+				}
+			}
+		}
+
+		if len(failedKnownTxs) < reviewKnownTxStatusesPerPage {
+			return nil
+		}
+	}
+
+	return nil
 }

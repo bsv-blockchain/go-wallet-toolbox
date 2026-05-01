@@ -3,6 +3,7 @@ package storage_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -254,39 +255,194 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	// NOTE: The second call should also trigger a request for the transaction, because the block height is different
 }
 
-func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
+func TestSynchronizeTxRebroadcastsBroadcastTxAfterMaxAttempts(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
-	activeStorage := givenProvider.GORM()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 3
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
 
 	// and:
-	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
 
 	// and:
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnTransactionWithoutMerklePath()
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
 	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
 		ExpectBlockHash:   testservices.TestBlockHash,
 		ExpectBlockHeight: int64(testservices.TestBlockHeight),
 	})
 
 	// when:
-	for attempt := range defs.DefaultSynchronizeTxStatuses().MaxAttempts {
+	for attempt := uint64(0); attempt < cfg.MaxAttempts-2; attempt++ {
 		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
 
 		// then:
-		testabilities.ThenDBState(t, activeStorage).HasKnownTX(txSpec.ID().String()).WithAttempts(attempt + 1)
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnmined).
+			WithAttempts(attempt + 2).
+			WasBroadcast(true)
 	}
 
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
 	// and:
+	require.NoError(t, err)
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID().String()).
-		WithStatus(wdk.ProvenTxStatusInvalid).
-		WithAttempts(defs.DefaultSynchronizeTxStatuses().MaxAttempts).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithAttempts(0).
+		WithRebroadcastAttempts(1).
+		WasBroadcast(true).
 		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusUnproven)
+
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(initialTopUp)
+}
+
+func TestSynchronizeTxMaxRebroadcastAttemptsCircuitBreaker(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and:
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	// and:
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		// when:
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnsent).
+			WithAttempts(0).
+			WithRebroadcastAttempts(cycle).
+			WasBroadcast(true)
+
+		testabilities.ThenDBState(t, activeStorage).
+			HasUserTransactionByTxID(testusers.Alice, txID).
+			WithStatus(wdk.TxStatusUnproven)
+
+		// when:
+		_, err = activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnmined).
+			WasBroadcast(true)
+	}
+
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithRebroadcastAttempts(cfg.MaxRebroadcastAttempts).
+		WasBroadcast(true).
+		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
+}
+
+func TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and:
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	// and:
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		// when:
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnsent).
+			WithAttempts(0).
+			WithRebroadcastAttempts(cycle).
+			WasBroadcast(true)
+	}
+
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithRebroadcastAttempts(cfg.MaxRebroadcastAttempts).
+		WasBroadcast(true).
+		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
 }
 
 func TestSynchronizeTxEdgeCases(t *testing.T) {

@@ -214,15 +214,17 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 	}
 
 	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
-		CreatedAt: chunkProvenTxReq.CreatedAt,
-		UpdatedAt: chunkProvenTxReq.UpdatedAt,
-		TxID:      chunkProvenTxReq.TxID,
-		Status:    chunkProvenTxReq.Status,
-		Attempts:  chunkProvenTxReq.Attempts,
-		Notified:  chunkProvenTxReq.Notified,
-		RawTx:     chunkProvenTxReq.RawTx,
-		InputBEEF: chunkProvenTxReq.InputBEEF,
-		TxNotes:   historyNotes,
+		CreatedAt:           chunkProvenTxReq.CreatedAt,
+		UpdatedAt:           chunkProvenTxReq.UpdatedAt,
+		TxID:                chunkProvenTxReq.TxID,
+		Status:              chunkProvenTxReq.Status,
+		Attempts:            chunkProvenTxReq.Attempts,
+		WasBroadcast:        chunkProvenTxReq.WasBroadcast || chunkProvenTxReq.Status.WasBroadcastStatus(),
+		RebroadcastAttempts: chunkProvenTxReq.RebroadcastAttempts,
+		Notified:            chunkProvenTxReq.Notified,
+		RawTx:               chunkProvenTxReq.RawTx,
+		InputBEEF:           chunkProvenTxReq.InputBEEF,
+		TxNotes:             historyNotes,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert proven tx req for TxID %q: %w", chunkProvenTxReq.TxID, err)
