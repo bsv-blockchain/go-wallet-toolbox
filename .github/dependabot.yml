@@ -42,15 +42,9 @@ updates:
     allow:
       - dependency-type: "direct"
     groups:
-      security-deps:
-        patterns:
-          - "*crypto*"
-          - "*security*"
-          - "*auth*"
-          - "*jwt*"
-          - "*oauth*"
-        update-types: ["minor", "patch"]
-    open-pull-requests-limit: 10
+      gomod-all:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
     assignees: ["mrz1836"]
     labels: ["chore", "dependencies", "gomod"]
     commit-message:

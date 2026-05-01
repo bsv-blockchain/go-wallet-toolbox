@@ -55,6 +55,8 @@ type DBStateAssertion interface {
 type KnownTxAssertion interface {
 	WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion
 	WithAttempts(attempts uint64) KnownTxAssertion
+	WithRebroadcastAttempts(attempts uint64) KnownTxAssertion
+	WasBroadcast(expected bool) KnownTxAssertion
 	IsMined() KnownTxAssertion
 	NotMined() KnownTxAssertion
 	HasRawTx() KnownTxAssertion
@@ -216,6 +218,18 @@ func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAsse
 func (d *knownTxAssertion) WithAttempts(expected uint64) KnownTxAssertion {
 	d.Helper()
 	assert.Equal(d, expected, d.knownTx.Attempts, "Expected known transaction to have %d Attempts", expected)
+	return d
+}
+
+func (d *knownTxAssertion) WithRebroadcastAttempts(expected uint64) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.RebroadcastAttempts, "Expected known transaction to have %d RebroadcastAttempts", expected)
+	return d
+}
+
+func (d *knownTxAssertion) WasBroadcast(expected bool) KnownTxAssertion {
+	d.Helper()
+	assert.Equal(d, expected, d.knownTx.WasBroadcast, "Expected known transaction to have WasBroadcast = %v", expected)
 	return d
 }
 

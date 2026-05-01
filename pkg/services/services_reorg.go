@@ -47,9 +47,18 @@ func (b *reorgBroadcaster) broadcast(event *chaintracks.ReorgEvent) {
 		select {
 		case sub <- event:
 		default:
-			b.logger.Warn("reorg subscriber channel full, dropping event",
-				"depth", event.Depth,
-				"orphaned hashes", event.OrphanedHashes)
+			b.logger.Warn("reorg subscriber channel full, dropping event", reorgLogAttrs(event)...)
 		}
+	}
+}
+
+func reorgLogAttrs(event *chaintracks.ReorgEvent) []any {
+	if event == nil {
+		return []any{"reorg", nil}
+	}
+
+	return []any{
+		"depth", event.Depth,
+		"orphaned hashes", event.OrphanedHashes,
 	}
 }

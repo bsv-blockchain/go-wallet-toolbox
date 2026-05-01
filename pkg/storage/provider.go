@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -37,11 +38,14 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo     *repo.Repositories
-	actions  *actions.Actions
-	options  *ProviderConfig
-	logger   *slog.Logger
-	services wdk.Services
+	repo          *repo.Repositories
+	actions       *actions.Actions
+	tunableFunder *funder.SQL
+	options       *ProviderConfig
+	logger        *slog.Logger
+	services      wdk.Services
+
+	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -69,17 +73,26 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 	log = logging.Child(log, "GormStorageProvider")
 
 	var transactionFunder funder.Funder
+	var tunableFunder *funder.SQL
 	if options.Funder != nil {
 		transactionFunder = options.Funder
 	} else {
-		transactionFunder = db.CreateFunder(options.FeeModel)
+		sqlFunder := db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx).(*funder.SQL)
+		transactionFunder = sqlFunder
+		tunableFunder = sqlFunder
 	}
 
-	return &Provider{
-		Chain:    chain,
-		Database: db,
+	defaultBasketCfg := wdk.BasketConfiguration{
+		Name:                    wdk.BasketNameForChange,
+		NumberOfDesiredUTXOs:    options.ChangeBasket.NumberOfDesiredUTXOs,
+		MinimumDesiredUTXOValue: options.ChangeBasket.MinimumDesiredUTXOValue,
+	}
 
-		repo: repos,
+	p := &Provider{
+		Chain:         chain,
+		Database:      db,
+		repo:          repos,
+		tunableFunder: tunableFunder,
 		actions: actions.New(
 			options.BackgroundBroadcasterContext,
 			log,
@@ -96,7 +109,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		options:  &options,
 		logger:   log,
 		services: services,
-	}, nil
+	}
+	p.defaultChangeBasket.Store(&defaultBasketCfg)
+	return p, nil
 }
 
 // Stop gracefully terminates the background broadcaster and releases related resources.
@@ -360,7 +375,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		ctx,
 		identityKey,
 		settings.StorageIdentityKey,
-		wdk.DefaultBasketConfiguration(),
+		*p.defaultChangeBasket.Load(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert user: %w", err)
@@ -370,6 +385,41 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		User:  *user.ToWDK(),
 		IsNew: true,
 	}, nil
+}
+
+// SetDefaultChangeBasket updates the basket configuration used when creating new users.
+// Takes effect on the next FindOrInsertUser call for a new user. Existing users are unaffected;
+// use UpdateChangeBasket to update a specific user's basket.
+func (p *Provider) SetDefaultChangeBasket(cfg wdk.BasketConfiguration) {
+	p.defaultChangeBasket.Store(&cfg)
+}
+
+// SetMaxChangeOutputsPerTx updates the per-transaction change output cap at runtime.
+// Takes effect on the next CreateAction call for any user.
+// Has no effect when a custom Funder was provided via WithFunder.
+func (p *Provider) SetMaxChangeOutputsPerTx(n uint64) {
+	if p.tunableFunder != nil {
+		p.tunableFunder.SetMaxChangeOutputsPerTx(n)
+	}
+}
+
+// UpdateChangeBasket updates the change basket configuration for a specific user.
+// Takes effect on the next CreateAction call for that user.
+func (p *Provider) UpdateChangeBasket(ctx context.Context, identityKey string, cfg wdk.BasketConfiguration) error {
+	user, err := p.repo.FindUser(ctx, identityKey)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found: %s", identityKey)
+	}
+
+	cfg.Name = wdk.BasketNameForChange
+	_, err = p.repo.UpsertOutputBasket(ctx, user.ID, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to update change basket: %w", err)
+	}
+	return nil
 }
 
 // CreateAction Storage level processing for wallet `createAction`.

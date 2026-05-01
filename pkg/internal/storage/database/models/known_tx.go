@@ -17,6 +17,9 @@ type KnownTx struct {
 	Notified bool
 	Batch    *string `gorm:"index"`
 
+	WasBroadcast        bool
+	RebroadcastAttempts uint64
+
 	RawTx     []byte
 	InputBeef []byte
 

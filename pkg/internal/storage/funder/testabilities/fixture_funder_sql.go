@@ -46,7 +46,7 @@ func (f *funderFixture) NewFunderService() *funder.SQL {
 func (f *funderFixture) NewFunderServiceWithFeeRate(satPerKb int64) *funder.SQL {
 	repo := f.db.CreateRepositories().UTXOs
 	model := defs.FeeModel{Type: defs.SatPerKB, Value: satPerKb}
-	return funder.NewSQL(logging.NewTestLogger(f.t), repo, model)
+	return funder.NewSQL(logging.NewTestLogger(f.t), repo, model, defs.DefaultChangeBasket().MaxChangeOutputsPerTx)
 }
 
 func (f *funderFixture) UTXO() UserUTXOFixture {

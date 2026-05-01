@@ -64,9 +64,9 @@ func (d *Database) CreateRepositories() *repo.Repositories {
 	return repo.NewSQLRepositories(d.DB)
 }
 
-func (d *Database) CreateFunder(feeModel defs.FeeModel) funder.Funder {
+func (d *Database) CreateFunder(feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) funder.Funder {
 	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB))
-	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel)
+	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel, maxChangeOutputsPerTx)
 }
 
 func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Database, logger glogger.Interface) (*gorm.DB, error) {
@@ -75,6 +75,12 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 	))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize GORM database connection: %w", err)
+	}
+
+	if cfg.Engine == defs.DBTypePostgres && cfg.PostgreSQL.Schema != "" {
+		if err = db.Exec(fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS "%s";`, cfg.PostgreSQL.Schema)).Error; err != nil {
+			return nil, fmt.Errorf("failed to create postgres schema: %w", err)
+		}
 	}
 
 	sqlDB, err := db.DB()

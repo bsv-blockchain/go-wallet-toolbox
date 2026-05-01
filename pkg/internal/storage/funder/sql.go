@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"sync/atomic"
 
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -22,16 +23,9 @@ import (
 
 var changeOutputSize = txutils.P2PKHOutputSize
 
-// MaxChangeOutputsPerTransaction limits how aggressively the wallet builds up its UTXO pool in one shot.
-// When a user first imports a large UTXO, without this cap the wallet would
-// attempt to create numberOfDesiredUTXOs change outputs in a single transaction.
-// That produces a very large transaction whose raw bytes are embedded in the BEEF
-// of every subsequent child transaction, bloating those BEEFs and slowing down external processors.
-//
-// With this cap the UTXO pool builds gradually — at most 8 net new change
-// outputs per transaction — so no single transaction becomes unreasonably large.
-// A pool of 144 desired UTXOs fills over roughly 18 transactions rather than 1.
-var MaxChangeOutputsPerTransaction uint64 = 8
+const (
+	utxoBatchSize = 1000
+)
 
 type UTXORepository interface {
 	FindNotReservedUTXOs(
@@ -46,20 +40,35 @@ type UTXORepository interface {
 }
 
 type SQL struct {
-	logger         *slog.Logger
-	utxoRepository UTXORepository
-	feeCalculator  *feeCalc
+	logger                *slog.Logger
+	utxoRepository        UTXORepository
+	feeCalculator         *feeCalc
+	maxChangeOutputsPerTx atomic.Uint64
 }
 
-func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.FeeModel) *SQL {
+// NewSQL creates a new SQL funder. maxChangeOutputsPerTx limits how many change outputs are created
+// per transaction; it can be updated at runtime via SetMaxChangeOutputsPerTx.
+//
+// Without this cap the wallet would attempt to create numberOfDesiredUTXOs change outputs in a
+// single transaction, producing a very large transaction whose raw bytes are embedded in the BEEF
+// of every subsequent child transaction. With the cap the UTXO pool builds gradually.
+func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) *SQL {
 	logger = logging.Child(logger, "funderSQL")
 	feeCalculator := newFeeCalculator(feeModel)
 
-	return &SQL{
+	s := &SQL{
 		logger:         logger,
 		utxoRepository: utxoRepository,
 		feeCalculator:  feeCalculator,
 	}
+	s.maxChangeOutputsPerTx.Store(maxChangeOutputsPerTx)
+	return s
+}
+
+// SetMaxChangeOutputsPerTx updates the per-transaction change output cap at runtime.
+// Takes effect on the next Fund() call.
+func (f *SQL) SetMaxChangeOutputsPerTx(n uint64) {
+	f.maxChangeOutputsPerTx.Store(n)
 }
 
 func (f *SQL) Fund(
@@ -79,7 +88,7 @@ func (f *SQL) Fund(
 		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
 	}
 
-	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, isSweep)
+	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, f.maxChangeOutputsPerTx.Load(), isSweep)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
@@ -177,10 +186,25 @@ func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs 
 func (f *SQL) loadUTXOPool(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
 	// Load all eligible UTXOs. The repository sorts by status tier + satoshis ASC,
 	// but the pool re-sorts internally per tier for 3-stage selection.
-	allUTXOs, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, &queryopts.Paging{}, forbiddenOutputIDs, includeSending)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load utxos: %w", err)
+	page := &queryopts.Paging{
+		Limit:  utxoBatchSize,
+		SortBy: "satoshis",
 	}
+
+	var allUTXOs []*models.UserUTXO
+	for {
+		utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs, includeSending)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load utxos: %w", err)
+		}
+
+		allUTXOs = append(allUTXOs, utxos...)
+		if len(utxos) < utxoBatchSize {
+			break
+		}
+		page.Next()
+	}
+
 	return newUTXOPool(allUTXOs), nil
 }
 
@@ -197,6 +221,7 @@ type utxoCollector struct {
 	outputCount             uint64
 	numberOfDesiredUTXOs    uint64
 	minimumDesiredUTXOValue uint64
+	maxChangeOutputsPerTx   uint64
 	changeOutputsCount      uint64
 	minimumChange           uint64
 	// dustFloor is the minimum satoshi value a change output must have to be economically viable.
@@ -205,11 +230,12 @@ type utxoCollector struct {
 	isSweep   bool
 }
 
-func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, isSweep bool) (c *utxoCollector, err error) {
+func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, maxChangeOutputsPerTx uint64, isSweep bool) (c *utxoCollector, err error) {
 	c = &utxoCollector{
 		txSats:                  txSats,
 		outputCount:             outputCount,
 		minimumDesiredUTXOValue: minimumDesiredUTXOValue,
+		maxChangeOutputsPerTx:   maxChangeOutputsPerTx,
 		feeCalculator:           feeCalculator,
 		allocatedUTXOs:          make([]*UTXO, 0),
 		isSweep:                 isSweep,
@@ -365,8 +391,8 @@ func (c *utxoCollector) calculateChangeCount(changeVal uint64) {
 	}
 
 	capCount := c.numberOfDesiredUTXOs
-	if MaxChangeOutputsPerTransaction < capCount {
-		capCount = MaxChangeOutputsPerTransaction
+	if c.maxChangeOutputsPerTx < capCount {
+		capCount = c.maxChangeOutputsPerTx
 	}
 
 	c.changeOutputsCount = to.ValueBetween(c.changeOutputsCount, 1, capCount)

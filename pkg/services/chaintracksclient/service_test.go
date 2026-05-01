@@ -269,6 +269,138 @@ func TestService_StartWithNilCallback(t *testing.T) {
 	require.NoError(t, err, "start with nil callback should not return error")
 }
 
+func TestService_GetTip_WhenChaintracksHasNoTip(t *testing.T) {
+	// given:
+	mockCT := testabilities.NewMockChaintracks()
+
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err)
+
+	// when:
+	tip, err := service.GetTip(t.Context())
+
+	// then:
+	require.Error(t, err)
+	require.Nil(t, tip)
+	assert.ErrorContains(t, err, "chaintracks returned no tip header")
+}
+
+func TestService_GetTip_WhenChaintracksTipHasNoBlockHeader(t *testing.T) {
+	// given:
+	mockCT := testabilities.NewMockChaintracks().
+		SetTip(&chaintracks.BlockHeader{})
+
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err)
+
+	// when:
+	tip, err := service.GetTip(t.Context())
+
+	// then:
+	require.Error(t, err)
+	require.Nil(t, tip)
+	assert.ErrorContains(t, err, "chaintracks returned tip header without block header")
+}
+
+func TestService_GetHeaderByHeight_WhenChaintracksHeaderHasNoBlockHeader(t *testing.T) {
+	// given:
+	mockCT := testabilities.NewMockChaintracks().
+		AddHeader(&chaintracks.BlockHeader{Height: 123})
+
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err)
+
+	// when:
+	header, err := service.GetHeaderByHeight(t.Context(), 123)
+
+	// then:
+	require.Error(t, err)
+	require.Nil(t, header)
+	assert.ErrorContains(t, err, "chaintracks returned header at height 123 without block header")
+}
+
+func TestService_GetHeaderByHash_WhenChaintracksHeaderHasNoBlockHeader(t *testing.T) {
+	// given:
+	hash, err := chainhash.NewHashFromHex("00000000000000000165924d2b7e41fd586d88e02f846ea6428d37c51f97db31")
+	require.NoError(t, err)
+	mockCT := testabilities.NewMockChaintracks().
+		AddHeader(&chaintracks.BlockHeader{Height: 123, Hash: *hash})
+
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err)
+
+	// when:
+	header, err := service.GetHeaderByHash(t.Context(), hash.String())
+
+	// then:
+	require.Error(t, err)
+	require.Nil(t, header)
+	assert.ErrorContains(t, err, "without block header")
+}
+
+func TestService_SkipsInvalidSubscriptionEvents(t *testing.T) {
+	// given:
+	mockCT := testabilities.NewMockChaintracks()
+	service, err := chaintracksclient.New(
+		logging.NewTestLogger(t),
+		nil,
+		chaintracksclient.WithChaintracks(mockCT),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	tipReceived := make(chan *chaintracks.BlockHeader, 1)
+	reorgReceived := make(chan *chaintracks.ReorgEvent, 1)
+
+	// when:
+	err = service.Start(ctx, chaintracksclient.Callbacks{
+		OnTip: func(header *chaintracks.BlockHeader) error {
+			tipReceived <- header
+			return nil
+		},
+		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			reorgReceived <- event
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	validTip := &chaintracks.BlockHeader{Header: &block.Header{}, Height: 124}
+	validReorg := &chaintracks.ReorgEvent{NewTip: validTip}
+	mockCT.SendTip(nil)
+	mockCT.SendReorg(nil)
+	time.Sleep(50 * time.Millisecond)
+	mockCT.SendReorg(&chaintracks.ReorgEvent{})
+	time.Sleep(50 * time.Millisecond)
+	mockCT.SendTip(validTip)
+	mockCT.SendReorg(validReorg)
+
+	// then:
+	require.Eventually(t, func() bool {
+		return len(tipReceived) == 1 && len(reorgReceived) == 1
+	}, 1*time.Second, 10*time.Millisecond)
+	assert.Equal(t, validTip, <-tipReceived)
+	assert.Equal(t, validReorg, <-reorgReceived)
+}
+
 func TestService_OnTipCallbackError(t *testing.T) {
 	// given:
 	mockCT := testabilities.NewMockChaintracks()

@@ -151,8 +151,16 @@ jobs:
           OSSI_TOKEN: ${{ secrets.ossi-token }}
         run: |
           echo "🔍 Running Nancy security scan..."
+          NANCY_AUTH_ARGS=()
+          if [[ -n "${OSSI_USERNAME:-}" && -n "${OSSI_TOKEN:-}" ]]; then
+            echo "🔐 Using OSS Index credentials for Nancy scan"
+            NANCY_AUTH_ARGS=(--username "$OSSI_USERNAME" --token "$OSSI_TOKEN")
+          else
+            echo "⚠️ OSS Index credentials are not configured; Nancy will use unauthenticated requests"
+          fi
+
           set +e
-          nancy sleuth --loud --exclude-vulnerability ${{ env.NANCY_EXCLUDES }} < go.list 2>&1 | tee nancy-output.log
+          nancy sleuth --loud --exclude-vulnerability "${{ env.NANCY_EXCLUDES }}" "${NANCY_AUTH_ARGS[@]}" < go.list 2>&1 | tee nancy-output.log
           NANCY_EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
@@ -160,6 +168,10 @@ jobs:
           if [[ $NANCY_EXIT_CODE -eq 0 ]]; then
             echo "nancy-status=success" >> $GITHUB_OUTPUT
             echo "✅ Nancy scan completed - no vulnerabilities found"
+          elif grep -qiE '402 Payment Required|error accessing OSS Index' nancy-output.log; then
+            echo "nancy-status=unavailable" >> $GITHUB_OUTPUT
+            echo "nancy-unavailable-reason=OSS Index returned 402 Payment Required" >> $GITHUB_OUTPUT
+            echo "⚠️ Nancy scan unavailable - OSS Index returned 402 Payment Required"
           else
             echo "nancy-status=failure" >> $GITHUB_OUTPUT
             echo "❌ Nancy scan completed - vulnerabilities detected (exit code: $NANCY_EXIT_CODE)"
@@ -172,6 +184,11 @@ jobs:
         if: always() && steps.run-nancy.outputs.nancy-status == 'failure'
         run: |
           echo "::error title=Nancy Security Scan Failed::Vulnerabilities detected in Go dependencies - see job summary for details"
+
+      - name: 📋 Create GitHub Warning for OSS Index access failures
+        if: always() && steps.run-nancy.outputs.nancy-status == 'unavailable'
+        run: |
+          echo "::warning title=Nancy Security Scan Unavailable::OSS Index returned 402 Payment Required; dependency scan did not complete"
 
       # --------------------------------------------------------------------
       # Summary of Nancy results
@@ -192,6 +209,8 @@ jobs:
 
           if [[ "$NANCY_STATUS" == "success" ]]; then
             echo "| **Result** | ✅ No vulnerabilities found |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$NANCY_STATUS" == "unavailable" ]]; then
+            echo "| **Result** | ⚠️ OSS Index unavailable (402 Payment Required) |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| **Result** | ❌ Vulnerabilities detected |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -202,12 +221,25 @@ jobs:
           echo "${{ env.NANCY_EXCLUDES }}" >> $GITHUB_STEP_SUMMARY
 
           # Show failure details if applicable
-          if [[ "$NANCY_STATUS" != "success" ]] && [[ -f nancy-output.log ]]; then
+          if [[ "$NANCY_STATUS" == "failure" ]] && [[ -f nancy-output.log ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 🚨 Vulnerability Details" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "<details>" >> $GITHUB_STEP_SUMMARY
             echo "<summary>Click to expand full scan output</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -200 nancy-output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$NANCY_STATUS" == "unavailable" ]] && [[ -f nancy-output.log ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Scan Unavailable" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "OSS Index returned 402 Payment Required, so Nancy could not complete the dependency scan." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>Click to expand Nancy output</summary>" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             head -200 nancy-output.log >> $GITHUB_STEP_SUMMARY

@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -651,9 +651,9 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		// when:
 		result, err := funderSvc.Fund(ctx, -100_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
 
-		// then: change outputs must be capped at MaxChangeOutputsPerTransaction, not 100
+		// then: change outputs must be capped at MaxChangeOutputsPerTx, not 100
 		then.Result(result).WithoutError(err).
-			HasChangeCount(int(funder.MaxChangeOutputsPerTransaction)). //nolint:gosec // MaxChangeOutputsPerTransaction is a small constant
+			HasChangeCount(int(defs.DefaultChangeBasket().MaxChangeOutputsPerTx)). //nolint:gosec // uint64 to int conversion is safe, value is bounded by config
 			ForAmount(100_000_000)
 	})
 
@@ -675,8 +675,29 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		// then: only MaxChangeOutputsPerTransaction outputs created, not 20
 		then.Result(result).WithoutError(err)
 
-		require.LessOrEqual(t, result.ChangeOutputsCount, funder.MaxChangeOutputsPerTransaction,
-			"ChangeOutputsCount should not exceed MaxChangeOutputsPerTransaction")
+		require.LessOrEqual(t, result.ChangeOutputsCount, defs.DefaultChangeBasket().MaxChangeOutputsPerTx,
+			"ChangeOutputsCount should not exceed MaxChangeOutputsPerTx")
+	})
+
+	t.Run("cap: SetMaxChangeOutputsPerTx takes effect on next Fund call", func(t *testing.T) {
+		// given: funder with default cap (8), basket wants 20 UTXOs
+		const desiredUTXOs = 20
+		const newCap = uint64(3)
+
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funderSvc := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(desiredUTXOs)
+
+		// when: cap is lowered to 3 at runtime
+		funderSvc.SetMaxChangeOutputsPerTx(newCap)
+
+		result, err := funderSvc.Fund(ctx, -10_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
+
+		// then: new cap of 3 is respected
+		then.Result(result).WithoutError(err)
+		require.LessOrEqual(t, result.ChangeOutputsCount, newCap,
+			"ChangeOutputsCount should not exceed the runtime-updated cap")
 	})
 
 	t.Run("dust floor: change below dust floor (at high fee rate) is given to the miner instead of creating an output", func(t *testing.T) {
