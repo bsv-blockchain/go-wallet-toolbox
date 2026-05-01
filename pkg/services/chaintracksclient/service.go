@@ -45,6 +45,9 @@ func New(logger *slog.Logger, cfg *config.Config, opts ...Option) (*Adapter, err
 	}
 
 	if adapter.ct == nil {
+		if cfg == nil {
+			return nil, fmt.Errorf("chaintracks config is nil")
+		}
 		ct, err := cfg.Initialize(context.Background(), "wallet-toolbox", adapter.p2pClient)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize chaintracks: %w", err)
@@ -73,10 +76,15 @@ func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.B
 	a.tipChan = a.ct.Subscribe(ctx)
 	go func() {
 		for header := range a.tipChan {
-			if cb != nil {
-				if err := cb(header); err != nil {
-					a.logger.Error("onTip callback failed", "height", header.Height, "hash", header.Hash.String(), "err", err)
-				}
+			if header == nil {
+				a.logger.Warn("received nil chaintracks tip")
+				continue
+			}
+			if err := cb(header); err != nil {
+				a.logger.Error("onTip callback failed",
+					"height", header.Height,
+					"hash", header.Hash.String(),
+					"err", err)
 			}
 		}
 	}()
@@ -93,14 +101,22 @@ func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks
 	a.reorgChan = a.ct.SubscribeReorg(ctx)
 	go func() {
 		for reorgEvent := range a.reorgChan {
-			if cb != nil {
-				if err := cb(reorgEvent); err != nil {
-					a.logger.Error("onReorg callback failed",
-						"depth", reorgEvent.Depth,
-						"new tip hash", reorgEvent.NewTip.Hash.String(),
-						"orphaned hashes", reorgEvent.OrphanedHashes,
-						"err", err)
-				}
+			if reorgEvent == nil {
+				a.logger.Warn("received nil chaintracks reorg event")
+				continue
+			}
+			if reorgEvent.NewTip == nil {
+				a.logger.Warn("received chaintracks reorg event without new tip",
+					"depth", reorgEvent.Depth,
+					"orphaned hashes", reorgEvent.OrphanedHashes)
+				continue
+			}
+			if err := cb(reorgEvent); err != nil {
+				a.logger.Error("onReorg callback failed",
+					"depth", reorgEvent.Depth,
+					"new tip hash", reorgEvent.NewTip.Hash.String(),
+					"orphaned hashes", reorgEvent.OrphanedHashes,
+					"err", err)
 			}
 		}
 	}()
@@ -134,19 +150,7 @@ func (a *Adapter) GetHeight(ctx context.Context) uint32 {
 // GetTip returns the current chain tip
 func (a *Adapter) GetTip(ctx context.Context) (*wdk.ChainBlockHeader, error) {
 	tip := a.ct.GetTip(ctx)
-
-	return &wdk.ChainBlockHeader{
-		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      uint32(tip.Version), //nolint:gosec // block header version is always small positive
-			PreviousHash: tip.PrevHash.String(),
-			MerkleRoot:   tip.MerkleRoot.String(),
-			Time:         tip.Timestamp,
-			Bits:         tip.Bits,
-			Nonce:        tip.Nonce,
-		},
-		Hash:   tip.Hash.String(),
-		Height: uint(tip.Height),
-	}, nil
+	return convertBlockHeader(tip, "tip header")
 }
 
 // GetHeaderByHeight retrieves a block header by its height
@@ -156,18 +160,7 @@ func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (*wdk.Ch
 		return nil, fmt.Errorf("failed to get header by height %d: %w", height, err)
 	}
 
-	return &wdk.ChainBlockHeader{
-		ChainBaseBlockHeader: wdk.ChainBaseBlockHeader{
-			Version:      uint32(header.Version), //nolint:gosec // block header version is always small positive
-			PreviousHash: header.PrevHash.String(),
-			MerkleRoot:   header.MerkleRoot.String(),
-			Time:         header.Timestamp,
-			Bits:         header.Bits,
-			Nonce:        header.Nonce,
-		},
-		Hash:   header.Hash.String(),
-		Height: uint(header.Height),
-	}, nil
+	return convertBlockHeader(header, fmt.Sprintf("header at height %d", height))
 }
 
 // GetHeaderByHash retrieves a block header by its hash
@@ -180,6 +173,17 @@ func (a *Adapter) GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainB
 	header, err := a.ct.GetHeaderByHash(ctx, chainHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get header by hash %s: %w", hash, err)
+	}
+
+	return convertBlockHeader(header, fmt.Sprintf("header for hash %s", hash))
+}
+
+func convertBlockHeader(header *chaintracks.BlockHeader, description string) (*wdk.ChainBlockHeader, error) {
+	if header == nil {
+		return nil, fmt.Errorf("chaintracks returned no %s", description)
+	}
+	if header.Header == nil {
+		return nil, fmt.Errorf("chaintracks returned %s without block header", description)
 	}
 
 	return &wdk.ChainBlockHeader{
