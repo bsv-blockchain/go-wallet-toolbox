@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -79,6 +78,7 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	model.TxID = req.TxID
 	model.RawTx = req.RawTx
 	model.InputBeef = req.InputBeef
+	model.WasBroadcast = model.WasBroadcast || req.Status.WasBroadcastStatus()
 
 	err = tx.Save(&model).Error
 	if err != nil {
@@ -101,7 +101,14 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 		query = query.Where("status NOT IN ? ", skipForStatuses)
 	}
 
-	err := query.UpdateColumn("status", status).Error
+	updates := map[string]any{
+		"status": status,
+	}
+	if status.WasBroadcastStatus() {
+		updates["was_broadcast"] = true
+	}
+
+	err := query.UpdateColumns(updates).Error
 	if err != nil {
 		return fmt.Errorf("failed to update known tx status: %w", err)
 	}
@@ -233,7 +240,7 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 	var rows []*models.KnownTx
 	err = p.db.WithContext(ctx).
 		Model(&models.KnownTx{}).
-		Select("tx_id, status, attempts, batch").
+		Select("tx_id, status, attempts, was_broadcast, rebroadcast_attempts, batch").
 		Scopes(scopes.FromQueryOpts(opts)...).
 		Where("status IN ? ", txStatus).
 		Find(&rows).Error
@@ -243,9 +250,12 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 
 	return slices.Map(rows, func(row *models.KnownTx) *entity.KnownTxForStatusSync {
 		return &entity.KnownTxForStatusSync{
-			TxID:     row.TxID,
-			Attempts: row.Attempts,
-			Status:   row.Status,
+			TxID:                row.TxID,
+			Attempts:            row.Attempts,
+			RebroadcastAttempts: row.RebroadcastAttempts,
+			Status:              row.Status,
+			WasBroadcast:        row.WasBroadcast || row.Status.WasBroadcastStatus(),
+			Batch:               row.Batch,
 		}
 	}), nil
 }
@@ -261,12 +271,13 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 		err = tx.Model(&models.KnownTx{}).
 			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
 			Updates(&models.KnownTx{
-				Status:      wdk.ProvenTxStatusCompleted,
-				BlockHash:   &knownTxAsMined.BlockHash,
-				BlockHeight: &knownTxAsMined.BlockHeight,
-				MerklePath:  knownTxAsMined.MerklePath,
-				MerkleRoot:  &knownTxAsMined.MerkleRoot,
-				Notified:    true,
+				Status:       wdk.ProvenTxStatusCompleted,
+				WasBroadcast: true,
+				BlockHash:    &knownTxAsMined.BlockHash,
+				BlockHeight:  &knownTxAsMined.BlockHeight,
+				MerklePath:   knownTxAsMined.MerklePath,
+				MerkleRoot:   &knownTxAsMined.MerkleRoot,
+				Notified:     true,
 			}).Error
 		if err != nil {
 			return fmt.Errorf("failed to update known tx: %w", err)
@@ -336,12 +347,12 @@ func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []s
 	return nil
 }
 
-func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempts uint64, status wdk.ProvenTxReqStatus) ([]models.KnownTx, error) {
+func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadcastAttempts uint64, statuses []wdk.ProvenTxReqStatus) ([]models.KnownTx, error) {
 	var (
 		err        error
 		updatedTxs []models.KnownTx
 	)
-	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-SetStatusForKnownTxsAboveAttempts", attribute.String("Status", string(status)), attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-ApplyProofTimeouts", attribute.String("Attempts", fmt.Sprintf("%d", attempts)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -350,15 +361,59 @@ func (p *KnownTx) SetStatusForKnownTxsAboveAttempts(ctx context.Context, attempt
 		return nil, nil
 	}
 
-	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
-		Where("attempts >= ? ", attempts).
-		Clauses(clause.Returning{}).
-		UpdateColumn("status", status).
-		Scan(&updatedTxs).Error
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var timedOut []*models.KnownTx
+		query := tx.Model(&models.KnownTx{}).
+			Where("attempts >= ?", attempts)
+		if len(statuses) > 0 {
+			query = query.Where("status IN ?", statuses)
+		}
+
+		if err := query.Find(&timedOut).Error; err != nil {
+			return fmt.Errorf("failed to find known transactions above attempts: %w", err)
+		}
+
+		updatedTxs = make([]models.KnownTx, 0, len(timedOut))
+		for _, knownTx := range timedOut {
+			updates := proofTimeoutUpdates(knownTx, maxRebroadcastAttempts)
+			if err := tx.Model(&models.KnownTx{}).
+				Where("tx_id = ?", knownTx.TxID).
+				UpdateColumns(updates).Error; err != nil {
+				return fmt.Errorf("failed to apply proof timeout for known transaction %s: %w", knownTx.TxID, err)
+			}
+
+			knownTx.Status = updates["status"].(wdk.ProvenTxReqStatus)
+			knownTx.Attempts = updates["attempts"].(uint64)
+			knownTx.WasBroadcast = updates["was_broadcast"].(bool)
+			knownTx.RebroadcastAttempts = updates["rebroadcast_attempts"].(uint64)
+			updatedTxs = append(updatedTxs, *knownTx)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to set status for known transactions above attempts: %w", err)
+		return nil, fmt.Errorf("failed to apply proof timeouts: %w", err)
 	}
 	return updatedTxs, nil
+}
+
+func proofTimeoutUpdates(knownTx *models.KnownTx, maxRebroadcastAttempts uint64) map[string]any {
+	wasBroadcast := knownTx.WasBroadcast || knownTx.Status.WasBroadcastStatus()
+	if wasBroadcast && (maxRebroadcastAttempts == 0 || knownTx.RebroadcastAttempts < maxRebroadcastAttempts) {
+		return map[string]any{
+			"status":               wdk.ProvenTxStatusUnsent,
+			"attempts":             uint64(0),
+			"was_broadcast":        true,
+			"rebroadcast_attempts": knownTx.RebroadcastAttempts + 1,
+		}
+	}
+
+	return map[string]any{
+		"status":               wdk.ProvenTxStatusInvalid,
+		"attempts":             knownTx.Attempts,
+		"was_broadcast":        wasBroadcast,
+		"rebroadcast_attempts": knownTx.RebroadcastAttempts,
+	}
 }
 
 func (p *KnownTx) FindKnownTxs(ctx context.Context, spec *pkgentity.KnownTxReadSpecification, opts ...queryopts.Options) ([]*pkgentity.KnownTx, error) {
@@ -506,12 +561,13 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 		res := tx.Model(&models.KnownTx{}).
 			Where("block_hash IN ?", blockHashes).
 			Updates(map[string]any{
-				"merkle_path":  nil,
-				"block_height": nil,
-				"merkle_root":  nil,
-				"block_hash":   nil,
-				"attempts":     0,
-				"status":       wdk.ProvenTxStatusReorg,
+				"merkle_path":   nil,
+				"block_height":  nil,
+				"merkle_root":   nil,
+				"block_hash":    nil,
+				"attempts":      0,
+				"was_broadcast": true,
+				"status":        wdk.ProvenTxStatusReorg,
 			})
 		if res.Error != nil {
 			err = res.Error
@@ -545,18 +601,20 @@ func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {
 	}
 
 	knownTx := &pkgentity.KnownTx{
-		CreatedAt:   model.CreatedAt,
-		UpdatedAt:   model.UpdatedAt,
-		TxID:        model.TxID,
-		Status:      model.Status,
-		Attempts:    model.Attempts,
-		Notified:    model.Notified,
-		RawTx:       model.RawTx,
-		InputBEEF:   model.InputBeef,
-		BlockHeight: model.BlockHeight,
-		MerklePath:  model.MerklePath,
-		MerkleRoot:  model.MerkleRoot,
-		BlockHash:   model.BlockHash,
+		CreatedAt:           model.CreatedAt,
+		UpdatedAt:           model.UpdatedAt,
+		TxID:                model.TxID,
+		Status:              model.Status,
+		Attempts:            model.Attempts,
+		Notified:            model.Notified,
+		WasBroadcast:        model.WasBroadcast || model.Status.WasBroadcastStatus(),
+		RebroadcastAttempts: model.RebroadcastAttempts,
+		RawTx:               model.RawTx,
+		InputBEEF:           model.InputBeef,
+		BlockHeight:         model.BlockHeight,
+		MerklePath:          model.MerklePath,
+		MerkleRoot:          model.MerkleRoot,
+		BlockHash:           model.BlockHash,
 	}
 
 	if model.TxNotes != nil {
