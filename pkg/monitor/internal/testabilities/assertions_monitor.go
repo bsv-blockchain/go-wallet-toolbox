@@ -41,7 +41,7 @@ func then(t testing.TB, fixture *monitorFixture) *monitorAssertions {
 func (m *monitorAssertions) SynchronizeTransactionStatuses() ExecutedTaskAssertions {
 	return &storageMethodAssertions{
 		called: func() int {
-			return m.fixtures.mockStorage.SynchronizeTransactionStatusesCalled
+			return int(m.fixtures.mockStorage.SynchronizeTransactionStatusesCalled.Load())
 		},
 		taskName: defs.CheckForProofsMonitorTask,
 		parent:   m,
@@ -51,7 +51,7 @@ func (m *monitorAssertions) SynchronizeTransactionStatuses() ExecutedTaskAsserti
 func (m *monitorAssertions) SendWaitingTransactions() ExecutedTaskAssertions {
 	return &storageMethodAssertions{
 		called: func() int {
-			return m.fixtures.mockStorage.SendWaitingTransactionsCalled
+			return int(m.fixtures.mockStorage.SendWaitingTransactionsCalled.Load())
 		},
 		taskName: defs.SendWaitingMonitorTask,
 		parent:   m,
@@ -61,7 +61,7 @@ func (m *monitorAssertions) SendWaitingTransactions() ExecutedTaskAssertions {
 func (m *monitorAssertions) FailAbandoned() ExecutedTaskAssertions {
 	return &storageMethodAssertions{
 		called: func() int {
-			return m.fixtures.mockStorage.FailAbandonedCalled
+			return int(m.fixtures.mockStorage.FailAbandonedCalled.Load())
 		},
 		taskName: defs.FailAbandonedMonitorTask,
 		parent:   m,
