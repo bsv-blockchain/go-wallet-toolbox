@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,7 +22,7 @@ func TestCORSMiddlewareAllowsConfiguredOrigin(t *testing.T) {
 		ExposedHeaders: []string{"X-BSV-Auth-Identity-Key"},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
 	req.Header.Set("Origin", "https://wallet.example.com")
 	rec := httptest.NewRecorder()
 
@@ -44,7 +45,7 @@ func TestCORSMiddlewareRejectsUnconfiguredOrigin(t *testing.T) {
 		AllowedMethods: []string{http.MethodPost},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
 	req.Header.Set("Origin", "https://evil.example.com")
 	rec := httptest.NewRecorder()
 
@@ -63,7 +64,7 @@ func TestCORSMiddlewareAllowsAnyOriginWhenConfigured(t *testing.T) {
 		AllowedMethods:  []string{http.MethodPost},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
 	req.Header.Set("Origin", "https://any-wallet.example")
 	rec := httptest.NewRecorder()
 
@@ -85,7 +86,7 @@ func TestCORSMiddlewareHandlesAllowedPreflight(t *testing.T) {
 		AllowPrivateNetwork: true,
 	})
 
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Private-Network", "true")
 	rec := httptest.NewRecorder()

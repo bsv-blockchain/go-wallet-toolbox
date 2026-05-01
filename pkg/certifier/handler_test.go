@@ -1,6 +1,7 @@
 package certifier
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,7 +25,7 @@ func TestHandleSignCertificateRejectsOversizedRequestBody(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/signCertificate", strings.NewReader(`{"type":"`+strings.Repeat("A", 32)+`"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/signCertificate", strings.NewReader(`{"type":"`+strings.Repeat("A", 32)+`"}`))
 	req.Header.Set(brc104.HeaderIdentityKey, clientKey.PubKey().ToDERHex())
 	rec := httptest.NewRecorder()
 

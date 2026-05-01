@@ -14,8 +14,6 @@ import (
 
 // BytesToUTF8 converts bytes to a UTF-8 string, mimicking JavaScript's TextDecoder behavior.
 // Invalid UTF-8 sequences are replaced with U+FFFD (replacement character), just like TextDecoder does.
-//
-// Deprecated: use NonceKeyID when deriving nonce HMAC key IDs.
 func BytesToUTF8(bytes []byte) string {
 	result := make([]rune, 0, len(bytes))
 	for len(bytes) > 0 {

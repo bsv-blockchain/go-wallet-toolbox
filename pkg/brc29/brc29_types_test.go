@@ -9,16 +9,16 @@ import (
 )
 
 func TestKeyIDValidateAllowsWhitespaceComponents(t *testing.T) {
-	keyID := brc29.KeyID{DerivationPrefix: "prefix with space", DerivationSuffix: "suffix\twith\ttabs"}
+	whitespaceKeyID := brc29.KeyID{DerivationPrefix: "prefix with space", DerivationSuffix: "suffix\twith\ttabs"}
 
-	err := keyID.Validate()
+	err := whitespaceKeyID.Validate()
 
 	require.NoError(t, err)
 }
 
 func TestKeyIDStringUsesSingleSpaceForValidatedComponents(t *testing.T) {
-	keyID := brc29.KeyID{DerivationPrefix: "prefix", DerivationSuffix: "suffix"}
+	stringKeyID := brc29.KeyID{DerivationPrefix: "prefix", DerivationSuffix: "suffix"}
 
-	require.NoError(t, keyID.Validate())
-	require.Equal(t, "prefix suffix", keyID.String())
+	require.NoError(t, stringKeyID.Validate())
+	require.Equal(t, "prefix suffix", stringKeyID.String())
 }

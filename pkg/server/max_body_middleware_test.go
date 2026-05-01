@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -16,7 +17,7 @@ func TestMaxBytesMiddlewareRejectsKnownOversizedBody(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	}), 4)
 
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("12345"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("12345"))
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -39,7 +40,7 @@ func TestMaxBytesMiddlewareCapsStreamingBodyReads(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	}), 4)
 
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("12345"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("12345"))
 	req.ContentLength = -1
 	rec := httptest.NewRecorder()
 
