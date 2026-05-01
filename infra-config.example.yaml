@@ -38,7 +38,8 @@ fee_model:
   value: 100
 http:
   cors:
-    allow_private_network: false
+    allow_all_origins: true
+    allow_private_network: true
     allowed_headers:
       - content-type
       - authorization
@@ -54,7 +55,7 @@ http:
     allowed_methods:
       - POST
     allowed_origins: []
-    enabled: false
+    enabled: true
     exposed_headers:
       - authorization
       - x-bsv-auth-version

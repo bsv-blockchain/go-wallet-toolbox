@@ -57,8 +57,8 @@ func (s *Server) Handler() http.Handler {
 	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
 	handler = authMiddleware.HTTPHandler(handler)
 	handler = servercommon.MaxBytesMiddleware(handler, s.maxRequestBodyBytes())
-	if s.options.CORS.Enabled {
-		handler = servercommon.NewCORSMiddleware(handler, s.options.CORS)
+	if corsConfig, ok := s.corsConfig(); ok {
+		handler = servercommon.NewCORSMiddleware(handler, corsConfig)
 	}
 
 	return handler
@@ -96,4 +96,25 @@ func (s *Server) maxRequestBodyBytes() int64 {
 		return s.options.MaxRequestBodyBytes
 	}
 	return servercommon.DefaultMaxRequestBodyBytes
+}
+
+func (s *Server) corsConfig() (servercommon.CORSConfig, bool) {
+	if s.options.DisableCORS {
+		return servercommon.CORSConfig{}, false
+	}
+	config := s.options.CORS
+	if isZeroCORSConfig(config) {
+		config = DefaultCORSConfig()
+	}
+	return config, config.Enabled
+}
+
+func isZeroCORSConfig(config servercommon.CORSConfig) bool {
+	return !config.Enabled &&
+		!config.AllowAllOrigins &&
+		!config.AllowPrivateNetwork &&
+		len(config.AllowedOrigins) == 0 &&
+		len(config.AllowedMethods) == 0 &&
+		len(config.AllowedHeaders) == 0 &&
+		len(config.ExposedHeaders) == 0
 }

@@ -54,6 +54,26 @@ func TestCORSMiddlewareRejectsUnconfiguredOrigin(t *testing.T) {
 	require.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
 }
 
+func TestCORSMiddlewareAllowsAnyOriginWhenConfigured(t *testing.T) {
+	handler := NewCORSMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}), CORSConfig{
+		Enabled:         true,
+		AllowAllOrigins: true,
+		AllowedMethods:  []string{http.MethodPost},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set("Origin", "https://any-wallet.example")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusAccepted, rec.Code)
+	require.Equal(t, "https://any-wallet.example", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "Origin", rec.Header().Values("Vary")[0])
+}
+
 func TestCORSMiddlewareHandlesAllowedPreflight(t *testing.T) {
 	handler := NewCORSMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
@@ -75,6 +95,16 @@ func TestCORSMiddlewareHandlesAllowedPreflight(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rec.Code)
 	require.Equal(t, "http://localhost:3000", rec.Header().Get("Access-Control-Allow-Origin"))
 	require.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Private-Network"))
+}
+
+func TestCORSConfigValidateAllowsAllOriginsWithoutList(t *testing.T) {
+	err := (CORSConfig{
+		Enabled:         true,
+		AllowAllOrigins: true,
+		AllowedMethods:  []string{http.MethodPost},
+	}).Validate()
+
+	require.NoError(t, err)
 }
 
 func TestCORSConfigValidateRejectsWildcardOrigin(t *testing.T) {

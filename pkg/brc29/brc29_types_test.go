@@ -8,19 +8,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 )
 
-func TestKeyIDValidateRejectsWhitespaceComponents(t *testing.T) {
-	tests := map[string]brc29.KeyID{
-		"prefix contains space": {DerivationPrefix: "a b", DerivationSuffix: "c"},
-		"suffix contains space": {DerivationPrefix: "a", DerivationSuffix: "b c"},
-		"prefix contains tab":   {DerivationPrefix: "a\tb", DerivationSuffix: "c"},
-	}
-	for name, keyID := range tests {
-		t.Run(name, func(t *testing.T) {
-			err := keyID.Validate()
+func TestKeyIDValidateAllowsWhitespaceComponents(t *testing.T) {
+	keyID := brc29.KeyID{DerivationPrefix: "prefix with space", DerivationSuffix: "suffix\twith\ttabs"}
 
-			require.ErrorContains(t, err, "must not contain whitespace")
-		})
-	}
+	err := keyID.Validate()
+
+	require.NoError(t, err)
 }
 
 func TestKeyIDStringUsesSingleSpaceForValidatedComponents(t *testing.T) {

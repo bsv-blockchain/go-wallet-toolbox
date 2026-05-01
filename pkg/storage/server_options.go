@@ -23,8 +23,11 @@ type ServerOptions struct {
 	// When zero, server.DefaultMaxRequestBodyBytes is used.
 	MaxRequestBodyBytes int64
 
-	// CORS controls optional browser cross-origin access. It is disabled by default.
+	// CORS controls browser cross-origin access. Storage servers allow all origins by default
+	// because wallet applications are expected to run from arbitrary web origins.
 	CORS servercommon.CORSConfig
+	// DisableCORS disables the default storage CORS middleware.
+	DisableCORS bool
 
 	// Monetize - should the payment middleware be applied to the server
 	Monetize bool
@@ -34,12 +37,14 @@ type ServerOptions struct {
 	CalculateRequestPrice func(r *http.Request) (int, error)
 }
 
-// DefaultCORSConfig returns a disabled CORS config populated with the headers
+// DefaultCORSConfig returns an open-origin CORS config populated with the headers
 // required by Authrite and storage request payment flows.
 func DefaultCORSConfig() servercommon.CORSConfig {
 	return servercommon.CORSConfig{
-		Enabled:        false,
-		AllowedMethods: []string{http.MethodPost},
+		Enabled:             true,
+		AllowAllOrigins:     true,
+		AllowPrivateNetwork: true,
+		AllowedMethods:      []string{http.MethodPost},
 		AllowedHeaders: []string{
 			brc104.HeaderContentType,
 			brc104.HeaderAuthorization,

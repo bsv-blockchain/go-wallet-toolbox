@@ -26,11 +26,6 @@ func BytesToUTF8(bytes []byte) string {
 	return string(result)
 }
 
-// NonceKeyID returns a lossless textual key ID for nonce HMAC derivation.
-func NonceKeyID(data []byte) string {
-	return base64.StdEncoding.EncodeToString(data)
-}
-
 const (
 	// NonceDataSize is the size of the data in nonce.
 	NonceDataSize = 16
@@ -54,7 +49,7 @@ func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Rando
 	if err != nil {
 		return "", fmt.Errorf("failed to generate nonce data bytes: %w", err)
 	}
-	keyID := NonceKeyID(firstHalf)
+	keyID := BytesToUTF8(firstHalf)
 
 	createHMACResult, err := wallet.CreateHMAC(ctx, sdk.CreateHMACArgs{
 		EncryptionArgs: sdk.EncryptionArgs{

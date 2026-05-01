@@ -12,6 +12,7 @@ var _ http.Handler = (*corsMiddleware)(nil)
 // CORSConfig controls cross-origin browser access to an HTTP handler.
 type CORSConfig struct {
 	Enabled             bool     `mapstructure:"enabled"`
+	AllowAllOrigins     bool     `mapstructure:"allow_all_origins"`
 	AllowedOrigins      []string `mapstructure:"allowed_origins"`
 	AllowedMethods      []string `mapstructure:"allowed_methods"`
 	AllowedHeaders      []string `mapstructure:"allowed_headers"`
@@ -19,13 +20,13 @@ type CORSConfig struct {
 	AllowPrivateNetwork bool     `mapstructure:"allow_private_network"`
 }
 
-// Validate checks that enabled CORS config uses explicit allowlists.
+// Validate checks enabled CORS config for intentional origins and bounded protocol metadata.
 func (c CORSConfig) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
 
-	if len(c.AllowedOrigins) == 0 {
+	if !c.AllowAllOrigins && len(c.AllowedOrigins) == 0 {
 		return fmt.Errorf("allowed origins must not be empty when CORS is enabled")
 	}
 	for _, origin := range c.AllowedOrigins {
@@ -49,6 +50,7 @@ func (c CORSConfig) Validate() error {
 
 type corsMiddleware struct {
 	next                http.Handler
+	allowAllOrigins     bool
 	allowedOrigins      map[string]struct{}
 	allowedMethods      string
 	allowedHeaders      string
@@ -73,6 +75,7 @@ func NewCORSMiddleware(next http.Handler, config CORSConfig) http.Handler {
 
 	return &corsMiddleware{
 		next:                next,
+		allowAllOrigins:     config.AllowAllOrigins,
 		allowedOrigins:      allowedOrigins,
 		allowedMethods:      strings.Join(config.AllowedMethods, ", "),
 		allowedHeaders:      strings.Join(config.AllowedHeaders, ", "),
@@ -93,9 +96,11 @@ func (m *corsMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "CORS origin denied", http.StatusForbidden)
 		return
 	}
-	if _, ok := m.allowedOrigins[normalizedOrigin]; !ok {
-		http.Error(w, "CORS origin denied", http.StatusForbidden)
-		return
+	if !m.allowAllOrigins {
+		if _, ok := m.allowedOrigins[normalizedOrigin]; !ok {
+			http.Error(w, "CORS origin denied", http.StatusForbidden)
+			return
+		}
 	}
 
 	header := w.Header()
