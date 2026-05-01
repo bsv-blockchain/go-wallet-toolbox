@@ -4,23 +4,26 @@ import (
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
+	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // ServerConfig holds configuration options for the certifier server.
 type ServerConfig struct {
-	Port       string
-	Logger     *slog.Logger
-	Originator string
-	Randomizer wdk.Randomizer
+	Port                string
+	MaxRequestBodyBytes int64
+	Logger              *slog.Logger
+	Originator          string
+	Randomizer          wdk.Randomizer
 }
 
 func defaultConfig() *ServerConfig {
 	return &ServerConfig{
-		Port:       "8080",
-		Originator: "certifier-server",
-		Logger:     slog.Default(),
-		Randomizer: randomizer.New(),
+		Port:                "8080",
+		MaxRequestBodyBytes: servercommon.DefaultMaxRequestBodyBytes,
+		Originator:          "certifier-server",
+		Logger:              slog.Default(),
+		Randomizer:          randomizer.New(),
 	}
 }
 
@@ -49,5 +52,12 @@ func WithOriginator(originator string) func(*ServerConfig) {
 func WithRandomizer(r wdk.Randomizer) func(*ServerConfig) {
 	return func(c *ServerConfig) {
 		c.Randomizer = r
+	}
+}
+
+// WithMaxRequestBodyBytes sets the request body limit for certificate signing requests.
+func WithMaxRequestBodyBytes(maxBytes int64) func(*ServerConfig) {
+	return func(c *ServerConfig) {
+		c.MaxRequestBodyBytes = maxBytes
 	}
 }

@@ -14,6 +14,8 @@ import (
 
 // BytesToUTF8 converts bytes to a UTF-8 string, mimicking JavaScript's TextDecoder behavior.
 // Invalid UTF-8 sequences are replaced with U+FFFD (replacement character), just like TextDecoder does.
+//
+// Deprecated: use NonceKeyID when deriving nonce HMAC key IDs.
 func BytesToUTF8(bytes []byte) string {
 	result := make([]rune, 0, len(bytes))
 	for len(bytes) > 0 {
@@ -22,6 +24,11 @@ func BytesToUTF8(bytes []byte) string {
 		bytes = bytes[size:]
 	}
 	return string(result)
+}
+
+// NonceKeyID returns a lossless textual key ID for nonce HMAC derivation.
+func NonceKeyID(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 const (
@@ -47,7 +54,7 @@ func CreateNonce(ctx context.Context, wallet sdk.Interface, randomizer wdk.Rando
 	if err != nil {
 		return "", fmt.Errorf("failed to generate nonce data bytes: %w", err)
 	}
-	keyID := BytesToUTF8(firstHalf)
+	keyID := NonceKeyID(firstHalf)
 
 	createHMACResult, err := wallet.CreateHMAC(ctx, sdk.CreateHMACArgs{
 		EncryptionArgs: sdk.EncryptionArgs{

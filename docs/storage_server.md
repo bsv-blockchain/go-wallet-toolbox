@@ -6,7 +6,8 @@ Exposes the wallet storage provider over JSON-RPC with Authrite authentication. 
 
 - Server wraps a `wdk.WalletStorageProvider` and publishes RPC endpoints under the name `remote_storage`.
 - Requests are authenticated using a wallet (`sdk.Interface`) via Authrite middleware.
-- CORS is permissive by default to enable cross-origin API usage.
+- CORS is disabled by default. Browser access must be enabled with explicit allowed origins.
+- Request bodies are capped by default at 1 MiB before auth and JSON-RPC handling.
 
 ### Quick start
 

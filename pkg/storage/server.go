@@ -56,8 +56,10 @@ func (s *Server) Handler() http.Handler {
 
 	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
 	handler = authMiddleware.HTTPHandler(handler)
-	// allow the API to be used everywhere when CORS is enforced.
-	handler = servercommon.AllowAllCORSMiddleware(handler)
+	handler = servercommon.MaxBytesMiddleware(handler, s.maxRequestBodyBytes())
+	if s.options.CORS.Enabled {
+		handler = servercommon.NewCORSMiddleware(handler, s.options.CORS)
+	}
 
 	return handler
 }
@@ -87,4 +89,11 @@ func withOptionalRequestPriceCalculator(calculator func(r *http.Request) (int, e
 		return func(c *middleware.PaymentMiddlewareConfig) {}
 	}
 	return middleware.WithRequestPriceCalculator(calculator)
+}
+
+func (s *Server) maxRequestBodyBytes() int64 {
+	if s.options.MaxRequestBodyBytes > 0 {
+		return s.options.MaxRequestBodyBytes
+	}
+	return servercommon.DefaultMaxRequestBodyBytes
 }

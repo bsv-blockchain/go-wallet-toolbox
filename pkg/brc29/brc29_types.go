@@ -2,6 +2,8 @@ package brc29
 
 import (
 	"fmt"
+	"strings"
+	"unicode"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -83,8 +85,14 @@ func (k *KeyID) Validate() error {
 	if k.DerivationPrefix == "" {
 		return fmt.Errorf("invalid key id: derivation prefix is required")
 	}
+	if strings.ContainsFunc(k.DerivationPrefix, unicode.IsSpace) {
+		return fmt.Errorf("invalid key id: derivation prefix must not contain whitespace")
+	}
 	if k.DerivationSuffix == "" {
 		return fmt.Errorf("invalid key id: derivation suffix is required")
+	}
+	if strings.ContainsFunc(k.DerivationSuffix, unicode.IsSpace) {
+		return fmt.Errorf("invalid key id: derivation suffix must not contain whitespace")
 	}
 	return nil
 }

@@ -163,8 +163,10 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	requestPrice := must.ConvertToIntFromUnsigned(cfg.HTTPConfig.RequestPrice)
 
 	serverOptions := storage.ServerOptions{
-		Port:     cfg.HTTPConfig.Port,
-		Monetize: requestPrice != 0,
+		Port:                cfg.HTTPConfig.Port,
+		MaxRequestBodyBytes: cfg.HTTPConfig.MaxRequestBodyBytes,
+		CORS:                cfg.HTTPConfig.CORS,
+		Monetize:            requestPrice != 0,
 		CalculateRequestPrice: func(_ *http.Request) (int, error) {
 			return requestPrice, nil
 		},
@@ -195,13 +197,15 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 
 	if s.Config.Services.ChaintracksClient.Enabled {
-		if err := s.services.StartChaintracks(context.Background()); err != nil {
+		if err := s.services.StartChaintracks(ctx); err != nil {
 			return fmt.Errorf("failed to start chaintracks: %w", err)
 		}
 	}
 
-	if err := s.monitor.Start(ctx, s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
-		return fmt.Errorf("failed to start storage monitor: %w", err)
+	if s.monitor != nil {
+		if err := s.monitor.Start(ctx, s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
+			return fmt.Errorf("failed to start storage monitor: %w", err)
+		}
 	}
 
 	err := s.storageServer.Start()

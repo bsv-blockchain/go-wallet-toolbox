@@ -11,16 +11,16 @@ services:
       - OTEL_EXPORTER_OTLP_INSECURE=true
 
   db:
-    image: postgres
+    image: postgres:17-alpine
     volumes:
       - db-data:/var/lib/postgresql/data:Z
     environment:
       - POSTGRES_NAME=postgres
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for local development}
       - POSTGRES_DB=storage
     ports:
-      - 5432:5432
+      - "127.0.0.1:5432:5432"
 
 volumes:
   db-data:
