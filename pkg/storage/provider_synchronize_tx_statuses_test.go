@@ -387,6 +387,64 @@ func TestSynchronizeTxMaxRebroadcastAttemptsCircuitBreaker(t *testing.T) {
 		WithStatus(wdk.TxStatusFailed)
 }
 
+func TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and:
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	// and:
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		// when:
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnsent).
+			WithAttempts(0).
+			WithRebroadcastAttempts(cycle).
+			WasBroadcast(true)
+	}
+
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithRebroadcastAttempts(cfg.MaxRebroadcastAttempts).
+		WasBroadcast(true).
+		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
+}
+
 func TestSynchronizeTxEdgeCases(t *testing.T) {
 	tests := map[string]struct {
 		setupARCMock func(arcQueryFixture testservices.ARCQueryFixture)

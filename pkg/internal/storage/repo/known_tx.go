@@ -251,6 +251,49 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 	return mapKnownTxRowsForStatusSync(rows), nil
 }
 
+func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsReadyForStatusSync")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	var rows []*models.KnownTx
+	query := p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Select("tx_id, status, attempts, was_broadcast, rebroadcast_attempts, batch").
+		Scopes(scopes.FromQueryOpts(opts)...)
+	query = withReadyForStatusSyncFilter(query, txStatus)
+
+	err = query.Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find known tx ids ready for status sync: %w", err)
+	}
+
+	return mapKnownTxRowsForStatusSync(rows), nil
+}
+
+func withReadyForStatusSyncFilter(query *gorm.DB, txStatus []wdk.ProvenTxReqStatus) *gorm.DB {
+	statusesWithoutUnsent := make([]wdk.ProvenTxReqStatus, 0, len(txStatus))
+	for _, status := range txStatus {
+		if status == wdk.ProvenTxStatusUnsent {
+			continue
+		}
+		statusesWithoutUnsent = append(statusesWithoutUnsent, status)
+	}
+
+	if len(statusesWithoutUnsent) == 0 {
+		return query.Where("status = ? AND was_broadcast = ?", wdk.ProvenTxStatusUnsent, true)
+	}
+
+	return query.Where(
+		"(status IN ? OR (status = ? AND was_broadcast = ?))",
+		statusesWithoutUnsent,
+		wdk.ProvenTxStatusUnsent,
+		true,
+	)
+}
+
 func (p *KnownTx) FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.KnownTxForStatusSync, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsByStatusesNeedingFailureReview")
@@ -416,7 +459,7 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 		query := tx.Model(&models.KnownTx{}).
 			Where("attempts >= ?", attempts)
 		if len(statuses) > 0 {
-			query = query.Where("status IN ?", statuses)
+			query = withReadyForStatusSyncFilter(query, statuses)
 		}
 
 		if err := query.
