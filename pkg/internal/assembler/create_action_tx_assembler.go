@@ -17,12 +17,12 @@ import (
 )
 
 type CreateActionTransactionAssembler struct {
-	tx                        *transaction.Transaction
-	keyDeriver                *wallet.KeyDeriver
-	createActionResult        *wdk.StorageCreateActionResult
-	providedInputs            []wallet.CreateActionInput
-	providedInputsByOutpoint  map[string]wallet.CreateActionInput
-	inputBEEF                 *transaction.Beef
+	tx                       *transaction.Transaction
+	keyDeriver               *wallet.KeyDeriver
+	createActionResult       *wdk.StorageCreateActionResult
+	providedInputs           []wallet.CreateActionInput
+	providedInputsByOutpoint map[string]wallet.CreateActionInput
+	inputBEEF                *transaction.Beef
 }
 
 func NewCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, providedInputs []wallet.CreateActionInput, createActionResult *wdk.StorageCreateActionResult) *CreateActionTransactionAssembler {
