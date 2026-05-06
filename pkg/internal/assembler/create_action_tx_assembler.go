@@ -17,19 +17,26 @@ import (
 )
 
 type CreateActionTransactionAssembler struct {
-	tx                 *transaction.Transaction
-	keyDeriver         *wallet.KeyDeriver
-	createActionResult *wdk.StorageCreateActionResult
-	providedInputs     []wallet.CreateActionInput
-	inputBEEF          *transaction.Beef
+	tx                        *transaction.Transaction
+	keyDeriver                *wallet.KeyDeriver
+	createActionResult        *wdk.StorageCreateActionResult
+	providedInputs            []wallet.CreateActionInput
+	providedInputsByOutpoint  map[string]wallet.CreateActionInput
+	inputBEEF                 *transaction.Beef
 }
 
 func NewCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, providedInputs []wallet.CreateActionInput, createActionResult *wdk.StorageCreateActionResult) *CreateActionTransactionAssembler {
+	byOutpoint := make(map[string]wallet.CreateActionInput, len(providedInputs))
+	for _, inp := range providedInputs {
+		key := fmt.Sprintf("%s.%d", inp.Outpoint.Txid.String(), inp.Outpoint.Index)
+		byOutpoint[key] = inp
+	}
 	return &CreateActionTransactionAssembler{
-		keyDeriver:         keyDeriver,
-		createActionResult: createActionResult,
-		providedInputs:     providedInputs,
-		tx:                 &transaction.Transaction{},
+		keyDeriver:               keyDeriver,
+		createActionResult:       createActionResult,
+		providedInputs:           providedInputs,
+		providedInputsByOutpoint: byOutpoint,
+		tx:                       &transaction.Transaction{},
 	}
 }
 
@@ -161,19 +168,16 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 }
 
 func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCreateTransactionSdkInput, sourceTxID *chainhash.Hash) (*transaction.TransactionInput, error) {
-	if it.Vin < 0 {
-		return nil, fmt.Errorf("unexpected negative input index %d", it.Vin)
-	}
-
-	argsInput := a.providedInputs[it.Vin]
-	if !argsInput.Outpoint.Txid.Equal(*sourceTxID) || argsInput.Outpoint.Index != it.SourceVout {
-		return nil, fmt.Errorf("unexpected input (outpoint: %s.%d) on index %d", it.SourceTxID, it.SourceVout, it.Vin)
+	key := fmt.Sprintf("%s.%d", it.SourceTxID, it.SourceVout)
+	argsInput, ok := a.providedInputsByOutpoint[key]
+	if !ok {
+		return nil, fmt.Errorf("unexpected input (outpoint: %s) not found in provided inputs", key)
 	}
 
 	sourceTx := a.inputBEEF.FindTransaction(it.SourceTxID)
 
 	return &transaction.TransactionInput{
-		SourceTXID:        &argsInput.Outpoint.Txid,
+		SourceTXID:        sourceTxID,
 		SourceTxOutIndex:  argsInput.Outpoint.Index,
 		UnlockingScript:   script.NewFromBytes(argsInput.UnlockingScript),
 		SequenceNumber:    to.ValueOr(argsInput.SequenceNumber, transaction.DefaultSequenceNumber),
@@ -182,7 +186,9 @@ func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCrea
 }
 
 func (a *CreateActionTransactionAssembler) isInputFromArgs(it *wdk.StorageCreateTransactionSdkInput) bool {
-	return len(a.providedInputs) > it.Vin
+	key := fmt.Sprintf("%s.%d", it.SourceTxID, it.SourceVout)
+	_, ok := a.providedInputsByOutpoint[key]
+	return ok
 }
 
 func (a *CreateActionTransactionAssembler) parseInputBEEF() error {
