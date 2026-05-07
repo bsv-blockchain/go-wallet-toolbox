@@ -9,5 +9,5 @@ type UpsertKnownTx struct {
 	RawTx         []byte
 	TxID          string
 	Status        wdk.ProvenTxReqStatus
-	SkipForStatus *wdk.ProvenTxReqStatus
+	SkipForStatuses []wdk.ProvenTxReqStatus
 }

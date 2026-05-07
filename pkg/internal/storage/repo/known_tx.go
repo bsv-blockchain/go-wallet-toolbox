@@ -69,9 +69,12 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 		return fmt.Errorf("cannot upsert known tx: %w", err)
 	}
 
-	if req.SkipForStatus != nil && model.Status == *req.SkipForStatus {
-		// If the status is the same as the one we want to skip, we do not update it.
-		return nil
+	if len(req.SkipForStatuses) > 0 {
+		for _, skipStatus := range req.SkipForStatuses {
+			if model.Status == skipStatus {
+				return nil
+			}
+		}
 	}
 
 	model.Status = req.Status

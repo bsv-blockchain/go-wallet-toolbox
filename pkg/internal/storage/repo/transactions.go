@@ -369,7 +369,7 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			Status:        updatedTx.ReqTxStatus,
 			RawTx:         updatedTx.RawTx,
 			InputBeef:     updatedTx.InputBeef,
-			SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
+			SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted},
 		}, txNote)
 	})
 	if err != nil {

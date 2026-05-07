@@ -379,7 +379,7 @@ func (in *internalize) storeNewTx(
 		RawTx:         tx.Bytes(),
 		InputBeef:     args.Tx,
 		Status:        wdk.ProvenTxStatusUnmined,
-		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
+		SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent},
 	}, history.NewBuilder().InternalizeAction(userID))
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
@@ -540,9 +540,9 @@ func (in *internalize) checkChangeBasket(ctx context.Context, userID int) error 
 
 func (in *internalize) isAllowedMergeStatus(status wdk.TxStatus) bool {
 	switch status {
-	case wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusNoSend:
+	case wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusNoSend, wdk.TxStatusSending:
 		return true
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return false
@@ -555,7 +555,9 @@ func (in *internalize) utxoStatusByTxStatusForMerge(txStatus wdk.TxStatus) (wdk.
 		return wdk.UTXOStatusMined, nil
 	case wdk.TxStatusUnproven:
 		return wdk.UTXOStatusUnproven, nil
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusSending, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusSending:
+		return wdk.UTXOStatusSending, nil
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return "", fmt.Errorf("unsupported transaction status for UTXO: %s", txStatus)
