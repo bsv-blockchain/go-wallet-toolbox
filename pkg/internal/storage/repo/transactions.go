@@ -365,10 +365,10 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 		}
 
 		return upsertKnownTx(tx, &entity.UpsertKnownTx{
-			TxID:          updatedTx.TxID,
-			Status:        updatedTx.ReqTxStatus,
-			RawTx:         updatedTx.RawTx,
-			InputBeef:     updatedTx.InputBeef,
+			TxID:            updatedTx.TxID,
+			Status:          updatedTx.ReqTxStatus,
+			RawTx:           updatedTx.RawTx,
+			InputBeef:       updatedTx.InputBeef,
 			SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted},
 		}, txNote)
 	})

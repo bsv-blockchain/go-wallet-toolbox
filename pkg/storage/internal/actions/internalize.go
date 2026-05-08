@@ -375,10 +375,10 @@ func (in *internalize) storeNewTx(
 	outputs []*OutputToInternalize,
 ) error {
 	err := in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
-		TxID:          txID,
-		RawTx:         tx.Bytes(),
-		InputBeef:     args.Tx,
-		Status:        wdk.ProvenTxStatusUnmined,
+		TxID:            txID,
+		RawTx:           tx.Bytes(),
+		InputBeef:       args.Tx,
+		Status:          wdk.ProvenTxStatusUnmined,
 		SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent},
 	}, history.NewBuilder().InternalizeAction(userID))
 	if err != nil {
