@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testTypeInt = "int"
+
 func TestMethodInfo_HasAnnotation(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -65,44 +67,44 @@ func TestArguments_SkipTypes(t *testing.T) {
 		{
 			name: "skip one type",
 			arguments: Arguments{
-				{Name: "param1", Type: "string"},
-				{Name: "param2", Type: "int"},
+				{Name: "param1", Type: typeNameString},
+				{Name: "param2", Type: testTypeInt},
 				{Name: "param3", Type: "bool"},
 			},
-			skipTypes: []string{"int"},
+			skipTypes: []string{testTypeInt},
 			expected: Arguments{
-				{Name: "param1", Type: "string"},
+				{Name: "param1", Type: typeNameString},
 				{Name: "param3", Type: "bool"},
 			},
 		},
 		{
 			name: "skip multiple types",
 			arguments: Arguments{
-				{Name: "param1", Type: "string"},
-				{Name: "param2", Type: "int"},
+				{Name: "param1", Type: typeNameString},
+				{Name: "param2", Type: testTypeInt},
 				{Name: "param3", Type: "bool"},
 			},
-			skipTypes: []string{"int", "bool"},
+			skipTypes: []string{testTypeInt, "bool"},
 			expected: Arguments{
-				{Name: "param1", Type: "string"},
+				{Name: "param1", Type: typeNameString},
 			},
 		},
 		{
 			name: "skip non-existent type",
 			arguments: Arguments{
-				{Name: "param1", Type: "string"},
-				{Name: "param2", Type: "int"},
+				{Name: "param1", Type: typeNameString},
+				{Name: "param2", Type: testTypeInt},
 			},
 			skipTypes: []string{"float"},
 			expected: Arguments{
-				{Name: "param1", Type: "string"},
-				{Name: "param2", Type: "int"},
+				{Name: "param1", Type: typeNameString},
+				{Name: "param2", Type: testTypeInt},
 			},
 		},
 		{
 			name:      "empty arguments",
 			arguments: Arguments{},
-			skipTypes: []string{"int"},
+			skipTypes: []string{testTypeInt},
 			expected:  Arguments{},
 		},
 	}
@@ -125,17 +127,17 @@ func TestArguments_ArgumentOfType(t *testing.T) {
 		{
 			name: "type exists",
 			arguments: Arguments{
-				{Name: "param1", Type: "string"},
-				{Name: "param2", Type: "int"},
+				{Name: "param1", Type: typeNameString},
+				{Name: "param2", Type: testTypeInt},
 			},
-			typeName: "int",
+			typeName: testTypeInt,
 			expected: "param2",
 		},
 		{
 			name: "type does not exist",
 			arguments: Arguments{
-				{Name: "param1", Type: "string"},
-				{Name: "param2", Type: "int"},
+				{Name: "param1", Type: typeNameString},
+				{Name: "param2", Type: testTypeInt},
 			},
 			typeName: "bool",
 			expected: "",
@@ -143,7 +145,7 @@ func TestArguments_ArgumentOfType(t *testing.T) {
 		{
 			name:      "empty arguments",
 			arguments: Arguments{},
-			typeName:  "int",
+			typeName:  testTypeInt,
 			expected:  "",
 		},
 	}
@@ -165,7 +167,7 @@ func TestResults_HasError(t *testing.T) {
 		{
 			name: "has error",
 			results: Results{
-				{Type: "string"},
+				{Type: typeNameString},
 				{Type: "error"},
 			},
 			expected: true,
@@ -173,8 +175,8 @@ func TestResults_HasError(t *testing.T) {
 		{
 			name: "does not have error",
 			results: Results{
-				{Type: "string"},
-				{Type: "int"},
+				{Type: typeNameString},
+				{Type: testTypeInt},
 			},
 			expected: false,
 		},
@@ -211,7 +213,7 @@ func TestResults_ReturnError(t *testing.T) {
 		{
 			name: "return string and error",
 			results: Results{
-				{Type: "string"},
+				{Type: typeNameString},
 				{Type: "error"},
 			},
 			errVarName: "err",
@@ -221,7 +223,7 @@ func TestResults_ReturnError(t *testing.T) {
 			name: "return bool, int and error",
 			results: Results{
 				{Type: "bool"},
-				{Type: "int"},
+				{Type: testTypeInt},
 				{Type: "error"},
 			},
 			errVarName: "err",
@@ -295,7 +297,7 @@ func TestIsNumberType(t *testing.T) {
 	}{
 		{
 			name:     "is int",
-			typeName: "int",
+			typeName: testTypeInt,
 			expected: true,
 		},
 		{
@@ -320,7 +322,7 @@ func TestIsNumberType(t *testing.T) {
 		},
 		{
 			name:     "is not number",
-			typeName: "string",
+			typeName: typeNameString,
 			expected: false,
 		},
 		{

@@ -17,6 +17,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+const customImplementationName = "custom"
+
 var (
 	mockTx   = testvectors.GivenTX().WithInput(10).WithP2PKHOutput(9)
 	mockTxID = mockTx.ID().String()
@@ -32,7 +34,7 @@ func TestServicesConfig_CustomServiceImplementation(t *testing.T) {
 
 	// and:
 	service := given.Services().
-		Opts(services.WithCustomImplementation("custom", customImplementation)).
+		Opts(services.WithCustomImplementation(customImplementationName, customImplementation)).
 		New()
 
 	// when:
@@ -52,7 +54,7 @@ func TestServicesConfig_CustomServicePartialImplementation(t *testing.T) {
 
 	// and:
 	service := given.Services().
-		Opts(services.WithCustomImplementation("custom", customImplementation)).
+		Opts(services.WithCustomImplementation(customImplementationName, customImplementation)).
 		New()
 
 	// when:
@@ -82,85 +84,85 @@ func TestServicesConfig_UseModifiers(t *testing.T) {
 	opts := []func(option *services.Options){
 		services.WithRawTxMethodsModifier(func(original []services.Named[services.RawTxFunc]) []services.Named[services.RawTxFunc] {
 			return append([]services.Named[services.RawTxFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.RawTx,
 			}}, original...)
 		}),
 		services.WithPostEFMethodsModifier(func(original []services.Named[services.PostEFFunc]) []services.Named[services.PostEFFunc] {
 			return append([]services.Named[services.PostEFFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.PostEF,
 			}}, original...)
 		}),
 		services.WithPostTXMethodsModifier(func(original []services.Named[services.PostTXFunc]) []services.Named[services.PostTXFunc] {
 			return append([]services.Named[services.PostTXFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.PostTX,
 			}}, original...)
 		}),
 		services.WithMerklePathMethodsModifier(func(original []services.Named[services.MerklePathFunc]) []services.Named[services.MerklePathFunc] {
 			return append([]services.Named[services.MerklePathFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.MerklePath,
 			}}, original...)
 		}),
 		services.WithFindChainTipHeaderMethodsModifier(func(original []services.Named[services.FindChainTipHeaderFunc]) []services.Named[services.FindChainTipHeaderFunc] {
 			return append([]services.Named[services.FindChainTipHeaderFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.FindChainTipHeader,
 			}}, original...)
 		}),
 		services.WithIsValidRootForHeightMethodsModifier(func(original []services.Named[services.IsValidRootForHeightFunc]) []services.Named[services.IsValidRootForHeightFunc] {
 			return append([]services.Named[services.IsValidRootForHeightFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.IsValidRootForHeight,
 			}}, original...)
 		}),
 		services.WithCurrentHeightMethodsModifier(func(original []services.Named[services.CurrentHeightFunc]) []services.Named[services.CurrentHeightFunc] {
 			return append([]services.Named[services.CurrentHeightFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.CurrentHeight,
 			}}, original...)
 		}),
 		services.WithGetScriptHashHistoryMethodsModifier(func(original []services.Named[services.GetScriptHashHistoryFunc]) []services.Named[services.GetScriptHashHistoryFunc] {
 			return append([]services.Named[services.GetScriptHashHistoryFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.GetScriptHashHistory,
 			}}, original...)
 		}),
 		services.WithHashToHeaderMethodsModifier(func(original []services.Named[services.HashToHeaderFunc]) []services.Named[services.HashToHeaderFunc] {
 			return append([]services.Named[services.HashToHeaderFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.HashToHeader,
 			}}, original...)
 		}),
 		services.WithChainHeaderByHeightMethodsModifier(func(original []services.Named[services.ChainHeaderByHeightFunc]) []services.Named[services.ChainHeaderByHeightFunc] {
 			return append([]services.Named[services.ChainHeaderByHeightFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.ChainHeaderByHeight,
 			}}, original...)
 		}),
 		services.WithGetStatusForTxIDsMethodsModifier(func(original []services.Named[services.GetStatusForTxIDsFunc]) []services.Named[services.GetStatusForTxIDsFunc] {
 			return append([]services.Named[services.GetStatusForTxIDsFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.GetStatusForTxIDs,
 			}}, original...)
 		}),
 		services.WithGetUtxoStatusMethodsModifier(func(original []services.Named[services.GetUtxoStatusFunc]) []services.Named[services.GetUtxoStatusFunc] {
 			return append([]services.Named[services.GetUtxoStatusFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.GetUtxoStatus,
 			}}, original...)
 		}),
 		services.WithIsUtxoMethodsModifier(func(original []services.Named[services.IsUtxo]) []services.Named[services.IsUtxo] {
 			return append([]services.Named[services.IsUtxo]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.IsUtxo,
 			}}, original...)
 		}),
 		services.WithBsvExchangeRateMethodsModifier(func(original []services.Named[services.BsvExchangeRateFunc]) []services.Named[services.BsvExchangeRateFunc] {
 			return append([]services.Named[services.BsvExchangeRateFunc]{{
-				Name: "custom",
+				Name: customImplementationName,
 				Item: mock.BsvExchangeRate,
 			}}, original...)
 		}),
@@ -183,7 +185,7 @@ func TestServicesConfig_ProvideImplementationWithTheSameName(t *testing.T) {
 	given := testservices.GivenServices(t)
 	counter1 := 0
 	counter2 := 0
-	const theSameName = "custom"
+	const theSameName = customImplementationName
 
 	// and:
 	customImplementation1 := services.Implementation{
@@ -241,7 +243,7 @@ func TestServicesConfig_DisableAllPredefinedServices(t *testing.T) {
 }
 
 func TestServicesConfig_AdjustOrderOfServices(t *testing.T) {
-	const customServiceName = "custom"
+	const customServiceName = customImplementationName
 	const customServiceRate = 10.0
 
 	t.Run("custom service is moved to the last position", func(t *testing.T) {

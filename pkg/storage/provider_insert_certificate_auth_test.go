@@ -13,6 +13,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
+const (
+	exampleFieldName  = "exampleField"
+	exampleFieldValue = "exampleValue"
+)
+
 func TestInsertCertificateAuth(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
@@ -42,11 +47,11 @@ func TestInsertCertificateAuth(t *testing.T) {
 				RevocationOutpoint: fixtures.RevocationOutpoint,
 				Signature:          fixtures.Signature,
 				Fields: map[primitives.StringUnder50Bytes]string{
-					"exampleField": "exampleValue",
+					exampleFieldName: exampleFieldValue,
 				},
 			},
 			Keyring: map[primitives.StringUnder50Bytes]primitives.Base64String{
-				"exampleField": "exampleValue",
+				exampleFieldName: exampleFieldValue,
 			},
 		}}
 
@@ -80,11 +85,11 @@ func TestInsertCertificateAuth(t *testing.T) {
 				RevocationOutpoint: fixtures.RevocationOutpoint,
 				Signature:          fixtures.Signature,
 				Fields: map[primitives.StringUnder50Bytes]string{
-					"exampleField": "exampleValue",
+					exampleFieldName: exampleFieldValue,
 				},
 			},
 			Keyring: map[primitives.StringUnder50Bytes]primitives.Base64String{
-				"exampleField": "exampleValue",
+				exampleFieldName: exampleFieldValue,
 			},
 		}, {
 			Verifier: "",
@@ -96,11 +101,11 @@ func TestInsertCertificateAuth(t *testing.T) {
 				RevocationOutpoint: fixtures.RevocationOutpoint,
 				Signature:          fixtures.Signature,
 				Fields: map[primitives.StringUnder50Bytes]string{
-					"exampleField": "exampleValue",
+					exampleFieldName: exampleFieldValue,
 				},
 			},
 			Keyring: map[primitives.StringUnder50Bytes]primitives.Base64String{
-				"exampleField": "exampleValue",
+				exampleFieldName: exampleFieldValue,
 			},
 		}}
 
@@ -145,11 +150,11 @@ func TestInsertCertificateAuth(t *testing.T) {
 				RevocationOutpoint: fixtures.RevocationOutpoint,
 				Signature:          fixtures.Signature,
 				Fields: map[primitives.StringUnder50Bytes]string{
-					"exampleField": "exampleValue",
+					exampleFieldName: exampleFieldValue,
 				},
 			},
 			Keyring: map[primitives.StringUnder50Bytes]primitives.Base64String{
-				"exampleField": "exampleValue",
+				exampleFieldName: exampleFieldValue,
 			},
 		}}
 

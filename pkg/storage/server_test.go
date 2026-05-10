@@ -454,11 +454,11 @@ func TestRPCCommunication(t *testing.T) {
 					RevocationOutpoint: fixtures.RevocationOutpoint,
 					Signature:          fixtures.Signature,
 					Fields: map[primitives.StringUnder50Bytes]string{
-						"exampleField": "exampleValue",
+						exampleFieldName: exampleFieldValue,
 					},
 				},
 				Keyring: map[primitives.StringUnder50Bytes]primitives.Base64String{
-					"exampleField": "exampleValue",
+					exampleFieldName: exampleFieldValue,
 				},
 			}},
 		}
