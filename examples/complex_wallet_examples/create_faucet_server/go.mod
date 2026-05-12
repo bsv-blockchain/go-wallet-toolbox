@@ -1,6 +1,6 @@
 module github.com/bsv-blockchain/go-wallet-toolbox-faucet-server
 
-go 1.26.0
+go 1.26.3
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.23

@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,14 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		  "txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
 		  "satoshis": 99904
 		}`, string(resultJSON))
+	})
+
+	t.Run("Broadcast internalized tx", func(t *testing.T) {
+		// After internalize, the unmined tx is in Unsent/Sending state.
+		// We need to broadcast it so UTXOs transition from Sending to Unproven (spendable).
+		given.Provider().ARC().WhenQueryingTx("756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6").WillReturnTransactionWithoutMerklePath()
+		_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+		require.NoError(t, err)
 	})
 
 	t.Run("Create", func(t *testing.T) {
