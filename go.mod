@@ -10,7 +10,7 @@ require (
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.1
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.0
-	github.com/go-co-op/gocron/v2 v2.21.1
+	github.com/go-co-op/gocron/v2 v2.21.2
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/go-softwarelab/common v1.8.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
