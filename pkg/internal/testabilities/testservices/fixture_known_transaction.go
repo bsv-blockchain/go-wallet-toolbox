@@ -20,6 +20,19 @@ type knownTransaction struct {
 	competingTxs []string
 }
 
+func (t *knownTransaction) clone() *knownTransaction {
+	if t == nil {
+		return nil
+	}
+
+	cloned := *t
+	if t.competingTxs != nil {
+		cloned.competingTxs = append([]string(nil), t.competingTxs...)
+	}
+
+	return &cloned
+}
+
 func (t *knownTransaction) toResponse() (*http.Response, error) {
 	if t != nil && t.unreachable {
 		return nil, net.UnknownNetworkError("tests defined this endpoint for tx as unreachable")

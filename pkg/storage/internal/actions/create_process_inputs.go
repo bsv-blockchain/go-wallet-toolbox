@@ -47,19 +47,6 @@ func (inputs xinputDefinitions) iter() iter.Seq[*xinputDefinition] {
 	return seq.FromSlice(inputs)
 }
 
-func (inputs xinputDefinitions) knownOutputs() iter.Seq[*pkgentity.Output] {
-	knownOutputs := func(input *xinputDefinition) bool { return input.knownOutput != nil }
-	toTableOutput := func(input *xinputDefinition) *pkgentity.Output { return input.knownOutput }
-
-	return seq.Map(seq.Filter(inputs.iter(), knownOutputs), toTableOutput)
-}
-
-func (inputs xinputDefinitions) providedByUserAndUnknown() iter.Seq[*xinputDefinition] {
-	unknownOutputs := func(input *xinputDefinition) bool { return input.knownOutput == nil }
-
-	return seq.Filter(inputs.iter(), unknownOutputs)
-}
-
 type processedInputsResult struct {
 	Inputs          xinputDefinitions
 	Beef            *transaction.Beef
