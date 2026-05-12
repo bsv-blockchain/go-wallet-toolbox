@@ -3,6 +3,7 @@ package storage_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -64,6 +65,7 @@ func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
 	require.Equal(t, expectedResult, actualResult)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID.String()).WithBlockHash(to.Ptr(pkgtestabilities.TestBlockHash))
 }
@@ -108,14 +110,18 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(1).
-				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+				Count(4).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, nil).
+				Note("postBeefError", nil, nil).
+				Note("aggregateResults", nil, nil)
 		})
 
 	thenDBState.AllOutputs(testusers.Alice).WithCountHavingTxID(1)
@@ -147,14 +153,18 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(1).
-				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+				Count(4).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, nil).
+				Note("postBeefError", nil, nil).
+				Note("aggregateResults", nil, nil)
 		})
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
@@ -200,7 +210,8 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 			require.Error(t, err)
 
 			// and db state:
-			thenDBState := testabilities.ThenDBState(t, activeStorage)
+			time.Sleep(200 * time.Millisecond) // wait for background broadcaster
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
 			thenDBState.AllOutputs(testusers.Alice).WithCount(0)
 		})
 	}
@@ -237,7 +248,8 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(0), result.Satoshis)
 
 		// and db state:
-		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -311,8 +323,10 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(0), result.Satoshis)
 
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		// and db state:
-		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -361,7 +375,8 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(-alreadyOwnedSatoshis), result.Satoshis)
 
 		// and db state:
-		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -425,7 +440,8 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(fixtures.DefaultCreateActionOutputSatoshis), result.Satoshis)
 
 		// and db state:
-		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -467,7 +483,8 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		require.NoError(t, err)
 
 		// and db state:
-		thenDBState := testabilities.ThenDBState(t, activeStorage)
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID().String())).
 			WithLabels(initialLabel, labelToAdd)
 	})
@@ -537,6 +554,7 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 	assert.Equal(t, int64(0), result.Satoshis)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().

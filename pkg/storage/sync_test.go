@@ -3,6 +3,7 @@ package storage_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -28,6 +29,7 @@ func TestSyncProcess(t *testing.T) {
 	ownedMinedTx := seed.SetLabels(commonLabel, customLabelTx1).OwnsMinedTransaction()
 	ownedTx := seed.SetLabels(commonLabel, customLabelTx2).OwnsTransaction()
 	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 
 	// and:
 	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
@@ -63,8 +65,11 @@ func TestSyncProcess(t *testing.T) {
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		HasRawTx().
 		TxNotes(func(then testabilities.TxNotesAssertion) {
-			then.Count(1).
-				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+			then.Count(4).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, nil).
+				Note("postBeefError", nil, nil).
+				Note("aggregateResults", nil, nil)
 		})
 
 	// and user's transactions:

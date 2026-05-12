@@ -34,6 +34,22 @@ func New(
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 ) *Actions {
+	processAction := newProcessAction(
+		ctx,
+		logger,
+		repos.Transactions,
+		commission,
+		repos.Outputs,
+		repos.KnownTx,
+		repos.Commission,
+		repos.UTXOs,
+		services,
+		randomizer,
+		beefVerifier,
+		scriptsVerifier,
+		txBroadcastedChannel,
+	)
+
 	return &Actions{
 		create: newCreateAction(
 			logger,
@@ -59,22 +75,9 @@ func New(
 			beefVerifier,
 			scriptsVerifier,
 			services,
+			processAction.backgroundBroadcaster,
 		),
-		process: newProcessAction(
-			ctx,
-			logger,
-			repos.Transactions,
-			commission,
-			repos.Outputs,
-			repos.KnownTx,
-			repos.Commission,
-			repos.UTXOs,
-			services,
-			randomizer,
-			beefVerifier,
-			scriptsVerifier,
-			txBroadcastedChannel,
-		),
+		process:               processAction,
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions, repos.Outputs),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),

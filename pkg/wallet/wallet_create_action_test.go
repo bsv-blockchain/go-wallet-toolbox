@@ -396,13 +396,13 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
-		given.Services().ARC().HoldBroadcasting()
-
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		given.Services().ARC().HoldBroadcasting()
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast())
@@ -448,8 +448,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
-		given.Services().ARC().HoldBroadcasting()
-
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
@@ -459,6 +457,8 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 			// NOTE: We need to create multiple UTXOs one for each transaction because they will be reserved until the broadcast is released.
 			_, _ = faucet.TopUp(topUpValue)
 		}
+
+		given.Services().ARC().HoldBroadcasting()
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast(), walletargs.WithSatoshisAsFirstOutput(1))

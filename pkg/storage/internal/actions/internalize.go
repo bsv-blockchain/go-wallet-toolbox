@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
+
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
@@ -30,15 +32,16 @@ type OutputToInternalize struct {
 }
 
 type internalize struct {
-	logger             *slog.Logger
-	txRepo             TransactionsRepo
-	basketRepo         BasketRepo
-	knownTxRepo        KnownTxRepo
-	outputRepo         OutputRepo
-	random             wdk.Randomizer
-	beefVerifier       wdk.BeefVerifier
-	scriptsVerifier    wdk.ScriptsVerifier
-	blockHeaderService wdk.BlockHeaderLoader
+	logger                *slog.Logger
+	txRepo                TransactionsRepo
+	basketRepo            BasketRepo
+	knownTxRepo           KnownTxRepo
+	outputRepo            OutputRepo
+	random                wdk.Randomizer
+	beefVerifier          wdk.BeefVerifier
+	scriptsVerifier       wdk.ScriptsVerifier
+	blockHeaderService    wdk.BlockHeaderLoader
+	backgroundBroadcaster *service.BackgroundBroadcaster
 }
 
 func newInternalizeAction(
@@ -51,18 +54,20 @@ func newInternalizeAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	blockHeader wdk.BlockHeaderLoader,
+	backgroundBroadcaster *service.BackgroundBroadcaster,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:             logger,
-		txRepo:             txRepo,
-		basketRepo:         basketRepo,
-		knownTxRepo:        knownTxRepo,
-		outputRepo:         outputRepo,
-		random:             random,
-		beefVerifier:       beefVerifier,
-		scriptsVerifier:    scriptsVerifier,
-		blockHeaderService: blockHeader,
+		logger:                logger,
+		txRepo:                txRepo,
+		basketRepo:            basketRepo,
+		knownTxRepo:           knownTxRepo,
+		outputRepo:            outputRepo,
+		random:                random,
+		beefVerifier:          beefVerifier,
+		scriptsVerifier:       scriptsVerifier,
+		blockHeaderService:    blockHeader,
+		backgroundBroadcaster: backgroundBroadcaster,
 	}
 }
 
@@ -220,7 +225,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 			slog.String("description", string(args.Description)),
 		)
 
-		err = in.storeNewTx(ctx, userID, args, txID, tx, cumulativeSatoshis, outputs)
+		err = in.storeNewTx(ctx, userID, args, txID, tx, cumulativeSatoshis, outputs, beef)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store new transaction: %w", err)
 		}
@@ -373,13 +378,48 @@ func (in *internalize) storeNewTx(
 	tx *transaction.Transaction,
 	cumulativeSatoshis satoshi.Value,
 	outputs []*OutputToInternalize,
+	beef *transaction.Beef,
 ) error {
-	err := in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+	isMined := tx.MerklePath != nil
+
+	// check if transaction already exists in DB with a confirmed broadcast status
+	statuses, err := in.knownTxRepo.FindKnownTxStatuses(ctx, txID)
+	if err != nil {
+		return fmt.Errorf("failed to find existing known tx status: %w", err)
+	}
+
+	alreadySent := false
+	if existingStatus, ok := statuses[txID]; ok {
+		if existingStatus.AlreadySent() {
+			alreadySent = true
+		}
+	}
+
+	knownTxStatus := wdk.ProvenTxStatusUnsent
+	txStatus := wdk.TxStatusSending
+	utxoStatus := wdk.UTXOStatusSending
+	shouldPushToBroadcaster := true
+
+	if isMined || alreadySent {
+		knownTxStatus = wdk.ProvenTxStatusUnmined
+		txStatus = wdk.TxStatusUnproven
+		utxoStatus = wdk.UTXOStatusUnproven
+		shouldPushToBroadcaster = false
+	}
+
+	skipForStatuses := []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted}
+	if knownTxStatus == wdk.ProvenTxStatusUnmined {
+		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined)
+	} else {
+		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent)
+	}
+
+	err = in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
 		TxID:            txID,
 		RawTx:           tx.Bytes(),
 		InputBeef:       args.Tx,
-		Status:          wdk.ProvenTxStatusUnmined,
-		SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent},
+		Status:          knownTxStatus,
+		SkipForStatuses: skipForStatuses,
 	}, history.NewBuilder().InternalizeAction(userID))
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
@@ -394,8 +434,8 @@ func (in *internalize) storeNewTx(
 		UserID:      userID,
 		Version:     tx.Version,
 		LockTime:    tx.LockTime,
-		Status:      wdk.TxStatusUnproven,
-		UTXOStatus:  wdk.UTXOStatusUnproven,
+		Status:      txStatus,
+		UTXOStatus:  utxoStatus,
 		Reference:   reference,
 		IsOutgoing:  false,
 		Description: string(args.Description),
@@ -409,6 +449,15 @@ func (in *internalize) storeNewTx(
 	if err != nil {
 		return fmt.Errorf("failed to create transaction: %w", err)
 	}
+
+	if shouldPushToBroadcaster && in.backgroundBroadcaster != nil {
+		in.logger.DebugContext(ctx, "Pushing unmined internalized tx to background broadcaster",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+		)
+		in.backgroundBroadcaster.Add(beef, []string{txID})
+	}
+
 	return nil
 }
 
