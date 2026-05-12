@@ -83,4 +83,6 @@ func TestInternalizeCrossUser(t *testing.T) {
 
 		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status, "KnownTx was correctly preserved as Sending")
 	})
+
+	activeStorage.Stop()
 }

@@ -36,6 +36,8 @@ type BackgroundBroadcaster struct {
 
 	// optional notification channel
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus
+
+	stopOnce sync.Once
 }
 
 type broadcastItem struct {
@@ -64,9 +66,11 @@ func (bb *BackgroundBroadcaster) Start() {
 }
 
 func (bb *BackgroundBroadcaster) Stop() {
-	bb.cancel()
-	bb.wg.Wait()
-	close(bb.broadcastChannel)
+	bb.stopOnce.Do(func() {
+		bb.cancel()
+		bb.wg.Wait()
+		close(bb.broadcastChannel)
+	})
 }
 
 func (bb *BackgroundBroadcaster) Add(beef *transaction.Beef, txIDs []string) (added bool) {
