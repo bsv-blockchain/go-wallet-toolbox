@@ -673,24 +673,25 @@ func (c *create) resultInputs(ctx context.Context, allocatedUTXOs []*funder.UTXO
 	resultInputs := make([]*wdk.StorageCreateTransactionSdkInput, 0, len(allocatedUTXOs)+len(xinputs))
 
 	var vin int
-	for unknownProvided := range xinputs.providedByUserAndUnknown() {
-		input := &wdk.StorageCreateTransactionSdkInput{
-			Vin:                   vin,
-			SourceTxID:            unknownProvided.Outpoint.TxID,
-			SourceVout:            unknownProvided.Outpoint.Vout,
-			SourceSatoshis:        unknownProvided.Satoshis.Int64(),
-			SourceLockingScript:   hex.EncodeToString(unknownProvided.LockingScript),
-			UnlockingScriptLength: unknownProvided.UnlockingScriptLength,
-			ProvidedBy:            wdk.ProvidedByYou,
-			Type:                  wdk.OutputTypeCustom,
+	for inputDef := range xinputs.iter() {
+		if inputDef.knownOutput == nil {
+			input := &wdk.StorageCreateTransactionSdkInput{
+				Vin:                   vin,
+				SourceTxID:            inputDef.Outpoint.TxID,
+				SourceVout:            inputDef.Outpoint.Vout,
+				SourceSatoshis:        inputDef.Satoshis.Int64(),
+				SourceLockingScript:   hex.EncodeToString(inputDef.LockingScript),
+				UnlockingScriptLength: inputDef.UnlockingScriptLength,
+				ProvidedBy:            wdk.ProvidedByYou,
+				Type:                  wdk.OutputTypeCustom,
+			}
+
+			resultInputs = append(resultInputs, input)
+			vin++
+			continue
 		}
 
-		resultInputs = append(resultInputs, input)
-		vin++
-	}
-
-	for knownProvided := range xinputs.knownOutputs() {
-		input, err := c.resultInputForKnownUTXO(ctx, vin, knownProvided, includeRawTxs, wdk.ProvidedByYouAndStorage)
+		input, err := c.resultInputForKnownUTXO(ctx, vin, inputDef.knownOutput, includeRawTxs, wdk.ProvidedByYouAndStorage)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create result input for provided-by-user and known UTXO: %w", err)
 		}
