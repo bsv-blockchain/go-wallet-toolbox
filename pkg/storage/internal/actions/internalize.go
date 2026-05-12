@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
-
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
@@ -20,6 +18,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"

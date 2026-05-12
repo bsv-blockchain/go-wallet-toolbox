@@ -211,7 +211,7 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 
 			// and db state:
 			time.Sleep(200 * time.Millisecond) // wait for background broadcaster
-	thenDBState := testabilities.ThenDBState(t, activeStorage)
+			thenDBState := testabilities.ThenDBState(t, activeStorage)
 			thenDBState.AllOutputs(testusers.Alice).WithCount(0)
 		})
 	}
@@ -249,7 +249,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// and db state:
 		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
-	thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -326,7 +326,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		// and db state:
 		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
-	thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -376,7 +376,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// and db state:
 		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
-	thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -441,7 +441,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// and db state:
 		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
-	thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
 			WithStatus(wdk.ProvenTxStatusUnmined)
@@ -484,7 +484,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 
 		// and db state:
 		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
-	thenDBState := testabilities.ThenDBState(t, activeStorage)
+		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID().String())).
 			WithLabels(initialLabel, labelToAdd)
 	})
