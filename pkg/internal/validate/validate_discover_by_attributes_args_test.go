@@ -11,35 +11,37 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 )
 
+const testAttrValue = "value"
+
 func TestDiscoverByAttributesArgs_Success(t *testing.T) {
 	tests := map[string]sdk.DiscoverByAttributesArgs{
 		"valid args with single attribute": {
-			Attributes: map[string]string{"key": "value"},
+			Attributes: map[string]string{"key": testAttrValue},
 		},
 		"valid args with multiple attributes": {
 			Attributes: map[string]string{"key1": "val1", "key2": "val2"},
 		},
 		"valid args with limit": {
-			Attributes: map[string]string{"key": "value"},
+			Attributes: map[string]string{"key": testAttrValue},
 			Limit:      to.Ptr(uint32(100)),
 		},
 		"valid args with offset": {
-			Attributes: map[string]string{"key": "value"},
+			Attributes: map[string]string{"key": testAttrValue},
 			Offset:     to.Ptr(uint32(50)),
 		},
 		"valid args with max limit": {
-			Attributes: map[string]string{"key": "value"},
+			Attributes: map[string]string{"key": testAttrValue},
 			Limit:      to.Ptr(uint32(validate.MaxPaginationLimit)),
 		},
 		"valid args with max offset": {
-			Attributes: map[string]string{"key": "value"},
+			Attributes: map[string]string{"key": testAttrValue},
 			Offset:     to.Ptr(uint32(validate.MaxPaginationOffset)),
 		},
 		"valid args with attribute key at max length (50)": {
-			Attributes: map[string]string{strings.Repeat("a", 50): "value"},
+			Attributes: map[string]string{strings.Repeat("a", 50): testAttrValue},
 		},
 		"valid args with attribute key at min length (1)": {
-			Attributes: map[string]string{"a": "value"},
+			Attributes: map[string]string{"a": testAttrValue},
 		},
 	}
 
@@ -68,34 +70,34 @@ func TestDiscoverByAttributesArgs_Error(t *testing.T) {
 		},
 		"limit below minimum": {
 			args: sdk.DiscoverByAttributesArgs{
-				Attributes: map[string]string{"key": "value"},
+				Attributes: map[string]string{"key": testAttrValue},
 				Limit:      to.Ptr(uint32(0)),
 			},
 			expectedErr: "limit must be greater than 0",
 		},
 		"limit exceeds maximum": {
 			args: sdk.DiscoverByAttributesArgs{
-				Attributes: map[string]string{"key": "value"},
+				Attributes: map[string]string{"key": testAttrValue},
 				Limit:      to.Ptr(uint32(validate.MaxPaginationLimit + 1)),
 			},
 			expectedErr: "limit exceeds max allowed value",
 		},
 		"offset exceeds maximum": {
 			args: sdk.DiscoverByAttributesArgs{
-				Attributes: map[string]string{"key": "value"},
+				Attributes: map[string]string{"key": testAttrValue},
 				Offset:     to.Ptr(uint32(validate.MaxPaginationOffset + 1)),
 			},
 			expectedErr: "offset is too large",
 		},
 		"attribute key too long (51 chars)": {
 			args: sdk.DiscoverByAttributesArgs{
-				Attributes: map[string]string{strings.Repeat("a", 51): "value"},
+				Attributes: map[string]string{strings.Repeat("a", 51): testAttrValue},
 			},
 			expectedErr: "must be between 1 and 50",
 		},
 		"attribute key empty string": {
 			args: sdk.DiscoverByAttributesArgs{
-				Attributes: map[string]string{"": "value"},
+				Attributes: map[string]string{"": testAttrValue},
 			},
 			expectedErr: "must be between 1 and 50",
 		},

@@ -114,8 +114,8 @@ func TestPackage_PrintType(t *testing.T) {
 		{
 			name:     "same package - primitive type",
 			pkg:      NewPackage("test", "test", "github.com/example/test", true),
-			typeName: "string",
-			expected: "string",
+			typeName: typeNameString,
+			expected: typeNameString,
 		},
 		{
 			name:     "different package - exported type",
@@ -132,8 +132,8 @@ func TestPackage_PrintType(t *testing.T) {
 		{
 			name:     "different package - primitive type",
 			pkg:      NewPackage("client", "test", "github.com/example/test", false),
-			typeName: "string",
-			expected: "string",
+			typeName: typeNameString,
+			expected: typeNameString,
 		},
 		{
 			name:     "different package - empty type",
