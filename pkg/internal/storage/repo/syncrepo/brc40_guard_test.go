@@ -159,8 +159,9 @@ func TestBRC40Guard_Transaction_StaleSkip(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -216,8 +217,9 @@ func TestBRC40Guard_Transaction_EqualSkip(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -252,8 +254,9 @@ func TestBRC40Guard_Transaction_HappyUpdate(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -292,8 +295,9 @@ func TestBRC40Guard_Output_SpendableRegression(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -310,7 +314,7 @@ func TestBRC40Guard_Output_SpendableRegression(t *testing.T) {
 	require.NoError(t, err)
 
 	spentBy := uint(42)
-	basketName := "default"
+	basketName := defaultBasket
 	// Seed newer: spendable=false (consumed), spent_by=42
 	isNew, outputID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt:     tNewer,
@@ -359,8 +363,9 @@ func TestBRC40Guard_Output_HappyUpdate(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -376,7 +381,7 @@ func TestBRC40Guard_Output_HappyUpdate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	basketName := "default"
+	basketName := defaultBasket
 	_, outputID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt: tOld, UpdatedAt: tOld,
 		UserID: user.ID, TransactionID: txnDBID,
@@ -408,8 +413,9 @@ func TestBRC40Guard_Output_EqualSkip(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -424,7 +430,7 @@ func TestBRC40Guard_Output_EqualSkip(t *testing.T) {
 	require.NoError(t, err)
 
 	spentBy := uint(7)
-	basketName := "default"
+	basketName := defaultBasket
 	_, outputID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt: t0, UpdatedAt: t0,
 		UserID: user.ID, TransactionID: txnDBID,
@@ -457,8 +463,9 @@ func TestBRC40Guard_Flow_Regression(t *testing.T) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 

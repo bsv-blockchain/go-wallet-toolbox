@@ -2,6 +2,7 @@ package syncrepo_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -16,6 +17,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+const defaultBasket = "default"
 
 // BRC-40 conformance vector runner.
 //
@@ -40,23 +43,23 @@ import (
 // against an unreleased upstream version.
 
 type brc40Vector struct {
-	ID          string            `json:"id"`
-	Description string            `json:"description"`
-	Input       brc40Input        `json:"input"`
-	Expected    brc40Expected     `json:"expected"`
-	Tags        []string          `json:"tags"`
-	Skip        bool              `json:"skip"`
+	ID          string        `json:"id"`
+	Description string        `json:"description"`
+	Input       brc40Input    `json:"input"`
+	Expected    brc40Expected `json:"expected"`
+	Tags        []string      `json:"tags"`
+	Skip        bool          `json:"skip"`
 }
 
 type brc40Input struct {
-	Channel  string                   `json:"channel"`
-	Entity   string                   `json:"entity"`
-	Existing map[string]any           `json:"existing"`
-	Incoming map[string]any           `json:"incoming"`
-	Messages []map[string]any         `json:"messages"`
-	Message  map[string]any           `json:"message"`
-	Request  map[string]any           `json:"request"`
-	Response map[string]any           `json:"response"`
+	Channel  string           `json:"channel"`
+	Entity   string           `json:"entity"`
+	Existing map[string]any   `json:"existing"`
+	Incoming map[string]any   `json:"incoming"`
+	Messages []map[string]any `json:"messages"`
+	Message  map[string]any   `json:"message"`
+	Request  map[string]any   `json:"request"`
+	Response map[string]any   `json:"response"`
 }
 
 type brc40Expected struct {
@@ -67,15 +70,18 @@ type brc40Expected struct {
 }
 
 type brc40File struct {
-	ID      string         `json:"id"`
-	Name    string         `json:"name"`
-	Vectors []brc40Vector  `json:"vectors"`
+	ID      string        `json:"id"`
+	Name    string        `json:"name"`
+	Vectors []brc40Vector `json:"vectors"`
 }
 
 func loadBRC40Vectors(t *testing.T) brc40File {
 	t.Helper()
 	data := conformancevectors.BRC40UserState
 	if p := os.Getenv("BRC40_VECTORS_FILE"); p != "" {
+		// #nosec G304 -- developer-supplied override path for ad-hoc upstream
+		// testing; only consulted when the env var is explicitly set in a dev
+		// shell, never in CI.
 		override, err := os.ReadFile(p)
 		require.NoError(t, err, "BRC40_VECTORS_FILE=%s unreadable", p)
 		data = override
@@ -105,7 +111,6 @@ func TestBRC40Conformance_MergeExisting(t *testing.T) {
 	f := loadBRC40Vectors(t)
 
 	for _, v := range f.Vectors {
-		v := v
 		if v.Skip || v.Input.Channel != "brc40/mergeExisting" {
 			continue
 		}
@@ -129,8 +134,9 @@ func runMergeExistingTransaction(t *testing.T, v brc40Vector) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -182,8 +188,9 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -202,8 +209,8 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 	})
 	require.NoError(t, err)
 
-	basket := "default"
-	existingSpentBy := asOptionalUint(v.Input.Existing["spentBy"])
+	basket := defaultBasket
+	existingSpentBy := asOptionalUint(t, v.Input.Existing["spentBy"])
 	_, outID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt:     parseISO(t, asString(v.Input.Existing["created_at"])),
 		UpdatedAt:     parseISO(t, asString(v.Input.Existing["updated_at"])),
@@ -211,7 +218,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 		TransactionID: txnDBID,
 		SpentBy:       existingSpentBy,
 		Satoshis:      asInt64(v.Input.Existing["satoshis"]),
-		Vout:          uint32(asInt64(v.Input.Existing["vout"])),
+		Vout:          asUint32(t, v.Input.Existing["vout"]),
 		BasketName:    &basket,
 		Spendable:     asBool(v.Input.Existing["spendable"]),
 		Description:   "existing",
@@ -219,7 +226,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 	require.NoError(t, err)
 
 	// Drive incoming.
-	incomingSpentBy := asOptionalUint(v.Input.Incoming["spentBy"])
+	incomingSpentBy := asOptionalUint(t, v.Input.Incoming["spentBy"])
 	_, _, err = repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt:     parseISO(t, asString(v.Input.Incoming["created_at"])),
 		UpdatedAt:     parseISO(t, asString(v.Input.Incoming["updated_at"])),
@@ -227,7 +234,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 		TransactionID: txnDBID,
 		SpentBy:       incomingSpentBy,
 		Satoshis:      asInt64(v.Input.Incoming["satoshis"]),
-		Vout:          uint32(asInt64(v.Input.Incoming["vout"])),
+		Vout:          asUint32(t, v.Input.Incoming["vout"]),
 		BasketName:    &basket,
 		Spendable:     asBool(v.Input.Incoming["spendable"]),
 		Description:   "incoming",
@@ -260,7 +267,7 @@ func runMergeExistingProvenTx(t *testing.T, v brc40Vector) {
 	txid := asString(existing["txid"])
 
 	existingMerkle := []byte(asString(existing["merklePath"]))
-	existingHeight := uint32(asInt64(existing["height"]))
+	existingHeight := asUint32(t, existing["height"])
 	existingRoot := "root-existing"
 	existingHash := "hash-existing"
 	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
@@ -276,7 +283,7 @@ func runMergeExistingProvenTx(t *testing.T, v brc40Vector) {
 	require.NoError(t, err)
 
 	incomingMerkle := []byte(asString(incoming["merklePath"]))
-	incomingHeight := uint32(asInt64(incoming["height"]))
+	incomingHeight := asUint32(t, incoming["height"])
 	incomingRoot := "root-incoming"
 	incomingHash := "hash-incoming"
 	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
@@ -335,7 +342,6 @@ func assertMergeAction(t *testing.T, v brc40Vector, ctx txAssertCtx) {
 func TestBRC40Conformance_FlowRegression(t *testing.T) {
 	f := loadBRC40Vectors(t)
 	for _, v := range f.Vectors {
-		v := v
 		if v.Skip || v.Input.Channel != "brc40/flow" || v.Expected.FinalState == nil {
 			continue
 		}
@@ -350,8 +356,9 @@ func runFlowReplay(t *testing.T, v brc40Vector) {
 	defer cleanup()
 	repos := d.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
-		wdk.BasketConfiguration{Name: "default", NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-storage",
+		wdk.BasketConfiguration{Name: defaultBasket, NumberOfDesiredUTXOs: 1, MinimumDesiredUTXOValue: 1000},
 	)
 	require.NoError(t, err)
 
@@ -425,12 +432,23 @@ func asInt64(v any) int64 {
 	return 0
 }
 
-func asOptionalUint(v any) *uint {
+func asOptionalUint(t *testing.T, v any) *uint {
+	t.Helper()
 	if v == nil {
 		return nil
 	}
-	u := uint(asInt64(v))
+	n := asInt64(v)
+	require.GreaterOrEqual(t, n, int64(0), "negative value %d cannot fit in uint", n)
+	u := uint(n) //nolint:gosec // bounded by GreaterOrEqual check above
 	return &u
+}
+
+func asUint32(t *testing.T, v any) uint32 {
+	t.Helper()
+	n := asInt64(v)
+	require.GreaterOrEqual(t, n, int64(0), "negative value %d cannot fit in uint32", n)
+	require.LessOrEqual(t, n, int64(math.MaxUint32), "value %d overflows uint32", n)
+	return uint32(n) //nolint:gosec // bounded by LessOrEqual check above
 }
 
 func asMap(v any) map[string]any {
@@ -443,17 +461,20 @@ func asMap(v any) map[string]any {
 // non-null value becomes a stable synthesized string. The skip regression
 // vectors pin that a stale chunk with provenTxId=null MUST NOT clear an
 // existing row's TxID.
+//
+// JSON-encoded for stable formatting across number / string variants the
+// upstream vectors may use for provenTxId.
 func provenTxIDToTxIDPtr(provenTxID any, tag string) *string {
 	if provenTxID == nil {
 		return nil
 	}
-	s := "ptx-" + asString(toJSON(provenTxID)) + "-" + tag
+	b, err := json.Marshal(provenTxID)
+	if err != nil {
+		// JSON-decoded any is always re-encodable; this is unreachable.
+		panic("provenTxIDToTxIDPtr: json.Marshal failed: " + err.Error())
+	}
+	s := "ptx-" + string(b) + "-" + tag
 	return &s
-}
-
-func toJSON(v any) string {
-	b, _ := json.Marshal(v)
-	return string(b)
 }
 
 func assertOptionalStringEqual(t *testing.T, want, got *string) {
