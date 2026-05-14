@@ -3,13 +3,12 @@ package syncrepo_test
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	conformancevectors "github.com/bsv-blockchain/go-wallet-toolbox/conformance/vectors/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -20,8 +19,11 @@ import (
 
 // BRC-40 conformance vector runner.
 //
-// Consumes the conformance corpus at:
-//   ts-stack/conformance/vectors/sync/brc40-user-state.json
+// Consumes the vendored conformance corpus embedded via go:embed in:
+//   conformance/vectors/sync/sync.go
+//
+// Origin: bsv-blockchain/ts-stack, pinned via conformance/SOURCE.
+// Refresh: ./conformance/scripts/refresh-vectors.sh
 //
 // Reference dispatcher contract:
 //   ts-stack/conformance/runner/ts/dispatchers/sync.ts
@@ -34,12 +36,8 @@ import (
 // replays each syncChunk against the syncrepo and asserts the post-merge state
 // per natural key matches the finalState block.
 //
-// Vector file lookup order:
-//   1. $BRC40_VECTORS_FILE
-//   2. ../../../../../../../ts-stack/conformance/vectors/sync/brc40-user-state.json
-//      (relative to this test file)
-//
-// If neither is found, the test is skipped with a helpful pointer.
+// $BRC40_VECTORS_FILE may override the embedded corpus for ad-hoc testing
+// against an unreleased upstream version.
 
 type brc40Vector struct {
 	ID          string            `json:"id"`
@@ -74,32 +72,15 @@ type brc40File struct {
 	Vectors []brc40Vector  `json:"vectors"`
 }
 
-func locateBRC40Vectors(t *testing.T) string {
-	t.Helper()
-	if p := os.Getenv("BRC40_VECTORS_FILE"); p != "" {
-		return p
-	}
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	candidate := filepath.Join(filepath.Dir(thisFile),
-		"..", "..", "..", "..", "..", "..", "..",
-		"ts-stack", "conformance", "vectors", "sync", "brc40-user-state.json")
-	abs, _ := filepath.Abs(candidate)
-	if _, err := os.Stat(abs); err == nil {
-		return abs
-	}
-	return ""
-}
-
 func loadBRC40Vectors(t *testing.T) brc40File {
 	t.Helper()
-	path := locateBRC40Vectors(t)
-	if path == "" {
-		t.Skip("BRC-40 conformance vectors not found. Set BRC40_VECTORS_FILE or " +
-			"check out ts-stack as a sibling repo. See conformance/vectors/sync/brc40-user-state.json.")
+	data := conformancevectors.BRC40UserState
+	if p := os.Getenv("BRC40_VECTORS_FILE"); p != "" {
+		override, err := os.ReadFile(p)
+		require.NoError(t, err, "BRC40_VECTORS_FILE=%s unreadable", p)
+		data = override
 	}
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
+	require.NotEmpty(t, data, "embedded BRC-40 vectors empty — refresh via ./conformance/scripts/refresh-vectors.sh")
 	var f brc40File
 	require.NoError(t, json.Unmarshal(data, &f))
 	return f
