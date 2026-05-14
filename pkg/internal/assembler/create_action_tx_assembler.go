@@ -58,7 +58,9 @@ func (a *CreateActionTransactionAssembler) Assemble() (*AssembledTransaction, er
 		return nil, err
 	}
 
-	return &AssembledTransaction{Transaction: a.tx, inputBEEF: a.inputBEEF}, nil
+	assembled := &AssembledTransaction{Transaction: a.tx, inputBEEF: a.inputBEEF}
+	assembled.initialTxID = assembled.TxID()
+	return assembled, nil
 }
 
 func (a *CreateActionTransactionAssembler) fillTransactionHeader() {

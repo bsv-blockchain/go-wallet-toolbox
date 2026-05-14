@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 
@@ -13,13 +14,15 @@ import (
 type AssembledTransaction struct {
 	*transaction.Transaction
 
-	inputBEEF *transaction.Beef
+	inputBEEF    *transaction.Beef
+	initialTxID *chainhash.Hash
 }
 
 func NewAssembledTxFromPendingSignAction(pendingSignAction *pending.SignAction) *AssembledTransaction {
 	return &AssembledTransaction{
-		Transaction: &pendingSignAction.Tx,
-		inputBEEF:   pendingSignAction.InputBEEF,
+		Transaction:  &pendingSignAction.Tx,
+		inputBEEF:    pendingSignAction.InputBEEF,
+		initialTxID: pendingSignAction.Tx.TxID(),
 	}
 }
 
@@ -42,6 +45,10 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 	err := beef.MergeBeef(a.inputBEEF)
 	if err != nil {
 		return nil, fmt.Errorf("failed to merge input beef into transaction beef: %w", err)
+	}
+
+	if a.initialTxID != nil {
+		delete(beef.Transactions, *a.initialTxID)
 	}
 
 	allInputs := seqerr.FromSlice(a.Inputs)
