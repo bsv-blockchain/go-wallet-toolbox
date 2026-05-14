@@ -2,6 +2,7 @@ package syncrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -101,28 +102,38 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.Transaction{}).
-			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
+		// Equal updated_at must SKIP. See ts-stack EntityTransaction.mergeExisting and
+		// conformance vector sync.brc40.merge.tx.error.regression.{1,2}.
+		var existing models.Transaction
+		existsErr := tx.Model(&models.Transaction{}).
+			Select("id, updated_at").
 			Scopes(scopes.UserID(entity.UserID)).
 			Where("reference = ?", entity.Reference).
-			Updates(model)
+			First(&existing).Error
 
-		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
+		if existsErr == nil {
+			if !model.UpdatedAt.After(existing.UpdatedAt) {
+				transactionID = existing.ID
+				return nil
+			}
+
+			updateTx := tx.Model(&models.Transaction{}).
+				Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+				Updates(model)
+
+			if updateTx.Error != nil {
+				return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
+			}
+
+			// RowsAffected == 0 means a concurrent writer advanced updated_at past
+			// our incoming value between the lookup and the UPDATE. Treat as skip.
+			transactionID = existing.ID
+			return nil
 		}
 
-		if updateTx.RowsAffected > 0 {
-			resultTxModel := models.Transaction{}
-			if err = updateTx.Scan(&resultTxModel).Error; err != nil {
-				return fmt.Errorf("failed to scan updated transaction: %w", err)
-			}
-
-			if resultTxModel.ID == 0 {
-				return fmt.Errorf("transaction ID is zero after update, this should not happen")
-			}
-
-			transactionID = resultTxModel.ID
-			return nil
+		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to lookup existing transaction: %w", existsErr)
 		}
 
 		if err = tx.Create(&model).Error; err != nil {

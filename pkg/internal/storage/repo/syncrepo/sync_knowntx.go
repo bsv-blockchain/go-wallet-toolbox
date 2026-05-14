@@ -3,6 +3,7 @@ package syncrepo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -95,15 +96,33 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.KnownTx{}).
+		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
+		// Equal updated_at must SKIP. TxNote delete/insert side-effects only fire
+		// inside the post-guard branch. See ts-stack EntityProvenTx.mergeExisting and
+		// conformance vector sync.brc40.merge.proventx.error.regression.1.
+		var existing models.KnownTx
+		existsErr := tx.Model(&models.KnownTx{}).
+			Select("tx_id, updated_at").
 			Where("tx_id = ?", entity.TxID).
-			Updates(model)
+			First(&existing).Error
 
-		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
-		}
+		if existsErr == nil {
+			if !model.UpdatedAt.After(existing.UpdatedAt) {
+				return nil
+			}
 
-		if updateTx.RowsAffected > 0 {
+			updateTx := tx.Model(&models.KnownTx{}).
+				Where("tx_id = ? AND updated_at < ?", entity.TxID, model.UpdatedAt).
+				Updates(model)
+
+			if updateTx.Error != nil {
+				return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
+			}
+
+			if updateTx.RowsAffected == 0 {
+				return nil
+			}
+
 			if deleteErr := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; deleteErr != nil {
 				return fmt.Errorf("failed to delete existing transaction notes: %w", deleteErr)
 			}
@@ -113,6 +132,10 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 			}
 
 			return nil
+		}
+
+		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to lookup existing known tx: %w", existsErr)
 		}
 
 		if err = tx.Create(&model).Error; err != nil {
