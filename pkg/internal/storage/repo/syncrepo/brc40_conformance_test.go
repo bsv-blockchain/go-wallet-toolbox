@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -79,11 +80,12 @@ func loadBRC40Vectors(t *testing.T) brc40File {
 	t.Helper()
 	data := conformancevectors.BRC40UserState
 	if p := os.Getenv("BRC40_VECTORS_FILE"); p != "" {
-		// #nosec G304 -- developer-supplied override path for ad-hoc upstream
+		clean := filepath.Clean(p)
+		// #nosec G304 G703 -- developer-supplied override path for ad-hoc upstream
 		// testing; only consulted when the env var is explicitly set in a dev
 		// shell, never in CI.
-		override, err := os.ReadFile(p)
-		require.NoError(t, err, "BRC40_VECTORS_FILE=%s unreadable", p)
+		override, err := os.ReadFile(clean)
+		require.NoError(t, err, "BRC40_VECTORS_FILE=%s unreadable", clean)
 		data = override
 	}
 	require.NotEmpty(t, data, "embedded BRC-40 vectors empty — refresh via ./conformance/scripts/refresh-vectors.sh")
