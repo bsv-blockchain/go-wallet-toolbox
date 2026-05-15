@@ -9,6 +9,7 @@
 // Refresh: ./conformance/scripts/refresh-vectors.sh
 package storage
 
+// blank import required for the //go:embed directive below.
 import _ "embed"
 
 // AdapterConformance is the raw JSON corpus for the Wallet Storage Adapter

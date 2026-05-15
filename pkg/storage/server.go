@@ -40,7 +40,7 @@ func (s *Server) Handler() http.Handler {
 	// This replaces the previous JSON-RPC layer.
 	coreHandler := v1adapter.NewHandler(s.provider, s.logger)
 
-	var handler http.Handler = coreHandler
+	handler := coreHandler
 
 	if s.options.Monetize {
 		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))

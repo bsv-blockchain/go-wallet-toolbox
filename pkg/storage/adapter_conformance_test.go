@@ -22,13 +22,13 @@ import (
 
 // adapterVector mirrors the structure in adapter-conformance.json
 type adapterVector struct {
-	ID          string                 `json:"id"`
-	Description string                 `json:"description"`
-	Input       adapterInput           `json:"input"`
-	Expected    adapterExpected        `json:"expected"`
-	Tags        []string               `json:"tags"`
-	Skip        bool                   `json:"skip"`
-	ParityClass string                 `json:"parity_class"`
+	ID          string          `json:"id"`
+	Description string          `json:"description"`
+	Input       adapterInput    `json:"input"`
+	Expected    adapterExpected `json:"expected"`
+	Tags        []string        `json:"tags"`
+	Skip        bool            `json:"skip"`
+	ParityClass string          `json:"parity_class"`
 }
 
 type adapterInput struct {
@@ -166,6 +166,8 @@ func doVectorRequest(t *testing.T, baseURL string, v adapterVector) {
 // runCommissionPaymentTests exercises:
 // - Monetize + CalculateRequestPrice + payment middleware -> payment info visible to provider via ShouldGetPaymentInfo(ctx)
 // - provider configured with defs.Commission -> StorageCreateActionResult includes commission output
+//
+//nolint:unused // retained scaffold for future enablement (see disabled t.Run above)
 func runCommissionPaymentTests(t *testing.T, given testabilities.StorageFixture) {
 	t.Helper()
 

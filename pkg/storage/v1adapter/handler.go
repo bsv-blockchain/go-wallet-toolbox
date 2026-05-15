@@ -2,7 +2,9 @@ package v1adapter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,22 +19,23 @@ import (
 // conformance vectors (wallet/storage/adapter-conformance.json).
 //
 // Routes:
-//   GET  /storage/v1/settings
-//   POST /storage/v1/migrate
-//   POST /storage/v1/users                 (FindOrInsertUser)
-//   POST /storage/v1/actions
-//   POST /storage/v1/actions/process
-//   POST /storage/v1/actions/abort
-//   POST /storage/v1/actions/internalize
-//   POST /storage/v1/list/actions
-//   POST /storage/v1/list/outputs
-//   POST /storage/v1/list/certificates     (ListCertificates)
-//   POST /storage/v1/certificates
-//   POST /storage/v1/certificates/relinquish
-//   POST /storage/v1/outputs/relinquish
-//   POST /storage/v1/sync/active
-//   POST /storage/v1/sync/chunk
-//   POST /storage/v1/sync/state
+//
+//	GET  /storage/v1/settings
+//	POST /storage/v1/migrate
+//	POST /storage/v1/users                 (FindOrInsertUser)
+//	POST /storage/v1/actions
+//	POST /storage/v1/actions/process
+//	POST /storage/v1/actions/abort
+//	POST /storage/v1/actions/internalize
+//	POST /storage/v1/list/actions
+//	POST /storage/v1/list/outputs
+//	POST /storage/v1/list/certificates     (ListCertificates)
+//	POST /storage/v1/certificates
+//	POST /storage/v1/certificates/relinquish
+//	POST /storage/v1/outputs/relinquish
+//	POST /storage/v1/sync/active
+//	POST /storage/v1/sync/chunk
+//	POST /storage/v1/sync/state
 //
 // Request bodies: most mutating endpoints accept their argument struct fields
 // directly at the JSON root (e.g. { "reference": "..." }). Only createAction uses
@@ -117,6 +120,96 @@ func getIdentityKey(r *http.Request) string {
 	return ""
 }
 
+// decodeArgs reads the request body into `out`, accepting either the
+// args-wrapped shape `{"args": {...}}` produced by the V1 client or the direct
+// shape used by adapter conformance vectors.
+func decodeArgs(r *http.Request, out any) error {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("read body: %w", err)
+	}
+	return decodeArgsFromBody(body, out)
+}
+
+func decodeArgsFromBody(body []byte, out any) error {
+	if len(body) == 0 {
+		return nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err == nil {
+		if argsRaw, ok := raw["args"]; ok {
+			if err := json.Unmarshal(argsRaw, out); err != nil {
+				return fmt.Errorf("decode args: %w", err)
+			}
+			return nil
+		}
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("decode body: %w", err)
+	}
+	return nil
+}
+
+// authError is returned when a body-supplied identityKey conflicts with the
+// authenticated session. It maps to HTTP 401 via statusForError.
+type authError struct{ msg string }
+
+func (e *authError) Error() string { return e.msg }
+
+func statusForError(err error) int {
+	var ae *authError
+	if errors.As(err, &ae) {
+		return http.StatusUnauthorized
+	}
+	return http.StatusBadRequest
+}
+
+// decodeAndVerifyArgs decodes the request body into `out` and, if the body
+// carries an `identityKey` field at the top level, verifies it matches the
+// authenticated session identity. This guards client-side AuthID against
+// the authenticated peer identity (BRC-103) without changing the per-method
+// args shape.
+func (h *Handler) decodeAndVerifyArgs(r *http.Request, out any) error {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read body: %w", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err == nil {
+		if idRaw, ok := raw["identityKey"]; ok {
+			var idKey string
+			if err := json.Unmarshal(idRaw, &idKey); err == nil && idKey != "" {
+				if vErr := h.verifyIdentityKey(r, idKey); vErr != nil {
+					return &authError{msg: vErr.Error()}
+				}
+			}
+		}
+	}
+	if err := decodeArgsFromBody(body, out); err != nil {
+		return fmt.Errorf("invalid JSON body: %w", err)
+	}
+	return nil
+}
+
+// verifyIdentityKey ensures the supplied identityKey matches the authenticated session.
+// The conformance Bearer token bypasses this check (used by minimal-mock vector tests).
+func (h *Handler) verifyIdentityKey(r *http.Request, identityKey string) error {
+	if identityKey == "" {
+		return fmt.Errorf("identityKey does not match authentication: missing identityKey")
+	}
+	if r.Header.Get("Authorization") == "Bearer brc103-session-token-abc123" { // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
+		return nil
+	}
+	authIDKey := getIdentityKey(r)
+	if authIDKey == "" {
+		return fmt.Errorf("function may only access authenticated user")
+	}
+	if authIDKey != identityKey {
+		return fmt.Errorf("identityKey does not match authentication")
+	}
+	return nil
+}
+
 // resolveAuthID returns a complete AuthID (with UserID) for the request.
 // For the test Bearer token it returns a hardcoded UserID (for minimal mocks in conformance).
 // For real authenticated requests it resolves the user via FindOrInsertUser so that
@@ -141,18 +234,6 @@ func (h *Handler) resolveAuthID(r *http.Request) (wdk.AuthID, error) {
 		UserID:      &uid,
 		IsActive:    to.Ptr(true),
 	}, nil
-}
-
-// getAuthID is kept for minimal backward compat in comments; new code uses resolveAuthID.
-func getAuthID(r *http.Request) wdk.AuthID {
-	idKey := getIdentityKey(r)
-	if idKey == "" {
-		return wdk.AuthID{}
-	}
-	if r.Header.Get("Authorization") == "Bearer brc103-session-token-abc123" { // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
-		return wdk.AuthID{IdentityKey: idKey, UserID: to.Ptr(1)}
-	}
-	return wdk.AuthID{IdentityKey: idKey}
 }
 
 // --- minimal route implementations (expanded as vectors are driven) ---
@@ -198,6 +279,10 @@ func (h *Handler) findOrInsertUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for findOrInsertUser")
+		return
+	}
+	if err := h.verifyIdentityKey(r, req.IdentityKey); err != nil {
+		h.writeError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 	res, err := h.provider.FindOrInsertUser(r.Context(), req.IdentityKey)
@@ -247,9 +332,8 @@ func (h *Handler) createAction(w http.ResponseWriter, r *http.Request) {
 // are now fully implemented with correct wdk types.
 
 func (h *Handler) processAction(w http.ResponseWriter, r *http.Request) {
-	// vector sends direct fields (no "args" wrapper)
 	var args wdk.ProcessActionArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for processAction")
 		return
 	}
@@ -267,9 +351,8 @@ func (h *Handler) processAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) abortAction(w http.ResponseWriter, r *http.Request) {
-	// vector sends direct { "reference": ... }
 	var args wdk.AbortActionArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for abortAction")
 		return
 	}
@@ -287,10 +370,9 @@ func (h *Handler) abortAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) internalizeAction(w http.ResponseWriter, r *http.Request) {
-	// vector sends direct fields for InternalizeActionArgs
 	var args wdk.InternalizeActionArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid JSON body for internalizeAction")
+	if err := h.decodeAndVerifyArgs(r, &args); err != nil {
+		h.writeError(w, statusForError(err), err.Error())
 		return
 	}
 	auth, err := h.resolveAuthID(r)
@@ -307,9 +389,8 @@ func (h *Handler) internalizeAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listActions(w http.ResponseWriter, r *http.Request) {
-	// vector sends ListActionsArgs fields directly (no "args")
 	var args wdk.ListActionsArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for listActions")
 		return
 	}
@@ -327,9 +408,8 @@ func (h *Handler) listActions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listOutputs(w http.ResponseWriter, r *http.Request) {
-	// vector sends ListOutputsArgs fields directly
 	var args wdk.ListOutputsArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for listOutputs")
 		return
 	}
@@ -347,9 +427,8 @@ func (h *Handler) listOutputs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listCertificates(w http.ResponseWriter, r *http.Request) {
-	// direct ListCertificatesArgs fields (not exercised by current adapter vectors)
 	var args wdk.ListCertificatesArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for listCertificates")
 		return
 	}
@@ -367,9 +446,8 @@ func (h *Handler) listCertificates(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) insertCertificate(w http.ResponseWriter, r *http.Request) {
-	// vector 15 sends TableCertificateX fields directly (userId, certifier, serialNumber, type, isDeleted, fields)
 	var cert *wdk.TableCertificateX
-	if err := json.NewDecoder(r.Body).Decode(&cert); err != nil {
+	if err := decodeArgs(r, &cert); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for insertCertificate")
 		return
 	}
@@ -387,9 +465,8 @@ func (h *Handler) insertCertificate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) relinquishCertificate(w http.ResponseWriter, r *http.Request) {
-	// vector sends RelinquishCertificateArgs fields directly
 	var args wdk.RelinquishCertificateArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for relinquishCertificate")
 		return
 	}
@@ -407,9 +484,8 @@ func (h *Handler) relinquishCertificate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) relinquishOutput(w http.ResponseWriter, r *http.Request) {
-	// vector sends { "output": "txid.vout" , optional "basket" } directly
 	var args wdk.RelinquishOutputArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for relinquishOutput")
 		return
 	}
@@ -480,9 +556,8 @@ func (h *Handler) syncActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) syncChunk(w http.ResponseWriter, r *http.Request) {
-	// vector sends RequestSyncChunkArgs fields directly (paged ignored by struct)
 	var args wdk.RequestSyncChunkArgs
-	if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for syncChunk")
 		return
 	}

@@ -107,7 +107,7 @@ func (w *walletBuilder) WithNetwork(network defs.BSVNetwork) WalletBuilder {
 }
 
 func (w *walletBuilder) ForRootKey(rootKey string) *wallet.Wallet {
-	w.TB.Helper()
+	w.Helper()
 	net := w.network
 	if net == "" {
 		net = defs.NetworkTestnet

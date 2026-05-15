@@ -150,7 +150,7 @@ func normalizeOrigin(origin string) (string, error) {
 
 	parsed, err := url.Parse(origin)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("parse origin: %w", err)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return "", fmt.Errorf("origin scheme must be http or https")

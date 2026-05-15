@@ -19,6 +19,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+const contentTypeJSON = "application/json"
+
 // NewClient returns a WalletStorageProviderClient that speaks the V1 storage adapter
 // HTTP contract (/storage/v1/*) using authenticated requests via the go-sdk auth client.
 // This replaces the legacy JSON-RPC implementation (now deprecated).
@@ -65,8 +67,9 @@ func NewClient(addr string, wallet sdk.Interface, opts ...ClientOptions) (*Walle
 		InternalizeAction: func(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 			var res wdk.InternalizeActionResult
 			payload := struct {
-				Args wdk.InternalizeActionArgs `json:"args"`
-			}{Args: args}
+				IdentityKey string                    `json:"identityKey,omitempty"`
+				Args        wdk.InternalizeActionArgs `json:"args"`
+			}{IdentityKey: auth.IdentityKey, Args: args}
 			if err := requester.postV1(ctx, "/storage/v1/actions/internalize", payload, &res); err != nil {
 				return nil, err
 			}
@@ -205,8 +208,11 @@ func NewClient(addr string, wallet sdk.Interface, opts ...ClientOptions) (*Walle
 		client: impl,
 	}
 
-	// No persistent connection in V1 HTTP model
-	cleanup := func() {}
+	// No persistent connection in V1 HTTP model — each request is a one-shot
+	// HTTP call so there is nothing to tear down.
+	cleanup := func() {
+		// intentionally empty: see comment above
+	}
 
 	return c, cleanup, nil
 }
@@ -234,7 +240,8 @@ type rpcAuthriteRequester struct {
 }
 
 func (r *rpcAuthriteRequester) DoHTTPRequest(ctx context.Context, body []byte) (io.ReadCloser, error) {
-	log := r.log.With(slog.Group("req",
+	log := r.log.With(slog.Group(
+		"req",
 		slog.String("method", "POST"),
 		slog.String("url", r.addr),
 		slog.String("body", string(body)),
@@ -243,17 +250,19 @@ func (r *rpcAuthriteRequester) DoHTTPRequest(ctx context.Context, body []byte) (
 	resp, err := r.httpClient.Fetch(ctx, r.addr, &clients.SimplifiedFetchRequestOptions{
 		Method: http.MethodPost,
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			"Content-Type": contentTypeJSON,
 		},
 		Body: body,
 	})
 	if err != nil {
-		log.DebugContext(ctx, "Request to storage server failed",
+		log.DebugContext(
+			ctx, "Request to storage server failed",
 			slogx.Error(err),
 		)
 		return nil, fmt.Errorf("storage client request failed: %w", err)
 	}
-	log.DebugContext(ctx, "Successfully sent request to storage server",
+	log.DebugContext(
+		ctx, "Successfully sent request to storage server",
 		slog.Any("resp", (*loggableResponse)(resp)),
 	)
 
@@ -276,7 +285,7 @@ func (r *rpcAuthriteRequester) postV1(ctx context.Context, path string, payload 
 	if err != nil {
 		return err
 	}
-	defer respBody.Close()
+	defer func() { _ = respBody.Close() }()
 
 	data, err := io.ReadAll(respBody)
 	if err != nil {
@@ -306,7 +315,7 @@ func (r *rpcAuthriteRequester) getV1(ctx context.Context, path string, result an
 	if err != nil {
 		return err
 	}
-	defer respBody.Close()
+	defer func() { _ = respBody.Close() }()
 
 	data, err := io.ReadAll(respBody)
 	if err != nil {
@@ -330,7 +339,8 @@ func (r *rpcAuthriteRequester) getV1(ctx context.Context, path string, result an
 
 func (r *rpcAuthriteRequester) doV1HTTPRequest(ctx context.Context, path string, body []byte) (io.ReadCloser, error) {
 	target := buildV1Target(r.addr, path)
-	log := r.log.With(slog.Group("req",
+	log := r.log.With(slog.Group(
+		"req",
 		slog.String("method", "POST"),
 		slog.String("url", target),
 		slog.String("body", string(body)),
@@ -339,17 +349,19 @@ func (r *rpcAuthriteRequester) doV1HTTPRequest(ctx context.Context, path string,
 	resp, err := r.httpClient.Fetch(ctx, target, &clients.SimplifiedFetchRequestOptions{
 		Method: http.MethodPost,
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			"Content-Type": contentTypeJSON,
 		},
 		Body: body,
 	})
 	if err != nil {
-		log.DebugContext(ctx, "V1 request to storage server failed",
+		log.DebugContext(
+			ctx, "V1 request to storage server failed",
 			slogx.Error(err),
 		)
 		return nil, fmt.Errorf("storage v1 client request failed: %w", err)
 	}
-	log.DebugContext(ctx, "Successfully sent V1 request to storage server",
+	log.DebugContext(
+		ctx, "Successfully sent V1 request to storage server",
 		slog.Any("resp", (*loggableResponse)(resp)),
 	)
 
@@ -358,24 +370,24 @@ func (r *rpcAuthriteRequester) doV1HTTPRequest(ctx context.Context, path string,
 
 func (r *rpcAuthriteRequester) doV1HTTPRequestGet(ctx context.Context, path string) (io.ReadCloser, error) {
 	target := buildV1Target(r.addr, path)
-	log := r.log.With(slog.Group("req",
+	log := r.log.With(slog.Group(
+		"req",
 		slog.String("method", "GET"),
 		slog.String("url", target),
 	))
 
 	resp, err := r.httpClient.Fetch(ctx, target, &clients.SimplifiedFetchRequestOptions{
 		Method: http.MethodGet,
-		Headers: map[string]string{
-			"Accept": "application/json",
-		},
 	})
 	if err != nil {
-		log.DebugContext(ctx, "V1 GET request to storage server failed",
+		log.DebugContext(
+			ctx, "V1 GET request to storage server failed",
 			slogx.Error(err),
 		)
 		return nil, fmt.Errorf("storage v1 client GET request failed: %w", err)
 	}
-	log.DebugContext(ctx, "Successfully sent V1 GET request to storage server",
+	log.DebugContext(
+		ctx, "Successfully sent V1 GET request to storage server",
 		slog.Any("resp", (*loggableResponse)(resp)),
 	)
 
@@ -399,7 +411,8 @@ type loggableResponse http.Response
 
 func (r *loggableResponse) LogValue() slog.Value {
 	attrs := make([]slog.Attr, 0, 4)
-	attrs = append(attrs,
+	attrs = append(
+		attrs,
 		slog.Int("statusCode", r.StatusCode),
 		slog.String("status", r.Status),
 	)

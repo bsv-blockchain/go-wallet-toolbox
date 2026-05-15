@@ -11,6 +11,7 @@
 // Refresh: ./conformance/scripts/refresh-vectors.sh
 package brc100
 
+// blank import required for //go:embed directives below.
 import _ "embed"
 
 // CreateActionVectors contains the 90+ vectors for wallet.brc100.createaction.
