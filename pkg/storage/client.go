@@ -25,6 +25,8 @@ const contentTypeJSON = "application/json"
 // HTTP contract (/storage/v1/*) using authenticated requests via the go-sdk auth client.
 // This replaces the legacy JSON-RPC implementation (now deprecated).
 // The returned cleanup func is a no-op (no persistent connection).
+//
+//nolint:gocognit,gocyclo,cyclop // Inline V1 HTTP adapters keep wire shape next to call site; complexity is not algorithmic.
 func NewClient(addr string, wallet sdk.Interface, opts ...ClientOptions) (*WalletStorageProviderClient, func(), error) {
 	options := to.OptionsWithDefault(defaultClientOptions(), opts...)
 	options.logger = logging.Child(options.logger, "StorageClient")

@@ -118,7 +118,7 @@ func (w *walletBuilder) ForRootKey(rootKey string) *wallet.Wallet {
 	priv, err := primitives.PrivateKeyFromHex(rootKey)
 	require.NoError(w, err, "root_key must be valid hex private key for BRC-100 vector")
 	keyDeriver := sdk.NewKeyDeriver(priv)
-	activeStorage, cleanup := w.storageForRootKey()
+	activeStorage := w.storageForRootKey()
 	opts := slices.Clone(w.walletOpts)
 	if w.withServices {
 		serviceCfg := defs.DefaultServicesConfig(net)
@@ -135,7 +135,6 @@ func (w *walletBuilder) ForRootKey(rootKey string) *wallet.Wallet {
 		wallet:      userWallet,
 		storage:     activeStorage,
 		storageType: w.storageType,
-		cleanupFunc: cleanup,
 	})
 	return userWallet
 }
@@ -147,20 +146,20 @@ func min(a, b int) int {
 	return b
 }
 
-func (w *walletBuilder) storageForRootKey() (storage wdk.WalletStorageProvider, cleanup func()) {
+func (w *walletBuilder) storageForRootKey() wdk.WalletStorageProvider {
 	sqliteStorage := w.givenStorage.Provider().GORM()
 	switch w.storageType {
 	case StorageTypeSQLite, StorageTypeOwnSQLite, "":
-		return sqliteStorage, nil
+		return sqliteStorage
 	case StorageTypeMocked:
-		return w.givenStorage.MockProvider(), nil
+		return w.givenStorage.MockProvider()
 	case StorageTypeRemote:
 		// fallback for conformance vectors; remote requires user auth mapping
 		w.Logf("BRC100 rootkey with remote not supported, falling back to sqlite storage")
-		return sqliteStorage, nil
+		return sqliteStorage
 	default:
 		w.Fatalf("invalid test setup for root key storage: %s", w.storageType)
-		return nil, nil
+		return nil
 	}
 }
 

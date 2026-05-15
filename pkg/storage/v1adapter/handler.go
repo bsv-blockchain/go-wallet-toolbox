@@ -93,7 +93,9 @@ func NewHandler(provider wdk.WalletStorageProvider, parentLogger *slog.Logger) h
 func (h *Handler) writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		h.logger.Debug("failed to encode response", "error", err)
+	}
 }
 
 // writeError matches the error shape expected by the conformance vectors.
@@ -307,7 +309,7 @@ func (h *Handler) createAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var args wdk.ValidCreateActionArgs
-	if err := json.Unmarshal(argsRaw, &args); err != nil {
+	if err := json.Unmarshal(argsRaw, &args); err != nil { //nolint:musttag // wdk.OutPoint (nested) has no JSON tags; decoded by wdk package conventions.
 		h.writeError(w, http.StatusBadRequest, "invalid args for createAction")
 		return
 	}

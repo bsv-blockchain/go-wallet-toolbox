@@ -136,7 +136,7 @@ func doVectorRequest(t *testing.T, baseURL string, v adapterVector) {
 		bodyBytes = b
 	}
 
-	req, err := http.NewRequest(v.Input.Method, baseURL+v.Input.Path, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(t.Context(), v.Input.Method, baseURL+v.Input.Path, bytes.NewReader(bodyBytes))
 	require.NoError(t, err)
 
 	for k, val := range v.Input.Headers {
@@ -148,7 +148,7 @@ func doVectorRequest(t *testing.T, baseURL string, v adapterVector) {
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, v.Expected.Status, resp.StatusCode, "status mismatch for %s", v.ID)
 
@@ -205,12 +205,13 @@ func runCommissionPaymentTests(t *testing.T, given testabilities.StorageFixture)
 	base := given.ServerURL()
 	// Fire a createAction request with the test token (will hit payment mw then v1adapter -> mock)
 	body := []byte(`{"args":{"description":"commission test","outputs":[{"lockingScript":"76a914000000000000000000000000000000000000000088ac","satoshis":1000}]}}`)
-	req, _ := http.NewRequest("POST", base+"/storage/v1/actions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base+"/storage/v1/actions", bytes.NewReader(body))
+	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer brc103-session-token-abc123") // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, 200, resp.StatusCode)
 
 	// 2) Commission configured on real provider -> create result contains commission output
@@ -225,12 +226,13 @@ func runCommissionPaymentTests(t *testing.T, given testabilities.StorageFixture)
 
 	base2 := given.ServerURL()
 	body2 := []byte(`{"args":{"description":"with commission","outputs":[{"lockingScript":"76a914f54a5851e9372b87810a8e60cdd2e7cfd80b6e5388ac","satoshis":50000}]}}`)
-	req2, _ := http.NewRequest("POST", base2+"/storage/v1/actions", bytes.NewReader(body2))
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base2+"/storage/v1/actions", bytes.NewReader(body2))
+	require.NoError(t, err)
 	req2.Header.Set("Content-Type", "application/json")
 	req2.Header.Set("Authorization", "Bearer brc103-session-token-abc123") // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
 	resp2, err := http.DefaultClient.Do(req2)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	require.Equal(t, 200, resp2.StatusCode)
 
 	var result map[string]any
