@@ -23,12 +23,10 @@ func ValidateSingleLeafTx(beef *transaction.Beef) error {
 	// inDegree will contain the number of transactions for which the given tx is a parent
 	inDegree := seq2.CollectToMap(seq2.MapValues(idToTx, func(tx *transaction.BeefTx) int { return 0 }))
 
-	// txsNotMined we are not interested in inputs of mined transactions
-	txsNotMined := seq.Filter(seq2.Values(idToTx), func(tx *transaction.BeefTx) bool {
-		return tx.Transaction.MerklePath == nil
-	})
-
-	inputs := seq.FlattenSlices(seq.Map(txsNotMined, func(tx *transaction.BeefTx) []*transaction.TransactionInput {
+	// Walk inputs of ALL transactions (including mined ones), because a mined tx can be
+	// an input to another mined tx, and skipping it would leave the first mined tx with
+	// in-degree 0, making it appear as a subject tx candidate alongside the real subject tx.
+	inputs := seq.FlattenSlices(seq.Map(seq2.Values(idToTx), func(tx *transaction.BeefTx) []*transaction.TransactionInput {
 		return tx.Transaction.Inputs
 	}))
 
@@ -38,7 +36,8 @@ func ValidateSingleLeafTx(beef *transaction.Beef) error {
 
 	seq.ForEach(inputsIds, func(inputTxID chainhash.Hash) {
 		if _, ok := inDegree[inputTxID]; !ok {
-			panic(fmt.Sprintf("unexpected input txid %s, this shouldn't ever happen", inputTxID))
+			// External anchor not included in this BEEF — valid for mined transactions, skip it.
+			return
 		}
 		inDegree[inputTxID]++
 	})
