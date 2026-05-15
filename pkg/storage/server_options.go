@@ -35,6 +35,12 @@ type ServerOptions struct {
 	// CalculateRequestPrice optional custom implementation of function that calculates the price of the request.
 	// Used only if the Monetize option is set to true.
 	CalculateRequestPrice func(r *http.Request) (int, error)
+
+	// AllowUnauthenticated permits requests without valid BRC-104 auth (e.g. the synthetic
+	// "Bearer brc103-session-token-abc123" bearer used by storage adapter conformance vectors)
+	// to reach the inner v1adapter handler. When false (default) the auth middleware
+	// rejects with 401. This is enabled only for adapter_conformance_test.go.
+	AllowUnauthenticated bool
 }
 
 // DefaultCORSConfig returns an open-origin CORS config populated with the headers

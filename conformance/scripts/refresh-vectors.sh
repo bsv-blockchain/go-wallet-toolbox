@@ -15,8 +15,24 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE_FILE="$ROOT_DIR/SOURCE"
 
 # Tracked vector paths — keep in sync with conformance/README.md.
+# For BRC-100 we start with the highest-value files (createAction, signAction, internalize,
+# list*, certificate ops, get* basics). Additional brc100/*.json files can be added here
+# as coverage expands. The storage adapter contract is the single file that defines the
+# /storage/v1/* HTTP remoting protocol.
 VECTOR_PATHS=(
   "vectors/sync/brc40-user-state.json"
+  # Storage Adapter conformance (the /storage/v1/* HTTP contract for remote storage)
+  "vectors/wallet/storage/adapter-conformance.json"
+  # Core BRC-100 wallet method vectors (logical method call + expected result)
+  "vectors/wallet/brc100/createaction.json"
+  "vectors/wallet/brc100/signaction.json"
+  "vectors/wallet/brc100/internalizeaction.json"
+  "vectors/wallet/brc100/listoutputs.json"
+  "vectors/wallet/brc100/listactions.json"
+  "vectors/wallet/brc100/provecertificate.json"
+  "vectors/wallet/brc100/relinquishoutput.json"
+  "vectors/wallet/brc100/getpublickey.json"
+  "vectors/wallet/brc100/getnetwork.json"
 )
 
 # Resolve ref → full commit SHA so the pin is immutable.
@@ -50,4 +66,7 @@ upstream_ref=${REF}
 fetched_at=$(date -u +%Y-%m-%d)
 EOF
 
-echo "Done. Re-run: go test ./pkg/internal/storage/repo/syncrepo/... -v"
+echo "Done."
+echo "Re-run relevant conformance tests:"
+echo "  go test ./pkg/storage/... -run AdapterConformance -v"
+echo "  go test ./pkg/wallet/... -run BRC100Conformance -v"

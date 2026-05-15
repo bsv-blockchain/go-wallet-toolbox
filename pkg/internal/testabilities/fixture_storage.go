@@ -30,8 +30,22 @@ import (
 type StorageFixture interface {
 	Provider() ProviderFixture
 
+	// StartedRPCServerFor starts an in-memory HTTP test server whose Handler()
+	// uses the conforming v1adapter (BRC-100 /storage/v1/* contract).
+	// The legacy "RPC" name is kept for backward compatibility with existing tests;
+	// under the hood it uses storage.Server + v1adapter, not the old jsonrpc layer.
 	StartedRPCServerFor(provider wdk.WalletStorageProvider, opts ...func(options *storage.ServerOptions)) (cleanup func())
+	// RPCClientForUser returns a remote storage client for the given user.
+	// It now uses the V1 HTTP adapter protocol (deprecated "RPC" name retained for compat).
+	// Prefer V1ClientForUser in new code.
 	RPCClientForUser(user testusers.User) (*storage.WalletStorageProviderClient, func())
+
+	// StartedV1AdapterServerFor is the explicit V1 name for starting the conforming server.
+	StartedV1AdapterServerFor(provider wdk.WalletStorageProvider, opts ...func(options *storage.ServerOptions)) (cleanup func())
+	// V1ClientForUser returns a client speaking the /storage/v1/* + auth contract.
+	V1ClientForUser(user testusers.User) (*storage.WalletStorageProviderClient, func())
+
+	ServerURL() string
 
 	MockProvider() *mocks.MockWalletStorageProvider
 
@@ -147,6 +161,11 @@ func (s *storageFixture) StartedRPCServerFor(provider wdk.WalletStorageProvider,
 	return s.testServer.Close
 }
 
+// StartedV1AdapterServerFor delegates to the V1 implementation (same as StartedRPCServerFor).
+func (s *storageFixture) StartedV1AdapterServerFor(provider wdk.WalletStorageProvider, opts ...func(*storage.ServerOptions)) (cleanup func()) {
+	return s.StartedRPCServerFor(provider, opts...)
+}
+
 func (s *storageFixture) RPCClientForUser(user testusers.User) (client *storage.WalletStorageProviderClient, cleanup func()) {
 	s.t.Helper()
 	protoWallet, err := wallet.NewCompletedProtoWallet(user.PrivateKey(s.t))
@@ -155,6 +174,20 @@ func (s *storageFixture) RPCClientForUser(user testusers.User) (client *storage.
 	client, cleanup, err = storage.NewClient(s.testServer.URL, protoWallet, storage.WithHttpClient(s.testServer.Client()), storage.WithClientLogger(slogx.NewTestLogger(s.t)))
 	s.require.NoError(err)
 	return client, cleanup
+}
+
+// V1ClientForUser is the explicit V1 name; delegates to the (now V1-based) client factory.
+func (s *storageFixture) V1ClientForUser(user testusers.User) (client *storage.WalletStorageProviderClient, cleanup func()) {
+	return s.RPCClientForUser(user)
+}
+
+// ServerURL returns the URL of the test server started by StartedRPCServerFor (now using the conforming v1adapter).
+func (s *storageFixture) ServerURL() string {
+	s.t.Helper()
+	if s.testServer == nil {
+		s.t.Fatal("Server not started — call StartedRPCServerFor first")
+	}
+	return s.testServer.URL
 }
 
 func (s *storageFixture) MockProvider() *mocks.MockWalletStorageProvider {
