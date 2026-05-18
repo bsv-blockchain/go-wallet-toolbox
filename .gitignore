@@ -59,3 +59,7 @@ manual_tests/*.sqlite-journal
 
 # Fuzz Tests
 testdata
+
+# Build output
+bin/
+

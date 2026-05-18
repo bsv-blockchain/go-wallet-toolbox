@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -98,7 +99,10 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	opts := slices.Clone(w.walletOpts)
 	if w.withServices {
 		serviceCfg := defs.DefaultServicesConfig(defs.NetworkTestnet)
-		walletServices := services.New(slog.Default(), serviceCfg)
+		transport := w.givenStorage.Provider().Transport()
+		client := resty.New()
+		client.SetTransport(transport)
+		walletServices := services.New(slog.Default(), serviceCfg, services.WithRestyClient(client))
 		opts = append(opts, wallet.WithServices(walletServices))
 	}
 
