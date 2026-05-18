@@ -14,14 +14,14 @@ import (
 type AssembledTransaction struct {
 	*transaction.Transaction
 
-	inputBEEF    *transaction.Beef
+	inputBEEF   *transaction.Beef
 	initialTxID *chainhash.Hash
 }
 
 func NewAssembledTxFromPendingSignAction(pendingSignAction *pending.SignAction) *AssembledTransaction {
 	return &AssembledTransaction{
-		Transaction:  &pendingSignAction.Tx,
-		inputBEEF:    pendingSignAction.InputBEEF,
+		Transaction: &pendingSignAction.Tx,
+		inputBEEF:   pendingSignAction.InputBEEF,
 		initialTxID: pendingSignAction.Tx.TxID(),
 	}
 }
