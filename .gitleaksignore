@@ -1,6 +1,10 @@
 # infra-config.example.yaml
 infra-config.example.yaml:generic-api-key:107
 
+# infra-config-docker.yaml (development-only values for local docker compose)
+infra-config-docker.yaml:generic-api-key:22
+infra-config-docker.yaml:generic-api-key:179
+
 # examples/complex_wallet_examples/certifier_server_example/config.example.yaml
 examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:6
 examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:7

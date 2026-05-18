@@ -1,4 +1,4 @@
-> ⚠️ **This repository is being archived.** Development has moved to the [go-stack monorepo](https://github.com/bsv-blockchain/go-stack). Open issues will be migrated there. This repository will be archived in the coming days — please open new issues and PRs in the monorepo going forward.
+> 📣 **Notice:** Discussion underway about consolidating this repository into the [go-stack monorepo](https://github.com/bsv-blockchain/go-stack). No archive decision has been made yet — please weigh in at [bsv-blockchain/roadmap discussion #70](https://github.com/bsv-blockchain/roadmap/discussions/70) before any change is made.
 
 <div align="center">
 
@@ -45,7 +45,7 @@
     </td>
     <td align="left">
        <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/graphs/contributors"><img src="https://img.shields.io/github/contributors/bsv-blockchain/go-wallet-toolbox?style=flat-square&color=orange" alt="Contributors"></a>
-       <a href="https://github.com/sponsors/bsv-blockchain"><img src="https://img.shields.io/badge/sponsor-BSV-181717.svg?logo=github&style=flat-square" alt="Sponsor"></a>
+       <a href="https://deepwiki.com/bsv-blockchain/go-wallet-toolbox"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
     </td>
   </tr>
 </table>
