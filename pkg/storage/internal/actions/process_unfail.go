@@ -90,7 +90,7 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 	}
 
 	builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
-	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); err != nil {
+	if err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); err != nil {
 		log.ErrorContext(ctx, "Failed to set known tx to 'invalid'", slog.String("txID", txID), logging.Error(err))
 		return
 	}
@@ -99,7 +99,7 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 
 	// Cascade: mark user Transactions as failed and restore spent input UTXOs.
 	// This mirrors the broadcast-rejection cascade in updateSingleTx (process.go).
-	if err := p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusFailed); err != nil {
+	if err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusFailed); err != nil {
 		log.ErrorContext(ctx, "Failed to set user transactions to 'failed'", slog.String("txID", txID), logging.Error(err))
 		return
 	}
