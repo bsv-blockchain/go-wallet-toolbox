@@ -70,10 +70,11 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	require.NoError(f.t, err)
 
 	knownTx := &models.KnownTx{
-		TxID:      spec.ID().String(),
-		Status:    wdk.ProvenTxStatusUnmined,
-		RawTx:     spec.TX().Bytes(),
-		InputBeef: beef,
+		TxID:         spec.ID().String(),
+		Status:       wdk.ProvenTxStatusUnmined,
+		WasBroadcast: true,
+		RawTx:        spec.TX().Bytes(),
+		InputBeef:    beef,
 	}
 
 	transaction := &models.Transaction{

@@ -279,23 +279,26 @@ type arcQueryFixture struct {
 }
 
 func (a *arcQueryFixture) WillReturnTransactionOnHeight(height int) {
-	tx := a.knownTransaction()
-	tx.status = "MINED"
-	tx.blockHeight = must.ConvertToUInt32(height)
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.status = "MINED"
+		tx.blockHeight = must.ConvertToUInt32(height)
+	})
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithBlockHash(hash *chainhash.Hash) {
-	tx := a.knownTransaction()
-	tx.status = "MINED"
-	tx.blockHash = hash.String()
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.status = "MINED"
+		tx.blockHash = hash.String()
+	})
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithMerklePath(path sdk.MerklePath) ARCQueryFixture {
-	tx := a.knownTransaction()
-	tx.status = "MINED"
-	tx.merklePath = path.Hex()
-	tx.blockHeight = path.BlockHeight
-	tx.blockHash = TestBlockHash
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.status = "MINED"
+		tx.merklePath = path.Hex()
+		tx.blockHeight = path.BlockHeight
+		tx.blockHash = TestBlockHash
+	})
 	return a
 }
 
@@ -305,14 +308,16 @@ func (a *arcQueryFixture) WillReturnWithMindedTx() ARCQueryFixture {
 }
 
 func (a *arcQueryFixture) WillReturnDifferentTxID() {
-	tx := a.knownTransaction()
-	tx.txid = a.rotatedTxIdByNumberOfChars(7)
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.txid = a.rotatedTxIdByNumberOfChars(7)
+	})
 }
 
 func (a *arcQueryFixture) WillReturnDoubleSpending(competingTxs ...string) {
-	tx := a.knownTransaction()
-	tx.status = "DOUBLE_SPEND_ATTEMPTED"
-	tx.competingTxs = competingTxs
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.status = "DOUBLE_SPEND_ATTEMPTED"
+		tx.competingTxs = competingTxs
+	})
 }
 
 // rotatedTxIdByNumberOfChars will return rotated txid by number of chars
@@ -327,45 +332,52 @@ func (a *arcQueryFixture) rotatedTxIdByNumberOfChars(number int) string {
 }
 
 func (a *arcQueryFixture) WillReturnNoBody() {
-	tx := a.knownTransaction()
-	tx.noBody = true
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.noBody = true
+	})
 }
 
 func (a *arcQueryFixture) WillBeUnreachable() {
-	tx := a.knownTransaction()
-	tx.unreachable = true
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.unreachable = true
+	})
 }
 
 func (a *arcQueryFixture) WillReturnHttpStatus(httpStatus int) {
-	tx := a.knownTransaction()
-	tx.httpStatus = httpStatus
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.httpStatus = httpStatus
+	})
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithoutMerklePath() {
-	tx := a.knownTransaction()
-	tx.status = "SEEN_ON_NETWORK"
-	tx.unreachable = false
-	tx.noBody = false
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.status = "SEEN_ON_NETWORK"
+		tx.unreachable = false
+		tx.noBody = false
+	})
 }
 
 func (a *arcQueryFixture) WillReturnTransactionWithMerklePathHex(merklePath string) {
-	tx := a.knownTransaction()
-	tx.status = "MINED"
-	tx.merklePath = merklePath
-	tx.unreachable = false
-	tx.noBody = false
+	a.updateKnownTransaction(func(tx *knownTransaction) {
+		tx.status = "MINED"
+		tx.merklePath = merklePath
+		tx.unreachable = false
+		tx.noBody = false
+	})
 }
 
-func (a *arcQueryFixture) knownTransaction() *knownTransaction {
+func (a *arcQueryFixture) updateKnownTransaction(mutate func(*knownTransaction)) {
 	tx := a.parent.getKnownTransaction(a.txID)
-
 	if tx == nil {
-		tx = &knownTransaction{
-			txid: a.txID,
-		}
-		a.parent.saveKnownTransaction(tx)
+		tx = &knownTransaction{txid: a.txID}
+	} else {
+		tx = tx.clone()
 	}
-	return tx
+
+	mutate(tx)
+	// Keep lookup key stable as originally queried txID, even when response payload
+	// intentionally mutates tx.txid (e.g., WillReturnDifferentTxID test setup).
+	a.parent.knownTransactions.Store(a.txID, tx)
 }
 
 func errorResponseForStatus(httpStatus int) (int, map[string]any) {

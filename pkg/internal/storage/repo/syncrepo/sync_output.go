@@ -2,6 +2,7 @@ package syncrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -144,32 +145,44 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 		SenderIdentityKey:  entity.SenderIdentityKey,
 	}
 
-	updateTx := tx.Model(&model).
-		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+	// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer
+	// than existing. Equal updated_at must SKIP. See:
+	// - ts-stack EntityOutput.mergeExisting (strict `>`)
+	// - conformance vector sync.brc40.merge.output.error.regression.{1,2}
+	var existing models.Output
+	existsErr := tx.Model(&models.Output{}).
+		Select("id, updated_at").
 		Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
-		Select("*").
-		Updates(&model)
+		First(&existing).Error
 
-	// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
+	if existsErr == nil {
+		if !model.UpdatedAt.After(existing.UpdatedAt) {
+			// Stale or equal: preserve local state. Treat as no-op success.
+			outputID = existing.ID
+			return isNew, outputID, nil
+		}
 
-	if updateTx.Error != nil {
-		err = fmt.Errorf("failed to update output: %w", updateTx.Error)
-		return isNew, outputID, err
+		// Belt-and-braces: WHERE updated_at < ? also guards against TOCTOU.
+		updateTx := tx.Model(&model).
+			Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+			Select("*").
+			Updates(&model)
+
+		// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
+
+		if updateTx.Error != nil {
+			err = fmt.Errorf("failed to update output: %w", updateTx.Error)
+			return isNew, outputID, err
+		}
+
+		// RowsAffected == 0 here means a concurrent writer advanced updated_at past
+		// our incoming value between the lookup and the UPDATE. Treat as skip.
+		outputID = existing.ID
+		return isNew, outputID, nil
 	}
 
-	if updateTx.RowsAffected > 0 {
-		resultTxModel := models.Output{}
-		if err = updateTx.Scan(&resultTxModel).Error; err != nil {
-			err = fmt.Errorf("failed to scan updated output: %w", err)
-			return isNew, outputID, err
-		}
-
-		if resultTxModel.ID == 0 {
-			err = fmt.Errorf("output ID is zero after update, this should not happen")
-			return isNew, outputID, err
-		}
-
-		outputID = resultTxModel.ID
+	if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+		err = fmt.Errorf("failed to lookup existing output: %w", existsErr)
 		return isNew, outputID, err
 	}
 

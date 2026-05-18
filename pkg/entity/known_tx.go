@@ -14,9 +14,11 @@ type KnownTx struct {
 
 	TxID string
 
-	Status   wdk.ProvenTxReqStatus
-	Attempts uint64
-	Notified bool
+	Status              wdk.ProvenTxReqStatus
+	Attempts            uint64
+	Notified            bool
+	WasBroadcast        bool
+	RebroadcastAttempts uint64
 
 	RawTx     []byte
 	InputBEEF []byte

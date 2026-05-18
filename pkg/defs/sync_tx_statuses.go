@@ -16,7 +16,8 @@ type SynchronizeTxStatuses struct {
 // DefaultSynchronizeTxStatuses returns the default configuration for synchronizing transaction statuses with retries.
 func DefaultSynchronizeTxStatuses() SynchronizeTxStatuses {
 	return SynchronizeTxStatuses{
-		MaxAttempts:            10,
+		MaxAttempts:            100,
+		MaxRebroadcastAttempts: 0,
 		CheckNoSendPeriodHours: 24,
 		BlocksDelay:            1,
 	}

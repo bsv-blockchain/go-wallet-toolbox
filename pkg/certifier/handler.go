@@ -9,6 +9,7 @@ import (
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 
 	walletcerts "github.com/bsv-blockchain/go-wallet-toolbox/pkg/certificates"
+	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
 )
 
 func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
@@ -25,9 +26,15 @@ func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, s.maxRequestBodyBytes())
+
 	var req walletcerts.ProtocolIssuanceRequest
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.config.Logger.Error("failed to decode request", "error", err)
+		if servercommon.IsMaxBytesError(err) {
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -44,4 +51,11 @@ func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		s.config.Logger.Error("failed to encode response", "error", err)
 	}
+}
+
+func (s *Server) maxRequestBodyBytes() int64 {
+	if s.config != nil && s.config.MaxRequestBodyBytes > 0 {
+		return s.config.MaxRequestBodyBytes
+	}
+	return servercommon.DefaultMaxRequestBodyBytes
 }

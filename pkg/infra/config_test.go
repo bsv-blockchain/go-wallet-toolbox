@@ -314,6 +314,33 @@ func TestInvalidRequestPrice(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestInvalidHTTPMaxRequestBodyBytes(t *testing.T) {
+	// given:
+	cfg := infra.Defaults()
+	cfg.ServerPrivateKey = fixtures.StorageServerPrivKey
+	cfg.HTTPConfig.MaxRequestBodyBytes = 0
+
+	// when:
+	err := cfg.Validate()
+
+	// then:
+	require.ErrorContains(t, err, "max_request_body_bytes must be greater than 0")
+}
+
+func TestInvalidHTTPCORSWildcardOrigin(t *testing.T) {
+	// given:
+	cfg := infra.Defaults()
+	cfg.ServerPrivateKey = fixtures.StorageServerPrivKey
+	cfg.HTTPConfig.CORS.Enabled = true
+	cfg.HTTPConfig.CORS.AllowedOrigins = []string{"*"}
+
+	// when:
+	err := cfg.Validate()
+
+	// then:
+	require.ErrorContains(t, err, "wildcard origins are not allowed")
+}
+
 func TestChangeBasketEnvVars(t *testing.T) {
 	// given:
 	setRequiredEnvs(t)

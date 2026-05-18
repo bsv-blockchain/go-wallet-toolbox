@@ -279,7 +279,7 @@ func TestFunderSQLFund(t *testing.T) {
 					HasChangeCount(1).ForAmount(10000)
 			},
 		},
-		"allocate biggest utxos first": {
+		"allocate smallest sufficient utxo first (best-fit)": {
 			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
@@ -292,13 +292,15 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         smallTransactionSize,
 			outputCount:    oneOutput,
 
+			// Sorted ASC in mined tier: 1(idx3), 100(idx1), 200(idx0), 300(idx4), 10101(idx2)
+			// Best-fit for remaining 101: exact? no. smallest >= 101? 200(idx0). Single UTXO suffices.
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
-				thenResult.HasAllocatedUTXOs().RowIndexes(2).
+				thenResult.HasAllocatedUTXOs().RowIndexes(0).
 					HasFee(1).
-					HasChangeCount(1).ForAmount(10000)
+					HasChangeCount(1).ForAmount(99)
 			},
 		},
-		"allocate several utxos and calculate the change from them": {
+		"allocate several utxos via best-fit (largest-insufficient fallback)": {
 			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
@@ -310,8 +312,13 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         smallTransactionSize,
 			outputCount:    oneOutput,
 
+			// Need 550 (549+fee1). No single UTXO covers it.
+			// Round 1: selectBest(550) → none >= 550, largest = 300(idx3)
+			// Round 2: selectBest(250) → none >= 250, largest = 200(idx0)
+			// Round 3: selectBest(50) → smallest >= 50 = 100(idx1)
+			// Total: 300+200+100=600. Change=50. 1-sat UTXO(idx2) not needed.
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
-				thenResult.HasAllocatedUTXOs().RowIndexes(0, 1, 3).
+				thenResult.HasAllocatedUTXOs().RowIndexes(3, 0, 1).
 					HasFee(1).
 					HasChangeCount(1).ForAmount(50)
 			},
@@ -489,6 +496,61 @@ func TestFunderSQLFund(t *testing.T) {
 		require.NoError(t, err)
 
 		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(0, 1)
+	})
+
+	t.Run("prefer mined UTXOs over unproven when both cover the target", func(t *testing.T) {
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funder := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 100
+
+		// unproven created first (lower index), but mined should be preferred
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(500).P2PKH().WithStatus(wdk.UTXOStatusUnproven).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(500).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false)
+
+		// should pick mined UTXO (index 1), not unproven (index 0)
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(1)
+	})
+
+	t.Run("prefer mined over sending even when sending UTXO is smaller (better fit)", func(t *testing.T) {
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funder := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 100
+
+		// sending UTXO (101) is perfect fit, but mined (500) should be preferred
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(101).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(500).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true, false)
+
+		// should pick mined (index 1), not better-fit sending (index 0)
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(1)
+	})
+
+	t.Run("best-fit: pick smallest UTXOs that cover target rather than largest", func(t *testing.T) {
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funder := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 100
+
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(5000).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(150).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(1000).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(50).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false)
+
+		// Sorted ASC: 50(idx3), 150(idx1), 1000(idx2), 5000(idx0)
+		// Best-fit for 101: exact? no. smallest >= 101? 150(idx1). Single UTXO.
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(1).
+			HasFee(1).
+			HasChangeCount(1).ForAmount(49)
 	})
 
 	testCasesSplitUserProvidedInputIntoChanges := map[string]struct {

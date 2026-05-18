@@ -119,6 +119,7 @@ func newStorageFixture(t testing.TB, identityKey, name string, configModifiers .
 		commission:             defs.Commission{},
 		feeModel:               defs.FeeModel{Type: defs.SatPerKB, Value: 1},
 		failAbandoned:          defs.DefaultFailAbandoned(),
+		syncTxStatuses:         defs.DefaultSynchronizeTxStatuses(),
 		changeBasket:           defs.DefaultChangeBasket(),
 		randomizer:             randomizer.New(),
 		beefVerifierFixture:    newBeefVerifierFixture(),

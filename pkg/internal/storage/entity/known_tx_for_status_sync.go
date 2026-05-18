@@ -6,10 +6,12 @@ import (
 )
 
 type KnownTxForStatusSync struct {
-	TxID     string
-	Attempts uint64
-	Status   wdk.ProvenTxReqStatus
-	Batch    *string
+	TxID                string
+	Attempts            uint64
+	RebroadcastAttempts uint64
+	Status              wdk.ProvenTxReqStatus
+	WasBroadcast        bool
+	Batch               *string
 }
 
 type KnownTxAsMined struct {

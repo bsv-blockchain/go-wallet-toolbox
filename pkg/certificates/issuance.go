@@ -1,9 +1,15 @@
 package certificates
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+)
+
+const (
+	// MaxCertificateFieldDecodedBytes bounds each decoded certificate field value.
+	MaxCertificateFieldDecodedBytes = 64 * 1024
 )
 
 // ProtocolIssuanceRequest represents the certificate signing request sent to the certifier
@@ -48,6 +54,13 @@ func MapToCertificateFields(fields map[string]string) (map[sdk.CertificateFieldN
 	for k, v := range fields {
 		if len(k) < minLength || len(k) > maxLength {
 			return nil, fmt.Errorf("invalid field name %q: must be between 1 and 50 bytes", k)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid field value for %q: must be base64 encoded: %w", k, err)
+		}
+		if len(decoded) > MaxCertificateFieldDecodedBytes {
+			return nil, fmt.Errorf("invalid field value for %q: decoded value must not exceed %d bytes", k, MaxCertificateFieldDecodedBytes)
 		}
 		stringFields[sdk.CertificateFieldNameUnder50Bytes(k)] = sdk.StringBase64(v)
 	}

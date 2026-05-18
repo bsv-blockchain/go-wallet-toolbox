@@ -23,10 +23,10 @@ db:
   postgresql:
     db_name: storage
     host: localhost
-    password: postgres
+    password: <set-via-secret>
     port: "5432"
-    ssl_mode: disable
     schema: ""
+    ssl_mode: verify-full
     time_zone: UTC
     user: postgres
   sqlite:
@@ -37,6 +37,39 @@ fee_model:
   type: sat/kb
   value: 100
 http:
+  cors:
+    allow_all_origins: true
+    allow_private_network: true
+    allowed_headers:
+      - content-type
+      - authorization
+      - x-bsv-auth-version
+      - x-bsv-auth-message-type
+      - x-bsv-auth-identity-key
+      - x-bsv-auth-nonce
+      - x-bsv-auth-your-nonce
+      - x-bsv-auth-signature
+      - x-bsv-auth-request-id
+      - x-bsv-auth-requested-certificates
+      - X-BSV-Payment
+    allowed_methods:
+      - POST
+    allowed_origins: []
+    enabled: true
+    exposed_headers:
+      - authorization
+      - x-bsv-auth-version
+      - x-bsv-auth-message-type
+      - x-bsv-auth-identity-key
+      - x-bsv-auth-nonce
+      - x-bsv-auth-your-nonce
+      - x-bsv-auth-signature
+      - x-bsv-auth-request-id
+      - X-BSV-Payment-Version
+      - X-BSV-Payment-Satoshis-Required
+      - X-BSV-Payment-Satoshis-Paid
+      - X-BSV-Payment-Derivation-Prefix
+  max_request_body_bytes: 1048576
   port: 8100
   request_price: 0
 logging:
@@ -74,7 +107,8 @@ server_private_key: ""
 synchronize_tx_statuses:
   blocks_delay: 1
   check_no_send_period_hours: 24
-  max_attempts: 10
+  max_attempts: 100
+  max_rebroadcast_attempts: 0
 tracing:
   dialAddr: http://localhost:4317
   enabled: false

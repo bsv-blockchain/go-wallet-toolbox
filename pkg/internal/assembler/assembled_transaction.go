@@ -55,13 +55,16 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 		})
 	}
 
-	inputsRawTx := seqerr.Map(inputsWithSourceTx, inputRawTxBytes)
+	inputSourceTxs := seqerr.Map(inputsWithSourceTx, inputSourceTransaction)
 
-	allRawTxs := seqerr.Append(inputsRawTx, a.Bytes())
-
-	err = seqerr.ForEach(allRawTxs, mergeRawTxIntoBEEF(beef))
+	err = seqerr.ForEach(inputSourceTxs, mergeSourceTxIntoBEEF(beef))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build beef from tx, %w", err)
+	}
+
+	_, err = beef.MergeRawTx(a.Bytes(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot merge new tx into beef: %w", err)
 	}
 
 	return beef, nil
@@ -74,13 +77,19 @@ func validateInputs(input *transaction.TransactionInput) error {
 	return nil
 }
 
-func inputRawTxBytes(input *transaction.TransactionInput) []byte {
-	return input.SourceTransaction.Bytes()
+func inputSourceTransaction(input *transaction.TransactionInput) *transaction.Transaction {
+	return input.SourceTransaction
 }
 
-func mergeRawTxIntoBEEF(beef *transaction.Beef) func([]byte) error {
-	return func(rawTx []byte) error {
-		_, err := beef.MergeRawTx(rawTx, nil)
+func mergeSourceTxIntoBEEF(beef *transaction.Beef) func(*transaction.Transaction) error {
+	return func(tx *transaction.Transaction) error {
+		txid := tx.TxID()
+		var bumpIndex *int
+		if existing, ok := beef.Transactions[*txid]; ok && existing.DataFormat == transaction.RawTxAndBumpIndex {
+			idx := existing.BumpIndex
+			bumpIndex = &idx
+		}
+		_, err := beef.MergeRawTx(tx.Bytes(), bumpIndex)
 		if err != nil {
 			return fmt.Errorf("cannot merge raw tx into beef: %w", err)
 		}

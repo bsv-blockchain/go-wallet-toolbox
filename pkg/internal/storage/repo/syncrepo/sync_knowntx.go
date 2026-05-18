@@ -3,6 +3,7 @@ package syncrepo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -78,30 +79,50 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 
 func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
 	model := models.KnownTx{
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
-		TxID:        entity.TxID,
-		Status:      entity.Status,
-		Attempts:    entity.Attempts,
-		Notified:    entity.Notified,
-		RawTx:       entity.RawTx,
-		InputBeef:   entity.InputBEEF,
-		BlockHeight: entity.BlockHeight,
-		MerklePath:  entity.MerklePath,
-		MerkleRoot:  entity.MerkleRoot,
-		BlockHash:   entity.BlockHash,
+		CreatedAt:           entity.CreatedAt,
+		UpdatedAt:           entity.UpdatedAt,
+		TxID:                entity.TxID,
+		Status:              entity.Status,
+		Attempts:            entity.Attempts,
+		WasBroadcast:        entity.WasBroadcast || entity.Status.WasBroadcastStatus(),
+		RebroadcastAttempts: entity.RebroadcastAttempts,
+		Notified:            entity.Notified,
+		RawTx:               entity.RawTx,
+		InputBeef:           entity.InputBEEF,
+		BlockHeight:         entity.BlockHeight,
+		MerklePath:          entity.MerklePath,
+		MerkleRoot:          entity.MerkleRoot,
+		BlockHash:           entity.BlockHash,
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.KnownTx{}).
+		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
+		// Equal updated_at must SKIP. TxNote delete/insert side-effects only fire
+		// inside the post-guard branch. See ts-stack EntityProvenTx.mergeExisting and
+		// conformance vector sync.brc40.merge.proventx.error.regression.1.
+		var existing models.KnownTx
+		existsErr := tx.Model(&models.KnownTx{}).
+			Select("tx_id, updated_at").
 			Where("tx_id = ?", entity.TxID).
-			Updates(model)
+			First(&existing).Error
 
-		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
-		}
+		if existsErr == nil {
+			if !model.UpdatedAt.After(existing.UpdatedAt) {
+				return nil
+			}
 
-		if updateTx.RowsAffected > 0 {
+			updateTx := tx.Model(&models.KnownTx{}).
+				Where("tx_id = ? AND updated_at < ?", entity.TxID, model.UpdatedAt).
+				Updates(model)
+
+			if updateTx.Error != nil {
+				return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
+			}
+
+			if updateTx.RowsAffected == 0 {
+				return nil
+			}
+
 			if deleteErr := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; deleteErr != nil {
 				return fmt.Errorf("failed to delete existing transaction notes: %w", deleteErr)
 			}
@@ -111,6 +132,10 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 			}
 
 			return nil
+		}
+
+		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to lookup existing known tx: %w", existsErr)
 		}
 
 		if err = tx.Create(&model).Error; err != nil {
@@ -187,18 +212,20 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (
 	}
 
 	return &wdk.TableProvenTxReq{
-		CreatedAt:     model.CreatedAt,
-		UpdatedAt:     model.UpdatedAt,
-		ProvenTxReqID: model.NumID,
-		Status:        model.Status,
-		Attempts:      model.Attempts,
-		Notified:      model.Notified,
-		TxID:          model.TxID,
-		Batch:         nil, // TODO: For now batch broadcasting is not supported, will be added later
-		History:       historyNotes,
-		Notify:        "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
-		RawTx:         model.RawTx,
-		InputBEEF:     model.InputBeef,
+		CreatedAt:           model.CreatedAt,
+		UpdatedAt:           model.UpdatedAt,
+		ProvenTxReqID:       model.NumID,
+		Status:              model.Status,
+		Attempts:            model.Attempts,
+		WasBroadcast:        model.WasBroadcast || model.Status.WasBroadcastStatus(),
+		RebroadcastAttempts: model.RebroadcastAttempts,
+		Notified:            model.Notified,
+		TxID:                model.TxID,
+		Batch:               nil, // TODO: For now batch broadcasting is not supported, will be added later
+		History:             historyNotes,
+		Notify:              "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
+		RawTx:               model.RawTx,
+		InputBEEF:           model.InputBeef,
 	}, nil
 }
 

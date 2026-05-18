@@ -8,6 +8,8 @@
 *.so
 *.dylib
 
+.opencode
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -57,3 +59,7 @@ manual_tests/*.sqlite-journal
 
 # Fuzz Tests
 testdata
+
+# Build output
+bin/
+
