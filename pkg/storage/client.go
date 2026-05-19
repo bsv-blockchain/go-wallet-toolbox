@@ -25,186 +25,13 @@ const contentTypeJSON = "application/json"
 // HTTP contract (/storage/v1/*) using authenticated requests via the go-sdk auth client.
 // This replaces the legacy JSON-RPC implementation (now deprecated).
 // The returned cleanup func is a no-op (no persistent connection).
-//
-//nolint:gocognit,gocyclo,cyclop // Inline V1 HTTP adapters keep wire shape next to call site; complexity is not algorithmic.
 func NewClient(addr string, wallet sdk.Interface, opts ...ClientOptions) (*WalletStorageProviderClient, func(), error) {
 	options := to.OptionsWithDefault(defaultClientOptions(), opts...)
 	options.logger = logging.Child(options.logger, "StorageClient")
 
 	requester := newRPCAuthriteRequester(addr, wallet, options)
 
-	// Wire the rpcWalletStorageProvider (name kept for gen compat) with V1 HTTP implementations.
-	// Each func performs the appropriate POST/GET to /storage/v1/... with {args:...} or special body shape.
-	impl := &rpcWalletStorageProvider{
-		Migrate: func(ctx context.Context, storageName, storageIdentityKey string) (string, error) {
-			var res struct {
-				StorageName string `json:"storageName"`
-			}
-			payload := map[string]string{"storageName": storageName, "storageIdentityKey": storageIdentityKey}
-			if err := requester.postV1(ctx, "/storage/v1/migrate", payload, &res); err != nil {
-				return "", err
-			}
-			return res.StorageName, nil
-		},
-		MakeAvailable: func(ctx context.Context) (*wdk.TableSettings, error) {
-			var res wdk.TableSettings
-			if err := requester.getV1(ctx, "/storage/v1/settings", &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		SetActive: func(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
-			// Not part of core adapter conformance; provide minimal impl if needed by future sync.
-			// For now, not exercised in remote tests; return not supported or implement POST /storage/v1/active if required.
-			return fmt.Errorf("SetActive not implemented in V1 client yet")
-		},
-		FindOrInsertUser: func(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
-			var res wdk.FindOrInsertUserResponse
-			payload := map[string]string{"identityKey": identityKey}
-			if err := requester.postV1(ctx, "/storage/v1/users", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		InternalizeAction: func(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
-			var res wdk.InternalizeActionResult
-			payload := struct {
-				IdentityKey string                    `json:"identityKey,omitempty"`
-				Args        wdk.InternalizeActionArgs `json:"args"`
-			}{IdentityKey: auth.IdentityKey, Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/actions/internalize", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		CreateAction: func(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
-			var res wdk.StorageCreateActionResult
-			payload := struct {
-				Args wdk.ValidCreateActionArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/actions", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		ProcessAction: func(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
-			var res wdk.ProcessActionResult
-			payload := struct {
-				Args wdk.ProcessActionArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/actions/process", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		InsertCertificateAuth: func(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
-			// Send certificate directly as root (to match current v1adapter vector support for conformance)
-			var res struct {
-				CertificateID uint `json:"certificateId"`
-				ID            uint `json:"id"`
-			}
-			if err := requester.postV1(ctx, "/storage/v1/certificates", certificate, &res); err != nil {
-				return 0, err
-			}
-			if res.CertificateID != 0 {
-				return res.CertificateID, nil
-			}
-			return res.ID, nil
-		},
-		RelinquishCertificate: func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
-			payload := struct {
-				Args wdk.RelinquishCertificateArgs `json:"args"`
-			}{Args: args}
-			var res map[string]string
-			if err := requester.postV1(ctx, "/storage/v1/certificates/relinquish", payload, &res); err != nil {
-				return err
-			}
-			return nil
-		},
-		RelinquishOutput: func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
-			payload := struct {
-				Args wdk.RelinquishOutputArgs `json:"args"`
-			}{Args: args}
-			var res map[string]string
-			if err := requester.postV1(ctx, "/storage/v1/outputs/relinquish", payload, &res); err != nil {
-				return err
-			}
-			return nil
-		},
-		ListCertificates: func(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
-			var res wdk.ListCertificatesResult
-			payload := struct {
-				Args wdk.ListCertificatesArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/list/certificates", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		ListOutputs: func(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
-			var res wdk.ListOutputsResult
-			payload := struct {
-				Args wdk.ListOutputsArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/list/outputs", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		ListActions: func(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
-			var res wdk.ListActionsResult
-			payload := struct {
-				Args wdk.ListActionsArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/list/actions", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		GetSyncChunk: func(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-			var res wdk.SyncChunk
-			payload := struct {
-				Args wdk.RequestSyncChunkArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/sync/chunk", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		FindOrInsertSyncStateAuth: func(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
-			var res wdk.FindOrInsertSyncStateAuthResponse
-			payload := map[string]string{"storageIdentityKey": storageIdentityKey, "storageName": storageName}
-			// server has two paths; use /sync/state as primary
-			if err := requester.postV1(ctx, "/storage/v1/sync/state", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		ProcessSyncChunk: func(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
-			// Not in core conformance vectors yet; stub
-			return nil, fmt.Errorf("ProcessSyncChunk not fully implemented in V1 client")
-		},
-		AbortAction: func(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
-			var res wdk.AbortActionResult
-			payload := struct {
-				Args wdk.AbortActionArgs `json:"args"`
-			}{Args: args}
-			if err := requester.postV1(ctx, "/storage/v1/actions/abort", payload, &res); err != nil {
-				return nil, err
-			}
-			return &res, nil
-		},
-		FindOutputBasketsAuth: func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
-			// Not exercised; return empty
-			return wdk.TableOutputBaskets{}, nil
-		},
-		FindOutputsAuth: func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
-			return wdk.TableOutputs{}, nil
-		},
-		ListTransactions: func(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
-			return &wdk.ListTransactionsResult{}, nil
-		},
-	}
+	impl := newV1Impl(requester)
 
 	c := &WalletStorageProviderClient{
 		client: impl,
@@ -217,6 +44,213 @@ func NewClient(addr string, wallet sdk.Interface, opts ...ClientOptions) (*Walle
 	}
 
 	return c, cleanup, nil
+}
+
+// newV1Impl wires the V1 HTTP storage adapter operations to the requester.
+// Each op is extracted to a standalone builder to keep complexity per-function low.
+func newV1Impl(r *rpcAuthriteRequester) *rpcWalletStorageProvider {
+	return &rpcWalletStorageProvider{
+		Migrate:                   v1Migrate(r),
+		MakeAvailable:             v1MakeAvailable(r),
+		SetActive:                 v1SetActive(),
+		FindOrInsertUser:          v1FindOrInsertUser(r),
+		InternalizeAction:         v1InternalizeAction(r),
+		CreateAction:              v1CreateAction(r),
+		ProcessAction:             v1ProcessAction(r),
+		InsertCertificateAuth:     v1InsertCertificateAuth(r),
+		RelinquishCertificate:     v1RelinquishCertificate(r),
+		RelinquishOutput:          v1RelinquishOutput(r),
+		ListCertificates:          v1ListCertificates(r),
+		ListOutputs:               v1ListOutputs(r),
+		ListActions:               v1ListActions(r),
+		GetSyncChunk:              v1GetSyncChunk(r),
+		FindOrInsertSyncStateAuth: v1FindOrInsertSyncStateAuth(r),
+		ProcessSyncChunk:          v1ProcessSyncChunk(),
+		AbortAction:               v1AbortAction(r),
+		FindOutputBasketsAuth:     v1FindOutputBasketsAuth(),
+		FindOutputsAuth:           v1FindOutputsAuth(),
+		ListTransactions:          v1ListTransactions(),
+	}
+}
+
+// postArgs sends `{args: <args>}` to path and decodes the response into *R.
+func postArgs[A any, R any](r *rpcAuthriteRequester, ctx context.Context, path string, args A) (*R, error) {
+	var res R
+	payload := struct {
+		Args A `json:"args"`
+	}{Args: args}
+	if err := r.postV1(ctx, path, payload, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+// postArgsNoResult sends `{args: <args>}` to path and discards the response body shape.
+func postArgsNoResult[A any](r *rpcAuthriteRequester, ctx context.Context, path string, args A) error {
+	payload := struct {
+		Args A `json:"args"`
+	}{Args: args}
+	var res map[string]string
+	return r.postV1(ctx, path, payload, &res)
+}
+
+func v1Migrate(r *rpcAuthriteRequester) func(ctx context.Context, storageName, storageIdentityKey string) (string, error) {
+	return func(ctx context.Context, storageName, storageIdentityKey string) (string, error) {
+		var res struct {
+			StorageName string `json:"storageName"`
+		}
+		payload := map[string]string{"storageName": storageName, "storageIdentityKey": storageIdentityKey}
+		if err := r.postV1(ctx, "/storage/v1/migrate", payload, &res); err != nil {
+			return "", err
+		}
+		return res.StorageName, nil
+	}
+}
+
+func v1MakeAvailable(r *rpcAuthriteRequester) func(ctx context.Context) (*wdk.TableSettings, error) {
+	return func(ctx context.Context) (*wdk.TableSettings, error) {
+		var res wdk.TableSettings
+		if err := r.getV1(ctx, "/storage/v1/settings", &res); err != nil {
+			return nil, err
+		}
+		return &res, nil
+	}
+}
+
+func v1SetActive() func(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+	return func(ctx context.Context, auth wdk.AuthID, newActiveStorageIdentityKey string) error {
+		return fmt.Errorf("SetActive not implemented in V1 client yet")
+	}
+}
+
+func v1FindOrInsertUser(r *rpcAuthriteRequester) func(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
+	return func(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
+		var res wdk.FindOrInsertUserResponse
+		payload := map[string]string{"identityKey": identityKey}
+		if err := r.postV1(ctx, "/storage/v1/users", payload, &res); err != nil {
+			return nil, err
+		}
+		return &res, nil
+	}
+}
+
+func v1InternalizeAction(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
+		var res wdk.InternalizeActionResult
+		payload := struct {
+			IdentityKey string                    `json:"identityKey,omitempty"`
+			Args        wdk.InternalizeActionArgs `json:"args"`
+		}{IdentityKey: auth.IdentityKey, Args: args}
+		if err := r.postV1(ctx, "/storage/v1/actions/internalize", payload, &res); err != nil {
+			return nil, err
+		}
+		return &res, nil
+	}
+}
+
+func v1CreateAction(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
+		return postArgs[wdk.ValidCreateActionArgs, wdk.StorageCreateActionResult](r, ctx, "/storage/v1/actions", args)
+	}
+}
+
+func v1ProcessAction(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
+		return postArgs[wdk.ProcessActionArgs, wdk.ProcessActionResult](r, ctx, "/storage/v1/actions/process", args)
+	}
+}
+
+func v1InsertCertificateAuth(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
+	return func(ctx context.Context, auth wdk.AuthID, certificate *wdk.TableCertificateX) (uint, error) {
+		var res struct {
+			CertificateID uint `json:"certificateId"`
+			ID            uint `json:"id"`
+		}
+		if err := r.postV1(ctx, "/storage/v1/certificates", certificate, &res); err != nil {
+			return 0, err
+		}
+		if res.CertificateID != 0 {
+			return res.CertificateID, nil
+		}
+		return res.ID, nil
+	}
+}
+
+func v1RelinquishCertificate(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
+		return postArgsNoResult[wdk.RelinquishCertificateArgs](r, ctx, "/storage/v1/certificates/relinquish", args)
+	}
+}
+
+func v1RelinquishOutput(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
+		return postArgsNoResult[wdk.RelinquishOutputArgs](r, ctx, "/storage/v1/outputs/relinquish", args)
+	}
+}
+
+func v1ListCertificates(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
+		return postArgs[wdk.ListCertificatesArgs, wdk.ListCertificatesResult](r, ctx, "/storage/v1/list/certificates", args)
+	}
+}
+
+func v1ListOutputs(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
+		return postArgs[wdk.ListOutputsArgs, wdk.ListOutputsResult](r, ctx, "/storage/v1/list/outputs", args)
+	}
+}
+
+func v1ListActions(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
+		return postArgs[wdk.ListActionsArgs, wdk.ListActionsResult](r, ctx, "/storage/v1/list/actions", args)
+	}
+}
+
+func v1GetSyncChunk(r *rpcAuthriteRequester) func(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+	return func(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
+		return postArgs[wdk.RequestSyncChunkArgs, wdk.SyncChunk](r, ctx, "/storage/v1/sync/chunk", args)
+	}
+}
+
+func v1FindOrInsertSyncStateAuth(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+	return func(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+		var res wdk.FindOrInsertSyncStateAuthResponse
+		payload := map[string]string{"storageIdentityKey": storageIdentityKey, "storageName": storageName}
+		if err := r.postV1(ctx, "/storage/v1/sync/state", payload, &res); err != nil {
+			return nil, err
+		}
+		return &res, nil
+	}
+}
+
+func v1ProcessSyncChunk() func(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
+	return func(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
+		return nil, fmt.Errorf("ProcessSyncChunk not fully implemented in V1 client")
+	}
+}
+
+func v1AbortAction(r *rpcAuthriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
+		return postArgs[wdk.AbortActionArgs, wdk.AbortActionResult](r, ctx, "/storage/v1/actions/abort", args)
+	}
+}
+
+func v1FindOutputBasketsAuth() func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+	return func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
+		return wdk.TableOutputBaskets{}, nil
+	}
+}
+
+func v1FindOutputsAuth() func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+	return func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
+		return wdk.TableOutputs{}, nil
+	}
+}
+
+func v1ListTransactions() func(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
+		return &wdk.ListTransactionsResult{}, nil
+	}
 }
 
 func newRPCAuthriteRequester(addr string, wallet sdk.Interface, options clientOptions) *rpcAuthriteRequester {
