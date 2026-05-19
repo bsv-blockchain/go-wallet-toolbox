@@ -29,8 +29,8 @@ func TestToAtomicBEEF_RemovesUnsignedTx(t *testing.T) {
 	assembled := assembler.NewAssembledTxFromPendingSignAction(pAction)
 
 	// Now "sign" the transaction (simulated by changing something that changes TXID)
-	assembled.Transaction.LockTime = 12345
-	signedID := assembled.Transaction.TxID()
+	assembled.LockTime = 12345
+	signedID := assembled.TxID()
 	require.NotEqual(t, unsignedID, signedID)
 
 	// Generate BEEF
