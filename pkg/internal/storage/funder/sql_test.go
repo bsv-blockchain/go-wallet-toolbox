@@ -210,6 +210,51 @@ func TestFunderSQLFund(t *testing.T) {
 		})
 	}
 
+	t.Run("burn transaction funded exactly to fee still gets a change output", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and:
+		funder := given.NewFunderService()
+
+		// and:
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+
+		// and: the fixed input covers the fee exactly, but a no-output transaction is invalid.
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(2).P2PKH().Stored()
+
+		// when:
+		result, err := funder.Fund(ctx, -1, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
+
+		// then:
+		then.Result(result).WithoutError(err).
+			HasAllocatedUTXOs().ForTotalAmount(2).
+			HasChangeCount(1).ForAmount(2).
+			HasFee(1)
+	})
+
+	t.Run("burn transaction funded exactly to fee errors when no viable change output can be funded", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and:
+		funder := given.NewFunderService()
+
+		// and:
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+
+		// and: one extra satoshi is still below the dust floor for a change output.
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(1).P2PKH().Stored()
+
+		// when:
+		result, err := funder.Fund(ctx, -1, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false)
+
+		// then:
+		then.Result(result).WithError(err)
+	})
+
 	testCasesFundWholeTransaction := map[string]struct {
 		havingUTXOsInDB func(testabilities.FunderFixture, *entity.OutputBasket)
 		targetSatoshis  satoshi.Value
