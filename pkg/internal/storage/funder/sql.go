@@ -269,6 +269,33 @@ func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesi
 }
 
 func (c *utxoCollector) remaining() satoshi.Value {
+	if c.outputCount == 0 {
+		change := c.change()
+		if c.changeOutputsCount > 0 && change < c.dustFloor {
+			feeWithNextInput, err := c.feeCalculator.Calculate(c.txSize + txutils.P2PKHEstimatedInputSize)
+			if err != nil {
+				panic(fmt.Errorf("failed to calculate fee for next change input: %w", err))
+			}
+
+			toCover := satoshi.MustAdd(satoshi.MustAdd(c.txSats, feeWithNextInput), c.dustFloor)
+			if toCover > c.satsCovered {
+				return satoshi.MustSubtract(toCover, c.satsCovered)
+			}
+		}
+
+		if c.changeOutputsCount == 0 {
+			feeWithFirstChangeOutput, err := c.feeCalculator.Calculate(c.txSize + txutils.P2PKHEstimatedInputSize + changeOutputSize)
+			if err != nil {
+				panic(fmt.Errorf("failed to calculate fee for first change output: %w", err))
+			}
+
+			toCover := satoshi.MustAdd(satoshi.MustAdd(c.txSats, feeWithFirstChangeOutput), c.dustFloor)
+			if toCover > c.satsCovered {
+				return satoshi.MustSubtract(toCover, c.satsCovered)
+			}
+		}
+	}
+
 	return satoshi.MustSubtract(c.satsToCover(), c.satsCovered)
 }
 
@@ -276,9 +303,8 @@ func (c *utxoCollector) IsFunded() bool {
 	// A valid Bitcoin transaction must have at least one output.
 	// If no outputs are defined and no change outputs will be created,
 	// we must continue allocating UTXOs to ensure at least one change output exists.
-	totalOutputs := c.outputCount + c.changeOutputsCount
-	if totalOutputs == 0 {
-		return c.satsCovered > c.satsToCover()
+	if c.outputCount == 0 {
+		return c.changeOutputsCount > 0 && c.change() >= c.dustFloor
 	}
 
 	if c.isSweep {
