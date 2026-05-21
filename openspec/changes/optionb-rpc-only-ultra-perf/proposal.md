@@ -209,14 +209,21 @@ Targets are aspirational; Phase 0 baseline + Phase 14 bench confirm.
 7. **ClickHouse for historical reads.** OLAP queries get separate engine; KV stays narrow-fast.
 8. **Blobs in S3.** Raw tx > 4KB never live in hot KV.
 9. **Encryption at rest is out of scope.** Transaction data is public (on-chain). All sensitive metadata is already encrypted client-side before reaching storage. Storage-layer encryption would add CPU cost with no added confidentiality. Operators who still want disk-level encryption use the backend's native mechanism (Aerospike enterprise, EBS encryption, dm-crypt, etc.) without changes to this codebase.
+10. **Aerospike enterprise license is the scale path.** Community edition serves up to 5 nodes / 4TB. Beyond that, operators pay for enterprise. No ScyllaDB fallback path; backend interface stays clean rather than supporting both.
+11. **Read-your-writes is strict.** Post-write reads block on materializer catch-up with a bounded timeout (500ms default). No best-effort mode, no per-request opt-out. Simpler contract beats configurable correctness.
+12. **Cluster-internal RPC is gRPC + protobuf; edge is JSON-RPC.** External BRC-100 clients see HTTP/2 JSON-RPC unchanged. Worker-to-worker and worker-to-materializer use gRPC for ~5x lower per-call CPU cost.
+13. **In-memory mode for embedded driver is in scope.** `embedded` backend supports `--memory-only` flag for test/CI/ephemeral wallets. No durability. Cheap to add; useful immediately.
+14. **Out of scope:** streaming RPC for deep listActions; read-replica fan-out hint; multi-region active-active. Revisit in a future Option B v2 if customer demand surfaces.
 
 ## Open questions
 
-1. Does the BRC-100 JSON-RPC contract leak any internal-state assumption (e.g., a method that returns an internal table row)? Phase 0 audit.
-2. Multi-device wallets historically rely on BRC-40 sync. What replication primitive replaces it for users who need multi-storage state? Candidate: event-log subscribe + materialize on second storage. Phase 0 prototype.
-3. Cost ceiling for `embedded` mode if BadgerDB I/O exceeds Raspberry-Pi SD-card endurance — consider EROFS or memory-only mode for ephemeral wallets.
-4. Aerospike vs ScyllaDB final decision. Bench both at Phase 4.
-5. Whether to support a `postgres` backend as a fifth driver for orgs that mandate SQL. Likely no — adds complexity and undermines the perf story.
+None outstanding. Items previously open are now resolved:
+
+1. **BRC-100 internal-state leakage:** Phase 0 audit task still runs, but is verification, not a decision.
+2. **Multi-device replication:** locked to event-log subscribe + materialize.
+3. **Embedded SD-card endurance:** in-memory mode (D13) covers ephemeral cases; SSD is documented requirement for durable embedded.
+4. **Aerospike vs ScyllaDB:** Aerospike committed (D10); enterprise license is the scale path. No ScyllaDB driver.
+5. **Postgres fifth driver:** out — would undermine the performance story.
 
 ## Alternatives considered
 

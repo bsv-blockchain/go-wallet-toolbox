@@ -108,6 +108,57 @@ When any of {materializer lag, event-log producer lag, backend client queue dept
 - **THEN** the server SHALL respond with 503
 - **AND** the response SHALL include `Retry-After` with a value derived from current lag
 
+### Requirement: Cluster-internal RPC is gRPC + protobuf
+
+For `cluster-hot` and `cluster-extreme` backends, worker-to-worker and worker-to-materializer RPC SHALL use gRPC over HTTP/2 with protobuf-encoded messages. External BRC-100 JSON-RPC SHALL be the only edge protocol; the gateway worker SHALL translate each incoming BRC-100 call into internal gRPC calls exactly once.
+
+#### Scenario: Edge protocol unchanged
+
+- **GIVEN** an external BRC-100 client speaking JSON-RPC over HTTP/2
+- **WHEN** the client invokes a method against a `cluster-hot` deployment
+- **THEN** the client SHALL observe BRC-100 JSON-RPC semantics exactly
+- **AND** the use of gRPC internally SHALL not leak to the client
+
+#### Scenario: Internal traffic uses gRPC
+
+- **GIVEN** two worker nodes in the same cluster
+- **WHEN** one worker dispatches a cross-shard operation to another
+- **THEN** the wire format SHALL be gRPC + protobuf
+- **AND** the connection SHALL use mTLS for authentication
+
+### Requirement: In-memory mode for embedded driver
+
+The `embedded` driver SHALL support a `--memory-only` flag that initializes BadgerDB with `Options.InMemory = true`. In this mode, no data persists across process restarts.
+
+#### Scenario: In-memory mode
+
+- **GIVEN** the `embedded` driver started with `--memory-only`
+- **WHEN** state-mutating RPCs are processed
+- **THEN** state SHALL be held only in process memory
+- **AND** all behavioural conformance tests SHALL pass against this mode
+- **AND** process termination SHALL discard all state
+
+### Requirement: Aerospike is the sole cluster KV
+
+Cluster backends SHALL use Aerospike as the primary KV. No alternative KV driver (ScyllaDB, FoundationDB, DynamoDB, etc.) SHALL be included in Option B v1.
+
+#### Scenario: Backend tier inspection
+
+- **GIVEN** any `cluster-hot` or `cluster-extreme` deployment
+- **WHEN** the backend driver is inspected
+- **THEN** the underlying KV SHALL be Aerospike
+
+### Requirement: Read-your-writes is strict
+
+The RPC contract SHALL guarantee that any read issued by a caller after a successful write from the same caller observes the effect of that write. Implementations SHALL block reads on materializer catch-up with a bounded timeout (default 500ms). On timeout, the read SHALL return 503.
+
+#### Scenario: Sequential write then read
+
+- **GIVEN** a caller invokes `createAction` and receives 200 OK
+- **WHEN** the same caller immediately invokes `listOutputs`
+- **THEN** the response SHALL include the outputs from the just-created action
+- **AND** if materializer catch-up exceeds 500ms, the response SHALL be 503 with `Retry-After`
+
 ### Requirement: Performance budgets per tier
 
 Each backend tier SHALL meet the following budgets under steady-state load at its target tps:

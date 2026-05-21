@@ -23,7 +23,8 @@ Sequenced by risk. Each phase is independently mergeable. Early phases are found
 - [ ] Wire BadgerDB lifecycle (open, close, GC, value log).
 - [ ] Implement prefix scans for list operations using BadgerDB iterators.
 - [ ] Add CAS via BadgerDB's `Txn` with conflict detection.
-- [ ] Conformance test suite: run a wallet RPC harness against the embedded backend. All BRC-100 methods must pass.
+- [ ] **In-memory mode**: support `--memory-only` flag; initialize BadgerDB with `Options.InMemory = true`. Zero-durability semantics documented. Tests and ephemeral wallets use this mode.
+- [ ] Conformance test suite: run a wallet RPC harness against the embedded backend, both durable and in-memory modes. All BRC-100 methods must pass.
 - [ ] Bench embedded at 10/100/500/1000 tps. Save to `bench/embedded.md`.
 
 ## Phase 3 — RPC layer rewire
@@ -88,6 +89,16 @@ Sequenced by risk. Each phase is independently mergeable. Early phases are found
 - [ ] Worker pool per shard; RPC dispatcher routes incoming calls to the owning worker.
 - [ ] Rebalancing: shard map versioned; rebalance moves a user's state by replaying their event log on the new shard.
 - [ ] Bench: routing overhead per RPC call. Target < 50μs.
+
+## Phase 10a — Cluster-internal gRPC layer
+
+- [ ] Define protobuf schema (`pkg/storage/internalrpc/proto/`) for every worker-to-worker and worker-to-materializer call. Mirror the `Storage` interface where applicable.
+- [ ] Generate Go stubs via `buf generate` or `protoc-gen-go-grpc`.
+- [ ] Implement gRPC server on each worker; expose only intra-cluster operations on a separate listener from the BRC-100 JSON-RPC edge.
+- [ ] Implement gRPC client wrapper that the router uses for cross-shard dispatch.
+- [ ] Edge gateway: translates incoming BRC-100 JSON-RPC into internal gRPC calls. One translation per request.
+- [ ] Bench: per-call CPU cost JSON-RPC vs gRPC for the same operation. Target ≥4x reduction.
+- [ ] Secure intra-cluster traffic: mTLS between workers; cert rotation strategy documented.
 
 ## Phase 11 — Cluster-hot backend wiring
 

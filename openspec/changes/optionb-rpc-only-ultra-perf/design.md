@@ -179,6 +179,22 @@ Rationale: eliminates locks entirely on the hot path. Sharded routing means each
 
 Rationale: transaction data is public — it lives on the blockchain. All wallet-private metadata (descriptions, labels, derivation tweaks) is already encrypted client-side by the wallet's BRC key derivation before reaching the storage RPC. Storage-layer encryption would re-encrypt already-encrypted ciphertext for no added confidentiality, while burning CPU on AES on the hot path. Operators who require disk-level protection use backend-native mechanisms (Aerospike enterprise encryption, AWS EBS volume encryption, dm-crypt, LUKS) which are transparent to this codebase.
 
+### D12: Aerospike enterprise license at scale; no ScyllaDB fallback
+
+Rationale: Aerospike CE caps at 5 nodes / 4TB. Beyond that, operators pay for enterprise. Supporting both Aerospike and ScyllaDB drivers doubles the cluster backend surface area, doubles the bench matrix, and forces every change to be tested against two distinct systems. The clean design committed Aerospike-only. Operators uncomfortable with that license posture take Option A or fork.
+
+### D13: Read-your-writes is strict
+
+Rationale: a configurable RYW mode adds complexity to client code and to the RPC contract. Always-strict means clients never have to reason about consistency boundaries. The cost — blocking up to 500ms during materializer catch-up — is acceptable because materializer lag is itself bounded by backpressure (D9). When backpressure trips, callers see 503; otherwise lag is sub-100ms.
+
+### D14: gRPC + protobuf for cluster-internal RPC; HTTP/2 JSON-RPC at the edge
+
+Rationale: JSON parsing at 100K rps consumes 100-300ms of CPU per wall-second of serving — significant. Worker-to-worker traffic dominates intra-cluster bytes at the top tier. Switching internal protocol to gRPC + protobuf cuts that cost ~5x. External clients keep JSON-RPC for BRC-100 compatibility; the gateway worker translates once per request.
+
+### D15: In-memory mode for embedded driver
+
+Rationale: tests, CI, ephemeral wallets, and integration suites don't need durability. A `--memory-only` flag on the `embedded` driver runs BadgerDB with `InMemory: true`, avoiding disk I/O entirely. Speeds tests; provides clean teardown; documents zero-durability semantics for callers who explicitly want them.
+
 ## What is the actual bottleneck at 100K tps?
 
 In rough order, anticipated bottlenecks (numbers approximate):
@@ -197,8 +213,12 @@ Network bandwidth at 100K tps with ~1KB BEEF payloads = 100MB/s ingress. Single 
 
 ## Open architectural questions
 
-1. **Do we expose a streaming RPC variant?** WebSocket or gRPC streaming for `listActions` over deep history could halve client-perceived latency. Defer until customer asks.
-2. **In-memory mode for ephemeral wallets?** Test wallets, integration tests, CI fixtures don't need durability. `embedded` driver with `--memory-only` flag is cheap to add.
-3. **Read-replica fan-out for `listOutputs` heavy clients?** Aerospike supports read replicas; do we expose a "read from any replica" hint for analytics-like consumers? Defer.
-4. **Encryption at rest** — resolved as out of scope (see D11). Tx data is public; metadata is encrypted client-side. No storage-layer encryption added.
-5. **Multi-region active-active**? Event log can be mirrored; KV state can be regional. Out of scope until customer asks.
+All resolved:
+
+1. **Streaming RPC variant** — out of scope for Option B v1.
+2. **In-memory mode for ephemeral wallets** — in scope (D15); `embedded` driver supports `--memory-only`.
+3. **Read-replica fan-out hint** — out of scope for Option B v1.
+4. **Encryption at rest** — out of scope (D11); tx data public, metadata client-encrypted.
+5. **Multi-region active-active** — out of scope for Option B v1.
+
+Out-of-scope items can be revisited in a future Option B v2 if customer demand surfaces.
