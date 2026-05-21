@@ -74,7 +74,7 @@ func newClientImpl(r *authriteRequester) *walletStorageProviderImpl {
 }
 
 // postArgs sends `{args: <args>}` to path and decodes the response into *R.
-func postArgs[A any, R any](r *authriteRequester, ctx context.Context, path string, args A) (*R, error) {
+func postArgs[A, R any](r *authriteRequester, ctx context.Context, path string, args A) (*R, error) {
 	var res R
 	payload := struct {
 		Args A `json:"args"`
@@ -307,7 +307,7 @@ func (r *authriteRequester) DoHTTPRequest(ctx context.Context, body []byte) (io.
 
 // --- V1 adapter HTTP helpers (used by NewClient V1 implementation) ---
 
-func (r *authriteRequester) post(ctx context.Context, path string, payload any, result any) error {
+func (r *authriteRequester) post(ctx context.Context, path string, payload, result any) error {
 	var bodyBytes []byte
 	var err error
 	if payload != nil {

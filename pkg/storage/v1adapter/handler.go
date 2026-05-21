@@ -10,9 +10,10 @@ import (
 	"strings"
 
 	middleware "github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // Handler implements the exact HTTP contract defined by the storage adapter
