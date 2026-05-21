@@ -46,10 +46,49 @@ This change adopts the TS schema as the canonical shape for both implementations
 |---------------|----------|
 | `chaintracks_live_header` | Keep — chaintracks lives in storage; spec-orthogonal |
 | `chaintracks_bulk_file` | Keep — chaintracks lives in storage; spec-orthogonal |
-| `numeric_id_lookup` | Drop — replaced by native auto-increment surrogate IDs |
+| `numeric_id_lookup` | **Drop** — workaround for missing surrogate IDs; eliminated by Phase 3 + Phase 6 |
 | `key_value` | Keep — generic KV used by non-spec subsystems |
-| `tx_notes` | Keep — Go-specific debug/audit, no TS conflict |
+| `tx_notes` | **Drop** — fold semantics into `proven_tx_reqs.history` JSON column matching TS shape exactly |
 | `user_utxo` | **Drop unconditionally** — UTXO selection moves to `outputs WHERE spendable = true` |
+
+### tx_notes → `proven_tx_reqs.history` (TS-conformant)
+
+Go's `tx_notes` table is dropped. Its semantics move into `proven_tx_reqs.history`, a JSON-serialized text column matching the TS `ProvenTxReqHistory` shape exactly:
+
+```
+interface ProvenTxReqHistory {
+  notes?: ReqHistoryNote[]
+}
+
+interface ReqHistoryNote {
+  when?: string  // ISO timestamp
+  what: string   // required event tag
+  [key: string]: boolean | string | number | undefined  // extra attributes
+}
+```
+
+Plus a parallel `notify` text column for `{ transactionIds?: number[] }`, matching TS `ProvenTxReqNotify`.
+
+Helper methods on the Go entity layer mirror TS:
+- `AddHistoryNote(note, noDupes)` — append, optionally dedup by `what`.
+- `HistorySince(date)` — filter by `when > date`.
+- `HistoryPretty(since, indent)` — human-readable render.
+- `GetHistorySummary()` — derive flags from `notes[].what`.
+
+Sync merge dedups notes by `(what, when)` and union-sorts, matching TS `mergeExisting`.
+
+### `numeric_id_lookup` removal
+
+`numeric_id_lookup` is a sync-layer workaround that mints synthetic integer IDs for entities whose Go schema currently uses composite natural keys. The table is dropped once every consumer can reference a native auto-increment surrogate ID:
+
+| Entity | Surrogate gained in | Consumer rewired in |
+|--------|---------------------|---------------------|
+| `output_baskets` | Phase 3 (`basketId`) | Phase 3 sync rewire |
+| `tags` / `output_tags` | Phase 3 (`outputTagId`) | Phase 3 sync rewire |
+| `labels` / `tx_labels` | Phase 3 (`txLabelId`) | Phase 3 sync rewire |
+| `known_tx` (becomes `proven_tx_reqs`) | Phase 6 (`provenTxReqId`) | Phase 6 sync rewire |
+
+After Phase 3 + Phase 6, `numeric_id_lookup` and every wrapper in `pkg/internal/storage/repo/syncrepo/numeric_id.go` is deleted in a dedicated drop phase.
 
 ### Column convention
 
@@ -126,11 +165,12 @@ At target load of 10 tps, no significant impact expected. Estimated 5-15% added 
 3. **Drop `user_utxo` unconditionally** — no benchmark gate. UTXO selection moves to `outputs.spendable` index. Perf at 10 tps target accepted; higher-tps issues addressed via indexing later.
 4. **ts-stack pin: latest main HEAD** at Phase 0 start. Refresh policy in `ts-pin.md`.
 5. **Block Phase 1 on baseline benchmark** — no code changes until Phase 0 numbers captured.
+6. **Drop `tx_notes`** — fold into `proven_tx_reqs.history` JSON column matching TS `ProvenTxReqHistory` shape exactly. Also add `proven_tx_reqs.notify` matching `ProvenTxReqNotify`.
+7. **Drop `numeric_id_lookup` after Phase 6** — sync layer rewired to use native auto-increment surrogate IDs from Phase 3 (baskets/tags/labels) and Phase 6 (`provenTxReqId`).
 
 ## Open questions
 
-1. Should `tx_notes` be promoted to spec or stay Go extension? Tokenovate may want similar debug surface in TS.
-2. `numeric_id_lookup` removal requires confirming all consumers can switch to direct auto-increment IDs (verify in Phase 4).
+None outstanding — all originally-open items are now locked decisions.
 
 ## Alternatives considered
 

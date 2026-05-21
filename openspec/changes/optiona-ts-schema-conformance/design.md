@@ -36,18 +36,20 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 | Monitor log | `monitor_events` | `monitor_events` | new |
 | Chaintracks | (TS: separate package) | `chaintracks_live_header` + `chaintracks_bulk_file` | Go extension; retained |
 | KV | (none in TS) | `key_value` | Go extension; retained |
-| Tx notes | (none in TS) | `tx_notes` | Go extension; retained |
-| Numeric ID lookup | (none in TS) | (removed) | replaced by native auto-increment |
+| Tx notes | `proven_tx_reqs.history` JSON column | `proven_tx_reqs.history` JSON column | Go table dropped; folded into TS-conformant JSON shape |
+| Numeric ID lookup | (none in TS) | (removed) | replaced by native auto-increment surrogates |
 
 ## Sequencing rationale
 
-15 phases. Each independently mergeable. Sequence is bottom-up: convention pass (low risk, mechanical) before structural changes (high risk, semantic).
+16 phases. Each independently mergeable. Sequence is bottom-up: convention pass (low risk, mechanical) before structural changes (high risk, semantic).
 
-**Why split `known_tx` after rename pass (Phase 6 after Phase 5):** Renames are mechanical text substitutions. Splitting `known_tx` is semantic (lifecycle change). Doing renames first keeps the diff for Phase 6 readable.
+**Why renames (Phase 4) before tx_notes fold (Phase 5) before split (Phase 6):** Renames are mechanical. Folding `tx_notes` adds the `history`/`notify` JSON columns to the still-merged `KnownTx` model. The Phase 6 split then carries those columns into the new `ProvenTxReq` model. Doing tx_notes first means the split phase doesn't have to reason about both the table split AND the JSON column introduction simultaneously.
 
-**Why a partial index is required on `outputs.spendable` (Phase 10):** UTXO selection latency is the only schema-driven perf risk that scales with history length. Dropping `user_utxo` unconditionally is acceptable at 10 tps; the partial/covering index on `(userId, spendable, basketId)` keeps the hot scan narrow as history grows. Phase 14 re-bench validates.
+**Why `numeric_id_lookup` drop (Phase 7) comes after the split:** the sync layer for `known_tx` still depends on `NumericIDLookup` until Phase 6 introduces `provenTxReqId` as the native surrogate. Dropping the table earlier would break sync. Phase 3 already removes the basket/tag/label consumers, so after Phase 6 the table has zero consumers and can be deleted cleanly.
 
-**Why Phase 14 re-bench:** Catch latent regressions that didn't show up in unit tests (lock contention, query planner shifts).
+**Why a partial index is required on `outputs.spendable` (Phase 11):** UTXO selection latency is the only schema-driven perf risk that scales with history length. Dropping `user_utxo` unconditionally is acceptable at 10 tps; the partial/covering index on `(userId, spendable, basketId)` keeps the hot scan narrow as history grows. Phase 15 re-bench validates.
+
+**Why Phase 15 re-bench:** Catch latent regressions that didn't show up in unit tests (lock contention, query planner shifts).
 
 ## Risk register
 
@@ -81,4 +83,12 @@ Rationale: TS pattern. Gorm's `DeletedAt` adds an implicit scope that conformanc
 
 ### D5: Use openspec, not free-form `plans/` markdown
 
-Rationale: This change is multi-phase with delta specs. OpenSpec's structure (proposal + tasks + design + specs/) gives clear gates between phases and a path to archive. Free-form markdown in `plans/` works for single-PR fixes (BRC-40 guard) but doesn't scale to a 15-phase refactor.
+Rationale: This change is multi-phase with delta specs. OpenSpec's structure (proposal + tasks + design + specs/) gives clear gates between phases and a path to archive. Free-form markdown in `plans/` works for single-PR fixes (BRC-40 guard) but doesn't scale to a 16-phase refactor.
+
+### D6: Drop `tx_notes` table; fold into `proven_tx_reqs.history` JSON column
+
+Rationale: TS stores audit/history notes as a JSON-serialized `ProvenTxReqHistory` blob on the `proven_tx_reqs.history` text column, never as a separate table. Go's `tx_notes` table is functionally equivalent but diverges in shape. To meet the conformance bar, Go drops the dedicated table and adopts the TS column + struct layout byte-for-byte. The `notify` column (`ProvenTxReqNotify`) is added at the same time for parity. Helper methods on the entity layer mirror TS API (`AddHistoryNote`, `HistorySince`, `HistoryPretty`, `GetHistorySummary`).
+
+### D7: Drop `numeric_id_lookup` after Phase 6, not before
+
+Rationale: `numeric_id_lookup` is a sync-layer workaround for Go's lack of native surrogate IDs on entities that TS keys by auto-incr int. The four consumers are baskets, tags, labels, and known_tx. Phase 3 removes the first three by adding surrogates to those models and rewiring sync. Phase 6 removes the last by splitting `known_tx` into `proven_tx_reqs` with a native `provenTxReqId`. Only after both phases does the table have zero consumers and can be deleted. Phase 7 is the dedicated drop.

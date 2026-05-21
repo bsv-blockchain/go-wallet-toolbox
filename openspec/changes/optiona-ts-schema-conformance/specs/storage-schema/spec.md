@@ -26,6 +26,51 @@ Go's storage schema SHALL match the schema defined in `ts-stack/wallet-toolbox/s
 - **WHEN** a schema diff is computed between Go's AutoMigrate output and TS's KnexMigrations
 - **THEN** the diff SHALL contain only documented Go extensions
 
+### Requirement: `proven_tx_reqs.history` JSON column
+
+The `proven_tx_reqs.history` column SHALL be a JSON-serialized text column conforming exactly to the TS `ProvenTxReqHistory` shape:
+
+```
+ProvenTxReqHistory {
+  notes?: ReqHistoryNote[]
+}
+ReqHistoryNote {
+  when?: string   // ISO timestamp
+  what: string    // required event tag
+  ...extras: boolean | string | number | undefined
+}
+```
+
+The `proven_tx_reqs.notify` column SHALL be a JSON-serialized text column conforming exactly to the TS `ProvenTxReqNotify` shape:
+
+```
+ProvenTxReqNotify {
+  transactionIds?: number[]
+}
+```
+
+Both columns SHALL default to `"{}"` and be `NOT NULL`.
+
+#### Scenario: Append history note
+
+- **GIVEN** a `proven_tx_reqs` row
+- **WHEN** the application appends a note `{ what: "broadcast", when: "2026-05-21T10:00:00Z" }`
+- **THEN** the `history` JSON SHALL parse as `{ notes: [{ what: "broadcast", when: "2026-05-21T10:00:00Z" }] }`
+
+#### Scenario: Cross-impl history round-trip
+
+- **GIVEN** a `proven_tx_reqs.history` blob written by TS
+- **WHEN** Go reads and parses it
+- **THEN** the parsed `ProvenTxReqHistory` SHALL be structurally equal to the TS value
+- **AND** re-serializing in Go SHALL produce a byte-identical blob (modulo key ordering normalization per JSON spec)
+
+#### Scenario: Note dedup by `what`
+
+- **GIVEN** a history with note `{ what: "callback", when: "T1" }`
+- **WHEN** a duplicate note `{ what: "callback", when: "T2" }` is added with `noDupes = true`
+- **THEN** only the later note SHALL remain
+- **AND** the order SHALL match TS `addHistoryNote(noDupes=true)` semantics
+
 ### Requirement: `proven_txs` and `proven_tx_reqs` split
 
 The merged `known_tx` table SHALL be split into:
@@ -156,6 +201,12 @@ The `sync_states` table SHALL include an `init` boolean column. The Go-only `whe
 **Reason:** TS does not maintain a separate UTXO table; UTXO selection runs against `outputs WHERE spendable = true`. Dropped unconditionally for schema conformance.
 
 **Migration:** UTXO selection rewritten against `outputs.spendable` with a partial/covering index on `(userId, spendable, basketId)`.
+
+### Requirement: `tx_notes` table
+
+**Reason:** TS has no separate notes table; equivalent semantics live in `proven_tx_reqs.history` JSON column. Go's `tx_notes` table is removed and its data model collapsed into the TS-conformant `ProvenTxReqHistory` shape.
+
+**Migration:** Every `tx_notes` write site is rewritten as `proven_tx_req.AddHistoryNote(...)`. Existing rows are not migrated (no production data).
 
 ### Requirement: `users.activeStorage` column
 

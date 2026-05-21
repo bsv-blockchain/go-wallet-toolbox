@@ -36,16 +36,10 @@ Sequenced for review-ability. Each phase is an independently mergeable PR. Do **
 - [ ] `OutputTag` (join, rename later): use `OutputTagID` + `OutputID` instead of (TagName, TagUserID, OutputID).
 - [ ] `TransactionLabel` (join, rename later): use `TxLabelID` + `TransactionID` instead of (LabelName, LabelUserID, TransactionID).
 - [ ] Update all FK definitions in `Output`, `Transaction`, `Certificate`, etc.
-- [ ] Update upsert paths in sync repos to look up surrogate IDs by (name, userId) before inserting map rows.
+- [ ] **Sync rewire**: in `pkg/internal/storage/repo/syncrepo/sync_basket.go`, `label_tag_commons.go`, `label_tag_map_commons.go`, `sync_output.go`, `sync_transaction.go`, replace `upsertNumericIDLookup` / `joinWithNumericIDLookupScope` / `findNumericIDLookup` / `saveNumericIDLookup` calls for baskets, tags, labels with direct lookups against the new surrogate ID columns.
+- [ ] Verify `NumericIDLookup` remains in use **only** for `known_tx` after this phase (becomes the sole consumer until Phase 6).
 
-## Phase 4 — Drop NumericIDLookup
-
-- [ ] Confirm all consumers of `NumericIDLookup` can switch to native auto-increment IDs.
-- [ ] Remove `models/numeric_id_lookup.go`.
-- [ ] Remove all repo code referencing it (`pkg/internal/storage/repo/`).
-- [ ] Update RPC layer that previously translated string IDs via this table.
-
-## Phase 5 — Table renames
+## Phase 4 — Table renames
 
 - [ ] Rename `tags` → `output_tags`.
 - [ ] Rename `output_tags` (M2M) → `output_tags_map`.
@@ -55,24 +49,52 @@ Sequenced for review-ability. Each phase is an independently mergeable PR. Do **
 - [ ] Update genquery references.
 - [ ] Update repo file names and Go package contents (`pkg/internal/storage/repo/labels.go`, etc.).
 
+## Phase 5 — Fold `tx_notes` into `proven_tx_reqs.history` (TS-conformant)
+
+- [ ] Define Go structs matching TS exactly:
+  - `ProvenTxReqHistory { Notes []ReqHistoryNote }`
+  - `ReqHistoryNote { When *string; What string; Extras map[string]any }` — JSON marshalled with `what` required, `when` optional, all extras flattened to siblings
+  - `ProvenTxReqNotify { TransactionIDs []int64 }`
+- [ ] Add `History string` (default `"{}"`) and `Notify string` (default `"{}"`) columns to the `KnownTx` model (becomes `ProvenTxReq` in Phase 6).
+- [ ] Implement entity helpers in `pkg/entity/`:
+  - `AddHistoryNote(note ReqHistoryNote, noDupes bool)` — append, optional dedup by `what`
+  - `HistorySince(t time.Time) ProvenTxReqHistory`
+  - `HistoryPretty(since *time.Time, indent int) string`
+  - `GetHistorySummary() ProvenTxReqHistorySummary` — derive `SetToCompleted`, `SetToCallback`, etc.
+- [ ] Rewrite all existing `tx_notes` write sites (monitor failures, broadcast events, etc.) as `AddHistoryNote` calls.
+- [ ] Update sync merge logic to dedup notes by `(what, when)` and union-sort, matching TS `mergeExisting`.
+- [ ] Drop `tx_notes` table + `models/tx_note.go` + `entity/tx_note.go` + `repo/tx_notes.go` + `genquery/tx_notes.gen.go`.
+- [ ] Verify byte-identical JSON serialization against TS fixtures (round-trip parse/stringify a TS-generated `history` blob).
+
 ## Phase 6 — Split `known_tx` → `proven_tx_reqs` + `proven_txs`
 
-- [ ] Create `ProvenTx` model: txid PK proxy, `provenTxId` auto-incr, `height`, `index`, `merklePath`, `rawTx`, `blockHash`, `merkleRoot`. Unique on `txid`.
-- [ ] Refactor `KnownTx` → `ProvenTxReq`: `provenTxReqId` auto-incr PK, `provenTxId` nullable FK to `ProvenTx`, `status`, `attempts`, `rebroadcastAttempts`, `notified`, `txid` unique, `batch`, `history` JSON, `notify` JSON, `rawTx`, `inputBEEF`.
+- [ ] Create `ProvenTx` model: auto-incr `provenTxId` PK, `height`, `index`, `merklePath`, `rawTx`, `blockHash`, `merkleRoot`, `txid` unique.
+- [ ] Refactor `KnownTx` → `ProvenTxReq`: auto-incr `provenTxReqId` PK, nullable FK `provenTxId` → `proven_txs`, `status`, `attempts`, `rebroadcastAttempts`, `notified`, `txid` unique, `batch`, `history` (from Phase 5), `notify` (from Phase 5), `rawTx`, `inputBEEF`.
 - [ ] Update `Transaction` model: add `provenTxId` int FK (nullable), add `rawTx` blob.
-- [ ] Update sync repo `sync_knowntx.go` → `sync_proven_tx_req.go` and add `sync_proven_tx.go` for proven_tx upserts.
+- [ ] Rename sync repo `sync_knowntx.go` → `sync_proven_tx_req.go` and add `sync_proven_tx.go` for proven_tx upserts.
 - [ ] Update monitor / sync tasks that promote a req to proven state — must INSERT into proven_txs and UPDATE proven_tx_reqs.provenTxId.
 - [ ] Update `ListTransactions` provider method to join `transactions` ⋈ `proven_tx_reqs` ⋈ `proven_txs`.
 - [ ] Update `get_beef` and all proof-fetching code paths.
 - [ ] Verify all status enum transitions still semantically correct after split.
+- [ ] **Sync rewire**: replace `NumericIDLookup` usage for known_tx in `sync_proven_tx_req.go` with direct `provenTxReqId` reference. After this phase, `numeric_id_lookup` has zero consumers.
 
-## Phase 7 — Add `monitor_events` table
+## Phase 7 — Drop `numeric_id_lookup`
+
+- [ ] Confirm zero remaining consumers (grep for `NumericIDLookup`, `numeric_id_lookup`, `upsertNumericIDLookup`, `joinWithNumericIDLookupScope`, `findNumericIDLookup`, `saveNumericIDLookup`).
+- [ ] Delete `pkg/internal/storage/database/models/numeric_id_lookup.go`.
+- [ ] Delete `pkg/internal/storage/database/genquery/numeric_id_lookups.gen.go`.
+- [ ] Delete `pkg/internal/storage/repo/syncrepo/numeric_id.go`.
+- [ ] Remove `models.NumericIDLookup{}` from `pkg/internal/storage/repo/migrator.go`.
+- [ ] Update any RPC layer that previously translated string IDs via this table.
+- [ ] Regenerate gorm/genquery output.
+
+## Phase 8 — Add `monitor_events` table
 
 - [ ] Add `MonitorEvent` model: `id` auto-incr PK, `event` string, `details` text.
 - [ ] Add repo helpers for append.
-- [ ] Wire into monitor task lifecycle (event emission TBD against TS reference).
+- [ ] Wire into monitor task lifecycle (event emission aligned to TS reference).
 
-## Phase 8 — Column additions on existing tables
+## Phase 9 — Column additions on existing tables
 
 - [ ] `outputs`: add `sequenceNumber`, `spendingDescription`, `scriptLength`, `scriptOffset`, `txid`.
 - [ ] `outputs`: replace `basketName` string with `basketId` int FK to `output_baskets`.
@@ -81,47 +103,47 @@ Sequenced for review-ability. Each phase is an independently mergeable PR. Do **
 - [ ] `sync_states`: add `init` boolean.
 - [ ] Update default values: `output_baskets.numberOfDesiredUTXOs` 32→6, `minimumDesiredUTXOValue` 1000→10000.
 
-## Phase 9 — Column removals (breaking)
+## Phase 10 — Column removals (breaking)
 
 - [ ] `users`: drop `ActiveStorage` (no TS equivalent). Update any code that references it.
 - [ ] `sync_states`: drop `When`, `Satoshis`. Update sync code paths.
 
-## Phase 10 — Drop `user_utxo`
+## Phase 11 — Drop `user_utxo`
 
 - [ ] Delete `user_utxo` model and table.
 - [ ] Rewrite UTXO selection to query `outputs WHERE spendable = true AND user_id = ?` (filter by basket where required).
 - [ ] Add partial/covering index on `outputs (userId, spendable, basketId)` to keep selection latency low.
 - [ ] Update all UTXO selection code paths in `pkg/storage/internal/actions/` and coin-pick logic.
-- [ ] Capture post-change UTXO selection latency for Phase 14 comparison.
+- [ ] Capture post-change UTXO selection latency for Phase 15 comparison.
 
-## Phase 11 — Conformance test alignment
+## Phase 12 — Conformance test alignment
 
 - [ ] Point `conformance/` runner at the TS-aligned schema.
 - [ ] Verify all existing BRC conformance vectors still pass.
-- [ ] Add new conformance vectors that exercise the split tables (`proven_txs` lifecycle, `monitor_events` emission).
+- [ ] Add new conformance vectors that exercise the split tables (`proven_txs` lifecycle, `monitor_events` emission, `history` JSON shape).
 - [ ] Verify byte-identical storage dump can be loaded by TS implementation (round-trip test).
 
-## Phase 12 — RPC layer
+## Phase 13 — RPC layer
 
 - [ ] Regenerate RPC DTOs to use new field names.
 - [ ] Update RPC server stubs in `pkg/storage/rpcserver/`.
 - [ ] Update `v1adapter` if it exposes old field names.
 - [ ] Pin RPC schema version bump (major version increment).
 
-## Phase 13 — Documentation
+## Phase 14 — Documentation
 
 - [ ] Update `docs/wallet.md` to reflect new tables/columns.
 - [ ] Add migration note in CHANGELOG: this is a breaking schema change; existing storage is incompatible.
 - [ ] Update any architecture diagrams referencing the old `known_tx` table.
 
-## Phase 14 — Post-migration validation
+## Phase 15 — Post-migration validation
 
 - [ ] Re-run baseline benchmark; compare against pre-Option-A numbers. Document any regression > 20%.
 - [ ] Full conformance test sweep against ts-stack pinned commit.
 - [ ] Storage dump round-trip test (Go → TS → Go).
 - [ ] Update `ts-pin.md` to latest ts-stack commit; rerun conformance.
 
-## Phase 15 — Archive change
+## Phase 16 — Archive change
 
 - [ ] Verify all phases merged.
 - [ ] Run `openspec archive` to merge deltas into main specs.
