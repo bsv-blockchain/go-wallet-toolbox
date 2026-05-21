@@ -49,7 +49,7 @@ This change adopts the TS schema as the canonical shape for both implementations
 | `numeric_id_lookup` | Drop — replaced by native auto-increment surrogate IDs |
 | `key_value` | Keep — generic KV used by non-spec subsystems |
 | `tx_notes` | Keep — Go-specific debug/audit, no TS conflict |
-| `user_utxo` | **Drop** — fold back into `outputs` via `spendable` flag |
+| `user_utxo` | **Drop unconditionally** — UTXO selection moves to `outputs WHERE spendable = true` |
 
 ### Column convention
 
@@ -111,7 +111,7 @@ This change adopts the TS schema as the canonical shape for both implementations
 
 ### Performance
 
-At target load of 10 tps, no significant impact expected. Estimated 5-15% added latency on hot read paths (list calls) from joins; write paths neutral. The one watch item is removal of `user_utxo` — UTXO selection moves to scanning `outputs` filtered by `spendable=true`. Acceptable at 10 tps; benchmark before declaring scalable to 100+ tps.
+At target load of 10 tps, no significant impact expected. Estimated 5-15% added latency on hot read paths (list calls) from joins; write paths neutral. UTXO selection moves to `outputs WHERE spendable = true` after `user_utxo` removal — acceptable at 10 tps. Phase 14 re-bench captures regressions; if `outputs.spendable` index proves inadequate at higher tps in production, address via partial/covering index rather than reintroducing the denormalized table.
 
 ### Breaking changes
 
@@ -119,13 +119,18 @@ At target load of 10 tps, no significant impact expected. Estimated 5-15% added 
 - All storage RPC clients must re-pin to new DTO field names.
 - Any external tooling reading the SQLite/Postgres directly must be updated.
 
+## Decisions confirmed by author
+
+1. **Drop `users.activeStorage`** — strict conformance. Multi-storage routing reintroduced via spec only if TS adds it upstream.
+2. **Drop `sync_states.when` and `sync_states.satoshis`** — strict conformance. Sync semantics align to TS.
+3. **Drop `user_utxo` unconditionally** — no benchmark gate. UTXO selection moves to `outputs.spendable` index. Perf at 10 tps target accepted; higher-tps issues addressed via indexing later.
+4. **ts-stack pin: latest main HEAD** at Phase 0 start. Refresh policy in `ts-pin.md`.
+5. **Block Phase 1 on baseline benchmark** — no code changes until Phase 0 numbers captured.
+
 ## Open questions
 
-1. Does TS plan to gain `activeStorage` on `users`? If yes, keep it in Go and lobby TS to add.
-2. Does TS plan to gain `when`/`satoshis` on `sync_states`? Same call.
-3. Should `tx_notes` be promoted to spec or stay Go extension? Tokenovate may want similar debug surface in TS.
-4. Bench `outputs.spendable` index at simulated 100 tps × 6 months before committing to drop `user_utxo` — fallback is keep `user_utxo` as Go-extension.
-5. `numeric_id_lookup` removal requires confirming all consumers can switch to direct auto-increment IDs.
+1. Should `tx_notes` be promoted to spec or stay Go extension? Tokenovate may want similar debug surface in TS.
+2. `numeric_id_lookup` removal requires confirming all consumers can switch to direct auto-increment IDs (verify in Phase 4).
 
 ## Alternatives considered
 

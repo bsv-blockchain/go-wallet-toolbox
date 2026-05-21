@@ -153,9 +153,9 @@ The `sync_states` table SHALL include an `init` boolean column. The Go-only `whe
 
 ### Requirement: `user_utxo` denormalized table
 
-**Reason:** TS does not maintain a separate UTXO table; UTXO selection runs against `outputs WHERE spendable = true`. Removal pending benchmark gate (see Phase 10).
+**Reason:** TS does not maintain a separate UTXO table; UTXO selection runs against `outputs WHERE spendable = true`. Dropped unconditionally for schema conformance.
 
-**Migration:** UTXO selection rewritten against `outputs.spendable` index.
+**Migration:** UTXO selection rewritten against `outputs.spendable` with a partial/covering index on `(userId, spendable, basketId)`.
 
 ### Requirement: `users.activeStorage` column
 

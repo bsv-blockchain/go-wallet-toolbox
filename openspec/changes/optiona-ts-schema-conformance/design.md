@@ -24,7 +24,7 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 | Pursuit state | `proven_tx_reqs` | `proven_tx_reqs` | split from `known_tx` |
 | Wallet txs | `transactions` | `transactions` | gain `provenTxId`, `rawTx` |
 | Outputs | `outputs` | `outputs` | gain `sequenceNumber`, etc.; lose `basketName` string |
-| UTXO selection | `outputs WHERE spendable` | `outputs WHERE spendable` | `user_utxo` dropped pending bench |
+| UTXO selection | `outputs WHERE spendable` | `outputs WHERE spendable` | `user_utxo` dropped unconditionally |
 | Baskets | `output_baskets` | `output_baskets` | surrogate `basketId` |
 | Tags | `output_tags` + `output_tags_map` | `output_tags` + `output_tags_map` | rename + surrogate id |
 | Labels | `tx_labels` + `tx_labels_map` | `tx_labels` + `tx_labels_map` | rename + surrogate id |
@@ -45,7 +45,7 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 
 **Why split `known_tx` after rename pass (Phase 6 after Phase 5):** Renames are mechanical text substitutions. Splitting `known_tx` is semantic (lifecycle change). Doing renames first keeps the diff for Phase 6 readable.
 
-**Why benchmark before dropping `user_utxo` (Phase 10):** UTXO selection latency is the only schema-driven perf risk that scales with history length. Real numbers needed before committing.
+**Why a partial index is required on `outputs.spendable` (Phase 10):** UTXO selection latency is the only schema-driven perf risk that scales with history length. Dropping `user_utxo` unconditionally is acceptable at 10 tps; the partial/covering index on `(userId, spendable, basketId)` keeps the hot scan narrow as history grows. Phase 14 re-bench validates.
 
 **Why Phase 14 re-bench:** Catch latent regressions that didn't show up in unit tests (lock contention, query planner shifts).
 
@@ -54,7 +54,7 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Join cost on `transactions ⋈ proven_tx_reqs ⋈ proven_txs` in `ListTransactions` exceeds budget | Low | Medium | Index on `transactions.provenTxId` + `proven_tx_reqs.txid` + `proven_txs.txid`. Cached query plan |
-| UTXO selection slow after `user_utxo` drop | Medium | High | Phase 10 benchmark gate; fallback retains `user_utxo` |
+| UTXO selection slow after `user_utxo` drop | Medium | Medium | Partial index on `outputs (userId, spendable, basketId)`; Phase 14 re-bench. No fallback path — table will not be reintroduced |
 | `history` / `notify` JSON columns store unbounded data on `proven_tx_reqs` | Low | Low | Mirror TS retention policy; cap size if TS does |
 | `isDeleted` boolean lacks query-planner stats vs nullable timestamp | Low | Low | Add partial index `WHERE is_deleted = false` |
 | Composite-key → surrogate-id migration touches every join | High | High | Phase 3 done in isolation; full test suite gate before next phase |
@@ -63,9 +63,9 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 
 ## Decision log
 
-### D1: Drop `user_utxo` rather than keep as extension
+### D1: Drop `user_utxo` unconditionally
 
-Rationale: TS has no equivalent and the table is purely a denormalization for UTXO selection speed. If `outputs.spendable` index performs adequately, the denormalization isn't worth the schema divergence. Bench-gated.
+Rationale: TS has no equivalent and the table is purely a denormalization for UTXO selection speed. Schema conformance is the priority; perf at 10 tps target is acceptable on `outputs.spendable` index alone. If higher-tps issues surface in production they will be addressed via indexing strategy (partial / covering indexes) rather than reintroducing the divergent table. No benchmark gate — committed.
 
 ### D2: Keep `chaintracks_*` tables as documented Go extensions
 

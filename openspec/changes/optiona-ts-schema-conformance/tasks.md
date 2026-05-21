@@ -88,9 +88,11 @@ Sequenced for review-ability. Each phase is an independently mergeable PR. Do **
 
 ## Phase 10 — Drop `user_utxo`
 
-- [ ] Benchmark: at simulated 100 tps × 6 months of history, measure UTXO selection latency using `outputs.spendable` index alone.
-- [ ] If acceptable: delete `user_utxo` model and table; rewrite UTXO selection to query `outputs WHERE spendable = true AND user_id = ?`.
-- [ ] If unacceptable: retain `user_utxo` as Go extension; document deviation from TS in `proposal.md`.
+- [ ] Delete `user_utxo` model and table.
+- [ ] Rewrite UTXO selection to query `outputs WHERE spendable = true AND user_id = ?` (filter by basket where required).
+- [ ] Add partial/covering index on `outputs (userId, spendable, basketId)` to keep selection latency low.
+- [ ] Update all UTXO selection code paths in `pkg/storage/internal/actions/` and coin-pick logic.
+- [ ] Capture post-change UTXO selection latency for Phase 14 comparison.
 
 ## Phase 11 — Conformance test alignment
 

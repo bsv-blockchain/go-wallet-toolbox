@@ -5,9 +5,17 @@ This change is anchored to the TS schema at a specific commit. All conformance w
 ## Pinned commit
 
 - Repo: `bsv-blockchain/ts-stack`
-- Commit: TBD — record before Phase 0 begins
+- Branch: `main`
+- Commit: TBD — pin HEAD of `main` at Phase 0 start
 - Path: `packages/wallet/wallet-toolbox/src/storage/schema/KnexMigrations.ts`
 - Date pinned: TBD
+
+## Pin policy
+
+- Pin is `main` HEAD at Phase 0 start.
+- One refresh per phase is permitted to absorb upstream schema deltas.
+- Final refresh in Phase 14 before archive.
+- If a refresh introduces breaking diff, halt phase and reassess proposal.
 
 ## Refresh procedure
 
