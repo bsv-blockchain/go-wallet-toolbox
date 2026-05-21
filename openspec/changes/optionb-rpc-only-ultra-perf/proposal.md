@@ -208,6 +208,7 @@ Targets are aspirational; Phase 0 baseline + Phase 14 bench confirm.
 6. **Event log as canonical replay.** All state mutations land in Redpanda; KV is a materialized projection. Cluster restart rebuilds from event log if needed.
 7. **ClickHouse for historical reads.** OLAP queries get separate engine; KV stays narrow-fast.
 8. **Blobs in S3.** Raw tx > 4KB never live in hot KV.
+9. **Encryption at rest is out of scope.** Transaction data is public (on-chain). All sensitive metadata is already encrypted client-side before reaching storage. Storage-layer encryption would add CPU cost with no added confidentiality. Operators who still want disk-level encryption use the backend's native mechanism (Aerospike enterprise, EBS encryption, dm-crypt, etc.) without changes to this codebase.
 
 ## Open questions
 

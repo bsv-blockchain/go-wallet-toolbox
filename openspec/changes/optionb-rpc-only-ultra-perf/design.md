@@ -175,6 +175,10 @@ Rationale: the alternative — silent latency creep when materializer falls behi
 
 Rationale: eliminates locks entirely on the hot path. Sharded routing means each user maps to exactly one worker; that worker is the sole mutator. Latency floor is the worker's queue depth, not lock contention.
 
+### D11: No encryption at rest in the storage layer
+
+Rationale: transaction data is public — it lives on the blockchain. All wallet-private metadata (descriptions, labels, derivation tweaks) is already encrypted client-side by the wallet's BRC key derivation before reaching the storage RPC. Storage-layer encryption would re-encrypt already-encrypted ciphertext for no added confidentiality, while burning CPU on AES on the hot path. Operators who require disk-level protection use backend-native mechanisms (Aerospike enterprise encryption, AWS EBS volume encryption, dm-crypt, LUKS) which are transparent to this codebase.
+
 ## What is the actual bottleneck at 100K tps?
 
 In rough order, anticipated bottlenecks (numbers approximate):
@@ -196,5 +200,5 @@ Network bandwidth at 100K tps with ~1KB BEEF payloads = 100MB/s ingress. Single 
 1. **Do we expose a streaming RPC variant?** WebSocket or gRPC streaming for `listActions` over deep history could halve client-perceived latency. Defer until customer asks.
 2. **In-memory mode for ephemeral wallets?** Test wallets, integration tests, CI fixtures don't need durability. `embedded` driver with `--memory-only` flag is cheap to add.
 3. **Read-replica fan-out for `listOutputs` heavy clients?** Aerospike supports read replicas; do we expose a "read from any replica" hint for analytics-like consumers? Defer.
-4. **Encryption at rest** beyond what the storage backend provides? Wallets store sensitive material. Consider per-user envelope encryption with KMS. Defer to security review.
+4. **Encryption at rest** — resolved as out of scope (see D11). Tx data is public; metadata is encrypted client-side. No storage-layer encryption added.
 5. **Multi-region active-active**? Event log can be mirrored; KV state can be regional. Out of scope until customer asks.
