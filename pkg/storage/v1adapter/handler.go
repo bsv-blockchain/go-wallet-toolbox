@@ -10,9 +10,10 @@ import (
 	"strings"
 
 	middleware "github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
+	"github.com/go-softwarelab/common/pkg/to"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"github.com/go-softwarelab/common/pkg/to"
 )
 
 // Handler implements the exact HTTP contract defined by the storage adapter
@@ -30,6 +31,7 @@ import (
 //	POST /storage/v1/list/actions
 //	POST /storage/v1/list/outputs
 //	POST /storage/v1/list/certificates     (ListCertificates)
+//	POST /storage/v1/list/transactions     (ListTransactions)
 //	POST /storage/v1/certificates
 //	POST /storage/v1/certificates/relinquish
 //	POST /storage/v1/outputs/relinquish
@@ -73,6 +75,7 @@ func NewHandler(provider wdk.WalletStorageProvider, parentLogger *slog.Logger) h
 	mux.HandleFunc("POST /storage/v1/list/actions", h.listActions)
 	mux.HandleFunc("POST /storage/v1/list/outputs", h.listOutputs)
 	mux.HandleFunc("POST /storage/v1/list/certificates", h.listCertificates)
+	mux.HandleFunc("POST /storage/v1/list/transactions", h.listTransactions)
 
 	// Certificates
 	mux.HandleFunc("POST /storage/v1/certificates", h.insertCertificate) // or prove/relinquish variants
@@ -440,6 +443,25 @@ func (h *Handler) listCertificates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := h.provider.ListCertificates(r.Context(), auth, args)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.writeJSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) listTransactions(w http.ResponseWriter, r *http.Request) {
+	var args wdk.ListTransactionsArgs
+	if err := decodeArgs(r, &args); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid JSON body for listTransactions")
+		return
+	}
+	auth, err := h.resolveAuthID(r)
+	if err != nil {
+		h.writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	res, err := h.provider.ListTransactions(r.Context(), auth, args)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
