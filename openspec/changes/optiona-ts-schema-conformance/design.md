@@ -1,0 +1,84 @@
+# Design — Option A schema conformance
+
+## Goals
+
+1. Go storage schema is byte-identical to `ts-stack/wallet-toolbox` schema where applicable.
+2. Storage dumps round-trip between Go and TS without translation.
+3. Cross-impl conformance fixtures work without per-impl forks.
+4. Performance at 10 tps target is unaffected; 100 tps degradation bounded under 25%.
+
+## Non-goals
+
+1. Online migration of existing production state — explicitly out of scope; no prod users exist.
+2. Eliminating every Go-specific table — `chaintracks_*`, `key_value`, `tx_notes` retained as documented extensions.
+3. Backwards-compatible RPC — major version bump expected.
+
+## Schema mapping reference
+
+Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
+`packages/wallet/wallet-toolbox/src/storage/schema/KnexMigrations.ts`
+
+| Capability | TS table | Go table (post-change) | Notes |
+|------------|----------|------------------------|-------|
+| Proof facts | `proven_txs` | `proven_txs` | split from `known_tx` |
+| Pursuit state | `proven_tx_reqs` | `proven_tx_reqs` | split from `known_tx` |
+| Wallet txs | `transactions` | `transactions` | gain `provenTxId`, `rawTx` |
+| Outputs | `outputs` | `outputs` | gain `sequenceNumber`, etc.; lose `basketName` string |
+| UTXO selection | `outputs WHERE spendable` | `outputs WHERE spendable` | `user_utxo` dropped pending bench |
+| Baskets | `output_baskets` | `output_baskets` | surrogate `basketId` |
+| Tags | `output_tags` + `output_tags_map` | `output_tags` + `output_tags_map` | rename + surrogate id |
+| Labels | `tx_labels` + `tx_labels_map` | `tx_labels` + `tx_labels_map` | rename + surrogate id |
+| Users | `users` | `users` | drop `activeStorage`; auto-incr `userId` |
+| Certificates | `certificates` + `certificate_fields` | same | `isDeleted` flag |
+| Commissions | `commissions` | `commissions` | unchanged |
+| Sync state | `sync_states` | `sync_states` | drop `when`/`satoshis`, add `init` |
+| Settings | `settings` | `settings` | add `dbtype` |
+| Monitor log | `monitor_events` | `monitor_events` | new |
+| Chaintracks | (TS: separate package) | `chaintracks_live_header` + `chaintracks_bulk_file` | Go extension; retained |
+| KV | (none in TS) | `key_value` | Go extension; retained |
+| Tx notes | (none in TS) | `tx_notes` | Go extension; retained |
+| Numeric ID lookup | (none in TS) | (removed) | replaced by native auto-increment |
+
+## Sequencing rationale
+
+15 phases. Each independently mergeable. Sequence is bottom-up: convention pass (low risk, mechanical) before structural changes (high risk, semantic).
+
+**Why split `known_tx` after rename pass (Phase 6 after Phase 5):** Renames are mechanical text substitutions. Splitting `known_tx` is semantic (lifecycle change). Doing renames first keeps the diff for Phase 6 readable.
+
+**Why benchmark before dropping `user_utxo` (Phase 10):** UTXO selection latency is the only schema-driven perf risk that scales with history length. Real numbers needed before committing.
+
+**Why Phase 14 re-bench:** Catch latent regressions that didn't show up in unit tests (lock contention, query planner shifts).
+
+## Risk register
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Join cost on `transactions ⋈ proven_tx_reqs ⋈ proven_txs` in `ListTransactions` exceeds budget | Low | Medium | Index on `transactions.provenTxId` + `proven_tx_reqs.txid` + `proven_txs.txid`. Cached query plan |
+| UTXO selection slow after `user_utxo` drop | Medium | High | Phase 10 benchmark gate; fallback retains `user_utxo` |
+| `history` / `notify` JSON columns store unbounded data on `proven_tx_reqs` | Low | Low | Mirror TS retention policy; cap size if TS does |
+| `isDeleted` boolean lacks query-planner stats vs nullable timestamp | Low | Low | Add partial index `WHERE is_deleted = false` |
+| Composite-key → surrogate-id migration touches every join | High | High | Phase 3 done in isolation; full test suite gate before next phase |
+| Conformance fixtures drift between TS pin and live TS | Medium | Medium | Pin commit; refresh once per phase; final refresh in Phase 14 |
+| RPC clients depend on old field names | High | Medium | Major version bump; deprecation note in changelog |
+
+## Decision log
+
+### D1: Drop `user_utxo` rather than keep as extension
+
+Rationale: TS has no equivalent and the table is purely a denormalization for UTXO selection speed. If `outputs.spendable` index performs adequately, the denormalization isn't worth the schema divergence. Bench-gated.
+
+### D2: Keep `chaintracks_*` tables as documented Go extensions
+
+Rationale: TS keeps chaintracks in a separate package, not in wallet storage. Go bundles them. This isn't a schema-conformance concern because conformance fixtures don't exercise chaintracks tables — they're internal to header tracking. Cheap to retain, expensive to relocate.
+
+### D3: Migrate `users.userId` to native auto-increment
+
+Rationale: TS uses auto-increment. `NumericIDLookup` was Go's workaround for a per-table id-allocator pattern. Switching simplifies code and removes a whole table.
+
+### D4: Soft-delete via `isDeleted` boolean
+
+Rationale: TS pattern. Gorm's `DeletedAt` adds an implicit scope that conformance tests would have to be aware of. Explicit boolean is simpler and aligns. Cost: every query against soft-deletable tables needs explicit WHERE.
+
+### D5: Use openspec, not free-form `plans/` markdown
+
+Rationale: This change is multi-phase with delta specs. OpenSpec's structure (proposal + tasks + design + specs/) gives clear gates between phases and a path to archive. Free-form markdown in `plans/` works for single-PR fixes (BRC-40 guard) but doesn't scale to a 15-phase refactor.
