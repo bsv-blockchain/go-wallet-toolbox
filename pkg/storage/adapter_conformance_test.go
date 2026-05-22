@@ -83,7 +83,9 @@ func TestStorageAdapterConformance(t *testing.T) {
 	mock.EXPECT().Migrate(gomock.Any(), gomock.Any(), gomock.Any()).Return("v1", nil).AnyTimes()
 	mock.EXPECT().FindOrInsertUser(gomock.Any(), gomock.Any()).Return(&wdk.FindOrInsertUserResponse{User: wdk.TableUser{UserID: 1, IdentityKey: "test-identity-from-vector"}}, nil).AnyTimes()
 	mock.EXPECT().CreateAction(gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.StorageCreateActionResult{Reference: "ref-create"}, nil).AnyTimes()
-	mock.EXPECT().ProcessAction(gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.ProcessActionResult{}, nil).AnyTimes()
+	mock.EXPECT().ProcessAction(gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.ProcessActionResult{
+		NotDelayedResults: []wdk.ReviewActionResult{{TxID: "0000000000000000000000000000000000000000000000000000000000000001", Status: "success"}},
+	}, nil).AnyTimes()
 	mock.EXPECT().AbortAction(gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.AbortActionResult{Aborted: true}, nil).AnyTimes()
 	mock.EXPECT().InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.InternalizeActionResult{Accepted: true}, nil).AnyTimes()
 	mock.EXPECT().ListActions(gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.ListActionsResult{TotalActions: 0, Actions: []wdk.WalletAction{}}, nil).AnyTimes()
@@ -93,7 +95,7 @@ func TestStorageAdapterConformance(t *testing.T) {
 	mock.EXPECT().RelinquishCertificate(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mock.EXPECT().RelinquishOutput(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mock.EXPECT().SetActive(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mock.EXPECT().GetSyncChunk(gomock.Any(), gomock.Any()).Return(&wdk.SyncChunk{}, nil).AnyTimes()
+	mock.EXPECT().GetSyncChunk(gomock.Any(), gomock.Any()).Return(wdk.NewSyncChunk("", "", ""), nil).AnyTimes()
 	mock.EXPECT().FindOrInsertSyncStateAuth(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&wdk.FindOrInsertSyncStateAuthResponse{}, nil).AnyTimes()
 
 	// AllowUnauthenticated lets the special brc103 Bearer token pass the auth middleware
@@ -156,10 +158,35 @@ func doVectorRequest(t *testing.T, baseURL string, v adapterVector) {
 		var got map[string]interface{}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
 
-		// We verify status + successful JSON decode for the response body.
-		// Exact key presence is relaxed because result structs' json tags and vector expectations
-		// may differ in casing/omitted fields for some methods (deeper fidelity in BRC-100 conformance).
-		_ = got
+		// Vector 12 body has upstream authoring errors: it declares "users" (plural) and
+		// "syncStates" which don't exist in the SyncChunk type in either Go or TS.
+		// The TS getSyncChunk implementation never populates those fields.
+		// Body assertion is skipped until ts-stack vector 12 is corrected upstream.
+		if v.ID != "wallet.storage.adapterconformance.12" {
+			assertResponseBody(t, v.Expected.Body, got)
+		}
+	}
+}
+
+// assertResponseBody checks the actual response body against the expected body from a conformance vector.
+//
+// Error responses (body contains only an "error" key) are matched exactly so that error messages
+// and status semantics are fully enforced.
+//
+// Success responses use key-presence: every top-level key declared in the vector's expected body
+// must exist in the actual response. Values are not compared because the mock provider returns
+// deterministic stub values that differ from the vector's illustrative example values.
+func assertResponseBody(t *testing.T, expected, got map[string]interface{}) {
+	t.Helper()
+
+	_, expectsError := expected["error"]
+	if expectsError {
+		require.Equal(t, expected, got, "error body mismatch")
+		return
+	}
+
+	for key := range expected {
+		require.Contains(t, got, key, "response missing expected key %q", key)
 	}
 }
 

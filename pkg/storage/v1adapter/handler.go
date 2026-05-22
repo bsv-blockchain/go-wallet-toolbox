@@ -504,7 +504,7 @@ func (h *Handler) relinquishCertificate(w http.ResponseWriter, r *http.Request) 
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	h.writeJSON(w, http.StatusOK, map[string]int{"updated": 1})
 }
 
 func (h *Handler) relinquishOutput(w http.ResponseWriter, r *http.Request) {
@@ -533,7 +533,7 @@ func (h *Handler) relinquishOutput(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	h.writeJSON(w, http.StatusOK, map[string]int{"updated": 1})
 }
 
 func isValidOutpointFormat(outpoint string) bool {
