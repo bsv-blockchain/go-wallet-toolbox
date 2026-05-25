@@ -91,12 +91,15 @@ func inputSourceTransaction(input *transaction.TransactionInput) *transaction.Tr
 func mergeSourceTxIntoBEEF(beef *transaction.Beef) func(*transaction.Transaction) error {
 	return func(tx *transaction.Transaction) error {
 		txid := tx.TxID()
-		var bumpIndex *int
 		if existing, ok := beef.Transactions[*txid]; ok && existing.DataFormat == transaction.RawTxAndBumpIndex {
-			idx := existing.BumpIndex
-			bumpIndex = &idx
+			// Already merged with the correct BumpIndex by MergeBeef above.
+			// Re-merging via MergeRawTx would clobber BumpIndex to 0 due to a
+			// bug in go-sdk Beef.MergeRawTx (it sets MerklePath but forgets to
+			// assign BeefTx.BumpIndex), causing the serialized BEEF to encode
+			// the wrong bump index for this transaction.
+			return nil
 		}
-		_, err := beef.MergeRawTx(tx.Bytes(), bumpIndex)
+		_, err := beef.MergeRawTx(tx.Bytes(), nil)
 		if err != nil {
 			return fmt.Errorf("cannot merge raw tx into beef: %w", err)
 		}
