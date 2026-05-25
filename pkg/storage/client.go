@@ -90,7 +90,7 @@ func postArgsNoResult[A any](r *authriteRequester, ctx context.Context, path str
 	payload := struct {
 		Args A `json:"args"`
 	}{Args: args}
-	var res map[string]string
+	var res map[string]any
 	return r.post(ctx, path, payload, &res)
 }
 
