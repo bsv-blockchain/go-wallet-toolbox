@@ -236,6 +236,128 @@ func TestBRC100Conformance_ListOutputs(t *testing.T) {
 	}
 }
 
+// TestBRC100Conformance_InternalizeAction covers BRC-100 internalizeAction vectors.
+//
+// Most vectors carry 12-byte placeholder tx arrays that are not valid BEEF; these are
+// skipped via the skip_reason mechanism (pending real BEEF fixture generation upstream).
+// Error vectors (expected.error=true) verify that InternalizeAction rejects invalid input.
+func TestBRC100Conformance_InternalizeAction(t *testing.T) {
+	vectors := loadBRC100Vectors(t, brc100vectors.InternalizeActionVectors)
+	for _, v := range vectors {
+		if shouldSkip(v) {
+			t.Logf("SKIP %s: %s", v.ID, v.Description)
+			continue
+		}
+		t.Run(v.ID, func(t *testing.T) {
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			root := v.Input.RootKey
+			if root == "" {
+				root = "0000000000000000000000000000000000000000000000000000000000000001"
+			}
+			w := given.Wallet().WithSQLiteStorage().WithServices().ForRootKey(root)
+
+			// Marshal args map back to JSON, then unmarshal into the typed struct.
+			// Go's encoding/json handles integer arrays for []byte fields (the "tx" field).
+			argsJSON, err := json.Marshal(v.Input.Args)
+			require.NoError(t, err)
+			var args sdk.InternalizeActionArgs
+			require.NoError(t, json.Unmarshal(argsJSON, &args))
+
+			originator := v.Input.Originator
+			if originator == "" {
+				originator = "brc100-test.example.com"
+			}
+
+			expectError, _ := v.Expected["error"].(bool)
+
+			res, err := w.InternalizeAction(context.Background(), args, originator)
+
+			if expectError {
+				require.Error(t, err, "expected error for vector %s", v.ID)
+				return
+			}
+
+			require.NoError(t, err, "unexpected error for vector %s", v.ID)
+			require.NotNil(t, res)
+
+			expAccepted, _ := v.Expected["accepted"].(bool)
+			require.Equal(t, expAccepted, res.Accepted, "accepted mismatch for %s", v.ID)
+		})
+	}
+}
+
+// TestBRC100Conformance_ProveCertificate covers BRC-100 proveCertificate vectors.
+//
+// Most vectors expect to find a previously stored certificate in the wallet, but
+// the test uses a fresh wallet, so they are skipped. Error vectors testing
+// validation (like non-existent fields) are run and verified.
+func TestBRC100Conformance_ProveCertificate(t *testing.T) {
+	vectors := loadBRC100Vectors(t, brc100vectors.ProveCertificateVectors)
+	for _, v := range vectors {
+		if shouldSkip(v) {
+			t.Logf("SKIP %s: %s", v.ID, v.Description)
+			continue
+		}
+		t.Run(v.ID, func(t *testing.T) {
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			root := v.Input.RootKey
+			if root == "" {
+				root = "0000000000000000000000000000000000000000000000000000000000000001"
+			}
+			w := given.WalletForRootKey(root)
+
+			argsJSON, err := json.Marshal(v.Input.Args)
+			require.NoError(t, err)
+			var args sdk.ProveCertificateArgs
+
+			expectError, _ := v.Expected["error"].(bool)
+
+			err = json.Unmarshal(argsJSON, &args)
+			if err != nil {
+				if expectError {
+					// The vector contains intentionally malformed data (like a 34-byte certificate type)
+					// In Go's strongly typed SDK, this fails during JSON unmarshaling rather than inside
+					// the method itself. This is expected for error vectors.
+					return
+				}
+				require.NoError(t, err, "unexpected error unmarshaling args")
+			}
+
+			originator := v.Input.Originator
+			if originator == "" {
+				originator = "brc100-test.example.com"
+			}
+
+			res, err := w.ProveCertificate(context.Background(), args, originator)
+
+			if expectError {
+				require.Error(t, err, "expected error for vector %s", v.ID)
+				return
+			}
+
+			require.NoError(t, err, "unexpected error for vector %s", v.ID)
+			require.NotNil(t, res)
+
+			// The expected result usually has keyringForVerifier
+			if expKeyringRaw, ok := v.Expected["keyringForVerifier"]; ok {
+				expKeyringMap, ok := expKeyringRaw.(map[string]interface{})
+				require.True(t, ok)
+
+				require.Len(t, res.KeyringForVerifier, len(expKeyringMap))
+				for k, expVal := range expKeyringMap {
+					expStr, ok := expVal.(string)
+					require.True(t, ok)
+					require.Equal(t, expStr, res.KeyringForVerifier[k], "keyring value mismatch for field %s", k)
+				}
+			}
+		})
+	}
+}
+
 // TestBRC100Conformance_RelinquishOutput covers all 8 BRC-100 relinquishOutput vectors.
 //
 // Vectors 1, 6, 8 (basket "default"): seeded via faucet — the placeholder txid in the
