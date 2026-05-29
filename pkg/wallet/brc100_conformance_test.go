@@ -368,7 +368,7 @@ func TestBRC100Conformance_ProveCertificate(t *testing.T) {
 //
 // Vector 4 (output not found): error path, runs on a fresh wallet.
 // Vector 5 (invalid outpoint format): the SDK's Outpoint.UnmarshalJSON rejects
-// "invalid-outpoint" before the wallet is called; this is the expected error behaviour.
+// "invalid-outpoint" before the wallet is called; this is the expected error behavior.
 func TestBRC100Conformance_RelinquishOutput(t *testing.T) {
 	vectors := loadBRC100Vectors(t, brc100vectors.RelinquishOutputVectors)
 	for _, v := range vectors {
@@ -380,10 +380,10 @@ func TestBRC100Conformance_RelinquishOutput(t *testing.T) {
 			require.NoError(t, err)
 
 			var args sdk.RelinquishOutputArgs
-			if err := json.Unmarshal(argsJSON, &args); err != nil {
+			if unmarshalErr := json.Unmarshal(argsJSON, &args); unmarshalErr != nil {
 				// Vector 5: "invalid-outpoint" is rejected by OutpointFromString before
-				// reaching the wallet — invalid input causing an error is the expected behaviour.
-				t.Logf("note: %s — args unmarshal failed as expected (invalid outpoint format): %v", v.ID, err)
+				// reaching the wallet — invalid input causing an error is the expected behavior.
+				t.Logf("note: %s — args unmarshal failed as expected (invalid outpoint format): %v", v.ID, unmarshalErr)
 				return
 			}
 
@@ -417,10 +417,10 @@ func TestBRC100Conformance_RelinquishOutput(t *testing.T) {
 					}
 				}
 
-				res, err := aliceWallet.RelinquishOutput(context.Background(), args, originator)
-				require.NoError(t, err)
-				require.NotNil(t, res)
-				require.True(t, res.Relinquished, "relinquished mismatch for %s", v.ID)
+				relinquishRes, relinquishErr := aliceWallet.RelinquishOutput(context.Background(), args, originator)
+				require.NoError(t, relinquishErr)
+				require.NotNil(t, relinquishRes)
+				require.True(t, relinquishRes.Relinquished, "relinquished mismatch for %s", v.ID)
 				return
 			}
 
