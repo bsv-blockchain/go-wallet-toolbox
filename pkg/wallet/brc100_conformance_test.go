@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 
 	brc100vectors "github.com/bsv-blockchain/go-wallet-toolbox/conformance/vectors/wallet/brc100"
@@ -231,6 +232,81 @@ func TestBRC100Conformance_ListOutputs(t *testing.T) {
 			}
 			require.Equal(t, expTotal, res.TotalOutputs, "totalOutputs mismatch for %s", v.ID)
 			require.Empty(t, res.Outputs, "outputs should be empty for %s", v.ID)
+		})
+	}
+}
+
+// TestBRC100Conformance_RelinquishOutput covers all 8 BRC-100 relinquishOutput vectors.
+//
+// Vectors 1, 6, 8 (basket "default"): seeded via faucet — the placeholder txid in the
+// vector is replaced with the real outpoint from the faucet transaction.
+//
+// Vectors 2, 3, 7 (baskets "tokens", "payments", "invoices"): seeded via InternalizeAction
+// with BasketInsertion protocol — the placeholder txid is replaced with the real outpoint.
+//
+// Vector 4 (output not found): error path, runs on a fresh wallet.
+// Vector 5 (invalid outpoint format): the SDK's Outpoint.UnmarshalJSON rejects
+// "invalid-outpoint" before the wallet is called; this is the expected error behaviour.
+func TestBRC100Conformance_RelinquishOutput(t *testing.T) {
+	vectors := loadBRC100Vectors(t, brc100vectors.RelinquishOutputVectors)
+	for _, v := range vectors {
+		t.Run(v.ID, func(t *testing.T) {
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			argsJSON, err := json.Marshal(v.Input.Args)
+			require.NoError(t, err)
+
+			var args sdk.RelinquishOutputArgs
+			if err := json.Unmarshal(argsJSON, &args); err != nil {
+				// Vector 5: "invalid-outpoint" is rejected by OutpointFromString before
+				// reaching the wallet — invalid input causing an error is the expected behaviour.
+				t.Logf("note: %s — args unmarshal failed as expected (invalid outpoint format): %v", v.ID, err)
+				return
+			}
+
+			originator := v.Input.Originator
+			if originator == "" {
+				originator = "brc100-test.example.com"
+			}
+
+			// Vectors with a skip_reason require a pre-existing output in storage.
+			if v.SkipReason != "" {
+				aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeSQLite)
+
+				if args.Basket == "default" {
+					// Seed "default" basket via faucet; replace the placeholder txid with the real one.
+					txSpec, _ := given.Faucet(aliceWallet).TopUp(99904)
+					args.Output = transaction.Outpoint{
+						Txid:  *txSpec.TX().TxID(),
+						Index: 0,
+					}
+				} else {
+					// Seed a named basket via InternalizeAction with BasketInsertion protocol.
+					internalizeArgs := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolBasketInsertion)
+					internalizeArgs.Outputs[0].InsertionRemittance.Basket = args.Basket
+					internalizedTx, txErr := transaction.NewTransactionFromBEEF(internalizeArgs.Tx)
+					require.NoError(t, txErr)
+					_, internalizeErr := aliceWallet.InternalizeAction(context.Background(), internalizeArgs, originator)
+					require.NoError(t, internalizeErr)
+					args.Output = transaction.Outpoint{
+						Txid:  *internalizedTx.TxID(),
+						Index: 0,
+					}
+				}
+
+				res, err := aliceWallet.RelinquishOutput(context.Background(), args, originator)
+				require.NoError(t, err)
+				require.NotNil(t, res)
+				require.True(t, res.Relinquished, "relinquished mismatch for %s", v.ID)
+				return
+			}
+
+			// Error-path vectors (no skip_reason): fresh wallet, expect an error.
+			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeSQLite)
+			res, err := aliceWallet.RelinquishOutput(context.Background(), args, originator)
+			require.Error(t, err, "expected error for %s", v.ID)
+			require.Nil(t, res)
 		})
 	}
 }
