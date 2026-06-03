@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -28,6 +29,7 @@ func NewCertificateHandler(svc *service.CertificateService, config *config.Confi
 }
 
 func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Method != http.MethodPost {
 		h.writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -68,7 +70,7 @@ func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSONResponse(w, signedCert, http.StatusOK)
+	h.writeJSONResponse(ctx, w, signedCert, http.StatusOK)
 	h.logger.InfoContext(ctx, "Certificate signed and response sent", "status", http.StatusOK)
 }
 
@@ -81,7 +83,7 @@ func (h *CertificateHandler) writeError(w http.ResponseWriter, message string, s
 	http.Error(w, message, statusCode)
 }
 
-func (h *CertificateHandler) writeJSONResponse(w http.ResponseWriter, data []byte, statusCode int) {
+func (h *CertificateHandler) writeJSONResponse(ctx context.Context, w http.ResponseWriter, data []byte, statusCode int) {
 	w.Header().Set("Content-Type", constants.ContentTypeJSON)
 	w.WriteHeader(statusCode)
 	if _, err := w.Write(data); err != nil {

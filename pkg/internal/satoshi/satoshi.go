@@ -205,12 +205,13 @@ func validateUint[T ~uint | ~uint64](value T) error {
 
 func validateGeneric(value any) error {
 	v := reflect.ValueOf(value)
-	//nolint:exhaustive // only numeric kinds are supported; default case handles unsupported types
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return validateInt(v.Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return validateUint(v.Uint())
+	case reflect.Invalid, reflect.Bool, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		return fmt.Errorf("unsupported type in validateGeneric")
 	default:
 		return fmt.Errorf("unsupported type in validateGeneric")
 	}

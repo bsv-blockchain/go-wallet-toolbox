@@ -41,7 +41,7 @@ func main() {
 
 	masterCertificate, err := createCertificate(context.Background(), aliceWallet, cfg, aliceIdentityKey, logger)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create certificate", "error", err)
+		logger.ErrorContext(context.Background(), "Failed to create certificate", "error", err)
 		os.Exit(1)
 	}
 
@@ -59,12 +59,12 @@ func main() {
 func setupConfig(logger *slog.Logger) (*config.Config, error) {
 	cfg, err := config.LoadConfig("", logger)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to load config", "error", err)
+		logger.ErrorContext(context.Background(), "Failed to load config", "error", err)
 		return nil, err
 	}
 
 	if err := cfg.Validate(); err != nil {
-		logger.ErrorContext(ctx, "Invalid configuration", "error", err)
+		logger.ErrorContext(context.Background(), "Invalid configuration", "error", err)
 		return nil, err
 	}
 
@@ -72,6 +72,7 @@ func setupConfig(logger *slog.Logger) (*config.Config, error) {
 }
 
 func setupWallet(cfg *config.Config, logger *slog.Logger) (*wallet.Wallet, func(), *primitives.PrivateKey, *primitives.PublicKey, error) {
+	ctx := context.Background()
 	alicePrivateKey, err := primitives.PrivateKeyFromHex(cfg.UserWallet.PrivateKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Invalid user private key", "error", err)
@@ -152,6 +153,7 @@ func createCertificate(ctx context.Context, aliceWallet *wallet.Wallet, cfg *con
 }
 
 func sendCertificateToServer(masterCertificate *certificates.MasterCertificate, cfg *config.Config, logger *slog.Logger) (*http.Response, error) {
+	ctx := context.Background()
 	bytesToSend, err := json.Marshal(masterCertificate)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to marshal master certificate", "error", err)
@@ -176,6 +178,7 @@ func sendCertificateToServer(masterCertificate *certificates.MasterCertificate, 
 }
 
 func handleResponse(resp *http.Response, logger *slog.Logger) error {
+	ctx := context.Background()
 	defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in this context
 
 	if resp.StatusCode != http.StatusOK {

@@ -82,6 +82,7 @@ func (s *Server) setupRoutes() http.Handler {
 }
 
 func (s *Server) Start() error {
+	ctx := context.Background()
 	handler := s.setupRoutes()
 	addr := ":" + s.config.Server.Port
 

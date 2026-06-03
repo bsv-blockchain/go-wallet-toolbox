@@ -46,6 +46,7 @@ type broadcastItem struct {
 }
 
 func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- wdk.CurrentTxStatus) *BackgroundBroadcaster {
+	//nolint:gosec // cancel is stored and called in Stop()
 	bbContext, cancel := context.WithCancel(ctx)
 	logger := logging.Child(parentLogger, "BackgroundBroadcaster")
 	return &BackgroundBroadcaster{

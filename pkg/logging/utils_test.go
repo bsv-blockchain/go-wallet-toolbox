@@ -1,6 +1,7 @@
 package logging_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func TestChildLogger(t *testing.T) {
 	childLogger := logging.Child(logger, "child")
 
 	// and:
-	childLogger.DebugContext(ctx, "debug message")
+	childLogger.DebugContext(context.Background(), "debug message")
 
 	// then:
 	msg := stringWriter.String()
