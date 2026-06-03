@@ -58,10 +58,10 @@ func setupSlog() (cleanup func()) {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	slog.Info("Slog logger initialized successfully", "log_file", logFilePath)
+	slog.InfoContext(ctx, "Slog logger initialized successfully", "log_file", logFilePath)
 
 	cleanup = func() {
-		slog.Info("Closing log file.")
+		slog.InfoContext(ctx, "Closing log file.")
 		logFile.Close() //nolint:errcheck,gosec // best-effort cleanup, error not actionable
 	}
 	return cleanup
@@ -70,7 +70,7 @@ func setupSlog() (cleanup func()) {
 func cleanupOldLogs(prefix string, maxFiles int) {
 	files, err := filepath.Glob(prefix + "*.log")
 	if err != nil {
-		slog.Error("Failed to list log files", "error", err)
+		slog.ErrorContext(ctx, "Failed to list log files", "error", err)
 		return
 	}
 
@@ -103,9 +103,9 @@ func cleanupOldLogs(prefix string, maxFiles int) {
 	for i := 0; i < filesToRemove; i++ {
 		err := os.Remove(fileInfos[i].path)
 		if err != nil {
-			slog.Error("Failed to remove old log file", "file", fileInfos[i].path, "error", err)
+			slog.ErrorContext(ctx, "Failed to remove old log file", "file", fileInfos[i].path, "error", err)
 		} else {
-			slog.Info("Removed old log file", "file", fileInfos[i].path)
+			slog.InfoContext(ctx, "Removed old log file", "file", fileInfos[i].path)
 		}
 	}
 }

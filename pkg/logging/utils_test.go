@@ -22,7 +22,7 @@ func TestChildLogger(t *testing.T) {
 	childLogger := logging.Child(logger, "child")
 
 	// and:
-	childLogger.Debug("debug message")
+	childLogger.DebugContext(ctx, "debug message")
 
 	// then:
 	msg := stringWriter.String()

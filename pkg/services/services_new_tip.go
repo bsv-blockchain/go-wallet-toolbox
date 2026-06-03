@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 
@@ -47,7 +48,7 @@ func (t *tipBroadcaster) broadcast(tip *chaintracks.BlockHeader) {
 		select {
 		case sub <- tip:
 		default:
-			t.logger.Warn("new tip subscriber channel full, dropping event", tipLogAttrs(tip)...)
+			t.logger.WarnContext(context.Background(), "new tip subscriber channel full, dropping event", tipLogAttrs(tip)...)
 		}
 	}
 }

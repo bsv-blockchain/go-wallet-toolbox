@@ -21,7 +21,7 @@ func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
 	// get client identity key from auth middleware header
 	clientPubKey, err := ec.PublicKeyFromString(r.Header.Get(brc104.HeaderIdentityKey))
 	if err != nil {
-		s.config.Logger.Error("failed to create client public key", slog.Any("error", err))
+		s.config.Logger.ErrorContext(ctx, "failed to create client public key", slog.Any("error", err))
 		http.Error(w, "failed to create client public key", http.StatusBadRequest)
 		return
 	}
@@ -30,7 +30,7 @@ func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
 
 	var req walletcerts.ProtocolIssuanceRequest
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.config.Logger.Error("failed to decode request", "error", err)
+		s.config.Logger.ErrorContext(ctx, "failed to decode request", "error", err)
 		if servercommon.IsMaxBytesError(err) {
 			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
 			return
@@ -42,14 +42,14 @@ func (s *Server) handleSignCertificate(w http.ResponseWriter, r *http.Request) {
 	// Sign the certificate
 	response, err := s.service.SignCertificate(r.Context(), &req, clientPubKey)
 	if err != nil {
-		s.config.Logger.Error("failed to sign certificate", "error", err)
+		s.config.Logger.ErrorContext(ctx, "failed to sign certificate", "error", err)
 		http.Error(w, "Failed to sign certificate", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		s.config.Logger.Error("failed to encode response", "error", err)
+		s.config.Logger.ErrorContext(ctx, "failed to encode response", "error", err)
 	}
 }
 

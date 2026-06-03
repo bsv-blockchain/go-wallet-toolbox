@@ -371,7 +371,7 @@ func (s *WalletServices) logActiveServices() {
 		return slog.String(methodName, strings.Join(serviceNames, ","))
 	})
 
-	s.logger.Debug("Active services by methods", logAttrs...)
+	s.logger.DebugContext(context.Background(), "Active services by methods", logAttrs...)
 }
 
 // StartChaintracks begins background chaintracks event subscription.
@@ -383,7 +383,7 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 
 	err := s.chaintracks.Start(ctx, chaintracksclient.Callbacks{
 		OnTip: func(bh *chaintracks.BlockHeader) error {
-			s.logger.Debug("new chain tip received",
+			s.logger.DebugContext(ctx, "new chain tip received",
 				"height", bh.Height,
 				"hash", bh.Hash.String(),
 			)
@@ -391,7 +391,7 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 			return nil
 		},
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
-			s.logger.Info("reorg detected",
+			s.logger.InfoContext(ctx, "reorg detected",
 				"depth", event.Depth,
 				"new_tip_hash", event.NewTip.Hash.String(),
 				"orphaned_count", len(event.OrphanedHashes),
@@ -404,7 +404,7 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 		return fmt.Errorf("failed to start chaintracks: %w", err)
 	}
 
-	s.logger.Info("chaintracks started")
+	s.logger.InfoContext(ctx, "chaintracks started")
 	return nil
 }
 

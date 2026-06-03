@@ -53,7 +53,7 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
 		default:
-			t.logger.Warn("TxProven channel full, dropping event")
+			t.logger.WarnContext(ctx, "TxProven channel full, dropping event")
 		}
 	}
 

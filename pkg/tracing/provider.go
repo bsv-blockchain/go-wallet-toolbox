@@ -61,12 +61,12 @@ func Enable(logger *slog.Logger, serviceName, dialAddr string, sample int) (func
 	cleanup := func() {
 		err = exporter.Shutdown(ctx)
 		if err != nil {
-			logger.Error("Failed to shutdown exporter", slog.String("err", err.Error()))
+			logger.ErrorContext(ctx, "Failed to shutdown exporter", slog.String("err", err.Error()))
 		}
 
 		err = tp.Shutdown(ctx)
 		if err != nil {
-			logger.Error("Failed to shutdown tracing provider", slog.String("err", err.Error()))
+			logger.ErrorContext(ctx, "Failed to shutdown tracing provider", slog.String("err", err.Error()))
 		}
 	}
 

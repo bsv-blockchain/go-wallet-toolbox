@@ -33,28 +33,28 @@ func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("Received certificate signing request", "path", r.URL.Path)
+	h.logger.InfoContext(ctx, "Received certificate signing request", "path", r.URL.Path)
 
 	body, err := h.readRequestBody(r)
 	if err != nil {
-		h.logger.Error("Failed to read request body", "error", err)
+		h.logger.ErrorContext(ctx, "Failed to read request body", "error", err)
 		h.writeError(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
 	var masterCert certificates.MasterCertificate
 	if err = json.Unmarshal(body, &masterCert); err != nil {
-		h.logger.Error("Failed to unmarshal JSON", "error", err, "body", string(body))
+		h.logger.ErrorContext(ctx, "Failed to unmarshal JSON", "error", err, "body", string(body))
 		h.writeError(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	h.logger.Info("Parsed certificate request", "cert_type", masterCert.Type)
+	h.logger.InfoContext(ctx, "Parsed certificate request", "cert_type", masterCert.Type)
 
 	// TODO: change to take pubkey from request when middleware with auth will be attached
 	counterPartyPrivKey, err := ec.PrivateKeyFromHex(h.cfg.UserWallet.PrivateKey)
 	if err != nil {
-		h.logger.Error("Failed to parse private key", "error", err)
+		h.logger.ErrorContext(ctx, "Failed to parse private key", "error", err)
 		h.writeError(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -63,13 +63,13 @@ func (h *CertificateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	signedCert, err := h.service.SignCertificate(&masterCert, counterPartyPubKey)
 	if err != nil {
-		h.logger.Error("Certificate signing failed", "error", err)
+		h.logger.ErrorContext(ctx, "Certificate signing failed", "error", err)
 		h.writeError(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	h.writeJSONResponse(w, signedCert, http.StatusOK)
-	h.logger.Info("Certificate signed and response sent", "status", http.StatusOK)
+	h.logger.InfoContext(ctx, "Certificate signed and response sent", "status", http.StatusOK)
 }
 
 func (h *CertificateHandler) readRequestBody(r *http.Request) ([]byte, error) {
@@ -85,6 +85,6 @@ func (h *CertificateHandler) writeJSONResponse(w http.ResponseWriter, data []byt
 	w.Header().Set("Content-Type", constants.ContentTypeJSON)
 	w.WriteHeader(statusCode)
 	if _, err := w.Write(data); err != nil {
-		h.logger.Error("Failed to write response", "error", err)
+		h.logger.ErrorContext(ctx, "Failed to write response", "error", err)
 	}
 }

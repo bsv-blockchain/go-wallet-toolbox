@@ -239,7 +239,7 @@ func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, se
 
 	results = seq.Each(results, func(result *NamedResult[R]) {
 		if result.IsError() {
-			logger.Warn("error when calling service",
+			logger.WarnContext(ctx, "error when calling service",
 				slog.String("service.name", result.Name()),
 				logging.Error(result.GetError()),
 			)
@@ -302,7 +302,7 @@ func processOneByOne[S serv, R any](logger *slog.Logger, services []S, callServi
 func logErrorResult[R any](logger *slog.Logger) func(serviceResult *NamedResult[R]) {
 	return func(serviceResult *NamedResult[R]) {
 		if serviceResult.IsError() {
-			logger.Warn("error when calling service",
+			logger.WarnContext(context.Background(), "error when calling service",
 				slog.String("service.name", serviceResult.Name()),
 				logging.Error(serviceResult.GetError()),
 			)
@@ -338,7 +338,7 @@ func logIfNamesAreNotUnique[T serv](services []T, logger *slog.Logger) {
 	for _, s := range services {
 		name := s.Name()
 		if _, exists := seen[name]; exists {
-			logger.Warn("duplicate service name detected", slog.String("service.name", name))
+			logger.WarnContext(context.Background(), "duplicate service name detected", slog.String("service.name", name))
 		} else {
 			seen[name] = struct{}{}
 		}

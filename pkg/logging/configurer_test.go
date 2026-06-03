@@ -18,7 +18,7 @@ func TestTextLogger(t *testing.T) {
 		Logger()
 
 	// when:
-	logger.Debug("debug message")
+	logger.DebugContext(ctx, "debug message")
 
 	// then:
 	msg := stringWriter.String()
@@ -36,7 +36,7 @@ func TestJSONLogger(t *testing.T) {
 		Logger()
 
 	// when:
-	logger.Debug("debug message")
+	logger.DebugContext(ctx, "debug message")
 
 	// then:
 	msg := stringWriter.String()

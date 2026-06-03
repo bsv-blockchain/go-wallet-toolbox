@@ -85,7 +85,7 @@ func (s *Server) Start() error {
 	handler := s.setupRoutes()
 	addr := ":" + s.config.Server.Port
 
-	s.logger.Info("Starting certificate server", "addr", addr, "network", s.config.Server.Network)
+	s.logger.InfoContext(ctx, "Starting certificate server", "addr", addr, "network", s.config.Server.Network)
 
 	return http.ListenAndServe(addr, handler) //nolint:gosec // example server, timeouts not required
 }

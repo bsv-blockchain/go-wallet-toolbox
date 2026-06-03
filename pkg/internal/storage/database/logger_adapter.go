@@ -44,6 +44,6 @@ func (l *SlogGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (
 
 // LogMode allows changing the logging level dynamically
 func (l *SlogGormLogger) LogMode(_ logger.LogLevel) logger.Interface {
-	l.logger.Error("LogMode is not supported. You need to instantiate a database with new logger with the desired log level")
+	l.logger.ErrorContext(context.Background(), "LogMode is not supported. You need to instantiate a database with new logger with the desired log level")
 	return l
 }

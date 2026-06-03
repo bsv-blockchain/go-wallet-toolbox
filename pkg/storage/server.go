@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -48,9 +49,9 @@ func (s *Server) Handler() http.Handler {
 		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))
 		handler = paymentMiddleware.HTTPHandler(handler)
 	} else {
-		s.logger.Info("Payment middleware is disabled (Monetize=false)")
+		s.logger.InfoContext(context.Background(), "Payment middleware is disabled (Monetize=false)")
 		if s.options.CalculateRequestPrice != nil {
-			s.logger.Warn("CalculateRequestPrice option is set but will be ignored because Monetize=false")
+			s.logger.WarnContext(context.Background(), "CalculateRequestPrice option is set but will be ignored because Monetize=false")
 		}
 	}
 
@@ -76,7 +77,7 @@ func (s *Server) Start() error {
 		WriteTimeout:      2 * time.Minute,
 	}
 
-	s.logger.Info("Listening...", slog.Any("port", port))
+	s.logger.InfoContext(context.Background(), "Listening...", slog.Any("port", port))
 	err := httpServer.ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
