@@ -218,7 +218,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 // Cleanup releases all resources held by the server
 func (s *Server) Cleanup() {
-	s.logger.InfoContext(ctx, "Cleaning up resources...")
+	s.logger.InfoContext(context.Background(), "Cleaning up resources...")
 
 	if s.monitor != nil {
 		_ = s.monitor.Stop()
@@ -231,7 +231,7 @@ func (s *Server) Cleanup() {
 
 func (s *Server) consumeTxBroadcasted() {
 	for msg := range s.txBroadcastedCh {
-		s.logger.InfoContext(ctx, 
+		s.logger.InfoContext(context.Background(),
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
 			slog.String("reference", msg.Reference),
@@ -239,7 +239,7 @@ func (s *Server) consumeTxBroadcasted() {
 		)
 
 		if msg.Error != nil {
-			s.logger.ErrorContext(ctx, 
+			s.logger.ErrorContext(context.Background(),
 				"tx broadcast error",
 				slog.String("tx_id", msg.TxID),
 				slog.Any("error", msg.Error.Errors),
@@ -250,7 +250,7 @@ func (s *Server) consumeTxBroadcasted() {
 
 func (s *Server) consumeTxProven() {
 	for msg := range s.txProvenCh {
-		s.logger.InfoContext(ctx, 
+		s.logger.InfoContext(context.Background(),
 			"tx proven",
 			slog.String("tx_id", msg.TxID),
 			slog.String("status", msg.Status.String()),

@@ -368,7 +368,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		var merkleResult *wdk.MerklePathResult
 		merkleResult, err = s.services.MerklePath(ctx, txToSync.TxID)
 		if err != nil {
-			s.logger.WarnContext(ctx, 
+			s.logger.WarnContext(ctx,
 				"failed to get merkle path for transaction",
 				slog.Any("err", err),
 				slog.String("txID", txToSync.TxID),
@@ -382,7 +382,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		}
 
 		if merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
-			s.logger.InfoContext(ctx, 
+			s.logger.InfoContext(ctx,
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
 				slog.String("status", string(txToSync.Status)),
