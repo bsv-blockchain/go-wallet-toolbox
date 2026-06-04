@@ -76,16 +76,16 @@ func (s *Setup) CreateWallet(ctx context.Context, privkey *ec.PrivateKey) (*wall
 
 	userWallet, err := wallet.NewWithStorageFactory(s.Environment.BSVNetwork, privkey, func(userWallet sdk.Interface) (wdk.WalletStorageProvider, func(), error) {
 		if remoteStorage {
-			slog.Info("Using remote storage", "url", s.Environment.ServerURL)
+			slog.InfoContext(ctx, "Using remote storage", "url", s.Environment.ServerURL)
 			return storage.NewClient(s.Environment.ServerURL, userWallet)
 		}
-		slog.Info("Using local storage", "file", SQLiteStorageFile)
+		slog.InfoContext(ctx, "Using local storage", "file", SQLiteStorageFile)
 		return CreateLocalStorage(ctx, s.Environment.BSVNetwork, s.ServerPrivateKey)
 	})
 	if err != nil {
 		panic(fmt.Errorf("failed to create wallet: %w", err))
 	}
 
-	slog.Info("CreateWallet", "identityKey", s.IdentityKey.ToDERHex())
+	slog.InfoContext(ctx, "CreateWallet", "identityKey", s.IdentityKey.ToDERHex())
 	return userWallet, userWallet.Close
 }

@@ -1,6 +1,7 @@
 package txutils
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -60,18 +61,18 @@ func referencedParentTxIDs(beef *transaction.Beef) map[chainhash.Hash]struct{} {
 func BindBumpsAndTransactions(beef *transaction.Beef, logger *slog.Logger) {
 	for i, bump := range beef.BUMPs {
 		if len(bump.Path) == 0 || len(bump.Path[0]) == 0 {
-			logger.Warn("got bump without bottom path", slog.String("merklePath", bump.Hex()))
+			logger.WarnContext(context.Background(), "got bump without bottom path", slog.String("merklePath", bump.Hex()))
 			continue
 		}
 		for _, element := range bump.Path[0] {
 			if element.Txid != nil && *element.Txid {
 				if element.Hash == nil {
-					logger.Error("got leaf marked as txid in BUMP but hash is nil")
+					logger.ErrorContext(context.Background(), "got leaf marked as txid in BUMP but hash is nil")
 					continue
 				}
 				tx, ok := beef.Transactions[*element.Hash]
 				if !ok {
-					logger.Warn("got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
+					logger.WarnContext(context.Background(), "got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
 					continue
 				}
 				tx.BumpIndex = i

@@ -33,7 +33,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 
 	lockAcquired := p.sendWaitingLock.TryLock()
 	if !lockAcquired {
-		log.Warn("SendWaitingTransactions is already running, skipping this run")
+		log.WarnContext(ctx, "SendWaitingTransactions is already running, skipping this run")
 		return nil, nil
 	}
 	defer p.sendWaitingLock.Unlock()

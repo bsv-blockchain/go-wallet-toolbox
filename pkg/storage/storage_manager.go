@@ -169,7 +169,7 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 		return 0, 0, fmt.Errorf("writer wallet storage must be provided, it's nil")
 	}
 
-	m.logger.Info("starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
+	m.logger.InfoContext(ctx, "starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
 
 	reader := options.ReaderFactory()
 	if reader == nil {
@@ -182,8 +182,8 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 		err = fmt.Errorf("failed to sync from reader to writer: %w", err)
 	}
 
-	m.logger.Info(
-		"completed sync from active storage to writer storage",
+	m.logger.InfoContext(
+		ctx, "completed sync from active storage to writer storage",
 		slog.Int("inserts", inserts),
 		slog.Int("updates", updates),
 		slog.String("identityKey", m.identityKey),
@@ -232,8 +232,8 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 
 		// Merge state from conflicting actives into `newActive`.
 		for _, conflict := range m.conflictingActives {
-			m.logger.Info(
-				"merging state from conflicting actives",
+			m.logger.InfoContext(
+				ctx, "merging state from conflicting actives",
 				slog.String("from", conflict.Settings.StorageIdentityKey),
 				slog.String("to", newActive.Settings.StorageIdentityKey),
 			)
@@ -244,9 +244,9 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 			}
 		}
 
-		m.logger.Info("propagate merged active state to non-actives")
+		m.logger.InfoContext(ctx, "propagate merged active state to non-actives")
 	} else {
-		m.logger.Info("backup current active state then set new active")
+		m.logger.InfoContext(ctx, "backup current active state then set new active")
 	}
 
 	// If there were conflicting actives,

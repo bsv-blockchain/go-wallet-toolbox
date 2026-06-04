@@ -41,7 +41,7 @@ func main() {
 
 	masterCertificate, err := createCertificate(context.Background(), aliceWallet, cfg, aliceIdentityKey, logger)
 	if err != nil {
-		logger.Error("Failed to create certificate", "error", err)
+		logger.ErrorContext(context.Background(), "Failed to create certificate", "error", err)
 		os.Exit(1)
 	}
 
@@ -59,12 +59,12 @@ func main() {
 func setupConfig(logger *slog.Logger) (*config.Config, error) {
 	cfg, err := config.LoadConfig("", logger)
 	if err != nil {
-		logger.Error("Failed to load config", "error", err)
+		logger.ErrorContext(context.Background(), "Failed to load config", "error", err)
 		return nil, err
 	}
 
 	if err := cfg.Validate(); err != nil {
-		logger.Error("Invalid configuration", "error", err)
+		logger.ErrorContext(context.Background(), "Invalid configuration", "error", err)
 		return nil, err
 	}
 
@@ -72,15 +72,16 @@ func setupConfig(logger *slog.Logger) (*config.Config, error) {
 }
 
 func setupWallet(cfg *config.Config, logger *slog.Logger) (*wallet.Wallet, func(), *primitives.PrivateKey, *primitives.PublicKey, error) {
+	ctx := context.Background()
 	alicePrivateKey, err := primitives.PrivateKeyFromHex(cfg.UserWallet.PrivateKey)
 	if err != nil {
-		logger.Error("Invalid user private key", "error", err)
+		logger.ErrorContext(ctx, "Invalid user private key", "error", err)
 		return nil, nil, nil, nil, err
 	}
 
 	aliceIdentityKey := alicePrivateKey.PubKey()
 	if aliceIdentityKey.ToDERHex() != cfg.UserWallet.IdentityKey {
-		logger.Error("User identity key mismatch")
+		logger.ErrorContext(ctx, "User identity key mismatch")
 		return nil, nil, nil, nil, fmt.Errorf("user identity key mismatch")
 	}
 
@@ -109,7 +110,7 @@ func createCertificate(ctx context.Context, aliceWallet *wallet.Wallet, cfg *con
 
 	certifierIdentityKey, err := primitives.PublicKeyFromString(cfg.CertifierWallet.IdentityKey)
 	if err != nil {
-		logger.Error("Invalid certifier identity key", "error", err)
+		logger.ErrorContext(ctx, "Invalid certifier identity key", "error", err)
 		return nil, err
 	}
 
@@ -152,23 +153,24 @@ func createCertificate(ctx context.Context, aliceWallet *wallet.Wallet, cfg *con
 }
 
 func sendCertificateToServer(masterCertificate *certificates.MasterCertificate, cfg *config.Config, logger *slog.Logger) (*http.Response, error) {
+	ctx := context.Background()
 	bytesToSend, err := json.Marshal(masterCertificate)
 	if err != nil {
-		logger.Error("Failed to marshal master certificate", "error", err)
+		logger.ErrorContext(ctx, "Failed to marshal master certificate", "error", err)
 		return nil, err
 	}
 
 	if cfg.Server.Port == "" {
-		logger.Error("Server port is not configured")
+		logger.ErrorContext(ctx, "Server port is not configured")
 		return nil, fmt.Errorf("server port is not configured")
 	}
 
 	CertifierAddress = fmt.Sprintf("%s:%s", CertifierAddress, cfg.Server.Port)
 
-	logger.Info("Sending certificate to server", "address", CertifierAddress)
+	logger.InfoContext(ctx, "Sending certificate to server", "address", CertifierAddress)
 	resp, err := http.Post(CertifierAddress, constants.ContentTypeJSON, bytes.NewReader(bytesToSend)) //nolint:gosec,noctx // example code, variable URL is intentional
 	if err != nil {
-		logger.Error("Failed to send request to certifier", "error", err)
+		logger.ErrorContext(ctx, "Failed to send request to certifier", "error", err)
 		return nil, err
 	}
 
@@ -176,27 +178,28 @@ func sendCertificateToServer(masterCertificate *certificates.MasterCertificate, 
 }
 
 func handleResponse(resp *http.Response, logger *slog.Logger) error {
+	ctx := context.Background()
 	defer resp.Body.Close() //nolint:errcheck // body close error is not actionable in this context
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			logger.Error("Certificate signing failed", "status", resp.Status, "error", err, "response", "<failed to read response body>")
+			logger.ErrorContext(ctx, "Certificate signing failed", "status", resp.Status, "error", err, "response", "<failed to read response body>")
 			return fmt.Errorf("certificate signing failed with status: %s (failed to read response body: %w)", resp.Status, err)
 		}
-		logger.Error("Certificate signing failed", "status", resp.Status, "response", string(bodyBytes))
+		logger.ErrorContext(ctx, "Certificate signing failed", "status", resp.Status, "response", string(bodyBytes))
 		return fmt.Errorf("certificate signing failed with status: %s", resp.Status)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Error("Failed to read response body", "error", err)
+		logger.ErrorContext(ctx, "Failed to read response body", "error", err)
 		return err
 	}
 
 	signedCertificate, err := certificates.CertificateFromBinary(bodyBytes)
 	if err != nil {
-		logger.Error("Failed to parse signed certificate", "error", err)
+		logger.ErrorContext(ctx, "Failed to parse signed certificate", "error", err)
 		return err
 	}
 
@@ -205,7 +208,7 @@ func handleResponse(resp *http.Response, logger *slog.Logger) error {
 	fmt.Printf("Certificate Type: %s\n", signedCertificate.Type)
 	fmt.Printf("Subject: %s\n", signedCertificate.Subject.ToDERHex())
 	fmt.Printf("Certifier: %s\n", signedCertificate.Certifier.ToDERHex())
-	logger.Info("Certificate validation completed successfully")
+	logger.InfoContext(ctx, "Certificate validation completed successfully")
 	fmt.Println("=====================================")
 
 	return nil

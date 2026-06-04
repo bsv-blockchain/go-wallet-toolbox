@@ -1,6 +1,7 @@
 package pending
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -82,13 +83,13 @@ func (l *SignActionLocalRepository) checkForCleanup() {
 }
 
 func (l *SignActionLocalRepository) cleanup() {
-	l.logger.Info("cleaning up old pending sign actions cache")
+	l.logger.InfoContext(context.Background(), "cleaning up old pending sign actions cache")
 
 	cutoff := time.Now().Add(-l.ttl)
 	l.actions.Range(func(key, value any) bool {
 		item := value.(pendingSignActionItem)
 		if item.timestamp.Before(cutoff) {
-			l.logger.Info("removing expired pending sign action", slog.String("reference", key.(string)))
+			l.logger.InfoContext(context.Background(), "removing expired pending sign action", slog.String("reference", key.(string)))
 			l.actions.Delete(key)
 		}
 		return true

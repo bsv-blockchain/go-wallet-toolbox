@@ -82,7 +82,7 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 	cleanup := func() {
 		if daemon != nil {
 			if err := daemon.Stop(); err != nil {
-				slog.Error(fmt.Sprintf("failed to stop storage monitor: %v", err))
+				slog.ErrorContext(ctx, fmt.Sprintf("failed to stop storage monitor: %v", err))
 			}
 		}
 		activeStorage.Stop()

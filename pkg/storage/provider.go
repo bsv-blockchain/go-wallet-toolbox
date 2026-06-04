@@ -119,7 +119,7 @@ func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 
 	if err := p.Database.Close(); err != nil {
-		p.logger.Error("Failed to close database", slog.Any("err", err))
+		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))
 	}
 }
 
@@ -1025,8 +1025,8 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
 	}
 
-	p.logger.Info(
-		"Handled reorg - invalidated merkle proofs",
+	p.logger.InfoContext(
+		ctx, "Handled reorg - invalidated merkle proofs",
 		"orphaned_blocks", len(orphanedBlockHashes),
 		"affected_transactions", affected,
 	)

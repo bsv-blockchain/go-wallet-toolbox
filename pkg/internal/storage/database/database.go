@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -140,7 +141,7 @@ func normalizeTimeZone(tz string) string {
 // Close closes the database connection if it was created internally.
 func (d *Database) Close() error {
 	if d.externalGorm {
-		d.logger.Debug("Skipping database close because GORM was provided externally")
+		d.logger.DebugContext(context.Background(), "Skipping database close because GORM was provided externally")
 		return nil
 	}
 
@@ -149,11 +150,11 @@ func (d *Database) Close() error {
 		return fmt.Errorf("failed to get raw DB from gorm: %w", err)
 	}
 
-	d.logger.Info("Closing database connection...")
+	d.logger.InfoContext(context.Background(), "Closing database connection...")
 	if err := sqlDB.Close(); err != nil {
 		return fmt.Errorf("failed to close database connection: %w", err)
 	}
-	d.logger.Info("Database connection closed.")
+	d.logger.InfoContext(context.Background(), "Database connection closed.")
 
 	return nil
 }

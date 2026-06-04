@@ -111,7 +111,7 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 	defer d.startLock.Unlock()
 
 	if d.started {
-		d.logger.Warn("Daemon is already started. Skipping.")
+		d.logger.WarnContext(ctx, "Daemon is already started. Skipping.")
 		return nil
 	}
 
@@ -119,7 +119,7 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 	for taskName, taskConfig := range tasksToStart {
 		taskFactory, ok := factories[taskName]
 		if !ok {
-			d.logger.Warn("Task does not exist. Skipping.", slog.Any("task", taskName))
+			d.logger.WarnContext(ctx, "Task does not exist. Skipping.", slog.Any("task", taskName))
 			continue
 		}
 
@@ -149,7 +149,7 @@ func (d *Daemon) Pause() error {
 	defer d.startLock.Unlock()
 
 	if !d.started {
-		d.logger.Warn("Daemon is not started. Skipping.")
+		d.logger.WarnContext(context.Background(), "Daemon is not started. Skipping.")
 		return nil
 	}
 
@@ -168,7 +168,7 @@ func (d *Daemon) Stop() error {
 	defer d.startLock.Unlock()
 
 	if !d.started {
-		d.logger.Warn("Daemon is not started. Skipping.")
+		d.logger.WarnContext(context.Background(), "Daemon is not started. Skipping.")
 		return nil
 	}
 
@@ -215,7 +215,7 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	task.Cronjob = job
 	d.activeTasks[taskName] = task
 
-	d.logger.Info("Starting a task", "task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
+	d.logger.InfoContext(context.Background(), "Starting a task", "task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
 	return nil
 }
 
@@ -227,22 +227,22 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 			tracing.EndTracing(span, err)
 		}()
 
-		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
+		d.logger.InfoContext(ctx, "Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
 			if err != nil {
-				d.logger.Error("Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+				d.logger.ErrorContext(ctx, "Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
 				return
 			}
 			if activeTask.Cronjob == nil {
 				return
 			}
 			nextRun, _ := activeTask.Cronjob.NextRun()
-			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
+			d.logger.InfoContext(ctx, "Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
 		nextRun, err := activeTask.Cronjob.NextRun()
 		if err != nil {
-			d.logger.Error("Failed to get next run for task", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+			d.logger.ErrorContext(ctx, "Failed to get next run for task", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
 			return
 		}
 
@@ -270,11 +270,11 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 }
 
 func (d *Daemon) handleReorgEvents(ctx context.Context) {
-	d.logger.Info("Starting reorg event handler")
+	d.logger.InfoContext(ctx, "Starting reorg event handler")
 
 	for event := range d.eventChannels.OnReorg {
-		d.logger.Info(
-			"Received reorg event",
+		d.logger.InfoContext(
+			ctx, "Received reorg event",
 			"depth", event.Depth,
 			"orphaned_count", len(event.OrphanedHashes),
 		)
@@ -285,19 +285,19 @@ func (d *Daemon) handleReorgEvents(ctx context.Context) {
 		}
 
 		if err := d.storage.HandleReorg(ctx, orphanedHashes); err != nil {
-			d.logger.Error("Failed to handle reorg", "error", err)
+			d.logger.ErrorContext(ctx, "Failed to handle reorg", "error", err)
 		}
 	}
 
-	d.logger.Info("reorg event handler stopped")
+	d.logger.InfoContext(ctx, "reorg event handler stopped")
 }
 
 func (d *Daemon) handleNewTipEvents(ctx context.Context) {
-	d.logger.Info("Starting new tip event handler")
+	d.logger.InfoContext(ctx, "Starting new tip event handler")
 
 	for header := range d.eventChannels.OnTip {
-		d.logger.Info(
-			"New tip received and processing",
+		d.logger.InfoContext(
+			ctx, "New tip received and processing",
 			"height", header.Height,
 			"hash", header.Hash.String(),
 		)
@@ -305,7 +305,7 @@ func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 		go func(h *chaintracks.BlockHeader) {
 			results, err := d.storage.ProcessNewTip(ctx, h.Height, h.Hash.String())
 			if err != nil {
-				d.logger.Error("ProcessNewTip failed", "error", err)
+				d.logger.ErrorContext(ctx, "ProcessNewTip failed", "error", err)
 				return
 			}
 
@@ -334,7 +334,7 @@ func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
 		select {
 		case d.eventChannels.OnTxProven <- msg:
 		default:
-			d.logger.Warn("OnTxProven channel in monitor is full, dropping event")
+			d.logger.WarnContext(context.Background(), "OnTxProven channel in monitor is full, dropping event")
 		}
 	}
 }

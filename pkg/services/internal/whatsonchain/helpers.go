@@ -152,7 +152,7 @@ func (woc *WhatsOnChain) mapSingleTxStatus(tx dto.WocStatusItem) wdk.TxStatusDet
 
 	if tx.Error != nil {
 		if *tx.Error != "unknown" {
-			woc.logger.Warn("unexpected error for tx", slog.String("txid", tx.TxID), slog.String("error", *tx.Error))
+			woc.logger.WarnContext(context.Background(), "unexpected error for tx", slog.String("txid", tx.TxID), slog.String("error", *tx.Error))
 		}
 		status = wdk.ResultStatusForTxIDNotFound
 		return wdk.TxStatusDetail{TxID: tx.TxID, Depth: nil, Status: status.String()}
@@ -160,7 +160,7 @@ func (woc *WhatsOnChain) mapSingleTxStatus(tx dto.WocStatusItem) wdk.TxStatusDet
 
 	if tx.Confirmations == nil {
 		if tx.BlockHash != "" {
-			woc.logger.Warn("blockhash present but confirmations=nil", slog.String("txid", tx.TxID), slog.String("blockhash", tx.BlockHash))
+			woc.logger.WarnContext(context.Background(), "blockhash present but confirmations=nil", slog.String("txid", tx.TxID), slog.String("blockhash", tx.BlockHash))
 		}
 		status = wdk.ResultStatusForTxIDKnown
 		depth = to.Ptr(0)
@@ -168,7 +168,7 @@ func (woc *WhatsOnChain) mapSingleTxStatus(tx dto.WocStatusItem) wdk.TxStatusDet
 	}
 
 	if *tx.Confirmations <= 0 || (tx.BlockHash != "" && *tx.Confirmations == 0) {
-		woc.logger.Warn("non-positive confirmations or blockhash with zero confirmations", slog.String("txid", tx.TxID), slog.String("blockhash", tx.BlockHash), slog.Int("confirmations", *tx.Confirmations))
+		woc.logger.WarnContext(context.Background(), "non-positive confirmations or blockhash with zero confirmations", slog.String("txid", tx.TxID), slog.String("blockhash", tx.BlockHash), slog.Int("confirmations", *tx.Confirmations))
 	}
 
 	status = wdk.ResultStatusForTxIDMined

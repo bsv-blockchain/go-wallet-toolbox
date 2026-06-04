@@ -62,7 +62,7 @@ func (s *ReaderToWriter) Sync(
 		slog.String("from_storage", readerSettings.StorageIdentityKey),
 		slog.String("user_identity_key", userIdentityKey),
 	)
-	logger.Info("beginning sync")
+	logger.InfoContext(ctx, "beginning sync")
 
 	var state syncingState
 
@@ -90,25 +90,25 @@ func (s *ReaderToWriter) Sync(
 			Offsets:      s.buildOffsets(syncMap),
 		}
 
-		logger.Debug("getting sync chunk from reader", slog.Any("getSyncChunkArgs", getSyncChunkArgs))
+		logger.DebugContext(ctx, "getting sync chunk from reader", slog.Any("getSyncChunkArgs", getSyncChunkArgs))
 
 		chunk, err := reader.GetSyncChunk(ctx, getSyncChunkArgs)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to get sync chunk from reader storage: %w", err)
 		}
 
-		logger.Debug("processing sync chunk in writer")
+		logger.DebugContext(ctx, "processing sync chunk in writer")
 
 		processChunkResult, err := writer.ProcessSyncChunk(ctx, getSyncChunkArgs, chunk)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to process sync chunk in writer storage: %w", err)
 		}
 
-		logger.Info("processed sync chunk", slog.Int("inserts", processChunkResult.Inserts), slog.Int("updates", processChunkResult.Updates))
+		logger.InfoContext(ctx, "processed sync chunk", slog.Int("inserts", processChunkResult.Inserts), slog.Int("updates", processChunkResult.Updates))
 		state.updateState(processChunkResult.Inserts, processChunkResult.Updates)
 
 		if processChunkResult.Done {
-			logger.Info("Writer reports done processing sync chunk")
+			logger.InfoContext(ctx, "Writer reports done processing sync chunk")
 			break
 		}
 	}
