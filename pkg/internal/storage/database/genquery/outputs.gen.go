@@ -252,7 +252,7 @@ func (o output) Table(newTableName string) *output {
 }
 
 func (o output) As(alias string) *output {
-	o.outputDo.DO = *(o.outputDo.As(alias).(*gen.DO))
+	o.outputDo.DO = *o.outputDo.As(alias).(*gen.DO)
 	return o.updateTableName(alias)
 }
 

@@ -213,7 +213,8 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			wdk.TxStatusCompleted, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnproven,
 			wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal,
 		}
-		query = query.Where("transaction_id IN (?)",
+		query = query.Where(
+			"transaction_id IN (?)",
 			tx.Model(&models.Transaction{}).
 				Select("id").
 				Where("user_id = ?", filter.UserID).
@@ -247,7 +248,8 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 			Select("id").
 			Scopes(scopes.UserID(userID)).
 			Where("vout = ?", outpoint.Vout).
-			Where("transaction_id IN (?)",
+			Where(
+				"transaction_id IN (?)",
 				tx.Model(&models.Transaction{}).
 					Select("id").
 					Scopes(scopes.UserID(userID)).
@@ -353,7 +355,8 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 		Model(&models.Output{}).
 		Scopes(scopes.UserID(userID)).
 		Where("vout = ?", outpoint.Vout).
-		Where("transaction_id IN (?)",
+		Where(
+			"transaction_id IN (?)",
 			o.db.Model(&models.Transaction{}).
 				Select("id").
 				Scopes(scopes.UserID(userID)).

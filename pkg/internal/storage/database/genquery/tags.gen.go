@@ -58,7 +58,7 @@ func (t tag) Table(newTableName string) *tag {
 }
 
 func (t tag) As(alias string) *tag {
-	t.tagDo.DO = *(t.tagDo.As(alias).(*gen.DO))
+	t.tagDo.DO = *t.tagDo.As(alias).(*gen.DO)
 	return t.updateTableName(alias)
 }
 

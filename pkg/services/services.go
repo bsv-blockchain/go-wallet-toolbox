@@ -198,7 +198,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.RawTxMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) RawTxFunc {
 						return it.RawTx
-					})))...,
+					})),
+			)...,
 		),
 
 		postEFServices: servicequeue.NewQueue2(
@@ -208,7 +209,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.PostEFMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostEFFunc {
 						return it.PostEF
-					})))...,
+					})),
+			)...,
 		),
 
 		postTXServices: servicequeue.NewQueue1(
@@ -218,7 +220,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.PostTXMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostTXFunc {
 						return it.PostTX
-					})))...,
+					})),
+			)...,
 		),
 
 		merklePathServices: servicequeue.NewQueue1(
@@ -228,7 +231,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.MerklePathMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) MerklePathFunc {
 						return it.MerklePath
-					})))...,
+					})),
+			)...,
 		),
 
 		findChainTipHeaderServices: servicequeue.NewQueue(
@@ -238,7 +242,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.FindChainTipHeaderModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) FindChainTipHeaderFunc {
 						return it.FindChainTipHeader
-					})))...,
+					})),
+			)...,
 		),
 
 		isValidRootForHeightServices: servicequeue.NewQueue2(
@@ -248,7 +253,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.IsValidRootForHeightModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsValidRootForHeightFunc {
 						return it.IsValidRootForHeight
-					})))...,
+					})),
+			)...,
 		),
 
 		currentHeightServices: servicequeue.NewQueue(
@@ -258,7 +264,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.CurrentHeightModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) CurrentHeightFunc {
 						return it.CurrentHeight
-					})))...,
+					})),
+			)...,
 		),
 
 		getScriptHashHistoryServices: servicequeue.NewQueue1(
@@ -268,7 +275,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.GetScriptHashHistoryModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetScriptHashHistoryFunc {
 						return it.GetScriptHashHistory
-					})))...,
+					})),
+			)...,
 		),
 
 		hashToHeaderServices: servicequeue.NewQueue1(
@@ -278,7 +286,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.HashToHeaderModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) HashToHeaderFunc {
 						return it.HashToHeader
-					})))...,
+					})),
+			)...,
 		),
 
 		chainHeaderByHeightServices: servicequeue.NewQueue1(
@@ -288,7 +297,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.ChainHeaderByHeightModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) ChainHeaderByHeightFunc {
 						return it.ChainHeaderByHeight
-					})))...,
+					})),
+			)...,
 		),
 
 		getStatusForTxIDsServices: servicequeue.NewQueue1(
@@ -298,7 +308,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.GetStatusForTxIDsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetStatusForTxIDsFunc {
 						return it.GetStatusForTxIDs
-					})))...,
+					})),
+			)...,
 		),
 
 		getUtxoStatusServices: servicequeue.NewQueue2(
@@ -308,7 +319,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.GetUtxoStatusModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetUtxoStatusFunc {
 						return it.GetUtxoStatus
-					})))...,
+					})),
+			)...,
 		),
 
 		isUtxoServices: servicequeue.NewQueue2(
@@ -318,7 +330,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.IsUtxoModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsUtxo {
 						return it.IsUtxo
-					})))...,
+					})),
+			)...,
 		),
 
 		bsvExchangeRateServices: servicequeue.NewQueue(
@@ -328,7 +341,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.BsvExchangeRateModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) BsvExchangeRateFunc {
 						return it.BsvExchangeRate
-					})))...,
+					})),
+			)...,
 		),
 
 		chaintracks:    chaintracksAdapter,
@@ -383,7 +397,8 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 
 	err := s.chaintracks.Start(ctx, chaintracksclient.Callbacks{
 		OnTip: func(bh *chaintracks.BlockHeader) error {
-			s.logger.Debug("new chain tip received",
+			s.logger.Debug(
+				"new chain tip received",
 				"height", bh.Height,
 				"hash", bh.Hash.String(),
 			)
@@ -391,7 +406,8 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 			return nil
 		},
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
-			s.logger.Info("reorg detected",
+			s.logger.Info(
+				"reorg detected",
 				"depth", event.Depth,
 				"new_tip_hash", event.NewTip.Hash.String(),
 				"orphaned_count", len(event.OrphanedHashes),

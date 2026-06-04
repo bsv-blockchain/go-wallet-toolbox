@@ -80,7 +80,7 @@ func (k knownTx) Table(newTableName string) *knownTx {
 }
 
 func (k knownTx) As(alias string) *knownTx {
-	k.knownTxDo.DO = *(k.knownTxDo.As(alias).(*gen.DO))
+	k.knownTxDo.DO = *k.knownTxDo.As(alias).(*gen.DO)
 	return k.updateTableName(alias)
 }
 

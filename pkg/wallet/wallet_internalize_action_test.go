@@ -17,7 +17,8 @@ import (
 )
 
 func TestInternalizeActionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.InternalizeActionResult, error) {
 			args := fixtures.DefaultWalletInternalizeActionArgs(t, sdk.InternalizeProtocolWalletPayment)
 			return w.InternalizeAction(ctx, args, originator)

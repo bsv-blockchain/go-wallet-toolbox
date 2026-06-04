@@ -62,7 +62,7 @@ func (t txNote) Table(newTableName string) *txNote {
 }
 
 func (t txNote) As(alias string) *txNote {
-	t.txNoteDo.DO = *(t.txNoteDo.As(alias).(*gen.DO))
+	t.txNoteDo.DO = *t.txNoteDo.As(alias).(*gen.DO)
 	return t.updateTableName(alias)
 }
 

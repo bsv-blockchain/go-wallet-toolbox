@@ -55,7 +55,8 @@ func TestListActions_HappyPath(t *testing.T) {
 
 	require.Len(t, createdTx.Inputs, 1)
 	createdTxInput := createdTx.Inputs[0]
-	assert.Equal(t,
+	assert.Equal(
+		t,
 		string(primitives.NewOutpointString(ownedTransaction.Inputs[0].SourceTXID.String(), ownedTransaction.Inputs[0].SourceTxOutIndex)),
 		createdTxInput.SourceOutpoint,
 	)
