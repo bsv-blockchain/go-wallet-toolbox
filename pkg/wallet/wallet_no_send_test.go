@@ -171,7 +171,8 @@ func (s *WalletTestSuite) TestWalletCreateActionNoSendChain_HappyPath() {
 		forthCreateActionArgs := thirdCreateActionArgs
 		forthCreateActionArgs.Options.NoSend = to.Ptr(false)
 		forthCreateActionArgs.Options.NoSendChange = nil
-		forthCreateActionArgs.Options.SendWith = append(forthCreateActionArgs.Options.SendWith,
+		forthCreateActionArgs.Options.SendWith = append(
+			forthCreateActionArgs.Options.SendWith,
 			firstCreateActionResult.Txid,
 			secondCreateActionResult.Txid,
 			thirdCreateActionsResult.Txid,

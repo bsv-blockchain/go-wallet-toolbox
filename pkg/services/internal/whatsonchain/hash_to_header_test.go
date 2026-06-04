@@ -24,7 +24,8 @@ func TestWhatsOnChain_HashToHeader_Success(t *testing.T) {
 	prevHash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 	mockResponse := testabilities.ValidBlockHeaderJSON(
-		blockHash, blockHeight, version, merkleRoot, time, nonce, bits, prevHash)
+		blockHash, blockHeight, version, merkleRoot, time, nonce, bits, prevHash,
+	)
 
 	given.WhatsOnChain().WillRespondWithBlockHeader(http.StatusOK, blockHash, mockResponse)
 

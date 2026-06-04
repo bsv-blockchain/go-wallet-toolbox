@@ -16,7 +16,8 @@ import (
 )
 
 func TestRevealCounterpartyKeyLinkageOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.RevealCounterpartyKeyLinkageResult, error) {
 			args := sdk.RevealCounterpartyKeyLinkageArgs{
 				Counterparty: testusers.Bob.PublicKey(t),
@@ -85,7 +86,8 @@ func TestWallet_RevealCounterpartyKeyLinkage(t *testing.T) {
 }
 
 func TestRevealSpecificKeyLinkageOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.RevealSpecificKeyLinkageResult, error) {
 			args := sdk.RevealSpecificKeyLinkageArgs{
 				Counterparty: sdk.Counterparty{Type: sdk.CounterpartyTypeOther, Counterparty: testusers.Bob.PublicKey(t)},

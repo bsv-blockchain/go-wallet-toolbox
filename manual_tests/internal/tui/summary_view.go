@@ -197,7 +197,8 @@ func (m *SummaryView) View() string {
 			if totalPages > 1 {
 				pageInfo := pageInfoStyle.Render(
 					fmt.Sprintf("Page %d/%d (←/→ to navigate, Enter to collapse)",
-						m.expandedPage+1, totalPages))
+						m.expandedPage+1, totalPages),
+				)
 				b.WriteString(pageInfo + "\n")
 			}
 		}

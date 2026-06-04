@@ -52,7 +52,8 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create certifier wallet: %w", err)
 	}
 
-	server, err := New(certifierWallet,
+	server, err := New(
+		certifierWallet,
 		WithPort(cfg.Server.Port),
 		WithMaxRequestBodyBytes(cfg.Server.MaxRequestBodyBytes),
 		WithLogger(logger),

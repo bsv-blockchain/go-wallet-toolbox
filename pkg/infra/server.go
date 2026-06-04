@@ -231,7 +231,8 @@ func (s *Server) Cleanup() {
 
 func (s *Server) consumeTxBroadcasted(ctx context.Context) {
 	for msg := range s.txBroadcastedCh {
-		s.logger.InfoContext(ctx,
+		s.logger.InfoContext(
+			ctx,
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
 			slog.String("reference", msg.Reference),
@@ -239,7 +240,8 @@ func (s *Server) consumeTxBroadcasted(ctx context.Context) {
 		)
 
 		if msg.Error != nil {
-			s.logger.ErrorContext(ctx,
+			s.logger.ErrorContext(
+				ctx,
 				"tx broadcast error",
 				slog.String("tx_id", msg.TxID),
 				slog.Any("error", msg.Error.Errors),
@@ -250,7 +252,8 @@ func (s *Server) consumeTxBroadcasted(ctx context.Context) {
 
 func (s *Server) consumeTxProven(ctx context.Context) {
 	for msg := range s.txProvenCh {
-		s.logger.InfoContext(ctx,
+		s.logger.InfoContext(
+			ctx,
 			"tx proven",
 			slog.String("tx_id", msg.TxID),
 			slog.String("status", msg.Status.String()),

@@ -213,7 +213,8 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 
 	statusResult, err := s.services.GetStatusForTxIDs(ctx, txIDs)
 	if err != nil {
-		s.logger.WarnContext(ctx, "failed to get status for txIDs, skipping synchronization",
+		s.logger.WarnContext(
+			ctx, "failed to get status for txIDs, skipping synchronization",
 			slog.Any("err", err),
 			slog.Int("count", len(txs)),
 		)
@@ -233,7 +234,8 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
 		depth, ok := depthByTxID[tx.TxID]
 		if !ok {
-			s.logger.DebugContext(ctx, "transaction depth not found or nil, skipping",
+			s.logger.DebugContext(
+				ctx, "transaction depth not found or nil, skipping",
 				slog.String("txID", tx.TxID),
 				slog.String("status", string(tx.Status)),
 			)
@@ -241,7 +243,8 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		}
 
 		if depth < 0 || uint(depth) < s.syncTxStatusesConfig.BlocksDelay {
-			s.logger.DebugContext(ctx, "transaction does not have enough confirmations yet",
+			s.logger.DebugContext(
+				ctx, "transaction does not have enough confirmations yet",
 				slog.String("txID", tx.TxID),
 				slog.Int("depth", depth),
 				slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
@@ -252,7 +255,8 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		return true
 	})
 
-	s.logger.DebugContext(ctx, "filtered transactions by confirmation depth",
+	s.logger.DebugContext(
+		ctx, "filtered transactions by confirmation depth",
 		slog.Int("total", len(txs)),
 		slog.Int("filtered", len(filtered)),
 		slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
@@ -368,7 +372,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		var merkleResult *wdk.MerklePathResult
 		merkleResult, err = s.services.MerklePath(ctx, txToSync.TxID)
 		if err != nil {
-			s.logger.WarnContext(ctx,
+			s.logger.WarnContext(
+				ctx,
 				"failed to get merkle path for transaction",
 				slog.Any("err", err),
 				slog.String("txID", txToSync.TxID),
@@ -382,7 +387,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		}
 
 		if merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
-			s.logger.InfoContext(ctx,
+			s.logger.InfoContext(
+				ctx,
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),
 				slog.String("status", string(txToSync.Status)),

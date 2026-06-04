@@ -170,7 +170,7 @@ func MustEqual[A, B types.Integer](a A, b B) bool {
 }
 
 func Validate[T types.Integer](value T) error {
-	switch typed := (any)(value).(type) {
+	switch typed := any(value).(type) {
 	case int:
 		return validateInt(typed)
 	case int64:

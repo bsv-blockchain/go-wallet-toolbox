@@ -97,7 +97,8 @@ func (s *CertificateService) SignCertificate(
 		return nil, fmt.Errorf("failed to marshal custom instructions: %w", err)
 	}
 
-	revocationOutpoint, err := s.wallet.CreateAction(ctx,
+	revocationOutpoint, err := s.wallet.CreateAction(
+		ctx,
 		sdk.CreateActionArgs{
 			Description: "Certificate revocation",
 			Outputs: []sdk.CreateActionOutput{{
@@ -127,7 +128,8 @@ func (s *CertificateService) SignCertificate(
 			Index: 0,
 		},
 		certFields,
-		nil)
+		nil,
+	)
 	err = signedCertificate.Sign(ctx, s.wallet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign certificate: %w", err)

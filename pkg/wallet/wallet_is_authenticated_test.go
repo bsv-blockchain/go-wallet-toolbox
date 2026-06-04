@@ -15,7 +15,8 @@ import (
 )
 
 func TestIsAuthenticatedOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.AuthenticatedResult, error) {
 			return w.IsAuthenticated(ctx, nil, originator)
 		},

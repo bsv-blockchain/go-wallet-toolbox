@@ -239,7 +239,8 @@ func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, se
 
 	results = seq.Each(results, func(result *NamedResult[R]) {
 		if result.IsError() {
-			logger.WarnContext(ctx, "error when calling service",
+			logger.WarnContext(
+				ctx, "error when calling service",
 				slog.String("service.name", result.Name()),
 				logging.Error(result.GetError()),
 			)
@@ -302,7 +303,8 @@ func processOneByOne[S serv, R any](logger *slog.Logger, services []S, callServi
 func logErrorResult[R any](logger *slog.Logger) func(serviceResult *NamedResult[R]) {
 	return func(serviceResult *NamedResult[R]) {
 		if serviceResult.IsError() {
-			logger.WarnContext(context.Background(), "error when calling service",
+			logger.WarnContext(
+				context.Background(), "error when calling service",
 				slog.String("service.name", serviceResult.Name()),
 				logging.Error(serviceResult.GetError()),
 			)

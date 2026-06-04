@@ -64,7 +64,8 @@ type rpcAuthriteRequester struct {
 }
 
 func (r *rpcAuthriteRequester) DoHTTPRequest(ctx context.Context, body []byte) (io.ReadCloser, error) {
-	log := r.log.With(slog.Group("req",
+	log := r.log.With(slog.Group(
+		"req",
 		slog.String("method", "POST"),
 		slog.String("url", r.addr),
 		slog.String("body", string(body)),
@@ -78,12 +79,14 @@ func (r *rpcAuthriteRequester) DoHTTPRequest(ctx context.Context, body []byte) (
 		Body: body,
 	})
 	if err != nil {
-		log.DebugContext(ctx, "Request to storage server failed",
+		log.DebugContext(
+			ctx, "Request to storage server failed",
 			slogx.Error(err),
 		)
 		return nil, fmt.Errorf("storage client request failed: %w", err)
 	}
-	log.DebugContext(ctx, "Successfully sent request to storage server",
+	log.DebugContext(
+		ctx, "Successfully sent request to storage server",
 		slog.Any("resp", (*loggableResponse)(resp)),
 	)
 
@@ -96,7 +99,8 @@ type loggableResponse http.Response
 
 func (r *loggableResponse) LogValue() slog.Value {
 	attrs := make([]slog.Attr, 0, 4)
-	attrs = append(attrs,
+	attrs = append(
+		attrs,
 		slog.Int("statusCode", r.StatusCode),
 		slog.String("status", r.Status),
 	)

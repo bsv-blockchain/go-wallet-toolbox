@@ -74,7 +74,7 @@ func (c chaintracksBulkFile) Table(newTableName string) *chaintracksBulkFile {
 }
 
 func (c chaintracksBulkFile) As(alias string) *chaintracksBulkFile {
-	c.chaintracksBulkFileDo.DO = *(c.chaintracksBulkFileDo.As(alias).(*gen.DO))
+	c.chaintracksBulkFileDo.DO = *c.chaintracksBulkFileDo.As(alias).(*gen.DO)
 	return c.updateTableName(alias)
 }
 

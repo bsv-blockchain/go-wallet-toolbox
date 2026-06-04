@@ -20,7 +20,8 @@ import (
 )
 
 func TestSignAction_ValidationError(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.SignActionResult, error) {
 			args := sdk.SignActionArgs{
 				Reference: []byte(fixtures.Reference),
@@ -57,7 +58,8 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithSignAndProcess(false),
 		)
 
@@ -138,7 +140,8 @@ func (s *WalletTestSuite) TestWalletSignAction_SignIsNotNecessary() {
 		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -222,7 +225,8 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -291,7 +295,8 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 		given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -431,8 +436,10 @@ func (s *WalletTestSuite) TestWalletSignAction_MergeOptions() {
 			given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
 
 			// when:
-			args := fixtures.DefaultWalletCreateActionArgs(t,
-				append(test.createActionModifiers,
+			args := fixtures.DefaultWalletCreateActionArgs(
+				t,
+				append(
+					test.createActionModifiers,
 					walletargs.WithInput(input),
 					walletargs.WithSignAndProcess(false),
 				)...,
@@ -520,7 +527,8 @@ func (s *WalletTestSuite) TestWalletSignAction_PendingSignActions_CacheErrors() 
 			given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
 
 			// when:
-			args := fixtures.DefaultWalletCreateActionArgs(t,
+			args := fixtures.DefaultWalletCreateActionArgs(
+				t,
 				walletargs.WithInput(input),
 				walletargs.WithSignAndProcess(false),
 			)

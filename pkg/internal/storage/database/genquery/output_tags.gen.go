@@ -60,7 +60,7 @@ func (o outputTag) Table(newTableName string) *outputTag {
 }
 
 func (o outputTag) As(alias string) *outputTag {
-	o.outputTagDo.DO = *(o.outputTagDo.As(alias).(*gen.DO))
+	o.outputTagDo.DO = *o.outputTagDo.As(alias).(*gen.DO)
 	return o.updateTableName(alias)
 }
 

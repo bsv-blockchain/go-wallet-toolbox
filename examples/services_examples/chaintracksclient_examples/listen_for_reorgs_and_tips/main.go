@@ -40,7 +40,8 @@ func main() {
 
 	err = svc.Start(ctx, chaintracksclient.Callbacks{
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
-			logger.InfoContext(ctx, "new reorg event received",
+			logger.InfoContext(
+				ctx, "new reorg event received",
 				"depth", event.Depth,
 				"tip", event.NewTip,
 				"orhpaned hashes", event.OrphanedHashes,
@@ -48,7 +49,8 @@ func main() {
 			return nil
 		},
 		OnTip: func(header *chaintracks.BlockHeader) error {
-			logger.InfoContext(ctx, "new tip received",
+			logger.InfoContext(
+				ctx, "new tip received",
 				"height", header.Height,
 				"hash", header.Hash.String(),
 			)
