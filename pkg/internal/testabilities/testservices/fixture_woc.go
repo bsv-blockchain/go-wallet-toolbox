@@ -228,7 +228,8 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 func (f *wocFixture) WillReturnMalformedBlockHeader(blockHash string) {
 	f.Helper()
 	url := fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/%s/header", f.network, blockHash)
-	f.transport.RegisterResponder(http.MethodGet, url,
+	f.transport.RegisterResponder(
+		http.MethodGet, url,
 		httpmock.NewStringResponder(http.StatusOK, `invalid-json`),
 	)
 }

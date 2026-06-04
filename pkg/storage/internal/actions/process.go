@@ -92,7 +92,8 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 
 	logger := p.logger.With(logging.UserID(userID))
 
-	logger.InfoContext(ctx, "Starting Process Action",
+	logger.InfoContext(
+		ctx, "Starting Process Action",
 		slog.Bool("isNewTx", args.IsNewTx),
 		slog.Bool("isNoSend", args.IsNoSend),
 		slog.Bool("isDelayed", args.IsDelayed),
@@ -100,7 +101,8 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 	)
 
 	if args.IsNewTx {
-		logger.DebugContext(ctx, "Processing new transaction",
+		logger.DebugContext(
+			ctx, "Processing new transaction",
 			slog.String("txID", string(to.Value(args.TxID))),
 			slog.String("reference", to.Value(args.Reference)),
 			slog.Int("rawTxSize", len(args.RawTx)),
@@ -111,7 +113,8 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 	}
 
 	if args.IsNoSend && len(args.SendWith) == 0 {
-		logger.DebugContext(ctx, "NoSend mode - skipping broadcast",
+		logger.DebugContext(
+			ctx, "NoSend mode - skipping broadcast",
 			slog.String("txID", string(to.Value(args.TxID))),
 		)
 		// NOTE: SendWith overrides IsNoSend, so if SendWith is NOT empty, we will broadcast txs anyway
@@ -120,13 +123,15 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 
 	txIDs := p.txIDsToBroadcast(args)
 
-	logger.DebugContext(ctx, "Preparing transactions for broadcast",
+	logger.DebugContext(
+		ctx, "Preparing transactions for broadcast",
 		slog.Int("txIDsCount", len(txIDs)),
 		slog.Bool("isDelayed", args.IsDelayed),
 	)
 
 	if len(txIDs) > 1 {
-		logger.DebugContext(ctx, "Setting batch for multiple transactions",
+		logger.DebugContext(
+			ctx, "Setting batch for multiple transactions",
 			slog.Int("batchSize", len(txIDs)),
 		)
 
@@ -135,7 +140,8 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		}
 	}
 
-	logger.DebugContext(ctx, "Broadcasting transactions",
+	logger.DebugContext(
+		ctx, "Broadcasting transactions",
 		slog.Int("txIDsCount", len(txIDs)),
 		slog.Bool("isDelayed", args.IsDelayed),
 	)
@@ -145,7 +151,8 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		return nil, err
 	}
 
-	logger.InfoContext(ctx, "Process Action completed",
+	logger.InfoContext(
+		ctx, "Process Action completed",
 		slog.Int("sendWithResultsCount", len(result.SendWithResults)),
 		slog.Int("notDelayedResultsCount", len(result.NotDelayedResults)),
 		slog.Bool("isDelayed", args.IsDelayed),
@@ -177,7 +184,8 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		slog.String("reference", to.Value(args.Reference)),
 	)
 
-	txlogger.DebugContext(ctx, "Building transaction from raw bytes",
+	txlogger.DebugContext(
+		ctx, "Building transaction from raw bytes",
 		slog.Int("rawTxSize", len(args.RawTx)),
 	)
 
@@ -191,7 +199,8 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return fmt.Errorf("txID mismatch: provided %s, calculated from raw tx: %s", *args.TxID, txID)
 	}
 
-	txlogger.DebugContext(ctx, "Checking nLockTime finality",
+	txlogger.DebugContext(
+		ctx, "Checking nLockTime finality",
 		slog.String("txID", txID),
 	)
 
@@ -215,7 +224,8 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return err
 	}
 
-	txlogger.DebugContext(ctx, "Finding outputs for transaction validation",
+	txlogger.DebugContext(
+		ctx, "Finding outputs for transaction validation",
 		slog.String("txID", txID),
 		slog.Uint64("transactionID", uint64(txEntity.ID)),
 	)
@@ -225,7 +235,8 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		return fmt.Errorf("failed to find inputs and outputs of transaction: %w", err)
 	}
 
-	txlogger.DebugContext(ctx, "Validating transaction outputs",
+	txlogger.DebugContext(
+		ctx, "Validating transaction outputs",
 		slog.String("txID", txID),
 		slog.Int("outputsCount", len(outputs)),
 	)
@@ -236,7 +247,8 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	}
 
 	if p.commissionCfg.Satoshis > 0 {
-		txlogger.DebugContext(ctx, "Validating commission",
+		txlogger.DebugContext(
+			ctx, "Validating commission",
 			slog.String("txID", txID),
 			slog.Uint64("transactionID", uint64(txEntity.ID)),
 			slog.Uint64("commissionSatoshis", p.commissionCfg.Satoshis),
@@ -253,7 +265,8 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	newTxStatus, newReqStatus := p.newStatuses(args)
 
-	txlogger.DebugContext(ctx, "Updating transaction status and raw data",
+	txlogger.DebugContext(
+		ctx, "Updating transaction status and raw data",
 		slog.String("txID", txID),
 		slog.String("newTxStatus", string(newTxStatus)),
 		slog.String("newReqStatus", string(newReqStatus)),
@@ -400,7 +413,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		}
 
 		if currentStatus.AlreadySent() {
-			logger.DebugContext(ctx, "Transaction already sent - adding to results",
+			logger.DebugContext(
+				ctx, "Transaction already sent - adding to results",
 				slog.String("txID", txID),
 				slog.String("status", string(currentStatus)),
 			)
@@ -410,7 +424,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				Status: currentStatus.SendWithResultStatus(),
 			})
 
-			logger.DebugContext(ctx, "Creating spendable UTXOs",
+			logger.DebugContext(
+				ctx, "Creating spendable UTXOs",
 				slog.String("txID", txID),
 			)
 
@@ -419,7 +434,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
 			}
 		} else {
-			logger.DebugContext(ctx, "Transaction ready to send",
+			logger.DebugContext(
+				ctx, "Transaction ready to send",
 				slog.String("txID", txID),
 				slog.String("status", string(currentStatus)),
 			)
@@ -428,7 +444,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	}
 
 	if len(sendWithResults) == len(txIDs) {
-		logger.DebugContext(ctx, "All transactions already broadcasted - returning early",
+		logger.DebugContext(
+			ctx, "All transactions already broadcasted - returning early",
 			slog.Int("alreadySentCount", len(sendWithResults)),
 		)
 		// All txs are already broadcasted, so we return the results without sending them again
@@ -445,7 +462,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", knownTxStatusesLookup)
 	}
 
-	logger.DebugContext(ctx, "Building BEEF for ready-to-send transactions",
+	logger.DebugContext(
+		ctx, "Building BEEF for ready-to-send transactions",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
@@ -454,7 +472,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
-	logger.DebugContext(ctx, "Verifying built EF",
+	logger.DebugContext(
+		ctx, "Verifying built EF",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
@@ -484,7 +503,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		}
 	}
 
-	logger.DebugContext(ctx, "Increasing attempt counters for transactions",
+	logger.DebugContext(
+		ctx, "Increasing attempt counters for transactions",
 		slog.Int("txIDsCount", len(txIDs)),
 	)
 
@@ -493,7 +513,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	}
 
 	if isDelayed {
-		logger.DebugContext(ctx, "Processing delayed transactions",
+		logger.DebugContext(
+			ctx, "Processing delayed transactions",
 			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 		)
 
@@ -510,7 +531,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		}, nil
 	}
 
-	logger.DebugContext(ctx, "Posting BEEF to services",
+	logger.DebugContext(
+		ctx, "Posting BEEF to services",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
@@ -526,7 +548,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	aggregated := results.Aggregated(txIDs)
 
-	logger.DebugContext(ctx, "Processing individual transaction results",
+	logger.DebugContext(
+		ctx, "Processing individual transaction results",
 		slog.Int("aggregatedResultsCount", len(aggregated)),
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
@@ -534,12 +557,14 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, broadcastedTxID := range readyToSendTxIDs {
 		aggBroadcastResult, ok := aggregated[broadcastedTxID]
 		if !ok {
-			logger.DebugContext(ctx, "No broadcast result found for transaction - using failed result",
+			logger.DebugContext(
+				ctx, "No broadcast result found for transaction - using failed result",
 				slog.String("txID", broadcastedTxID),
 			)
 			sendWithResult, reviewActionResult = p.failedResultForTxID(broadcastedTxID)
 		} else {
-			logger.DebugContext(ctx, "Processing broadcast result for transaction",
+			logger.DebugContext(
+				ctx, "Processing broadcast result for transaction",
 				slog.String("txID", broadcastedTxID),
 				slog.String("aggregatedStatus", string(aggBroadcastResult.Status)),
 			)
@@ -563,7 +588,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 			}
 		}
 
-		logger.DebugContext(ctx, "BroadcastTxs completed successfully",
+		logger.DebugContext(
+			ctx, "BroadcastTxs completed successfully",
 			slog.Int("totalSendWithResults", len(sendWithResults)),
 			slog.Int("totalNotDelayedResults", len(notDelayedResults)),
 		)

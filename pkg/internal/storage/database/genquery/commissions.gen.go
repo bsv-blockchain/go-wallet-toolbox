@@ -68,7 +68,7 @@ func (c commission) Table(newTableName string) *commission {
 }
 
 func (c commission) As(alias string) *commission {
-	c.commissionDo.DO = *(c.commissionDo.As(alias).(*gen.DO))
+	c.commissionDo.DO = *c.commissionDo.As(alias).(*gen.DO)
 	return c.updateTableName(alias)
 }
 

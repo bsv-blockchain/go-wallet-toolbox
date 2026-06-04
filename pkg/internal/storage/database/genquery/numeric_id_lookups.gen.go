@@ -54,7 +54,7 @@ func (n numericIDLookup) Table(newTableName string) *numericIDLookup {
 }
 
 func (n numericIDLookup) As(alias string) *numericIDLookup {
-	n.numericIDLookupDo.DO = *(n.numericIDLookupDo.As(alias).(*gen.DO))
+	n.numericIDLookupDo.DO = *n.numericIDLookupDo.As(alias).(*gen.DO)
 	return n.updateTableName(alias)
 }
 

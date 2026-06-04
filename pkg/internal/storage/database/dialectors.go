@@ -34,7 +34,8 @@ func sqliteDialector(cfg defs.Database) gorm.Dialector {
 }
 
 func postgresDialector(cfg defs.Database) gorm.Dialector {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
 		cfg.PostgreSQL.Host, cfg.PostgreSQL.User, cfg.PostgreSQL.Password, cfg.PostgreSQL.DBName,
 		cfg.PostgreSQL.Port, cfg.PostgreSQL.SslMode, cfg.PostgreSQL.TimeZone,
 	)
@@ -54,7 +55,8 @@ func mysqlDialector(cfg defs.Database) gorm.Dialector {
 	// parseTime=True is required for the db to be able to parse time correctly
 	// charset=utf8mb4 is required for the db to parse utf-8 encoding properly
 	// please refer to: https://gorm.io/docs/connecting_to_the_database.html#MySQL
-	dsn := fmt.Sprintf("%s:%s@%s(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=%s",
+	dsn := fmt.Sprintf(
+		"%s:%s@%s(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=%s",
 		cfg.MySQL.User, cfg.MySQL.Password, cfg.MySQL.Protocol, cfg.MySQL.Host,
 		cfg.MySQL.Port, cfg.MySQL.DBName, normalizeTimeZone(cfg.MySQL.TimeZone),
 	)

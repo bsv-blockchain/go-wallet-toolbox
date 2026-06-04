@@ -273,7 +273,8 @@ func (d *Daemon) handleReorgEvents(ctx context.Context) {
 	d.logger.Info("Starting reorg event handler")
 
 	for event := range d.eventChannels.OnReorg {
-		d.logger.Info("Received reorg event",
+		d.logger.Info(
+			"Received reorg event",
 			"depth", event.Depth,
 			"orphaned_count", len(event.OrphanedHashes),
 		)
@@ -295,7 +296,8 @@ func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 	d.logger.Info("Starting new tip event handler")
 
 	for header := range d.eventChannels.OnTip {
-		d.logger.Info("New tip received and processing",
+		d.logger.Info(
+			"New tip received and processing",
 			"height", header.Height,
 			"hash", header.Hash.String(),
 		)

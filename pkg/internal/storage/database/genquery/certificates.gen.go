@@ -78,7 +78,7 @@ func (c certificate) Table(newTableName string) *certificate {
 }
 
 func (c certificate) As(alias string) *certificate {
-	c.certificateDo.DO = *(c.certificateDo.As(alias).(*gen.DO))
+	c.certificateDo.DO = *c.certificateDo.As(alias).(*gen.DO)
 	return c.updateTableName(alias)
 }
 

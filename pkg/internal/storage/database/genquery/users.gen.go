@@ -85,7 +85,7 @@ func (u user) Table(newTableName string) *user {
 }
 
 func (u user) As(alias string) *user {
-	u.userDo.DO = *(u.userDo.As(alias).(*gen.DO))
+	u.userDo.DO = *u.userDo.As(alias).(*gen.DO)
 	return u.updateTableName(alias)
 }
 

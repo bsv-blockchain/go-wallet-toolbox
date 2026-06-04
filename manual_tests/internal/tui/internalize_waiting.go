@@ -109,7 +109,8 @@ func (m *InternalizeWaiting) View() string {
 		instructions = RenderTestnetFaucetInstructions(m.selected.address)
 	}
 
-	return fmt.Sprintf(` %s
+	return fmt.Sprintf(
+		` %s
 
 %s
 %s
