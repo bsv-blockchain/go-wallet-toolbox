@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	primitives "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,8 @@ type StorageType string
 const (
 	// StorageTypeSQLite represents SQLite storage type.
 	StorageTypeSQLite StorageType = "sqlite"
-	// StorageTypeRemote represents remote storage type based on SQLite.
+	// StorageTypeRemote represents remote storage type based on SQLite using the V1 storage adapter protocol (/storage/v1/*).
+	// The legacy JSON-RPC remote has been fully migrated to V1.
 	StorageTypeRemote StorageType = "remote"
 	// StorageTypeMocked represents a mocked storage type.
 	StorageTypeMocked StorageType = "mocked"
@@ -41,7 +43,9 @@ type WalletBuilder interface {
 	WithOwnStorage() WalletBuilder
 	WithHTTPClient(client *http.Client) WalletBuilder
 	WithWalletOpts(opts ...func(*wallet_opts.Opts)) WalletBuilder
+	WithNetwork(network defs.BSVNetwork) WalletBuilder
 	ForUser(user testusers.User) *wallet.Wallet
+	ForRootKey(rootKeyHex string) *wallet.Wallet
 }
 
 type walletBuilder struct {
@@ -49,6 +53,7 @@ type walletBuilder struct {
 
 	walletFixture *walletFixture
 	storageType   StorageType
+	network       defs.BSVNetwork
 	withServices  bool
 	givenStorage  testabilities.StorageFixture
 	walletOpts    []func(*wallet_opts.Opts)
@@ -83,6 +88,11 @@ func (w *walletBuilder) WithRemoteStorage() WalletBuilder {
 	return w.WithActiveStorage(StorageTypeRemote)
 }
 
+// WithV1RemoteStorage explicitly requests the V1 adapter remote storage (same as WithRemoteStorage post-migration).
+func (w *walletBuilder) WithV1RemoteStorage() WalletBuilder {
+	return w.WithActiveStorage(StorageTypeRemote)
+}
+
 func (w *walletBuilder) WithSQLiteStorage() WalletBuilder {
 	return w.WithActiveStorage(StorageTypeSQLite)
 }
@@ -91,14 +101,80 @@ func (w *walletBuilder) WithMockedStorage() WalletBuilder {
 	return w.WithActiveStorage(StorageTypeMocked)
 }
 
+func (w *walletBuilder) WithNetwork(network defs.BSVNetwork) WalletBuilder {
+	w.network = network
+	return w
+}
+
+func (w *walletBuilder) ForRootKey(rootKey string) *wallet.Wallet {
+	w.Helper()
+	net := w.network
+	if net == "" {
+		net = defs.NetworkTestnet
+	}
+	if rootKey == "" {
+		return w.ForUser(testusers.Alice)
+	}
+	priv, err := primitives.PrivateKeyFromHex(rootKey)
+	require.NoError(w, err, "root_key must be valid hex private key for BRC-100 vector")
+	keyDeriver := sdk.NewKeyDeriver(priv)
+	activeStorage := w.storageForRootKey()
+	opts := slices.Clone(w.walletOpts)
+	if w.withServices {
+		serviceCfg := defs.DefaultServicesConfig(net)
+		walletServices := services.New(slog.Default(), serviceCfg)
+		opts = append(opts, wallet.WithServices(walletServices))
+	}
+	if w.client != nil {
+		opts = append(opts, wallet.WithAuthHTTPClient(w.client))
+	}
+	userWallet, err := wallet.New(net, keyDeriver, activeStorage, opts...)
+	require.NoErrorf(w, err, "Couldn't create wallet for root_key %s... - invalid test setup", rootKey[:min(8, len(rootKey))])
+	w.walletFixture.addUserWalletSetup(&userWalletSetup{
+		user:        testusers.User{Name: "brc100-" + rootKey[:min(8, len(rootKey))], ID: 999, PrivKey: rootKey},
+		wallet:      userWallet,
+		storage:     activeStorage,
+		storageType: w.storageType,
+	})
+	return userWallet
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (w *walletBuilder) storageForRootKey() wdk.WalletStorageProvider {
+	sqliteStorage := w.givenStorage.Provider().GORM()
+	switch w.storageType {
+	case StorageTypeSQLite, StorageTypeOwnSQLite, "":
+		return sqliteStorage
+	case StorageTypeMocked:
+		return w.givenStorage.MockProvider()
+	case StorageTypeRemote:
+		// fallback for conformance vectors; remote requires user auth mapping
+		w.Logf("BRC100 rootkey with remote not supported, falling back to sqlite storage")
+		return sqliteStorage
+	default:
+		w.Fatalf("invalid test setup for root key storage: %s", w.storageType)
+		return nil
+	}
+}
+
 func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	privKey := user.PrivateKey(w)
 	keyDeriver := sdk.NewKeyDeriver(privKey)
 	activeStorage, cleanup := w.storageForUser(user)
 
 	opts := slices.Clone(w.walletOpts)
+	net := w.network
+	if net == "" {
+		net = defs.NetworkTestnet
+	}
 	if w.withServices {
-		serviceCfg := defs.DefaultServicesConfig(defs.NetworkTestnet)
+		serviceCfg := defs.DefaultServicesConfig(net)
 		transport := w.givenStorage.Provider().Transport()
 		client := resty.New()
 		client.SetTransport(transport)
@@ -110,7 +186,7 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 		opts = append(opts, wallet.WithAuthHTTPClient(w.client))
 	}
 
-	userWallet, err := wallet.New(defs.NetworkTestnet, keyDeriver, activeStorage, opts...)
+	userWallet, err := wallet.New(net, keyDeriver, activeStorage, opts...)
 	require.NoErrorf(w, err, "Couldn't create wallet for user %s - invalid test setup", user.Name)
 
 	w.walletFixture.addUserWalletSetup(&userWalletSetup{

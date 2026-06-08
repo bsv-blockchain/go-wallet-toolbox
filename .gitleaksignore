@@ -66,3 +66,72 @@ pkg/storage/provider_find_or_insert_user_test.go:generic-api-key:17
 # pkg/wallet/internal/wallet_settings_manager/wallet_settings_manager.go
 pkg/wallet/internal/wallet_settings_manager/wallet_settings_manager.go:generic-api-key:18
 pkg/wallet/internal/wallet_settings_manager/wallet_settings_manager.go:generic-api-key:25
+
+# Conformance test vectors from ts-stack (all fake/test data, fine to be public)
+conformance/vectors/sync/brc40-user-state.json:generic-api-key:*
+conformance/vectors/sync/brc40-user-state.json:private-key:*
+# adapter-conformance.json contains repeated fake "brc103-session-token-abc123" Bearer tokens
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:17
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:60
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:83
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:148
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:168
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:203
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:226
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:264
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:301
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:339
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:374
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:409
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:443
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:465
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:498
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:522
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:544
+
+# brc100/*.json contain test root_key (private keys) and other hex test data for BRC-100 vectors
+conformance/vectors/wallet/brc100/*.json:private-key:*
+conformance/vectors/wallet/brc100/*.json:generic-api-key:*
+
+# Exact Gitleaks fingerprints reported on PR #888 (false positives - test vector data)
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:38
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:130
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:186
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:234
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:270
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:314
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:357
+conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:444
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:23
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:64
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:237
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:275
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:377
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:378
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:412
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:422
+conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:446
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:130
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:186
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:234
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:270
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:314
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:357
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/brc100/internalizeaction.json:generic-api-key:444
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:23
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:64
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:237
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:275
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:377
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:378
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:412
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:422
+d5a69de8b4a4102325cceff2575b50946c8a4e36:conformance/vectors/wallet/storage/adapter-conformance.json:generic-api-key:446
+
+# New conformance test code also contains the fake test Bearer token
+pkg/storage/adapter_conformance_test.go:generic-api-key:208
+pkg/storage/adapter_conformance_test.go:generic-api-key:228
+pkg/storage/v1adapter/handler.go:generic-api-key:114
+pkg/storage/v1adapter/handler.go:generic-api-key:130
+pkg/storage/v1adapter/handler.go:generic-api-key:152
+pkg/storage/v1adapter/handler.go:generic-api-key:427

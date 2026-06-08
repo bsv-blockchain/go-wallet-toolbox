@@ -12,7 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/v1adapter"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -34,16 +34,14 @@ func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, wallet sd
 	}
 }
 
-// Handler returns an http.Handler configured with the storage RPC endpoints.
+// Handler returns an http.Handler configured with the storage v1 adapter endpoints
+// (the canonical BRC-100 /storage/v1/* remoting contract).
 func (s *Server) Handler() http.Handler {
-	provider := rpcserver.NewRPCStorageProvider(s.logger, s.provider)
+	// Use the new v1adapter as the core remoting implementation.
+	// This replaces the previous JSON-RPC layer.
+	coreHandler := v1adapter.NewHandler(s.provider, s.logger)
 
-	rpcServer := rpcserver.NewRPCHandler(s.logger, "remote_storage", provider)
-
-	mux := http.NewServeMux()
-	rpcServer.Register(mux)
-
-	var handler http.Handler = mux
+	handler := coreHandler
 
 	if s.options.Monetize {
 		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))
@@ -55,7 +53,11 @@ func (s *Server) Handler() http.Handler {
 		}
 	}
 
-	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
+	authOpts := []func(*middleware.AuthMiddlewareConfig){middleware.WithAuthLogger(s.logger)}
+	if s.options.AllowUnauthenticated {
+		authOpts = append(authOpts, middleware.WithAuthAllowUnauthenticated())
+	}
+	authMiddleware := middleware.NewAuth(s.wallet, authOpts...)
 	handler = authMiddleware.HTTPHandler(handler)
 	handler = servercommon.MaxBytesMiddleware(handler, s.maxRequestBodyBytes())
 	if corsConfig, ok := s.corsConfig(); ok {

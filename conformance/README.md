@@ -30,10 +30,12 @@ The script:
 2. Downloads each tracked vector from `raw.githubusercontent.com`.
 3. Updates `conformance/SOURCE` with the pinned SHA + timestamp.
 
-Re-run the test suite after refresh:
+Re-run the test suite after refresh (BRC-40 is in the syncrepo package; BRC-100 and storage adapter have their own suites):
 
 ```sh
 go test ./pkg/internal/storage/repo/syncrepo/... -run TestBRC40Conformance -v
+go test ./pkg/storage/... -run AdapterConformance -v
+go test ./pkg/wallet/... -run BRC100Conformance -v
 ```
 
 If new vectors land that the Go impl doesn't satisfy, fix the impl or open an
@@ -41,6 +43,15 @@ issue tagged with the failing vector ID.
 
 ## Tracked vector files
 
-| Path                                  | Upstream                                                                |
-|---------------------------------------|-------------------------------------------------------------------------|
-| `vectors/sync/brc40-user-state.json`  | `conformance/vectors/sync/brc40-user-state.json` in `ts-stack`          |
+| Path                                               | Upstream                                                                 |
+|----------------------------------------------------|--------------------------------------------------------------------------|
+| `vectors/sync/brc40-user-state.json`               | `conformance/vectors/sync/brc40-user-state.json` in `ts-stack`           |
+| `vectors/wallet/storage/adapter-conformance.json`  | `conformance/vectors/wallet/storage/adapter-conformance.json` (the `/storage/v1/*` remoting contract) |
+| `vectors/wallet/brc100/*.json` (selected core files) | `conformance/vectors/wallet/brc100/*.json` (BRC-100 wallet method vectors) |
+
+Run the BRC-100 and storage adapter conformance suites with:
+
+```sh
+go test ./pkg/storage/... -run AdapterConformance -v
+go test ./pkg/wallet/... -run BRC100Conformance -v
+```

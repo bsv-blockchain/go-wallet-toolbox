@@ -1,0 +1,15 @@
+title = "go-wallet-toolbox gitleaks config"
+
+# Extend the default Gitleaks rules.
+[extend]
+useDefault = true
+
+# Allowlist paths that contain only test/fake/public-test-vector data.
+# These files are checked in intentionally and contain no production secrets.
+[[allowlists]]
+description = "Test vectors and conformance fixtures (no real secrets)"
+paths = [
+    '''conformance/vectors/wallet/brc100/.*\.json''',
+    '''conformance/vectors/wallet/storage/adapter-conformance\.json''',
+    '''conformance/vectors/sync/brc40-user-state\.json''',
+]

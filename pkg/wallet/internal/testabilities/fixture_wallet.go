@@ -9,6 +9,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
@@ -32,6 +33,7 @@ type WalletFixture interface {
 	AliceWalletWithStorage(storageType StorageType) *wallet.Wallet
 	BobWalletWithStorage(storageType StorageType) (userWallet *wallet.Wallet)
 	Wallet() WalletBuilder
+	WalletForRootKey(rootKeyHex string) *wallet.Wallet
 	Faucet(userWallet *wallet.Wallet) FaucetFixture
 	InputForUser(user testusers.User) CreateActionInputBuilder
 	Services() ServicesFixture
@@ -98,11 +100,16 @@ func (w *walletFixture) BobWalletWithStorage(storageType StorageType) (userWalle
 	return w.Wallet().WithActiveStorage(storageType).WithServices().ForUser(testusers.Bob)
 }
 
+func (w *walletFixture) WalletForRootKey(rootKeyHex string) *wallet.Wallet {
+	return w.Wallet().WithActiveStorage(StorageTypeMocked).WithServices().ForRootKey(rootKeyHex)
+}
+
 func (w *walletFixture) Wallet() WalletBuilder {
 	return &walletBuilder{
 		TB:            w.TB,
 		givenStorage:  w.storageFixture,
 		walletFixture: w,
+		network:       defs.NetworkTestnet,
 	}
 }
 
@@ -156,4 +163,20 @@ type userWalletSetup struct {
 	storage     wdk.WalletStorageProvider
 	storageType StorageType
 	cleanupFunc func()
+}
+
+// GivenWallet provides a wallet configured for BRC-100 vector conformance using the
+// given root_key (private key hex from vector input). It uses the rich testabilities
+// builder (SQLite + services + faucet capable). For vectors without root_key, falls
+// back to Alice on testnet.
+func GivenWallet(tb testing.TB, rootKey string) (*wallet.Wallet, func()) {
+	g, fixtureCleanup := Given(tb)
+	b := g.Wallet().WithSQLiteStorage().WithServices()
+	var w *wallet.Wallet
+	if rootKey != "" {
+		w = b.ForRootKey(rootKey)
+	} else {
+		w = b.ForUser(testusers.Alice)
+	}
+	return w, fixtureCleanup
 }
