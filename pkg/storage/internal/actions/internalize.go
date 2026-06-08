@@ -77,7 +77,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		tracing.EndTracing(span, err)
 	}()
 
-	in.logger.DebugContext(ctx, "Starting internalize action",
+	in.logger.DebugContext(
+		ctx, "Starting internalize action",
 		logging.UserID(userID),
 		slog.Int("txBeefSize", len(args.Tx)),
 		slog.Int("outputsCount", len(args.Outputs)),
@@ -89,7 +90,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to create atomic beef from bytes: %w", err)
 	}
 
-	in.logger.DebugContext(ctx, "Verifying beef transaction",
+	in.logger.DebugContext(
+		ctx, "Verifying beef transaction",
 		logging.UserID(userID),
 		slog.String("txID", txIDHash.String()),
 		slog.String("description", string(args.Description)),
@@ -136,13 +138,15 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 
 	txID := txIDHash.String()
 
-	in.logger.DebugContext(ctx, "BEEF verification completed successfully",
+	in.logger.DebugContext(
+		ctx, "BEEF verification completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.String("description", string(args.Description)),
 	)
 
-	in.logger.DebugContext(ctx, "Checking for existing transaction",
+	in.logger.DebugContext(
+		ctx, "Checking for existing transaction",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.String("description", string(args.Description)),
@@ -156,14 +160,16 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	isMerge := storedTx != nil
 
 	if isMerge {
-		in.logger.DebugContext(ctx, "Transaction already exists - performing merge",
+		in.logger.DebugContext(
+			ctx, "Transaction already exists - performing merge",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 			slog.String("existingStatus", string(storedTx.Status)),
 			slog.String("description", string(args.Description)),
 		)
 	} else {
-		in.logger.DebugContext(ctx, "New transaction - creating fresh entry",
+		in.logger.DebugContext(
+			ctx, "New transaction - creating fresh entry",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 			slog.String("description", string(args.Description)),
@@ -174,7 +180,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
 	}
 
-	in.logger.DebugContext(ctx, "Processing outputs",
+	in.logger.DebugContext(
+		ctx, "Processing outputs",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.Int("outputsToProcess", len(args.Outputs)),
@@ -187,7 +194,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to create new outputs: %w", err)
 	}
 
-	in.logger.DebugContext(ctx, "Outputs processed successfully",
+	in.logger.DebugContext(
+		ctx, "Outputs processed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.Int("processedOutputsCount", len(outputs)),
@@ -196,7 +204,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	)
 
 	if isMerge {
-		in.logger.DebugContext(ctx, "Upserting existing transaction",
+		in.logger.DebugContext(
+			ctx, "Upserting existing transaction",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 			slog.Int("labelsCount", len(args.Labels)),
@@ -209,13 +218,15 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 			return nil, fmt.Errorf("failed to upsert outputs (isMerge): %w", err)
 		}
 
-		in.logger.DebugContext(ctx, "Existing transaction upserted successfully",
+		in.logger.DebugContext(
+			ctx, "Existing transaction upserted successfully",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 			slog.String("description", string(args.Description)),
 		)
 	} else {
-		in.logger.DebugContext(ctx, "Storing new transaction",
+		in.logger.DebugContext(
+			ctx, "Storing new transaction",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 			slog.Int("labelsCount", len(args.Labels)),
@@ -229,7 +240,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 			return nil, fmt.Errorf("failed to store new transaction: %w", err)
 		}
 
-		in.logger.DebugContext(ctx, "New transaction stored successfully",
+		in.logger.DebugContext(
+			ctx, "New transaction stored successfully",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 			slog.String("description", string(args.Description)),
@@ -238,7 +250,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 
 	if tx.MerklePath != nil {
 		if err := in.updateKnownTxAsMined(ctx, userID, txID, tx); err != nil {
-			in.logger.Warn("updateKnownTxAsMined was not completed successfully",
+			in.logger.WarnContext(
+				ctx, "updateKnownTxAsMined was not completed successfully",
 				logging.UserID(userID),
 				slog.String("txID", txID),
 				slog.String("error", err.Error()),
@@ -246,7 +259,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		}
 	}
 
-	in.logger.DebugContext(ctx, "InternalizeAction completed successfully",
+	in.logger.DebugContext(
+		ctx, "InternalizeAction completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.Bool("accepted", true),
@@ -286,7 +300,8 @@ func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txI
 		return fmt.Errorf("failed to update known tx as mined: %w", err)
 	}
 
-	in.logger.DebugContext(ctx, "UpdateKnownTxAsMined completed successfully",
+	in.logger.DebugContext(
+		ctx, "UpdateKnownTxAsMined completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 	)
@@ -450,7 +465,8 @@ func (in *internalize) storeNewTx(
 	}
 
 	if shouldPushToBroadcaster && in.backgroundBroadcaster != nil {
-		in.logger.DebugContext(ctx, "Pushing unmined internalized tx to background broadcaster",
+		in.logger.DebugContext(
+			ctx, "Pushing unmined internalized tx to background broadcaster",
 			logging.UserID(userID),
 			slog.String("txID", txID),
 		)

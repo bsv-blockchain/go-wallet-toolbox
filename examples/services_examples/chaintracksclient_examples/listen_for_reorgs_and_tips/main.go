@@ -31,7 +31,7 @@ func main() {
 
 	svc, err := chaintracksclient.New(logger, cfg)
 	if err != nil {
-		logger.Error("failed to create service", "err", err)
+		logger.ErrorContext(context.Background(), "failed to create service", "err", err)
 		os.Exit(1)
 	}
 
@@ -40,7 +40,8 @@ func main() {
 
 	err = svc.Start(ctx, chaintracksclient.Callbacks{
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
-			logger.Info("new reorg event received",
+			logger.InfoContext(
+				ctx, "new reorg event received",
 				"depth", event.Depth,
 				"tip", event.NewTip,
 				"orhpaned hashes", event.OrphanedHashes,
@@ -48,7 +49,8 @@ func main() {
 			return nil
 		},
 		OnTip: func(header *chaintracks.BlockHeader) error {
-			logger.Info("new tip received",
+			logger.InfoContext(
+				ctx, "new tip received",
 				"height", header.Height,
 				"hash", header.Hash.String(),
 			)
@@ -56,15 +58,15 @@ func main() {
 		},
 	})
 	if err != nil {
-		logger.Error("failed to start service", "err", err)
+		logger.ErrorContext(ctx, "failed to start service", "err", err)
 		os.Exit(1)
 	}
 
-	logger.Info("listening for reorgs... press Ctrl+C to exit")
+	logger.InfoContext(ctx, "listening for reorgs... press Ctrl+C to exit")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
-	logger.Info("shutting down")
+	logger.InfoContext(ctx, "shutting down")
 }

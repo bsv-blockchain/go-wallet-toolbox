@@ -82,7 +82,8 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 			storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
 
 			// and:
-			mocks.SetupMockStorageProvider(t, activeStorage,
+			mocks.SetupMockStorageProvider(
+				t, activeStorage,
 				mocks.WithMakeAvailableResponse(test.settingsOverride),
 				mocks.WithFindOrInsertUserResponse(test.userOverride),
 			)
@@ -106,7 +107,8 @@ func TestWalletStorageManager_GetAuth(t *testing.T) {
 		storageManager := given.StorageManagerForUser(testusers.Alice, activeStorage)
 
 		// and:
-		mocks.SetupMockStorageProvider(t, activeStorage,
+		mocks.SetupMockStorageProvider(
+			t, activeStorage,
 			mocks.WithMakeAvailableResponse(mocks.Once[*mocks.StorageProviderMethodResponse[*wdk.TableSettings]]()),
 			mocks.WithFindOrInsertUserResponse(mocks.Once[*mocks.StorageProviderMethodResponse[*wdk.FindOrInsertUserResponse]]()),
 		)

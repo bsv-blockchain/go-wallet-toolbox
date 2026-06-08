@@ -60,7 +60,7 @@ func (t transactionLabel) Table(newTableName string) *transactionLabel {
 }
 
 func (t transactionLabel) As(alias string) *transactionLabel {
-	t.transactionLabelDo.DO = *(t.transactionLabelDo.As(alias).(*gen.DO))
+	t.transactionLabelDo.DO = *t.transactionLabelDo.As(alias).(*gen.DO)
 	return t.updateTableName(alias)
 }
 

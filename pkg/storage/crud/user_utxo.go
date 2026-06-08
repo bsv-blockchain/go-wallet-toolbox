@@ -83,7 +83,8 @@ func (u *userUtxo) Update(ctx context.Context, spec *entity.UserUTXOUpdateSpecif
 }
 
 func (u *userUtxo) Find(ctx context.Context) ([]*entity.UserUTXO, error) {
-	userUTXOs, err := u.repo.Find(ctx, &u.spec,
+	userUTXOs, err := u.repo.Find(
+		ctx, &u.spec,
 		append(u.pagingAndSince.Since(), u.pagingAndSince.Paging()...)...,
 	)
 	if err != nil {
@@ -93,7 +94,8 @@ func (u *userUtxo) Find(ctx context.Context) ([]*entity.UserUTXO, error) {
 }
 
 func (u *userUtxo) Count(ctx context.Context) (int64, error) {
-	count, err := u.repo.Count(ctx, &u.spec,
+	count, err := u.repo.Count(
+		ctx, &u.spec,
 		append(u.pagingAndSince.Since(), u.pagingAndSince.Paging()...)...,
 	)
 	if err != nil {

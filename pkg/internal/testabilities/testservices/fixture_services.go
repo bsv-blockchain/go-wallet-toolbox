@@ -132,7 +132,8 @@ func (f *servicesFixture) Opts(options ...func(option *services.Options)) Wallet
 func (f *servicesFixture) New() *services.WalletServices {
 	f.t.Helper()
 
-	options := append(f.walletServicesOpts,
+	options := append(
+		f.walletServicesOpts,
 		services.WithRestyClient(f.httpClient),
 		services.WithChaintracksAdapter(f.chaintracksClient.Adapter()),
 	)

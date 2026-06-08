@@ -34,7 +34,7 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 
 	lockAcquired := a.failAbandonedLock.TryLock()
 	if !lockAcquired {
-		log.Warn("FailAbandonedTransactions is already running, skipping this run")
+		log.WarnContext(ctx, "FailAbandonedTransactions is already running, skipping this run")
 		return nil
 	}
 	defer a.failAbandonedLock.Unlock()

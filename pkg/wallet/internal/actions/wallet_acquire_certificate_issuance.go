@@ -196,7 +196,8 @@ func ParseCertificateResponse(p ParseCertificateResponseParams) (*ParseCertifica
 		to.Value(certifier),
 		revocationOutpoint,
 		certFields,
-		signatureBytes)
+		signatureBytes,
+	)
 
 	serialNumber, err := base64.StdEncoding.DecodeString(string(signedCert.SerialNumber))
 	if err != nil {
@@ -306,7 +307,8 @@ func TestCertificateDecryption(ctx context.Context, wallet sdk.Interface, certFi
 		return fmt.Errorf("failed to map certificate master keyring fields: %w", err)
 	}
 
-	_, err = certificates.DecryptFields(ctx, wallet,
+	_, err = certificates.DecryptFields(
+		ctx, wallet,
 		certMasterKeyring,
 		certFields,
 		counterParty,

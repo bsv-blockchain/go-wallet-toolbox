@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-softwarelab/common/pkg/types"
@@ -19,8 +20,8 @@ type fieldExpr[T types.Ordered] interface {
 	Neq(value T) field.Expr
 	Between(left, right T) field.Expr
 	NotBetween(left, right T) field.Expr
-	Like(value T) field.Expr
-	NotLike(value T) field.Expr
+	Like(value string) field.Expr
+	NotLike(value string) field.Expr
 	In(values ...T) field.Expr
 	NotIn(values ...T) field.Expr
 }
@@ -54,9 +55,9 @@ func cmpCondition[T types.Ordered](fieldExpr fieldExpr[T], cmpExpr comparableExp
 	case entity.NotBetween:
 		return fieldExpr.NotBetween(ordered(value, cmpExpr.GetValueRight()))
 	case entity.Like:
-		return fieldExpr.Like(value)
+		return fieldExpr.Like(fmt.Sprint(value))
 	case entity.NotLike:
-		return fieldExpr.NotLike(value)
+		return fieldExpr.NotLike(fmt.Sprint(value))
 	case entity.In:
 		return fieldExpr.In(cmpExpr.GetInValues()...)
 	case entity.NotIn:

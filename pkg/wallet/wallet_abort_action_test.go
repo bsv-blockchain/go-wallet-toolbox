@@ -15,7 +15,8 @@ import (
 )
 
 func TestAbortActionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.AbortActionResult, error) {
 			args := fixtures.DefaultWalletAbortActionArgs()
 			return w.AbortAction(ctx, args, originator)

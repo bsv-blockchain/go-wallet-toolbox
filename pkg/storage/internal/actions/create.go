@@ -155,7 +155,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		}
 	}
 
-	c.logger.DebugContext(ctx, "Searching for change basket",
+	c.logger.DebugContext(
+		ctx, "Searching for change basket",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.String("basketName", wdk.BasketNameForChange),
@@ -174,7 +175,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create priority outputs: %w", err)
 	}
 
-	c.logger.DebugContext(ctx, "Processing inputs",
+	c.logger.DebugContext(
+		ctx, "Processing inputs",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Int("providedInputCount", len(params.Inputs)),
@@ -197,7 +199,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	var commOut *serviceChargeOutput
 	if c.commission != nil {
-		c.logger.DebugContext(ctx, "Creating commission output",
+		c.logger.DebugContext(
+			ctx, "Creating commission output",
 			logging.UserID(userID),
 			logging.Reference(reference),
 			slog.Uint64("commissionSatoshis", c.commissionCfg.Satoshis),
@@ -208,7 +211,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			return nil, fmt.Errorf("failed to collect outputs: %w", err)
 		}
 
-		c.logger.DebugContext(ctx, "Commission output created",
+		c.logger.DebugContext(
+			ctx, "Commission output created",
 			logging.UserID(userID),
 			logging.Reference(reference),
 			slog.Uint64("commissionSatoshis", uint64(commOut.Satoshis)),
@@ -217,13 +221,15 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		)
 		xoutputs = seq.Append(xoutputs, &commOut.ValidCreateActionOutput)
 	} else {
-		c.logger.DebugContext(ctx, "Commission disabled, skipping commission output creation",
+		c.logger.DebugContext(
+			ctx, "Commission disabled, skipping commission output creation",
 			logging.UserID(userID),
 			logging.Reference(reference),
 		)
 	}
 
-	c.logger.DebugContext(ctx, "Calculating transaction size",
+	c.logger.DebugContext(
+		ctx, "Calculating transaction size",
 		logging.UserID(userID),
 		logging.Reference(reference),
 	)
@@ -232,7 +238,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	c.logger.DebugContext(ctx, "Calculating target satoshis",
+	c.logger.DebugContext(
+		ctx, "Calculating target satoshis",
 		logging.UserID(userID),
 		logging.Reference(reference),
 	)
@@ -241,14 +248,16 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
 
-	c.logger.DebugContext(ctx, "Transaction size and target calculated",
+	c.logger.DebugContext(
+		ctx, "Transaction size and target calculated",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Uint64("initialTxSize", initialTxSize),
 		logging.Number("targetSatoshis", targetSat),
 	)
 
-	c.logger.InfoContext(ctx, "Funding transaction",
+	c.logger.InfoContext(
+		ctx, "Funding transaction",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		logging.Number("targetSatoshis", targetSat),
@@ -278,7 +287,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		funding.ChangeOutputsCount = 0
 	}
 
-	c.logger.InfoContext(ctx, "Transaction funding completed",
+	c.logger.InfoContext(
+		ctx, "Transaction funding completed",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		logging.Number("changeAmount", funding.ChangeAmount),
@@ -287,7 +297,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		logging.Number("fee", funding.Fee),
 	)
 
-	c.logger.DebugContext(ctx, "Creating change distribution",
+	c.logger.DebugContext(
+		ctx, "Creating change distribution",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Uint64("minimumDesiredUTXOValue", basket.MinimumDesiredUTXOValue),
@@ -308,13 +319,15 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	c.logger.DebugContext(ctx, "Generated derivation prefix",
+	c.logger.DebugContext(
+		ctx, "Generated derivation prefix",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Int("derivationPrefixLength", len(derivationPrefix)),
 	)
 
-	c.logger.DebugContext(ctx, "Creating new outputs",
+	c.logger.DebugContext(
+		ctx, "Creating new outputs",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Int("providedOutputsCount", len(params.Outputs)),
@@ -334,7 +347,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create new outputs: %w", err)
 	}
 
-	c.logger.DebugContext(ctx, "Created new outputs",
+	c.logger.DebugContext(
+		ctx, "Created new outputs",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Int("totalOutputsCount", len(newOutputs)),
@@ -350,7 +364,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to serialize beef: %w", err)
 	}
 
-	c.logger.DebugContext(ctx, "Saving transaction in database",
+	c.logger.DebugContext(
+		ctx, "Saving transaction in database",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		logging.Number("txVersion", params.Version),
@@ -383,13 +398,15 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	c.logger.InfoContext(ctx, "Transaction saved in database successfully",
+	c.logger.InfoContext(
+		ctx, "Transaction saved in database successfully",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.String("status", string(wdk.TxStatusUnsigned)),
 	)
 
-	c.logger.DebugContext(ctx, "Creating result inputs",
+	c.logger.DebugContext(
+		ctx, "Creating result inputs",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Bool("includeInputSourceRawTxs", params.IncludeInputSourceRawTxs),
@@ -400,7 +417,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	c.logger.DebugContext(ctx, "CreateAction process completed",
+	c.logger.DebugContext(
+		ctx, "CreateAction process completed",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		logging.Number("txVersion", params.Version),

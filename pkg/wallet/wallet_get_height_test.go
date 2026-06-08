@@ -14,7 +14,8 @@ import (
 )
 
 func TestGetHeightOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.GetHeightResult, error) {
 			return w.GetHeight(ctx, nil, originator)
 		},

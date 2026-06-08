@@ -119,7 +119,7 @@ func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 
 	if err := p.Database.Close(); err != nil {
-		p.logger.Error("Failed to close database", slog.Any("err", err))
+		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))
 	}
 }
 
@@ -439,7 +439,8 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
-	p.logger.InfoContext(ctx, "Starting CreateAction process",
+	p.logger.InfoContext(
+		ctx, "Starting CreateAction process",
 		logging.UserID(auth.UserID),
 		slog.String("description", string(args.Description)),
 		slog.Int("outputCount", len(args.Outputs)),
@@ -449,14 +450,16 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 
 	res, err := p.actions.Create(ctx, *auth.UserID, actions.FromValidCreateActionArgs(&args))
 	if err != nil {
-		p.logger.DebugContext(ctx, "CreateAction completed with error",
+		p.logger.DebugContext(
+			ctx, "CreateAction completed with error",
 			logging.UserID(auth.UserID),
 			slog.String("description", string(args.Description)),
 		)
 		return nil, fmt.Errorf("failed to process createAction: %w", err)
 	}
 
-	p.logger.InfoContext(ctx, "CreateAction completed successfully",
+	p.logger.InfoContext(
+		ctx, "CreateAction completed successfully",
 		logging.UserID(auth.UserID),
 		logging.Reference(res.Reference),
 		slog.String("description", string(args.Description)),
@@ -630,7 +633,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		tracing.EndTracing(span, err)
 	}()
 
-	logger := p.logger.With(logging.UserID(auth.UserID),
+	logger := p.logger.With(
+		logging.UserID(auth.UserID),
 		slog.String("output", args.Output),
 		slog.String("basket", args.Basket),
 	)
@@ -651,7 +655,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		basketName = &args.Basket
 	}
 
-	logger.InfoContext(ctx, "Starting RelinquishOutput process",
+	logger.InfoContext(
+		ctx, "Starting RelinquishOutput process",
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
@@ -660,7 +665,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
 
-	logger.InfoContext(ctx, "RelinquishOutput completed successfully",
+	logger.InfoContext(
+		ctx, "RelinquishOutput completed successfully",
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
@@ -1019,7 +1025,8 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
 	}
 
-	p.logger.Info("Handled reorg - invalidated merkle proofs",
+	p.logger.InfoContext(
+		ctx, "Handled reorg - invalidated merkle proofs",
 		"orphaned_blocks", len(orphanedBlockHashes),
 		"affected_transactions", affected,
 	)
@@ -1153,7 +1160,8 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
 	var err error
 
-	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessNewTip",
+	ctx, span := tracing.StartTracing(
+		ctx, "StorageProvider-ProcessNewTip",
 		attribute.Int("height", int(height)),
 		attribute.String("hash", hash),
 	)

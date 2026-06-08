@@ -70,18 +70,18 @@ func (a *Adapter) Start(ctx context.Context, cb Callbacks) error {
 func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.BlockHeader) error) {
 	if cb == nil {
 		// TODO: warn for now but maybe we should error?
-		a.logger.Warn("onTip callback is nil, tipChan results will be ignored")
+		a.logger.WarnContext(ctx, "onTip callback is nil, tipChan results will be ignored")
 		return
 	}
 	a.tipChan = a.ct.Subscribe(ctx)
 	go func() {
 		for header := range a.tipChan {
 			if header == nil {
-				a.logger.Warn("received nil chaintracks tip")
+				a.logger.WarnContext(ctx, "received nil chaintracks tip")
 				continue
 			}
 			if err := cb(header); err != nil {
-				a.logger.Error("onTip callback failed",
+				a.logger.ErrorContext(ctx, "onTip callback failed",
 					"height", header.Height,
 					"hash", header.Hash.String(),
 					"err", err)
@@ -94,7 +94,7 @@ func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.B
 func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks.ReorgEvent) error) {
 	if cb == nil {
 		// TODO: warn for now but maybe we should error?
-		a.logger.Warn("onReorg callback is nil, reorgChan results will be ignored")
+		a.logger.WarnContext(ctx, "onReorg callback is nil, reorgChan results will be ignored")
 		return
 	}
 
@@ -102,17 +102,17 @@ func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks
 	go func() {
 		for reorgEvent := range a.reorgChan {
 			if reorgEvent == nil {
-				a.logger.Warn("received nil chaintracks reorg event")
+				a.logger.WarnContext(ctx, "received nil chaintracks reorg event")
 				continue
 			}
 			if reorgEvent.NewTip == nil {
-				a.logger.Warn("received chaintracks reorg event without new tip",
+				a.logger.WarnContext(ctx, "received chaintracks reorg event without new tip",
 					"depth", reorgEvent.Depth,
 					"orphaned hashes", reorgEvent.OrphanedHashes)
 				continue
 			}
 			if err := cb(reorgEvent); err != nil {
-				a.logger.Error("onReorg callback failed",
+				a.logger.ErrorContext(ctx, "onReorg callback failed",
 					"depth", reorgEvent.Depth,
 					"new tip hash", reorgEvent.NewTip.Hash.String(),
 					"orphaned hashes", reorgEvent.OrphanedHashes,

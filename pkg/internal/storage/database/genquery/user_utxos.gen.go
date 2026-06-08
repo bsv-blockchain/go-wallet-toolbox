@@ -195,7 +195,7 @@ func (u userUTXO) Table(newTableName string) *userUTXO {
 }
 
 func (u userUTXO) As(alias string) *userUTXO {
-	u.userUTXODo.DO = *(u.userUTXODo.As(alias).(*gen.DO))
+	u.userUTXODo.DO = *u.userUTXODo.As(alias).(*gen.DO)
 	return u.updateTableName(alias)
 }
 

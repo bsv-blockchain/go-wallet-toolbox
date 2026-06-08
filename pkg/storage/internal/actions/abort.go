@@ -50,7 +50,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		slog.String("reference", referenceStr),
 	)
 
-	logger.InfoContext(ctx, "Starting AbortAction process",
+	logger.InfoContext(
+		ctx, "Starting AbortAction process",
 		slog.Bool("isPotentialTxID", a.isPotentiallyTxID(referenceStr)),
 	)
 
@@ -73,7 +74,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("no transaction found with reference or txid %q", referenceStr)
 	}
 
-	logger.DebugContext(ctx, "Validating transaction for abort",
+	logger.DebugContext(
+		ctx, "Validating transaction for abort",
 		logging.Number("transactionID", txEntity.ID),
 		slog.String("status", string(txEntity.Status)),
 		slog.Bool("isOutgoing", txEntity.IsOutgoing),
@@ -83,7 +85,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
 
-	logger.DebugContext(ctx, "Starting transaction abort process",
+	logger.DebugContext(
+		ctx, "Starting transaction abort process",
 		logging.Number("transactionID", txEntity.ID),
 	)
 
@@ -91,7 +94,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
 
-	logger.InfoContext(ctx, "AbortAction completed successfully",
+	logger.InfoContext(
+		ctx, "AbortAction completed successfully",
 		logging.Number("transactionID", txEntity.ID),
 	)
 
