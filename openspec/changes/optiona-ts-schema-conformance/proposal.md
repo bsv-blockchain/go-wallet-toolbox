@@ -92,17 +92,17 @@ After Phase 3 + Phase 6, `numeric_id_lookup` and every wrapper in `pkg/internal/
 
 ### Column convention
 
-- snake_case → camelCase across every gorm column tag.
-- Move from gorm soft-delete (`DeletedAt` timestamp) to TS-style `isDeleted` boolean where TS uses one.
+- camelCase across every gorm column tag — **except** `created_at` / `updated_at`, which TS emits as snake_case (the `addTimeStamps` helper). A blanket camelCase pass would break conformance on these two.
+- Soft delete moves from gorm `DeletedAt` timestamp to TS-style `isDeleted` boolean on the six tables TS marks deletable (`certificates`, `output_baskets`, `output_tags`, `output_tags_map`, `tx_labels`, `tx_labels_map`).
+- **Drop `gorm.Model` everywhere** — it injects a non-conformant `deleted_at` (and a generic `id`). Replace with an explicit named PK + a `Timestamps` embed. TS has no `deleted_at` on any table. See `target-schema.md`.
 
 ### ID strategy
 
-- Composite natural keys → surrogate auto-incrementing integer PKs on:
-  - `output_baskets` → add `basketId`
-  - `tags`/`output_tags` (after rename) → add `outputTagId`
-  - `labels`/`tx_labels` (after rename) → add `txLabelId`
-  - `users` → switch from manual `NumericIDLookup` assignment to native auto-increment
+- **Every table** adopts a per-table camelCase surrogate PK matching TS, replacing gorm's generic `id`: `provenTxId`, `provenTxReqId`, `transactionId`, `outputId`, `certificateId`, `commissionId`, `userId`, `basketId`, `outputTagId`, `txLabelId`, `syncStateId`. (`monitor_events` keeps `id`; `settings`, `certificate_fields`, and the `_map` join tables have no surrogate, matching TS.)
+- Composite natural keys become UNIQUE indexes, not PKs (e.g. `(name,userId)` on baskets, `(tag,userId)` on output_tags, `(label,userId)` on tx_labels).
+- `users.userId` switches from manual `NumericIDLookup` assignment to native auto-increment.
 - All join tables key on surrogate FKs, not name+user composite.
+- Value-column renames: `tags.name`→`output_tags.tag`, `labels.name`→`tx_labels.label`.
 
 ### Column additions
 
@@ -114,7 +114,7 @@ After Phase 3 + Phase 6, `numeric_id_lookup` and every wrapper in `pkg/internal/
 | `transactions` | add `provenTxId` int FK (nullable until proven), `rawTx` blob | |
 | `settings` | add `dbtype` | |
 | `sync_states` | add `init` boolean | |
-| `sync_states` | drop `when`, `satoshis` (Go extras) | breaking |
+| `sync_states` | **keep** `when`, `satoshis` | present in TS — Decision #2 revised |
 | `certificates` | replace `DeletedAt` with `isDeleted` boolean | |
 | `output_baskets` | replace `DeletedAt` with `isDeleted` boolean | |
 | `output_tags` / `tx_labels` | replace `DeletedAt` with `isDeleted` boolean | |
@@ -161,10 +161,10 @@ At target load of 10 tps, no significant impact expected. Estimated 5-15% added 
 ## Decisions confirmed by author
 
 1. **Drop `users.activeStorage`** — strict conformance. Multi-storage routing reintroduced via spec only if TS adds it upstream.
-2. **Drop `sync_states.when` and `sync_states.satoshis`** — strict conformance. Sync semantics align to TS.
+2. **Keep `sync_states.when` and `sync_states.satoshis`** — **REVISED 2026-06-08** (was "drop"): both columns exist in TS at the pinned commit `179d88c61`, so conformance requires retaining them. The original drop rested on a wrong premise.
 3. **Drop `user_utxo` unconditionally** — no benchmark gate. UTXO selection moves to `outputs.spendable` index. Perf at 10 tps target accepted; higher-tps issues addressed via indexing later.
 4. **ts-stack pin: latest main HEAD** at Phase 0 start. Refresh policy in `ts-pin.md`.
-5. **Block Phase 1 on baseline benchmark** — no code changes until Phase 0 numbers captured.
+5. **Perf validation deferred to a follow-up** — **REVISED 2026-06-08** (was "block on baseline benchmark"): no benchmark harness exists in-repo. Gate the sitting on build + unit tests + conformance + lint, apply the design's indexes, and file a perf-bench follow-up issue. See `tasks.md` Wave 4.
 6. **Drop `tx_notes`** — fold into `proven_tx_reqs.history` JSON column matching TS `ProvenTxReqHistory` shape exactly. Also add `proven_tx_reqs.notify` matching `ProvenTxReqNotify`.
 7. **Drop `numeric_id_lookup` after Phase 6** — sync layer rewired to use native auto-increment surrogate IDs from Phase 3 (baskets/tags/labels) and Phase 6 (`provenTxReqId`).
 

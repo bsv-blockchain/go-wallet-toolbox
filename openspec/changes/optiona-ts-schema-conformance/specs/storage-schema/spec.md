@@ -92,12 +92,21 @@ The merged `known_tx` table SHALL be split into:
 
 ### Requirement: Surrogate auto-incrementing primary keys
 
-All wallet-scoped tables with composite natural keys SHALL adopt auto-incrementing integer surrogate primary keys, matching TS conventions:
+Every shared table SHALL use a per-table camelCase auto-incrementing integer surrogate primary key matching TS, replacing gorm's generic `id`:
 
+- `proven_txs`: `provenTxId`
+- `proven_tx_reqs`: `provenTxReqId`
+- `users`: `userId` (no longer manually allocated via `NumericIDLookup`)
+- `certificates`: `certificateId`
 - `output_baskets`: `basketId`
+- `transactions`: `transactionId`
+- `commissions`: `commissionId`
+- `outputs`: `outputId`
 - `output_tags`: `outputTagId`
 - `tx_labels`: `txLabelId`
-- `users`: `userId` (no longer manually allocated via `NumericIDLookup`)
+- `sync_states`: `syncStateId`
+
+`monitor_events` SHALL use `id`. `settings`, `certificate_fields`, `output_tags_map`, and `tx_labels_map` SHALL have no surrogate PK (matching TS). Tables that previously used composite natural keys SHALL retain those as UNIQUE indexes.
 
 #### Scenario: Insert tag, look up by name+user
 
@@ -108,7 +117,7 @@ All wallet-scoped tables with composite natural keys SHALL adopt auto-incrementi
 
 ### Requirement: Soft delete via `isDeleted` flag
 
-Tables that support soft delete SHALL use a boolean `isDeleted` column instead of gorm's `DeletedAt` timestamp:
+Tables that support soft delete SHALL use a boolean `isDeleted` column instead of gorm's `DeletedAt` timestamp. No table SHALL carry a `deleted_at` column (i.e. `gorm.Model` SHALL NOT be embedded). The soft-deletable tables are:
 
 - `certificates`
 - `output_baskets`
@@ -127,12 +136,14 @@ Default value SHALL be `false`. All queries against these tables SHALL filter `W
 
 ### Requirement: Column naming convention
 
-All gorm column tags SHALL use camelCase to match TS column names exactly. Snake_case column tags SHALL NOT be used.
+All gorm column tags SHALL use camelCase to match TS column names exactly, **with the sole exception of `created_at` and `updated_at`**, which SHALL remain snake_case to match the TS `addTimeStamps` helper. The generic `id` and `deleted_at` columns injected by `gorm.Model` SHALL NOT appear on any table.
 
 #### Scenario: Schema diff column comparison
 
 - **WHEN** Go's gorm migration is applied
 - **THEN** every column name in every shared table SHALL match the equivalent TS column name byte-for-byte
+- **AND** `created_at`/`updated_at` SHALL be snake_case while all other columns are camelCase
+- **AND** no table SHALL contain a `deleted_at` column
 
 ### Requirement: `monitor_events` table
 
@@ -178,9 +189,20 @@ The `outputs` table SHALL include `sequenceNumber`, `spendingDescription`, `scri
 
 The `settings` table SHALL include a `dbtype` column.
 
+#### Scenario: Settings reports the active backend
+
+- **WHEN** the `settings` row is read
+- **THEN** the `dbtype` column SHALL report the active database backend (e.g. `sqlite` / `postgres`)
+
 ### Requirement: `sync_states` table shape
 
-The `sync_states` table SHALL include an `init` boolean column. The Go-only `when` and `satoshis` columns SHALL be removed.
+The `sync_states` table SHALL include an `init` boolean column. The `when` (dateTime) and `satoshis` (bigint) columns SHALL be retained, matching the TS schema at the pinned commit.
+
+#### Scenario: Sync state matches TS columns
+
+- **WHEN** a `sync_states` row is created under the TS-conformant schema
+- **THEN** it SHALL expose an `init` boolean defaulting to `false`
+- **AND** it SHALL retain the `when` and `satoshis` columns present in TS
 
 ## REMOVED Requirements
 
@@ -214,4 +236,4 @@ The `sync_states` table SHALL include an `init` boolean column. The Go-only `whe
 
 ### Requirement: `sync_states.when` and `sync_states.satoshis` columns
 
-**Reason:** No TS equivalent. Sync semantics in TS do not require these fields.
+**RESCINDED 2026-06-08.** These columns ARE present in TS at the pinned commit `179d88c61` and are retained (see the MODIFIED `sync_states` table shape requirement). The original removal rested on a wrong premise.

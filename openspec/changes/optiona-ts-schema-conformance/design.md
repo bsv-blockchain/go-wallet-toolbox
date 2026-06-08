@@ -31,7 +31,7 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 | Users | `users` | `users` | drop `activeStorage`; auto-incr `userId` |
 | Certificates | `certificates` + `certificate_fields` | same | `isDeleted` flag |
 | Commissions | `commissions` | `commissions` | unchanged |
-| Sync state | `sync_states` | `sync_states` | drop `when`/`satoshis`, add `init` |
+| Sync state | `sync_states` | `sync_states` | add `init`; **keep** `when`/`satoshis` (present in TS) |
 | Settings | `settings` | `settings` | add `dbtype` |
 | Monitor log | `monitor_events` | `monitor_events` | new |
 | Chaintracks | (TS: separate package) | `chaintracks_live_header` + `chaintracks_bulk_file` | Go extension; retained |
@@ -62,6 +62,18 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 | Composite-key → surrogate-id migration touches every join | High | High | Phase 3 done in isolation; full test suite gate before next phase |
 | Conformance fixtures drift between TS pin and live TS | Medium | Medium | Pin commit; refresh once per phase; final refresh in Phase 14 |
 | RPC clients depend on old field names | High | Medium | Major version bump; deprecation note in changelog |
+
+## Revisions (2026-06-08, post schema-validation against pinned TS)
+
+The schema was extracted from `KnexMigrations.ts` @ `179d88c61` into `target-schema.md`. That validation corrected several assumptions baked into the original prose:
+
+- **`created_at`/`updated_at` stay snake_case** (TS `addTimeStamps`); all other columns camelCase.
+- **Per-table named PKs on every table** (`transactionId`, `outputId`, …), not just composite-key tables. `gorm.Model` (generic `id` + `deleted_at`) is dropped everywhere.
+- **No `deleted_at` in TS** — soft delete is `isDeleted` on six tables only.
+- **`sync_states.when`/`satoshis` retained** (Decision D-rev): they exist in TS; dropping them would diverge. Supersedes the earlier drop.
+- **Perf re-bench deferred** to a follow-up (no harness exists); the sitting gates on build/tests/conformance/lint + indexes.
+- **History/notify reuse existing infra** (`pkg/internal/storage/history`, `repo/tx_notes.go`) — the fold redirects into the JSON column rather than building anew.
+- Execution is reorganized from "16 independent PRs" into dependency **waves** for single-sitting subagent orchestration; see `tasks.md`.
 
 ## Decision log
 
