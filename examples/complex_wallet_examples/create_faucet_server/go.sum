@@ -88,8 +88,8 @@ github.com/bsv-blockchain/go-teranode-p2p-client v0.2.6 h1:Ct9W6wCargvr6WWOnGpxs
 github.com/bsv-blockchain/go-teranode-p2p-client v0.2.6/go.mod h1:DsSLTV4PKb1Cz+wwisLRCEOvdWrBgopn198JsgtdFlc=
 github.com/bsv-blockchain/go-tx-map v1.3.8 h1:goWehVkn1olwTUR/jaXKwZNBBRl2lpbPMpaKskIJ0so=
 github.com/bsv-blockchain/go-tx-map v1.3.8/go.mod h1:enodDhmApAUlrpg4VAqsk+g54S1bkOaYSNu0Y+ZrqIY=
-github.com/bsv-blockchain/go-wallet-toolbox v0.183.11 h1:Ug76hiLUovDCNHzy6EgW9ooAJBuM+J3k1R7AZ5I3bUs=
-github.com/bsv-blockchain/go-wallet-toolbox v0.183.11/go.mod h1:Gv55CjqmA6qOgqZgBVGfzSf3VcQKITPcXBdTX3h2UcY=
+github.com/bsv-blockchain/go-wallet-toolbox v0.183.13 h1:soE4nZ+CQheSwSKAPQmDhP19ly23eHfBiB8SvxM/gPY=
+github.com/bsv-blockchain/go-wallet-toolbox v0.183.13/go.mod h1:Gv55CjqmA6qOgqZgBVGfzSf3VcQKITPcXBdTX3h2UcY=
 github.com/bsv-blockchain/go-wire v1.2.8 h1:U3/qK+pXawOQ7DjjeqmIH11sssKfporTHLl+HllkaF4=
 github.com/bsv-blockchain/go-wire v1.2.8/go.mod h1:nDp3nuWo++EZYZHCN3ONJMhwkCCKBEjubOVzsKshh8U=
 github.com/bsv-blockchain/teranode v0.15.2-beta-7 h1:C1+LaHcqEhvYlF5WgGmMPE1jNMwBGWP8lilWJ06D4PA=
@@ -409,8 +409,8 @@ github.com/mattn/go-runewidth v0.0.24 h1:cpokDiIn0MGnhdHwuWnJBITySJ20QyNGnY2kR/a
 github.com/mattn/go-runewidth v0.0.24/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/mattn/go-sqlite3 v1.14.15/go.mod h1:2eHXhiwb8IkHr+BDWZGa96P6+rkvnG63S2DGjv9HUNg=
 github.com/mattn/go-sqlite3 v1.14.16/go.mod h1:2eHXhiwb8IkHr+BDWZGa96P6+rkvnG63S2DGjv9HUNg=
-github.com/mattn/go-sqlite3 v1.14.44 h1:3VSe+xafpbzsLbdr2AWlAZk9yRHiBhTBakioXaCKTF8=
-github.com/mattn/go-sqlite3 v1.14.44/go.mod h1:pjEuOr8IwzLJP2MfGeTb0A35jauH+C2kbHKBr7yXKVQ=
+github.com/mattn/go-sqlite3 v1.14.45 h1:6KA/spDguL3KV8rnybG7ezSaE4SeMR3KC9VbUoAQaIk=
+github.com/mattn/go-sqlite3 v1.14.45/go.mod h1:pjEuOr8IwzLJP2MfGeTb0A35jauH+C2kbHKBr7yXKVQ=
 github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d h1:5PJl274Y63IEHC+7izoQE9x6ikvDFZS2mDVS3drnohI=
 github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
 github.com/microsoft/go-mssqldb v1.7.2 h1:CHkFJiObW7ItKTJfHo1QX7QBBD1iV+mn1eOyRP3b/PA=
