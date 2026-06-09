@@ -34,6 +34,7 @@ type WhatsOnChainFixture interface {
 	WhenQueryingBlockHeader(blockHash string) WhatsOnChainBlockHeaderQueryFixture
 	WillRespondWithBroadcast(status int, responseBody string)
 	WillRespondOnTxStatus(status int, tc TxStatusExpectation)
+	WillRespondOnTxStatusNotFound()
 	WillAlwaysReturnPostBEEFSuccess(txids ...string)
 	WillRespondWithChainInfo(status int, blocks uint32)
 	WillReturnMalformedBlockHeader(blockHash string)
@@ -393,6 +394,36 @@ func (f *wocFixture) WillRespondOnTxStatus(status int, tc TxStatusExpectation) {
 
 			respBytes, _ := json.Marshal(respItems)
 			resp := httpmock.NewStringResponse(status, string(respBytes))
+			resp.Header.Set("Content-Type", "application/json")
+			return resp, nil
+		})
+}
+
+// WillRespondOnTxStatusNotFound makes the /txs/status endpoint report every requested
+// txid as unknown to the network (the response WoC gives for unpropagated transactions).
+func (f *wocFixture) WillRespondOnTxStatusNotFound() {
+	f.Helper()
+
+	f.transport.RegisterResponder(http.MethodPost,
+		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/txs/status", f.network),
+		func(req *http.Request) (*http.Response, error) {
+			var body struct {
+				Txids []string `json:"txids"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				return httpmock.NewStringResponse(http.StatusBadRequest, "bad request"), nil
+			}
+
+			respItems := []map[string]interface{}{}
+			for _, txid := range body.Txids {
+				respItems = append(respItems, map[string]interface{}{
+					"txid":  txid,
+					"error": "unknown",
+				})
+			}
+
+			respBytes, _ := json.Marshal(respItems)
+			resp := httpmock.NewStringResponse(http.StatusOK, string(respBytes))
 			resp.Header.Set("Content-Type", "application/json")
 			return resp, nil
 		})

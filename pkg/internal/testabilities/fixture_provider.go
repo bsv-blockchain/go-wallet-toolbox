@@ -118,6 +118,8 @@ func (p *providerFixture) withServices() ProviderFixture {
 
 	config := defs.DefaultServicesConfig(p.network)
 	config.BHS.Enabled = true
+	// NOTE: tests should not be slowed down by the client-side WoC rate limiter
+	config.WhatsOnChain.RequestsPerSecond = 10000
 
 	p.services = services.New(p.logger, config, services.WithRestyClient(client))
 	return p

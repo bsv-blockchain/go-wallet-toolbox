@@ -144,7 +144,12 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, rawTx []byte) wdk.
 
 	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
-		return woc.errorPostedTxID(rawTx, returnedTxid, fmt.Errorf("failed to fetch tx info for %s: %w", returnedTxid, fetchErr))
+		// The tx has already been accepted by WoC - block info is optional enrichment,
+		// and right after a broadcast the tx may not be indexed yet (or the endpoint may
+		// be rate limited), so a fetch failure must not void the successful broadcast.
+		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast",
+			"txid", returnedTxid, "error", fetchErr)
+		return result
 	}
 
 	if info != nil {
