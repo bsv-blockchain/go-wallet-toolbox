@@ -22,6 +22,13 @@ func Given(t testing.TB) WoCServiceFixture {
 	}
 }
 
+// WithRequestsPerSecond reconfigures the client-side rate limiter of the WoC service under test.
+func WithRequestsPerSecond(requestsPerSecond float64) func(*whatsonchain.WhatsOnChain) {
+	return func(service *whatsonchain.WhatsOnChain) {
+		service.SetRequestsPerSecond(requestsPerSecond)
+	}
+}
+
 type wocServiceFixture struct {
 	testservices.ServicesFixture
 
@@ -37,6 +44,8 @@ func (f *wocServiceFixture) NewWoCService(opts ...func(*whatsonchain.WhatsOnChai
 		BSVExchangeRate:            defs.BSVExchangeRate{},
 		RootForHeightRetryInterval: 0,
 		RootForHeightRetries:       1,
+		// NOTE: tests should not be slowed down by the client-side WoC rate limiter
+		RequestsPerSecond: 10000,
 	}
 
 	service := whatsonchain.New(client, logger, network, config)

@@ -547,6 +547,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	aggregated := results.Aggregated(txIDs)
+	p.confirmDoubleSpends(ctx, aggregated)
 
 	logger.DebugContext(
 		ctx, "Processing individual transaction results",
@@ -861,6 +862,8 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 	}
 
 	aggregated := results.Aggregated(txIDs)
+	p.confirmDoubleSpends(ctx, aggregated)
+
 	bResults := make([]wdk.ReviewActionResult, 0, len(txIDs))
 	for _, broadcastedTxID := range txIDs {
 		aggBroadcastResult, ok := aggregated[broadcastedTxID]

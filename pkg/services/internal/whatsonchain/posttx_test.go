@@ -52,6 +52,20 @@ func TestWhatsOnChain_PostTX(t *testing.T) {
 			resultStatus: wdk.PostedTxIDResultAlreadyKnown,
 			alreadyKnown: true,
 		},
+		"success - tx info fetch rate limited": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusOK, `{"txid":"`+givenTxID+`"}`)
+				given.WhatsOnChain().WillRespondOnTxStatus(http.StatusTooManyRequests, testservices.TxStatusExpectation{})
+			},
+			resultStatus: wdk.PostedTxIDResultSuccess,
+		},
+		"success - tx info fetch server error": {
+			setup: func(given testabilities.WoCServiceFixture) {
+				given.WhatsOnChain().WillRespondWithBroadcast(http.StatusOK, `{"txid":"`+givenTxID+`"}`)
+				given.WhatsOnChain().WillRespondOnTxStatus(http.StatusInternalServerError, testservices.TxStatusExpectation{})
+			},
+			resultStatus: wdk.PostedTxIDResultSuccess,
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
