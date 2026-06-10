@@ -143,24 +143,9 @@ func (s *Service) streamOnce(ctx context.Context, lastEventID *string, onEvent f
 			continue
 		}
 
-		// lines starting with ":" are keepalive comments
-		if strings.HasPrefix(line, ":") {
-			continue
-		}
-
-		field, value := splitSSELine(line)
-		switch field {
-		case "id":
-			frame.id = value
-		case "event":
-			frame.event = value
-		case "data":
-			if frame.data != "" {
-				frame.data += "\n"
-			}
-			frame.data += value
-		default:
-			// unknown fields are ignored per the SSE spec
+		// lines starting with ":" are keepalive comments; all others accumulate into the frame
+		if !strings.HasPrefix(line, ":") {
+			processSSELine(line, &frame)
 		}
 	}
 	// an incomplete frame at the end of the stream is discarded per the SSE spec
@@ -224,6 +209,23 @@ func (s *Service) dispatchFrame(ctx context.Context, frame sseFrame, lastEventID
 		*lastEventID = frame.id
 	}
 	return true
+}
+
+// processSSELine accumulates one SSE line into the current frame.
+// Unknown field names are silently ignored per the SSE spec.
+func processSSELine(line string, frame *sseFrame) {
+	field, value := splitSSELine(line)
+	switch field {
+	case "id":
+		frame.id = value
+	case "event":
+		frame.event = value
+	case "data":
+		if frame.data != "" {
+			frame.data += "\n"
+		}
+		frame.data += value
+	}
 }
 
 // splitSSELine splits one SSE line into its field name and value,

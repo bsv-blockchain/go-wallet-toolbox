@@ -316,6 +316,7 @@ func TestBroadcastRouterCancelledDuringBackpressureDoesNotRetryOrTripBreaker(t *
 	// given: failure threshold 1 - a single recorded failure would open the circuit
 	given := newRouterFixture(t, 1, time.Minute)
 	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	given.primary.responses = []func() (*wdk.PostedTxID, error){backpressureResponse(5 * time.Second)}
 
 	// and: the caller goes away while the router honors the Retry-After hint
@@ -358,6 +359,7 @@ func TestBroadcastRouterPrimaryContextErrorDoesNotTripBreaker(t *testing.T) {
 			// given: failure threshold 1 - a single recorded failure would open the circuit
 			given := newRouterFixture(t, 1, time.Minute)
 			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 
 			// and: the primary observes the caller going away mid-call
 			given.primary.responses = []func() (*wdk.PostedTxID, error){

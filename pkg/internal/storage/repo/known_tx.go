@@ -23,6 +23,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+const errFmtDBTransaction = "db transaction failed: %w"
+
 const (
 	maxDepthOfRecursion = 1000
 )
@@ -144,7 +146,7 @@ func (p *KnownTx) FailKnownTxAsDoubleSpend(ctx context.Context, txID string, ski
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("db transaction failed: %w", err)
+		return false, fmt.Errorf(errFmtDBTransaction, err)
 	}
 	return applied, nil
 }
@@ -184,7 +186,7 @@ func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, 
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("db transaction failed: %w", err)
+		return false, fmt.Errorf(errFmtDBTransaction, err)
 	}
 	return applied, nil
 }
@@ -546,7 +548,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("db transaction failed: %w", err)
+		return fmt.Errorf(errFmtDBTransaction, err)
 	}
 	return nil
 }

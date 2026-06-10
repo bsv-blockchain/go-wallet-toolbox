@@ -101,90 +101,107 @@ func newBroadcastRouter(
 // slice: when nothing can be attempted (circuit open, no failovers configured)
 // a final error result for the primary is returned instead.
 func (r *broadcastRouter) broadcast(ctx context.Context, efHex string, rawTx []byte, txID string) []*wdk.PostFromBEEFServiceResult {
-	var results []*wdk.PostFromBEEFServiceResult
-
-	if r.breaker.Allow() {
-		posted, err := r.primary.post(ctx, efHex, rawTx, txID)
-
-		var backpressure *arcade.BackpressureError
-		if errors.As(err, &backpressure) {
-			wait := min(backpressure.RetryAfter, r.maxBackpressureWait)
-			r.logger.InfoContext(ctx, "primary broadcaster applied backpressure, retrying once",
-				slog.String("txID", txID),
-				slog.Duration("wait", wait),
-			)
-			r.sleep(ctx, wait)
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				// the caller went away while the router honored backpressure: report it
-				// without retrying and without poisoning the circuit breaker (Arcade
-				// itself may be perfectly healthy).
-				return append(results, &wdk.PostFromBEEFServiceResult{
-					Name:  r.primary.name,
-					Error: fmt.Errorf("broadcast canceled while honoring backpressure: %w", ctxErr),
-				})
-			}
-			posted, err = r.primary.post(ctx, efHex, rawTx, txID)
-		}
-
-		if err == nil {
-			r.breaker.RecordSuccess()
-			return []*wdk.PostFromBEEFServiceResult{targetResult(r.primary.name, posted)}
-		}
-
-		results = append(results, &wdk.PostFromBEEFServiceResult{Name: r.primary.name, Error: err})
-
-		if isContextError(err) {
-			// the caller went away mid-broadcast: not a service failure, so it must
-			// not count against the circuit breaker. With a dead context the
-			// failovers cannot succeed either, so stop here.
-			r.logger.InfoContext(ctx, "primary broadcast canceled by the caller",
-				slog.String("txID", txID),
-				slog.String("service", r.primary.name),
-				slog.String("error", err.Error()),
-			)
-			if ctx.Err() != nil {
-				return results
-			}
-		} else {
-			// transport failure (or repeated backpressure): count it and fail over
-			r.breaker.RecordFailure()
-			r.logger.WarnContext(ctx, "primary broadcaster failed, failing over",
-				slog.String("txID", txID),
-				slog.String("service", r.primary.name),
-				slog.String("error", err.Error()),
-			)
-		}
-	} else {
+	if !r.breaker.Allow() {
 		r.logger.WarnContext(ctx, "primary broadcaster circuit is open, failing over",
 			slog.String("txID", txID),
 			slog.String("service", r.primary.name),
 		)
+		return r.runFailovers(ctx, efHex, rawTx, txID, nil)
 	}
 
+	results, done := r.tryPrimary(ctx, efHex, rawTx, txID)
+	if done {
+		return results
+	}
+	return r.runFailovers(ctx, efHex, rawTx, txID, results)
+}
+
+// tryPrimary attempts the primary broadcaster, handling a single backpressure retry.
+// It returns (results, true) when the outcome is final (success, context cancellation,
+// or a tx-level rejection). It returns (results, false) when the primary transport failed
+// and the caller should continue with the failover chain.
+func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []byte, txID string) ([]*wdk.PostFromBEEFServiceResult, bool) {
+	posted, err := r.primary.post(ctx, efHex, rawTx, txID)
+
+	var backpressure *arcade.BackpressureError
+	if errors.As(err, &backpressure) {
+		posted, err = r.retryAfterBackpressure(ctx, efHex, rawTx, txID, backpressure)
+		if ctx.Err() != nil {
+			// the caller went away while the router honored backpressure: report it
+			// without retrying and without poisoning the circuit breaker (Arcade itself
+			// may be perfectly healthy).
+			return []*wdk.PostFromBEEFServiceResult{{Name: r.primary.name, Error: err}}, true
+		}
+	}
+
+	if err == nil {
+		r.breaker.RecordSuccess()
+		return []*wdk.PostFromBEEFServiceResult{targetResult(r.primary.name, posted)}, true
+	}
+
+	if isContextError(err) {
+		// the caller went away mid-broadcast: not a service failure, so it must
+		// not count against the circuit breaker. With a dead context the
+		// failovers cannot succeed either, so stop here.
+		r.logger.InfoContext(ctx, "primary broadcast canceled by the caller",
+			slog.String("txID", txID),
+			slog.String("service", r.primary.name),
+			slog.String("error", err.Error()),
+		)
+		return []*wdk.PostFromBEEFServiceResult{{Name: r.primary.name, Error: err}}, ctx.Err() != nil
+	}
+
+	// transport failure (or repeated backpressure): count it and fail over
+	r.breaker.RecordFailure()
+	r.logger.WarnContext(ctx, "primary broadcaster failed, failing over",
+		slog.String("txID", txID),
+		slog.String("service", r.primary.name),
+		slog.String("error", err.Error()),
+	)
+	return []*wdk.PostFromBEEFServiceResult{{Name: r.primary.name, Error: err}}, false
+}
+
+// retryAfterBackpressure waits the Retry-After hint and re-attempts the primary broadcast.
+// It returns a context-wrapped error when the caller is cancelled during the wait.
+func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex string, rawTx []byte, txID string, bp *arcade.BackpressureError) (*wdk.PostedTxID, error) {
+	wait := min(bp.RetryAfter, r.maxBackpressureWait)
+	r.logger.InfoContext(ctx, "primary broadcaster applied backpressure, retrying once",
+		slog.String("txID", txID),
+		slog.Duration("wait", wait),
+	)
+	r.sleep(ctx, wait)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, fmt.Errorf("broadcast canceled while honoring backpressure: %w", ctxErr)
+	}
+	return r.primary.post(ctx, efHex, rawTx, txID)
+}
+
+// runFailovers iterates failover targets sequentially, stopping at the first success.
+// It returns partialResults (accumulated primary error results) plus the winning failover result,
+// or all error results if every target fails. It never returns an empty slice.
+func (r *broadcastRouter) runFailovers(ctx context.Context, efHex string, rawTx []byte, txID string, partialResults []*wdk.PostFromBEEFServiceResult) []*wdk.PostFromBEEFServiceResult {
 	for _, target := range r.failovers {
 		posted, err := target.post(ctx, efHex, rawTx, txID)
 		if err == nil {
-			results = append(results, targetResult(target.name, posted))
-			return results
+			return append(partialResults, targetResult(target.name, posted))
 		}
 		r.logger.WarnContext(ctx, "failover broadcaster failed",
 			slog.String("txID", txID),
 			slog.String("service", target.name),
 			slog.String("error", err.Error()),
 		)
-		results = append(results, &wdk.PostFromBEEFServiceResult{Name: target.name, Error: err})
+		partialResults = append(partialResults, &wdk.PostFromBEEFServiceResult{Name: target.name, Error: err})
 	}
 
-	if len(results) == 0 {
+	if len(partialResults) == 0 {
 		// circuit open and no failover targets configured: never return zero results,
 		// the storage layer needs an error result to keep the tx retryable.
-		results = append(results, &wdk.PostFromBEEFServiceResult{
+		partialResults = append(partialResults, &wdk.PostFromBEEFServiceResult{
 			Name:  r.primary.name,
 			Error: errors.New("broadcast skipped: circuit open and no failover targets configured"),
 		})
 	}
-
-	return results
+	return partialResults
 }
 
 // isContextError reports whether err was caused by context cancellation or an
