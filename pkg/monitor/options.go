@@ -13,6 +13,8 @@ type DaemonEventOptions struct {
 
 	onReorg <-chan *chaintracks.ReorgEvent
 	onTip   <-chan *chaintracks.BlockHeader
+
+	broadcastEventStreamer BroadcastEventStreamer
 }
 
 // DaemonEventOption defines a function type for setting DaemonEventOptions.
@@ -20,11 +22,23 @@ type DaemonEventOption func(*DaemonEventOptions)
 
 func defaultDaemonEventOptions() *DaemonEventOptions {
 	return &DaemonEventOptions{
-		onTxBroadcasted: nil,
-		onTxProven:      nil,
-		onReorg:         nil,
-		onTip:           nil,
+		onTxBroadcasted:       nil,
+		onTxProven:            nil,
+		onReorg:               nil,
+		onTip:                 nil,
+		broadcastEventStreamer: nil,
 	}
+}
+
+// DefaultDaemonEventOptions builds a *DaemonEventOptions by applying the
+// provided option functions.  Exported so tests outside the package can
+// construct a configured options value without going through a GORM locker.
+func DefaultDaemonEventOptions(opts ...DaemonEventOption) *DaemonEventOptions {
+	o := defaultDaemonEventOptions()
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
 }
 
 // WithBroadcastedTxChannel sets the channel for broadcasted transaction notifications.
@@ -60,5 +74,16 @@ func WithReorgChannel(ch <-chan *chaintracks.ReorgEvent) func(*DaemonEventOption
 func WithTipChannel(ch <-chan *chaintracks.BlockHeader) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onTip = ch
+	}
+}
+
+// WithBroadcastEventStream registers a BroadcastEventStreamer whose SSE events
+// are consumed by the monitor daemon.  When set, Daemon.Start launches a
+// dedicated goroutine that reads events and calls
+// MonitoredStorage.ProcessExternalTxStatusUpdate, persisting a replay cursor
+// in the key-value store so the stream can be resumed after a restart.
+func WithBroadcastEventStream(streamer BroadcastEventStreamer) DaemonEventOption {
+	return func(o *DaemonEventOptions) {
+		o.broadcastEventStreamer = streamer
 	}
 }
