@@ -73,12 +73,16 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		cleanupFuncs = append(cleanupFuncs, tracingCleanup)
 	}
 
-	activeServices := services.New(logger, cfg.Services)
-
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage identity key: %w", err)
 	}
+
+	if cfg.Services.Arcade.Enabled && cfg.Services.Arcade.CallbackToken == "" {
+		cfg.Services.Arcade.CallbackToken = wdk.DeriveArcadeCallbackToken(storageIdentityKey)
+	}
+
+	activeServices := services.New(logger, cfg.Services)
 
 	providerOptions := append(
 		GORMProviderOptionsFromConfig(&cfg),
@@ -151,6 +155,10 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 			} else {
 				close(tipChan)
 			}
+		}
+
+		if cfg.Services.Arcade.Enabled {
+			monitorOpts = append(monitorOpts, monitor.WithBroadcastEventStream(activeServices))
 		}
 
 		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB, monitorOpts...)
