@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	ctConfig "github.com/bsv-blockchain/go-chaintracks/config"
@@ -18,8 +19,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arcade"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bhs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/circuitbreaker"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
@@ -32,7 +35,11 @@ type WalletServices struct {
 	logger *slog.Logger
 	chain  defs.BSVNetwork
 	config *defs.WalletServices
-	// NOTE: add p2p client here when arcade is implemented so they can share clients
+
+	// arcade is the primary broadcaster (nil when disabled); broadcastRouter
+	// routes broadcasts through it with circuit-breaker failover.
+	arcade          *arcade.Service
+	broadcastRouter *broadcastRouter
 
 	rawTxServices  servicequeue.Queue1[string, *wdk.RawTxResult]
 	postEFServices servicequeue.Queue2[string, string, *wdk.PostedTxID]
@@ -68,15 +75,31 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	var predefined []Named[Implementation]
 
+	// NOTE: when Arcade is enabled, predefined broadcasters (ARC, WoC, Bitails) are NOT
+	// registered in the PostEF/PostTX queues - broadcasting goes through the broadcastRouter
+	// (Arcade primary, circuit-breaker failover) and the queues remain for custom
+	// implementations only. When Arcade is disabled (e.g. testnet), the legacy
+	// broadcast-to-all queue path keeps the predefined broadcasters.
+	var arcService *arc.Service
 	if config.ArcConfig.Enabled {
-		arcService := arc.New(logger, options.RestyClientFactory.New(), config.ArcConfig)
+		arcService = arc.New(logger, options.RestyClientFactory.New(), config.ArcConfig)
+		arcImpl := Implementation{
+			MerklePath: arcService.MerklePath,
+		}
+		if !config.Arcade.Enabled {
+			arcImpl.PostEF = arcService.PostEF
+		}
 		predefined = append(predefined, Named[Implementation]{
 			Name: arc.ServiceName,
-			Item: Implementation{
-				PostEF:     arcService.PostEF,
-				MerklePath: arcService.MerklePath,
-			},
+			Item: arcImpl,
 		})
+	}
+
+	// GorillaPool ARC is a broadcast-only failover target: it is deliberately NOT added
+	// to the predefined implementations (e.g. its MerklePath does not join the queues).
+	var arcGorillaPoolService *arc.Service
+	if config.ArcGorillaPoolConfig.Enabled {
+		arcGorillaPoolService = arc.NewNamed(defs.ArcGorillaPoolServiceName, logger, options.RestyClientFactory.New(), config.ArcGorillaPoolConfig)
 	}
 
 	if config.BHS.Enabled {
@@ -92,45 +115,67 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		})
 	}
 
+	var wocService *whatsonchain.WhatsOnChain
 	if config.WhatsOnChain.Enabled {
-		wocService := whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
+		wocService = whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
+		wocImpl := Implementation{
+			RawTx:                wocService.RawTx,
+			MerklePath:           wocService.MerklePath,
+			FindChainTipHeader:   wocService.FindChainTipHeader,
+			IsValidRootForHeight: wocService.IsValidRootForHeight,
+			CurrentHeight:        wocService.CurrentHeight,
+			GetScriptHashHistory: wocService.GetScriptHashHistory,
+			HashToHeader:         wocService.HashToHeader,
+			ChainHeaderByHeight:  wocService.ChainHeaderByHeight,
+			GetStatusForTxIDs:    wocService.GetStatusForTxIDs,
+			GetUtxoStatus:        wocService.GetUtxoStatus,
+			IsUtxo:               wocService.IsUtxo,
+			BsvExchangeRate:      wocService.UpdateBsvExchangeRate,
+		}
+		if !config.Arcade.Enabled {
+			wocImpl.PostTX = wocService.PostTX
+		}
 		predefined = append(predefined, Named[Implementation]{
 			Name: whatsonchain.ServiceName,
-			Item: Implementation{
-				RawTx:                wocService.RawTx,
-				PostTX:               wocService.PostTX,
-				MerklePath:           wocService.MerklePath,
-				FindChainTipHeader:   wocService.FindChainTipHeader,
-				IsValidRootForHeight: wocService.IsValidRootForHeight,
-				CurrentHeight:        wocService.CurrentHeight,
-				GetScriptHashHistory: wocService.GetScriptHashHistory,
-				HashToHeader:         wocService.HashToHeader,
-				ChainHeaderByHeight:  wocService.ChainHeaderByHeight,
-				GetStatusForTxIDs:    wocService.GetStatusForTxIDs,
-				GetUtxoStatus:        wocService.GetUtxoStatus,
-				IsUtxo:               wocService.IsUtxo,
-				BsvExchangeRate:      wocService.UpdateBsvExchangeRate,
-			},
+			Item: wocImpl,
 		})
 	}
 
+	var bitailsService *bitails.Bitails
 	if config.Bitails.Enabled {
-		bitailsService := bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
+		bitailsService = bitails.New(options.RestyClientFactory.New(), logger, config.Chain, config.Bitails)
+		bitailsImpl := Implementation{
+			RawTx:                bitailsService.RawTx,
+			MerklePath:           bitailsService.MerklePath,
+			FindChainTipHeader:   bitailsService.FindChainTipHeader,
+			IsValidRootForHeight: bitailsService.IsValidRootForHeight,
+			CurrentHeight:        bitailsService.CurrentHeight,
+			GetScriptHashHistory: bitailsService.GetScriptHashHistory,
+			HashToHeader:         bitailsService.HashToHeader,
+			ChainHeaderByHeight:  bitailsService.ChainHeaderByHeight,
+			GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
+		}
+		if !config.Arcade.Enabled {
+			bitailsImpl.PostTX = bitailsService.PostTX
+		}
 		predefined = append(predefined, Named[Implementation]{
 			Name: bitails.ServiceName,
-			Item: Implementation{
-				RawTx:                bitailsService.RawTx,
-				PostTX:               bitailsService.PostTX,
-				MerklePath:           bitailsService.MerklePath,
-				FindChainTipHeader:   bitailsService.FindChainTipHeader,
-				IsValidRootForHeight: bitailsService.IsValidRootForHeight,
-				CurrentHeight:        bitailsService.CurrentHeight,
-				GetScriptHashHistory: bitailsService.GetScriptHashHistory,
-				HashToHeader:         bitailsService.HashToHeader,
-				ChainHeaderByHeight:  bitailsService.ChainHeaderByHeight,
-				GetStatusForTxIDs:    bitailsService.GetStatusForTxIDs,
-			},
+			Item: bitailsImpl,
 		})
+	}
+
+	// Arcade is the sole default broadcast path; the other broadcasters act as
+	// failovers behind a circuit breaker.
+	var arcadeService *arcade.Service
+	var router *broadcastRouter
+	if config.Arcade.Enabled {
+		arcadeService = arcade.New(logger, options.RestyClientFactory.New(), config.Arcade)
+		breaker := circuitbreaker.New(logger, circuitbreaker.Config{
+			FailureThreshold: config.Arcade.CircuitBreaker.FailureThreshold,
+			ProbeInterval:    time.Duration(config.Arcade.CircuitBreaker.HealthProbeIntervalSeconds) * time.Second,
+			Probe:            arcadeService.Healthy,
+		})
+		router = newBroadcastRouter(logger, breaker, arcadeService, arcService, arcGorillaPoolService, wocService, bitailsService)
 	}
 
 	var chaintracksAdapter *chaintracksclient.Adapter
@@ -190,6 +235,9 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		chain:  config.Chain,
 		config: &config,
 		logger: logger,
+
+		arcade:          arcadeService,
+		broadcastRouter: router,
 
 		rawTxServices: servicequeue.NewQueue1(
 			logger,
@@ -386,6 +434,46 @@ func (s *WalletServices) logActiveServices() {
 	})
 
 	s.logger.DebugContext(context.Background(), "Active services by methods", logAttrs...)
+}
+
+// StartBackgroundServices starts all background workers of the wallet services:
+// the chaintracks event subscription and, when the broadcast router is enabled,
+// the circuit-breaker health probe that recovers the primary broadcaster (Arcade).
+// The probe goroutine runs until ctx is cancelled. Prefer this over calling
+// StartChaintracks directly.
+func (s *WalletServices) StartBackgroundServices(ctx context.Context) error {
+	if s.broadcastRouter != nil {
+		go s.broadcastRouter.breaker.StartHealthProbe(ctx)
+	}
+
+	return s.StartChaintracks(ctx)
+}
+
+// BroadcastStatusEvents streams transaction lifecycle status events pushed by the
+// primary broadcaster (Arcade SSE stream), invoking onEvent sequentially per event.
+// It blocks until ctx is cancelled (reconnecting automatically in between) and
+// returns an error when Arcade is disabled in the configuration.
+func (s *WalletServices) BroadcastStatusEvents(ctx context.Context, lastEventID string, onEvent func(wdk.BroadcastStatusEvent) error) error {
+	if s.arcade == nil {
+		return fmt.Errorf("broadcast status events are unavailable: arcade is disabled: %w", wdk.ErrNotFoundError)
+	}
+
+	err := s.arcade.StreamEvents(ctx, lastEventID, func(ev arcade.StatusEvent) error {
+		return onEvent(wdk.BroadcastStatusEvent{
+			EventID:      ev.EventID,
+			TxID:         ev.TxID,
+			Status:       string(ev.TxStatus),
+			BlockHash:    ev.BlockHash,
+			BlockHeight:  ev.BlockHeight,
+			MerklePath:   ev.MerklePath,
+			ExtraInfo:    ev.ExtraInfo,
+			CompetingTxs: ev.CompetingTxs,
+		})
+	})
+	if err != nil {
+		return fmt.Errorf("arcade broadcast status event stream terminated: %w", err)
+	}
+	return nil
 }
 
 // StartChaintracks begins background chaintracks event subscription.
@@ -588,6 +676,13 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
 		}
 
+		// Arcade-first routing with circuit-breaker failover.
+		if s.broadcastRouter != nil {
+			allResults = append(allResults, s.broadcastRouter.broadcast(ctx, efHex, rawTx, txID)...)
+			continue
+		}
+
+		// legacy path (Arcade disabled, e.g. testnet): broadcast via the parallel queues
 		efResults, efErr := s.postEFServices.All(ctx, efHex, txID)
 
 		txResults, txErr := s.postTXServices.All(ctx, rawTx)

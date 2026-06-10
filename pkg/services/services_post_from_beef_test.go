@@ -6,19 +6,46 @@ import (
 
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
-	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+const arcadeBroadcastURL = defs.ArcadeURL + "/tx"
+
+func givenArcadeBroadcastSucceeds(given testservices.ServicesFixture, txID string) {
+	given.Transport().RegisterResponder(http.MethodPost, arcadeBroadcastURL,
+		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
+			"txid":     txID,
+			"txStatus": "SEEN_ON_NETWORK",
+		}),
+	)
+}
+
+func givenArcadeRejectsTransaction(given testservices.ServicesFixture) {
+	given.Transport().RegisterResponder(http.MethodPost, arcadeBroadcastURL,
+		httpmock.NewJsonResponderOrPanic(http.StatusBadRequest, map[string]any{
+			"error": "mocked arcade rejection",
+		}),
+	)
+}
+
+func givenGorillaPoolARCIsFailing(given testservices.ServicesFixture) {
+	given.Transport().RegisterResponder(http.MethodPost, defs.GorillaPoolArcURL+"/v1/tx",
+		httpmock.NewJsonResponderOrPanic(http.StatusInternalServerError, map[string]any{
+			"error": "mocked gorillapool outage",
+		}),
+	)
+}
+
 func TestPostFromBEEF(t *testing.T) {
-	t.Run("successfully post from BEEF with single tx IDs", func(t *testing.T) {
+	t.Run("successfully post from BEEF with single tx ID broadcasts through Arcade only", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		given.ARC().IsUpAndRunning()
 
 		// and:
 		tx := txtestabilities.GivenTX().WithInput(100).WithP2PKHOutput(99).TX()
@@ -28,33 +55,25 @@ func TestPostFromBEEF(t *testing.T) {
 		txID := tx.TxID().String()
 		txids := []string{txID}
 
-		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(txID)
-		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
-		given.Bitails().WillReturnSuccessAndTxInfo(txID, "mocked-block-hash", 99999)
+		// and: Arcade accepts the broadcast; failover services are configured but must not be used
+		givenArcadeBroadcastSucceeds(given, txID)
+		given.ARC().IsUpAndRunning()
 
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
-		// then:
+		// then: exactly one result - Arcade is the sole default broadcast path
 		require.NoError(t, err)
-		assert.NotEmpty(t, response)
-
-		slices.ForEach(response, func(item *wdk.PostFromBEEFServiceResult) {
-			assert.NotEmpty(t, item.Name)
-			require.NoError(t, item.Error)
-			if assert.NotNil(t, item.PostedBEEFResult) {
-				result := item.PostedBEEFResult
-				assert.Lenf(t, result.TxIDResults, len(txids), "service %s returned unexpected number of results", item.Name)
-			}
-		})
+		require.Len(t, response, 1)
+		assert.Equal(t, defs.ArcadeServiceName, response[0].Name)
+		assertSingleResultHasSuccess(t, response[0])
 	})
 
 	t.Run("successfully post from BEEF with multiple tx IDs", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
-		given.ARC().IsUpAndRunning()
 
 		parentTx := txtestabilities.GivenTX().
 			WithSender(txtestabilities.Alice).WithRecipient(txtestabilities.Alice).
@@ -70,25 +89,22 @@ func TestPostFromBEEF(t *testing.T) {
 
 		txids := []string{parentTxID, childTxID}
 
-		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(parentTxID, childTxID)
-		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
-
-		given.Bitails().WillReturnSuccessAndTxInfo(parentTxID, "mocked-block-hash", 99999)
-		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
+		// and:
+		givenArcadeBroadcastSucceeds(given, childTxID)
 
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
-		// then:
+		// then: one Arcade result per txID
 		require.NoError(t, err)
-		assert.NotEmpty(t, response)
+		require.Len(t, response, len(txids))
 
-		// and then: grouped by service and verify each service handled both txIDs
 		resultsByService := groupResultsByService(response)
-		for serviceName, results := range resultsByService {
-			assert.Len(t, results, 2, "service %s should have 2 results (one per txID)", serviceName)
+		require.Len(t, resultsByService[defs.ArcadeServiceName], 2, "Arcade should have 2 results (one per txID)")
+		for _, res := range resultsByService[defs.ArcadeServiceName] {
+			assertSingleResultHasSuccess(t, res)
 		}
 	})
 }
@@ -111,97 +127,76 @@ func TestPostFromBEEF_BroadcastFailures(t *testing.T) {
 	// Only the child tx needs to be broadcast - parent is just a source tx (input)
 	txids := []string{childTxID}
 
-	t.Run("WoC returns error, rest return success", func(t *testing.T) {
-		// given:
+	t.Run("Arcade unreachable, fails over to ARC", func(t *testing.T) {
+		// given: no Arcade responder is registered - the broadcast fails on transport
 		given := testservices.GivenServices(t)
 		given.ARC().IsUpAndRunning()
 
-		given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
-		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
+		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
-		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
+		// when:
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
+
+		// then: the Arcade transport failure and the winning ARC result are both reported
+		require.NoError(t, err)
+		require.Len(t, response, 2)
+
+		assert.Equal(t, defs.ArcadeServiceName, response[0].Name)
+		require.Error(t, response[0].Error)
+		assert.Nil(t, response[0].PostedBEEFResult)
+
+		assert.Equal(t, defs.ArcServiceName, response[1].Name)
+		assertSingleResultHasSuccess(t, response[1])
+	})
+
+	t.Run("Arcade rejects the tx, no failover happens", func(t *testing.T) {
+		// given: a tx-level rejection from Arcade is a final verdict, not a service failure
+		given := testservices.GivenServices(t)
+		givenArcadeRejectsTransaction(given)
+		given.ARC().IsUpAndRunning()
 
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
-		// then:
+		// then: only the Arcade rejection is reported - failover services were not consulted
 		require.NoError(t, err)
-		require.NotEmpty(t, response)
-
-		resultsByService := groupResultsByService(response)
-
-		// and then: WoC should have errors
-		for _, res := range resultsByService["WhatsOnChain"] {
-			assertSingleResultHasError(t, res)
-		}
-
-		// and then: ARC and Bitails should succeed
-		for _, res := range resultsByService["ARC"] {
-			assertSingleResultHasSuccess(t, res)
-		}
-		for _, res := range resultsByService["Bitails"] {
-			assertSingleResultHasSuccess(t, res)
-		}
+		require.Len(t, response, 1)
+		assert.Equal(t, defs.ArcadeServiceName, response[0].Name)
+		assertSingleResultHasError(t, response[0])
 	})
 
-	t.Run("ARC returns error, rest return success", func(t *testing.T) {
-		// given:
+	t.Run("Arcade unreachable and ARC returns error", func(t *testing.T) {
+		// given: no Arcade responder (transport failure), TAAL ARC answers HTTP 500
+		// and GorillaPool ARC is down too - both fold the failure into the result
 		given := testservices.GivenServices(t)
+		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
+		givenGorillaPoolARCIsFailing(given)
 
+		// and: WhatsOnChain accepts the broadcast
 		given.WhatsOnChain().WillAlwaysReturnPostBEEFSuccess(childTxID)
-		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
-		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
-
-		given.Bitails().WillReturnSuccessAndTxInfo(childTxID, "mocked-block-hash", 99999)
 
 		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
 
 		// when:
 		response, err := services.PostFromBEEF(t.Context(), beef, txids)
 
-		// then:
+		// then: every failed service is reported as an error result in chain order,
+		// and the chain continues past the folded ARC errors until the first
+		// acceptance (WhatsOnChain) - Bitails is never consulted
 		require.NoError(t, err)
-		require.NotEmpty(t, response)
+		require.Len(t, response, 4)
 
-		resultsByService := groupResultsByService(response)
-
-		// and then: ARC should have errors
-		for _, res := range resultsByService["ARC"] {
-			assertSingleResultHasError(t, res)
+		failedServices := []string{defs.ArcadeServiceName, defs.ArcServiceName, defs.ArcGorillaPoolServiceName}
+		for i, name := range failedServices {
+			assert.Equal(t, name, response[i].Name)
+			require.Error(t, response[i].Error, "expected transport-level error for %s", name)
+			assert.Nil(t, response[i].PostedBEEFResult, "no posted result expected for failed service %s", name)
 		}
 
-		// and then: WoC and Bitails should succeed
-		for _, res := range resultsByService["WhatsOnChain"] {
-			assertSingleResultHasSuccess(t, res)
-		}
-		for _, res := range resultsByService["Bitails"] {
-			assertSingleResultHasSuccess(t, res)
-		}
-	})
-
-	t.Run("All services return errors", func(t *testing.T) {
-		// given:
-		given := testservices.GivenServices(t)
-
-		given.WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "WoC internal error")
-		given.WhatsOnChain().WillRespondOnTxStatus(http.StatusOK, testservices.TxStatusExpectation{})
-		given.ARC().WillAlwaysReturnStatus(http.StatusInternalServerError)
-		given.Bitails().OnBroadcast().WillReturnHttpError(http.StatusInternalServerError)
-
-		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
-
-		// when:
-		response, err := services.PostFromBEEF(t.Context(), beef, txids)
-
-		// then:
-		require.NoError(t, err)
-		require.NotEmpty(t, response)
-
-		for _, res := range response {
-			assertSingleResultHasError(t, res)
-		}
+		assert.Equal(t, defs.WhatsOnChainServiceName, response[3].Name)
+		assertSingleResultHasSuccess(t, response[3])
 	})
 }
 
