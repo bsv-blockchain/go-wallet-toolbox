@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"runtime"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,12 +19,40 @@ import (
 
 // fakeStreamer emits a scripted list of events then blocks until ctx is done.
 type fakeStreamer struct {
-	events      []wdk.BroadcastStatusEvent
-	lastEventID string // captured on first call
+	events []wdk.BroadcastStatusEvent
+
+	mu          sync.Mutex
+	lastEventID string // captured on first call; protected by mu
+
+	// started is closed once BroadcastStatusEvents has been entered and
+	// lastEventID has been captured.  Tests can wait on this channel to ensure
+	// the goroutine has progressed past the cursor read before asserting.
+	started chan struct{}
+}
+
+func newFakeStreamer(events []wdk.BroadcastStatusEvent) *fakeStreamer {
+	return &fakeStreamer{events: events, started: make(chan struct{})}
+}
+
+func (f *fakeStreamer) LastEventID() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastEventID
 }
 
 func (f *fakeStreamer) BroadcastStatusEvents(ctx context.Context, lastEventID string, onEvent func(wdk.BroadcastStatusEvent) error) error {
+	f.mu.Lock()
 	f.lastEventID = lastEventID
+	f.mu.Unlock()
+
+	// Signal once that BroadcastStatusEvents has been entered and lastEventID set.
+	select {
+	case <-f.started:
+		// already closed (reconnect attempt) — do nothing
+	default:
+		close(f.started)
+	}
+
 	for _, ev := range f.events {
 		if err := onEvent(ev); err != nil {
 			return err
@@ -71,18 +100,24 @@ func TestBroadcastEvents_LastEventIDPassedToStreamer(t *testing.T) {
 	// Pre-seed a last-event-id in storage.
 	require.NoError(t, storage.SetKeyValue(t.Context(), monitor.LastEventIDKey, []byte("cursor-42")))
 
-	streamer := &fakeStreamer{}
+	streamer := newFakeStreamer(nil)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	daemon := newTestDaemon(t, logger, storage, streamer)
 	require.NoError(t, daemon.Start(ctx, nil))
 
-	// Give the goroutine a moment to call BroadcastStatusEvents (GetKeyValue is called first).
-	waitForCondition(t, func() bool { return storage.GetKeyValueCalled.Load() >= 1 })
+	// Wait until BroadcastStatusEvents has been entered and lastEventID captured
+	// before asserting — this prevents a data race between the goroutine write
+	// and the test read.
+	select {
+	case <-streamer.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for BroadcastStatusEvents to be entered")
+	}
 
 	cancel() // let the goroutine exit cleanly
 
-	assert.Equal(t, "cursor-42", streamer.lastEventID)
+	assert.Equal(t, "cursor-42", streamer.LastEventID())
 }
 
 func TestBroadcastEvents_EventsForwardedToStorage(t *testing.T) {
@@ -90,13 +125,11 @@ func TestBroadcastEvents_EventsForwardedToStorage(t *testing.T) {
 
 	logger := logging.NewTestLogger(t)
 	storage := &testabilities.MockStorage{}
-	streamer := &fakeStreamer{
-		events: []wdk.BroadcastStatusEvent{
-			{EventID: "1", TxID: "aa"},
-			{EventID: "2", TxID: "bb"},
-			{EventID: "3", TxID: "cc"},
-		},
-	}
+	streamer := newFakeStreamer([]wdk.BroadcastStatusEvent{
+		{EventID: "1", TxID: "aa"},
+		{EventID: "2", TxID: "bb"},
+		{EventID: "3", TxID: "cc"},
+	})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -105,7 +138,7 @@ func TestBroadcastEvents_EventsForwardedToStorage(t *testing.T) {
 	require.NoError(t, daemon.Start(ctx, nil))
 
 	// Wait until all three events have been processed.
-	waitForCondition(t, func() bool { return storage.ProcessExternalTxStatusUpdateCalled.Load() >= 3 })
+	require.Eventually(t, func() bool { return storage.ProcessExternalTxStatusUpdateCalled.Load() >= 3 }, 5*time.Second, time.Millisecond)
 
 	events := storage.ExternalEvents()
 	require.Len(t, events, 3)
@@ -119,12 +152,10 @@ func TestBroadcastEvents_EventIDPersistedAfterEachEvent(t *testing.T) {
 
 	logger := logging.NewTestLogger(t)
 	storage := &testabilities.MockStorage{}
-	streamer := &fakeStreamer{
-		events: []wdk.BroadcastStatusEvent{
-			{EventID: "evt-1", TxID: "aa"},
-			{EventID: "evt-2", TxID: "bb"},
-		},
-	}
+	streamer := newFakeStreamer([]wdk.BroadcastStatusEvent{
+		{EventID: "evt-1", TxID: "aa"},
+		{EventID: "evt-2", TxID: "bb"},
+	})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -132,8 +163,10 @@ func TestBroadcastEvents_EventIDPersistedAfterEachEvent(t *testing.T) {
 	daemon := newTestDaemon(t, logger, storage, streamer)
 	require.NoError(t, daemon.Start(ctx, nil))
 
-	// Wait until both events have been processed.
-	waitForCondition(t, func() bool { return storage.ProcessExternalTxStatusUpdateCalled.Load() >= 2 })
+	// Wait until both SetKeyValue calls have completed — SetKeyValue is called
+	// *after* ProcessExternalTxStatusUpdate, so waiting on ProcessExternalTxStatusUpdateCalled
+	// would leave the second SetKeyValue still in-flight (TOCTOU race).
+	require.Eventually(t, func() bool { return storage.SetKeyValueCalled.Load() >= 2 }, 5*time.Second, time.Millisecond)
 
 	val, found, err := storage.GetKeyValue(t.Context(), monitor.LastEventIDKey)
 	require.NoError(t, err)
@@ -155,11 +188,9 @@ func TestBroadcastEvents_ProvenEventsForwarded(t *testing.T) {
 		provenResult: wdk.TxSynchronizedStatus{TxID: "proven-tx", Status: wdk.ProvenTxStatusCompleted},
 	}
 
-	streamer := &fakeStreamer{
-		events: []wdk.BroadcastStatusEvent{
-			{EventID: "e1", TxID: "proven-tx"},
-		},
-	}
+	streamer := newFakeStreamer([]wdk.BroadcastStatusEvent{
+		{EventID: "e1", TxID: "proven-tx"},
+	})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -175,14 +206,14 @@ func TestBroadcastEvents_ProvenEventsForwarded(t *testing.T) {
 
 	// Wait until the proven event lands on the channel.
 	var msg wdk.CurrentTxStatus
-	waitForCondition(t, func() bool {
+	require.Eventually(t, func() bool {
 		select {
 		case msg = <-provenCh:
 			return true
 		default:
 			return false
 		}
-	})
+	}, 5*time.Second, time.Millisecond)
 
 	assert.Equal(t, "proven-tx", msg.TxID)
 }
@@ -197,12 +228,10 @@ func TestBroadcastEvents_StorageErrorDoesNotStopStream(t *testing.T) {
 		errOnTxID:   "bad-tx", // storage.ProcessExternalTxStatusUpdate will fail for this tx
 	}
 
-	streamer := &fakeStreamer{
-		events: []wdk.BroadcastStatusEvent{
-			{EventID: "e1", TxID: "bad-tx"},  // will error
-			{EventID: "e2", TxID: "good-tx"}, // must still be processed
-		},
-	}
+	streamer := newFakeStreamer([]wdk.BroadcastStatusEvent{
+		{EventID: "e1", TxID: "bad-tx"},  // will error
+		{EventID: "e2", TxID: "good-tx"}, // must still be processed
+	})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -211,7 +240,7 @@ func TestBroadcastEvents_StorageErrorDoesNotStopStream(t *testing.T) {
 	require.NoError(t, daemon.Start(ctx, nil))
 
 	// Wait until the good-tx is processed by the inner mock.
-	waitForCondition(t, func() bool {
+	require.Eventually(t, func() bool {
 		events := inner.ExternalEvents()
 		for _, e := range events {
 			if e.TxID == "good-tx" {
@@ -219,7 +248,7 @@ func TestBroadcastEvents_StorageErrorDoesNotStopStream(t *testing.T) {
 			}
 		}
 		return false
-	})
+	}, 5*time.Second, time.Millisecond)
 }
 
 func TestBroadcastEvents_EventIDPersistedOnStorageError(t *testing.T) {
@@ -232,11 +261,9 @@ func TestBroadcastEvents_EventIDPersistedOnStorageError(t *testing.T) {
 		errOnTxID:   "bad-tx",
 	}
 
-	streamer := &fakeStreamer{
-		events: []wdk.BroadcastStatusEvent{
-			{EventID: "cursor-bad", TxID: "bad-tx"},
-		},
-	}
+	streamer := newFakeStreamer([]wdk.BroadcastStatusEvent{
+		{EventID: "cursor-bad", TxID: "bad-tx"},
+	})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -245,7 +272,7 @@ func TestBroadcastEvents_EventIDPersistedOnStorageError(t *testing.T) {
 	require.NoError(t, daemon.Start(ctx, nil))
 
 	// Wait until the key-value is persisted (SetKeyValue is on the inner mock).
-	waitForCondition(t, func() bool { return inner.SetKeyValueCalled.Load() >= 1 })
+	require.Eventually(t, func() bool { return inner.SetKeyValueCalled.Load() >= 1 }, 5*time.Second, time.Millisecond)
 
 	val, found, err := inner.GetKeyValue(t.Context(), monitor.LastEventIDKey)
 	require.NoError(t, err)
@@ -268,21 +295,3 @@ func (p *provenMockStorage) ProcessExternalTxStatusUpdate(ctx context.Context, e
 	return nil, nil
 }
 
-// waitForCondition polls cond in a tight loop until it returns true or the test
-// context deadline is reached.
-func waitForCondition(t *testing.T, cond func() bool) {
-	t.Helper()
-	ctx := t.Context()
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for condition")
-		default:
-			if cond() {
-				return
-			}
-			// yield to the scheduler
-			runtime.Gosched()
-		}
-	}
-}

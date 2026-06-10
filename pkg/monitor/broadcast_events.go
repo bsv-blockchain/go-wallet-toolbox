@@ -23,7 +23,12 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 
 	// Load the last persisted cursor so we can resume the stream from where we
 	// left off.
-	id, _, _ := d.storage.GetKeyValue(ctx, LastEventIDKey)
+	id, _, err := d.storage.GetKeyValue(ctx, LastEventIDKey)
+	if err != nil {
+		d.logger.WarnContext(ctx, "Failed to load SSE replay cursor, starting from beginning", slog.Any("error", err))
+	}
+	// lastEventID is declared as a variable (not captured by pointer in the
+	// closure below) so that reconnect attempts always use the most-recent cursor.
 	lastEventID := string(id)
 
 	onEvent := func(ev wdk.BroadcastStatusEvent) error {
@@ -46,6 +51,10 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 			)
 		}
 
+		// Keep lastEventID up-to-date so reconnect attempts resume from the
+		// correct position.
+		lastEventID = ev.EventID
+
 		if storageErr == nil {
 			d.sendProvenEvents(results)
 		}
@@ -54,11 +63,12 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 		return nil
 	}
 
-	if err := streamer.BroadcastStatusEvents(ctx, lastEventID, onEvent); err != nil {
-		if ctx.Err() != nil {
-			d.logger.InfoContext(ctx, "Broadcast event handler stopped (context cancelled)")
-		} else {
-			d.logger.ErrorContext(ctx, "Broadcast event stream terminated unexpectedly", slog.Any("error", err))
+	// Reconnect loop: if the stream terminates unexpectedly (non-context error)
+	// we restart it from the most-recently persisted cursor so no events are
+	// missed.
+	for ctx.Err() == nil {
+		if streamErr := streamer.BroadcastStatusEvents(ctx, lastEventID, onEvent); streamErr != nil && ctx.Err() == nil {
+			d.logger.ErrorContext(ctx, "Broadcast event stream terminated unexpectedly, will retry", slog.Any("error", streamErr))
 		}
 	}
 
