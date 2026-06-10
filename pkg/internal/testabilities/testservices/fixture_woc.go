@@ -414,11 +414,15 @@ func (f *wocFixture) WillRespondOnTxStatusNotFound() {
 				return httpmock.NewStringResponse(http.StatusBadRequest, "bad request"), nil
 			}
 
+			const (
+				txidField  = "txid"
+				errorField = "error"
+			)
 			respItems := []map[string]interface{}{}
 			for _, txid := range body.Txids {
 				respItems = append(respItems, map[string]interface{}{
-					"txid":  txid,
-					"error": "unknown",
+					txidField:  txid,
+					errorField: "unknown",
 				})
 			}
 

@@ -35,7 +35,7 @@ func TestNewRequestLimiter(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			limiter := newRequestLimiter(test.requestsPerSecond)
 
-			assert.Equal(t, test.expectedLimit, limiter.Limit())
+			assert.InDelta(t, float64(test.expectedLimit), float64(limiter.Limit()), 0)
 			assert.Equal(t, test.expectedBurst, limiter.Burst())
 		})
 	}
