@@ -26,4 +26,9 @@ func TestDeriveArcadeCallbackToken(t *testing.T) {
 		token2 := wdk.DeriveArcadeCallbackToken("02bbbb")
 		require.NotEqual(t, token1, token2)
 	})
+
+	t.Run("known value", func(t *testing.T) {
+		// Pins the HMAC key/message orientation and domain string — change here = breaking change.
+		require.Equal(t, "4dfb4c073ef83056a7301f09f42b86ceb39074b0011cff5ba11670d5888836db", wdk.DeriveArcadeCallbackToken("02abc123"))
+	})
 }
