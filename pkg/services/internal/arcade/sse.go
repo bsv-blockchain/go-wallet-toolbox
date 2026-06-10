@@ -29,10 +29,11 @@ const (
 
 // StatusEvent is one SSE status frame from GET /events.
 type StatusEvent struct {
-	// EventID is the SSE "id:" field - a nanosecond timestamp, used as Last-Event-ID on reconnect.
-	EventID string
 	// TXInfo is parsed from the "data:" JSON payload of the frame.
 	TXInfo
+
+	// EventID is the SSE "id:" field - a nanosecond timestamp, used as Last-Event-ID on reconnect.
+	EventID string
 }
 
 // StreamEvents connects to {EventsURL}/events?callbackToken=... and invokes onEvent
@@ -59,13 +60,15 @@ func (s *Service) StreamEvents(ctx context.Context, lastEventID string, onEvent 
 			return ctxErr
 		}
 		if err != nil {
-			s.logger.WarnContext(ctx, "arcade events stream interrupted, reconnecting",
+			s.logger.WarnContext(
+				ctx, "arcade events stream interrupted, reconnecting",
 				slog.String("error", err.Error()),
 				slog.Int("deliveredEvents", delivered),
 				slog.Duration("backoff", backoff),
 			)
 		} else {
-			s.logger.DebugContext(ctx, "arcade events stream closed by server, reconnecting",
+			s.logger.DebugContext(
+				ctx, "arcade events stream closed by server, reconnecting",
 				slog.Int("deliveredEvents", delivered),
 				slog.Duration("backoff", backoff),
 			)
@@ -182,7 +185,8 @@ func (s *Service) dispatchFrame(ctx context.Context, frame sseFrame, lastEventID
 
 	var info TXInfo
 	if err := json.Unmarshal([]byte(frame.data), &info); err != nil {
-		s.logger.WarnContext(ctx, "skipping malformed arcade status event",
+		s.logger.WarnContext(
+			ctx, "skipping malformed arcade status event",
 			slog.String("eventID", frame.id),
 			slog.String("error", err.Error()),
 		)
@@ -194,7 +198,8 @@ func (s *Service) dispatchFrame(ctx context.Context, frame sseFrame, lastEventID
 	}
 
 	if err := onEvent(StatusEvent{EventID: frame.id, TXInfo: info}); err != nil {
-		s.logger.ErrorContext(ctx, "arcade status event handler failed",
+		s.logger.ErrorContext(
+			ctx, "arcade status event handler failed",
 			slog.String("eventID", frame.id),
 			slog.String("txID", info.TxID),
 			slog.String("error", err.Error()),

@@ -66,6 +66,7 @@ func (f *fakeStreamer) BroadcastStatusEvents(ctx context.Context, lastEventID st
 // fakeErrorStorage wraps MockStorage and injects errors for specific events.
 type fakeErrorStorage struct {
 	*testabilities.MockStorage
+
 	errOnTxID string
 }
 
@@ -283,6 +284,7 @@ func TestBroadcastEvents_EventIDPersistedOnStorageError(t *testing.T) {
 // provenMockStorage wraps MockStorage and returns a proven result for a specific tx.
 type provenMockStorage struct {
 	*testabilities.MockStorage
+
 	provenTxID   string
 	provenResult wdk.TxSynchronizedStatus
 }
@@ -294,4 +296,3 @@ func (p *provenMockStorage) ProcessExternalTxStatusUpdate(ctx context.Context, e
 	}
 	return nil, nil
 }
-

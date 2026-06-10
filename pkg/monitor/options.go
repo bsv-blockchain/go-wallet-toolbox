@@ -22,10 +22,10 @@ type DaemonEventOption func(*DaemonEventOptions)
 
 func defaultDaemonEventOptions() *DaemonEventOptions {
 	return &DaemonEventOptions{
-		onTxBroadcasted:       nil,
-		onTxProven:            nil,
-		onReorg:               nil,
-		onTip:                 nil,
+		onTxBroadcasted:        nil,
+		onTxProven:             nil,
+		onReorg:                nil,
+		onTip:                  nil,
 		broadcastEventStreamer: nil,
 	}
 }

@@ -16,7 +16,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-const testBroadcastTxID = "test-tx-id"
+const (
+	testBroadcastTxID = "test-tx-id"
+	testFailoverName  = "ARC"
+)
 
 // fakeTarget is a scripted broadcastTarget that records every call.
 type fakeTarget struct {
@@ -51,9 +54,9 @@ func (f *fakeTarget) foldedTarget() broadcastTarget {
 	}
 }
 
-func successResponse(txID string) func() (*wdk.PostedTxID, error) {
+func successResponse() func() (*wdk.PostedTxID, error) {
 	return func() (*wdk.PostedTxID, error) {
-		return &wdk.PostedTxID{TxID: txID, Result: wdk.PostedTxIDResultSuccess}, nil
+		return &wdk.PostedTxID{TxID: testBroadcastTxID, Result: wdk.PostedTxIDResultSuccess}, nil
 	}
 }
 
@@ -102,7 +105,7 @@ type routerFixture struct {
 	sleeps    []time.Duration
 }
 
-func newRouterFixture(t *testing.T, failureThreshold uint, probeInterval time.Duration) *routerFixture {
+func newRouterFixture(t *testing.T, failureThreshold uint) *routerFixture {
 	t.Helper()
 
 	now := time.Now()
@@ -113,7 +116,7 @@ func newRouterFixture(t *testing.T, failureThreshold uint, probeInterval time.Du
 	}
 	f.breaker = circuitbreaker.New(logging.NewTestLogger(t), circuitbreaker.Config{
 		FailureThreshold: failureThreshold,
-		ProbeInterval:    probeInterval,
+		ProbeInterval:    time.Minute,
 		Clock:            func() time.Time { return *f.clock },
 	})
 	f.router = &broadcastRouter{
@@ -128,12 +131,11 @@ func newRouterFixture(t *testing.T, failureThreshold uint, probeInterval time.Du
 	return f
 }
 
-func (f *routerFixture) withFailovers(targets ...*fakeTarget) *routerFixture {
+func (f *routerFixture) withFailovers(targets ...*fakeTarget) {
 	f.failovers = targets
 	for _, target := range targets {
 		f.router.failovers = append(f.router.failovers, target.target())
 	}
-	return f
 }
 
 func (f *routerFixture) withFoldedFailovers(targets ...*fakeTarget) *routerFixture {
@@ -155,9 +157,9 @@ func (f *routerFixture) advanceClock(d time.Duration) {
 
 func TestBroadcastRouterHappyPath(t *testing.T) {
 	// given:
-	given := newRouterFixture(t, 3, time.Minute)
-	given.primary.responses = []func() (*wdk.PostedTxID, error){successResponse(testBroadcastTxID)}
-	failover := &fakeTarget{name: "ARC"}
+	given := newRouterFixture(t, 3)
+	given.primary.responses = []func() (*wdk.PostedTxID, error){successResponse()}
+	failover := &fakeTarget{name: testFailoverName}
 	given.withFailovers(failover)
 
 	// when:
@@ -178,9 +180,9 @@ func TestBroadcastRouterHappyPath(t *testing.T) {
 
 func TestBroadcastRouterValidationErrorDoesNotFailOver(t *testing.T) {
 	// given: the primary answers with a tx-level rejection (err == nil)
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){validationErrorResponse(testBroadcastTxID)}
-	failover := &fakeTarget{name: "ARC"}
+	failover := &fakeTarget{name: testFailoverName}
 	given.withFailovers(failover)
 
 	// when:
@@ -199,10 +201,10 @@ func TestBroadcastRouterValidationErrorDoesNotFailOver(t *testing.T) {
 
 func TestBroadcastRouterTransportErrorFailsOverInOrder(t *testing.T) {
 	// given: primary fails on transport, first failover fails, second succeeds
-	given := newRouterFixture(t, 3, time.Minute)
+	given := newRouterFixture(t, 3)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){transportErrorResponse()}
-	first := &fakeTarget{name: "ARC", responses: []func() (*wdk.PostedTxID, error){transportErrorResponse()}}
-	second := &fakeTarget{name: "ARC-GorillaPool", responses: []func() (*wdk.PostedTxID, error){successResponse(testBroadcastTxID)}}
+	first := &fakeTarget{name: testFailoverName, responses: []func() (*wdk.PostedTxID, error){transportErrorResponse()}}
+	second := &fakeTarget{name: "ARC-GorillaPool", responses: []func() (*wdk.PostedTxID, error){successResponse()}}
 	third := &fakeTarget{name: "WhatsOnChain"}
 	given.withFailovers(first, second, third)
 
@@ -213,7 +215,7 @@ func TestBroadcastRouterTransportErrorFailsOverInOrder(t *testing.T) {
 	require.Len(t, results, 3)
 	assert.Equal(t, "Arcade", results[0].Name)
 	require.Error(t, results[0].Error)
-	assert.Equal(t, "ARC", results[1].Name)
+	assert.Equal(t, testFailoverName, results[1].Name)
 	require.Error(t, results[1].Error)
 	assert.Equal(t, "ARC-GorillaPool", results[2].Name)
 	require.NoError(t, results[2].Error)
@@ -227,9 +229,9 @@ func TestBroadcastRouterTransportErrorFailsOverInOrder(t *testing.T) {
 
 func TestBroadcastRouterAllTargetsFail(t *testing.T) {
 	// given:
-	given := newRouterFixture(t, 3, time.Minute)
+	given := newRouterFixture(t, 3)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){transportErrorResponse()}
-	first := &fakeTarget{name: "ARC", responses: []func() (*wdk.PostedTxID, error){transportErrorResponse()}}
+	first := &fakeTarget{name: testFailoverName, responses: []func() (*wdk.PostedTxID, error){transportErrorResponse()}}
 	second := &fakeTarget{name: "WhatsOnChain", responses: []func() (*wdk.PostedTxID, error){transportErrorResponse()}}
 	given.withFailovers(first, second)
 
@@ -242,17 +244,17 @@ func TestBroadcastRouterAllTargetsFail(t *testing.T) {
 		require.Error(t, result.Error, "expected error result for %s", result.Name)
 		assert.Nil(t, result.PostedBEEFResult)
 	}
-	assert.Equal(t, []string{"Arcade", "ARC", "WhatsOnChain"}, []string{results[0].Name, results[1].Name, results[2].Name})
+	assert.Equal(t, []string{"Arcade", testFailoverName, "WhatsOnChain"}, []string{results[0].Name, results[1].Name, results[2].Name})
 }
 
 func TestBroadcastRouterBackpressureRetriesPrimary(t *testing.T) {
 	// given: primary asks for backpressure once, then succeeds
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){
 		backpressureResponse(7 * time.Second),
-		successResponse(testBroadcastTxID),
+		successResponse(),
 	}
-	failover := &fakeTarget{name: "ARC"}
+	failover := &fakeTarget{name: testFailoverName}
 	given.withFailovers(failover)
 
 	// when:
@@ -272,10 +274,10 @@ func TestBroadcastRouterBackpressureRetriesPrimary(t *testing.T) {
 
 func TestBroadcastRouterBackpressureWaitIsBounded(t *testing.T) {
 	// given: the server hints a Retry-After far above the configured maximum
-	given := newRouterFixture(t, 3, time.Minute)
+	given := newRouterFixture(t, 3)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){
 		backpressureResponse(10 * time.Minute),
-		successResponse(testBroadcastTxID),
+		successResponse(),
 	}
 
 	// when:
@@ -289,12 +291,12 @@ func TestBroadcastRouterBackpressureWaitIsBounded(t *testing.T) {
 
 func TestBroadcastRouterSecondBackpressureFailsOver(t *testing.T) {
 	// given: primary applies backpressure twice in a row
-	given := newRouterFixture(t, 3, time.Minute)
+	given := newRouterFixture(t, 3)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){
 		backpressureResponse(2 * time.Second),
 		backpressureResponse(2 * time.Second),
 	}
-	failover := &fakeTarget{name: "ARC", responses: []func() (*wdk.PostedTxID, error){successResponse(testBroadcastTxID)}}
+	failover := &fakeTarget{name: testFailoverName, responses: []func() (*wdk.PostedTxID, error){successResponse()}}
 	given.withFailovers(failover)
 
 	// when:
@@ -305,7 +307,7 @@ func TestBroadcastRouterSecondBackpressureFailsOver(t *testing.T) {
 	require.Len(t, results, 2)
 	assert.Equal(t, "Arcade", results[0].Name)
 	require.Error(t, results[0].Error)
-	assert.Equal(t, "ARC", results[1].Name)
+	assert.Equal(t, testFailoverName, results[1].Name)
 	require.NoError(t, results[1].Error)
 
 	// and: the fall-through counted as a single breaker failure (threshold 3 - still closed)
@@ -314,7 +316,7 @@ func TestBroadcastRouterSecondBackpressureFailsOver(t *testing.T) {
 
 func TestBroadcastRouterCancelledDuringBackpressureDoesNotRetryOrTripBreaker(t *testing.T) {
 	// given: failure threshold 1 - a single recorded failure would open the circuit
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	given.primary.responses = []func() (*wdk.PostedTxID, error){backpressureResponse(5 * time.Second)}
@@ -324,7 +326,7 @@ func TestBroadcastRouterCancelledDuringBackpressureDoesNotRetryOrTripBreaker(t *
 		given.sleeps = append(given.sleeps, d)
 		cancel()
 	}
-	failover := &fakeTarget{name: "ARC"}
+	failover := &fakeTarget{name: testFailoverName}
 	given.withFailovers(failover)
 
 	// when:
@@ -357,7 +359,7 @@ func TestBroadcastRouterPrimaryContextErrorDoesNotTripBreaker(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given: failure threshold 1 - a single recorded failure would open the circuit
-			given := newRouterFixture(t, 1, time.Minute)
+			given := newRouterFixture(t, 1)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
@@ -368,7 +370,7 @@ func TestBroadcastRouterPrimaryContextErrorDoesNotTripBreaker(t *testing.T) {
 					return nil, test.primaryErr
 				},
 			}
-			failover := &fakeTarget{name: "ARC"}
+			failover := &fakeTarget{name: testFailoverName}
 			given.withFailovers(failover)
 
 			// when:
@@ -390,13 +392,13 @@ func TestBroadcastRouterPrimaryContextErrorDoesNotTripBreaker(t *testing.T) {
 func TestBroadcastRouterPerCallDeadlineWithLiveContextFailsOverWithoutTrippingBreaker(t *testing.T) {
 	// given: failure threshold 1 and a primary whose own (per-call) deadline expired
 	// while the caller's context is still alive
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){
 		func() (*wdk.PostedTxID, error) {
 			return nil, fmt.Errorf("post: %w", context.DeadlineExceeded)
 		},
 	}
-	failover := &fakeTarget{name: "ARC", responses: []func() (*wdk.PostedTxID, error){successResponse(testBroadcastTxID)}}
+	failover := &fakeTarget{name: testFailoverName, responses: []func() (*wdk.PostedTxID, error){successResponse()}}
 	given.withFailovers(failover)
 
 	// when:
@@ -406,7 +408,7 @@ func TestBroadcastRouterPerCallDeadlineWithLiveContextFailsOverWithoutTrippingBr
 	require.Len(t, results, 2)
 	assert.Equal(t, "Arcade", results[0].Name)
 	require.ErrorIs(t, results[0].Error, context.DeadlineExceeded)
-	assert.Equal(t, "ARC", results[1].Name)
+	assert.Equal(t, testFailoverName, results[1].Name)
 	require.NoError(t, results[1].Error)
 
 	// and: the deadline error did not count against the breaker (threshold 1 - still closed)
@@ -415,7 +417,7 @@ func TestBroadcastRouterPerCallDeadlineWithLiveContextFailsOverWithoutTrippingBr
 
 func TestBroadcastRouterNilResultWithoutErrorIsReportedNotPanicking(t *testing.T) {
 	// given: a primary that breaks the broadcastTarget contract (nil result, nil error)
-	given := newRouterFixture(t, 3, time.Minute)
+	given := newRouterFixture(t, 3)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){
 		func() (*wdk.PostedTxID, error) { return nil, nil },
 	}
@@ -432,7 +434,7 @@ func TestBroadcastRouterNilResultWithoutErrorIsReportedNotPanicking(t *testing.T
 
 func TestBroadcastRouterOpenCircuitWithoutFailoversReturnsErrorResult(t *testing.T) {
 	// given: a breaker tripped by a previous transport failure (threshold 1) and no failovers
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){transportErrorResponse()}
 
 	// and: the first broadcast trips the circuit
@@ -452,11 +454,11 @@ func TestBroadcastRouterOpenCircuitWithoutFailoversReturnsErrorResult(t *testing
 
 func TestBroadcastRouterOpenCircuitSkipsPrimary(t *testing.T) {
 	// given: a breaker tripped by a previous transport failure (threshold 1)
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){transportErrorResponse()}
-	failover := &fakeTarget{name: "ARC", responses: []func() (*wdk.PostedTxID, error){
-		successResponse(testBroadcastTxID),
-		successResponse(testBroadcastTxID),
+	failover := &fakeTarget{name: testFailoverName, responses: []func() (*wdk.PostedTxID, error){
+		successResponse(),
+		successResponse(),
 	}}
 	given.withFailovers(failover)
 
@@ -469,20 +471,20 @@ func TestBroadcastRouterOpenCircuitSkipsPrimary(t *testing.T) {
 
 	// then: the primary is skipped entirely - only the failover responds
 	require.Len(t, results, 1)
-	assert.Equal(t, "ARC", results[0].Name)
+	assert.Equal(t, testFailoverName, results[0].Name)
 	require.NoError(t, results[0].Error)
 	assert.Equal(t, 1, given.primary.calls)
 }
 
 func TestBroadcastRouterRecoversAfterTrialSuccess(t *testing.T) {
 	// given: a tripped breaker and a primary that has recovered
-	given := newRouterFixture(t, 1, time.Minute)
+	given := newRouterFixture(t, 1)
 	given.primary.responses = []func() (*wdk.PostedTxID, error){
 		transportErrorResponse(),
-		successResponse(testBroadcastTxID),
-		successResponse(testBroadcastTxID),
+		successResponse(),
+		successResponse(),
 	}
-	failover := &fakeTarget{name: "ARC", responses: []func() (*wdk.PostedTxID, error){successResponse(testBroadcastTxID)}}
+	failover := &fakeTarget{name: testFailoverName, responses: []func() (*wdk.PostedTxID, error){successResponse()}}
 	given.withFailovers(failover)
 
 	// and: trip the circuit
@@ -559,10 +561,10 @@ func TestBroadcastRouterFoldedFailoverResults(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// given: the primary fails on transport and the failovers fold their
 			// answers into the result like the real clients do
-			given := newRouterFixture(t, 3, time.Minute)
+			given := newRouterFixture(t, 3)
 			given.primary.responses = []func() (*wdk.PostedTxID, error){transportErrorResponse()}
 			woc := &fakeTarget{name: "WhatsOnChain", responses: []func() (*wdk.PostedTxID, error){test.wocResponse}}
-			last := &fakeTarget{name: "Bitails", responses: []func() (*wdk.PostedTxID, error){successResponse(testBroadcastTxID)}}
+			last := &fakeTarget{name: "Bitails", responses: []func() (*wdk.PostedTxID, error){successResponse()}}
 			given.withFoldedFailovers(woc, last)
 
 			// when:

@@ -162,7 +162,7 @@ func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []
 }
 
 // retryAfterBackpressure waits the Retry-After hint and re-attempts the primary broadcast.
-// It returns a context-wrapped error when the caller is cancelled during the wait.
+// It returns a context-wrapped error when the caller is canceled during the wait.
 func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex string, rawTx []byte, txID string, bp *arcade.BackpressureError) (*wdk.PostedTxID, error) {
 	wait := min(bp.RetryAfter, r.maxBackpressureWait)
 	r.logger.InfoContext(ctx, "primary broadcaster applied backpressure, retrying once",

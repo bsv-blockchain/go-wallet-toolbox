@@ -3,7 +3,6 @@ package arcade_test
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -92,7 +91,7 @@ func TestPostEF(t *testing.T) {
 		assert.Equal(t, wdk.PostedTxIDResultSuccess, res.Result)
 		assert.Equal(t, testTxID, res.TxID)
 		assert.False(t, res.DoubleSpend)
-		assert.NoError(t, res.Error)
+		require.NoError(t, res.Error)
 		assert.Len(t, res.Notes, 1)
 
 		var data arcade.TXInfo
@@ -126,7 +125,7 @@ func TestPostEF(t *testing.T) {
 		assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
 		assert.True(t, res.DoubleSpend)
 		assert.Equal(t, []string{competingTxID}, res.CompetingTxs)
-		assert.Error(t, res.Error)
+		require.Error(t, res.Error)
 		assert.Len(t, res.Notes, 1)
 	})
 
@@ -292,7 +291,7 @@ func TestPostEF(t *testing.T) {
 			require.NotNil(t, res)
 
 			assert.Equal(t, wdk.PostedTxIDResultError, res.Result)
-			assert.Error(t, res.Error)
+			require.Error(t, res.Error)
 			assert.Len(t, res.Notes, 1)
 		})
 	}
@@ -346,7 +345,7 @@ func TestQueryTx(t *testing.T) {
 		// then:
 		require.Error(t, err)
 		assert.Nil(t, res)
-		assert.True(t, errors.Is(err, wdk.ErrNotFoundError))
+		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
 	})
 }
 

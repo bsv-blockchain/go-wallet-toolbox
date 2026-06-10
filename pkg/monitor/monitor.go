@@ -34,7 +34,7 @@ type Daemon struct {
 	started   bool
 	startLock sync.Mutex
 
-	eventChannels         EventChannels
+	eventChannels          EventChannels
 	broadcastEventStreamer BroadcastEventStreamer
 }
 

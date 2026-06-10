@@ -1203,7 +1203,7 @@ func (p *Provider) ProcessExternalTxStatusUpdate(ctx context.Context, ev wdk.Bro
 // GetKeyValue reads a value from the key_value table for small instance state
 // (e.g. the SSE replay cursor). Returns found=false when the key does not exist.
 func (p *Provider) GetKeyValue(ctx context.Context, key string) ([]byte, bool, error) {
-	value, found, err := p.repo.KeyValue.Get(ctx, key)
+	value, found, err := p.repo.Get(ctx, key)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get value for key %s: %w", key, err)
 	}
@@ -1212,7 +1212,7 @@ func (p *Provider) GetKeyValue(ctx context.Context, key string) ([]byte, bool, e
 
 // SetKeyValue stores a value in the key_value table, overwriting any existing value.
 func (p *Provider) SetKeyValue(ctx context.Context, key string, value []byte) error {
-	if err := p.repo.KeyValue.Set(ctx, key, value); err != nil {
+	if err := p.repo.Set(ctx, key, value); err != nil {
 		return fmt.Errorf("failed to set value for key %s: %w", key, err)
 	}
 	return nil

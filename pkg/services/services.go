@@ -172,7 +172,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		arcadeService = arcade.New(logger, options.RestyClientFactory.New(), config.Arcade)
 		breaker := circuitbreaker.New(logger, circuitbreaker.Config{
 			FailureThreshold: config.Arcade.CircuitBreaker.FailureThreshold,
-			ProbeInterval:    time.Duration(config.Arcade.CircuitBreaker.HealthProbeIntervalSeconds) * time.Second,
+			ProbeInterval:    time.Duration(config.Arcade.CircuitBreaker.HealthProbeIntervalSeconds) * time.Second, //nolint:gosec // G115: safe; probe intervals are small values validated by config
 			Probe:            arcadeService.Healthy,
 		})
 		router = newBroadcastRouter(logger, breaker, arcadeService, arcService, arcGorillaPoolService, wocService, bitailsService)
@@ -439,7 +439,7 @@ func (s *WalletServices) logActiveServices() {
 // StartBackgroundServices starts all background workers of the wallet services:
 // the chaintracks event subscription and, when the broadcast router is enabled,
 // the circuit-breaker health probe that recovers the primary broadcaster (Arcade).
-// The probe goroutine runs until ctx is cancelled. Prefer this over calling
+// The probe goroutine runs until ctx is canceled. Prefer this over calling
 // StartChaintracks directly.
 func (s *WalletServices) StartBackgroundServices(ctx context.Context) error {
 	if s.broadcastRouter != nil {
@@ -451,7 +451,7 @@ func (s *WalletServices) StartBackgroundServices(ctx context.Context) error {
 
 // BroadcastStatusEvents streams transaction lifecycle status events pushed by the
 // primary broadcaster (Arcade SSE stream), invoking onEvent sequentially per event.
-// It blocks until ctx is cancelled (reconnecting automatically in between) and
+// It blocks until ctx is canceled (reconnecting automatically in between) and
 // returns an error when Arcade is disabled in the configuration.
 func (s *WalletServices) BroadcastStatusEvents(ctx context.Context, lastEventID string, onEvent func(wdk.BroadcastStatusEvent) error) error {
 	if s.arcade == nil {
