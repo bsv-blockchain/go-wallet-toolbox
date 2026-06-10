@@ -294,7 +294,7 @@ func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastSt
 	case wdk.AggregatedPostedTxIDDoubleSpend:
 		return p.failExternallyRejectedTx(ctx, ev, verdict)
 	case wdk.AggregatedPostedTxIDInvalidTx:
-		fallthrough
+		fallthrough // unreachable: synthesizeRejectedVerdict always produces DoubleSpend; confirmDoubleSpends never emits InvalidTx
 	default:
 		return nil, fmt.Errorf("unexpected verdict status %s while processing external REJECTED event for tx %s", verdict.Status, ev.TxID)
 	}
@@ -311,7 +311,7 @@ func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastSt
 // guards against.
 func (p *process) failExternallyRejectedTx(ctx context.Context, ev *wdk.BroadcastStatusEvent, verdict *wdk.AggregatedPostedTxID) ([]wdk.TxSynchronizedStatus, error) {
 	notes := p.notesForPostBEEF(wdk.ProvenTxStatusDoubleSpend, verdict, nil, nil, nil)
-	skipStatuses := []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted}
+	skipStatuses := []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted, wdk.ProvenTxStatusDoubleSpend}
 	applied, err := p.knownTxRepo.FailKnownTxAsDoubleSpend(ctx, ev.TxID, skipStatuses, notes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply terminal double-spend failure for externally rejected tx %s: %w", ev.TxID, err)
