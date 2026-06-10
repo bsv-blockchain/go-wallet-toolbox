@@ -117,32 +117,38 @@ func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID st
 	}()
 
 	err = u.query.DBTransaction(func(query *genquery.Query) error {
-		filterScope := func(dao gen.Dao) gen.Dao {
-			subquery := query.Transaction.
-				Select(query.Transaction.ID).
-				Where(query.Transaction.TxID.Eq(txID))
-
-			return dao.
-				Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
-				Where(query.Output.Spendable.Is(true)).
-				Scopes(isChangeDaoScope(query))
-		}
-
-		var changeOutputs []*outputWithTxStatus
-		changeOutputs, err = getOutputsWithTxStatus(ctx, query, filterScope)
-		if err != nil {
-			return err
-		}
-
-		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return createUTXOsForSpendableOutputsByTxID(ctx, query, txID)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
+	}
+
+	return nil
+}
+
+// createUTXOsForSpendableOutputsByTxID creates UserUTXOs for the spendable change
+// outputs of the transactions with the given txID using the caller-provided
+// (transaction-bound) query, so that callers composing larger atomic flows can run
+// it inside their own database transaction.
+func createUTXOsForSpendableOutputsByTxID(ctx context.Context, query *genquery.Query, txID string) error {
+	filterScope := func(dao gen.Dao) gen.Dao {
+		subquery := query.Transaction.
+			Select(query.Transaction.ID).
+			Where(query.Transaction.TxID.Eq(txID))
+
+		return dao.
+			Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
+			Where(query.Output.Spendable.Is(true)).
+			Scopes(isChangeDaoScope(query))
+	}
+
+	changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
+	if err != nil {
+		return err
+	}
+
+	if err := createUTXOsFromOutputs(ctx, query, changeOutputs); err != nil {
+		return err
 	}
 
 	return nil

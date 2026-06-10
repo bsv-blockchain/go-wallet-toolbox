@@ -96,6 +96,134 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 	return nil
 }
 
+// FailKnownTxAsDoubleSpend atomically applies the terminal double-spend failure for a
+// tx rejected by the network. The guarded KnownTx -> doubleSpend transition is evaluated
+// by the database FIRST (skipForStatuses in the UPDATE's WHERE clause), and the dependent
+// writes (Transactions -> failed, their spent outputs restored) execute only when that
+// transition actually applied. When the guard holds - e.g. the tx completed concurrently
+// while the rejection was being re-verified against the network - nothing is written and
+// applied=false is returned.
+func (p *KnownTx) FailKnownTxAsDoubleSpend(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (applied bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FailKnownTxAsDoubleSpend", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var txErr error
+		applied, txErr = applyKnownTxStatusGuarded(tx, txID, wdk.ProvenTxStatusDoubleSpend, skipForStatuses, txNotes)
+		if txErr != nil || !applied {
+			return txErr
+		}
+
+		txErr = tx.Model(&models.Transaction{}).
+			Where(p.query.Transaction.TxID.Eq(txID)).
+			Updates(map[string]any{
+				p.query.Transaction.Status.ColumnName().String(): wdk.TxStatusFailed,
+			}).Error
+		if txErr != nil {
+			return fmt.Errorf("failed to update transaction status as failed: %w", txErr)
+		}
+
+		// NOTE: There can be multiple transactions with the same tx_id, so we need to restore all of them.
+		var transactionIDs []uint
+		txErr = tx.Model(&models.Transaction{}).
+			Where(p.query.Transaction.TxID.Eq(txID)).
+			Pluck(p.query.Transaction.ID.ColumnName().String(), &transactionIDs).Error
+		if txErr != nil {
+			return fmt.Errorf("failed to find transaction IDs: %w", txErr)
+		}
+
+		query := genquery.Use(tx)
+		for _, transactionID := range transactionIDs {
+			if txErr = recreateSpentOutputs(ctx, query, transactionID); txErr != nil {
+				return fmt.Errorf("failed to restore spent outputs for transaction %d: %w", transactionID, txErr)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("db transaction failed: %w", err)
+	}
+	return applied, nil
+}
+
+// AdvanceKnownTxToBroadcasted atomically advances a tx to the post-broadcast state the
+// broadcast flow sets after a successful broadcast. The guarded KnownTx -> unmined
+// transition is evaluated by the database FIRST (skipForStatuses in the UPDATE's WHERE
+// clause), and the dependent writes (Transactions -> unproven, UTXOs for spendable change
+// outputs) execute only when that transition actually applied. When the guard holds
+// (e.g. the tx advanced concurrently) nothing is written and applied=false is returned.
+func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (applied bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-AdvanceKnownTxToBroadcasted", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var txErr error
+		applied, txErr = applyKnownTxStatusGuarded(tx, txID, wdk.ProvenTxStatusUnmined, skipForStatuses, txNotes)
+		if txErr != nil || !applied {
+			return txErr
+		}
+
+		txErr = tx.Model(&models.Transaction{}).
+			Where(p.query.Transaction.TxID.Eq(txID)).
+			Updates(map[string]any{
+				p.query.Transaction.Status.ColumnName().String(): wdk.TxStatusUnproven,
+			}).Error
+		if txErr != nil {
+			return fmt.Errorf("failed to update transaction status as unproven: %w", txErr)
+		}
+
+		if txErr = createUTXOsForSpendableOutputsByTxID(ctx, genquery.Use(tx), txID); txErr != nil {
+			return fmt.Errorf("failed to make outputs spendable: %w", txErr)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("db transaction failed: %w", err)
+	}
+	return applied, nil
+}
+
+// applyKnownTxStatusGuarded is updateKnownTxStatus reporting whether the guarded update
+// actually changed the row: skipForStatuses is evaluated by the database inside the
+// UPDATE's WHERE clause, so concurrent transitions into a skipped status (e.g. completed)
+// are detected reliably. Notes are recorded only when the update applied.
+func applyKnownTxStatusGuarded(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (bool, error) {
+	query := tx.Model(&models.KnownTx{}).Where("tx_id = ? ", txID)
+	if len(skipForStatuses) > 0 {
+		query = query.Where("status NOT IN ? ", skipForStatuses)
+	}
+
+	updates := map[string]any{
+		"status": status,
+	}
+	if status.WasBroadcastStatus() {
+		updates["was_broadcast"] = true
+	}
+
+	result := query.UpdateColumns(updates)
+	if result.Error != nil {
+		return false, fmt.Errorf("failed to update known tx status: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+
+	err := addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+		return note.Entity(txID)
+	}))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error {
 	var model models.KnownTx
 
