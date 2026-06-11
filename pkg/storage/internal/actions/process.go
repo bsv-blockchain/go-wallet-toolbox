@@ -691,6 +691,10 @@ func (p *process) updateSingleTx(
 				err = fmt.Errorf("failed to restore spent outputs for failed tx %s: %w", txID, err)
 				return sendWithResult, reviewActionResult, err
 			}
+			if err = p.outputRepo.MarkCreatedOutputsAsNotSpendable(ctx, id); err != nil {
+				err = fmt.Errorf("failed to mark created outputs as not spendable for failed tx %s: %w", txID, err)
+				return sendWithResult, reviewActionResult, err
+			}
 		}
 	}
 

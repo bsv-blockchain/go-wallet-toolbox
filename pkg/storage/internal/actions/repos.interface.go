@@ -32,6 +32,8 @@ type OutputRepo interface {
 	SaveOutputs(ctx context.Context, output []*pkgentity.Output) error
 	RecreateSpentOutputs(ctx context.Context, spendingTransactionID uint) error
 	ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error
+	MarkCreatedOutputsAsNotSpendable(ctx context.Context, transactionID uint) error
+	MarkCreatedOutputsAsSpendableByTxID(ctx context.Context, txID string) error
 }
 
 type TransactionsRepo interface {

@@ -5,11 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -629,4 +631,69 @@ func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 		testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 			ShouldNotBeAbleToReserveSatoshis(inputSatoshis - 2)
 	})
+}
+
+func TestSynchronizeTxFailed_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
+	// Regression test: when sync exhausts retries and marks a TX as invalid/failed,
+	// the outputs *created* by that TX must be marked spendable=false.
+	// Before this fix they remained spendable=true, corrupting wallet state.
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and: a TX is processed and broadcast successfully, but merkle proof never arrives
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(10_000).
+		WithSatoshisToSend(1_000).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// and: exhaust all rebroadcast attempts (mirrors TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx)
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+	}
+
+	// when: final sync exhausts the circuit breaker and marks the TX invalid/failed
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: user TX is failed
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
+
+	// and: outputs created by the failed TX are all not spendable
+	txRows, err := activeStorage.TransactionEntity().Read().
+		TxID().Equals(txID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+
+	outputs, err := activeStorage.OutputsEntity().Read().
+		TransactionID().Equals(txRows[0].ID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, outputs)
+
+	for _, output := range outputs {
+		assert.False(t, output.Spendable,
+			"output vout=%d from a sync-failed TX must not be spendable", output.Vout)
+	}
 }

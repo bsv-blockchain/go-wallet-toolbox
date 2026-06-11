@@ -498,6 +498,10 @@ func (s *synchronizeTxStatuses) reviewKnownTxStatuses(ctx context.Context) error
 				if err := s.outputRepo.RecreateSpentOutputs(ctx, transactionID); err != nil {
 					return fmt.Errorf("failed to restore spent outputs for terminal failed tx %s: %w", failedTx.TxID, err)
 				}
+
+				if err := s.outputRepo.MarkCreatedOutputsAsNotSpendable(ctx, transactionID); err != nil {
+					return fmt.Errorf("failed to mark created outputs as not spendable for terminal failed tx %s: %w", failedTx.TxID, err)
+				}
 			}
 		}
 

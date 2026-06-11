@@ -114,6 +114,9 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 		if err := p.outputRepo.RecreateSpentOutputs(ctx, id); err != nil {
 			log.ErrorContext(ctx, "Failed to restore spent outputs for failed tx", slog.String("txID", txID), logging.Error(err))
 		}
+		if err := p.outputRepo.MarkCreatedOutputsAsNotSpendable(ctx, id); err != nil {
+			log.ErrorContext(ctx, "Failed to mark created outputs as not spendable for failed tx", slog.String("txID", txID), logging.Error(err))
+		}
 	}
 }
 
@@ -127,6 +130,9 @@ func (p *process) markAsUnminedAndUnproven(ctx context.Context, log *slog.Logger
 		log.ErrorContext(ctx, "Failed to set tx to 'unproven'", slog.String("txID", txID), logging.Error(err))
 	} else {
 		log.InfoContext(ctx, "Transaction set to 'unproven'", slog.String("txID", txID))
+	}
+	if err := p.outputRepo.MarkCreatedOutputsAsSpendableByTxID(ctx, txID); err != nil {
+		log.ErrorContext(ctx, "Failed to mark created outputs as spendable for unfailed tx", slog.String("txID", txID), logging.Error(err))
 	}
 	if err := p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID); err != nil {
 		log.ErrorContext(ctx, "Failed to create UTXOs for spendable outputs", slog.String("txID", txID), logging.Error(err))
