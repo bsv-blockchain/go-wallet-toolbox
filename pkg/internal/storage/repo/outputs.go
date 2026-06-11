@@ -861,6 +861,45 @@ func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID ui
 	return fmt.Errorf("failed to check for spent outputs: %w", err)
 }
 
+func (o *Outputs) MarkCreatedOutputsAsNotSpendable(ctx context.Context, transactionID uint) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-MarkCreatedOutputsAsNotSpendable", attribute.String("TransactionID", fmt.Sprintf("%d", transactionID)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	outTable := &o.query.Output
+	_, err = outTable.WithContext(ctx).
+		Where(outTable.TransactionID.Eq(transactionID)).
+		UpdateSimple(outTable.Spendable.Value(false))
+	if err != nil {
+		return fmt.Errorf("failed to mark created outputs as not spendable for transaction %d: %w", transactionID, err)
+	}
+
+	return nil
+}
+
+func (o *Outputs) MarkCreatedOutputsAsSpendableByTxID(ctx context.Context, txID string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Outputs-MarkCreatedOutputsAsSpendableByTxID", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	txTable := &o.query.Transaction
+	outTable := &o.query.Output
+	subquery := txTable.WithContext(ctx).Select(txTable.ID).Where(txTable.TxID.Eq(txID))
+
+	_, err = outTable.WithContext(ctx).
+		Where(field.ContainsSubQuery([]field.Expr{outTable.TransactionID}, subquery.UnderlyingDB())).
+		UpdateSimple(outTable.Spendable.Value(true))
+	if err != nil {
+		return fmt.Errorf("failed to mark created outputs as spendable for tx %s: %w", txID, err)
+	}
+
+	return nil
+}
+
 // AddOutput inserts a new output.
 func (o *Outputs) AddOutput(ctx context.Context, out *pkgentity.Output) error {
 	var err error

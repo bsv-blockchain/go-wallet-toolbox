@@ -115,6 +115,11 @@ func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 		return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)
 	}
 
+	logger.DebugContext(ctx, "Marking created outputs as not spendable for transaction")
+	if err := a.outputsRepo.MarkCreatedOutputsAsNotSpendable(ctx, id); err != nil {
+		return fmt.Errorf("failed to mark created outputs as not spendable for transaction: %w", err)
+	}
+
 	logger.DebugContext(ctx, "Updating transaction status to 'failed'")
 	if err := a.transactionsRepo.UpdateTransactionStatusByID(ctx, id, wdk.TxStatusFailed); err != nil {
 		return fmt.Errorf("failed to update transaction status: %w", err)

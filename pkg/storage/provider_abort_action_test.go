@@ -3,6 +3,7 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -302,4 +303,50 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 	// and:
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldBeAbleToReserveSatoshis(satoshisToInternalize)
+}
+
+func TestAbortAction_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
+	// Regression test: outputs created by an aborted TX must be marked spendable=false.
+	// Before this fix, they remained spendable=true with a null tx_id, so ListOutputs
+	// could return them with a zero outpoint, causing "duplicate input" errors downstream.
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and: an unsigned TX is created (tx_id is null at this point)
+	createResult, _ := given.Action(activeStorage).
+		WithSatoshisToInternalize(10_000).
+		WithSatoshisToSend(1_000).
+		Created()
+
+	// and: find the internal transaction row ID to query its outputs
+	txRows, err := activeStorage.TransactionEntity().Read().
+		Reference().Equals(createResult.Reference).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+	transactionID := txRows[0].ID
+
+	// when:
+	_, err = activeStorage.AbortAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		wdk.AbortActionArgs{Reference: primitives.Base64String(createResult.Reference)},
+	)
+	require.NoError(t, err)
+
+	// then: outputs created by the aborted TX are all not spendable
+	outputs, err := activeStorage.OutputsEntity().Read().
+		TransactionID().Equals(transactionID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, outputs, "expected to find outputs for the aborted transaction")
+
+	for _, output := range outputs {
+		assert.False(t, output.Spendable,
+			"output vout=%d from aborted TX must not be spendable", output.Vout)
+	}
 }
