@@ -24,7 +24,7 @@ type Actions struct {
 func New(
 	ctx context.Context,
 	logger *slog.Logger,
-	funder funder.Funder,
+	fnd *funder.SQL,
 	commission defs.Commission,
 	repos *repo.Repositories,
 	randomizer wdk.Randomizer,
@@ -53,10 +53,13 @@ func New(
 	return &Actions{
 		create: newCreateAction(
 			logger,
-			funder,
+			fnd,
+			repos.DB,
 			commission,
 			repos.OutputBaskets,
 			repos.Transactions,
+			repos.Transactions,
+			repos.UTXOs,
 			repos.Outputs,
 			repos.KnownTx,
 			repos.Commission,

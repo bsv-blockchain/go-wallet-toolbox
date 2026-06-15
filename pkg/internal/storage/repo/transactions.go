@@ -28,6 +28,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
+// ErrUTXOContention is returned when concurrent transactions attempt to reserve the same UTXOs.
+// The caller should retry the operation.
+var ErrUTXOContention = errors.New("utxo contention: concurrent transaction already reserved one or more of the selected UTXOs")
+
 type Transactions struct {
 	query *genquery.Query
 	db    *gorm.DB
@@ -44,29 +48,71 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 		tracing.EndTracing(span, err)
 	}()
 
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return txs.createTransactionInTx(tx, newTx)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create transaction: %w", err)
+	}
+	return nil
+}
+
+// CreateTransactionInTx creates a new transaction record using an externally-managed DB transaction.
+// Use this when Fund and CreateTransaction must share a single DB transaction (e.g. SELECT FOR UPDATE).
+func (txs *Transactions) CreateTransactionInTx(ctx context.Context, tx *gorm.DB, newTx *entity.NewTx) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CreateTransactionInTx")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = txs.createTransactionInTx(tx.WithContext(ctx), newTx)
+	if err != nil {
+		return fmt.Errorf("failed to create transaction in tx: %w", err)
+	}
+	return nil
+}
+
+func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx) error {
 	model, err := txs.toTransactionModel(newTx)
 	if err != nil {
 		return err
 	}
 
-	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = txs.connectOutputsWithBaskets(tx, newTx, model)
-		if err != nil {
-			return fmt.Errorf("failed to connect outputs with baskets: %w", err)
-		}
+	if err = txs.connectOutputsWithBaskets(tx, newTx, model); err != nil {
+		return fmt.Errorf("failed to connect outputs with baskets: %w", err)
+	}
 
-		if err = tx.Create(model).Error; err != nil {
-			return fmt.Errorf("failed to create new transaction model: %w", err)
-		}
+	if err = tx.Create(model).Error; err != nil {
+		return fmt.Errorf("failed to create new transaction model: %w", err)
+	}
 
-		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
-			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
-		}
+	if err = txs.reserveUTXOs(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+		return err
+	}
 
+	if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
+		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
+	}
+
+	return nil
+}
+
+// reserveUTXOs atomically reserves UTXOs for a transaction with a guard to detect concurrent reservation.
+// Returns ErrUTXOContention if another transaction already reserved any of the requested UTXOs.
+func (txs *Transactions) reserveUTXOs(tx *gorm.DB, transactionID uint, userID int, outputIDs []uint) error {
+	if len(outputIDs) == 0 {
 		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	result := tx.Model(&models.UserUTXO{}).
+		Where("user_id = ? AND output_id IN ? AND reserved_by_id IS NULL", userID, outputIDs).
+		Update("reserved_by_id", transactionID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to reserve UTXOs: %w", result.Error)
+	}
+	if result.RowsAffected != int64(len(outputIDs)) {
+		return fmt.Errorf("%w: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
 	}
 	return nil
 }
@@ -93,13 +139,6 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 			return &models.Label{
 				Name:   string(label),
 				UserID: newTx.UserID,
-			}
-		}),
-		// TODO: verify if this won't blow up for not created UTXOs (when we're using noSendChange - which are not in UTXO table)
-		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models.UserUTXO {
-			return &models.UserUTXO{
-				UserID:   newTx.UserID,
-				OutputID: reservedOutputID,
 			}
 		}),
 		Outputs: outputs,
@@ -201,6 +240,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	err := tx.Model(&models.Output{}).
 		Where("id IN ?", outputIDs).
 		Where("user_id = ?", userID).
+		Where("spent_by IS NULL").
 		Updates(map[string]interface{}{
 			"spendable": false,
 			"spent_by":  spendingTransactionID,

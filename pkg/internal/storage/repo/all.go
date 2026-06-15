@@ -7,6 +7,8 @@ import (
 )
 
 type Repositories struct {
+	DB *gorm.DB
+
 	*Migrator
 	*Settings
 	*Users
@@ -27,6 +29,7 @@ type Repositories struct {
 func NewSQLRepositories(db *gorm.DB) *Repositories {
 	query := genquery.Use(db)
 	repositories := &Repositories{
+		DB:            db,
 		Migrator:      NewMigrator(db),
 		Settings:      NewSettings(db),
 		OutputBaskets: NewOutputBaskets(db, query),

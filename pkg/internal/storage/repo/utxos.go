@@ -8,6 +8,7 @@ import (
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -70,6 +71,58 @@ func (u *UTXOs) FindNotReservedUTXOs(
 	err = query.Find(&result).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
+	}
+	return result, nil
+}
+
+// FindNotReservedUTXOsForUpdate is like FindNotReservedUTXOs but executes within the provided DB
+// transaction and adds SELECT FOR UPDATE SKIP LOCKED for Postgres/MySQL, preventing concurrent
+// goroutines from selecting the same UTXOs. For SQLite the lock is omitted since SQLite serialises
+// writes; the guarded UPDATE in CreateTransactionInTx handles contention there instead.
+func (u *UTXOs) FindNotReservedUTXOsForUpdate(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int,
+	basketName string,
+	page *queryopts.Paging,
+	forbiddenOutputIDs []uint,
+	includeSending bool,
+) ([]*models.UserUTXO, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindNotReservedUTXOsForUpdate", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.Bool("IncludeSending", includeSending))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	var result []*models.UserUTXO
+
+	page.ApplyDefaults()
+	query := tx.WithContext(ctx).Scopes(
+		scopes.UserID(userID),
+		scopes.BasketName(basketName),
+		notReserved(),
+		outputNotIn(forbiddenOutputIDs),
+	)
+
+	statuses := []string{string(wdk.UTXOStatusMined), string(wdk.UTXOStatusUnproven)}
+	if includeSending {
+		statuses = append(statuses, string(wdk.UTXOStatusSending))
+	}
+	query = query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
+
+	orderClause := fmt.Sprintf(
+		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
+		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
+	)
+	query = query.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
+
+	if tx.Dialector.Name() != "sqlite" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	}
+
+	err = query.Find(&result).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find and lock not reserved UTXOs: %w", err)
 	}
 	return result, nil
 }

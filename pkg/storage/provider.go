@@ -72,14 +72,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 
 	log = logging.Child(log, "GormStorageProvider")
 
-	var transactionFunder funder.Funder
-	var tunableFunder *funder.SQL
-	if options.Funder != nil {
-		transactionFunder = options.Funder
-	} else {
-		sqlFunder := db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx).(*funder.SQL)
-		transactionFunder = sqlFunder
-		tunableFunder = sqlFunder
+	tunableFunder := options.Funder
+	if tunableFunder == nil {
+		tunableFunder = db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx)
 	}
 
 	defaultBasketCfg := wdk.BasketConfiguration{
@@ -96,7 +91,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		actions: actions.New(
 			options.BackgroundBroadcasterContext,
 			log,
-			transactionFunder,
+			tunableFunder,
 			options.Commission,
 			repos,
 			options.Randomizer,
