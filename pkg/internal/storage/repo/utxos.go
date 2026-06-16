@@ -77,7 +77,7 @@ func (u *UTXOs) FindNotReservedUTXOs(
 
 // FindNotReservedUTXOsForUpdate is like FindNotReservedUTXOs but executes within the provided DB
 // transaction and adds SELECT FOR UPDATE SKIP LOCKED for Postgres/MySQL, preventing concurrent
-// goroutines from selecting the same UTXOs. For SQLite the lock is omitted since SQLite serialises
+// goroutines from selecting the same UTXOs. For SQLite the lock is omitted since SQLite serializes
 // writes; the guarded UPDATE in CreateTransactionInTx handles contention there instead.
 func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 	ctx context.Context,
@@ -116,7 +116,7 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 	)
 	query = query.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
-	if tx.Dialector.Name() != "sqlite" {
+	if tx.Name() != "sqlite" {
 		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
 	}
 

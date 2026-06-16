@@ -7,8 +7,6 @@ import (
 )
 
 type Repositories struct {
-	DB *gorm.DB
-
 	*Migrator
 	*Settings
 	*Users
@@ -24,6 +22,8 @@ type Repositories struct {
 	*Commission
 	*TxNotes
 	*UserUTXOs
+
+	DB *gorm.DB
 }
 
 func NewSQLRepositories(db *gorm.DB) *Repositories {
