@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.24
-	github.com/bsv-blockchain/go-wallet-toolbox v0.183.13
+	github.com/bsv-blockchain/go-wallet-toolbox v0.183.14
 	github.com/go-softwarelab/common v1.8.0
 	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/subosito/gotenv v1.6.0
@@ -42,12 +42,12 @@ require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.4 // indirect
 	github.com/bsv-blockchain/go-bt/v2 v2.6.7 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.5.10 // indirect
-	github.com/bsv-blockchain/go-chaintracks v1.2.8 // indirect
+	github.com/bsv-blockchain/go-chaintracks v1.2.9 // indirect
 	github.com/bsv-blockchain/go-lockfree-queue v1.2.0 // indirect
 	github.com/bsv-blockchain/go-p2p-message-bus v0.1.20 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.2.0 // indirect
 	github.com/bsv-blockchain/go-subtree v1.4.4 // indirect
-	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.6 // indirect
+	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.7 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.3.9 // indirect
 	github.com/bsv-blockchain/go-wire v1.2.10 // indirect
 	github.com/bsv-blockchain/teranode v0.15.2-beta-9 // indirect
@@ -67,7 +67,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
-	github.com/filecoin-project/go-jsonrpc v0.10.1 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
@@ -93,7 +92,6 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
@@ -223,7 +221,6 @@ require (
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yuin/gopher-lua v1.1.2 // indirect
-	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.69.0 // indirect
@@ -255,7 +252,6 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
-	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260610212136-7ab31c22f7ad // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260610212136-7ab31c22f7ad // indirect
