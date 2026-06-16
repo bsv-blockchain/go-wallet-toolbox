@@ -45,30 +45,7 @@ func (u *UTXOs) FindNotReservedUTXOs(
 	}()
 
 	var result []*models.UserUTXO
-
-	page.ApplyDefaults()
-	query := u.db.WithContext(ctx).Scopes(
-		scopes.UserID(userID),
-		scopes.BasketName(basketName),
-		notReserved(),
-		outputNotIn(forbiddenOutputIDs),
-	)
-
-	statuses := []string{string(wdk.UTXOStatusMined), string(wdk.UTXOStatusUnproven)}
-	if includeSending {
-		statuses = append(statuses, string(wdk.UTXOStatusSending))
-	}
-	query = query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
-
-	// Order by safety tier (mined=0, unproven=1, sending=2) then by satoshis ascending
-	// so the collector picks the safest, smallest-sufficient UTXOs first.
-	orderClause := fmt.Sprintf(
-		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
-		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
-	)
-	query = query.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
-
-	err = query.Find(&result).Error
+	err = u.buildNotReservedQuery(u.db.WithContext(ctx), userID, basketName, page, forbiddenOutputIDs, includeSending, false).Find(&result).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
 	}
@@ -94,37 +71,52 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 		tracing.EndTracing(span, err)
 	}()
 
+	forUpdate := tx.Name() != "sqlite"
 	var result []*models.UserUTXO
+	err = u.buildNotReservedQuery(tx.WithContext(ctx), userID, basketName, page, forbiddenOutputIDs, includeSending, forUpdate).Find(&result).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find and lock not reserved UTXOs: %w", err)
+	}
+	return result, nil
+}
 
+// buildNotReservedQuery constructs the shared base query for both FindNotReservedUTXOs variants.
+// When forUpdate is true, SELECT FOR UPDATE SKIP LOCKED is appended (Postgres/MySQL only).
+func (u *UTXOs) buildNotReservedQuery(
+	db *gorm.DB,
+	userID int,
+	basketName string,
+	page *queryopts.Paging,
+	forbiddenOutputIDs []uint,
+	includeSending bool,
+	forUpdate bool,
+) *gorm.DB {
 	page.ApplyDefaults()
-	query := tx.WithContext(ctx).Scopes(
-		scopes.UserID(userID),
-		scopes.BasketName(basketName),
-		notReserved(),
-		outputNotIn(forbiddenOutputIDs),
-	)
 
 	statuses := []string{string(wdk.UTXOStatusMined), string(wdk.UTXOStatusUnproven)}
 	if includeSending {
 		statuses = append(statuses, string(wdk.UTXOStatusSending))
 	}
-	query = query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
 
+	// Order by safety tier (mined=0, unproven=1, sending=2) then by satoshis ascending
+	// so the collector picks the safest, smallest-sufficient UTXOs first.
 	orderClause := fmt.Sprintf(
 		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
 		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
 	)
-	query = query.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
-	if tx.Name() != "sqlite" {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
-	}
+	q := db.Scopes(
+		scopes.UserID(userID),
+		scopes.BasketName(basketName),
+		notReserved(),
+		outputNotIn(forbiddenOutputIDs),
+	).Where(u.query.UserUTXO.UTXOStatus.In(statuses...)).
+		Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
-	err = query.Find(&result).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to find and lock not reserved UTXOs: %w", err)
+	if forUpdate {
+		q = q.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
 	}
-	return result, nil
+	return q
 }
 
 func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error) {
