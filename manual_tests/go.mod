@@ -44,12 +44,12 @@ require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.4 // indirect
 	github.com/bsv-blockchain/go-bt/v2 v2.6.7 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.5.10 // indirect
-	github.com/bsv-blockchain/go-chaintracks v1.2.8 // indirect
+	github.com/bsv-blockchain/go-chaintracks v1.2.9 // indirect
 	github.com/bsv-blockchain/go-lockfree-queue v1.2.0 // indirect
 	github.com/bsv-blockchain/go-p2p-message-bus v0.1.20 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.2.0 // indirect
 	github.com/bsv-blockchain/go-subtree v1.4.4 // indirect
-	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.6 // indirect
+	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.7 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.3.9 // indirect
 	github.com/bsv-blockchain/go-wire v1.2.10 // indirect
 	github.com/bsv-blockchain/teranode v0.15.2-beta-9 // indirect
