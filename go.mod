@@ -4,9 +4,9 @@ go 1.26.3
 
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.4
-	github.com/bsv-blockchain/go-chaintracks v1.2.8
+	github.com/bsv-blockchain/go-chaintracks v1.2.9
 	github.com/bsv-blockchain/go-sdk v1.2.24
-	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.6
+	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.7
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.1
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.1.1
