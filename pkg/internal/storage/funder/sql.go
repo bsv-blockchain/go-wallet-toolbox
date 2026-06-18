@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -28,20 +29,16 @@ const (
 )
 
 type UTXORepository interface {
-	FindNotReservedUTXOs(
+	FindNotReservedUTXOsForUpdate(
 		ctx context.Context,
+		tx *gorm.DB,
 		userID int,
 		basketName string,
 		page *queryopts.Paging,
 		forbiddenOutputIDs []uint,
 		includeSending bool,
 	) ([]*models.UserUTXO, error)
-	CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error)
 }
-
-// FindUTXOsFn loads a page of not-reserved UTXOs for a given criteria.
-// Implementations may add row-level locking (SELECT FOR UPDATE SKIP LOCKED) for concurrency safety.
-type FindUTXOsFn func(ctx context.Context, page *queryopts.Paging, forbiddenOutputIDs []uint, includeSending bool) ([]*models.UserUTXO, error)
 
 type SQL struct {
 	logger                *slog.Logger
@@ -75,6 +72,9 @@ func (f *SQL) SetMaxChangeOutputsPerTx(n uint64) {
 	f.maxChangeOutputsPerTx.Store(n)
 }
 
+// Fund selects and allocates UTXOs to cover targetSat within the provided DB transaction tx.
+// existing must be pre-fetched via CountUTXOs BEFORE opening the DB transaction to avoid a
+// SQLite connection-pool deadlock (the transaction holds the one connection).
 func (f *SQL) Fund(
 	ctx context.Context,
 	targetSat satoshi.Value,
@@ -86,34 +86,8 @@ func (f *SQL) Fund(
 	priorityOutputs []*entity.Output,
 	includeSending bool,
 	isSweep bool,
-) (*Result, error) {
-	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
-	}
-	findFn := func(ctx context.Context, page *queryopts.Paging, forbiddenOutputIDs []uint, includeSending bool) ([]*models.UserUTXO, error) {
-		return f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basket.Name, page, forbiddenOutputIDs, includeSending)
-	}
-	return f.FundWithFinder(ctx, targetSat, currentTxSize, outputCount, basket, userID, forbiddenOutputIDs, priorityOutputs, includeSending, isSweep, existing, findFn)
-}
-
-// FundWithFinder is like Fund but uses the provided findFn to load UTXOs instead of the default
-// repository query. Use this when Fund and CreateTransaction must share a single DB transaction
-// (e.g. SELECT FOR UPDATE SKIP LOCKED). existing must be pre-fetched via CountUTXOs BEFORE
-// opening the DB transaction to avoid a SQLite connection-pool deadlock.
-func (f *SQL) FundWithFinder(
-	ctx context.Context,
-	targetSat satoshi.Value,
-	currentTxSize uint64,
-	outputCount uint64,
-	basket *entity.OutputBasket,
-	userID int,
-	forbiddenOutputIDs []uint,
-	priorityOutputs []*entity.Output,
-	includeSending bool,
-	isSweep bool,
 	existing int64,
-	findFn FindUTXOsFn,
+	tx *gorm.DB,
 ) (*Result, error) {
 	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, f.maxChangeOutputsPerTx.Load(), isSweep)
 	if err != nil {
@@ -129,7 +103,7 @@ func (f *SQL) FundWithFinder(
 	}
 
 	// Phase 2: Load all eligible UTXOs into a tiered pool.
-	pool, err := f.loadUTXOPool(ctx, findFn, forbiddenOutputIDs, includeSending)
+	pool, err := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +184,7 @@ func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs 
 	return nil
 }
 
-func (f *SQL) loadUTXOPool(ctx context.Context, findFn FindUTXOsFn, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
+func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
 	// Load all eligible UTXOs. The repository sorts by status tier + satoshis ASC,
 	// but the pool re-sorts internally per tier for 3-stage selection.
 	page := &queryopts.Paging{
@@ -220,7 +194,7 @@ func (f *SQL) loadUTXOPool(ctx context.Context, findFn FindUTXOsFn, forbiddenOut
 
 	var allUTXOs []*models.UserUTXO
 	for {
-		utxos, err := findFn(ctx, page, forbiddenOutputIDs, includeSending)
+		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketName, page, forbiddenOutputIDs, includeSending)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load utxos: %w", err)
 		}

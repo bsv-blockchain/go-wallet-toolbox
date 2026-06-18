@@ -22,11 +22,9 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -297,11 +295,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	err = c.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
-		findFn := func(ctx context.Context, page *queryopts.Paging, forbiddenOutputIDs []uint, includeSending bool) ([]*models.UserUTXO, error) {
-			return c.utxoRepo.FindNotReservedUTXOsForUpdate(ctx, dbTx, userID, basket.Name, page, forbiddenOutputIDs, includeSending)
-		}
 		var fundErr error
-		funding, fundErr = c.sqlFunder.FundWithFinder(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, findFn)
+		funding, fundErr = c.sqlFunder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, dbTx)
 		if fundErr != nil {
 			return fmt.Errorf("funding failed: %w", fundErr)
 		}

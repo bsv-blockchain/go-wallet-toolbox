@@ -30,32 +30,10 @@ func NewUTXOs(db *gorm.DB, query *genquery.Query) *UTXOs {
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(
-	ctx context.Context,
-	userID int,
-	basketName string,
-	page *queryopts.Paging,
-	forbiddenOutputIDs []uint,
-	includeSending bool,
-) ([]*models.UserUTXO, error) {
-	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindNotReservedUTXOs", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.Bool("IncludeSending", includeSending))
-	defer func() {
-		tracing.EndTracing(span, err)
-	}()
-
-	var result []*models.UserUTXO
-	err = u.buildNotReservedQuery(u.db.WithContext(ctx), userID, basketName, page, forbiddenOutputIDs, includeSending, false).Find(&result).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
-	}
-	return result, nil
-}
-
-// FindNotReservedUTXOsForUpdate is like FindNotReservedUTXOs but executes within the provided DB
-// transaction and adds SELECT FOR UPDATE SKIP LOCKED for Postgres/MySQL, preventing concurrent
-// goroutines from selecting the same UTXOs. For SQLite the lock is omitted since SQLite serializes
-// writes; the guarded UPDATE in CreateTransactionInTx handles contention there instead.
+// FindNotReservedUTXOsForUpdate selects not-reserved UTXOs within the provided DB transaction.
+// On Postgres/MySQL it appends SELECT FOR UPDATE SKIP LOCKED so concurrent callers automatically
+// pick non-overlapping UTXO sets. On SQLite the lock is omitted since SQLite serializes writes;
+// the guarded UPDATE in CreateTransactionInTx handles contention there instead.
 func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 	ctx context.Context,
 	tx *gorm.DB,
@@ -71,26 +49,6 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 		tracing.EndTracing(span, err)
 	}()
 
-	forUpdate := tx.Name() != "sqlite"
-	var result []*models.UserUTXO
-	err = u.buildNotReservedQuery(tx.WithContext(ctx), userID, basketName, page, forbiddenOutputIDs, includeSending, forUpdate).Find(&result).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to find and lock not reserved UTXOs: %w", err)
-	}
-	return result, nil
-}
-
-// buildNotReservedQuery constructs the shared base query for both FindNotReservedUTXOs variants.
-// When forUpdate is true, SELECT FOR UPDATE SKIP LOCKED is appended (Postgres/MySQL only).
-func (u *UTXOs) buildNotReservedQuery(
-	db *gorm.DB,
-	userID int,
-	basketName string,
-	page *queryopts.Paging,
-	forbiddenOutputIDs []uint,
-	includeSending bool,
-	forUpdate bool,
-) *gorm.DB {
 	page.ApplyDefaults()
 
 	statuses := []string{string(wdk.UTXOStatusMined), string(wdk.UTXOStatusUnproven)}
@@ -98,14 +56,14 @@ func (u *UTXOs) buildNotReservedQuery(
 		statuses = append(statuses, string(wdk.UTXOStatusSending))
 	}
 
-	// Order by safety tier (mined=0, unproven=1, sending=2) then by satoshis ascending
+	// Order by safety tier (mined=0, unproven=1, sending=2) then satoshis ascending
 	// so the collector picks the safest, smallest-sufficient UTXOs first.
 	orderClause := fmt.Sprintf(
 		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
 		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
 	)
 
-	q := db.Scopes(
+	query := tx.WithContext(ctx).Scopes(
 		scopes.UserID(userID),
 		scopes.BasketName(basketName),
 		notReserved(),
@@ -113,10 +71,16 @@ func (u *UTXOs) buildNotReservedQuery(
 	).Where(u.query.UserUTXO.UTXOStatus.In(statuses...)).
 		Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
-	if forUpdate {
-		q = q.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	if tx.Name() != "sqlite" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
 	}
-	return q
+
+	var result []*models.UserUTXO
+	err = query.Find(&result).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find and lock not reserved UTXOs: %w", err)
+	}
+	return result, nil
 }
 
 func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error) {
