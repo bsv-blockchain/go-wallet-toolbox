@@ -65,7 +65,7 @@ func (d *Database) CreateRepositories() *repo.Repositories {
 	return repo.NewSQLRepositories(d.DB)
 }
 
-func (d *Database) CreateFunder(feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) funder.Funder {
+func (d *Database) CreateFunder(feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) *funder.SQL {
 	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB))
 	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel, maxChangeOutputsPerTx)
 }

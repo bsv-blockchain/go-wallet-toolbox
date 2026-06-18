@@ -8,6 +8,7 @@ import (
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -29,8 +30,13 @@ func NewUTXOs(db *gorm.DB, query *genquery.Query) *UTXOs {
 	}
 }
 
-func (u *UTXOs) FindNotReservedUTXOs(
+// FindNotReservedUTXOsForUpdate selects not-reserved UTXOs within the provided DB transaction.
+// On Postgres/MySQL it appends SELECT FOR UPDATE SKIP LOCKED so concurrent callers automatically
+// pick non-overlapping UTXO sets. On SQLite the lock is omitted since SQLite serializes writes;
+// the guarded UPDATE in CreateTransactionInTx handles contention there instead.
+func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 	ctx context.Context,
+	tx *gorm.DB,
 	userID int,
 	basketName string,
 	page *queryopts.Paging,
@@ -38,38 +44,41 @@ func (u *UTXOs) FindNotReservedUTXOs(
 	includeSending bool,
 ) ([]*models.UserUTXO, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindNotReservedUTXOs", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.Bool("IncludeSending", includeSending))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindNotReservedUTXOsForUpdate", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.Bool("IncludeSending", includeSending))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	var result []*models.UserUTXO
-
 	page.ApplyDefaults()
-	query := u.db.WithContext(ctx).Scopes(
-		scopes.UserID(userID),
-		scopes.BasketName(basketName),
-		notReserved(),
-		outputNotIn(forbiddenOutputIDs),
-	)
 
 	statuses := []string{string(wdk.UTXOStatusMined), string(wdk.UTXOStatusUnproven)}
 	if includeSending {
 		statuses = append(statuses, string(wdk.UTXOStatusSending))
 	}
-	query = query.Where(u.query.UserUTXO.UTXOStatus.In(statuses...))
 
-	// Order by safety tier (mined=0, unproven=1, sending=2) then by satoshis ascending
+	// Order by safety tier (mined=0, unproven=1, sending=2) then satoshis ascending
 	// so the collector picks the safest, smallest-sufficient UTXOs first.
 	orderClause := fmt.Sprintf(
 		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
 		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
 	)
-	query = query.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
+	query := tx.WithContext(ctx).Scopes(
+		scopes.UserID(userID),
+		scopes.BasketName(basketName),
+		notReserved(),
+		outputNotIn(forbiddenOutputIDs),
+	).Where(u.query.UserUTXO.UTXOStatus.In(statuses...)).
+		Order(orderClause).Offset(page.Offset).Limit(page.Limit)
+
+	if tx.Name() != "sqlite" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	}
+
+	var result []*models.UserUTXO
 	err = query.Find(&result).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to find not reserved UTXOs: %w", err)
+		return nil, fmt.Errorf("failed to find and lock not reserved UTXOs: %w", err)
 	}
 	return result, nil
 }
