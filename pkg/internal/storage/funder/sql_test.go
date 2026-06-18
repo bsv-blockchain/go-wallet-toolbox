@@ -488,7 +488,7 @@ func TestFunderSQLFund(t *testing.T) {
 		}
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, int64(desiredNumber), given.GormDB())
 
 		// then:
 		then.Result(result).WithoutError(err).
