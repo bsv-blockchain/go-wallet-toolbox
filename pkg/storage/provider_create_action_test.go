@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -422,7 +421,7 @@ func TestReservedUTXO(t *testing.T) {
 	)
 
 	// then:
-	require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
+	require.ErrorIs(t, err, wdk.ErrNotEnoughFunds)
 }
 
 func TestCreateActionWithProvidedKnownInput(t *testing.T) {
