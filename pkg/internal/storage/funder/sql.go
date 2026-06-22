@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -124,7 +123,7 @@ func (f *SQL) Fund(
 
 		utxo := pool.selectBest(uint64(remaining))
 		if utxo == nil {
-			return nil, errfunder.ErrNotEnoughFunds
+			return nil, wdk.ErrNotEnoughFunds
 		}
 		if err = collector.allocateUTXO(utxo); err != nil {
 			return nil, fmt.Errorf("failed to allocate utxo: %w", err)
@@ -319,7 +318,7 @@ func (c *utxoCollector) GetResult() (*Result, error) {
 	if c.IsFunded() || c.isSweep {
 		return c.prepareResult()
 	}
-	return nil, errfunder.ErrNotEnoughFunds
+	return nil, wdk.ErrNotEnoughFunds
 }
 
 func (c *utxoCollector) allocateUTXO(utxo *models.UserUTXO) (err error) {

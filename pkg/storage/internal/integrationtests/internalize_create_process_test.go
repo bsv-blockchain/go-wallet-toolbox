@@ -12,7 +12,6 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/tsgenerated"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -461,7 +460,7 @@ func TestInternalizePlusTooHighCreate(t *testing.T) {
 		)
 
 		// then:
-		require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
+		require.ErrorIs(t, err, wdk.ErrNotEnoughFunds)
 	})
 }
 
@@ -499,7 +498,7 @@ func TestInternalizeBasketInsertionThenCreate(t *testing.T) {
 		)
 
 		// then:
-		require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
+		require.ErrorIs(t, err, wdk.ErrNotEnoughFunds)
 	})
 }
 

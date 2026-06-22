@@ -24,7 +24,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -304,7 +303,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		if isSweep {
 			adjSats := funding.ChangeAmount
 			if adjSats < 0 {
-				return errfunder.ErrNotEnoughFunds
+				return wdk.ErrNotEnoughFunds
 			}
 			params.Outputs[sweepOutputIndex].Satoshis = primitives.SatoshiValue(adjSats)
 			funding.ChangeAmount = satoshi.Zero()
