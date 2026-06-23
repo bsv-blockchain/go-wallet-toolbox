@@ -258,7 +258,6 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

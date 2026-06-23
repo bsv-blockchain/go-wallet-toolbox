@@ -92,17 +92,17 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
 		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); uowErr != nil {
-			return fmt.Errorf("Failed to set known tx to 'invalid': %w", uowErr)
+			return fmt.Errorf("failed to set known tx to 'invalid': %w", uowErr)
 		}
 
 		// Cascade: mark user Transactions as failed and restore spent input UTXOs.
 		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusFailed); uowErr != nil {
-			return fmt.Errorf("Failed to set user transactions to 'failed': %w", uowErr)
+			return fmt.Errorf("failed to set user transactions to 'failed': %w", uowErr)
 		}
 
 		transactionIDs, uowErr := repos.TransactionsRepo().FindTransactionIDsByTxID(txCtx, txID)
 		if uowErr != nil {
-			return fmt.Errorf("Failed to find transaction IDs for failed tx: %w", uowErr)
+			return fmt.Errorf("failed to find transaction IDs for failed tx: %w", uowErr)
 		}
 
 		for _, id := range transactionIDs {
@@ -129,16 +129,16 @@ func (p *process) markAsUnminedAndUnproven(ctx context.Context, log *slog.Logger
 	err := p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		builder := history.NewBuilder().GetMerklePathSuccess(string(wdk.ProvenTxStatusUnfail))
 		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); uowErr != nil {
-			return fmt.Errorf("Failed to set known tx to 'unmined': %w", uowErr)
+			return fmt.Errorf("failed to set known tx to 'unmined': %w", uowErr)
 		}
 		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusUnproven); uowErr != nil {
-			return fmt.Errorf("Failed to set tx to 'unproven': %w", uowErr)
+			return fmt.Errorf("failed to set tx to 'unproven': %w", uowErr)
 		}
 		if uowErr := repos.OutputRepo().MarkCreatedOutputsAsSpendableByTxID(txCtx, txID); uowErr != nil {
-			return fmt.Errorf("Failed to mark created outputs as spendable for unfailed tx: %w", uowErr)
+			return fmt.Errorf("failed to mark created outputs as spendable for unfailed tx: %w", uowErr)
 		}
 		if uowErr := repos.UTXORepo().CreateUTXOForSpendableOutputsByTxID(txCtx, txID); uowErr != nil {
-			return fmt.Errorf("Failed to create UTXOs for spendable outputs: %w", uowErr)
+			return fmt.Errorf("failed to create UTXOs for spendable outputs: %w", uowErr)
 		}
 		return nil
 	})
