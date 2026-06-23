@@ -12,6 +12,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -46,6 +47,29 @@ type Provider struct {
 	services      wdk.Services
 
 	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
+}
+
+type providersWrapper struct {
+	r *repo.Repositories
+}
+
+func (p *providersWrapper) TransactionsRepo() actions.TransactionsRepo { return p.r.Transactions }
+func (p *providersWrapper) OutputRepo() actions.OutputRepo             { return p.r.Outputs }
+func (p *providersWrapper) KnownTxRepo() actions.KnownTxRepo           { return p.r.KnownTx }
+func (p *providersWrapper) UTXORepo() actions.UTXORepo                 { return p.r.UTXOs }
+func (p *providersWrapper) BasketRepo() actions.BasketRepo             { return p.r.OutputBaskets }
+func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return p.r.Commission }
+func (p *providersWrapper) KeyValueRepo() actions.KeyValueRepo         { return p.r.KeyValue }
+
+type uow struct {
+	db *gorm.DB
+}
+
+func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Providers) error) error {
+	return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepos := repo.NewSQLRepositories(tx)
+		return fn(ctx, &providersWrapper{txRepos})
+	})
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -94,6 +118,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			tunableFunder,
 			options.Commission,
 			repos,
+			&uow{db.DB},
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,

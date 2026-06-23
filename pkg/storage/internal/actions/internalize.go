@@ -41,6 +41,7 @@ type internalize struct {
 	scriptsVerifier       wdk.ScriptsVerifier
 	blockHeaderService    wdk.BlockHeaderLoader
 	backgroundBroadcaster *service.BackgroundBroadcaster
+	uow                   UnitOfWork
 }
 
 func newInternalizeAction(
@@ -49,6 +50,7 @@ func newInternalizeAction(
 	basketRepo BasketRepo,
 	knownTxRepo KnownTxRepo,
 	outputRepo OutputRepo,
+	uow UnitOfWork,
 	random wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
@@ -62,6 +64,7 @@ func newInternalizeAction(
 		basketRepo:            basketRepo,
 		knownTxRepo:           knownTxRepo,
 		outputRepo:            outputRepo,
+		uow:                   uow,
 		random:                random,
 		beefVerifier:          beefVerifier,
 		scriptsVerifier:       scriptsVerifier,
@@ -151,101 +154,112 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		slog.String("txID", txID),
 		slog.String("description", string(args.Description)),
 	)
+	var outputs []*OutputToInternalize
+	var cumulativeSatoshis satoshi.Value
+	var isMerge bool
 
-	storedTx, err := in.txRepo.FindTransactionByUserIDAndTxID(ctx, userID, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by userID and txID: %w", err)
-	}
+	err = in.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		var uowErr error
+		storedTx, uowErr := repos.TransactionsRepo().FindTransactionByUserIDAndTxID(txCtx, userID, txID)
+		if uowErr != nil {
+			return fmt.Errorf("failed to find transaction by userID and txID: %w", uowErr)
+		}
 
-	isMerge := storedTx != nil
+		isMerge = storedTx != nil
 
-	if isMerge {
-		in.logger.DebugContext(
-			ctx, "Transaction already exists - performing merge",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.String("existingStatus", string(storedTx.Status)),
-			slog.String("description", string(args.Description)),
-		)
-	} else {
-		in.logger.DebugContext(
-			ctx, "New transaction - creating fresh entry",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.String("description", string(args.Description)),
-		)
-	}
+		if isMerge {
+			in.logger.DebugContext(
+				txCtx, "Transaction already exists - performing merge",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("existingStatus", string(storedTx.Status)),
+				slog.String("description", string(args.Description)),
+			)
+		} else {
+			in.logger.DebugContext(
+				txCtx, "New transaction - creating fresh entry",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("description", string(args.Description)),
+			)
+		}
 
-	if isMerge && !in.isAllowedMergeStatus(storedTx.Status) {
-		return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
-	}
-
-	in.logger.DebugContext(
-		ctx, "Processing outputs",
-		logging.UserID(userID),
-		slog.String("txID", txID),
-		slog.Int("outputsToProcess", len(args.Outputs)),
-		slog.Bool("isMerge", isMerge),
-		slog.String("description", string(args.Description)),
-	)
-
-	outputs, cumulativeSatoshis, err := in.makeOutputs(ctx, userID, tx, args.Outputs, isMerge)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new outputs: %w", err)
-	}
-
-	in.logger.DebugContext(
-		ctx, "Outputs processed successfully",
-		logging.UserID(userID),
-		slog.String("txID", txID),
-		slog.Int("processedOutputsCount", len(outputs)),
-		logging.Number("cumulativeSatoshis", cumulativeSatoshis),
-		slog.String("description", string(args.Description)),
-	)
-
-	if isMerge {
-		in.logger.DebugContext(
-			ctx, "Upserting existing transaction",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.Int("labelsCount", len(args.Labels)),
-			slog.Int("outputsCount", len(outputs)),
-			slog.String("description", string(args.Description)),
-		)
-
-		err = in.upsertExistingTx(ctx, storedTx, outputs, args.Labels)
-		if err != nil {
-			return nil, fmt.Errorf("failed to upsert outputs (isMerge): %w", err)
+		if isMerge && !in.isAllowedMergeStatus(storedTx.Status) {
+			return fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
 		}
 
 		in.logger.DebugContext(
-			ctx, "Existing transaction upserted successfully",
+			txCtx, "Processing outputs",
 			logging.UserID(userID),
 			slog.String("txID", txID),
+			slog.Int("outputsToProcess", len(args.Outputs)),
+			slog.Bool("isMerge", isMerge),
 			slog.String("description", string(args.Description)),
 		)
-	} else {
+
+		outputs, cumulativeSatoshis, uowErr = in.makeOutputs(txCtx, userID, tx, args.Outputs, isMerge, repos)
+		if uowErr != nil {
+			return fmt.Errorf("failed to create new outputs: %w", uowErr)
+		}
+
 		in.logger.DebugContext(
-			ctx, "Storing new transaction",
+			txCtx, "Outputs processed successfully",
 			logging.UserID(userID),
 			slog.String("txID", txID),
-			slog.Int("labelsCount", len(args.Labels)),
-			slog.Int("outputsCount", len(outputs)),
+			slog.Int("processedOutputsCount", len(outputs)),
 			logging.Number("cumulativeSatoshis", cumulativeSatoshis),
 			slog.String("description", string(args.Description)),
 		)
 
-		err = in.storeNewTx(ctx, userID, args, txID, tx, cumulativeSatoshis, outputs, beef)
-		if err != nil {
-			return nil, fmt.Errorf("failed to store new transaction: %w", err)
+		if isMerge {
+			in.logger.DebugContext(
+				txCtx, "Upserting existing transaction",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.Int("labelsCount", len(args.Labels)),
+				slog.Int("outputsCount", len(outputs)),
+				slog.String("description", string(args.Description)),
+			)
+
+			uowErr = in.upsertExistingTx(txCtx, storedTx, outputs, args.Labels, repos)
+			if uowErr != nil {
+				return fmt.Errorf("failed to upsert outputs (isMerge): %w", uowErr)
+			}
+
+			in.logger.DebugContext(
+				txCtx, "Existing transaction upserted successfully",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("description", string(args.Description)),
+			)
+		} else {
+			in.logger.DebugContext(
+				txCtx, "Storing new transaction",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.Int("labelsCount", len(args.Labels)),
+				slog.Int("outputsCount", len(outputs)),
+				logging.Number("cumulativeSatoshis", cumulativeSatoshis),
+				slog.String("description", string(args.Description)),
+			)
+
+			uowErr = in.storeNewTx(txCtx, userID, args, txID, tx, cumulativeSatoshis, outputs, beef, repos)
+			if uowErr != nil {
+				return fmt.Errorf("failed to store new transaction: %w", uowErr)
+			}
+
+			in.logger.DebugContext(
+				txCtx, "New transaction stored successfully",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("description", string(args.Description)),
+			)
 		}
 
-		in.logger.DebugContext(
-			ctx, "New transaction stored successfully",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.String("description", string(args.Description)),
-		)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	if tx.MerklePath != nil {
@@ -313,8 +327,8 @@ func convertStringLikeSlice[ResultType, ArgType ~string](input []ArgType) []Resu
 	return slices.Map(input, func(s ArgType) ResultType { return ResultType(s) })
 }
 
-func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgentity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
-	err := in.txRepo.AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
+func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgentity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300, repos Providers) error {
+	err := repos.TransactionsRepo().AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
 	if err != nil {
 		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)
 	}
@@ -371,12 +385,12 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 			continue
 		}
 		seen[name] = true
-		if basketErr := in.basketRepo.FindOrCreateBasket(ctx, existingTx.UserID, name); basketErr != nil {
+		if basketErr := repos.BasketRepo().FindOrCreateBasket(ctx, existingTx.UserID, name); basketErr != nil {
 			return fmt.Errorf("failed to ensure basket %q exists: %w", name, basketErr)
 		}
 	}
 
-	err = in.outputRepo.SaveOutputs(ctx, outputsToInternalize)
+	err = repos.OutputRepo().SaveOutputs(ctx, outputsToInternalize)
 	if err != nil {
 		return fmt.Errorf("failed to save output: %w", err)
 	}
@@ -393,11 +407,12 @@ func (in *internalize) storeNewTx(
 	cumulativeSatoshis satoshi.Value,
 	outputs []*OutputToInternalize,
 	beef *transaction.Beef,
+	repos Providers,
 ) error {
 	isMined := tx.MerklePath != nil
 
 	// check if transaction already exists in DB with a confirmed broadcast status
-	statuses, err := in.knownTxRepo.FindKnownTxStatuses(ctx, txID)
+	statuses, err := repos.KnownTxRepo().FindKnownTxStatuses(ctx, txID)
 	if err != nil {
 		return fmt.Errorf("failed to find existing known tx status: %w", err)
 	}
@@ -428,7 +443,7 @@ func (in *internalize) storeNewTx(
 		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent)
 	}
 
-	err = in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+	err = repos.KnownTxRepo().UpsertKnownTx(ctx, &entity.UpsertKnownTx{
 		TxID:            txID,
 		RawTx:           tx.Bytes(),
 		InputBeef:       args.Tx,
@@ -444,7 +459,7 @@ func (in *internalize) storeNewTx(
 		return fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
-	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{
+	err = repos.TransactionsRepo().CreateTransaction(ctx, &entity.NewTx{
 		UserID:      userID,
 		Version:     tx.Version,
 		LockTime:    tx.LockTime,
@@ -482,6 +497,7 @@ func (in *internalize) makeOutputs(
 	tx *transaction.Transaction,
 	outputSpecs []*wdk.InternalizeOutput,
 	isMerge bool,
+	repos Providers,
 ) ([]*OutputToInternalize, satoshi.Value, error) {
 	satoshis := satoshi.Zero()
 
@@ -501,7 +517,7 @@ func (in *internalize) makeOutputs(
 
 		var existingOutput *pkgentity.Output
 		if isMerge {
-			existingOutput, err = in.outputRepo.FindOutput(ctx, userID, wdk.OutPoint{
+			existingOutput, err = repos.OutputRepo().FindOutput(ctx, userID, wdk.OutPoint{
 				TxID: tx.TxID().String(),
 				Vout: outputSpec.OutputIndex,
 			})
@@ -523,7 +539,7 @@ func (in *internalize) makeOutputs(
 			satoshis = satoshi.MustAdd(satoshis, output.Satoshis)
 
 			if !changeBasketVerified {
-				if err := in.checkChangeBasket(ctx, userID); err != nil {
+				if err := in.checkChangeBasket(ctx, userID, repos); err != nil {
 					return nil, 0, fmt.Errorf("failed to check change basket: %w", err)
 				}
 				changeBasketVerified = true
@@ -591,8 +607,8 @@ func (in *internalize) makeOutputs(
 	return newOutputs, satoshis, nil
 }
 
-func (in *internalize) checkChangeBasket(ctx context.Context, userID int) error {
-	basket, err := in.basketRepo.FindBasketByName(ctx, userID, wdk.BasketNameForChange)
+func (in *internalize) checkChangeBasket(ctx context.Context, userID int, repos Providers) error {
+	basket, err := repos.BasketRepo().FindBasketByName(ctx, userID, wdk.BasketNameForChange)
 	if err != nil {
 		return fmt.Errorf("failed to find basket for change: %w", err)
 	}

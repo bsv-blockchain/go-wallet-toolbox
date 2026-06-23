@@ -89,52 +89,63 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 		return
 	}
 
-	builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
-	if err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); err != nil {
-		log.ErrorContext(ctx, "Failed to set known tx to 'invalid'", slog.String("txID", txID), logging.Error(err))
-		return
-	}
+	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
+		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); uowErr != nil {
+			return fmt.Errorf("failed to set known tx to 'invalid': %w", uowErr)
+		}
 
-	log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid' — cascading to user transactions", slog.String("txID", txID))
+		// Cascade: mark user Transactions as failed and restore spent input UTXOs.
+		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusFailed); uowErr != nil {
+			return fmt.Errorf("failed to set user transactions to 'failed': %w", uowErr)
+		}
 
-	// Cascade: mark user Transactions as failed and restore spent input UTXOs.
-	// This mirrors the broadcast-rejection cascade in updateSingleTx (process.go).
-	if err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusFailed); err != nil {
-		log.ErrorContext(ctx, "Failed to set user transactions to 'failed'", slog.String("txID", txID), logging.Error(err))
-		return
-	}
+		transactionIDs, uowErr := repos.TransactionsRepo().FindTransactionIDsByTxID(txCtx, txID)
+		if uowErr != nil {
+			return fmt.Errorf("failed to find transaction IDs for failed tx: %w", uowErr)
+		}
 
-	transactionIDs, err := p.txRepo.FindTransactionIDsByTxID(ctx, txID)
+		for _, id := range transactionIDs {
+			if uowErr := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); uowErr != nil {
+				log.ErrorContext(txCtx, "Failed to restore spent outputs for failed tx", slog.String("txID", txID), logging.Error(uowErr))
+			}
+			if uowErr := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); uowErr != nil {
+				log.ErrorContext(txCtx, "Failed to mark created outputs as not spendable for failed tx", slog.String("txID", txID), logging.Error(uowErr))
+			}
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		log.ErrorContext(ctx, "Failed to find transaction IDs for failed tx", slog.String("txID", txID), logging.Error(err))
-		return
-	}
-
-	for _, id := range transactionIDs {
-		if err := p.outputRepo.RecreateSpentOutputs(ctx, id); err != nil {
-			log.ErrorContext(ctx, "Failed to restore spent outputs for failed tx", slog.String("txID", txID), logging.Error(err))
-		}
-		if err := p.outputRepo.MarkCreatedOutputsAsNotSpendable(ctx, id); err != nil {
-			log.ErrorContext(ctx, "Failed to mark created outputs as not spendable for failed tx", slog.String("txID", txID), logging.Error(err))
-		}
+		log.ErrorContext(ctx, "Failed to unfail single tx", slog.String("txID", txID), logging.Error(err))
+	} else {
+		log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid' — cascaded to user transactions", slog.String("txID", txID))
 	}
 }
 
 // markAsUnminedAndUnproven moves KnownTx and Transaction forward and ensures outputs are spendable.
 func (p *process) markAsUnminedAndUnproven(ctx context.Context, log *slog.Logger, txID string) {
-	builder := history.NewBuilder().GetMerklePathSuccess(string(wdk.ProvenTxStatusUnfail))
-	if err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); err != nil {
-		log.ErrorContext(ctx, "Failed to set known tx to 'unmined'", slog.String("txID", txID), logging.Error(err))
-	}
-	if err := p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusUnproven); err != nil {
-		log.ErrorContext(ctx, "Failed to set tx to 'unproven'", slog.String("txID", txID), logging.Error(err))
+	err := p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		builder := history.NewBuilder().GetMerklePathSuccess(string(wdk.ProvenTxStatusUnfail))
+		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); uowErr != nil {
+			return fmt.Errorf("failed to set known tx to 'unmined': %w", uowErr)
+		}
+		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusUnproven); uowErr != nil {
+			return fmt.Errorf("failed to set tx to 'unproven': %w", uowErr)
+		}
+		if uowErr := repos.OutputRepo().MarkCreatedOutputsAsSpendableByTxID(txCtx, txID); uowErr != nil {
+			return fmt.Errorf("failed to mark created outputs as spendable for unfailed tx: %w", uowErr)
+		}
+		if uowErr := repos.UTXORepo().CreateUTXOForSpendableOutputsByTxID(txCtx, txID); uowErr != nil {
+			return fmt.Errorf("failed to create UTXOs for spendable outputs: %w", uowErr)
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to mark as unmined and unproven", slog.String("txID", txID), logging.Error(err))
 	} else {
 		log.InfoContext(ctx, "Transaction set to 'unproven'", slog.String("txID", txID))
-	}
-	if err := p.outputRepo.MarkCreatedOutputsAsSpendableByTxID(ctx, txID); err != nil {
-		log.ErrorContext(ctx, "Failed to mark created outputs as spendable for unfailed tx", slog.String("txID", txID), logging.Error(err))
-	}
-	if err := p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID); err != nil {
-		log.ErrorContext(ctx, "Failed to create UTXOs for spendable outputs", slog.String("txID", txID), logging.Error(err))
 	}
 }

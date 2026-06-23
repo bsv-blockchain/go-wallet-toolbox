@@ -86,3 +86,17 @@ type UTXORepo interface {
 	UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error
 	CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error
 }
+
+type Providers interface {
+	TransactionsRepo() TransactionsRepo
+	OutputRepo() OutputRepo
+	KnownTxRepo() KnownTxRepo
+	UTXORepo() UTXORepo
+	BasketRepo() BasketRepo
+	CommissionRepo() CommissionRepo
+	KeyValueRepo() KeyValueRepo
+}
+
+type UnitOfWork interface {
+	Do(ctx context.Context, fn func(ctx context.Context, p Providers) error) error
+}
