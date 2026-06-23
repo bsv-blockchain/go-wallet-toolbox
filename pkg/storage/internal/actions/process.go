@@ -46,6 +46,7 @@ type process struct {
 	sendWaitingLock       sync.Mutex
 	beefVerifier          wdk.BeefVerifier
 	scriptsVerifier       wdk.ScriptsVerifier
+	uow                   UnitOfWork
 }
 
 func newProcessAction(
@@ -57,6 +58,7 @@ func newProcessAction(
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
 	utxoRepo UTXORepo,
+	uow UnitOfWork,
 	services wdk.Services,
 	randomizer wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
@@ -72,6 +74,7 @@ func newProcessAction(
 		knownTxRepo:     knownTxRepo,
 		commissionRepo:  commissionRepo,
 		utxoRepo:        utxoRepo,
+		uow:             uow,
 		services:        services,
 		randomizer:      randomizer,
 		beefVerifier:    beefVerifier,
@@ -673,44 +676,43 @@ func (p *process) updateSingleTx(
 
 	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
 
-	err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, newTxStatus)
-	if err != nil {
-		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-		return sendWithResult, reviewActionResult, err
-	}
-
-	if newTxStatus == wdk.TxStatusFailed {
-		var transactionIDs []uint
-		transactionIDs, err = p.txRepo.FindTransactionIDsByTxID(ctx, txID)
-		if err != nil {
-			err = fmt.Errorf("failed to find transaction IDs for failed tx %s: %w", txID, err)
-			return sendWithResult, reviewActionResult, err
+	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		var uowErr error
+		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus)
+		if uowErr != nil {
+			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
 		}
-		for _, id := range transactionIDs {
-			if err = p.outputRepo.RecreateSpentOutputs(ctx, id); err != nil {
-				err = fmt.Errorf("failed to restore spent outputs for failed tx %s: %w", txID, err)
-				return sendWithResult, reviewActionResult, err
+
+		if newTxStatus == wdk.TxStatusFailed {
+			var transactionIDs []uint
+			transactionIDs, uowErr = repos.TransactionsRepo().FindTransactionIDsByTxID(txCtx, txID)
+			if uowErr != nil {
+				return fmt.Errorf("failed to find transaction IDs for failed tx %s: %w", txID, uowErr)
 			}
-			if err = p.outputRepo.MarkCreatedOutputsAsNotSpendable(ctx, id); err != nil {
-				err = fmt.Errorf("failed to mark created outputs as not spendable for failed tx %s: %w", txID, err)
-				return sendWithResult, reviewActionResult, err
+			for _, id := range transactionIDs {
+				if uowErr = repos.OutputRepo().RecreateSpentOutputs(txCtx, id); uowErr != nil {
+					return fmt.Errorf("failed to restore spent outputs for failed tx %s: %w", txID, uowErr)
+				}
+				if uowErr = repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); uowErr != nil {
+					return fmt.Errorf("failed to mark created outputs as not spendable for failed tx %s: %w", txID, uowErr)
+				}
 			}
 		}
-	}
 
-	err = p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
-	if err != nil {
-		err = fmt.Errorf("failed to update transaction status after broadcast: %w", err)
-		return sendWithResult, reviewActionResult, err
-	}
-
-	if spendable {
-		err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
-		if err != nil {
-			err = fmt.Errorf("failed to make outputs spendable after broadcast: %w", err)
-			return sendWithResult, reviewActionResult, err
+		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
+		if uowErr != nil {
+			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
 		}
-	}
+
+		if spendable {
+			uowErr = repos.UTXORepo().CreateUTXOForSpendableOutputsByTxID(txCtx, txID)
+			if uowErr != nil {
+				return fmt.Errorf("failed to make outputs spendable after broadcast: %w", uowErr)
+			}
+		}
+
+		return nil
+	})
 
 	return sendWithResult, reviewActionResult, err
 }
