@@ -401,6 +401,24 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		return nil, fmt.Errorf("failed to insert user: %w", err)
 	}
 
+	// A zero ID means CreateUser hit the identity_key conflict (DoNothing): a
+	// concurrent caller won the find-then-create race and already committed this
+	// user. Re-read the existing row and report it as not-new.
+	if user.ID == 0 {
+		user, err = p.repo.FindUser(ctx, identityKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find user after insert conflict: %w", err)
+		}
+		if user == nil {
+			return nil, fmt.Errorf("user %q not found after insert conflict", identityKey)
+		}
+
+		return &wdk.FindOrInsertUserResponse{
+			User:  *user.ToWDK(),
+			IsNew: false,
+		}, nil
+	}
+
 	return &wdk.FindOrInsertUserResponse{
 		User:  *user.ToWDK(),
 		IsNew: true,
