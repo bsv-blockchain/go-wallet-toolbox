@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.24
-	github.com/bsv-blockchain/go-wallet-toolbox v0.183.15
+	github.com/bsv-blockchain/go-wallet-toolbox v0.183.16
 	github.com/go-softwarelab/common v1.8.0
 	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/subosito/gotenv v1.6.0
@@ -265,7 +265,7 @@ require (
 	gorm.io/driver/postgres v1.6.0 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect
 	gorm.io/gen v0.3.28 // indirect
-	gorm.io/gorm v1.31.1 // indirect
+	gorm.io/gorm v1.31.2 // indirect
 	gorm.io/hints v1.1.2 // indirect
 	gorm.io/plugin/dbresolver v1.6.2 // indirect
 	k8s.io/api v0.36.1 // indirect
