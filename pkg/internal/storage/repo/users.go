@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -68,7 +69,12 @@ func (u *Users) CreateUser(ctx context.Context, identityKey, activeStorage strin
 			}
 		}),
 	}
-	err = u.db.WithContext(ctx).Create(&user).Error
+	// DoNothing tolerates a concurrent insert of the same identity_key: under a
+	// find-then-create race two callers can both miss FindUser and reach here, and
+	// without this the loser's insert violates the identity_key unique index. On a
+	// conflict the row is left untouched and user.UserID stays zero; the caller
+	// detects that and re-reads the winner's row.
+	err = u.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
