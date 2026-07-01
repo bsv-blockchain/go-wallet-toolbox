@@ -535,6 +535,15 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	}
 
 	logger.DebugContext(
+		ctx, "Marking transactions as submitting before broadcast",
+		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+	)
+
+	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
+		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
+	}
+
+	logger.DebugContext(
 		ctx, "Posting BEEF to services",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)

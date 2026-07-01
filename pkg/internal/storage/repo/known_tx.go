@@ -62,6 +62,32 @@ func (p *KnownTx) UpdateKnownTxStatus(ctx context.Context, txID string, status w
 	return updateKnownTxStatus(p.db.WithContext(ctx), txID, status, skipForStatuses, txNotes)
 }
 
+func (p *KnownTx) MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-MarkKnownTxsAsSubmitting")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(txIDs) == 0 {
+		return nil
+	}
+
+	err = p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Where("tx_id IN ?", txIDs).
+		Where("status = ?", wdk.ProvenTxStatusUnprocessed).
+		UpdateColumns(map[string]any{
+			"status":        wdk.ProvenTxStatusSending,
+			"was_broadcast": true,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to mark known txs as submitting: %w", err)
+	}
+
+	return nil
+}
+
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
 	var model models.KnownTx
 	err := tx.First(&model, "tx_id = ? ", req.TxID).Error
