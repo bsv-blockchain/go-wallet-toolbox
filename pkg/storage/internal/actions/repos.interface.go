@@ -52,6 +52,7 @@ type TransactionsRepo interface {
 	AddLabels(ctx context.Context, userID int, transactionID uint, labels ...string) error
 	FindTransactionIDsByTxID(ctx context.Context, txID string) ([]uint, error)
 	FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error)
+	FindTransactionIDsForAbort(ctx context.Context, opts ...queryopts.Options) ([]uint, error)
 }
 
 type KnownTxRepo interface {
@@ -69,6 +70,7 @@ type KnownTxRepo interface {
 	ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadcastAttempts uint64, statuses []wdk.ProvenTxReqStatus) ([]models.KnownTx, error)
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
+	MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error
 	SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error
 }
 

@@ -738,6 +738,53 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 	}), nil
 }
 
+func (txs *Transactions) FindTransactionIDsForAbort(ctx context.Context, opts ...queryopts.Options) ([]uint, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionIDsForAbort")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	txTable := txs.query.Transaction.TableName()
+	knownTxTable := txs.query.KnownTx.TableName()
+
+	query := txs.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Select(txTable+".id").
+		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.tx_id = %s.tx_id", knownTxTable, knownTxTable, txTable)).
+		Where(
+			fmt.Sprintf(
+				"(%s.status = ? OR (%s.status = ? AND COALESCE(%s.status, ?) = ?))",
+				txTable, txTable, knownTxTable,
+			),
+			wdk.TxStatusUnsigned,
+			wdk.TxStatusUnprocessed,
+			string(wdk.ProvenTxStatusUnprocessed),
+			wdk.ProvenTxStatusUnprocessed,
+		).
+		Order(txTable + ".created_at ASC")
+
+	options := queryopts.MergeOptions(opts)
+	if options.Until != nil {
+		options.Until.ApplyDefaults()
+		query = query.Where(fmt.Sprintf("%s.created_at <= ?", txTable), options.Until.Time)
+	}
+	if options.Page != nil {
+		options.Page.ApplyDefaults()
+		query = query.Offset(options.Page.Offset).Limit(options.Page.Limit)
+	}
+
+	var rows []*models.Transaction
+	err = query.Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("query for finding transaction ids for abort failed: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.Transaction) uint {
+		return row.ID
+	}), nil
+}
+
 func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Transaction) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-AddTransaction")
