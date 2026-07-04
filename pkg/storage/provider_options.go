@@ -22,7 +22,7 @@ type ProviderConfig struct {
 	DBConfig defs.Database
 	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
 
-	Funder                 funder.Funder
+	Funder                 *funder.SQL
 	Randomizer             wdk.Randomizer
 	BeefVerifierFactory    func() wdk.BeefVerifier
 	ScriptsVerifierFactory func() wdk.ScriptsVerifier
@@ -78,11 +78,10 @@ func WithScriptsVerifier(scriptsVerifier wdk.ScriptsVerifier) ProviderOption {
 	}
 }
 
-// WithFunder sets the Funder implementation in the provider options.
-// Use to customize how funding logic is handled within the provider.
-func WithFunder(funder funder.Funder) ProviderOption {
+// WithFunder sets the SQL funder implementation in the provider options.
+func WithFunder(f *funder.SQL) ProviderOption {
 	return func(o *ProviderConfig) {
-		o.Funder = funder
+		o.Funder = f
 	}
 }
 

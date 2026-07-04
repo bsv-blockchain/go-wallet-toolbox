@@ -9,12 +9,12 @@ import (
 
 	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -28,15 +28,15 @@ const (
 )
 
 type UTXORepository interface {
-	FindNotReservedUTXOs(
+	FindNotReservedUTXOsForUpdate(
 		ctx context.Context,
+		tx *gorm.DB,
 		userID int,
 		basketName string,
 		page *queryopts.Paging,
 		forbiddenOutputIDs []uint,
 		includeSending bool,
 	) ([]*models.UserUTXO, error)
-	CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error)
 }
 
 type SQL struct {
@@ -71,6 +71,9 @@ func (f *SQL) SetMaxChangeOutputsPerTx(n uint64) {
 	f.maxChangeOutputsPerTx.Store(n)
 }
 
+// Fund selects and allocates UTXOs to cover targetSat within the provided DB transaction tx.
+// existing must be pre-fetched via CountUTXOs BEFORE opening the DB transaction to avoid a
+// SQLite connection-pool deadlock (the transaction holds the one connection).
 func (f *SQL) Fund(
 	ctx context.Context,
 	targetSat satoshi.Value,
@@ -82,12 +85,9 @@ func (f *SQL) Fund(
 	priorityOutputs []*entity.Output,
 	includeSending bool,
 	isSweep bool,
+	existing int64,
+	tx *gorm.DB,
 ) (*Result, error) {
-	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
-	}
-
 	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, f.maxChangeOutputsPerTx.Load(), isSweep)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
@@ -102,7 +102,7 @@ func (f *SQL) Fund(
 	}
 
 	// Phase 2: Load all eligible UTXOs into a tiered pool.
-	pool, err := f.loadUTXOPool(ctx, userID, basket.Name, forbiddenOutputIDs, includeSending)
+	pool, err := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (f *SQL) Fund(
 
 		utxo := pool.selectBest(uint64(remaining))
 		if utxo == nil {
-			return nil, errfunder.ErrNotEnoughFunds
+			return nil, wdk.ErrNotEnoughFunds
 		}
 		if err = collector.allocateUTXO(utxo); err != nil {
 			return nil, fmt.Errorf("failed to allocate utxo: %w", err)
@@ -183,7 +183,7 @@ func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs 
 	return nil
 }
 
-func (f *SQL) loadUTXOPool(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
+func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
 	// Load all eligible UTXOs. The repository sorts by status tier + satoshis ASC,
 	// but the pool re-sorts internally per tier for 3-stage selection.
 	page := &queryopts.Paging{
@@ -193,7 +193,7 @@ func (f *SQL) loadUTXOPool(ctx context.Context, userID int, basketName string, f
 
 	var allUTXOs []*models.UserUTXO
 	for {
-		utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs, includeSending)
+		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketName, page, forbiddenOutputIDs, includeSending)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load utxos: %w", err)
 		}
@@ -269,6 +269,33 @@ func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesi
 }
 
 func (c *utxoCollector) remaining() satoshi.Value {
+	if c.outputCount == 0 {
+		change := c.change()
+		if c.changeOutputsCount > 0 && change < c.dustFloor {
+			feeWithNextInput, err := c.feeCalculator.Calculate(c.txSize + txutils.P2PKHEstimatedInputSize)
+			if err != nil {
+				panic(fmt.Errorf("failed to calculate fee for next change input: %w", err))
+			}
+
+			toCover := satoshi.MustAdd(satoshi.MustAdd(c.txSats, feeWithNextInput), c.dustFloor)
+			if toCover > c.satsCovered {
+				return satoshi.MustSubtract(toCover, c.satsCovered)
+			}
+		}
+
+		if c.changeOutputsCount == 0 {
+			feeWithFirstChangeOutput, err := c.feeCalculator.Calculate(c.txSize + txutils.P2PKHEstimatedInputSize + changeOutputSize)
+			if err != nil {
+				panic(fmt.Errorf("failed to calculate fee for first change output: %w", err))
+			}
+
+			toCover := satoshi.MustAdd(satoshi.MustAdd(c.txSats, feeWithFirstChangeOutput), c.dustFloor)
+			if toCover > c.satsCovered {
+				return satoshi.MustSubtract(toCover, c.satsCovered)
+			}
+		}
+	}
+
 	return satoshi.MustSubtract(c.satsToCover(), c.satsCovered)
 }
 
@@ -276,9 +303,8 @@ func (c *utxoCollector) IsFunded() bool {
 	// A valid Bitcoin transaction must have at least one output.
 	// If no outputs are defined and no change outputs will be created,
 	// we must continue allocating UTXOs to ensure at least one change output exists.
-	totalOutputs := c.outputCount + c.changeOutputsCount
-	if totalOutputs == 0 {
-		return c.satsCovered > c.satsToCover()
+	if c.outputCount == 0 {
+		return c.changeOutputsCount > 0 && c.change() >= c.dustFloor
 	}
 
 	if c.isSweep {
@@ -292,7 +318,7 @@ func (c *utxoCollector) GetResult() (*Result, error) {
 	if c.IsFunded() || c.isSweep {
 		return c.prepareResult()
 	}
-	return nil, errfunder.ErrNotEnoughFunds
+	return nil, wdk.ErrNotEnoughFunds
 }
 
 func (c *utxoCollector) allocateUTXO(utxo *models.UserUTXO) (err error) {

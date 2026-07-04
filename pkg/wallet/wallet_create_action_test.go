@@ -30,7 +30,8 @@ import (
 const testValueForFunding = 99904
 
 func TestCreateActionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.CreateActionResult, error) {
 			args := fixtures.DefaultWalletCreateActionArgs(t)
 			return w.CreateAction(ctx, args, originator)
@@ -262,7 +263,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -734,7 +736,8 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		given.Services().AllDown()
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -775,7 +778,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		assert.Empty(t, firstResult.SendWithResults, "Wallet result should have no send with results")
 
 		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t,
+		args = fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithNoSendChangeOutputs(firstResult.NoSendChange...),
 			walletargs.WithSendWith(firstResult.Txid),
 			walletargs.WithSatoshisAsFirstOutput(1),
@@ -811,7 +815,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		require.NoError(t, err)
 
 		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t,
+		args = fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithNoSendChangeOutputs(firstResult.NoSendChange...),
 			walletargs.WithNoSend(true),
 			walletargs.WithSatoshisAsFirstOutput(1),
@@ -823,7 +828,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		require.NoError(t, err)
 
 		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t,
+		args = fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithoutProvidedOutputs(),
 			walletargs.WithSendWith(firstResult.Txid, secondResult.Txid),
 		)
@@ -834,7 +840,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		require.NoError(t, err)
 
 		// and:
-		testabilities.SendWithResultsAsserter(thirdResult.SendWithResults).ContainsTxsWithStatus(t, sdk.ActionResultStatusUnproven,
+		testabilities.SendWithResultsAsserter(thirdResult.SendWithResults).ContainsTxsWithStatus(
+			t, sdk.ActionResultStatusUnproven,
 			firstResult.Txid.String(),
 			secondResult.Txid.String(),
 		)
@@ -1000,7 +1007,8 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		assert.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
 		// when:
-		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInputs([]sdk.CreateActionInput{
 				{
 					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
@@ -1061,7 +1069,8 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
 		// when:
-		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInputs([]sdk.CreateActionInput{
 				{
 					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},

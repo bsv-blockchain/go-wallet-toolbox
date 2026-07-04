@@ -54,6 +54,7 @@ jobs:
   release:
     name: 🚀 Build and Release
     runs-on: ${{ inputs.primary-runner }}
+    timeout-minutes: 30
     permissions:
       contents: write # Required: "magex release" creates GitHub releases and uploads assets
     steps:
@@ -61,7 +62,7 @@ jobs:
       # Checkout code and set up Go environment
       # --------------------------------------------------------------------
       - name: 📥 Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0 # Required for changelog generation
           token: ${{ secrets.github-token }}
@@ -174,7 +175,7 @@ jobs:
       # --------------------------------------------------------------------
       - name: 💾 Cache golangci-lint analysis
         id: cache-golangci-lint
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.GOLANGCI_LINT_CACHE }}
           key: ${{ inputs.primary-runner }}-golangci-lint-analysis-${{ hashFiles('.golangci.json', env.GO_SUM_FILE) }}-${{ inputs.golangci-lint-version }}

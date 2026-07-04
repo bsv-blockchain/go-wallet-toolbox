@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 
@@ -47,7 +48,7 @@ func (b *reorgBroadcaster) broadcast(event *chaintracks.ReorgEvent) {
 		select {
 		case sub <- event:
 		default:
-			b.logger.Warn("reorg subscriber channel full, dropping event", reorgLogAttrs(event)...)
+			b.logger.WarnContext(context.Background(), "reorg subscriber channel full, dropping event", reorgLogAttrs(event)...)
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -18,6 +19,7 @@ type FunderFixture interface {
 	NewFunderServiceWithFeeRate(satPerKb int64) *funder.SQL
 	UTXO() UserUTXOFixture
 	BasketFor(user testusers.User) BasketFixture
+	GormDB() *gorm.DB
 }
 
 var feeModel = defs.FeeModel{
@@ -62,4 +64,8 @@ func (f *funderFixture) Save(utxo *models.UserUTXO) {
 
 func (f *funderFixture) BasketFor(user testusers.User) BasketFixture {
 	return newBasketFixture(f.t, f.db.DB, user)
+}
+
+func (f *funderFixture) GormDB() *gorm.DB {
+	return f.db.DB
 }

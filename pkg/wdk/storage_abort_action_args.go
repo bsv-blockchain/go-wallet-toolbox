@@ -15,7 +15,7 @@ type AbortActionArgs struct {
 // AbortActionResult defines the result of an abort action operation.
 type AbortActionResult struct {
 	// Aborted indicates whether the action was successfully aborted.
-	Aborted bool
+	Aborted bool `json:"aborted"`
 }
 
 // ErrNotAbortableAction indicates that the action cannot be aborted due to its current status or type.

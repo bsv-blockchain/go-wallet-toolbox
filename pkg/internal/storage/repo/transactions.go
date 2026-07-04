@@ -28,6 +28,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
+// ErrUTXOContention is returned when concurrent transactions attempt to reserve the same UTXOs.
+// The caller should retry the operation.
+var ErrUTXOContention = errors.New("utxo contention: concurrent transaction already reserved one or more of the selected UTXOs")
+
 type Transactions struct {
 	query *genquery.Query
 	db    *gorm.DB
@@ -44,29 +48,71 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 		tracing.EndTracing(span, err)
 	}()
 
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return txs.createTransactionInTx(tx, newTx)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create transaction: %w", err)
+	}
+	return nil
+}
+
+// CreateTransactionInTx creates a new transaction record using an externally-managed DB transaction.
+// Use this when Fund and CreateTransaction must share a single DB transaction (e.g. SELECT FOR UPDATE).
+func (txs *Transactions) CreateTransactionInTx(ctx context.Context, tx *gorm.DB, newTx *entity.NewTx) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CreateTransactionInTx")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = txs.createTransactionInTx(tx.WithContext(ctx), newTx)
+	if err != nil {
+		return fmt.Errorf("failed to create transaction in tx: %w", err)
+	}
+	return nil
+}
+
+func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx) error {
 	model, err := txs.toTransactionModel(newTx)
 	if err != nil {
 		return err
 	}
 
-	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = txs.connectOutputsWithBaskets(tx, newTx, model)
-		if err != nil {
-			return fmt.Errorf("failed to connect outputs with baskets: %w", err)
-		}
+	if err = txs.connectOutputsWithBaskets(tx, newTx, model); err != nil {
+		return fmt.Errorf("failed to connect outputs with baskets: %w", err)
+	}
 
-		if err = tx.Create(model).Error; err != nil {
-			return fmt.Errorf("failed to create new transaction model: %w", err)
-		}
+	if err = tx.Create(model).Error; err != nil {
+		return fmt.Errorf("failed to create new transaction model: %w", err)
+	}
 
-		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
-			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
-		}
+	if err = txs.reserveUTXOs(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+		return err
+	}
 
+	if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
+		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
+	}
+
+	return nil
+}
+
+// reserveUTXOs atomically reserves UTXOs for a transaction with a guard to detect concurrent reservation.
+// Returns ErrUTXOContention if another transaction already reserved any of the requested UTXOs.
+func (txs *Transactions) reserveUTXOs(tx *gorm.DB, transactionID uint, userID int, outputIDs []uint) error {
+	if len(outputIDs) == 0 {
 		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	result := tx.Model(&models.UserUTXO{}).
+		Where("user_id = ? AND output_id IN ? AND reserved_by_id IS NULL", userID, outputIDs).
+		Update("reserved_by_id", transactionID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to reserve UTXOs: %w", result.Error)
+	}
+	if result.RowsAffected != int64(len(outputIDs)) {
+		return fmt.Errorf("%w: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
 	}
 	return nil
 }
@@ -93,13 +139,6 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 			return &models.Label{
 				Name:   string(label),
 				UserID: newTx.UserID,
-			}
-		}),
-		// TODO: verify if this won't blow up for not created UTXOs (when we're using noSendChange - which are not in UTXO table)
-		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models.UserUTXO {
-			return &models.UserUTXO{
-				UserID:   newTx.UserID,
-				OutputID: reservedOutputID,
 			}
 		}),
 		Outputs: outputs,
@@ -201,6 +240,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	err := tx.Model(&models.Output{}).
 		Where("id IN ?", outputIDs).
 		Where("user_id = ?", userID).
+		Where("spent_by IS NULL").
 		Updates(map[string]interface{}{
 			"spendable": false,
 			"spent_by":  spendingTransactionID,
@@ -691,6 +731,53 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 		Find()
 	if err != nil {
 		return nil, fmt.Errorf("query for finding transaction ids by statuses failed: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.Transaction) uint {
+		return row.ID
+	}), nil
+}
+
+func (txs *Transactions) FindTransactionIDsForAbort(ctx context.Context, opts ...queryopts.Options) ([]uint, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionIDsForAbort")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	txTable := txs.query.Transaction.TableName()
+	knownTxTable := txs.query.KnownTx.TableName()
+
+	query := txs.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Select(txTable+".id").
+		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.tx_id = %s.tx_id", knownTxTable, knownTxTable, txTable)).
+		Where(
+			fmt.Sprintf(
+				"(%s.status = ? OR (%s.status = ? AND COALESCE(%s.status, ?) = ?))",
+				txTable, txTable, knownTxTable,
+			),
+			wdk.TxStatusUnsigned,
+			wdk.TxStatusUnprocessed,
+			string(wdk.ProvenTxStatusUnprocessed),
+			wdk.ProvenTxStatusUnprocessed,
+		).
+		Order(txTable + ".created_at ASC")
+
+	options := queryopts.MergeOptions(opts)
+	if options.Until != nil {
+		options.Until.ApplyDefaults()
+		query = query.Where(fmt.Sprintf("%s.created_at <= ?", txTable), options.Until.Time)
+	}
+	if options.Page != nil {
+		options.Page.ApplyDefaults()
+		query = query.Offset(options.Page.Offset).Limit(options.Page.Limit)
+	}
+
+	var rows []*models.Transaction
+	err = query.Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("query for finding transaction ids for abort failed: %w", err)
 	}
 
 	return slices.Map(rows, func(row *models.Transaction) uint {

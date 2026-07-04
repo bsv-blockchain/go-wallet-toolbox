@@ -70,6 +70,8 @@ func givenServicesWithNetwork(t testing.TB, network defs.BSVNetwork) ServicesFix
 	servicesConfig := defs.DefaultServicesConfig(network)
 	servicesConfig.WhatsOnChain.RootForHeightRetries = 1
 	servicesConfig.WhatsOnChain.RootForHeightRetryInterval = 0
+	// NOTE: tests should not be slowed down by the client-side WoC rate limiter
+	servicesConfig.WhatsOnChain.RequestsPerSecond = 10000
 
 	wocFx := NewWoCFixture(t, WithTransport(transport), WithNetwork(network))
 	arcFx := NewARCFixture(t, WithTransport(transport), WithNetwork(network))
@@ -132,7 +134,8 @@ func (f *servicesFixture) Opts(options ...func(option *services.Options)) Wallet
 func (f *servicesFixture) New() *services.WalletServices {
 	f.t.Helper()
 
-	options := append(f.walletServicesOpts,
+	options := append(
+		f.walletServicesOpts,
 		services.WithRestyClient(f.httpClient),
 		services.WithChaintracksAdapter(f.chaintracksClient.Adapter()),
 	)

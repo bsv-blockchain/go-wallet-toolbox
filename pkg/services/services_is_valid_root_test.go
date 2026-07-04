@@ -142,7 +142,8 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 					WillRespondWithBlockHeaderByHeight(
 						http.StatusOK,
 						height,
-						header)
+						header,
+					)
 			},
 			root: validRoot,
 			want: want{ok: true},
@@ -157,7 +158,8 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 					WillRespondWithBlockHeaderByHeight(
 						http.StatusOK,
 						height,
-						header)
+						header,
+					)
 			},
 			root: invalidRoot,
 			want: want{ok: false},
@@ -170,7 +172,8 @@ func TestWalletServices_IsValidRootForHeight_Bitails(t *testing.T) {
 					WillRespondWithBlockHeaderByHeight(
 						http.StatusNotFound,
 						height,
-						"not found")
+						"not found",
+					)
 			},
 			root: validRoot,
 			want: want{ok: false},

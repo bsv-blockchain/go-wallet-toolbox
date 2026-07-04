@@ -12,6 +12,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -48,6 +49,29 @@ type Provider struct {
 	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
 }
 
+type providersWrapper struct {
+	r *repo.Repositories
+}
+
+func (p *providersWrapper) TransactionsRepo() actions.TransactionsRepo { return p.r.Transactions }
+func (p *providersWrapper) OutputRepo() actions.OutputRepo             { return p.r.Outputs }
+func (p *providersWrapper) KnownTxRepo() actions.KnownTxRepo           { return p.r.KnownTx }
+func (p *providersWrapper) UTXORepo() actions.UTXORepo                 { return p.r.UTXOs }
+func (p *providersWrapper) BasketRepo() actions.BasketRepo             { return p.r.OutputBaskets }
+func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return p.r.Commission }
+func (p *providersWrapper) KeyValueRepo() actions.KeyValueRepo         { return p.r.KeyValue }
+
+type uow struct {
+	db *gorm.DB
+}
+
+func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Providers) error) error {
+	return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepos := repo.NewSQLRepositories(tx)
+		return fn(ctx, &providersWrapper{txRepos})
+	})
+}
+
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
 // NewGORMProvider creates a new storage provider with GORM repository.
@@ -72,14 +96,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 
 	log = logging.Child(log, "GormStorageProvider")
 
-	var transactionFunder funder.Funder
-	var tunableFunder *funder.SQL
-	if options.Funder != nil {
-		transactionFunder = options.Funder
-	} else {
-		sqlFunder := db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx).(*funder.SQL)
-		transactionFunder = sqlFunder
-		tunableFunder = sqlFunder
+	tunableFunder := options.Funder
+	if tunableFunder == nil {
+		tunableFunder = db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx)
 	}
 
 	defaultBasketCfg := wdk.BasketConfiguration{
@@ -96,9 +115,10 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		actions: actions.New(
 			options.BackgroundBroadcasterContext,
 			log,
-			transactionFunder,
+			tunableFunder,
 			options.Commission,
 			repos,
+			&uow{db.DB},
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,
@@ -119,7 +139,7 @@ func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 
 	if err := p.Database.Close(); err != nil {
-		p.logger.Error("Failed to close database", slog.Any("err", err))
+		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))
 	}
 }
 
@@ -381,6 +401,24 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		return nil, fmt.Errorf("failed to insert user: %w", err)
 	}
 
+	// A zero ID means CreateUser hit the identity_key conflict (DoNothing): a
+	// concurrent caller won the find-then-create race and already committed this
+	// user. Re-read the existing row and report it as not-new.
+	if user.ID == 0 {
+		user, err = p.repo.FindUser(ctx, identityKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find user after insert conflict: %w", err)
+		}
+		if user == nil {
+			return nil, fmt.Errorf("user %q not found after insert conflict", identityKey)
+		}
+
+		return &wdk.FindOrInsertUserResponse{
+			User:  *user.ToWDK(),
+			IsNew: false,
+		}, nil
+	}
+
 	return &wdk.FindOrInsertUserResponse{
 		User:  *user.ToWDK(),
 		IsNew: true,
@@ -439,7 +477,8 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
-	p.logger.InfoContext(ctx, "Starting CreateAction process",
+	p.logger.InfoContext(
+		ctx, "Starting CreateAction process",
 		logging.UserID(auth.UserID),
 		slog.String("description", string(args.Description)),
 		slog.Int("outputCount", len(args.Outputs)),
@@ -449,14 +488,16 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 
 	res, err := p.actions.Create(ctx, *auth.UserID, actions.FromValidCreateActionArgs(&args))
 	if err != nil {
-		p.logger.DebugContext(ctx, "CreateAction completed with error",
+		p.logger.DebugContext(
+			ctx, "CreateAction completed with error",
 			logging.UserID(auth.UserID),
 			slog.String("description", string(args.Description)),
 		)
 		return nil, fmt.Errorf("failed to process createAction: %w", err)
 	}
 
-	p.logger.InfoContext(ctx, "CreateAction completed successfully",
+	p.logger.InfoContext(
+		ctx, "CreateAction completed successfully",
 		logging.UserID(auth.UserID),
 		logging.Reference(res.Reference),
 		slog.String("description", string(args.Description)),
@@ -630,7 +671,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		tracing.EndTracing(span, err)
 	}()
 
-	logger := p.logger.With(logging.UserID(auth.UserID),
+	logger := p.logger.With(
+		logging.UserID(auth.UserID),
 		slog.String("output", args.Output),
 		slog.String("basket", args.Basket),
 	)
@@ -651,7 +693,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		basketName = &args.Basket
 	}
 
-	logger.InfoContext(ctx, "Starting RelinquishOutput process",
+	logger.InfoContext(
+		ctx, "Starting RelinquishOutput process",
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
@@ -660,7 +703,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
 
-	logger.InfoContext(ctx, "RelinquishOutput completed successfully",
+	logger.InfoContext(
+		ctx, "RelinquishOutput completed successfully",
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
@@ -1019,7 +1063,8 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
 	}
 
-	p.logger.Info("Handled reorg - invalidated merkle proofs",
+	p.logger.InfoContext(
+		ctx, "Handled reorg - invalidated merkle proofs",
 		"orphaned_blocks", len(orphanedBlockHashes),
 		"affected_transactions", affected,
 	)
@@ -1153,7 +1198,8 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
 	var err error
 
-	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessNewTip",
+	ctx, span := tracing.StartTracing(
+		ctx, "StorageProvider-ProcessNewTip",
 		attribute.Int("height", int(height)),
 		attribute.String("hash", hash),
 	)

@@ -140,7 +140,11 @@ func (b *Bitails) classifyResponseError(resp broadcastResponse, result *wdk.Post
 		result.DoubleSpend = true
 		shouldReturnError = true
 	case ErrorCodeMissingInputs:
+		// Missing inputs is a possible double spend - flagged as a hint only; the
+		// verdict is verified against the network before the tx is failed
+		// (consistent with the WhatsOnChain classification).
 		result.Result = wdk.PostedTxIDResultMissingInputs
+		result.DoubleSpend = true
 		shouldReturnError = true
 	case ErrorTokenECONNREFUSED:
 		result.Result = wdk.PostedTxIDResultError

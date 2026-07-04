@@ -126,6 +126,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			},
 			RootForHeightRetryInterval: DefaultRootForHeightRetryInterval,
 			RootForHeightRetries:       DefaultRootForHeightRetries,
+			RequestsPerSecond:          DefaultWhatsOnChainRequestsPerSecond,
 		},
 		Bitails: Bitails{
 			Enabled:                    false, // NOTE: Bitails is disabled by default

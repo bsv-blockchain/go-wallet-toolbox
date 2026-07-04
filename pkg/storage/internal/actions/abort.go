@@ -21,19 +21,21 @@ type abortAction struct {
 	utxosRepo         UTXORepo
 	knownTxRepo       KnownTxRepo
 	failAbandonedLock sync.Mutex
+	uow               UnitOfWork
 }
 
 const (
 	txIDLength = 64
 )
 
-func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo KnownTxRepo) *abortAction {
+func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo KnownTxRepo, uow UnitOfWork) *abortAction {
 	return &abortAction{
 		logger:           logging.Child(logger, "abortAction"),
 		transactionsRepo: transactions,
 		outputsRepo:      outputsRepo,
 		utxosRepo:        utxosRepo,
 		knownTxRepo:      knownTxRepo,
+		uow:              uow,
 	}
 }
 
@@ -50,7 +52,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		slog.String("reference", referenceStr),
 	)
 
-	logger.InfoContext(ctx, "Starting AbortAction process",
+	logger.InfoContext(
+		ctx, "Starting AbortAction process",
 		slog.Bool("isPotentialTxID", a.isPotentiallyTxID(referenceStr)),
 	)
 
@@ -73,7 +76,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("no transaction found with reference or txid %q", referenceStr)
 	}
 
-	logger.DebugContext(ctx, "Validating transaction for abort",
+	logger.DebugContext(
+		ctx, "Validating transaction for abort",
 		logging.Number("transactionID", txEntity.ID),
 		slog.String("status", string(txEntity.Status)),
 		slog.Bool("isOutgoing", txEntity.IsOutgoing),
@@ -83,7 +87,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("transaction validation failed: %w", err)
 	}
 
-	logger.DebugContext(ctx, "Starting transaction abort process",
+	logger.DebugContext(
+		ctx, "Starting transaction abort process",
 		logging.Number("transactionID", txEntity.ID),
 	)
 
@@ -91,7 +96,8 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 		return nil, fmt.Errorf("failed to abort transaction: %w", err)
 	}
 
-	logger.InfoContext(ctx, "AbortAction completed successfully",
+	logger.InfoContext(
+		ctx, "AbortAction completed successfully",
 		logging.Number("transactionID", txEntity.ID),
 	)
 
@@ -101,25 +107,32 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 	logger := a.logger.With(logging.Number("transactionID", id))
 
-	logger.DebugContext(ctx, "Unreserving UTXOs for transaction")
-	if err := a.utxosRepo.UnreserveUTXOsByTransactionID(ctx, id); err != nil {
-		return fmt.Errorf("failed to unreserve UTXOs for transaction: %w", err)
-	}
+	return a.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		logger.DebugContext(txCtx, "Unreserving UTXOs for transaction")
+		if err := repos.UTXORepo().UnreserveUTXOsByTransactionID(txCtx, id); err != nil {
+			return fmt.Errorf("failed to unreserve UTXOs for transaction: %w", err)
+		}
 
-	logger.DebugContext(ctx, "Recreating spent outputs for transaction")
-	if err := a.outputsRepo.RecreateSpentOutputs(ctx, id); err != nil {
-		return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)
-	}
+		logger.DebugContext(txCtx, "Recreating spent outputs for transaction")
+		if err := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); err != nil {
+			return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)
+		}
 
-	logger.DebugContext(ctx, "Updating transaction status to 'failed'")
-	if err := a.transactionsRepo.UpdateTransactionStatusByID(ctx, id, wdk.TxStatusFailed); err != nil {
-		return fmt.Errorf("failed to update transaction status: %w", err)
-	}
+		logger.DebugContext(txCtx, "Marking created outputs as not spendable for transaction")
+		if err := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); err != nil {
+			return fmt.Errorf("failed to mark created outputs as not spendable for transaction: %w", err)
+		}
 
-	// TODO: KnownTx is not touched here because the same transaction can be owend by another user and we don't want to affect their state.
-	// NOTE: The abandoned knownTx will be updated to failed by cron job
+		logger.DebugContext(txCtx, "Updating transaction status to 'failed'")
+		if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed); err != nil {
+			return fmt.Errorf("failed to update transaction status: %w", err)
+		}
 
-	return nil
+		// TODO: KnownTx is not touched here because the same transaction can be owend by another user and we don't want to affect their state.
+		// NOTE: The abandoned knownTx will be updated to failed by cron job
+
+		return nil
+	})
 }
 
 func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transaction) error {

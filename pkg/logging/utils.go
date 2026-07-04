@@ -63,7 +63,6 @@ func Number[T types.Number](key string, value T) slog.Attr {
 // the simple switch case won't handle it, so we need to reach for reflection :(
 func valueForTypeOverNumber[T types.Number](value T) slog.Value {
 	v := reflect.ValueOf(value)
-	//nolint:exhaustive //compiler handles other cases, thanks to generics.
 	switch v.Kind() {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return slog.Uint64Value(uint64(value))
@@ -71,6 +70,8 @@ func valueForTypeOverNumber[T types.Number](value T) slog.Value {
 		return slog.Float64Value(float64(value))
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return slog.Int64Value(int64(value))
+	case reflect.Invalid, reflect.Bool, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		panic(fmt.Sprintf("unsupported type %T", value))
 	default:
 		panic(fmt.Sprintf("unsupported type %T", value))
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/time/rate"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -33,6 +34,7 @@ type WhatsOnChain struct {
 	url        string
 	apiKey     string
 	logger     *slog.Logger
+	limiter    *rate.Limiter
 
 	bsvExchangeRate            defs.BSVExchangeRate // TODO: possibly handle by some caching structure/redis
 	bsvUpdateInterval          time.Duration
@@ -65,17 +67,50 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetLogger(logging.RestyAdapter(logger)).
 		SetDebug(logging.IsDebug(logger))
 
-	return &WhatsOnChain{
+	woc := &WhatsOnChain{
 		httpClient:                 client,
 		apiKey:                     config.APIKey,
 		url:                        url,
 		logger:                     logger,
+		limiter:                    newRequestLimiter(config.RequestsPerSecond),
 		bsvExchangeRate:            config.BSVExchangeRate,
 		bsvUpdateInterval:          to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
 		rootForHeightRetryInterval: config.RootForHeightRetryInterval,
 		rootForHeightRetries:       config.RootForHeightRetries,
 		rootCache:                  make(map[uint32]*chainhash.Hash),
 	}
+
+	client.OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
+		if err := woc.limiter.Wait(req.Context()); err != nil {
+			return fmt.Errorf("waiting for WoC rate limiter: %w", err)
+		}
+		return nil
+	})
+
+	return woc
+}
+
+// SetRequestsPerSecond reconfigures the client-side rate limiter.
+// Not safe for concurrent use with in-flight requests - call right after New.
+func (woc *WhatsOnChain) SetRequestsPerSecond(requestsPerSecond float64) {
+	woc.limiter = newRequestLimiter(requestsPerSecond)
+}
+
+// newRequestLimiter builds the client-side rate limiter for WhatsOnChain requests.
+// Exceeding the WoC limit yields 429 responses, which under load turn into broadcast
+// failures, so all requests are throttled to the configured requests-per-second
+// (defaulting to the limit WoC applies to requests without an API key).
+func newRequestLimiter(requestsPerSecond float64) *rate.Limiter {
+	if requestsPerSecond <= 0 {
+		requestsPerSecond = defs.DefaultWhatsOnChainRequestsPerSecond
+	}
+
+	burst := int(requestsPerSecond)
+	if burst < 1 {
+		burst = 1
+	}
+
+	return rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
 }
 
 func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (_ *wdk.RawTxResult, err error) {

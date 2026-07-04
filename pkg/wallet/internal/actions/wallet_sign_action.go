@@ -86,7 +86,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	err = s.PendingSignActionsCache.Delete(s.reference)
 	if err != nil {
-		s.Logger.Warn("failed to delete pending sign action from cache",
+		s.Logger.WarnContext(ctx, "failed to delete pending sign action from cache",
 			slog.String("reference", s.reference),
 			slog.String("txID", s.txID.String()),
 			logging.Error(err))

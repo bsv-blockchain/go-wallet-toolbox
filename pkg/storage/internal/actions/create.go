@@ -17,13 +17,14 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -76,9 +77,12 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 
 type create struct {
 	logger          *slog.Logger
-	funder          funder.Funder
+	sqlFunder       *funder.SQL
+	db              *gorm.DB
 	basketRepo      BasketRepo
 	txRepo          TransactionsRepo
+	txRepoConcrete  *repo.Transactions
+	utxoRepo        *repo.UTXOs
 	outputRepo      OutputRepo
 	knownTxRepo     KnownTxRepo
 	commissionRepo  CommissionRepo
@@ -92,10 +96,13 @@ type create struct {
 
 func newCreateAction(
 	logger *slog.Logger,
-	funder funder.Funder,
+	sqlFnd *funder.SQL,
+	db *gorm.DB,
 	commissionCfg defs.Commission,
 	basketRepo BasketRepo,
 	txRepo TransactionsRepo,
+	txRepoConcrete *repo.Transactions,
+	utxoRepo *repo.UTXOs,
 	outputRepo OutputRepo,
 	knownTxRepo KnownTxRepo,
 	commissionRepo CommissionRepo,
@@ -107,9 +114,12 @@ func newCreateAction(
 	logger = logging.Child(logger, "createAction")
 	c := &create{
 		logger:          logger,
-		funder:          funder,
+		sqlFunder:       sqlFnd,
+		db:              db,
 		basketRepo:      basketRepo,
 		txRepo:          txRepo,
+		txRepoConcrete:  txRepoConcrete,
+		utxoRepo:        utxoRepo,
 		commissionCfg:   commissionCfg,
 		outputRepo:      outputRepo,
 		knownTxRepo:     knownTxRepo,
@@ -155,7 +165,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		}
 	}
 
-	c.logger.DebugContext(ctx, "Searching for change basket",
+	c.logger.DebugContext(
+		ctx, "Searching for change basket",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.String("basketName", wdk.BasketNameForChange),
@@ -174,7 +185,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create priority outputs: %w", err)
 	}
 
-	c.logger.DebugContext(ctx, "Processing inputs",
+	c.logger.DebugContext(
+		ctx, "Processing inputs",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Int("providedInputCount", len(params.Inputs)),
@@ -197,7 +209,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	var commOut *serviceChargeOutput
 	if c.commission != nil {
-		c.logger.DebugContext(ctx, "Creating commission output",
+		c.logger.DebugContext(
+			ctx, "Creating commission output",
 			logging.UserID(userID),
 			logging.Reference(reference),
 			slog.Uint64("commissionSatoshis", c.commissionCfg.Satoshis),
@@ -208,7 +221,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			return nil, fmt.Errorf("failed to collect outputs: %w", err)
 		}
 
-		c.logger.DebugContext(ctx, "Commission output created",
+		c.logger.DebugContext(
+			ctx, "Commission output created",
 			logging.UserID(userID),
 			logging.Reference(reference),
 			slog.Uint64("commissionSatoshis", uint64(commOut.Satoshis)),
@@ -217,13 +231,15 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		)
 		xoutputs = seq.Append(xoutputs, &commOut.ValidCreateActionOutput)
 	} else {
-		c.logger.DebugContext(ctx, "Commission disabled, skipping commission output creation",
+		c.logger.DebugContext(
+			ctx, "Commission disabled, skipping commission output creation",
 			logging.UserID(userID),
 			logging.Reference(reference),
 		)
 	}
 
-	c.logger.DebugContext(ctx, "Calculating transaction size",
+	c.logger.DebugContext(
+		ctx, "Calculating transaction size",
 		logging.UserID(userID),
 		logging.Reference(reference),
 	)
@@ -232,7 +248,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	c.logger.DebugContext(ctx, "Calculating target satoshis",
+	c.logger.DebugContext(
+		ctx, "Calculating target satoshis",
 		logging.UserID(userID),
 		logging.Reference(reference),
 	)
@@ -241,14 +258,16 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to calculate target satoshis: %w", err)
 	}
 
-	c.logger.DebugContext(ctx, "Transaction size and target calculated",
+	c.logger.DebugContext(
+		ctx, "Transaction size and target calculated",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Uint64("initialTxSize", initialTxSize),
 		logging.Number("targetSatoshis", targetSat),
 	)
 
-	c.logger.InfoContext(ctx, "Funding transaction",
+	c.logger.InfoContext(
+		ctx, "Funding transaction",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		logging.Number("targetSatoshis", targetSat),
@@ -263,133 +282,157 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		outputCount++
 	}
 
-	funding, err := c.funder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep)
+	var funding *funder.Result
+	var newOutputs []*entity.NewOutput
+	var derivationPrefix string
+
+	// CountUTXOs must run BEFORE opening the DB transaction to avoid a SQLite connection-pool
+	// deadlock (the transaction holds the one connection; CountUTXOs would block waiting for another).
+	existingUTXOs, err := c.utxoRepo.CountUTXOs(ctx, userID, basket.Name)
 	if err != nil {
-		return nil, fmt.Errorf("funding failed: %w", err)
+		return nil, fmt.Errorf("failed to count UTXOs: %w", err)
 	}
 
-	if isSweep {
-		adjSats := funding.ChangeAmount
-		if adjSats < 0 {
-			return nil, errfunder.ErrNotEnoughFunds
+	err = c.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+		var fundErr error
+		funding, fundErr = c.sqlFunder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, dbTx)
+		if fundErr != nil {
+			return fmt.Errorf("funding failed: %w", fundErr)
 		}
-		params.Outputs[sweepOutputIndex].Satoshis = primitives.SatoshiValue(adjSats)
-		funding.ChangeAmount = satoshi.Zero()
-		funding.ChangeOutputsCount = 0
-	}
 
-	c.logger.InfoContext(ctx, "Transaction funding completed",
-		logging.UserID(userID),
-		logging.Reference(reference),
-		logging.Number("changeAmount", funding.ChangeAmount),
-		slog.Uint64("changeOutputsCount", funding.ChangeOutputsCount),
-		slog.Int("allocatedUTXOsCount", len(funding.AllocatedUTXOs)),
-		logging.Number("fee", funding.Fee),
-	)
+		if isSweep {
+			adjSats := funding.ChangeAmount
+			if adjSats < 0 {
+				return wdk.ErrNotEnoughFunds
+			}
+			params.Outputs[sweepOutputIndex].Satoshis = primitives.SatoshiValue(adjSats)
+			funding.ChangeAmount = satoshi.Zero()
+			funding.ChangeOutputsCount = 0
+		}
 
-	c.logger.DebugContext(ctx, "Creating change distribution",
-		logging.UserID(userID),
-		logging.Reference(reference),
-		slog.Uint64("minimumDesiredUTXOValue", basket.MinimumDesiredUTXOValue),
-		slog.Uint64("changeOutputsCount", funding.ChangeOutputsCount),
-		logging.Number("changeAmount", funding.ChangeAmount),
-	)
+		c.logger.InfoContext(
+			ctx, "Transaction funding completed",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			logging.Number("changeAmount", funding.ChangeAmount),
+			slog.Uint64("changeOutputsCount", funding.ChangeOutputsCount),
+			slog.Int("allocatedUTXOsCount", len(funding.AllocatedUTXOs)),
+			logging.Number("fee", funding.Fee),
+		)
 
-	changeInitialValue := satoshi.MustFrom(basket.MinimumDesiredUTXOValue)
-	if funding.DustFloor > changeInitialValue {
-		changeInitialValue = funding.DustFloor
-	}
+		c.logger.DebugContext(
+			ctx, "Creating change distribution",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			slog.Uint64("minimumDesiredUTXOValue", basket.MinimumDesiredUTXOValue),
+			slog.Uint64("changeOutputsCount", funding.ChangeOutputsCount),
+			logging.Number("changeAmount", funding.ChangeAmount),
+		)
 
-	changeDistribution := txutils.NewChangeDistribution(changeInitialValue, c.random.Uint64).
-		Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
+		changeInitialValue := satoshi.MustFrom(basket.MinimumDesiredUTXOValue)
+		if funding.DustFloor > changeInitialValue {
+			changeInitialValue = funding.DustFloor
+		}
 
-	derivationPrefix, err := c.randomDerivation()
-	if err != nil {
-		return nil, err
-	}
+		changeDistribution := txutils.NewChangeDistribution(changeInitialValue, c.random.Uint64).
+			Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
 
-	c.logger.DebugContext(ctx, "Generated derivation prefix",
-		logging.UserID(userID),
-		logging.Reference(reference),
-		slog.Int("derivationPrefixLength", len(derivationPrefix)),
-	)
+		var dpErr error
+		derivationPrefix, dpErr = c.randomDerivation()
+		if dpErr != nil {
+			return dpErr
+		}
 
-	c.logger.DebugContext(ctx, "Creating new outputs",
-		logging.UserID(userID),
-		logging.Reference(reference),
-		slog.Int("providedOutputsCount", len(params.Outputs)),
-		slog.Bool("randomizeOutputs", params.RandomizeOutputs),
-		slog.Bool("hasCommissionOutput", commOut != nil),
-	)
+		c.logger.DebugContext(
+			ctx, "Generated derivation prefix",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			slog.Int("derivationPrefixLength", len(derivationPrefix)),
+		)
 
-	newOutputs, err := c.newOutputs(
-		changeDistribution,
-		funding.ChangeOutputsCount,
-		derivationPrefix,
-		params.Outputs,
-		commOut,
-		params.RandomizeOutputs,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new outputs: %w", err)
-	}
+		c.logger.DebugContext(
+			ctx, "Creating new outputs",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			slog.Int("providedOutputsCount", len(params.Outputs)),
+			slog.Bool("randomizeOutputs", params.RandomizeOutputs),
+			slog.Bool("hasCommissionOutput", commOut != nil),
+		)
 
-	c.logger.DebugContext(ctx, "Created new outputs",
-		logging.UserID(userID),
-		logging.Reference(reference),
-		slog.Int("totalOutputsCount", len(newOutputs)),
-	)
+		var noErr error
+		newOutputs, noErr = c.newOutputs(
+			changeDistribution,
+			funding.ChangeOutputsCount,
+			derivationPrefix,
+			params.Outputs,
+			commOut,
+			params.RandomizeOutputs,
+		)
+		if noErr != nil {
+			return fmt.Errorf("failed to create new outputs: %w", noErr)
+		}
 
-	totalAllocated, err := funding.TotalAllocated()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get total allocated inputs: %w", err)
-	}
+		c.logger.DebugContext(
+			ctx, "Created new outputs",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			slog.Int("totalOutputsCount", len(newOutputs)),
+		)
 
-	inputBeef, err := processedInputs.Beef.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize beef: %w", err)
-	}
+		totalAllocated, taErr := funding.TotalAllocated()
+		if taErr != nil {
+			return fmt.Errorf("failed to get total allocated inputs: %w", taErr)
+		}
 
-	c.logger.DebugContext(ctx, "Saving transaction in database",
-		logging.UserID(userID),
-		logging.Reference(reference),
-		logging.Number("txVersion", params.Version),
-		logging.Number("txLockTime", params.LockTime),
-		logging.Number("totalAllocated", totalAllocated),
-		logging.Number("changeAmount", funding.ChangeAmount),
-		slog.String("satoshis", fmt.Sprintf("%v - %v", funding.ChangeAmount, totalAllocated)),
-		slog.String("description", params.Description),
-		slog.Int("inputBeefSize", len(inputBeef)),
-	)
+		inputBeef, ibErr := processedInputs.Beef.Bytes()
+		if ibErr != nil {
+			return fmt.Errorf("failed to serialize beef: %w", ibErr)
+		}
 
-	err = c.txRepo.CreateTransaction(ctx, &entity.NewTx{
-		UserID:            userID,
-		Version:           params.Version,
-		LockTime:          params.LockTime,
-		Status:            wdk.TxStatusUnsigned,
-		Reference:         reference,
-		IsOutgoing:        true,
-		Description:       params.Description,
-		Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
-		Outputs:           newOutputs,
-		ReservedOutputIDs: c.mapReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
-		SpentOutputIDs:    c.mapReservedOutputIDs(funding.AllocatedUTXOs, append(processedInputs.ChangeOutputIDs, processedInputs.KnownOutputIDs...)),
-		Labels:            params.Labels,
-		InputBeef:         inputBeef,
-		Commission:        c.createCommissionEntity(userID, commOut),
-		UTXOStatus:        wdk.UTXOStatusUnknown,
+		c.logger.DebugContext(
+			ctx, "Saving transaction in database",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			logging.Number("txVersion", params.Version),
+			logging.Number("txLockTime", params.LockTime),
+			logging.Number("totalAllocated", totalAllocated),
+			logging.Number("changeAmount", funding.ChangeAmount),
+			slog.String("satoshis", fmt.Sprintf("%v - %v", funding.ChangeAmount, totalAllocated)),
+			slog.String("description", params.Description),
+			slog.Int("inputBeefSize", len(inputBeef)),
+		)
+
+		return c.txRepoConcrete.CreateTransactionInTx(ctx, dbTx, &entity.NewTx{
+			UserID:            userID,
+			Version:           params.Version,
+			LockTime:          params.LockTime,
+			Status:            wdk.TxStatusUnsigned,
+			Reference:         reference,
+			IsOutgoing:        true,
+			Description:       params.Description,
+			Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
+			Outputs:           newOutputs,
+			ReservedOutputIDs: c.mapReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
+			SpentOutputIDs:    c.mapReservedOutputIDs(funding.AllocatedUTXOs, append(processedInputs.ChangeOutputIDs, processedInputs.KnownOutputIDs...)),
+			Labels:            params.Labels,
+			InputBeef:         inputBeef,
+			Commission:        c.createCommissionEntity(userID, commOut),
+			UTXOStatus:        wdk.UTXOStatusUnknown,
+		})
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	c.logger.InfoContext(ctx, "Transaction saved in database successfully",
+	c.logger.InfoContext(
+		ctx, "Transaction saved in database successfully",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.String("status", string(wdk.TxStatusUnsigned)),
 	)
 
-	c.logger.DebugContext(ctx, "Creating result inputs",
+	c.logger.DebugContext(
+		ctx, "Creating result inputs",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		slog.Bool("includeInputSourceRawTxs", params.IncludeInputSourceRawTxs),
@@ -400,13 +443,13 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
-	c.logger.DebugContext(ctx, "CreateAction process completed",
+	c.logger.DebugContext(
+		ctx, "CreateAction process completed",
 		logging.UserID(userID),
 		logging.Reference(reference),
 		logging.Number("txVersion", params.Version),
 		logging.Number("txLockTime", params.LockTime),
 		slog.Int("outputsCount", len(newOutputs)),
-		slog.Int("inputBeefSize", len(inputBeef)),
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 

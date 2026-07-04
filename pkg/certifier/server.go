@@ -52,7 +52,8 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create certifier wallet: %w", err)
 	}
 
-	server, err := New(certifierWallet,
+	server, err := New(
+		certifierWallet,
 		WithPort(cfg.Server.Port),
 		WithMaxRequestBodyBytes(cfg.Server.MaxRequestBodyBytes),
 		WithLogger(logger),
@@ -99,7 +100,7 @@ func (s *Server) Start() error {
 		WriteTimeout:      2 * time.Minute,
 	}
 
-	s.config.Logger.Info("Listening...", slog.Any("addr", s.addr))
+	s.config.Logger.InfoContext(context.Background(), "Listening...", slog.Any("addr", s.addr))
 
 	err := s.httpServer.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {

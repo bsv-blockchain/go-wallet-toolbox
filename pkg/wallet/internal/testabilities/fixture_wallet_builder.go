@@ -122,6 +122,8 @@ func (w *walletBuilder) ForRootKey(rootKey string) *wallet.Wallet {
 	opts := slices.Clone(w.walletOpts)
 	if w.withServices {
 		serviceCfg := defs.DefaultServicesConfig(net)
+		// NOTE: tests should not be slowed down by the client-side WoC rate limiter
+		serviceCfg.WhatsOnChain.RequestsPerSecond = 10000
 		walletServices := services.New(slog.Default(), serviceCfg)
 		opts = append(opts, wallet.WithServices(walletServices))
 	}
@@ -175,6 +177,8 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 	}
 	if w.withServices {
 		serviceCfg := defs.DefaultServicesConfig(net)
+		// NOTE: tests should not be slowed down by the client-side WoC rate limiter
+		serviceCfg.WhatsOnChain.RequestsPerSecond = 10000
 		transport := w.givenStorage.Provider().Transport()
 		client := resty.New()
 		client.SetTransport(transport)

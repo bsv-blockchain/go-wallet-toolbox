@@ -189,11 +189,11 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 // ListenAndServe starts the JSON-RPC server
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.txBroadcastedCh != nil {
-		go s.consumeTxBroadcasted()
+		go s.consumeTxBroadcasted(ctx)
 	}
 
 	if s.txProvenCh != nil {
-		go s.consumeTxProven()
+		go s.consumeTxProven(ctx)
 	}
 
 	if s.Config.Services.ChaintracksClient.Enabled {
@@ -218,7 +218,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 // Cleanup releases all resources held by the server
 func (s *Server) Cleanup() {
-	s.logger.Info("Cleaning up resources...")
+	s.logger.InfoContext(context.Background(), "Cleaning up resources...")
 
 	if s.monitor != nil {
 		_ = s.monitor.Stop()
@@ -229,9 +229,10 @@ func (s *Server) Cleanup() {
 	}
 }
 
-func (s *Server) consumeTxBroadcasted() {
+func (s *Server) consumeTxBroadcasted(ctx context.Context) {
 	for msg := range s.txBroadcastedCh {
-		s.logger.Info(
+		s.logger.InfoContext(
+			ctx,
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
 			slog.String("reference", msg.Reference),
@@ -239,7 +240,8 @@ func (s *Server) consumeTxBroadcasted() {
 		)
 
 		if msg.Error != nil {
-			s.logger.Error(
+			s.logger.ErrorContext(
+				ctx,
 				"tx broadcast error",
 				slog.String("tx_id", msg.TxID),
 				slog.Any("error", msg.Error.Errors),
@@ -248,9 +250,10 @@ func (s *Server) consumeTxBroadcasted() {
 	}
 }
 
-func (s *Server) consumeTxProven() {
+func (s *Server) consumeTxProven(ctx context.Context) {
 	for msg := range s.txProvenCh {
-		s.logger.Info(
+		s.logger.InfoContext(
+			ctx,
 			"tx proven",
 			slog.String("tx_id", msg.TxID),
 			slog.String("status", msg.Status.String()),

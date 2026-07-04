@@ -223,7 +223,7 @@ func (t transaction) Table(newTableName string) *transaction {
 }
 
 func (t transaction) As(alias string) *transaction {
-	t.transactionDo.DO = *(t.transactionDo.As(alias).(*gen.DO))
+	t.transactionDo.DO = *t.transactionDo.As(alias).(*gen.DO)
 	return t.updateTableName(alias)
 }
 

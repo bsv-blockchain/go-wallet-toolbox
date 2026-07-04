@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -41,7 +42,7 @@ func LoadConfig(path string, log *slog.Logger) (*Config, error) {
 
 	data, err := os.ReadFile(path) //nolint:gosec // path is resolved from environment/defaults, not user input
 	if err != nil {
-		log.Warn("Could not read config file, using defaults", "error", err)
+		log.WarnContext(context.Background(), "Could not read config file, using defaults", "error", err)
 		return nil, fmt.Errorf("could not read config file: %w", err)
 	}
 
