@@ -236,4 +236,4 @@ The `sync_states` table SHALL include an `init` boolean column. The `when` (date
 
 ### Requirement: `sync_states.when` and `sync_states.satoshis` columns
 
-**RESCINDED 2026-06-08.** These columns ARE present in TS at the pinned commit `179d88c61` and are retained (see the MODIFIED `sync_states` table shape requirement). The original removal rested on a wrong premise.
+**RESCINDED 2026-06-08.** These columns ARE present in TS at the pinned commit `7a840ff97e1f685f778210818933e6da0dac22c2` and are retained (see the MODIFIED `sync_states` table shape requirement). The original removal rested on a wrong premise.

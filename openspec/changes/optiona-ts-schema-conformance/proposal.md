@@ -161,7 +161,7 @@ At target load of 10 tps, no significant impact expected. Estimated 5-15% added 
 ## Decisions confirmed by author
 
 1. **Drop `users.activeStorage`** — strict conformance. Multi-storage routing reintroduced via spec only if TS adds it upstream.
-2. **Keep `sync_states.when` and `sync_states.satoshis`** — **REVISED 2026-06-08** (was "drop"): both columns exist in TS at the pinned commit `179d88c61`, so conformance requires retaining them. The original drop rested on a wrong premise.
+2. **Keep `sync_states.when` and `sync_states.satoshis`** — **REVISED 2026-06-08** (was "drop"): both columns exist in TS at the pinned commit `7a840ff97e1f685f778210818933e6da0dac22c2`, so conformance requires retaining them. The original drop rested on a wrong premise.
 3. **Drop `user_utxo` unconditionally** — no benchmark gate. UTXO selection moves to `outputs.spendable` index. Perf at 10 tps target accepted; higher-tps issues addressed via indexing later.
 4. **ts-stack pin: latest main HEAD** at Phase 0 start. Refresh policy in `ts-pin.md`.
 5. **Perf validation deferred to a follow-up** — **REVISED 2026-06-08** (was "block on baseline benchmark"): no benchmark harness exists in-repo. Gate the sitting on build + unit tests + conformance + lint, apply the design's indexes, and file a perf-bench follow-up issue. See `tasks.md` Wave 4.

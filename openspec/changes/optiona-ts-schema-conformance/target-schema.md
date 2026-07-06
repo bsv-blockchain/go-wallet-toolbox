@@ -2,7 +2,7 @@
 
 Every task in this change codes against THIS document, not against prose column-lists elsewhere. It is the migration-resolved final state of `ts-stack/wallet-toolbox` at the pinned commit (`ts-pin.md`).
 
-**Extraction source:** `packages/wallet/wallet-toolbox/src/storage/schema/KnexMigrations.ts` @ `179d88c61`.
+**Extraction source:** `packages/wallet/wallet-toolbox/src/storage/schema/KnexMigrations.ts` @ `7a840ff97e1f685f778210818933e6da0dac22c2`.
 
 **Extraction method (Wave 0 finalizes this file):** Knex runs migrations in **sorted-key order**, NOT file order. Final state = apply every `createTable` then every `alterTable`/`dropColumn` in key order. Columns added by one migration and dropped by a later one are **absent** in final state. The tables below are extracted from the `createTable` blocks; items flagged **⚠ RESOLVE** are touched by later `alterTable` migrations and Wave 0 must confirm net state before models are written.
 

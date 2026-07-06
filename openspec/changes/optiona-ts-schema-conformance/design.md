@@ -65,7 +65,7 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 
 ## Revisions (2026-06-08, post schema-validation against pinned TS)
 
-The schema was extracted from `KnexMigrations.ts` @ `179d88c61` into `target-schema.md`. That validation corrected several assumptions baked into the original prose:
+The schema was extracted from `KnexMigrations.ts` @ `7a840ff97e1f685f778210818933e6da0dac22c2` into `target-schema.md`. That validation corrected several assumptions baked into the original prose:
 
 - **`created_at`/`updated_at` stay snake_case** (TS `addTimeStamps`); all other columns camelCase.
 - **Per-table named PKs on every table** (`transactionId`, `outputId`, …), not just composite-key tables. `gorm.Model` (generic `id` + `deleted_at`) is dropped everywhere.

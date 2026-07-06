@@ -4,7 +4,7 @@
 >
 > **Source of truth for every column/type/PK/index:** `target-schema.md`. If prose anywhere disagrees with `target-schema.md`, `target-schema.md` wins.
 
-**Goal:** Make Go's storage schema byte-for-byte conformant with `ts-stack/wallet-toolbox` @ `179d88c61`, so storage dumps round-trip and conformance fixtures are shared.
+**Goal:** Make Go's storage schema byte-for-byte conformant with `ts-stack/wallet-toolbox` @ `7a840ff97e1f685f778210818933e6da0dac22c2`, so storage dumps round-trip and conformance fixtures are shared.
 
 **Architecture:** GORM models → generated genquery (gorm.io/gen) → repos → sync repos → actions/funder → provider → wdk DTOs / v1adapter. The model package is a hard build-barrier; the fan-out lives downstream of it.
 
@@ -88,9 +88,9 @@ Wave 4  docs + indexes + final pin + archive-ready
 
 **Goal:** lock the contract everything codes to. No model code yet.
 
-- [ ] `ts-pin.md` is pinned to `179d88c61` (done). Confirm the local checkout `/Users/personal/git/ts-stack` is at that commit.
+- [ ] `ts-pin.md` is pinned to `7a840ff97e1f685f778210818933e6da0dac22c2` (done). Confirm the local checkout `/Users/personal/git/ts-stack` is at that commit.
 - [ ] **Finalize `target-schema.md`:** resolve the ⚠ RESOLVE items by applying migrations in sorted-key order — confirm net state of `proven_tx_reqs.wasBroadcast`/`rebroadcastAttempts` (appear add-then-drop → likely absent; Go currently has `rebroadcast_attempts` and must drop it if absent), `users.activeStorage` (net-absent), and the `description`/`derivationPrefix`/`derivationSuffix` final sizes. Agent task; you verify the diff.
-- [ ] **Reconcile conformance vectors:** run `./conformance/scripts/refresh-vectors.sh 179d88c61`; commit the refreshed `conformance/SOURCE` + vectors. If the refresh pulls schema beyond this change's scope, halt and reassess.
+- [ ] **Reconcile conformance vectors:** run `./conformance/scripts/refresh-vectors.sh 7a840ff97e1f685f778210818933e6da0dac22c2`; commit the refreshed `conformance/SOURCE` + vectors. If the refresh pulls schema beyond this change's scope, halt and reassess.
 - [ ] (Optional, cheap) emit a `schema-diff` note: list each shared table's Go-current vs target column delta, derived from `target-schema.md` — feeds Wave 1 agents their per-file work list.
 - **Gate:** `target-schema.md` has zero ⚠ RESOLVE left; vectors committed. **No bench** (deferred — Wave 4 files the follow-up).
 - *Covers original Phase 0 (minus baseline bench).*
