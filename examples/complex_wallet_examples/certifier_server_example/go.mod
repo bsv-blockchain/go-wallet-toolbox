@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.2.24
-	github.com/bsv-blockchain/go-wallet-toolbox v0.183.16
+	github.com/bsv-blockchain/go-wallet-toolbox v0.183.18
 	github.com/go-softwarelab/common v1.8.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -45,7 +45,7 @@ require (
 	github.com/bsv-blockchain/go-p2p-message-bus v0.1.21 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.2.0 // indirect
 	github.com/bsv-blockchain/go-subtree v1.4.4 // indirect
-	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.7 // indirect
+	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.8 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.4.1 // indirect
 	github.com/bsv-blockchain/go-wire v1.2.10 // indirect
 	github.com/bsv-blockchain/teranode v0.16.0-beta-2 // indirect
