@@ -409,7 +409,7 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			Status:          updatedTx.ReqTxStatus,
 			RawTx:           updatedTx.RawTx,
 			InputBeef:       updatedTx.InputBeef,
-			SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted},
+			SkipForStatuses: wdk.ProvenTxReqBeyondBroadcastStageStatuses,
 		}, txNote)
 	})
 	if err != nil {
