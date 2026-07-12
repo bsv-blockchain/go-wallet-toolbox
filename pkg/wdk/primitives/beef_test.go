@@ -34,3 +34,13 @@ func TestBEEFUnmarshalRejectsOutOfRange(t *testing.T) {
 	var decoded BEEF
 	assert.Error(t, json.Unmarshal([]byte("[0,256]"), &decoded))
 }
+
+func TestExplicitByteArrayUnmarshalRoundTrip(t *testing.T) {
+	original := ExplicitByteArray{0, 1, 127, 255}
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var decoded ExplicitByteArray
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	assert.Equal(t, original, decoded)
+}
