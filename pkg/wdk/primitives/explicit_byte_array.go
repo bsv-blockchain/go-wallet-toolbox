@@ -41,6 +41,11 @@ func (b ExplicitByteArray) MarshalJSON() ([]byte, error) {
 	return result, nil
 }
 
+// UnmarshalJSON accepts either a JSON array of numbers or a base64 string.
+func (b *ExplicitByteArray) UnmarshalJSON(data []byte) error {
+	return (*BEEF)(b).UnmarshalJSON(data)
+}
+
 // Hex returns the hexadecimal representation of the byte array.
 func (b ExplicitByteArray) Hex() string {
 	return hex.EncodeToString(b)
