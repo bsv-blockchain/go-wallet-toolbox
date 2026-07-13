@@ -8,7 +8,6 @@ import (
 	"maps"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -31,10 +30,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-const (
-	transactionBatchLength      = 16
-	abortBeforeBroadcastTimeout = 30 * time.Second
-)
+const transactionBatchLength = 16
 
 type process struct {
 	logger                *slog.Logger
@@ -476,7 +472,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...))
 	if err != nil {
-		p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
@@ -487,7 +483,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	// hydrate txs in beef
 	if err = txutils.HydrateBEEF(beef); err != nil {
-		p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
@@ -499,18 +495,18 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, txID := range readyToSendTxIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
-			p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 			return nil, fmt.Errorf("transaction %s not found in beef", txID)
 		}
 
 		var ok bool
 		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
 		if err != nil {
-			p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
 		}
 		if !ok {
-			p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
 		}
 	}
@@ -521,7 +517,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
-		p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
@@ -550,7 +546,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
 	}
 
@@ -865,16 +861,12 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	return reqStatus, txStatus, spendable, reviewActionResult, sendWithResult, err
 }
 
-func (p *process) abortTxsBeforeBroadcast(txIDs []string) {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), abortBeforeBroadcastTimeout)
-		defer cancel()
-		for _, txID := range txIDs {
-			if err := p.abortTxByStringID(ctx, txID); err != nil {
-				p.logger.ErrorContext(ctx, "failed to abort tx before broadcast", slog.String("txID", txID), logging.Error(err))
-			}
+func (p *process) abortTxsBeforeBroadcast(ctx context.Context, txIDs []string) {
+	for _, txID := range txIDs {
+		if err := p.abortTxByStringID(ctx, txID); err != nil {
+			p.logger.ErrorContext(ctx, "failed to abort tx before broadcast", slog.String("txID", txID), logging.Error(err))
 		}
-	}()
+	}
 }
 
 func (p *process) abortTxByStringID(ctx context.Context, txID string) error {
