@@ -1151,7 +1151,10 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
-		status := txStatusMap[ktx.TxID].ToStandardizedStatus()
+		status := ktx.Status.ToStandardizedStatus()
+		if txStatusMap[ktx.TxID] == wdk.TxStatusFailed {
+			status = wdk.TxUpdateStatusFailed
+		}
 
 		txUpdate := wdk.CurrentTxStatus{
 			TxID:   ktx.TxID,
