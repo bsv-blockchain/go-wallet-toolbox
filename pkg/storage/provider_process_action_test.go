@@ -489,7 +489,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, scriptsVerifyMockError)
 
-	// and db state:
+	// and db state: transaction is automatically aborted on pre-broadcast failure
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID).
 		NotMined().
@@ -498,33 +498,9 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		HasRawTx()
 
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-		WithTxID(txID).WithStatus(wdk.TxStatusUnprocessed)
+		WithTxID(txID).WithStatus(wdk.TxStatusFailed)
 
-	// and:
-	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
-
-	// when, retry:
-	given.Provider().ScriptsVerifier().DefaultBehavior()
-	args = wdk.ProcessActionArgs{
-		IsNewTx: false,
-		TxID:    to.Ptr(primitives.TXIDHexString(txID)),
-	}
-	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
-
-	// then:
-	require.NoError(t, err)
-
-	thenDBState.HasKnownTX(txID).
-		NotMined().
-		WithStatus(wdk.ProvenTxStatusUnmined).
-		WithAttempts(1).
-		HasRawTx()
-
-	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
-
-	// and:
+	// and: funds are released because the pre-broadcast abort unreserves UTXOs
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
 }

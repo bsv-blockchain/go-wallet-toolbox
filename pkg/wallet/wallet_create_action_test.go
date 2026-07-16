@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -925,21 +924,17 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 
 		createActionResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
-		// then:
+		// then: CreateAction should fail with TransactionError
 		txError := &pkgerrors.TransactionError{}
 		require.ErrorAs(t, err, &txError)
 		assert.False(t, txError.WrongHash)
 		assert.Nil(t, createActionResult)
 
-		// when:
-		txIDToRetry := txError.TxID
+		// and: the failed transaction should be automatically aborted, releasing UTXOs
+		// when: user creates a NEW transaction using the released funds
 		given.ScriptsVerifier().DefaultBehavior()
-		createActionResult, err = aliceWallet.CreateAction(t.Context(), sdk.CreateActionArgs{
-			Options: &sdk.CreateActionOptions{
-				SendWith: []chainhash.Hash{txIDToRetry},
-			},
-			Description: "retry using sendWith",
-		}, fixtures.DefaultOriginator)
+		retryArgs := fixtures.DefaultWalletCreateActionArgs(t)
+		createActionResult, err = aliceWallet.CreateAction(t.Context(), retryArgs, fixtures.DefaultOriginator)
 
 		// then:
 		require.NoError(t, err)
@@ -955,17 +950,17 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
+		// Second action (retry - new tx) should succeed
 		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
-			WithTxID(txIDToRetry.String()).
-			WithDescription(args.Description).
+			WithDescription(retryArgs.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
+			WithSatoshis(-int64(retryArgs.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
 
 		thenCreatedAction.OutputAtIndex(0).
-			WithSatoshis(args.Outputs[0].Satoshis).
-			WithLockingScript(args.Outputs[0].LockingScript).
+			WithSatoshis(retryArgs.Outputs[0].Satoshis).
+			WithLockingScript(retryArgs.Outputs[0].LockingScript).
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).

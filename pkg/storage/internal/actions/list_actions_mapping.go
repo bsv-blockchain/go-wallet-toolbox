@@ -26,6 +26,7 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 	filteredLabels := make([]string, 0, len(labelNames))
 	for _, label := range labelNames {
 		if label == string(wdk.TxStatusUnfail) {
+			isFailedQuery = true
 			continue
 		}
 		filteredLabels = append(filteredLabels, label)
