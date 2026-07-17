@@ -73,7 +73,10 @@ func TestDatabase(t testing.TB, configModifiers ...DBConfigModifier) (db *databa
 	err = repos.Migrate(t.Context())
 	require.NoError(t, err)
 
-	cleanup = func() {}
+	cleanup = func() {
+		// no-op: the default in-memory SQLite database vanishes with its
+		// connection; only the Postgres path below needs explicit teardown.
+	}
 	if schema != "" {
 		cleanup = func() {
 			// Drop the schema first, then close the pool: with hundreds of

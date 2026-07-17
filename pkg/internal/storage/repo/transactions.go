@@ -420,6 +420,9 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 	return nil
 }
 
+// statusInCondition is the shared WHERE fragment for status-set filters and CAS preconditions.
+const statusInCondition = "status IN ?"
+
 // UpdateTransactionStatusByTxID updates every transaction row matching txID to txStatus.
 // When expectedCurrent is non-empty it is applied as a positive CAS precondition
 // (AND status IN (...)); a zero-row result — absent row or failed precondition —
@@ -434,7 +437,7 @@ func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID
 	query := txs.db.WithContext(ctx).Model(models.Transaction{}).
 		Where("tx_id = ?", txID)
 	if len(expectedCurrent) > 0 {
-		query = query.Where("status IN ?", expectedCurrent)
+		query = query.Where(statusInCondition, expectedCurrent)
 	}
 
 	result := query.Updates(map[string]any{
@@ -516,7 +519,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			Where("user_id = ?", userID)
 
 		if len(filter.Status) > 0 {
-			query = query.Where("status IN ?", filter.Status)
+			query = query.Where(statusInCondition, filter.Status)
 		}
 
 		if len(filter.Labels) > 0 {
@@ -557,7 +560,7 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 		Where("user_id = ?", userID)
 
 	if len(filter.Status) > 0 {
-		query = query.Where("status IN ?", filter.Status)
+		query = query.Where(statusInCondition, filter.Status)
 	}
 	if len(filter.Labels) > 0 {
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))

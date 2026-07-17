@@ -83,21 +83,8 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 	}
 
 	if args.Unfail.Value() {
-		for _, a := range actions {
-			if a.TxID == "" {
-				continue
-			}
-			if err := l.knownTxRepo.UpdateKnownTxStatus(ctx, a.TxID, wdk.ProvenTxStatusUnfail, nil, nil); err != nil {
-				if errors.Is(err, repo.ErrStatusUpdateSkipped) {
-					// Legitimate: a failed Transaction can have a tx_id with no matching
-					// KnownTx row (e.g. the abort sweep's own filter tolerates such rows via
-					// COALESCE(known_txs.status,'unprocessed')). There is nothing to unfail
-					// for this tx; log and continue with the remaining actions.
-					l.logger.DebugContext(ctx, "known tx status update skipped for unfail (no matching KnownTx row)", slog.String("txID", a.TxID), logging.Error(err))
-					continue
-				}
-				return nil, fmt.Errorf("failed to update known tx status: %w", err)
-			}
+		if err := l.markActionsForUnfail(ctx, actions); err != nil {
+			return nil, err
 		}
 	}
 
@@ -105,4 +92,27 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 		TotalActions: primitives.PositiveInteger(must.ConvertToUInt64(total)),
 		Actions:      actions,
 	}, nil
+}
+
+// markActionsForUnfail flips each listed action's KnownTx to 'unfail' so the UnFail
+// cron re-verifies it. Skipped updates are legitimate: a failed Transaction can have
+// a tx_id with no matching KnownTx row (e.g. the abort sweep's own filter tolerates
+// such rows via COALESCE(known_txs.status,'unprocessed')) — there is nothing to
+// unfail for that tx, so it is logged and the remaining actions are processed.
+func (l *listActions) markActionsForUnfail(ctx context.Context, actions []wdk.WalletAction) error {
+	for _, a := range actions {
+		if a.TxID == "" {
+			continue
+		}
+		err := l.knownTxRepo.UpdateKnownTxStatus(ctx, a.TxID, wdk.ProvenTxStatusUnfail, nil, nil)
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, repo.ErrStatusUpdateSkipped) {
+			l.logger.DebugContext(ctx, "known tx status update skipped for unfail (no matching KnownTx row)", slog.String("txID", a.TxID), logging.Error(err))
+			continue
+		}
+		return fmt.Errorf("failed to update known tx status: %w", err)
+	}
+	return nil
 }
