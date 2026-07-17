@@ -75,7 +75,7 @@ func TestRetryOnContention_NonContentionErrorDoesNotRetry(t *testing.T) {
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, errBoom)
-	require.False(t, errors.Is(err, wdk.ErrUTXOContention))
+	require.NotErrorIs(t, err, wdk.ErrUTXOContention)
 	require.Equal(t, 1, calls, "non-contention error must not be retried")
 }
 

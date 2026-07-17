@@ -83,7 +83,7 @@ func backoffWithJitter(attempt int, random wdk.Randomizer) time.Duration {
 	}
 
 	jitter := random.Uint64(uint64(base))
-	return base/2 + time.Duration(jitter)
+	return base/2 + time.Duration(jitter) //nolint:gosec // jitter < base <= MaxInt64, conversion cannot overflow
 }
 
 type CreateActionParams struct {
