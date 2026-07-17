@@ -85,8 +85,8 @@ func TestConcurrentChangeFunding_ExactlyMSucceed(t *testing.T) {
 	// the Mined/Unproven tiers by default (see funder.allocateBounded's `tiers`).
 	// The background broadcaster keeps running throughout the test, so it may race
 	// this explicit call for the same transition — that race is benign: the status
-	// update is a guarded CAS (UPDATE ... WHERE status NOT IN (...), zero rows
-	// affected -> repo.ErrStatusUpdateSkipped) and the UTXO write is an upsert keyed
+	// update is a guarded CAS (UPDATE ... WHERE status IN (<expected current>), zero
+	// rows affected -> repo.ErrStatusUpdateSkipped) and the UTXO write is an upsert keyed
 	// on (UserID, OutputID), so whichever caller wins leaves the same end state.
 	given.Provider().ARC().WhenQueryingTx(internalizeResult.TxID).WillReturnTransactionWithoutMerklePath()
 	_, err = activeStorage.SendWaitingTransactions(ctx, -time.Minute)

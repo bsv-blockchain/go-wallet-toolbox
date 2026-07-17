@@ -40,9 +40,10 @@ func sqliteDialector(cfg defs.Database) gorm.Dialector {
 // database or already configures either pragma explicitly.
 //
 // WAL lets readers and a writer proceed concurrently instead of the default
-// rollback-journal mode's single-writer-excludes-all-readers behavior, and the
-// busy_timeout gives concurrent writers (which WAL still serializes) a window
-// to wait for the SQLITE_BUSY lock to clear instead of failing immediately.
+// rollback-journal mode's single-writer-excludes-all-readers behavior. The
+// busy_timeout matches mattn/go-sqlite3's built-in 5000ms default — pinning it
+// in the DSN makes the value explicit and survives any future driver-default
+// change; WAL is the actual behavior change here.
 // This matters because gorm's sqlite dialector passes the DSN to sql.Open
 // unmodified (gorm.io/driver/sqlite Dialector.Initialize), and mattn/go-sqlite3
 // parses driver params (_journal_mode, _busy_timeout, ...) from the query
