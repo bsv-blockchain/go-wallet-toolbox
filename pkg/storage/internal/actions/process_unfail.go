@@ -89,7 +89,20 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 		return
 	}
 
-	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+	err = p.markAsInvalid(ctx, txID)
+
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to unfail single tx", slog.String("txID", txID), logging.Error(err))
+	} else {
+		log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid' — cascaded to user transactions", slog.String("txID", txID))
+	}
+}
+
+// markAsInvalid moves KnownTx back to 'invalid', cascades user Transactions to 'failed',
+// and restores spent input UTXOs / un-spendable created outputs — all within a single
+// UnitOfWork, so a restore failure rolls back the whole cascade instead of half-committing.
+func (p *process) markAsInvalid(ctx context.Context, txID string) error {
+	return p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
 		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); uowErr != nil {
 			return fmt.Errorf("failed to set known tx to 'invalid': %w", uowErr)
@@ -107,21 +120,15 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 
 		for _, id := range transactionIDs {
 			if uowErr := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); uowErr != nil {
-				log.ErrorContext(txCtx, "Failed to restore spent outputs for failed tx", slog.String("txID", txID), logging.Error(uowErr))
+				return fmt.Errorf("failed to recreate spent outputs for transaction %d: %w", id, uowErr)
 			}
 			if uowErr := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); uowErr != nil {
-				log.ErrorContext(txCtx, "Failed to mark created outputs as not spendable for failed tx", slog.String("txID", txID), logging.Error(uowErr))
+				return fmt.Errorf("failed to mark created outputs as not spendable for transaction %d: %w", id, uowErr)
 			}
 		}
 
 		return nil
 	})
-
-	if err != nil {
-		log.ErrorContext(ctx, "Failed to unfail single tx", slog.String("txID", txID), logging.Error(err))
-	} else {
-		log.InfoContext(ctx, "MerklePath not found; known tx set to 'invalid' — cascaded to user transactions", slog.String("txID", txID))
-	}
 }
 
 // markAsUnminedAndUnproven moves KnownTx and Transaction forward and ensures outputs are spendable.
