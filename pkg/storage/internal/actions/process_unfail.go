@@ -109,7 +109,9 @@ func (p *process) markAsInvalid(ctx context.Context, txID string) error {
 		}
 
 		// Cascade: mark user Transactions as failed and restore spent input UTXOs.
-		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusFailed); uowErr != nil {
+		// Positive CAS: unfail only ever runs on transactions currently in 'failed'
+		// (list_failed_actions lists only failed txs), so require that pre-state.
+		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusFailed, wdk.TxStatusFailed); uowErr != nil {
 			return fmt.Errorf("failed to set user transactions to 'failed': %w", uowErr)
 		}
 
@@ -138,7 +140,9 @@ func (p *process) markAsUnminedAndUnproven(ctx context.Context, log *slog.Logger
 		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); uowErr != nil {
 			return fmt.Errorf("failed to set known tx to 'unmined': %w", uowErr)
 		}
-		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusUnproven); uowErr != nil {
+		// Positive CAS: recover only a currently-'failed' transaction, closing the
+		// completed->unproven downgrade window if the tx raced to a proven state.
+		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusUnproven, wdk.TxStatusFailed); uowErr != nil {
 			return fmt.Errorf("failed to set tx to 'unproven': %w", uowErr)
 		}
 		if uowErr := repos.OutputRepo().MarkCreatedOutputsAsSpendableByTxID(txCtx, txID); uowErr != nil {
