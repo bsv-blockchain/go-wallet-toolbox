@@ -350,6 +350,10 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// returns a brand-new *funder.Result per call, and derivationPrefix is a plain string
 	// reassignment — so a failed attempt's values are always fully overwritten before a retry
 	// (or the final return) reads them; nothing accumulates across attempts.
+	//
+	// The existingUTXOs snapshot above is deliberately NOT refreshed across attempts (it cannot
+	// run inside the transaction, see the deadlock note); staleness only affects how many change
+	// outputs are created, which is clamped to >=1 downstream — never funds-safety.
 	fundingClosure := func(dbTx *gorm.DB) error {
 		var fundErr error
 		funding, fundErr = c.sqlFunder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, dbTx)
