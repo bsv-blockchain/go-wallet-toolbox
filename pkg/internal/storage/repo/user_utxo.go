@@ -82,11 +82,20 @@ func (r *UserUTXOs) Update(ctx context.Context, spec *entity.UserUTXOUpdateSpeci
 		return nil
 	}
 
-	_, err = table.WithContext(ctx).
-		Where(table.OutputID.Eq(spec.OutputID)).
-		Updates(updates)
+	query := table.WithContext(ctx).
+		Where(table.OutputID.Eq(spec.OutputID))
+	if spec.ReservedByID != nil {
+		query = query.Where(table.ReservedByID.IsNull())
+	}
+
+	var info gen.ResultInfo
+	info, err = query.Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update user utxo: %w", err)
+	}
+	if spec.ReservedByID != nil && info.RowsAffected == 0 {
+		err = fmt.Errorf("cannot reserve utxo (output_id=%d): %w", spec.OutputID, ErrUTXOContention)
+		return err
 	}
 	return nil
 }
