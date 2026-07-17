@@ -106,15 +106,18 @@ func (l *LeaseLocker) Lock(ctx context.Context, key string) (gocron.Lock, error)
 	// another instance.
 	if err := l.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
-		Create(&monitorJobLock{JobName: key, Owner: l.owner, LeaseUntil: leaseUntil}).Error; err != nil {
+		Create(&monitorJobLock{JobName: key, Owner: l.owner, LeaseUntil: leaseUntil, UpdatedAt: now}).Error; err != nil {
 		return nil, fmt.Errorf("lease ensure-row failed for %s: %w", key, err)
 	}
 
-	// Claim: take the lease iff we already own it or it has expired.
+	// Claim: take the lease iff we already own it or it has expired. UpdatedAt
+	// is set explicitly to the same UTC clock as LeaseUntil so every column
+	// this locker writes is UTC (gorm's auto-managed UpdatedAt would otherwise
+	// use the process-local time.Now()).
 	res := l.db.WithContext(ctx).
 		Model(&monitorJobLock{}).
 		Where("job_name = ? AND (owner = ? OR lease_until < ?)", key, l.owner, now).
-		Updates(map[string]any{"owner": l.owner, "lease_until": leaseUntil})
+		Updates(map[string]any{"owner": l.owner, "lease_until": leaseUntil, "updated_at": now})
 	if res.Error != nil {
 		return nil, fmt.Errorf("lease claim failed for %s: %w", key, res.Error)
 	}
@@ -142,7 +145,7 @@ func (h *leaseHandle) Unlock(ctx context.Context) error {
 	res := h.locker.db.WithContext(ctx).
 		Model(&monitorJobLock{}).
 		Where("job_name = ? AND owner = ?", h.key, h.locker.owner).
-		Updates(map[string]any{"lease_until": now})
+		Updates(map[string]any{"lease_until": now, "updated_at": now})
 	if res.Error != nil {
 		return fmt.Errorf("lease release failed for %s: %w", h.key, res.Error)
 	}

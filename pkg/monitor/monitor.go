@@ -217,6 +217,15 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 
 	opts := []gocron.JobOption{
 		gocron.WithName(jobName),
+		// gocron runs each tick in a fresh goroutine and does NOT prevent a
+		// single process from overlapping runs of the same job. Without this,
+		// a run overrunning its interval would re-acquire its own lease
+		// (owner=me) and overlap itself; when the first run Unlocks
+		// (lease_until=now) another pod could claim mid-flight — a narrow
+		// break of exactly-once. Singleton mode makes the same-process
+		// non-overlap premise the lease relies on actually true; overlapping
+		// ticks are rescheduled rather than run concurrently.
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	}
 
 	if taskConfig.StartImmediately {
