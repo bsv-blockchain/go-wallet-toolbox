@@ -42,7 +42,7 @@ Tests expect Postgres to be running on `localhost:5432` with:
 - **Password:** `postgres`
 - **Database:** `postgres` (default, can be overridden with `TEST_DB_NAME`)
 
-These match the defaults in `docker-compose.yaml` and the CI workflow.
+The user/password/port match the `db` service in `docker-compose.yaml` and the CI workflow. Note the default database differs: docker-compose provisions a database named `storage` (`POSTGRES_DB=storage`), while tests default to the built-in `postgres` maintenance database — both exist on the compose Postgres, so either works. Use `TEST_DB_NAME=storage` to target the compose-provisioned one explicitly.
 
 ### Test isolation
 
@@ -54,7 +54,7 @@ Each test creates its own isolated Postgres schema for the duration of the test.
 - **Enables parallel-safe testing:** Each schema is unique and independent (though tests currently run serially with `-p 1` to avoid connection pool contention).
 - **Automatic cleanup:** When a test completes, its schema is dropped and all connections to that schema are closed.
 
-This isolation strategy is implemented in the fixture code (`testmode.PostgresMode`) and requires no explicit teardown in individual tests — the cleanup happens automatically during test shutdown.
+This isolation strategy is implemented in the fixture code (`pkg/internal/testabilities/dbfixtures`, engine-selected via `testmode`) and requires no explicit teardown in individual tests — the cleanup happens automatically during test shutdown.
 
 ### Postgres-only tests
 
@@ -62,12 +62,14 @@ Tests that require Postgres features or cannot run against SQLite should skip gr
 
 ```go
 func TestSomePostgresFeature(t *testing.T) {
-    if os.Getenv("TEST_DB_MODE") != "postgres" {
-        t.Skip("postgres-only test; set TEST_DB_MODE=postgres to run")
+    if _, ok := testmode.GetMode().(*testmode.PostgresMode); !ok {
+        t.Skip("postgres-only test; set TEST_DB_MODE=postgres to run (see docs/testing-postgres.md)")
     }
     // Test implementation here
 }
 ```
+
+(`testmode.GetMode()` from `pkg/internal/testabilities/testmode` is the codebase's idiom for this check — see `pkg/storage/internal/integrationtests/concurrency_create_action_test.go` for a real example.)
 
 This ensures:
 - Tests pass on CI/dev environments without Postgres.
