@@ -883,7 +883,9 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	case wdk.AggregatedPostedTxIDServiceError:
 		reqStatus = wdk.ProvenTxStatusSending
 		txStatus = wdk.TxStatusSending
-		spendable = true
+		// P5 (Decision Record v1): no network evidence -> change must not become
+		// spendable; SendWaiting retries and the success path creates the UTXOs.
+		spendable = false
 		sendWithResult.Status = wdk.SendWithResultStatusSending
 		reviewActionResult.Status = wdk.ReviewActionResultStatusServiceError
 	default:
