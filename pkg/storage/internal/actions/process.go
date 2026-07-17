@@ -508,16 +508,9 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		}
 	}
 
-	logger.DebugContext(
-		ctx, "Increasing attempt counters for transactions",
-		slog.Int("txIDsCount", len(txIDs)),
-	)
-
-	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
-		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
-	}
-
 	if isDelayed {
+		// NOTE: the delayed path does NOT bump attempts here. The tx is only being QUEUED for a
+		// later broadcast; the attempt is counted when it is actually posted (see BackgroundBroadcast).
 		logger.DebugContext(
 			ctx, "Processing delayed transactions",
 			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
@@ -543,6 +536,19 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
 		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
+	}
+
+	// Count the attempt only for the txs we are ACTUALLY posting now (readyToSendTxIDs), right
+	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
+	// delayed/queued txs are intentionally NOT bumped here, so attempts reflect real broadcast
+	// attempts and proof-timeout logic fires on true post counts.
+	logger.DebugContext(
+		ctx, "Increasing attempt counters for transactions being posted",
+		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+	)
+
+	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, readyToSendTxIDs); err != nil {
+		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
 	logger.DebugContext(
@@ -935,6 +941,17 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 
 		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", reviewActionResult.Status)
 		bResults = append(bResults, reviewActionResult)
+	}
+
+	// Count the attempt only AFTER a completed post round (post + per-tx status/UTXO apply), not
+	// before the post. attempts therefore counts completed post rounds. Bumping before the async
+	// post would touch the shared known_tx row early and race with concurrent internalize/abort
+	// UTXO accounting on MVCC engines (a pre-existing hazard, tracked separately for a later wave).
+	// Under-counting on a crash mid-post is the conservative direction: ApplyProofTimeouts then
+	// fires later, never earlier. (The foreground broadcastTxs path bumps before its PostFromBEEF
+	// because it is synchronous in the caller goroutine and so cannot race this way.)
+	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
+		return nil, fmt.Errorf("failed to increase known tx attempts in background broadcast: %w", err)
 	}
 
 	return bResults, nil

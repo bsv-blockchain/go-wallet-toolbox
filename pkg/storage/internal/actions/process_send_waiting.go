@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -79,10 +80,18 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 	log.InfoContext(ctx, "Found transactions to send", "batchesCount", len(batchesToBroadcast))
 
 	results := &wdk.ProcessActionResult{}
+	var batchErrs []error
 	for batchName, txIDs := range batchesToBroadcast {
 		log.InfoContext(ctx, "Processing batch", "batchName", batchName, "txIDs", txIDs)
 
-		res := p.broadcastDelayedTransaction(ctx, log, txIDs)
+		res, batchErr := p.broadcastDelayedTransaction(ctx, log, txIDs)
+		if batchErr != nil {
+			// Continue-on-error: a single bad batch must not strand the rest. Record the error and
+			// keep going; the aggregated (joined) error is returned to the caller at the end.
+			log.ErrorContext(ctx, "Failed to broadcast waiting batch", "batchName", batchName, "txIDs", txIDs, "error", batchErr)
+			batchErrs = append(batchErrs, batchErr)
+			continue
+		}
 		if res != nil {
 			results.SendWithResults = append(results.SendWithResults, res.SendWithResults...)
 			results.NotDelayedResults = append(results.NotDelayedResults, res.NotDelayedResults...)
@@ -91,31 +100,29 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 
 	// TODO: Keep in mind that the transactions above max attempts will be reviewed in another "reviewStatus" periodic task.
 
-	return nil, nil
+	// Return the assembled result together with any hard batch errors (joined). Soft, per-tx
+	// failures (e.g. a service error that leaves a tx still "sending") are reported inside the
+	// result's per-tx entries, not as a returned error.
+	err = errors.Join(batchErrs...)
+	return results, err
 }
 
-func (p *process) broadcastDelayedTransaction(ctx context.Context, log *slog.Logger, txIDs []string) *wdk.ProcessActionResult {
+// broadcastDelayedTransaction broadcasts a single waiting batch and returns its result and error
+// instead of logging them away. A hard failure (broadcastTxs returns an error) is surfaced to the
+// caller so it can be aggregated; per-tx problematic outcomes are left in the returned result.
+func (p *process) broadcastDelayedTransaction(ctx context.Context, log *slog.Logger, txIDs []string) (*wdk.ProcessActionResult, error) {
 	log.InfoContext(ctx, "Attempting to broadcast transactions", "txIDs", txIDs)
 
 	result, err := p.broadcastTxs(ctx, txIDs, false)
 	if err != nil {
-		log.ErrorContext(ctx, "Failed to broadcast transaction", "txIDs", txIDs, "error", err)
-		return nil
+		return nil, fmt.Errorf("broadcast of waiting batch %v failed: %w", txIDs, err)
 	}
 
-	success := true
 	for _, res := range result.NotDelayedResults {
 		if res.Status != wdk.ReviewActionResultStatusSuccess {
-			success = false
 			log.WarnContext(ctx, "Problematic broadcast result", "txID", res.TxID, "status", res.Status)
 		}
 	}
 
-	if !success {
-		log.WarnContext(ctx, "Broadcasting transactions failed", "txIDs", txIDs)
-	}
-
-	log.InfoContext(ctx, "Successfully broadcasted transactions", "txIDs", txIDs)
-
-	return result
+	return result, nil
 }
