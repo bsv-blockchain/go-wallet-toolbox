@@ -69,6 +69,12 @@ func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID in
 			Scopes(joinWithNumericIDLookupScope(s.query, fmt.Sprintf("%s.tx_id", s.tableName()), s.query.KnownTx.TableName(), clause.LeftJoin)).
 			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.query.KnownTx.TableName(), s.tableName())).
 			Scopes(filters...).
+			// Deterministic tiebreak: append the unique primary key after the
+			// Paginate scope's non-unique `created_at DESC` so offset pagination is
+			// stable across engines. See FindOutputsForSync for the full rationale.
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				return db.Order(clause.OrderByColumn{Column: clause.Column{Table: s.tableName(), Name: "id"}})
+			}).
 			Find(&resultModels).Error
 		if err != nil {
 			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)

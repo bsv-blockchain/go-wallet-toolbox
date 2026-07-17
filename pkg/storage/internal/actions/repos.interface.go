@@ -43,8 +43,8 @@ type TransactionsRepo interface {
 	FindTransactionByReference(ctx context.Context, userID int, reference string) (*pkgentity.Transaction, error)
 	FindReferencesByTxIDs(ctx context.Context, txIDs []string) (map[string]string, error)
 	SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error
-	UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error
-	UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error
+	UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus, expectedCurrent ...wdk.TxStatus) error
+	UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus, expectedCurrent ...wdk.TxStatus) error
 	ListAndCountActions(ctx context.Context, userID int, filter entity.ListActionsFilter) ([]*pkgentity.Transaction, int64, error)
 	GetLabelsForTransactions(ctx context.Context, txIDs []uint) (map[uint][]string, error)
 	GetLabelsForSelectedActions(ctx context.Context, userID int, filter entity.ListActionsFilter) (map[uint][]string, error)

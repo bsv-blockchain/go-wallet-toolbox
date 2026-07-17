@@ -35,6 +35,15 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	options := queryopts.MergeOptions(opts)
 	if options.Page != nil {
 		scopesToApply = append(scopesToApply, scopes.Paginate(options.Page))
+		// Deterministic tiebreak: the composite PK (parent id + name; the query is
+		// user-scoped) is unique, appended after the Paginate scope's non-unique
+		// `created_at DESC` so offset pagination is stable across engines. See
+		// FindOutputsForSync.
+		scopesToApply = append(scopesToApply, func(db *gorm.DB) *gorm.DB {
+			return db.
+				Order(clause.OrderByColumn{Column: clause.Column{Table: f.relationTableName, Name: f.relationParentIDColumn}}).
+				Order(clause.OrderByColumn{Column: clause.Column{Table: f.relationTableName, Name: f.relationNameColumn}})
+		})
 	}
 
 	if options.Since != nil {

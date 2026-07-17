@@ -243,10 +243,20 @@ func TestCommissionPagedFind(t *testing.T) {
 
 func seedDbWithCommissions(t testing.TB) *storage.Provider {
 	given, cleanup := testabilities.Given(t)
-	defer cleanup()
+	// NOTE: register cleanup with t.Cleanup (not defer): the returned provider is
+	// used by the caller after this helper returns. Under Postgres the cleanup
+	// drops the schema and closes the pool, so a defer here would close the DB
+	// before the test runs (SQLite's cleanup is a no-op, which hid this).
+	t.Cleanup(cleanup)
 
 	// given:
 	activeStorage := given.Provider().GORM()
+
+	// Seed the parent transactions referenced by each commission's transaction_id
+	// (0..N-1) so the bsv_commissions→bsv_transactions FK holds on Postgres.
+	for i := range seedCommissionIterations {
+		ensureParentTx(t, activeStorage.Database.DB, uint(i), testusers.Alice.ID)
+	}
 
 	for i := range seedCommissionIterations {
 		newCommission := &entity.Commission{

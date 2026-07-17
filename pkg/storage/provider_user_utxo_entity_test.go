@@ -29,7 +29,7 @@ func TestUserUTXOCreateAndFindByUserID(t *testing.T) {
 	}
 
 	// when:
-	err := provider.UserUTXOEntity().Create(t.Context(), utxo)
+	err := createUTXO(t, provider, utxo)
 
 	// then:
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestUserUTXOCountByStatus(t *testing.T) {
 		CreatedAt:          time.Now(),
 		Status:             wdk.UTXOStatusSending,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	count, err := provider.UserUTXOEntity().
@@ -90,7 +90,7 @@ func TestUserUTXOUpdateStatus(t *testing.T) {
 		CreatedAt:          time.Now(),
 		Status:             wdk.UTXOStatusUnproven,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	newStatus := wdk.UTXOStatusMined
@@ -130,7 +130,7 @@ func TestUserUTXOFindByBasketAndPaged(t *testing.T) {
 			CreatedAt:          time.Now(),
 			Status:             wdk.UTXOStatusMined,
 		}
-		require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+		require.NoError(t, createUTXO(t, provider, utxo))
 	}
 
 	// when:
@@ -161,10 +161,11 @@ func TestUserUTXOUpdateReservedByID(t *testing.T) {
 		CreatedAt:          time.Now(),
 		Status:             wdk.UTXOStatusUnproven,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	reservedBy := uint(9001)
+	ensureParentTx(t, provider.Database.DB, reservedBy, utxo.UserID) // reserved_by_id FK
 	err := provider.UserUTXOEntity().Update(t.Context(), &entity.UserUTXOUpdateSpecification{
 		OutputID:     utxo.OutputID,
 		ReservedByID: &reservedBy,
@@ -195,7 +196,7 @@ func TestUserUTXOSinceCreatedAt(t *testing.T) {
 	oldTime := time.Now().Add(-2 * time.Hour)
 	newTime := time.Now().Add(-5 * time.Minute)
 
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), &entity.UserUTXO{
+	require.NoError(t, createUTXO(t, provider, &entity.UserUTXO{
 		UserID:             303,
 		OutputID:           401,
 		BasketName:         "time",
@@ -204,7 +205,7 @@ func TestUserUTXOSinceCreatedAt(t *testing.T) {
 		CreatedAt:          oldTime,
 		Status:             wdk.UTXOStatusMined,
 	}))
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), &entity.UserUTXO{
+	require.NoError(t, createUTXO(t, provider, &entity.UserUTXO{
 		UserID:             303,
 		OutputID:           402,
 		BasketName:         "time",
@@ -234,7 +235,7 @@ func TestUserUTXOFindByUserIDAndStatus(t *testing.T) {
 	t.Cleanup(cleanup)
 	provider := given.Provider().GORM()
 
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), &entity.UserUTXO{
+	require.NoError(t, createUTXO(t, provider, &entity.UserUTXO{
 		UserID:             202,
 		OutputID:           301,
 		BasketName:         "compound",
@@ -244,7 +245,7 @@ func TestUserUTXOFindByUserIDAndStatus(t *testing.T) {
 		Status:             wdk.UTXOStatusMined,
 	}))
 
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), &entity.UserUTXO{
+	require.NoError(t, createUTXO(t, provider, &entity.UserUTXO{
 		UserID:             202,
 		OutputID:           302,
 		BasketName:         "compound",
@@ -282,7 +283,7 @@ func TestUserUTXOFindBySatoshis(t *testing.T) {
 		CreatedAt:          time.Now(),
 		Status:             wdk.UTXOStatusMined,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	result, err := provider.UserUTXOEntity().
@@ -311,7 +312,7 @@ func TestUserUTXOFindByEstimatedInputSize(t *testing.T) {
 		CreatedAt:          time.Now(),
 		Status:             wdk.UTXOStatusUnproven,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	result, err := provider.UserUTXOEntity().
@@ -340,7 +341,7 @@ func TestUserUTXOUpdateSatoshisAndInputSize(t *testing.T) {
 		CreatedAt:          time.Now(),
 		Status:             wdk.UTXOStatusUnproven,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	updatedSatoshis := uint64(77777)
@@ -384,7 +385,7 @@ func TestUserUTXOFindByReservedByID(t *testing.T) {
 		ReservedByID:       &reservedBy,
 		Status:             wdk.UTXOStatusSending,
 	}
-	require.NoError(t, provider.UserUTXOEntity().Create(t.Context(), utxo))
+	require.NoError(t, createUTXO(t, provider, utxo))
 
 	// when:
 	result, err := provider.UserUTXOEntity().

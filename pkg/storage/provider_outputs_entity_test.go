@@ -232,7 +232,11 @@ func TestOutputCountByTxID(t *testing.T) {
 		TxID:   to.Ptr("txid-unique"),
 		Status: wdk.TxStatusUnprocessed,
 	}
-	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+	// Seed the transaction with its explicit id/txid/status so the output below
+	// references a real transaction on FK-enforcing engines. The entity Create
+	// ignores the explicit ID, which only "worked" on SQLite by an accidental
+	// auto-id collision with a seeded output's transaction_id.
+	ensureParentTxWith(t, activeStorage.Database.DB, tx.ID, outputTestUser.ID, *tx.TxID, tx.Status)
 
 	out := &entity.Output{
 		UserID:        outputTestUser.ID,
@@ -247,6 +251,7 @@ func TestOutputCountByTxID(t *testing.T) {
 		Type:          "p2pkh",
 		BasketName:    to.Ptr("special"),
 	}
+	ensureParentBasket(t, activeStorage.Database.DB, outputTestUser.ID, "special") // (user_id, basket_name) FK
 	require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
 
 	// when:
@@ -268,7 +273,9 @@ func TestOutputCountByTxStatus(t *testing.T) {
 		TxID:   to.Ptr("txid-1"),
 		Status: wdk.TxStatusUnproven,
 	}
-	require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), tx))
+	// Seed the transaction with its explicit id/txid/status so the output below
+	// references a real transaction on FK-enforcing engines (see TestOutputCountByTxID).
+	ensureParentTxWith(t, activeStorage.Database.DB, tx.ID, outputTestUser.ID, *tx.TxID, tx.Status)
 
 	out := &entity.Output{
 		UserID:        outputTestUser.ID,
@@ -283,6 +290,7 @@ func TestOutputCountByTxStatus(t *testing.T) {
 		Type:          "p2pkh",
 		BasketName:    to.Ptr("special"),
 	}
+	ensureParentBasket(t, activeStorage.Database.DB, outputTestUser.ID, "special") // (user_id, basket_name) FK
 	require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
 
 	// when:
@@ -388,6 +396,17 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 
 	for i := range 5 {
 		txID := to.Ptr(fmt.Sprintf("alice_tx_%d", i+1))
+		// NOTE: create the transaction BEFORE the output so the output's
+		// transaction_id FK resolves on Postgres. The transaction's auto-assigned
+		// id (1..5) matches the output's TransactionID (i+1). SQLite ignored the
+		// FK, so the previous output-first order happened to work there.
+		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), &entity.Transaction{
+			TxID:      txID,
+			Status:    to.IfThen(i == 0, wdk.TxStatusUnprocessed).ElseThen(wdk.TxStatusCompleted),
+			UserID:    testusers.Alice.ID,
+			Satoshis:  1000 + int64(i),
+			Reference: fmt.Sprintf("reference for alice tx %d", i+1),
+		}))
 		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), &entity.Output{
 			UserID:        testusers.Alice.ID,
 			TransactionID: uint(i + 1),
@@ -403,16 +422,19 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 			Tags:          []string{"alpha"},
 			TxID:          txID,
 		}))
-		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), &entity.Transaction{
-			TxID:      txID,
-			Status:    to.IfThen(i == 0, wdk.TxStatusUnprocessed).ElseThen(wdk.TxStatusCompleted),
-			UserID:    testusers.Alice.ID,
-			Satoshis:  1000 + int64(i),
-			Reference: fmt.Sprintf("reference for alice tx %d", i+1),
-		}))
 	}
 
 	for i := range 5 {
+		// The Bob outputs reference transaction_id 6..10, which no transaction
+		// previously created. Seed the parent transaction (auto id 6..10, matching
+		// the output's TransactionID) before the output so the FK holds. Status is
+		// Completed so it does not affect the "TxStatus = Unprocessed" filter.
+		require.NoError(t, activeStorage.TransactionEntity().Create(t.Context(), &entity.Transaction{
+			Status:    wdk.TxStatusCompleted,
+			UserID:    testusers.Bob.ID,
+			Satoshis:  1005 + int64(i),
+			Reference: fmt.Sprintf("reference for bob tx %d", 6+i),
+		}))
 		out := &entity.Output{
 			UserID:        testusers.Bob.ID,
 			TransactionID: uint(6 + i),
@@ -430,6 +452,10 @@ func seedDbWithOutputs(t testing.TB) *storage.Provider {
 		require.NoError(t, activeStorage.OutputsEntity().Create(t.Context(), out))
 	}
 
+	// The Jerry outputs leave transaction_id unset (0) and reference spent_by 0
+	// (i=0) and 3 (i=1). Seed the parent transaction id=0 so the transaction_id
+	// and spent_by=0 FKs hold; spent_by=3 already exists (Alice's third tx).
+	ensureParentTx(t, activeStorage.Database.DB, 0, outputTestUser.ID)
 	for i := range 2 {
 		tx := &entity.Output{
 			ID:          uint(100 + i),

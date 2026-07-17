@@ -14,7 +14,7 @@ type UserUTXO struct {
 
 	UTXOStatus wdk.UTXOStatus `gorm:"index:idx_utxo_status"`
 
-	BasketName string        `gorm:"not null,index"`
+	BasketName string        `gorm:"not null;index"`
 	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`
 
 	Satoshis uint64

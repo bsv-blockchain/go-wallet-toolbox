@@ -59,6 +59,12 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 			Select("*").
 			Scopes(joinWithNumericIDLookupScope(s.query, "tx_id", s.tableName(), clause.InnerJoin)).
 			Scopes(filters...).
+			// Deterministic tiebreak: tx_id is this table's unique primary key,
+			// appended after the Paginate scope's non-unique `created_at DESC` so
+			// offset pagination is stable across engines. See FindOutputsForSync.
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				return db.Order(clause.OrderByColumn{Column: clause.Column{Table: s.tableName(), Name: "tx_id"}})
+			}).
 			Preload(s.query.KnownTx.TxNotes.Name()).
 			Find(&resultModels).Error; err != nil {
 			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)

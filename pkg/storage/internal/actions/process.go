@@ -3,6 +3,7 @@ package actions
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -22,6 +23,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
@@ -511,17 +513,9 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		}
 	}
 
-	logger.DebugContext(
-		ctx, "Increasing attempt counters for transactions",
-		slog.Int("txIDsCount", len(txIDs)),
-	)
-
-	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
-		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
-	}
-
 	if isDelayed {
+		// NOTE: the delayed path does NOT bump attempts here. The tx is only being QUEUED for a
+		// later broadcast; the attempt is counted when it is actually posted (see BackgroundBroadcast).
 		logger.DebugContext(
 			ctx, "Processing delayed transactions",
 			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
@@ -548,6 +542,20 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
 		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
+	}
+
+	// Count the attempt only for the txs we are ACTUALLY posting now (readyToSendTxIDs), right
+	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
+	// delayed/queued txs are intentionally NOT bumped here, so attempts reflect real broadcast
+	// attempts and proof-timeout logic fires on true post counts.
+	logger.DebugContext(
+		ctx, "Increasing attempt counters for transactions being posted",
+		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+	)
+
+	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, readyToSendTxIDs); err != nil {
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
 	logger.DebugContext(
@@ -643,12 +651,24 @@ func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string
 	for _, txID := range txIDs {
 		err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+			if errors.Is(err, repo.ErrStatusUpdateSkipped) {
+				// Legitimate: the tx is already beyond the broadcast stage, so there is
+				// nothing to re-queue as unsent. Log and continue.
+				p.logger.DebugContext(ctx, "known tx status update skipped (already beyond broadcast stage)", slog.String("txID", txID), logging.Error(err))
+			} else {
+				return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+			}
 		}
 
-		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending)
+		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending, wdk.TxStatusUnprocessed)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+			if errors.Is(err, repo.ErrStatusUpdateSkipped) {
+				// The user transaction is no longer in the expected pre-send state
+				// (e.g. it advanced concurrently). Do not downgrade it; log and continue.
+				p.logger.DebugContext(ctx, "transaction status update skipped (not in expected pre-send state)", slog.String("txID", txID), logging.Error(err))
+			} else {
+				return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+			}
 		}
 
 		sendWithResults = append(sendWithResults, wdk.SendWithResult{
@@ -694,8 +714,21 @@ func (p *process) updateSingleTx(
 
 	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		var uowErr error
-		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus)
+		// Guarded Transaction write FIRST. A broadcast result may only transition a tx that is
+		// still in a broadcast-eligible state: unprocessed (initial), sending (in-flight),
+		// nosend (broadcast via SendWith), or unproven (re-broadcast while awaiting proof, e.g.
+		// SendWaitingTransactions). If it matches zero rows the tx is already proven/mined
+		// (completed) or terminal (failed) — a late/raced result. Warn and no-op BEFORE the
+		// failure cascade or the KnownTx downgrade, so we never downgrade a proven tx or
+		// re-release inputs the proof already proved.
+		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus,
+			wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusNoSend, wdk.TxStatusUnproven)
 		if uowErr != nil {
+			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
+				p.logger.WarnContext(txCtx, "ignoring late broadcast result for transaction beyond broadcast stage",
+					slog.String("txID", txID), slog.String("attemptedStatus", string(newTxStatus)), logging.Error(uowErr))
+				return nil
+			}
 			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
 		}
 
@@ -717,7 +750,13 @@ func (p *process) updateSingleTx(
 
 		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
 		if uowErr != nil {
-			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
+			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
+				// The shared KnownTx is already beyond the broadcast stage; leaving it as-is
+				// is legitimate. The Transaction write above already matched, so continue.
+				p.logger.DebugContext(txCtx, "known tx status update skipped (beyond broadcast stage)", slog.String("txID", txID), logging.Error(uowErr))
+			} else {
+				return fmt.Errorf("failed to update known tx status after broadcast: %w", uowErr)
+			}
 		}
 
 		if spendable {
@@ -851,7 +890,9 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	case wdk.AggregatedPostedTxIDServiceError:
 		reqStatus = wdk.ProvenTxStatusSending
 		txStatus = wdk.TxStatusSending
-		spendable = true
+		// P5 (Decision Record v1): no network evidence -> change must not become
+		// spendable; SendWaiting retries and the success path creates the UTXOs.
+		spendable = false
 		sendWithResult.Status = wdk.SendWithResultStatusSending
 		reviewActionResult.Status = wdk.ReviewActionResultStatusServiceError
 	default:
@@ -934,7 +975,8 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 			return nil, fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
 		}
 
-		_, reviewActionResult, err := p.updateSingleTx(
+		var reviewActionResult wdk.ReviewActionResult
+		_, reviewActionResult, err = p.updateSingleTx(
 			ctx,
 			broadcastedTxID,
 			aggBroadcastResult,
@@ -950,6 +992,17 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 
 		p.logger.DebugContext(ctx, "Background broadcast result", "txID", broadcastedTxID, "status", reviewActionResult.Status)
 		bResults = append(bResults, reviewActionResult)
+	}
+
+	// Count the attempt only AFTER a completed post round (post + per-tx status/UTXO apply), not
+	// before the post. attempts therefore counts completed post rounds. Bumping before the async
+	// post would touch the shared known_tx row early and race with concurrent internalize/abort
+	// UTXO accounting on MVCC engines (a pre-existing hazard, tracked separately for a later wave).
+	// Under-counting on a crash mid-post is the conservative direction: ApplyProofTimeouts then
+	// fires later, never earlier. (The foreground broadcastTxs path bumps before its PostFromBEEF
+	// because it is synchronous in the caller goroutine and so cannot race this way.)
+	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, txIDs); err != nil {
+		return nil, fmt.Errorf("failed to increase known tx attempts in background broadcast: %w", err)
 	}
 
 	return bResults, nil

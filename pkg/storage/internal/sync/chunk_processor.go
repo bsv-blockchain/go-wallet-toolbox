@@ -768,9 +768,19 @@ func (p *ChunkProcessor) updateSyncStateOnDone() error {
 	}
 
 	if p.syncState.When != nil {
-		// Ensure the `when` field is always "after" the last processed time
-		// to avoid duplicate processing of a row (that has the maximum updated_at value) in the next sync.
-		p.syncState.When = to.Ptr(p.syncState.When.Add(time.Nanosecond))
+		// Ensure the `when` field is always strictly "after" the last processed
+		// time so the inclusive `since` filter (updated_at >= when, see
+		// scopes.Since) does not re-read the max-updated_at row on the next sync.
+		//
+		// The advance MUST survive the storage engine's timestamp precision.
+		// Postgres `timestamptz` stores only microseconds, so a +1ns bump is
+		// truncated away on store/compare and the boundary never advances — the
+		// max row is re-included every round and re-counted as an update
+		// (TestSyncProcessWithRelinquishOutput saw 2 updates instead of 1).
+		// One microsecond is the smallest increment that is representable on
+		// Postgres (and still advances on SQLite), so it reliably excludes the
+		// boundary row on both engines.
+		p.syncState.When = to.Ptr(p.syncState.When.Add(time.Microsecond))
 	}
 
 	err := p.repo.UpdateSyncState(p.ctx, p.syncState)

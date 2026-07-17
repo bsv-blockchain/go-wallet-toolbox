@@ -124,7 +124,12 @@ func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 		}
 
 		logger.DebugContext(txCtx, "Updating transaction status to 'failed'")
-		if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed); err != nil {
+		// Positive CAS: only abort a transaction still in an abortable status. If it raced
+		// to a non-abortable status between validation and here, the update matches zero rows
+		// and returns ErrStatusUpdateSkipped, which propagates and rolls back the whole abort
+		// UoW (the concurrent transition wins).
+		if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed,
+			wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail); err != nil {
 			return fmt.Errorf("failed to update transaction status: %w", err)
 		}
 
@@ -152,6 +157,23 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transa
 		return err
 	}
 
+	// NOTE (residual TOCTOU, deferred to W3a-2 per Decision Record v1): this gate reads
+	// KnownTx status outside the abort UoW, so a concurrent ProcessAction can flip KnownTx
+	// to 'sending' between this check and the abort's commit. The Transaction-status CAS in
+	// abortTx (UpdateTransactionStatusByID against the pre-abort abortable statuses) shrinks
+	// the race window to milliseconds - it does not close it. Full closure would require a
+	// row lease or a FOR UPDATE re-check of KnownTx inside the same UoW as the abort write.
+	logger.DebugContext(ctx, "Checking shared KnownTx for broadcast/network evidence")
+	if txEntity.TxID != nil {
+		statuses, err := a.knownTxRepo.FindKnownTxStatuses(ctx, *txEntity.TxID)
+		if err != nil {
+			return fmt.Errorf("failed to check broadcast evidence for abort: %w", err)
+		}
+		if status, ok := statuses[*txEntity.TxID]; ok && !abortableKnownTxStatus(status) {
+			return fmt.Errorf("%w: transaction %s has broadcast/network evidence (known status %q)", wdk.ErrNotAbortableAction, *txEntity.TxID, status)
+		}
+	}
+
 	logger.DebugContext(ctx, "Checking if transaction outputs are unspent")
 	if err := a.outputsRepo.ShouldTxOutputsBeUnspent(ctx, txEntity.ID); err != nil {
 		return fmt.Errorf("cannot abort transaction with spent outputs: %w", err)
@@ -174,4 +196,17 @@ func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
 
 func (a *abortAction) isPotentiallyTxID(reference string) bool {
 	return len(reference) == txIDLength
+}
+
+// abortableKnownTxStatus reports whether the shared KnownTx carries no
+// broadcast or network-acceptance evidence (P4: abort is an input release).
+func abortableKnownTxStatus(status wdk.ProvenTxReqStatus) bool {
+	//nolint:exhaustive // default case handles remaining statuses (all refused)
+	switch status {
+	case wdk.ProvenTxStatusUnprocessed, wdk.ProvenTxStatusNoSend,
+		wdk.ProvenTxStatusNonFinal, wdk.ProvenTxStatusUnknown:
+		return true
+	default:
+		return false
+	}
 }

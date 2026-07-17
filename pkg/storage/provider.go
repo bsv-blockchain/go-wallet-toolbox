@@ -600,7 +600,11 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 
 	results, err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send waiting transactions: %w", err)
+		// Preserve the assembled results even when some batches hard-failed: the per-batch errors
+		// are aggregated (joined) into err, but the results for the batches that DID succeed are
+		// still returned so callers can act on them (continue-on-error contract).
+		err = fmt.Errorf("failed to send waiting transactions: %w", err)
+		return results, err
 	}
 	return results, nil
 }
