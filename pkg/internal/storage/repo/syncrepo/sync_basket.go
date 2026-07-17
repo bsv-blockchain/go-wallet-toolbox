@@ -62,6 +62,13 @@ func (s *SyncBasket) FindBasketsForSync(ctx context.Context, userID int, opts ..
 			Select("*").
 			Scopes(joinWithNumericIDLookupScope(s.query, s.stringIDClause(), s.tableName(), clause.InnerJoin)).
 			Scopes(filters...).
+			// Deterministic tiebreak: `name` is unique per user (composite PK is
+			// name+user_id, and the query is user-scoped), appended after the
+			// Paginate scope's non-unique `created_at DESC` so offset pagination is
+			// stable across engines. See FindOutputsForSync.
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				return db.Order(clause.OrderByColumn{Column: clause.Column{Table: s.tableName(), Name: "name"}})
+			}).
 			Find(&resultModels).Error; err != nil {
 			return fmt.Errorf("failed to find: %w", err)
 		}

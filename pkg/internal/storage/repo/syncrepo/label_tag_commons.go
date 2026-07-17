@@ -44,6 +44,13 @@ func (f *labelTagCommons[_, _, ReadModel]) FindChunk(ctx context.Context, userID
 			Select("*").
 			Scopes(filters...).
 			Scopes(joinWithNumericIDLookupScope(f.query, f.stringIDClause(), f.tableName, clause.InnerJoin)).
+			// Deterministic tiebreak: `name` is unique per user (composite PK is
+			// name+user_id, and the query is user-scoped), appended after the
+			// Paginate scope's non-unique `created_at DESC` so offset pagination is
+			// stable across engines. See FindOutputsForSync.
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				return db.Order(clause.OrderByColumn{Column: clause.Column{Table: f.tableName, Name: "name"}})
+			}).
 			Unscoped().
 			Find(&resultModels).Error
 		if err != nil {
