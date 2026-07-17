@@ -118,3 +118,25 @@ func TestBackoffWithJitter_WithinExpectedBounds(t *testing.T) {
 	base := fundingRetryBaseBackoff * 2
 	require.Equal(t, base/2, d)
 }
+
+// TestBackoffWithJitter_RealRandomizerStaysWithinBounds asserts the +/-50% jitter window
+// holds for the real (crypto/rand-backed) randomizer, not just the deterministic test
+// double used above: every sample must land in [base/2, base*3/2) (upper bound exclusive,
+// since random.Uint64(base) returns a value in [0, base) and the result is base/2+jitter).
+// Loops 100 samples — a pure computation, no wall-clock waiting — to catch a boundary bug
+// a single fixed value could miss, while staying fast.
+func TestBackoffWithJitter_RealRandomizerStaysWithinBounds(t *testing.T) {
+	withShrunkFundingBackoff(t)
+	fundingRetryBaseBackoff = 25 * time.Millisecond
+
+	base := fundingRetryBaseBackoff * 2
+	lower := base / 2
+	upper := base * 3 / 2
+
+	random := randomizer.New()
+	for i := 0; i < 100; i++ {
+		d := backoffWithJitter(2, random)
+		require.GreaterOrEqualf(t, d, lower, "sample %d: %v below lower bound %v", i, d, lower)
+		require.Lessf(t, d, upper, "sample %d: %v at/above exclusive upper bound %v", i, d, upper)
+	}
+}
