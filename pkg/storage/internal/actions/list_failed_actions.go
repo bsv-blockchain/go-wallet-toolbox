@@ -2,11 +2,15 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/go-softwarelab/common/pkg/must"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -84,6 +88,14 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 				continue
 			}
 			if err := l.knownTxRepo.UpdateKnownTxStatus(ctx, a.TxID, wdk.ProvenTxStatusUnfail, nil, nil); err != nil {
+				if errors.Is(err, repo.ErrStatusUpdateSkipped) {
+					// Legitimate: a failed Transaction can have a tx_id with no matching
+					// KnownTx row (e.g. the abort sweep's own filter tolerates such rows via
+					// COALESCE(known_txs.status,'unprocessed')). There is nothing to unfail
+					// for this tx; log and continue with the remaining actions.
+					l.logger.DebugContext(ctx, "known tx status update skipped for unfail (no matching KnownTx row)", slog.String("txID", a.TxID), logging.Error(err))
+					continue
+				}
 				return nil, fmt.Errorf("failed to update known tx status: %w", err)
 			}
 		}
