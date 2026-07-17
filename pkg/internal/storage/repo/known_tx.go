@@ -714,8 +714,8 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 			notes = append(notes, note)
 		}
 
-		if err := addTxNotes(tx, notes); err != nil {
-			return fmt.Errorf("failed to add reorg history notes: %w", err)
+		if notesErr := addTxNotes(tx, notes); notesErr != nil {
+			return fmt.Errorf("failed to add reorg history notes: %w", notesErr)
 		}
 
 		return nil

@@ -105,7 +105,7 @@ func TestUnfailInvalidPathPropagates(t *testing.T) {
 	// cascade rolls back, instead of being swallowed (log-and-continue) while the
 	// KnownTx/Transactions status changes still commit.
 	require.Error(t, err)
-	assert.ErrorIs(t, err, injectedErr)
+	require.ErrorIs(t, err, injectedErr)
 
 	// and: MarkCreatedOutputsAsNotSpendable must not run once RecreateSpentOutputs
 	// has already failed for that transaction id (the loop returns immediately).

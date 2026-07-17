@@ -201,6 +201,7 @@ func (a *abortAction) isPotentiallyTxID(reference string) bool {
 // abortableKnownTxStatus reports whether the shared KnownTx carries no
 // broadcast or network-acceptance evidence (P4: abort is an input release).
 func abortableKnownTxStatus(status wdk.ProvenTxReqStatus) bool {
+	//nolint:exhaustive // default case handles remaining statuses (all refused)
 	switch status {
 	case wdk.ProvenTxStatusUnprocessed, wdk.ProvenTxStatusNoSend,
 		wdk.ProvenTxStatusNonFinal, wdk.ProvenTxStatusUnknown:

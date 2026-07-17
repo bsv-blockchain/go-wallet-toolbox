@@ -255,7 +255,7 @@ func seedDbWithCommissions(t testing.TB) *storage.Provider {
 	// Seed the parent transactions referenced by each commission's transaction_id
 	// (0..N-1) so the bsv_commissions→bsv_transactions FK holds on Postgres.
 	for i := range seedCommissionIterations {
-		ensureParentTx(t, activeStorage.Database.DB, uint(i), testusers.Alice.ID) //nolint:gosec // test fixture, i is small
+		ensureParentTx(t, activeStorage.Database.DB, uint(i), testusers.Alice.ID)
 	}
 
 	for i := range seedCommissionIterations {

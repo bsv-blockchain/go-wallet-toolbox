@@ -47,14 +47,15 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 	batchesToBroadcast := make(map[string][]string)
 
 	for range sendWaitingMaxPages {
-		txIDsPage, err := p.knownTxRepo.FindKnownTxIDsByStatuses(
+		txIDsPage, pageErr := p.knownTxRepo.FindKnownTxIDsByStatuses(
 			ctx,
 			statusesOfWaitingTxs,
 			queryopts.WithUntil(until),
 			queryopts.WithPage(paging),
 		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find known txs by statuses: %w", err)
+		if pageErr != nil {
+			err = fmt.Errorf("failed to find known txs by statuses: %w", pageErr)
+			return nil, err
 		}
 
 		for _, item := range txIDsPage {

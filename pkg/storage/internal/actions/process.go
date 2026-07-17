@@ -975,7 +975,8 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 			return nil, fmt.Errorf("no broadcast result found for txID %s", broadcastedTxID)
 		}
 
-		_, reviewActionResult, err := p.updateSingleTx(
+		var reviewActionResult wdk.ReviewActionResult
+		_, reviewActionResult, err = p.updateSingleTx(
 			ctx,
 			broadcastedTxID,
 			aggBroadcastResult,

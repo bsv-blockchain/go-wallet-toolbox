@@ -1,7 +1,7 @@
 # Decision Record v1 — Plan of Record
 
-**Source:** [GitHub Discussion #933](https://github.com/bsv-blockchain/go-wallet-toolbox/discussions/933)  
-**Frozen:** 2026-07-16 (quorum round 5/5, 0 BLOCK)  
+**Source:** [GitHub Discussion #933](https://github.com/bsv-blockchain/go-wallet-toolbox/discussions/933)
+**Frozen:** 2026-07-16 (quorum round 5/5, 0 BLOCK)
 **Status:** Plan of record for robustness + performance work
 
 ---
@@ -54,14 +54,14 @@
 
 ## Implementation start order
 
-1. W0 Postgres CI harness  
-2. W1: provided-input RowsAffected → UnFail → Abort gate → status CAS → index tag → predicates → SendWaiting  
-3. W2 ServiceError not spendable  
-4. W3a lock key + leases  
-5. Track P benchmark skeleton after W0  
+1. W0 Postgres CI harness
+2. W1: provided-input RowsAffected → UnFail → Abort gate → status CAS → index tag → predicates → SendWaiting
+3. W2 ServiceError not spendable
+4. W3a lock key + leases
+5. Track P benchmark skeleton after W0
 
 ## Quorum
 
-- Product answers Q1–Q4 + 140k SLO incorporated  
-- 3 agent ACKs on v0.1; 2 explicit ACKs on v1; **0 BLOCK**  
-- Discussion plan-churn closed unless a locked clause is invalidated by new evidence  
+- Product answers Q1–Q4 + 140k SLO incorporated
+- 3 agent ACKs on v0.1; 2 explicit ACKs on v1; **0 BLOCK**
+- Discussion plan-churn closed unless a locked clause is invalidated by new evidence

@@ -572,7 +572,8 @@ func TestServiceErrorBroadcastCreatesNoSpendableChange(t *testing.T) {
 	// (FindNotReservedUTXOsForUpdate's includeSending option) even though nothing here proves the
 	// broadcast will ever succeed. So the row must still carry no recognized status.
 	var activatedUTXORows int64
-	require.NoError(t, activeStorage.Database.DB.Raw(`
+	require.NoError(t, activeStorage.Database.DB.Raw(
+		`
 		SELECT count(*) FROM bsv_user_utxos uu
 		JOIN bsv_outputs o ON o.id = uu.output_id
 		JOIN bsv_transactions tx ON tx.id = o.transaction_id
@@ -648,7 +649,8 @@ func TestServiceErrorChangeBecomesSpendableAfterRetrySuccess(t *testing.T) {
 	// and: recovery is not stranded - the change's user_utxos row is now ACTIVATED (upserted to a
 	// funder-recognized status, see the NOTE in TestServiceErrorBroadcastCreatesNoSpendableChange).
 	var activatedUTXORows int64
-	require.NoError(t, activeStorage.Database.DB.Raw(`
+	require.NoError(t, activeStorage.Database.DB.Raw(
+		`
 		SELECT count(*) FROM bsv_user_utxos uu
 		JOIN bsv_outputs o ON o.id = uu.output_id
 		JOIN bsv_transactions tx ON tx.id = o.transaction_id

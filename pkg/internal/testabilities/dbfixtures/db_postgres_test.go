@@ -1,5 +1,3 @@
-//go:build !windows
-
 package dbfixtures_test
 
 import (
@@ -19,7 +17,8 @@ import (
 func skipIfPostgresUnavailable(t *testing.T) {
 	t.Helper()
 
-	conn, err := net.DialTimeout("tcp", "localhost:5432", 500*time.Millisecond)
+	dialer := &net.Dialer{Timeout: 500 * time.Millisecond}
+	conn, err := dialer.DialContext(t.Context(), "tcp", "localhost:5432")
 	if err != nil {
 		t.Skip("postgres not available: start with `docker compose up -d db`")
 		return

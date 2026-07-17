@@ -78,7 +78,8 @@ func TestConcurrentCreateActionSameProvidedOutpoint_ExactlyOneSucceeds(t *testin
 	// change coin taking the RowsAffected-protected reserveUTXOs path instead of the
 	// vulnerable KnownOutputIDs path — and this test would not exercise the bug.
 	var utxoRows int64
-	require.NoError(t, activeStorage.Database.DB.Raw(`
+	require.NoError(t, activeStorage.Database.DB.Raw(
+		`
 		SELECT count(*) FROM bsv_user_utxos uu
 		JOIN bsv_outputs o ON o.id = uu.output_id
 		JOIN bsv_transactions tx ON tx.id = o.transaction_id
