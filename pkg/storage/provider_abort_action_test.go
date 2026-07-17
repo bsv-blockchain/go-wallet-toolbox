@@ -305,6 +305,71 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 		ShouldBeAbleToReserveSatoshis(satoshisToInternalize)
 }
 
+func TestAbortActionRefusedWhenKnownTxInFlight(t *testing.T) {
+	// Regression test for P4 (abort is an input-release path): user-initiated
+	// AbortAction must refuse when the shared KnownTx shows broadcast/network
+	// evidence, even though the local Transaction row is still 'unprocessed'.
+	// This reproduces the window between MarkKnownTxsAsSubmitting (KnownTx ->
+	// 'sending') and the per-tx status write after broadcast (process.go),
+	// where the background sweep (#926) is already gated but user-initiated
+	// abort previously was not.
+
+	// given: Alice has a fully processed (broadcast) tx
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	createResult, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+
+	txRows, err := activeStorage.TransactionEntity().Read().
+		Reference().Equals(createResult.Reference).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+	transactionID := txRows[0].ID
+
+	// and: force the DB back into the race window - KnownTx is 'sending'
+	// (in-flight broadcast) while the local Transaction row is 'unprocessed'
+	db := activeStorage.Database.DB
+	require.NoError(t, db.Exec(
+		`UPDATE bsv_known_txes SET status = ? WHERE tx_id = ?`,
+		string(wdk.ProvenTxStatusSending), txID,
+	).Error)
+	require.NoError(t, db.Exec(
+		`UPDATE bsv_transactions SET status = ? WHERE id = ?`,
+		string(wdk.TxStatusUnprocessed), transactionID,
+	).Error)
+
+	// when:
+	_, err = activeStorage.AbortAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		wdk.AbortActionArgs{
+			Reference: primitives.Base64String(createResult.Reference),
+		},
+	)
+
+	// then: abort is refused
+	require.Error(t, err)
+	require.ErrorIs(t, err, wdk.ErrNotAbortableAction)
+
+	// and: the Transaction row was not touched by the abort path
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
+		WithStatus(wdk.TxStatusUnprocessed)
+
+	// and: the KnownTx row remains untouched (multi-user design)
+	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+
+	// and: the tx's inputs are still claimed (not released back to spendable)
+	spentOutputs, err := activeStorage.OutputsEntity().Read().
+		SpentBy().Equals(transactionID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, spentOutputs, "expected the aborted tx's inputs to still be claimed (spent_by unchanged)")
+}
+
 func TestAbortAction_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
 	// Regression test: outputs created by an aborted TX must be marked spendable=false.
 	// Before this fix, they remained spendable=true with a null tx_id, so ListOutputs
