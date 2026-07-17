@@ -146,3 +146,11 @@ provider, _ := storage.NewGORMProvider(
     defs.BSVNetworkMainnet, services, storage.WithDBConfig(db),
 )
 ```
+
+- **MySQL minimum version: 8.0.1.** UTXO selection uses `SELECT ... FOR UPDATE SKIP LOCKED`, which MySQL only supports from 8.0.1 onward; older MySQL rejects it with a syntax error on the first `CreateAction`.
+
+- **Connection pool defaults**: `MaxOpenConnections` and `MaxIdleConnections` default to 5 for every engine (`defs.DefaultDBConfig`, `pkg/defs/dbs.go`). Each `CreateAction` holds one connection for the lifetime of its funding transaction, so under concurrent load raise `MaxOpenConnections` for Postgres/MySQL production deployments.
+
+- **SQLite defaults**: file-based DSNs automatically get `_journal_mode=WAL&_busy_timeout=5000` appended if the DSN doesn't already set either pragma; explicit operator-provided `_journal_mode`/`_busy_timeout` params always win, and in-memory DSNs (`:memory:`, `mode=memory`) are left untouched. Two operational notes: WAL mode creates `-wal`/`-shm` sibling files next to the database file, so persist/mount the containing directory rather than the single database file; and `journal_mode` is stored inside the database file itself, so it persists across reopens even without the DSN pragma.
+
+- **Migration note**: upgrading adds a composite `idx_user_utxos_selection` index (covering `user_id, basket_name, reserved_by_id, utxo_status, satoshis`) plus a single-column index on `reserved_by_id` to `bsv_user_utxos`, built automatically by `AutoMigrate`. On large existing tables, expect the index build to take noticeable time during the first migration after upgrade.
