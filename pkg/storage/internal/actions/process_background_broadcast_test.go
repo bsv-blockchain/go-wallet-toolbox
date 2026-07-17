@@ -103,7 +103,9 @@ func (bgUowKnownTxRepo) UpdateKnownTxStatus(_ context.Context, _ string, _ wdk.P
 
 type bgUowUTXORepo struct{ UTXORepo }
 
-func (bgUowUTXORepo) CreateUTXOForSpendableOutputsByTxID(_ context.Context, _ string) error { return nil }
+func (bgUowUTXORepo) CreateUTXOForSpendableOutputsByTxID(_ context.Context, _ string) error {
+	return nil
+}
 
 type bgUowProviders struct{ Providers }
 
