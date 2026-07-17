@@ -1,0 +1,39 @@
+# Repo-local workflow — intentionally NOT part of the synced fortress suite
+# (fortress-*.yml files are overwritten by template [Sync] PRs).
+name: postgres-tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run storage-related tests on Postgres
+        env:
+          TEST_DB_MODE: postgres
+        run: go test -race -p 1 -timeout 25m ./pkg/internal/storage/... ./pkg/storage/... ./pkg/internal/testabilities/...
