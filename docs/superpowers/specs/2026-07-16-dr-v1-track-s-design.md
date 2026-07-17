@@ -64,7 +64,7 @@ Implements Decision Record v1 "Implementation start order" items 1–4:
 
 **Current:** `validateTxStatusForAbort` decides abortability from the local `Transaction.Status` alone (`unprocessed`/`unsigned`/`noSend`/`nonFinal`/`unfail` abortable). A Transaction can still be `unprocessed` while its **shared KnownTx** is already `sending`/broadcast (same class as #926, which fixed only the background AbortAbandoned sweep via `FindTransactionIDsForAbort`). Abort releases inputs of an in-flight tx.
 
-**Target:** abort validation also loads the KnownTx (when one exists) and refuses abort when its status carries broadcast/in-flight or accepted evidence (per the W1-6 predicates: in-flight, accepted-unproven, or mined ⇒ refuse; only never-broadcast or terminal-failure states remain abortable). Typed error tells the caller why. Mirrors the #926 filter so both release paths share semantics.
+**Target:** abort validation also loads the KnownTx (when one exists) and refuses abort when its status carries broadcast/in-flight or accepted evidence. As implemented (deliberate tightening vs the first draft, per P4): abortable ONLY when KnownTx is absent or ∈ {`unprocessed`, `nosend`, `nonfinal`, `unknown`}; every other status — including the terminal-failure states `invalidTx`/`doubleSpend` — refuses abort, because terminal cleanup (the sync review loop) owns that release path, not user abort. Typed error tells the caller why. Mirrors the #926 filter so both release paths share semantics.
 
 ### W1-4 — Status writers tell the truth
 

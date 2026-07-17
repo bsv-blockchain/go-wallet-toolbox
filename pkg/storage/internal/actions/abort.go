@@ -157,6 +157,12 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transa
 		return err
 	}
 
+	// NOTE (residual TOCTOU, deferred to W3a-2 per Decision Record v1): this gate reads
+	// KnownTx status outside the abort UoW, so a concurrent ProcessAction can flip KnownTx
+	// to 'sending' between this check and the abort's commit. The Transaction-status CAS in
+	// abortTx (UpdateTransactionStatusByID against the pre-abort abortable statuses) shrinks
+	// the race window to milliseconds - it does not close it. Full closure would require a
+	// row lease or a FOR UPDATE re-check of KnownTx inside the same UoW as the abort write.
 	logger.DebugContext(ctx, "Checking shared KnownTx for broadcast/network evidence")
 	if txEntity.TxID != nil {
 		statuses, err := a.knownTxRepo.FindKnownTxStatuses(ctx, *txEntity.TxID)
