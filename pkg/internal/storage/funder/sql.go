@@ -192,13 +192,26 @@ func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketN
 	}
 
 	var allUTXOs []*models.UserUTXO
+	seen := make(map[uint]struct{})
 	for {
 		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketName, page, forbiddenOutputIDs, includeSending)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load utxos: %w", err)
 		}
 
-		allUTXOs = append(allUTXOs, utxos...)
+		// Dedup while accumulating: under concurrent lock churn between pages, OFFSET
+		// pagination can return the same row twice across pages even with a stable
+		// ORDER BY, if a row is locked/unlocked and shifts across the offset boundary.
+		// Loop termination below is based on the raw page length (pre-dedup), since a
+		// full page with duplicates removed must still be followed by another fetch.
+		for _, utxo := range utxos {
+			if _, ok := seen[utxo.OutputID]; ok {
+				continue
+			}
+			seen[utxo.OutputID] = struct{}{}
+			allUTXOs = append(allUTXOs, utxo)
+		}
+
 		if len(utxos) < utxoBatchSize {
 			break
 		}

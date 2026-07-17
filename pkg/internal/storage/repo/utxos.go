@@ -57,9 +57,13 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 	}
 
 	// Order by safety tier (mined=0, unproven=1, sending=2) then satoshis ascending
-	// so the collector picks the safest, smallest-sufficient UTXOs first.
+	// so the collector picks the safest, smallest-sufficient UTXOs first. output_id ASC
+	// is appended as a unique tiebreaker: without it, rows sharing the same tier+satoshis
+	// have no stable relative order, so under concurrent lock churn (rows locked/unlocked
+	// between pages by SKIP LOCKED) a row can shift across the OFFSET boundary and be
+	// returned on two different pages of the same scan.
 	orderClause := fmt.Sprintf(
-		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC",
+		"CASE utxo_status WHEN '%s' THEN 0 WHEN '%s' THEN 1 WHEN '%s' THEN 2 END ASC, satoshis ASC, output_id ASC",
 		wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending,
 	)
 
