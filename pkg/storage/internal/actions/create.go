@@ -3,9 +3,11 @@ package actions
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
@@ -37,7 +39,52 @@ import (
 const (
 	derivationLength = 16
 	referenceLength  = 12
+
+	// maxFundingAttempts bounds how many times the funding DB transaction is retried
+	// after UTXO contention (a concurrent transaction reserved one or more of our
+	// selected UTXOs) before giving up and returning the contention error to the caller.
+	maxFundingAttempts = 3
 )
+
+// fundingRetryBaseBackoff is the base delay between funding retries, scaled by the attempt
+// number (see backoffWithJitter). It is a package-level var, rather than a const, so tests
+// can shrink it to keep retry tests fast without adding public configuration.
+var fundingRetryBaseBackoff = 25 * time.Millisecond
+
+// retryOnContention runs fn up to maxFundingAttempts times, retrying only when fn returns an
+// error that wraps wdk.ErrUTXOContention (i.e. a concurrent transaction reserved one of the
+// UTXOs this attempt selected). Any other error, or success, returns immediately after the
+// first attempt. Between retries it waits backoffWithJitter(attempt, random), aborting early
+// if ctx is canceled while waiting.
+func retryOnContention(ctx context.Context, logger *slog.Logger, random wdk.Randomizer, fn func() error) error {
+	var err error
+	for attempt := 1; ; attempt++ {
+		err = fn()
+		if err == nil || !errors.Is(err, wdk.ErrUTXOContention) || attempt == maxFundingAttempts {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("funding retry aborted: %w", ctx.Err())
+		case <-time.After(backoffWithJitter(attempt, random)):
+		}
+
+		logger.WarnContext(ctx, "retrying funding after UTXO contention", slog.Int("attempt", attempt))
+	}
+}
+
+// backoffWithJitter returns fundingRetryBaseBackoff*attempt with +/-50% jitter, derived from
+// random.Uint64 so no math/rand dependency is needed here.
+func backoffWithJitter(attempt int, random wdk.Randomizer) time.Duration {
+	base := fundingRetryBaseBackoff * time.Duration(attempt)
+	if base <= 0 {
+		return 0
+	}
+
+	jitter := random.Uint64(uint64(base))
+	return base/2 + time.Duration(jitter)
+}
 
 type CreateActionParams struct {
 	Version                  uint32
@@ -293,7 +340,17 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to count UTXOs: %w", err)
 	}
 
-	err = c.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+	// fundingClosure is retried (see retryOnContention below) on UTXO contention: a concurrent
+	// CreateAction may reserve one of the UTXOs this attempt selects, in which case gorm rolls
+	// back this attempt's DB transaction and we try again with a fresh selection.
+	//
+	// Cross-attempt state: funding, newOutputs, and derivationPrefix are all captured from the
+	// enclosing Create scope but are fully REASSIGNED (via `=`, never appended to) on every
+	// attempt below — c.newOutputs builds a brand-new backing slice per call, c.sqlFunder.Fund
+	// returns a brand-new *funder.Result per call, and derivationPrefix is a plain string
+	// reassignment — so a failed attempt's values are always fully overwritten before a retry
+	// (or the final return) reads them; nothing accumulates across attempts.
+	fundingClosure := func(dbTx *gorm.DB) error {
 		var fundErr error
 		funding, fundErr = c.sqlFunder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, dbTx)
 		if fundErr != nil {
@@ -419,6 +476,10 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			Commission:        c.createCommissionEntity(userID, commOut),
 			UTXOStatus:        wdk.UTXOStatusUnknown,
 		})
+	}
+
+	err = retryOnContention(ctx, c.logger, c.random, func() error {
+		return c.db.WithContext(ctx).Transaction(fundingClosure)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)

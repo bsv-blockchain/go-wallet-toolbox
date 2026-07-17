@@ -29,8 +29,10 @@ import (
 )
 
 // ErrUTXOContention is returned when concurrent transactions attempt to reserve the same UTXOs.
-// The caller should retry the operation.
-var ErrUTXOContention = errors.New("utxo contention: concurrent transaction already reserved one or more of the selected UTXOs")
+// It wraps the public wdk.ErrUTXOContention sentinel so callers outside this package can match on
+// it via errors.Is(err, wdk.ErrUTXOContention). The retry (bounded, on contention only) happens in
+// create.Create, not here.
+var ErrUTXOContention = fmt.Errorf("storage layer: %w", wdk.ErrUTXOContention)
 
 type Transactions struct {
 	query *genquery.Query
@@ -100,6 +102,8 @@ func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx)
 
 // reserveUTXOs atomically reserves UTXOs for a transaction with a guard to detect concurrent reservation.
 // Returns ErrUTXOContention if another transaction already reserved any of the requested UTXOs.
+// The bounded retry on this error happens one layer up, in create.Create — this method itself
+// does not retry.
 func (txs *Transactions) reserveUTXOs(tx *gorm.DB, transactionID uint, userID int, outputIDs []uint) error {
 	if len(outputIDs) == 0 {
 		return nil
