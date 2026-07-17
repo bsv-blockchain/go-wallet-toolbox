@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"strings"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -25,12 +26,52 @@ func sqliteDialector(cfg defs.Database) gorm.Dialector {
 	if dsn == "" {
 		dsn = defs.DSNDefault
 	}
+	dsn = sqliteDSNWithDefaults(dsn)
 
 	return sqlite.New(sqlite.Config{
 		Conn:       nil,
 		DriverName: sqlite3extended.NAME,
 		DSN:        dsn,
 	})
+}
+
+// sqliteDSNWithDefaults appends operator-friendly SQLite pragma defaults —
+// WAL journal mode and a 5s busy_timeout — to dsn, unless dsn is an in-memory
+// database or already configures either pragma explicitly.
+//
+// WAL lets readers and a writer proceed concurrently instead of the default
+// rollback-journal mode's single-writer-excludes-all-readers behavior, and the
+// busy_timeout gives concurrent writers (which WAL still serializes) a window
+// to wait for the SQLITE_BUSY lock to clear instead of failing immediately.
+// This matters because gorm's sqlite dialector passes the DSN to sql.Open
+// unmodified (gorm.io/driver/sqlite Dialector.Initialize), and mattn/go-sqlite3
+// parses driver params (_journal_mode, _busy_timeout, ...) from the query
+// string after '?' regardless of whether the DSN carries a "file:" prefix —
+// see (*SQLiteDriver).Open in github.com/mattn/go-sqlite3, which splits dsn on
+// the first '?', runs url.ParseQuery on the remainder, and — only for DSNs
+// *without* a "file:" prefix — then strips the query string back off before
+// handing the bare path to sqlite3_open_v2. So appending params to a bare
+// path (no "file:" prefix) works exactly like appending them to a "file:" DSN.
+//
+// Operator-provided params always win: this only fills in defaults when the
+// DSN is silent on both pragmas, so any explicit _journal_mode or
+// _busy_timeout (or an in-memory DSN, where WAL is meaningless and disk-only)
+// is left untouched.
+func sqliteDSNWithDefaults(dsn string) string {
+	switch {
+	case strings.Contains(dsn, ":memory:"),
+		strings.Contains(dsn, "mode=memory"),
+		strings.Contains(dsn, "_journal_mode"),
+		strings.Contains(dsn, "_busy_timeout"):
+		return dsn
+	}
+
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+
+	return dsn + sep + "_journal_mode=WAL&_busy_timeout=5000"
 }
 
 func postgresDialector(cfg defs.Database) gorm.Dialector {
