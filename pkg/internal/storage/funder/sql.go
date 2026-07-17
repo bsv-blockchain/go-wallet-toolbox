@@ -232,9 +232,12 @@ type utxoCollector struct {
 
 func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, maxChangeOutputsPerTx uint64, isSweep bool) (c *utxoCollector, err error) {
 	c = &utxoCollector{
-		txSats:                  txSats,
-		outputCount:             outputCount,
-		minimumDesiredUTXOValue: minimumDesiredUTXOValue,
+		txSats:      txSats,
+		outputCount: outputCount,
+		// Clamped to at least 1: a zero value would divide-by-zero in calculateChangeCount.
+		// Baskets should never carry 0 here (see ValidBasketConfiguration and UpdateChangeBasket),
+		// but this is the last line of defense against any caller/DB state that slips through.
+		minimumDesiredUTXOValue: to.NoLessThan(minimumDesiredUTXOValue, 1),
 		maxChangeOutputsPerTx:   maxChangeOutputsPerTx,
 		feeCalculator:           feeCalculator,
 		allocatedUTXOs:          make([]*UTXO, 0),
