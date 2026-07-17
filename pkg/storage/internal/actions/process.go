@@ -3,6 +3,7 @@ package actions
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -22,6 +23,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
@@ -636,12 +638,24 @@ func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string
 	for _, txID := range txIDs {
 		err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+			if errors.Is(err, repo.ErrStatusUpdateSkipped) {
+				// Legitimate: the tx is already beyond the broadcast stage, so there is
+				// nothing to re-queue as unsent. Log and continue.
+				p.logger.DebugContext(ctx, "known tx status update skipped (already beyond broadcast stage)", slog.String("txID", txID), logging.Error(err))
+			} else {
+				return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+			}
 		}
 
-		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending)
+		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending, wdk.TxStatusUnprocessed)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+			if errors.Is(err, repo.ErrStatusUpdateSkipped) {
+				// The user transaction is no longer in the expected pre-send state
+				// (e.g. it advanced concurrently). Do not downgrade it; log and continue.
+				p.logger.DebugContext(ctx, "transaction status update skipped (not in expected pre-send state)", slog.String("txID", txID), logging.Error(err))
+			} else {
+				return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+			}
 		}
 
 		sendWithResults = append(sendWithResults, wdk.SendWithResult{
@@ -687,8 +701,21 @@ func (p *process) updateSingleTx(
 
 	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		var uowErr error
-		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus)
+		// Guarded Transaction write FIRST. A broadcast result may only transition a tx that is
+		// still in a broadcast-eligible state: unprocessed (initial), sending (in-flight),
+		// nosend (broadcast via SendWith), or unproven (re-broadcast while awaiting proof, e.g.
+		// SendWaitingTransactions). If it matches zero rows the tx is already proven/mined
+		// (completed) or terminal (failed) — a late/raced result. Warn and no-op BEFORE the
+		// failure cascade or the KnownTx downgrade, so we never downgrade a proven tx or
+		// re-release inputs the proof already proved.
+		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus,
+			wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusNoSend, wdk.TxStatusUnproven)
 		if uowErr != nil {
+			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
+				p.logger.WarnContext(txCtx, "ignoring late broadcast result for transaction beyond broadcast stage",
+					slog.String("txID", txID), slog.String("attemptedStatus", string(newTxStatus)), logging.Error(uowErr))
+				return nil
+			}
 			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
 		}
 
@@ -710,7 +737,13 @@ func (p *process) updateSingleTx(
 
 		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
 		if uowErr != nil {
-			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
+			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
+				// The shared KnownTx is already beyond the broadcast stage; leaving it as-is
+				// is legitimate. The Transaction write above already matched, so continue.
+				p.logger.DebugContext(txCtx, "known tx status update skipped (beyond broadcast stage)", slog.String("txID", txID), logging.Error(uowErr))
+			} else {
+				return fmt.Errorf("failed to update known tx status after broadcast: %w", uowErr)
+			}
 		}
 
 		if spendable {

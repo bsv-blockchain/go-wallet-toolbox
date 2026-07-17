@@ -41,7 +41,7 @@ type stubTransactionsRepo struct {
 	transactionIDs []uint
 }
 
-func (stubTransactionsRepo) UpdateTransactionStatusByTxID(_ context.Context, _ string, _ wdk.TxStatus) error {
+func (stubTransactionsRepo) UpdateTransactionStatusByTxID(_ context.Context, _ string, _ wdk.TxStatus, _ ...wdk.TxStatus) error {
 	return nil
 }
 

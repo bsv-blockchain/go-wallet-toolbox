@@ -420,26 +420,42 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error {
+// UpdateTransactionStatusByTxID updates every transaction row matching txID to txStatus.
+// When expectedCurrent is non-empty it is applied as a positive CAS precondition
+// (AND status IN (...)); a zero-row result — absent row or failed precondition —
+// returns a %w-wrapped ErrStatusUpdateSkipped instead of a silent no-op.
+func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus, expectedCurrent ...wdk.TxStatus) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByTxID", attribute.String("TransactionID", txID), attribute.String("Status", string(txStatus)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = txs.db.WithContext(ctx).Model(models.Transaction{}).
-		Where("tx_id = ?", txID).
-		Updates(map[string]any{
-			"status": txStatus,
-		}).Error
-	if err != nil {
-		return fmt.Errorf("failed to update transaction status by txID: %w", err)
+	query := txs.db.WithContext(ctx).Model(models.Transaction{}).
+		Where("tx_id = ?", txID)
+	if len(expectedCurrent) > 0 {
+		query = query.Where("status IN ?", expectedCurrent)
+	}
+
+	result := query.Updates(map[string]any{
+		"status": txStatus,
+	})
+	if result.Error != nil {
+		err = fmt.Errorf("failed to update transaction status by txID: %w", result.Error)
+		return err
+	}
+	if result.RowsAffected == 0 {
+		err = fmt.Errorf("%w: transaction(s) with txID %s -> %s (expected current %v)", ErrStatusUpdateSkipped, txID, txStatus, expectedCurrent)
+		return err
 	}
 
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error {
+// UpdateTransactionStatusByID updates a single transaction (by primary key) to txStatus.
+// When expectedCurrent is non-empty it is applied as a positive CAS precondition;
+// a zero-row result returns a %w-wrapped ErrStatusUpdateSkipped.
+func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus, expectedCurrent ...wdk.TxStatus) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByID", attribute.String("TransactionID", fmt.Sprintf("%d", transactionID)), attribute.String("Status", string(txStatus)))
 	defer func() {
@@ -447,11 +463,19 @@ func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transa
 	}()
 
 	table := txs.query.Transaction
-	_, err = table.WithContext(ctx).
-		Where(table.ID.Eq(transactionID)).
-		Update(table.Status, txStatus)
+	dao := table.WithContext(ctx).Where(table.ID.Eq(transactionID))
+	if len(expectedCurrent) > 0 {
+		dao = dao.Where(table.Status.In(slices.Map(expectedCurrent, func(s wdk.TxStatus) string { return string(s) })...))
+	}
+
+	info, err := dao.Update(table.Status, txStatus)
 	if err != nil {
-		return fmt.Errorf("update query for transaction status failed: %w", err)
+		err = fmt.Errorf("update query for transaction status failed: %w", err)
+		return err
+	}
+	if info.RowsAffected == 0 {
+		err = fmt.Errorf("%w: transaction with ID %d -> %s (expected current %v)", ErrStatusUpdateSkipped, transactionID, txStatus, expectedCurrent)
+		return err
 	}
 	return nil
 }
@@ -840,9 +864,14 @@ func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.
 		return nil
 	}
 
-	_, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	var info gen.ResultInfo
+	info, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+	if info.RowsAffected == 0 {
+		err = fmt.Errorf("no rows updated for ID=%d", spec.ID)
+		return err
 	}
 
 	return nil

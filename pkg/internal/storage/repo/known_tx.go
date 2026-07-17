@@ -137,12 +137,17 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 		updates["was_broadcast"] = true
 	}
 
-	err := query.UpdateColumns(updates).Error
-	if err != nil {
-		return fmt.Errorf("failed to update known tx status: %w", err)
+	result := query.UpdateColumns(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update known tx status: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: known tx %s -> %s", ErrStatusUpdateSkipped, txID, status)
 	}
 
-	err = addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+	// History notes are recorded only for transitions that actually matched a row;
+	// a skipped update (skip-list or absent row) must not leave misleading notes.
+	err := addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
 		return note.Entity(txID)
 	}))
 	if err != nil {
@@ -716,7 +721,7 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 		return nil
 	})
 
-	return affected, nil
+	return affected, err
 }
 
 func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {
