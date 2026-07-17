@@ -247,6 +247,7 @@ const (
 	TxUpdateStatusWaiting      StandardizedTxStatus = "waiting"
 	TxUpdateStatusMined        StandardizedTxStatus = "mined"
 	TxUpdateStatusUnknown      StandardizedTxStatus = "unknown"
+	TxUpdateStatusFailed       StandardizedTxStatus = "failed"
 )
 
 // String returns the string representation of StandardizedTxStatus

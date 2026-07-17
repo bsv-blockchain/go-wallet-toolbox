@@ -1,8 +1,10 @@
 package storage_test
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -236,12 +238,6 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 		},
-		"unprocessed_transaction": {
-			setupTransaction: func(given testabilities.StorageFixture, activeStorage *storage.Provider) (string, wdk.AuthID) {
-				createResult, _ := given.Action(activeStorage).Unprocessed()
-				return createResult.Reference, testusers.Alice.AuthID()
-			},
-		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -271,7 +267,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 	}
 }
 
-func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T) {
+func TestProcessAction_AutoAbortOnPreBroadcastFailure_ReleasesUTXOs(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -285,22 +281,36 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 		satoshisToSend        = 1000
 	)
 
-	// and:
-	createActionResult, _ := given.Action(activeStorage).
+	// and: create and sign the transaction (does not process yet)
+	createActionResult, signedTx := given.Action(activeStorage).
 		WithSatoshisToInternalize(satoshisToInternalize).
 		WithSatoshisToSend(satoshisToSend).
-		Unprocessed()
+		Created()
+
+	// and: mock scripts verifier to fail
+	scriptsVerifyMockError := fmt.Errorf("mock scripts verifier error")
+	given.Provider().ScriptsVerifier().WillReturnError(scriptsVerifyMockError)
 
 	// when:
-	abortResult, err := activeStorage.AbortAction(t.Context(), testusers.Alice.AuthID(), wdk.AbortActionArgs{
-		Reference: primitives.Base64String(createActionResult.Reference),
-	})
+	txID := signedTx.TxID().String()
+	args := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		Reference: to.Ptr(createActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+	}
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
-	// then:
-	require.NoError(t, err)
-	require.True(t, abortResult.Aborted)
+	// then: process should fail with the scripts verifier error
+	require.Error(t, err)
+	require.ErrorIs(t, err, scriptsVerifyMockError)
 
-	// and:
+	// and: transaction should be automatically aborted (status=failed)
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusFailed)
+
+	// and: UTXOs should be automatically released and available for re-spending
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldBeAbleToReserveSatoshis(satoshisToInternalize)
 }

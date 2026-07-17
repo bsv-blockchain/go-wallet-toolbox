@@ -474,6 +474,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...))
 	if err != nil {
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
@@ -484,6 +485,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	// hydrate txs in beef
 	if err = txutils.HydrateBEEF(beef); err != nil {
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
@@ -495,15 +497,18 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, txID := range readyToSendTxIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 			return nil, fmt.Errorf("transaction %s not found in beef", txID)
 		}
 
 		var ok bool
 		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
 		if err != nil {
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
 		}
 		if !ok {
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
 		}
 	}
@@ -535,6 +540,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
 	}
 
@@ -548,6 +554,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, readyToSendTxIDs); err != nil {
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
@@ -893,6 +900,47 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	}
 
 	return reqStatus, txStatus, spendable, reviewActionResult, sendWithResult, err
+}
+
+func (p *process) abortTxsBeforeBroadcast(ctx context.Context, txIDs []string) {
+	for _, txID := range txIDs {
+		if err := p.abortTxByStringID(ctx, txID); err != nil {
+			p.logger.ErrorContext(ctx, "failed to abort tx before broadcast", slog.String("txID", txID), logging.Error(err))
+		}
+	}
+}
+
+func (p *process) abortTxByStringID(ctx context.Context, txID string) error {
+	transactionIDs, err := p.txRepo.FindTransactionIDsByTxID(ctx, txID)
+	if err != nil {
+		return fmt.Errorf("failed to find transaction IDs for txID %s: %w", txID, err)
+	}
+
+	for _, id := range transactionIDs {
+		if checkErr := p.outputRepo.ShouldTxOutputsBeUnspent(ctx, id); checkErr != nil {
+			p.logger.WarnContext(ctx, "skipping abort: tx outputs already spent", logging.Number("transactionID", id), logging.Error(checkErr))
+			continue
+		}
+
+		if uowErr := p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+			if err := repos.UTXORepo().UnreserveUTXOsByTransactionID(txCtx, id); err != nil {
+				return fmt.Errorf("failed to unreserve UTXOs: %w", err)
+			}
+			if err := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); err != nil {
+				return fmt.Errorf("failed to recreate spent outputs: %w", err)
+			}
+			if err := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); err != nil {
+				return fmt.Errorf("failed to mark created outputs as not spendable: %w", err)
+			}
+			if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed); err != nil {
+				return fmt.Errorf("failed to update transaction status to failed: %w", err)
+			}
+			return nil
+		}); uowErr != nil {
+			return fmt.Errorf("failed to abort transaction %d before broadcast: %w", id, uowErr)
+		}
+	}
+	return nil
 }
 
 func (p *process) StopBackgroundBroadcaster() {
