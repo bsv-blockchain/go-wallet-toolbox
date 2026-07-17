@@ -46,6 +46,35 @@ func (f *pagedFakeUTXORepository) FindNotReservedUTXOsForUpdate(
 	return page, nil
 }
 
+// FindSmallestSufficientUTXOForUpdate satisfies funder.UTXORepository; the sweep-mode
+// test never exercises the bounded selection path, so it always reports no match.
+func (f *pagedFakeUTXORepository) FindSmallestSufficientUTXOForUpdate(
+	_ context.Context,
+	_ *gorm.DB,
+	_ int,
+	_ string,
+	_ wdk.UTXOStatus,
+	_ uint64,
+	_ []uint,
+) (*models.UserUTXO, error) {
+	return nil, nil
+}
+
+// FindLargestInsufficientUTXOsForUpdate satisfies funder.UTXORepository; the sweep-mode
+// test never exercises the bounded selection path, so it always reports no rows.
+func (f *pagedFakeUTXORepository) FindLargestInsufficientUTXOsForUpdate(
+	_ context.Context,
+	_ *gorm.DB,
+	_ int,
+	_ string,
+	_ wdk.UTXOStatus,
+	_ uint64,
+	_ int,
+	_ []uint,
+) ([]*models.UserUTXO, error) {
+	return nil, nil
+}
+
 // TestFunderSQLFund_DedupsUTXOsAcrossOverlappingPages drives loadUTXOPool
 // indirectly through Fund (loadUTXOPool itself is unexported). It seeds a fake
 // repository with a full utxoBatchSize first page — forcing the pager to fetch

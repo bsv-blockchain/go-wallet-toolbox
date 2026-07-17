@@ -87,6 +87,97 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 	return result, nil
 }
 
+// FindSmallestSufficientUTXOForUpdate returns the single not-reserved UTXO in the given
+// status tier with the smallest satoshis >= minSatoshis (ties broken by output_id ASC),
+// or (nil, nil) when no such row exists. The first row of this ordering is the exact
+// match when one exists, else the smallest sufficient — replacing stages 1+2 of the old
+// in-memory selectBest. On Postgres/MySQL the row is locked with SELECT ... FOR UPDATE
+// SKIP LOCKED so concurrent callers automatically pick non-overlapping UTXOs; on SQLite
+// the lock is omitted since SQLite serializes writes (see FindNotReservedUTXOsForUpdate).
+func (u *UTXOs) FindSmallestSufficientUTXOForUpdate(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int,
+	basketName string,
+	status wdk.UTXOStatus,
+	minSatoshis uint64,
+	excludedOutputIDs []uint,
+) (*models.UserUTXO, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindSmallestSufficientUTXOForUpdate", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.String("UTXOStatus", string(status)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	query := tx.WithContext(ctx).Scopes(
+		scopes.UserID(userID),
+		scopes.BasketName(basketName),
+		notReserved(),
+		outputNotIn(excludedOutputIDs),
+	).Where("utxo_status = ?", string(status)).
+		Where("satoshis >= ?", minSatoshis).
+		Order("satoshis ASC, output_id ASC").
+		Limit(1)
+
+	if tx.Name() != "sqlite" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	}
+
+	var result []*models.UserUTXO
+	err = query.Find(&result).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find and lock smallest sufficient UTXO: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result[0], nil
+}
+
+// FindLargestInsufficientUTXOsForUpdate returns up to limit not-reserved UTXOs in the
+// given status tier with satoshis < maxSatoshis, largest first (satoshis DESC, ties
+// broken by output_id DESC) — the batched replacement for stage 3 of the old in-memory
+// selectBest (largest insufficient). An empty slice with a nil error means the tier has
+// no eligible rows below the bound. Locking behavior matches
+// FindSmallestSufficientUTXOForUpdate.
+func (u *UTXOs) FindLargestInsufficientUTXOsForUpdate(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int,
+	basketName string,
+	status wdk.UTXOStatus,
+	maxSatoshis uint64,
+	limit int,
+	excludedOutputIDs []uint,
+) ([]*models.UserUTXO, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindLargestInsufficientUTXOsForUpdate", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.String("UTXOStatus", string(status)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	query := tx.WithContext(ctx).Scopes(
+		scopes.UserID(userID),
+		scopes.BasketName(basketName),
+		notReserved(),
+		outputNotIn(excludedOutputIDs),
+	).Where("utxo_status = ?", string(status)).
+		Where("satoshis < ?", maxSatoshis).
+		Order("satoshis DESC, output_id DESC").
+		Limit(limit)
+
+	if tx.Name() != "sqlite" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	}
+
+	var result []*models.UserUTXO
+	err = query.Find(&result).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find and lock largest insufficient UTXOs: %w", err)
+	}
+	return result, nil
+}
+
 func (u *UTXOs) CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-CountUTXOs", attribute.Int("UserID", userID), attribute.String("BasketName", basketName))

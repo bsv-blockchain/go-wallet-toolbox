@@ -14,9 +14,10 @@ const (
 	tierCount    = 3
 )
 
-// utxoPool partitions UTXOs by status tier and supports 3-stage best-fit selection:
-// exact match → smallest sufficient → largest insufficient, evaluated tier by tier
-// (mined first, then unproven, then sending).
+// utxoPool partitions UTXOs by status tier (mined first, then unproven, then sending).
+// It is used only by the sweep path, which allocates every UTXO via all(); the
+// non-sweep path selects UTXOs with bounded target-aware repository queries instead
+// (see SQL.allocateBounded).
 type utxoPool struct {
 	tiers [tierCount][]*models.UserUTXO
 }
@@ -35,52 +36,13 @@ func newUTXOPool(utxos []*models.UserUTXO) *utxoPool {
 	return p
 }
 
-// selectBest finds the optimal UTXO for the given target using 3-stage selection
-// across all tiers (safest first):
-//  1. Exact match (satoshis == target)
-//  2. Smallest sufficient (smallest satoshis >= target)
-//  3. Largest insufficient (largest satoshis < target)
-func (p *utxoPool) selectBest(targetSatoshis uint64) *models.UserUTXO {
-	for tierIdx := range p.tiers {
-		if len(p.tiers[tierIdx]) == 0 {
-			continue
-		}
-
-		// Stage 1: Exact match
-		for i, u := range p.tiers[tierIdx] {
-			if u.Satoshis == targetSatoshis {
-				return p.removeAt(tierIdx, i)
-			}
-		}
-
-		// Stage 2: Smallest sufficient (tier sorted ASC, first >= target)
-		for i, u := range p.tiers[tierIdx] {
-			if u.Satoshis >= targetSatoshis {
-				return p.removeAt(tierIdx, i)
-			}
-		}
-
-		// Stage 3: Largest insufficient (last element in ASC-sorted tier)
-		last := len(p.tiers[tierIdx]) - 1
-		return p.removeAt(tierIdx, last)
-	}
-	return nil
-}
-
-// all returns every remaining UTXO across all tiers (for sweep mode).
+// all returns every UTXO across all tiers (for sweep mode).
 func (p *utxoPool) all() []*models.UserUTXO {
 	var result []*models.UserUTXO
 	for _, tier := range p.tiers {
 		result = append(result, tier...)
 	}
 	return result
-}
-
-func (p *utxoPool) removeAt(tierIdx, i int) *models.UserUTXO {
-	tier := p.tiers[tierIdx]
-	u := tier[i]
-	p.tiers[tierIdx] = append(tier[:i], tier[i+1:]...)
-	return u
 }
 
 func statusToTier(status wdk.UTXOStatus) int {
