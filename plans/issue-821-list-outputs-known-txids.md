@@ -2,7 +2,8 @@
 
 **Issue:** [bsv-blockchain/go-wallet-toolbox#821](https://github.com/bsv-blockchain/go-wallet-toolbox/issues/821)
 **Severity:** Low–Medium — performance / response-size only (not a correctness bug when `includeTransactions` is true).
-**Prior code PR (closed, plan-only policy):** [#940](https://github.com/bsv-blockchain/go-wallet-toolbox/pull/940) on `fix/821-list-outputs-known-txids` — draft still useful for the regression test.
+**Prior code PR (closed, plan-only policy):** [#940](https://github.com/bsv-blockchain/go-wallet-toolbox/pull/940) on `fix/821-list-outputs-known-txids` — draft still useful for the regression test (remote tip `b76259e` at time of plan).
+**Verified against `main`:** `b7e05a2` (2026-07-18) — re-probe anchors before implementing if main has moved.
 
 ---
 
@@ -16,7 +17,7 @@ On current `main`, Go **already wires** `args.KnownTxids` into `GetBEEFForTxIDs`
 2. **No listOutputs-level regression test** proving the optimization (only lower-level `GetBeef` / `CreateAction` known-tx tests exist).
 3. Wallet SDK mapping cannot forward `knownTxids` yet because `sdk.ListOutputsArgs` has no field (storage/RPC clients already can).
 
-Issue #821 is therefore mostly “mark complete + lock with tests,” not a green-field BEEF feature. Do not re-implement the recursive builder; reuse the path that already works for createAction and getBeef.
+**Issue body is stale:** #821 claims “Go ignores `knownTxids` and always returns full BEEF.” That was historically true; as of the verification SHA above, storage **does** forward known IDs. Closing #821 is “delete misleading TODO + lock with listOutputs regression test,” not green-field BEEF work. Do not re-implement the recursive builder; reuse the path that already works for createAction and getBeef.
 
 ---
 
@@ -24,7 +25,7 @@ Issue #821 is therefore mostly “mark complete + lock with tests,” not a gree
 
 | Location | What it shows |
 |----------|----------------|
-| `pkg/storage/internal/actions/list_outputs.go` ~L43 | Stale `// TODO: Handle args.KnownTxids` (and adjacent `IncludeLabels` TODO — see #820 / non-goals) |
+| `pkg/storage/internal/actions/list_outputs.go` ~L43–44 | Stale TODOs: `KnownTxids` (#821) **and** `IncludeLabels` (#820). Labels path is also already implemented (~L84–101 `labelMap`); only remove the KnownTxids TODO in the #821 PR |
 | same file ~L110–118 | When `IncludeTransactions`, calls `knownTxRepo.GetBEEFForTxIDs(..., entity.WithKnownTxIDs(args.KnownTxids...), …)` |
 | `pkg/wdk/storage_outputs_args.go` ~L21 | `KnownTxids []string` is part of the public storage args (JSON `knownTxids`) |
 | `pkg/internal/validate/validate_list_outputs_args.go` ~L35–38 | Each known txid is validated as `TXIDHexString` |
@@ -90,21 +91,98 @@ Optional clarity (small comment above the BEEF block, not required):
 
 ### 2. Add listOutputs regression coverage
 
-In `pkg/storage/provider_list_outputs_test.go`, add `TestListOutputs_KnownTxids` (draft exists on closed branch `fix/821-list-outputs-known-txids`, commit `672e980` / lint follow-up `b76259e`). Shape:
+In `pkg/storage/provider_list_outputs_test.go`, add `TestListOutputs_KnownTxids` (draft on closed branch `fix/821-list-outputs-known-txids`, tip `b76259e` — still on remote at plan time).
 
-1. Fund + process an action so the wallet has a created tx with real parent inputs (same harness as `TestListOutputs_IncludeTransactions`: `given.Action(activeStorage).Processed()`).
-2. **Baseline:** `ListOutputs` with `IncludeTransactions: true` and empty/nil `KnownTxids` → full BEEF (today: 3 transactions — parent with BUMP, internalized, created).
-3. **Optimized:** same call with `KnownTxids` = direct input parent txids of the signed/created tx.
-4. Assert:
-   - `len(optimized.BEEF) < len(full.BEEF)`
-   - each known parent is present as `transaction.TxIDOnly` (use `pkgtestabilities.AssertBEEFState`)
-   - `len(optimizedBeef.Transactions) < len(fullBeef.Transactions)` (ancestors only reachable via known parents are dropped)
-   - the newly created (unknown) tx remains fully embedded (not TxIDOnly)
-
-Preallocate the known slice to satisfy `prealloc` lint:
+**Imports to add** (file is `package storage_test`):
 
 ```go
-knownTxids := make([]string, 0, len(signedTx.Inputs))
+"github.com/bsv-blockchain/go-sdk/transaction"
+pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+```
+
+(`to` is already imported via other tests in some storage files; if missing here, also add `"github.com/go-softwarelab/common/pkg/to"`.)
+
+**Shape / assertions**
+
+1. Fund + process: `_, signedTx := given.Action(activeStorage).Processed()` (same harness as `TestListOutputs_IncludeTransactions`).
+2. **Baseline:** `ListOutputs` with `IncludeTransactions: true`, empty/nil `KnownTxids` → full BEEF (today: **3** transactions — parent with BUMP, internalized, created).
+3. **Optimized:** same call with `KnownTxids` = direct input parent txids of `signedTx`.
+4. Assert:
+   - `len(optimized.BEEF) < len(full.BEEF)`
+   - each known parent is `transaction.TxIDOnly` via `pkgtestabilities.AssertBEEFState`
+   - `len(optimizedBeef.Transactions) < len(fullBeef.Transactions)` (ancestors only reachable via known parents drop out)
+   - newly created (unknown) tx remains fully embedded (not TxIDOnly)
+
+**Ready-to-paste draft** (from #940; re-run and adjust counts if the fixture changes):
+
+```go
+// TestListOutputs_KnownTxids verifies that knownTxids optimizes returned BEEF by
+// representing already-known transactions as TxIDOnly (matching TS listOutputs behavior).
+func TestListOutputs_KnownTxids(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	_, signedTx := given.Action(activeStorage).Processed()
+	signedTxID := signedTx.TxID().String()
+
+	// baseline: full BEEF without knownTxids embeds parent + grandparent + created tx
+	fullResult, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:               100,
+		IncludeTransactions: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, fullResult.BEEF)
+	fullBeef := testutils.BEEFFromBytes(t, fullResult.BEEF)
+	require.Len(t, fullBeef.Transactions, 3)
+
+	// knownTxids = direct input parents of the created tx (same optimization surface as TS)
+	knownTxids := make([]string, 0, len(signedTx.Inputs))
+	for _, in := range signedTx.Inputs {
+		require.NotNil(t, in.SourceTXID)
+		knownTxids = append(knownTxids, in.SourceTXID.String())
+	}
+	require.NotEmpty(t, knownTxids)
+
+	// when: listOutputs with knownTxids
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:               100,
+		IncludeTransactions: true,
+		KnownTxids:          knownTxids,
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, result.BEEF)
+	assert.Less(t, len(result.BEEF), len(fullResult.BEEF),
+		"knownTxids should reduce BEEF payload size by omitting embedded raw txs / proofs")
+
+	optimizedBeef := testutils.BEEFFromBytes(t, result.BEEF)
+
+	// known parents appear as TxIDOnly stubs (mergeTxidOnly), matching TS listOutputs
+	for _, known := range knownTxids {
+		pkgtestabilities.AssertBEEFState(t, result.BEEF, pkgtestabilities.ExpectedBeefTransactionState{
+			ID:         known,
+			DataFormat: to.Ptr(transaction.TxIDOnly),
+		})
+	}
+
+	// further ancestors that were only reachable via known parents are dropped entirely
+	assert.Less(t, len(optimizedBeef.Transactions), len(fullBeef.Transactions),
+		"knownTxids should stop recursion so unused ancestors are excluded from BEEF")
+
+	// the caller's unknown (newly created) tx remains fully embedded (not TxIDOnly)
+	require.NotNil(t, optimizedBeef.FindTransaction(signedTxID))
+	for hash, beefTx := range optimizedBeef.Transactions {
+		if hash.String() == signedTxID {
+			assert.NotEqual(t, transaction.TxIDOnly, beefTx.DataFormat,
+				"created tx must keep full transaction data for the caller")
+		}
+	}
+}
 ```
 
 ### 3. No production BEEF algorithm changes unless tests fail
@@ -174,9 +252,9 @@ No dedicated BRC-100 vector currently pins listOutputs knownTxids size. If ts-st
 
 **Risks**
 
-- **Hex normalization:** if callers pass uppercase and storage compares lowercase (or vice versa), known set misses. Align with `TXIDHexString.Validate` and existing createAction known-tx behaviour.
+- **Hex normalization:** `HexString.Validate` accepts `[0-9a-fA-F]` (mixed case) but `IsKnownTxID` is an exact map lookup with **no** `ToLower`. Storage/fixtures use `chainhash`/`.String()` lowercase. Uppercase client `knownTxids` would validate yet miss the set — same behaviour as createAction/getBeef today; do **not** “fix” case folding in the #821 PR unless product asks for it (would be a separate, cross-API change). Prefer documenting / matching existing createAction tests.
 - **Knowing the wrong set:** listing unrelated wallet txids does nothing useful; only txs that would appear in the BEEF walk matter.
-- **Coupling to #820:** editing both TODOs in one PR confuses review; keep #821 focused.
+- **Coupling to #820:** both TODOs at L43–44 are stale; labels are already wired. Still keep #821 to KnownTxids only so review stays focused.
 
 **Non-goals**
 
@@ -192,15 +270,27 @@ No dedicated BRC-100 vector currently pins listOutputs knownTxids size. If ts-st
 
 **Estimated size:** **S** (TODO cleanup + one focused integration test; production logic already present).
 
+**Suggested implementation commit message:**
+
+```text
+fix: listOutputs knownTxids BEEF optimization (#821)
+
+Remove stale KnownTxids TODO (wiring already present) and add
+TestListOutputs_KnownTxids locking TxIDOnly + smaller BEEF payload.
+```
+
+Implementation PR body should use `Fixes #821` (this plan PR uses `Related to #821` only).
+
 ---
 
 ## Useful cross-references
 
 - Issue: <https://github.com/bsv-blockchain/go-wallet-toolbox/issues/821>
-- Closed implementation draft: <https://github.com/bsv-blockchain/go-wallet-toolbox/pull/940> (`fix/821-list-outputs-known-txids`)
-- Sibling labels work: #820 (`includeLabels`)
+- Closed implementation draft: <https://github.com/bsv-blockchain/go-wallet-toolbox/pull/940> (`fix/821-list-outputs-known-txids` @ `b76259e`)
+- Sibling labels work: #820 (`includeLabels` — also mostly “stale TODO + tests” once re-probed)
 - CreateAction known-txids precedent: `pkg/storage/provider_create_action_test.go` `TestCreateActionWithKnownTxIDs`
 - BEEF options: `pkg/internal/storage/entity/get_beef_options.go`
+- Recursive short-circuit: `pkg/internal/storage/repo/known_tx_get_beef.go` (`IsKnownTxID` → `MergeTxidOnly`)
 - Plan style sibling: `plans/brc40-stale-chunk-guard.md`
 
 ---
