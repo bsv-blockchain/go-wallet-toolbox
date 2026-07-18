@@ -9,9 +9,53 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # paths filter via gh api on pull_request
 
 jobs:
-  test-postgres:
+  # Decide whether this PR (or push) touches Go sources that postgres tests exercise.
+  # Plan/docs-only PRs skip the expensive Postgres service job entirely.
+  # The rollup job below keeps the required `test-postgres` check name green when skipped
+  # (same short-circuit idea as fortress.yml paths-check).
+  changes:
+    name: 📁 Postgres paths filter
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - name: Detect Go / workflow changes
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Full pipeline on main/master pushes (and any non-PR event).
+          if [[ "$EVENT" != "pull_request" ]]; then
+            echo "run-tests=true" >> "$GITHUB_OUTPUT"
+            echo "Non-PR event — run postgres tests"
+            exit 0
+          fi
+
+          files=$(gh api --paginate "/repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
+          echo "Changed files:"
+          printf '%s\n' "$files"
+
+          # Run only when a file can affect Postgres storage/monitor suites or this workflow.
+          if printf '%s\n' "$files" | grep -qE '(\.go$|^go\.mod$|^go\.sum$|^\.github/workflows/postgres-tests\.yml$)'; then
+            echo "run-tests=true" >> "$GITHUB_OUTPUT"
+            echo "Go or workflow sources changed — run postgres tests"
+          else
+            echo "run-tests=false" >> "$GITHUB_OUTPUT"
+            echo "Docs/plan-only (or non-Go) PR — skip postgres tests"
+          fi
+
+  test-postgres-run:
+    name: Run Postgres suite
+    needs: changes
+    if: needs.changes.outputs.run-tests == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -37,3 +81,29 @@ jobs:
         env:
           TEST_DB_MODE: postgres
         run: go test -race -p 1 -timeout 25m ./pkg/internal/storage/... ./pkg/storage/... ./pkg/internal/testabilities/... ./pkg/monitor/...
+
+  # Required check name remains `test-postgres`. Always runs so plan/docs-only PRs
+  # get a green status without starting the Postgres service container.
+  test-postgres:
+    name: test-postgres
+    needs: [changes, test-postgres-run]
+    if: always() && needs.changes.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Roll up postgres result
+        run: |
+          set -euo pipefail
+          RUN="${{ needs.changes.outputs.run-tests }}"
+          RESULT="${{ needs.test-postgres-run.result }}"
+          echo "run-tests=${RUN} suite-result=${RESULT}"
+          if [[ "$RUN" != "true" ]]; then
+            echo "Skipped postgres suite (no Go sources changed on this PR)."
+            exit 0
+          fi
+          if [[ "$RESULT" == "success" ]]; then
+            echo "Postgres suite passed."
+            exit 0
+          fi
+          echo "Postgres suite did not succeed (result=${RESULT})."
+          exit 1
