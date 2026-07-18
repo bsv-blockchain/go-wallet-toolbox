@@ -14,6 +14,12 @@ func TestBEEFMarshalsToNumberArray(t *testing.T) {
 	assert.Equal(t, "[0,1,255]", string(data))
 }
 
+func TestBEEFMarshalsEmptyAsEmptyArray(t *testing.T) {
+	data, err := json.Marshal(BEEF{})
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(data))
+}
+
 func TestBEEFUnmarshalRoundTrip(t *testing.T) {
 	original := BEEF{0, 1, 127, 255}
 	data, err := json.Marshal(original)
@@ -35,12 +41,13 @@ func TestBEEFUnmarshalRejectsOutOfRange(t *testing.T) {
 	assert.Error(t, json.Unmarshal([]byte("[0,256]"), &decoded))
 }
 
-func TestExplicitByteArrayUnmarshalRoundTrip(t *testing.T) {
-	original := ExplicitByteArray{0, 1, 127, 255}
-	data, err := json.Marshal(original)
-	require.NoError(t, err)
+func TestBEEFUnmarshalNull(t *testing.T) {
+	decoded := BEEF{1, 2, 3}
+	require.NoError(t, json.Unmarshal([]byte("null"), &decoded))
+	assert.Nil(t, decoded)
+}
 
-	var decoded ExplicitByteArray
-	require.NoError(t, json.Unmarshal(data, &decoded))
-	assert.Equal(t, original, decoded)
+func TestBEEFUnmarshalRejectsInvalidBase64(t *testing.T) {
+	var decoded BEEF
+	assert.Error(t, json.Unmarshal([]byte(`"not!!base64"`), &decoded))
 }

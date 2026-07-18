@@ -7,6 +7,8 @@ import (
 )
 
 // BEEF An array of integers, each ranging from 0 to 255, indicating transaction data in BEEF (BRC-62) format.
+// Overloads default JSON serialization (base64 string) so the wire format matches TypeScript
+// storage servers, which expect an explicit [0..255] number array.
 type BEEF []byte
 
 // MarshalJSON marshals the BEEF to a JSON array of numbers, matching the
@@ -15,7 +17,8 @@ func (b BEEF) MarshalJSON() ([]byte, error) {
 	return ExplicitByteArray(b).MarshalJSON()
 }
 
-// UnmarshalJSON accepts either a JSON array of numbers or a base64 string.
+// UnmarshalJSON accepts either a JSON array of numbers or a base64 string
+// (legacy Go encoding/json []byte form). Null decodes to nil.
 func (b *BEEF) UnmarshalJSON(data []byte) error {
 	if len(data) > 0 && data[0] == '"' {
 		var s string
@@ -29,27 +32,12 @@ func (b *BEEF) UnmarshalJSON(data []byte) error {
 		*b = decoded
 		return nil
 	}
-	var nums []byte
-	if err := unmarshalByteNumbers(data, &nums); err != nil {
-		return err
-	}
-	*b = nums
-	return nil
-}
 
-// unmarshalByteNumbers decodes a JSON array of 0..255 numbers into bytes.
-func unmarshalByteNumbers(data []byte, out *[]byte) error {
-	var nums []uint16
-	if err := json.Unmarshal(data, &nums); err != nil {
-		return fmt.Errorf("invalid byte array: %w", err)
+	// Reuse ExplicitByteArray for number-array / null decoding.
+	var eba ExplicitByteArray
+	if err := eba.UnmarshalJSON(data); err != nil {
+		return fmt.Errorf("invalid BEEF: %w", err)
 	}
-	result := make([]byte, len(nums))
-	for i, n := range nums {
-		if n > 255 {
-			return fmt.Errorf("byte array value %d out of range at index %d", n, i)
-		}
-		result[i] = byte(n)
-	}
-	*out = result
+	*b = BEEF(eba)
 	return nil
 }
