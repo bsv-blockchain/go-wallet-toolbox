@@ -45,14 +45,21 @@ The other nine entities (`outputBasket`, `provenTx`/`provenTxReq`, `transaction`
 
 | Layer | File | Missing piece |
 |-------|------|---------------|
-| processSyncChunk dispatch | `pkg/storage/internal/sync/chunk_processor.go` `Process` (~L90–142) | No loops for `chunk.Certificates` / `CertificateFields` / `Commissions` |
-| emptyChunk | same file ~L702–711 | Does **not** count the three arrays → a chunk that only carries certs/commissions is treated as “done” and resets offsets |
+| processSyncChunk dispatch | `pkg/storage/internal/sync/chunk_processor.go` `Process` (~L90–142; loops end before `UpdateSyncState` ~L145) | No loops for `chunk.Certificates` / `CertificateFields` / `Commissions` |
+| emptyChunk | same file ~L702–712 | Does **not** count the three arrays → a chunk that only carries certs/commissions is treated as “done” and resets offsets |
 | getSyncChunk chunkers | `pkg/storage/internal/sync/chunkers.go` | Only 8 chunkers registered; no certificate / field / commission chunkers |
 | Repository interface | `pkg/storage/internal/sync/repos.interface.go` | No `Find*ForSync` / `Upsert*ForSync` for the three entities |
 | syncrepo | `pkg/internal/storage/repo/syncrepo/` | No `sync_certificate.go` / `sync_certificate_field.go` / `sync_commission.go` |
 | Sync composite | `pkg/internal/storage/repo/sync.go` | Does not embed the three new syncrepo types |
 | Request offsets fixture | `pkg/internal/fixtures/default_request_sync_chunk_args.go` ~L52 | Explicit `// TODO: Add more offsets for other entities when implemented` |
 | Entity bag for sync | `pkg/entity/certifier.go` | `Certificate` has no `IsDeleted`; `CertificateField` has no `UserID` / `CertificateID` (needed for upsert) |
+| Assertion helpers | `pkg/storage/internal/testabilities/assertions_sync_chunk.go` | No `CertificatesCount` / `CertificateFieldsCount` / `CommissionsCount`; `AllCountZero` only covers the existing nine-entity counts (also omits outputs today) |
+
+**Already wired for free once chunkers/upserts land:**
+
+- `wdk.AllEntityNames` already lists `certificate` → `certificateField` → `commission` (after tag maps).
+- `ReaderToWriter.buildOffsets` (`sync_to_writer.go` ~L119) iterates `AllEntityNames`, so SyncToWriter **already requests** the three offsets every cycle — the reader simply returns empty arrays because no chunkers are registered for those entity names.
+- Wire tables already carry the needed fields: `TableCertificate.IsDeleted`, `TableCertificateField.{UserID,CertificateID}`, `TableCommission.{TransactionID,IsRedeemed,Satoshis int64}`.
 
 Verified still present on `origin/main` as of this plan (2026-07-18): `chunkers.go` lists only baskets/knownTxs/transactions/outputs/labels/labelsMap/tags/tagsMap; `chunk_processor.Process` ends after tag maps.
 
@@ -99,16 +106,17 @@ Follow patterns in `sync_output.go` / `sync_label.go` (existence check → BRC-4
 | New file | Methods | Natural key | ID map? | Notes |
 |----------|---------|-------------|---------|-------|
 | `syncrepo/sync_certificate.go` | `FindCertificatesForSync`, `UpsertCertificateForSync` | `(user_id, serial_number, certifier)` | yes → return writer `certificateID` | **Unscoped** find/update so soft-deleted rows participate; set/clear `deleted_at` from `entity.IsDeleted`; on insert-then-deleted, create then soft-delete |
-| `syncrepo/sync_certificate_field.go` | `FindCertificateFieldsForSync`, `UpsertCertificateFieldForSync` | `(user_id, certificate_id, field_name)` | **no** | `certificate_id` is **writer-local** (already translated by chunk_processor). Skip `BeforeCreate` OnConflict DoNothing hooks on insert (`Session{SkipHooks: true}`) so sync creates are real inserts |
-| `syncrepo/sync_commission.go` | `FindCommissionsForSync`, `UpsertCommissionForSync` | `(user_id, transaction_id)` | yes → return writer `commissionID` | On update, only mutate `is_redeemed` + `updated_at` (TS parity). Wire `satoshis` is `int64`; model is `uint64` — convert carefully |
+| `syncrepo/sync_certificate_field.go` | `FindCertificateFieldsForSync`, `UpsertCertificateFieldForSync` | `(user_id, certificate_id, field_name)` | **no** | `certificate_id` is **writer-local** (already translated by chunk_processor). DB unique index is only `(field_name, certificate_id)` — `user_id` is denormalized scoping, not part of the unique index. Skip `BeforeCreate` OnConflict DoNothing hooks on insert (`Session{SkipHooks: true}`) so sync creates are real inserts. **No soft-delete** on this model (no `gorm.Model` / `DeletedAt`) |
+| `syncrepo/sync_commission.go` | `FindCommissionsForSync`, `UpsertCommissionForSync` | `(user_id, transaction_id)` | yes → return writer `commissionID` | On update, only mutate `is_redeemed` + `updated_at` (TS parity). Wire `satoshis` is `int64`; model/entity is `uint64` — convert carefully. Soft-delete column exists via `gorm.Model` but TS merge does not soft-delete commissions; do not invent delete semantics |
 
 All three finds:
 
 - Scope by `user_id`, apply `queryopts` (since + paging).
 - Set `Since.TableName` when empty (same pattern as other Find*ForSync).
-- Deterministic secondary order after paginate’s `created_at DESC` (e.g. `id` ASC for cert/commission; `field_name, certificate_id` for fields).
+- Deterministic secondary order after paginate’s `created_at DESC` (e.g. `id` ASC for cert/commission; `field_name, certificate_id` for fields) — same Postgres offset-pagination rationale as `sync_output.go`.
+- Certificate find is **Unscoped** and maps `DeletedAt.Valid` → wire `IsDeleted`.
 
-Wire both new types through `pkg/internal/storage/repo/sync.go` (embed + `NewSync` constructors).
+Wire the three new types through `pkg/internal/storage/repo/sync.go` (embed + `NewSync` constructors).
 
 ### 3. Repository interface (`repos.interface.go`)
 
@@ -133,11 +141,27 @@ In `Process`, **after** existing entity loops and **in this order** (FK dependen
 
 Each upsert:
 
-- Validate chunk user ID vs `p.user` when `chunk.User` is set (same pattern as baskets/labels).
+- Validate chunk user ID vs `p.chunk.User.UserID` when `chunk.User` is set (same pattern as `upsertBasket` / `upsertLabel` — compare **reader** user id on the row to `chunk.User.UserID`, not to writer `p.user.ID`).
 - Map wire table → entity (writer-side user ID = `p.user.ID`).
 - Call repo; `incrementOperations(isNew)`.
-- Certificate / commission: `updateSyncState(entityName, updatedAt, idDictionary{readerID, writerID})`.
-- Certificate field: `updateSyncState(entityName, updatedAt)` **without** idDictionary.
+- Certificate / commission: `updateSyncState(entityName, updatedAt, idDictionary{readerID, writerID})` where `readerID` comes from `to.IntFromUnsigned(chunk.CertificateID)` / `CommissionID` (same as transaction/output).
+- Certificate field: `updateSyncState(entityName, updatedAt)` **without** idDictionary (`updateSyncState` already takes variadic `ids ...idDictionary`).
+- Certificate field: `translateID(p, wdk.CertificateEntityName, chunkField.CertificateID)` before upsert so `entity.CertificateID` is writer-local.
+
+#### Wire → entity mapping notes
+
+| Wire (`wdk`) | Entity (`pkg/entity`) | Notes |
+|--------------|----------------------|-------|
+| `TableCertificate.Type` (`Base64String`) | `Certificate.Type` (`string`) | `string(chunk.Type)` |
+| `SerialNumber` (`Base64String`) | `SerialNumber` (`string`) | same |
+| `Certifier` / `Subject` (`PubKeyHex`) | `string` | `string(...)` |
+| `Verifier *PubKeyHex` | `Verifier string` | empty when nil |
+| `RevocationOutpoint` (`OutpointString`) | `string` | `string(...)` |
+| `Signature` (`HexString`) | `string` | `string(...)` |
+| `IsDeleted bool` | `IsDeleted bool` (new) | maps to `DeletedAt` |
+| `TableCertificateField.MasterKey` (`Base64String`) | `MasterKey string` | `string(...)` |
+| `TableCommission.Satoshis int64` | `Satoshis uint64` | convert with range check |
+| `LockingScript ExplicitByteArray` | `[]byte` | direct |
 
 Update `emptyChunk()` to also require:
 
@@ -149,7 +173,7 @@ len(p.chunk.Commissions) == 0
 
 ### 5. getSyncChunk chunkers
 
-- New `chunker_certificates.go` — `chunkerCertificates` + `chunkerCertificateFields` (mirror `chunker_labels.go`).
+- New `chunker_certificates.go` — `chunkerCertificates` + `chunkerCertificateFields` (mirror `chunker_labels.go`: `Name`, `MaxPageSize` → `maximumAvailablePageSize`, `IsApplicable` on the entity name, `FirstPage` from offsets, `Process` appends to the matching `SyncChunk` slice).
 - New `chunker_commissions.go` — `chunkerCommissions`.
 - Register in `chunkers.go` `all()` **after** tags/maps, certificates **before** certificate fields, commissions last (or anywhere after transactions exist for the same user in storage — chunkers only read, order among independent entities is less critical than Process order, but keep dependency-friendly order for consistency with `AllEntityNames`).
 
@@ -157,12 +181,13 @@ len(p.chunk.Commissions) == 0
 
 GORM’s default soft-delete only sets `deleted_at` and does **not** advance `updated_at`. Since-filter then **never** surfaces the delete on a subsequent sync cycle after `when` has moved past the original create time.
 
-Change `DeleteCertificate` to an Unscoped update that sets both `deleted_at` and `updated_at` to `now` for the matching live row (`deleted_at IS NULL`). Keep “not found” when `RowsAffected == 0`.
+Change `DeleteCertificate` to an Unscoped update that sets both `deleted_at` and `updated_at` to `now` for the matching live row (`deleted_at IS NULL`). Keep “not found” when `RowsAffected == 0`. Match args on `type + serial_number + certifier + user_id` (current WHERE clause).
 
 ### 7. Fixtures / test helpers
 
-- `default_request_sync_chunk_args.go` — replace the TODO with offsets for `certificate`, `certificateField`, `commission` (offset 0).
-- Extend empty-chunk / assertion helpers if they hard-code the nine-entity set (`pkg/storage/internal/testabilities/assertions_sync_chunk.go`, `provider_get_sync_chunk_test.go` expectations).
+- `default_request_sync_chunk_args.go` — replace the TODO with offsets for `certificate`, `certificateField`, `commission` (offset 0). Prefer appending in `AllEntityNames` order so fixtures match SyncToWriter.
+- `assertions_sync_chunk.go` — add `CertificatesCount` / `CertificateFieldsCount` / `CommissionsCount` (and optional `CertificateAtIndex` / field / commission assertion helpers). Extend `AllCountZero` to include the three new counts (do not silently expand to Outputs unless intentionally fixing that pre-existing omission).
+- Review `provider_get_sync_chunk_test.go` expectations if any hard-code entity set size or empty-array-only assertions for the three fields.
 
 ---
 
@@ -226,15 +251,16 @@ New `syncrepo/sync_cert_commission_test.go` (or per-entity files):
 
 New `pkg/storage/provider_sync_cert_commission_test.go`:
 
-1. **getSyncChunk** — insert certificate (+ fields) via `InsertCertificateAuth`; request chunk with the three offsets; assert arrays non-empty and field values round-trip (`isDeleted=false`).
-2. **getSyncChunk after relinquish** — after `DeleteCertificate` with bumped `updated_at`, a since-filtered chunk includes the cert with `isDeleted=true`.
-3. **SyncToWriter e2e** — source storage with certs + fields (+ commission if easy to seed via createAction path) → `SyncToWriter` → backup storage lists the same certificates / fields / commission state; writer idMaps populated for certificate and commission.
+1. **getSyncChunk** — insert certificate (+ fields) via `InsertCertificateAuth` (see `provider_insert_certificate_auth_test.go` for fixture shape); request chunk with the three offsets; assert arrays non-empty and field values round-trip (`isDeleted=false`).
+2. **getSyncChunk after relinquish** — after `RelinquishCertificate` / `DeleteCertificate` with bumped `updated_at`, a since-filtered chunk includes the cert with `isDeleted=true`.
+3. **SyncToWriter e2e** — source storage with certs + fields (+ commission if easy to seed via createAction with commission config enabled — `defs.Commission` / provider commission settings; commission entity is created in `actions/create.go` alongside the transaction) → `SyncToWriter` → backup storage lists the same certificates / fields / commission state; writer idMaps populated for certificate and commission.
 4. **Cert-only chunk does not mark done** — process a chunk that only has certificates; `Done` must be false and inserts > 0 (guards the `emptyChunk` fix).
+5. **processSyncChunk stale** — second process of an older/equal `updated_at` cert does not change subject/signature; inserts/updates counters reflect skip (update path may still count per existing basket note — match sibling entity behavior).
 
 ### Regression
 
 - Existing `TestGetSyncChunk*`, `TestSyncProcess*`, certificate list/insert tests still pass.
-- `go test ./pkg/internal/storage/repo/syncrepo/ ./pkg/storage/ -count=1` green.
+- `go test ./pkg/internal/storage/repo/syncrepo/ ./pkg/storage/ -count=1` green (SQLite). Also run under `TEST_DB_MODE=postgres` for Find pagination / Unscoped soft-delete paths if available locally.
 
 ---
 
@@ -260,6 +286,7 @@ New `pkg/storage/provider_sync_cert_commission_test.go`:
 - **CertificateField hooks:** `BeforeCreate` OnConflict DoNothing would hide insert failures; must skip hooks on sync insert.
 - **Satoshis sign:** wire `int64` vs model `uint64` — reject / convert with the same helpers used elsewhere (`to.UInt64` / `must.ConvertToInt64FromUnsigned`).
 - **Order bugs:** processing fields before certificates (or commissions before transactions) will fail `translateID` — keep Process order strict.
+- **Orphan fields / commissions:** if a field/commission arrives without a prior certificate/transaction idMap entry (partial chunk, filtered offsets), `translateID` errors — fail the chunk (do not drop silently); same as label maps today.
 - **Prior closed PR #944:** may be cherry-pickable, but re-review against any main movement (BRC-40 guards, numeric_id patterns, provenTx idMap fixes) before reusing.
 
 ### Non-goals
@@ -268,11 +295,24 @@ New `pkg/storage/provider_sync_cert_commission_test.go`:
 - Implementing certificate **business** logic (issuance, prove, discover) — only storage sync.
 - Promoting ts-stack conformance vectors (none currently tagged for #850); optional follow-up.
 - Hard-delete of certificate fields when parent is relinquished (current GORM relation behavior is out of scope unless sync diverges from local delete).
+- Soft-delete / relinquish path for commissions (not part of TS merge semantics for this entity).
 
 ### Dependencies
 
 - BRC-40 stale-chunk guard pattern already on main for other entities (`#853` / `plans/brc40-stale-chunk-guard.md`) — reuse, do not invent a different comparison.
 - Transaction idMap must already be populated before commission upserts in the same cycle (existing transaction upsert path).
+- Certificate idMap must be populated before certificate-field upserts in the same cycle.
+
+---
+
+## Suggested implementation phases
+
+1. **Entity + interface + syncrepo** — extend `pkg/entity`, add repo methods + unit tests (can land without wiring Process).
+2. **processSyncChunk + emptyChunk** — Process branches + relinquish `updated_at` bump; unit/integration process tests including cert-only non-empty.
+3. **getSyncChunk chunkers + fixtures** — register chunkers, default offsets, assertion helpers; getSyncChunk + SyncToWriter e2e.
+4. **Polish** — BRC-40 edge cases, Postgres path, any #944 cleanup.
+
+Phases 1–3 are each independently reviewable; phase 3 is when SyncToWriter starts receiving non-empty arrays for the three entities (offsets are already requested).
 
 ---
 
@@ -287,9 +327,11 @@ New `pkg/storage/provider_sync_cert_commission_test.go`:
 - Issue: https://github.com/bsv-blockchain/go-wallet-toolbox/issues/850
 - Closed design sketch PR: https://github.com/bsv-blockchain/go-wallet-toolbox/pull/944
 - Related plan: `plans/brc40-stale-chunk-guard.md` (upsert monotonicity)
+- Wire tables: `pkg/wdk/table_certificate.go`, `table_certificate_field.go`, `table_commission.go`
+- Local insert fixture: `pkg/storage/provider_insert_certificate_auth_test.go`
 - TS interfaces: `packages/wallet/wallet-toolbox/src/sdk/WalletStorage.interfaces.ts` (`SyncChunk`, `RequestSyncChunkArgs`)
 - TS chunker: `.../storage/methods/getSyncChunk.ts`
 - TS merge entities: `EntityCertificate`, `EntityCertificateField`, `EntityCommission` under `.../storage/schema/entities/`
 - Entity name list: `pkg/wdk/entity_name.go`
-- Sync orchestration: `pkg/storage/internal/sync/sync_to_writer.go`
+- Sync orchestration: `pkg/storage/internal/sync/sync_to_writer.go` (`buildOffsets` already includes the three entities)
 )
