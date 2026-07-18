@@ -71,8 +71,8 @@ func TestListActions_BRC114_TimeFilteringAndResponseInjection(t *testing.T) {
 	for i, ts := range times {
 		label := fmt.Sprintf("%s-%c", runLabel, 'a'+i)
 		_, signedTx := given.Action(activeStorage).
-			WithSatoshisToInternalize(uint64(50_000 + i*1_000)).
-			WithSatoshisToSend(uint64(1_000 + i)).
+			WithSatoshisToInternalize(uint64(50_000+i*1_000)).
+			WithSatoshisToSend(uint64(1_000+i)).
 			WithLabels(runLabel, label).
 			Processed()
 
