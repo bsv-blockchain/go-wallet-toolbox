@@ -184,6 +184,10 @@ func (p *Provider) poolSnapshot(ctx context.Context) ([]metrics.PoolRow, error) 
 		Model(&models.UserUTXO{}).
 		Select("basket_name AS basket, utxo_status AS status, COUNT(*) AS count, SUM(satoshis) AS satoshis").
 		Where("reserved_by_id IS NULL").
+		Where("basket_name IN ?", []string{
+			p.options.UTXOManagement.Throughput.PoolBasket,
+			p.options.UTXOManagement.Throughput.ReserveBasket,
+		}).
 		Group("basket_name, utxo_status").
 		Scan(&rows).Error
 	if err != nil {

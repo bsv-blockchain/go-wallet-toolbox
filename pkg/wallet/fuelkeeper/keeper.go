@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -57,7 +58,20 @@ type Config struct {
 
 // FromThroughput derives the keeper configuration from the server-side
 // throughput configuration and the resolved denomination.
+//
+// The denomination MUST match what the server resolves from the same
+// throughput config and its fee model (Provider derivation): a mismatch makes
+// every leaf shape fail the server's validation and disables minting.
+//
+// ChunkFeeHeadroom defaults to max(1000, 8 × denomination): the denomination
+// scales with the fee rate, so the headroom tracks the leaf transaction's fee
+// (≈ outputs × 34 bytes at the same rate) with margin; override it when your
+// action shape makes that heuristic wrong.
 func FromThroughput(throughput defs.Throughput, denomination uint64) Config {
+	headroom := uint64(1000)
+	if scaled := 8 * denomination; scaled > headroom {
+		headroom = scaled
+	}
 	return Config{
 		Denomination:         denomination,
 		TargetPoolSize:       throughput.TargetPool(),
@@ -68,7 +82,7 @@ func FromThroughput(throughput defs.Throughput, denomination uint64) Config {
 		PoolBasket:           throughput.PoolBasket,
 		ReserveBasket:        throughput.ReserveBasket,
 		Interval:             throughput.TopUp.Interval(),
-		ChunkFeeHeadroom:     1000,
+		ChunkFeeHeadroom:     headroom,
 		Originator:           "fuelkeeper",
 	}
 }
@@ -94,6 +108,11 @@ type Keeper struct {
 	wallet WalletAPI
 	cfg    Config
 	logger *slog.Logger
+
+	// roundInFlight guards against overlapping rounds (e.g. RunOnce called
+	// while Run's ticker round is still minting): both would measure the same
+	// deficit and double-mint.
+	roundInFlight atomic.Bool
 }
 
 // New creates a Keeper. It validates the configuration eagerly so
@@ -133,8 +152,15 @@ func (k *Keeper) Run(ctx context.Context) {
 
 // RunOnce executes a single top-up round: measure the pool, and when it is
 // below low water, mint leaf fan-outs (chunking reserve funds first when the
-// reserve is empty) toward high water, capped at FanoutMaxTxsPerRound leaves.
+// reserve is short) toward high water, capped at FanoutMaxTxsPerRound leaves
+// and by the chunks actually available. Overlapping rounds are skipped.
 func (k *Keeper) RunOnce(ctx context.Context) error {
+	if !k.roundInFlight.CompareAndSwap(false, true) {
+		k.logger.DebugContext(ctx, "top-up round already in flight, skipping")
+		return nil
+	}
+	defer k.roundInFlight.Store(false)
+
 	inventory, err := k.countBasketOutputs(ctx, k.cfg.PoolBasket)
 	if err != nil {
 		return fmt.Errorf("failed to measure fuel pool: %w", err)
@@ -158,8 +184,16 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 		slog.Uint64("deficit", deficit),
 		slog.Uint64("leafTxs", leaves))
 
-	if err = k.ensureChunks(ctx, leaves); err != nil {
+	chunks, err := k.ensureChunks(ctx, leaves)
+	if err != nil {
 		return err
+	}
+	// Every leaf consumes one chunk; minting past the provisioned chunks
+	// would silently drain the default basket via the funding fallback.
+	if leaves > chunks {
+		k.logger.InfoContext(ctx, "clamping round to available reserve chunks",
+			slog.Uint64("leaves", leaves), slog.Uint64("chunks", chunks))
+		leaves = chunks
 	}
 
 	minted := uint64(0)
@@ -181,32 +215,41 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 	return nil
 }
 
-// ensureChunks makes sure the reserve basket holds at least one claimable
-// chunk per pending leaf fan-out, splitting default-basket funds into chunks
-// when it does not (tree fan-out, interior layer).
-func (k *Keeper) ensureChunks(ctx context.Context, leaves uint64) error {
+// ensureChunks makes sure the reserve basket holds one claimable chunk per
+// pending leaf fan-out, splitting default-basket funds into chunks when it
+// does not (tree fan-out, interior layer). It returns the number of chunks
+// available after provisioning — the caller must not mint more leaves.
+func (k *Keeper) ensureChunks(ctx context.Context, leaves uint64) (uint64, error) {
 	chunks, err := k.countBasketOutputs(ctx, k.cfg.ReserveBasket)
 	if err != nil {
-		return fmt.Errorf("failed to measure reserve: %w", err)
-	}
-	if chunks >= leaves {
-		return nil
-	}
-
-	needed := leaves - chunks
-	if needed > k.cfg.FanoutOutputsPerTx {
-		needed = k.cfg.FanoutOutputsPerTx
+		return 0, fmt.Errorf("failed to measure reserve: %w", err)
 	}
 
 	chunkValue := k.cfg.FanoutOutputsPerTx*k.cfg.Denomination + k.cfg.ChunkFeeHeadroom
-	if _, err = k.wallet.FanOutFuel(ctx, wdk.ShapedChange{
-		Count:    needed,
-		Satoshis: primitives.SatoshiValue(chunkValue),
-		Basket:   primitives.StringUnder300(k.cfg.ReserveBasket),
-	}, k.cfg.Originator); err != nil {
-		return fmt.Errorf("chunk fan-out failed: %w", err)
+	for chunks < leaves {
+		if ctx.Err() != nil {
+			return chunks, fmt.Errorf("chunk provisioning interrupted: %w", ctx.Err())
+		}
+
+		needed := leaves - chunks
+		if needed > k.cfg.FanoutOutputsPerTx {
+			needed = k.cfg.FanoutOutputsPerTx
+		}
+
+		if _, err = k.wallet.FanOutFuel(ctx, wdk.ShapedChange{
+			Count:    needed,
+			Satoshis: primitives.SatoshiValue(chunkValue),
+			Basket:   primitives.StringUnder300(k.cfg.ReserveBasket),
+		}, k.cfg.Originator); err != nil {
+			// Default-basket funds ran out (or another error): mint with what
+			// is provisioned so far rather than failing the whole round.
+			k.logger.WarnContext(ctx, "chunk fan-out failed, continuing with provisioned chunks",
+				slog.Uint64("chunks", chunks), logging.Error(err))
+			return chunks, nil
+		}
+		chunks += needed
 	}
-	return nil
+	return chunks, nil
 }
 
 func (k *Keeper) countBasketOutputs(ctx context.Context, basket string) (uint64, error) {

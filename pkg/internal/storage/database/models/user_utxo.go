@@ -12,21 +12,29 @@ import (
 // reserved_by_id, utxo_status, satoshis) supporting UTXO selection queries that
 // filter/sort on this exact column set. ReservedByID also carries a plain,
 // single-column index so lookups by reservation alone don't need the composite.
+//
+// idx_user_utxos_selection_order appends output_id as a sixth column so the
+// bounded funder's `ORDER BY satoshis, output_id` micro-queries are pure index
+// walks. This matters most for the throughput strategy's fuel pool, where ALL
+// rows share one satoshis value and the five-column index would degenerate to
+// sorting the whole equal-value range per claim. It supersedes
+// idx_user_utxos_selection (a strict prefix), which is kept for existing
+// deployments and can be dropped in a follow-up migration.
 type UserUTXO struct {
-	UserID   int     `gorm:"primaryKey;index:idx_user_utxos_selection,priority:1"`
-	OutputID uint    `gorm:"primaryKey"`
+	UserID   int     `gorm:"primaryKey;index:idx_user_utxos_selection,priority:1;index:idx_user_utxos_selection_order,priority:1"`
+	OutputID uint    `gorm:"primaryKey;index:idx_user_utxos_selection_order,priority:6"`
 	Output   *Output `gorm:"foreignKey:OutputID"`
 
-	UTXOStatus wdk.UTXOStatus `gorm:"index:idx_utxo_status;index:idx_user_utxos_selection,priority:4"`
+	UTXOStatus wdk.UTXOStatus `gorm:"index:idx_utxo_status;index:idx_user_utxos_selection,priority:4;index:idx_user_utxos_selection_order,priority:4"`
 
-	BasketName string        `gorm:"not null;index;index:idx_user_utxos_selection,priority:2"`
+	BasketName string        `gorm:"not null;index;index:idx_user_utxos_selection,priority:2;index:idx_user_utxos_selection_order,priority:2"`
 	Basket     *OutputBasket `gorm:"foreignKey:UserID,BasketName;references:UserID,Name"`
 
-	Satoshis uint64 `gorm:"index:idx_user_utxos_selection,priority:5"`
+	Satoshis uint64 `gorm:"index:idx_user_utxos_selection,priority:5;index:idx_user_utxos_selection_order,priority:5"`
 	// EstimatedInputSize is the estimated size increase when adding and unlocking this UTXO to a transaction.
 	EstimatedInputSize uint64
 	CreatedAt          time.Time
 
-	ReservedByID *uint `gorm:"index;index:idx_user_utxos_selection,priority:3"`
+	ReservedByID *uint `gorm:"index;index:idx_user_utxos_selection,priority:3;index:idx_user_utxos_selection_order,priority:3"`
 	ReservedBy   *Transaction
 }

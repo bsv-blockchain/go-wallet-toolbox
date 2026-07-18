@@ -254,6 +254,10 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, err
 	}
 
+	if err = c.validateReservedBaskets(params.Outputs); err != nil {
+		return nil, err
+	}
+
 	fundingBasket := basket
 	useThroughput := c.throughput.Enabled && !isSweep
 	if useThroughput {
@@ -261,6 +265,11 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		case params.FuelShape != nil && string(params.FuelShape.Basket) == c.throughput.PoolBasket:
 			fundingBasket, err = c.ensureBasket(ctx, userID, c.throughput.ReserveBasket)
 		case params.FuelShape != nil:
+			fundingBasket = basket
+		case len(params.Outputs) == 0:
+			// Remix-change and input-only actions restructure the user's own
+			// funds; funding them from the pool would drain fuel into the
+			// default basket. They use the default basket directly.
 			fundingBasket = basket
 		default:
 			fundingBasket, err = c.ensureBasket(ctx, userID, c.throughput.PoolBasket)
@@ -375,12 +384,17 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// Shaped change accounting: the minted outputs are storage change, so they
 	// are covered like target satoshis (value) and provided outputs (size)
 	// rather than through the change heuristics.
+	var shapeValue satoshi.Value
 	if params.FuelShape != nil {
-		shapeValue, shapeErr := satoshi.Multiply(params.FuelShape.Count, uint64(params.FuelShape.Satoshis))
+		var shapeErr error
+		shapeValue, shapeErr = satoshi.Multiply(params.FuelShape.Count, uint64(params.FuelShape.Satoshis))
 		if shapeErr != nil {
 			return nil, fmt.Errorf("invalid fuel shape value: %w", shapeErr)
 		}
-		targetSat = satoshi.MustAdd(targetSat, shapeValue)
+		targetSat, err = satoshi.Add(targetSat, shapeValue)
+		if err != nil {
+			return nil, fmt.Errorf("fuel shape value overflows the transaction target: %w", err)
+		}
 		initialTxSize += params.FuelShape.Count * txutils.P2PKHOutputSize
 		outputCount += params.FuelShape.Count
 	}
@@ -401,8 +415,15 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	var constraints funder.Constraints
 	if useThroughput {
 		existingUTXOs = fundingBasket.NumberOfDesiredUTXOs
+		tiers := funder.SpendTiers(c.throughput.SpendPolicy)
+		if params.FuelShape != nil {
+			// Fan-outs chain on self-created chunks that may still be in
+			// 'sending' status (delayed broadcast); claiming them is safe and
+			// required for same-round chunk→leaf minting.
+			tiers = funder.SpendTiers(defs.SpendPolicyAny)
+		}
 		constraints = funder.Constraints{
-			Tiers:            funder.SpendTiers(c.throughput.SpendPolicy),
+			Tiers:            tiers,
 			MaxChangeOutputs: 1,
 		}
 	} else {
@@ -430,14 +451,17 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		var fundErr error
 		funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, fundingBasket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, constraints, dbTx)
 		fundedViaFallback = false
-		if useThroughput && errors.Is(fundErr, wdk.ErrNotEnoughFunds) {
-			// The fuel pool cannot cover this request — fall back to the default
-			// basket within the same DB transaction, keeping the throughput
-			// constraints (policy tiers, single change output). Correctness never
-			// depends on pool health.
-			c.logger.WarnContext(ctx, "fuel pool exhausted, falling back to default basket",
-				logging.UserID(userID), logging.Reference(reference))
-			funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, basket.NumberOfDesiredUTXOs, constraints, dbTx)
+		if useThroughput && fundingBasket.Name != basket.Name && errors.Is(fundErr, wdk.ErrNotEnoughFunds) {
+			// The funding basket cannot cover this request — fall back to the
+			// default basket within the same DB transaction (the failed pass's
+			// row locks are held until commit/rollback; bounded by the drained
+			// pool's residual size). The fallback uses LEGACY tiers (nil
+			// override → mined, unproven, + sending when the action is
+			// delayed): correctness must match the privacy strategy exactly,
+			// so the spend policy narrows only pool claims, never the fallback.
+			c.logger.WarnContext(ctx, "funding basket exhausted, falling back to default basket",
+				logging.UserID(userID), logging.Reference(reference), slog.String("fundingBasket", fundingBasket.Name))
+			funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, basket.NumberOfDesiredUTXOs, funder.Constraints{MaxChangeOutputs: 1}, dbTx)
 			fundedViaFallback = fundErr == nil
 		}
 		if fundErr != nil {
@@ -547,6 +571,14 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			slog.Int("inputBeefSize", len(inputBeef)),
 		)
 
+		// Net effect on the user's balance: change minus allocated inputs. The
+		// shaped fan-out outputs remain the user's own funds, so they are added
+		// back — a pure fan-out nets exactly -fee.
+		txNetSatoshis := satoshi.MustSubtract(funding.ChangeAmount, totalAllocated)
+		if params.FuelShape != nil {
+			txNetSatoshis = satoshi.MustAdd(txNetSatoshis, shapeValue)
+		}
+
 		return c.txRepoConcrete.CreateTransactionInTx(ctx, dbTx, &entity.NewTx{
 			UserID:            userID,
 			Version:           params.Version,
@@ -555,7 +587,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			Reference:         reference,
 			IsOutgoing:        true,
 			Description:       params.Description,
-			Satoshis:          satoshi.MustSubtract(funding.ChangeAmount, totalAllocated).Int64(),
+			Satoshis:          txNetSatoshis.Int64(),
 			Outputs:           newOutputs,
 			ReservedOutputIDs: c.mapReservedOutputIDs(funding.AllocatedUTXOs, processedInputs.ChangeOutputIDs),
 			SpentOutputIDs:    c.mapReservedOutputIDs(funding.AllocatedUTXOs, append(processedInputs.ChangeOutputIDs, processedInputs.KnownOutputIDs...)),
@@ -660,6 +692,24 @@ func (c *create) classifyThroughputOutcome(funding *funder.Result, fundedViaFall
 	return FundingOutcomeMultiClaim
 }
 
+// validateReservedBaskets rejects caller-supplied outputs targeting the
+// throughput pool or reserve baskets: only shaped fan-out change may enter
+// them, otherwise foreign outputs corrupt the keeper's inventory counting.
+func (c *create) validateReservedBaskets(outputs []wdk.ValidCreateActionOutput) error {
+	if !c.throughput.Enabled {
+		return nil
+	}
+	for _, output := range outputs {
+		if output.Basket == nil {
+			continue
+		}
+		if name := string(*output.Basket); name == c.throughput.PoolBasket || name == c.throughput.ReserveBasket {
+			return fmt.Errorf("output basket %q is reserved for the throughput UTXO management strategy", name)
+		}
+	}
+	return nil
+}
+
 // validateFuelShape checks a fan-out request against the throughput
 // configuration. A nil shape is always valid (the common case).
 func (c *create) validateFuelShape(shape *wdk.ShapedChange, isSweep bool) error {
@@ -757,7 +807,9 @@ func (c *create) changeOutputVoutsResult(isNoSend bool, newOutputs ...*entity.Ne
 
 	var vouts []int
 	for _, output := range newOutputs {
-		if output.IsChangeOutputVout() {
+		// Shaped fan-out outputs are change rows too, but only default-basket
+		// change is valid noSendChange for subsequent createActions.
+		if output.IsChangeOutputVout() && output.BasketName != nil && *output.BasketName == wdk.BasketNameForChange {
 			vouts = append(vouts, int(output.Vout))
 		}
 	}

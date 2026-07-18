@@ -230,6 +230,9 @@ func (t *Throughput) validate(feeModel FeeModel, commission Commission) error {
 	if t.TargetTPS == 0 {
 		return fmt.Errorf("target_tps must be greater than 0")
 	}
+	if t.TargetPoolSize == 0 && (math.IsNaN(t.PoolHeadroomFactor) || math.IsInf(t.PoolHeadroomFactor, 0) || t.PoolHeadroomFactor < 1) {
+		return fmt.Errorf("pool_headroom_factor must be a finite number >= 1 when target_pool_size is derived, got %v", t.PoolHeadroomFactor)
+	}
 	if t.TargetPool() == 0 {
 		return fmt.Errorf("target pool size resolves to 0: set target_pool_size or target_tps × expected_confirmation_seconds × pool_headroom_factor")
 	}
