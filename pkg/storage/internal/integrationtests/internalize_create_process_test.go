@@ -79,11 +79,24 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 
+		// Unknown unproven internalize broadcasts immediately and surfaces send/review fields
+		// (issue #818 / TS shareReqsWithWorld). Exact reference string is from TestRandomizer.
 		require.JSONEq(t, `{
 		  "accepted": true,
 		  "isMerge": false,
 		  "txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
-		  "satoshis": 99904
+		  "satoshis": 99904,
+		  "sendWithResults": [
+		    {"txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6", "status": "unproven"}
+		  ],
+		  "notDelayedResults": [
+		    {
+		      "txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+		      "status": "success",
+		      "reference": "YWFhYWFhYWFhYWFh",
+		      "labels": ["label1", "label2"]
+		    }
+		  ]
 		}`, string(resultJSON))
 	})
 

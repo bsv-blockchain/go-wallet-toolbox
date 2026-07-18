@@ -64,9 +64,11 @@ func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.Equal(t, expectedResult, actualResult)
+	// Mined txs are not re-broadcast: no send/review result fields.
+	assert.Empty(t, actualResult.SendWithResults)
+	assert.Empty(t, actualResult.NotDelayedResults)
 
 	// and db state:
-	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID.String()).WithBlockHash(to.Ptr(pkgtestabilities.TestBlockHash))
 }
@@ -110,12 +112,20 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	assert.Equal(t, int64(fixtures.ExpectedValueToInternalize), result.Satoshis)
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
+	// Immediate broadcast via ProcessAction path surfaces send/review results (TS shareReqsWithWorld).
+	require.Len(t, result.SendWithResults, 1)
+	assert.Equal(t, result.TxID, string(result.SendWithResults[0].TxID))
+	assert.Equal(t, wdk.SendWithResultStatusUnproven, result.SendWithResults[0].Status)
+	require.Len(t, result.NotDelayedResults, 1)
+	assert.Equal(t, result.TxID, string(result.NotDelayedResults[0].TxID))
+	assert.Equal(t, wdk.ReviewActionResultStatusSuccess, result.NotDelayedResults[0].Status)
+
 	// and db state:
-	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
+		WithAttempts(1).
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
 				Count(4).
@@ -153,12 +163,17 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	assert.Equal(t, int64(0), result.Satoshis)
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
+	require.Len(t, result.SendWithResults, 1)
+	assert.Equal(t, wdk.SendWithResultStatusUnproven, result.SendWithResults[0].Status)
+	require.Len(t, result.NotDelayedResults, 1)
+	assert.Equal(t, wdk.ReviewActionResultStatusSuccess, result.NotDelayedResults[0].Status)
+
 	// and db state:
-	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
+		WithAttempts(1).
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
 				Count(4).
@@ -211,7 +226,6 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 			require.Error(t, err)
 
 			// and db state:
-			time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 			thenDBState := testabilities.ThenDBState(t, activeStorage)
 			thenDBState.AllOutputs(testusers.Alice).WithCount(0)
 		})
@@ -249,7 +263,6 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(0), result.Satoshis)
 
 		// and db state:
-		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -324,9 +337,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(0), result.Satoshis)
 
-		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		// and db state:
-		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -376,7 +387,6 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(-alreadyOwnedSatoshis), result.Satoshis)
 
 		// and db state:
-		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -441,7 +451,6 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(fixtures.DefaultCreateActionOutputSatoshis), result.Satoshis)
 
 		// and db state:
-		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -484,7 +493,6 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		require.NoError(t, err)
 
 		// and db state:
-		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID().String())).
 			WithLabels(initialLabel, labelToAdd)
@@ -555,7 +563,6 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 	assert.Equal(t, int64(0), result.Satoshis)
 
 	// and db state:
-	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
@@ -571,11 +578,9 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 // accepts it. Because AlreadySent(reorg)=false now, storeNewTx takes the fresh-tx branch
 // (re-queued for broadcast) rather than flipping the KnownTx to unmined-without-evidence.
 //
-// The background broadcaster is held for the duration of the assertions so we observe the
-// deterministic synchronous storeNewTx write (BackgroundBroadcast posts to ARC before any
-// DB write, so holding the ARC POST freezes the state). Under the OLD semantics this branch
-// would set knownTxStatus=unmined + txStatus=unproven with NO broadcast queued; under the
-// corrected semantics it sets knownTxStatus=unsent + txStatus=sending and queues a re-broadcast.
+// Internalize now broadcasts synchronously via ProcessAction's path. ARC POST is held so
+// InternalizeAction blocks after storeNewTx commits, letting us assert the intermediate
+// unsent/sending state before the broadcast mutates KnownTx.
 func TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -610,36 +615,56 @@ func TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance(t *testi
 		NotMined().
 		WasBroadcast(true)
 
-	// and: hold the background broadcaster so the fresh-tx branch's synchronous DB write is
-	// observable before any post-broadcast mutation. Release before cleanup so the provider's
-	// broadcaster Stop() (which wg.Wait()s in-flight workers) does not hang.
+	// Hold ARC POST so storeNewTx's unsent write is observable before broadcast applies results.
+	// Ensure release on all exit paths (success, failure, timeout) — but only once.
 	givenProvider.ARC().HoldBroadcasting()
-	defer givenProvider.ARC().ReleaseBroadcasting()
+	released := false
+	releaseARC := func() {
+		if !released {
+			released = true
+			givenProvider.ARC().ReleaseBroadcasting()
+		}
+	}
+	defer releaseARC()
+
+	type internalizeOutcome struct {
+		result *wdk.InternalizeActionResult
+		err    error
+	}
+	done := make(chan internalizeOutcome, 1)
 
 	// when: a DIFFERENT user internalizes the same tx (fresh entry, not a merge).
-	result, err := activeStorage.InternalizeAction(
-		t.Context(),
-		testusers.Bob.AuthID(), // NOTE: different user -> storeNewTx path, not merge
-		wdk.InternalizeActionArgs{
-			Tx: txSpec.AtomicBEEF().Bytes(),
-			Outputs: []*wdk.InternalizeOutput{
-				{
-					OutputIndex: 0,
-					Protocol:    wdk.BasketInsertionProtocol,
-					InsertionRemittance: &wdk.BasketInsertion{
-						Basket: fixtures.CustomBasket,
+	// Runs in a goroutine because broadcast is now synchronous and will block on the ARC hold.
+	go func() {
+		result, internalizeErr := activeStorage.InternalizeAction(
+			t.Context(),
+			testusers.Bob.AuthID(), // NOTE: different user -> storeNewTx path, not merge
+			wdk.InternalizeActionArgs{
+				Tx: txSpec.AtomicBEEF().Bytes(),
+				Outputs: []*wdk.InternalizeOutput{
+					{
+						OutputIndex: 0,
+						Protocol:    wdk.BasketInsertionProtocol,
+						InsertionRemittance: &wdk.BasketInsertion{
+							Basket: fixtures.CustomBasket,
+						},
 					},
 				},
+				Description: "internalize reorged tx",
 			},
-			Description: "internalize reorged tx",
-		},
-	)
+		)
+		done <- internalizeOutcome{result: result, err: internalizeErr}
+	}()
 
-	// then: internalize is consistent (accepted, fresh entry).
-	require.NoError(t, err)
-	assert.True(t, result.Accepted)
-	assert.False(t, result.IsMerge)
-	assert.Equal(t, txID, result.TxID)
+	// Wait until storeNewTx has committed the fresh-send state (KnownTx=unsent or submitting/sending).
+	require.Eventually(t, func() bool {
+		found, findErr := activeStorage.KnownTxEntity().Read().TxID(txID).Find(t.Context())
+		if findErr != nil || len(found) == 0 {
+			return false
+		}
+		status := found[0].Status
+		return status == wdk.ProvenTxStatusUnsent || status == wdk.ProvenTxStatusSending
+	}, 5*time.Second, 20*time.Millisecond)
 
 	// and db state: the shared KnownTx is NOT flipped to unmined-without-evidence.
 	//
@@ -648,8 +673,13 @@ func TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance(t *testi
 	// skipForStatuses={completed, unmined, sending, unsent}. reorg is not in that skip list,
 	// so upsertKnownTx rewrites the row to unsent (re-queued for broadcast). It stays NotMined
 	// and keeps was_broadcast=true so proof re-sync remains eligible.
+	//
+	// Status may already be "sending" if MarkKnownTxsAsSubmitting ran before we observe.
+	found, findErr := activeStorage.KnownTxEntity().Read().TxID(txID).Find(t.Context())
+	require.NoError(t, findErr)
+	require.NotEmpty(t, found)
+	assert.Contains(t, []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusUnsent, wdk.ProvenTxStatusSending}, found[0].Status)
 	thenDBState.HasKnownTX(txID).
-		WithStatus(wdk.ProvenTxStatusUnsent).
 		NotMined().
 		WasBroadcast(true)
 
@@ -660,10 +690,103 @@ func TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance(t *testi
 	// and: the internalized output landed for Bob.
 	thenDBState.AllOutputs(testusers.Bob).WithCountHavingTxID(1)
 
+	// Release broadcast and wait for InternalizeAction to finish.
+	releaseARC()
+	var outcome internalizeOutcome
+	select {
+	case outcome = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for InternalizeAction to complete after releasing ARC hold")
+	}
+
+	// then: internalize is consistent (accepted, fresh entry).
+	require.NoError(t, outcome.err)
+	require.NotNil(t, outcome.result)
+	assert.True(t, outcome.result.Accepted)
+	assert.False(t, outcome.result.IsMerge)
+	assert.Equal(t, txID, outcome.result.TxID)
+	// Broadcast was attempted after store — result fields present when soft-success.
+	require.NotEmpty(t, outcome.result.SendWithResults)
+
 	// NOTE (concern, out of W1-6 scope): a full AssertStorageInvariants is intentionally NOT
 	// gated here. HandleReorg nulls the KnownTx proof but leaves Alice's original user
 	// transaction at status=completed, which violates money-safety invariant #2 ("no completed
 	// user transaction without a merkle proof"). That gap is pre-existing in HandleReorg and is
 	// independent of W1-6 (it reproduces right after HandleReorg, before this internalize). It
 	// is reported as a concern, not fixed in this task.
+}
+
+// TestInternalizeAction_BroadcastServiceError_SurfacesResultFields pins issue #818:
+// when a new unproven tx is internalized and the immediate broadcast returns a soft service
+// error, InternalizeAction remains accepted and exposes sendWithResults / notDelayedResults
+// so callers can observe broadcast status (matching TS shareReqsWithWorld).
+func TestInternalizeAction_BroadcastServiceError_SurfacesResultFields(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+	args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
+	txID := "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119"
+
+	// and: ARC cannot confirm anything about this tx (empty response body) — bare service error.
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnNoBody()
+
+	// when:
+	result, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then: internalize is still accepted; broadcast outcome is surfaced for the caller.
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.Accepted)
+	assert.False(t, result.IsMerge)
+	assert.Equal(t, txID, result.TxID)
+
+	require.Len(t, result.SendWithResults, 1)
+	assert.Equal(t, txID, string(result.SendWithResults[0].TxID))
+	// Service error keeps the send in-flight (sending), not terminal failure.
+	assert.Equal(t, wdk.SendWithResultStatusSending, result.SendWithResults[0].Status)
+
+	require.Len(t, result.NotDelayedResults, 1)
+	assert.Equal(t, txID, string(result.NotDelayedResults[0].TxID))
+	assert.Equal(t, wdk.ReviewActionResultStatusServiceError, result.NotDelayedResults[0].Status)
+
+	// and db: KnownTx stays retryable (sending), matching ProcessAction service-error semantics.
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusSending)
+}
+
+// TestInternalizeAction_MergePath_OmitsBroadcastResultFields ensures merge internalizes do not
+// re-broadcast or populate send/review result fields.
+func TestInternalizeAction_MergePath_OmitsBroadcastResultFields(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	activeStorage := given.Provider().GORM()
+	const alreadyOwnedSatoshis = 100_000
+	ownedTxSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(alreadyOwnedSatoshis)
+
+	args := fixtures.DefaultInternalizeActionArgs(t, wdk.WalletPaymentProtocol)
+	args.Tx = ownedTxSpec.AtomicBEEF().Bytes()
+
+	// when:
+	result, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		args,
+	)
+
+	// then:
+	require.NoError(t, err)
+	assert.True(t, result.Accepted)
+	assert.True(t, result.IsMerge)
+	assert.Empty(t, result.SendWithResults)
+	assert.Empty(t, result.NotDelayedResults)
 }
