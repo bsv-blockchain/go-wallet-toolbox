@@ -80,7 +80,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	if err != nil {
 		return nil, fmt.Errorf("failed to build result after processing signed action: %w",
 			pkgerrors.NewTransactionError(*s.txID).
-				Wrap(pkgerrors.NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).
+				Wrap(newProcessActionError(processActionResult, s.txID, s.tx, nil).
 					Wrap(err)))
 	}
 
@@ -124,7 +124,9 @@ func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActio
 	if s.requiresNotDelayedResult() {
 		err = validate.NotDelayedProcessActionResult(processActionResult)
 		if err != nil {
-			return nil, pkgerrors.NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).Wrap(err)
+			// Attach AtomicBEEF so callers can recover the signed tx from the review error
+			// (TypeScript WERR_REVIEW_ACTIONS carries txid + tx).
+			return nil, newProcessActionError(processActionResult, s.txID, s.tx, nil).Wrap(err)
 		}
 	}
 
