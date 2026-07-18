@@ -225,7 +225,7 @@ func TestListOutputs_KnownTxids(t *testing.T) {
 	require.Len(t, fullBeef.Transactions, 3)
 
 	// knownTxids = direct input parents of the created tx (same optimization surface as TS)
-	var knownTxids []string
+	knownTxids := make([]string, 0, len(signedTx.Inputs))
 	for _, in := range signedTx.Inputs {
 		require.NotNil(t, in.SourceTXID)
 		knownTxids = append(knownTxids, in.SourceTXID.String())
