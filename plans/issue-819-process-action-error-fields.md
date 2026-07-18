@@ -193,10 +193,19 @@ Reuse `mapping.MapIndexesToOutpoints` (same as success path). Convert via `primi
 |------|--------|
 | `CreateAction.handleProcessAction` (~L141–145) | `newProcessActionError(processActionResult, txID, tx, createActionResult.NoSendChangeOutputVouts).Wrap(broadcastErr)` |
 | `CreateAction.handleNotNewTX` (~L51–53) | Leave bare `NewProcessActionError` (no new tx / noSendChange) |
-| `SignAction.handleProcessAction` (~L124–128) | `newProcessActionError(processActionResult, s.txID, s.tx, nil).Wrap(err)` — SignAction pending path does not currently surface noSendChange vouts; attach Tx only unless you thread create-action vouts from pending cache |
-| `SignAction` mapping-failure wrap (~L81–84) | Same helper for consistency |
+| `SignAction.handleProcessAction` (~L124–128) | `newProcessActionError(processActionResult, s.txID, s.tx, nil).Wrap(err)` — attach Tx only; pending cache has no noSendChange vouts |
+| `SignAction` mapping-failure wrap (~L81–84) | Same helper for consistency (`TransactionError` already wraps this path) |
 
-Outer `CreateAction` wrap in `TransactionError` stays unchanged; recovery is via:
+**Wrap asymmetry (important for tests / callers):**
+
+| Path | Outer wrap today |
+|------|------------------|
+| CreateAction new-tx review (`handleCreatedNewTx` ~L95–97) | `TransactionError(*tx.TxID()).Wrap(processErr)` |
+| CreateAction sendWith-only (~L51–53) | bare `ProcessActionError` |
+| SignAction review (`SignAction` ~L74–77) | bare `ProcessActionError` (no `TransactionError`) |
+| SignAction mapping failure (~L81–84) | `TransactionError` wrapping `ProcessActionError` |
+
+Do **not** invent new wraps for parity — keep existing wrap behavior. Recovery always uses `errors.As` to `*ProcessActionError` (works with or without outer `TransactionError`):
 
 ```go
 var processErr *errors.ProcessActionError
@@ -209,14 +218,45 @@ if errors.As(err, &processErr) {
 }
 ```
 
-### 4. SignAction + noSendChange (optional stretch)
+### 4. SignAction + noSendChange (optional stretch / follow-up)
 
-Pending sign actions store `CreateActionArgs` but not `NoSendChangeOutputVouts` from storage create. If product requires noSendChange on **sign** review errors:
+`pending.SignAction` (`pkg/wallet/pending/pending_sign_action.interface.go`) stores `Tx`, `InputBEEF`, `CreateActionArgs` — **not** `NoSendChangeOutputVouts`. Create-signable already returns `NoSendChange` on the **success** path via `SignableTransactionResult` (`mapping_signable_transaction_result.go` ~L30–35) when `IsNoSend`, so callers typically already hold those outpoints before `SignAction`.
+
+If product still requires noSendChange on **sign** review errors:
 
 1. Persist vouts (or full outpoints) on `pending.SignAction` at create-signable time, **or**
 2. Re-derive from storage / pending tx outputs when building the error.
 
-Default scope for #819 (per issue text): CreateAction and SignAction attach **tx** bytes; **noSendChange** at least on CreateAction new-tx path where `NoSendChangeOutputVouts` is already available. Document SignAction noSendChange as follow-up if pending cache is not extended.
+**Default scope for #819:** CreateAction and SignAction attach **tx** bytes; **noSendChange** at least on CreateAction new-tx path where `NoSendChangeOutputVouts` is already available. SignAction noSendChange is follow-up unless pending cache is extended in the same PR.
+
+---
+
+## Settled design decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Constructor signature | Keep `NewProcessActionError(send, review)` | Avoid churn at storage + existing call sites |
+| Recovery API | Fluent `WithTx` / `WithNoSendChange` | Optional fields; chainable with existing `Wrap` |
+| `NoSendChange` type on error | `[]string` (`txid.vout`) | Matches TS wire style + `primitives.OutpointString`; simpler than `[]transaction.Outpoint` on error values (success result still uses Outpoints) |
+| AtomicBEEF failure | Best-effort; still set `TxID`, leave `Tx` nil | Never mask the original review `Cause` |
+| `ReturnTXIDOnly` on errors | Prefer still attaching AtomicBEEF when `tx` is available | Recovery is the purpose of the error; gate only if product insists |
+| Review policy | Unchanged | Still error + nil result; enrichment only |
+| Storage mid-broadcast path | Leave bare | No assembled BEEF in scope at `process.go` ~L613 |
+| SignAction noSendChange | Out of default scope | Available earlier via create-signable; pending cache lacks vouts |
+
+---
+
+## Implementation order
+
+1. Extend `ProcessActionError` + `WithTx` / `WithNoSendChange` + `Error()` txid part in `pkg/errors/action_error.go`.
+2. Unit tests in `pkg/errors/action_error_test.go` (population + `errors.As` through `TransactionError`).
+3. Add `newProcessActionError` helper (+ `outpointsToStrings`) in `pkg/wallet/internal/actions/process_action_error.go`.
+4. Wire CreateAction new-tx path; leave sendWith-only bare.
+5. Wire SignAction review + mapping-failure paths (Tx only).
+6. Extend wallet integration tests (see below; model after closed PR #943 test bodies).
+7. `go test` + `golangci-lint` on touched packages.
+
+Reference patch shape (do not merge as-is; re-validate on current main): closed PR #943 files list matches this plan exactly.
 
 ---
 
@@ -229,18 +269,21 @@ Default scope for #819 (per issue text): CreateAction and SignAction attach **tx
 
 ### Integration (`pkg/wallet`)
 
-Extend `TestWalletCreateAction_NoSend_SendWith_BroadcastErrorForOne` (or adjacent suite) with ARC double-spend fixtures (existing pattern in that test):
+Extend `TestWalletCreateAction_NoSend_SendWith_BroadcastErrorForOne` (~L863) with ARC double-spend fixtures (existing pattern in that suite). Closed PR #943 already drafted two subtests you can port:
 
-1. **Review-required createAction with new tx** — force a sendWith peer into double-spend / non-unproven; assert:
+1. **Review-required createAction with new tx** — prior noSend, ARC double-spend on that txid, then createAction with `sendWith` that txid + a new output; assert:
    - `result == nil`, `err != nil`
-   - `errors.As` → `ProcessActionError`
+   - `require.ErrorAs` → `*ProcessActionError`
    - `TxID` non-empty, `Tx` non-empty AtomicBEEF
    - `SendWithResults` / `ReviewResults` non-empty
-2. **Review-required createAction with noSend** — new noSend tx + sendWith of a double-spending prior noSend; assert `NoSendChange` non-empty and each outpoint prefixes `TxID + "."`.
-3. **sendWith-only path** (no new tx) — still errors without requiring `Tx` / `NoSendChange` (empty optional fields).
-4. **SignAction** (recommended) — sign undelayed path with review-required process result; assert AtomicBEEF on error.
+   - `Error()` contains `TxID`
+2. **Review-required createAction with noSend** — new noSend tx + sendWith of a double-spending prior noSend; assert `NoSendChange` non-empty and each outpoint has prefix `TxID + "."`.
+3. **sendWith-only path** (no new tx) — still errors without requiring `Tx` / `NoSendChange` (empty optional fields). Existing bare-constructor behavior; add assertion only if a dedicated case exists or is cheap to add.
+4. **SignAction** (recommended) — sign undelayed path with review-required process result; assert AtomicBEEF + TxID on error (noSendChange may be empty).
 
-Ensure faucet top-ups leave enough UTXOs when the test creates multiple actions (prior flaky cases needed a second top-up).
+Ensure faucet top-ups leave enough UTXOs when the test creates multiple actions (prior flaky cases needed a second `TopUp`).
+
+Fixture helpers already used by that suite: `given.Services().ARC().WhenQueryingTx(...).WillReturnDoubleSpending()`, `walletargs.WithNoSend`, `walletargs.WithSendWith`.
 
 ### Commands
 
@@ -251,7 +294,7 @@ go test ./pkg/wallet/ -count=1 -run 'TestWalletWithSQLiteStorage/TestWalletCreat
 golangci-lint run ./pkg/errors/... ./pkg/wallet/internal/actions/... ./pkg/wallet/...
 ```
 
-Watch for `testifylint` `error-is-as`: prefer `assert.ErrorIs` / `require.ErrorAs` over `assert.True(t, errors.Is(...))`.
+Watch for `testifylint` `error-is-as`: prefer `require.ErrorAs` / `assert.ErrorIs` over `assert.True(t, errors.Is(...))` / `assert.True(t, errors.As(...))`.
 
 ---
 
@@ -276,7 +319,8 @@ Watch for `testifylint` `error-is-as`: prefer `assert.ErrorIs` / `require.ErrorA
 - **AtomicBEEF best-effort:** serialization failure must not mask the original review error — attach txid, leave `Tx` nil, keep `Cause` as the review validation error.
 - **Memory / log size:** BEEF on the error value is intentional for recovery; avoid logging `processErr.Tx` wholesale.
 - **Outpoint format drift:** use the same string form as the rest of the wallet (`txid.vout` via `primitives.OutpointString`) so callers can feed values back into noSend options without reformatting.
-- **SignAction noSendChange incompleteness:** if only CreateAction gets noSendChange, document clearly to avoid false parity claims.
+- **SignAction noSendChange incompleteness:** default scope is Tx-only on SignAction; document so implementers do not claim full WERR_REVIEW_ACTIONS parity until follow-up (create-signable already returns NoSendChange to callers before sign).
+- **Integration flakiness:** double-spend ARC fixtures need two faucet top-ups when two createActions spend change; reuse the pattern already in `TestWalletCreateAction_NoSend_SendWith_BroadcastErrorForOne`.
 
 ### Non-goals
 
@@ -314,7 +358,9 @@ Watch for `testifylint` `error-is-as`: prefer `assert.ErrorIs` / `require.ErrorA
 
 ## Notes / gotchas
 
-- CreateAction wraps process failures as `TransactionError{TxID}.Wrap(processErr)` — implementers must not put recovery fields only on the outer type; keep them on `ProcessActionError` so both `errors.As` targets remain useful.
-- `ReviewResults` on the Go error maps from `processActionResult.NotDelayedResults` (field name differs from storage JSON `notDelayedResults`).
+- CreateAction wraps process failures as `TransactionError{TxID}.Wrap(processErr)` — implementers must not put recovery fields only on the outer type; keep them on `ProcessActionError` so both `errors.As` targets remain useful. SignAction review path does **not** add that outer wrap today.
+- `ReviewResults` on the Go error maps from `processActionResult.NotDelayedResults` (field name differs from storage JSON `notDelayedResults` / TS `reviewActionResults`).
 - `ReturnTXIDOnly` success path skips BEEF; for review errors prefer always attaching AtomicBEEF when `tx` is available (recovery is the point of the error). If product wants to honor `ReturnTXIDOnly` on errors, gate BEEF but still set `TxID`.
-- Do not use `Fixes #819` on a plan PR; implementation PR may close the issue after merge.
+- Success `CreateActionResult.NoSendChange` is `[]transaction.Outpoint`; error field is `[]string` — document conversion if callers bridge both (`primitives.NewOutpointString` / `OutpointString.Get`).
+- Helper lives in package `actions` (unexported `newProcessActionError`) so wallet tests assert via public `*pkgerrors.ProcessActionError` only.
+- Do not use `Fixes #819` on a plan PR; implementation PR may close the issue after merge (`Related to #819` on plan; `Fixes #819` only on the code PR).
