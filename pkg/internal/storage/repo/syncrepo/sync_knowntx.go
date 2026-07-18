@@ -84,6 +84,11 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 }
 
 func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
+	notify := entity.Notify
+	if notify == "" {
+		notify = "{}"
+	}
+
 	model := models.KnownTx{
 		CreatedAt:           entity.CreatedAt,
 		UpdatedAt:           entity.UpdatedAt,
@@ -93,6 +98,7 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		WasBroadcast:        entity.WasBroadcast || entity.Status.WasBroadcastStatus(),
 		RebroadcastAttempts: entity.RebroadcastAttempts,
 		Notified:            entity.Notified,
+		Notify:              notify,
 		RawTx:               entity.RawTx,
 		InputBeef:           entity.InputBEEF,
 		BlockHeight:         entity.BlockHeight,
@@ -217,6 +223,11 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (
 		return nil, err
 	}
 
+	notify := model.Notify
+	if notify == "" {
+		notify = "{}"
+	}
+
 	return &wdk.TableProvenTxReq{
 		CreatedAt:           model.CreatedAt,
 		UpdatedAt:           model.UpdatedAt,
@@ -229,7 +240,7 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (
 		TxID:                model.TxID,
 		Batch:               nil, // TODO: For now batch broadcasting is not supported, will be added later
 		History:             historyNotes,
-		Notify:              "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
+		Notify:              notify,
 		RawTx:               model.RawTx,
 		InputBEEF:           model.InputBeef,
 	}, nil
