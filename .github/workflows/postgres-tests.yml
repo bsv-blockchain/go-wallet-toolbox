@@ -7,10 +7,8 @@ on:
     branches: [main, master]
   pull_request:
 
-permissions:
-  contents: read
-  pull-requests: read # paths filter via gh api on pull_request
-
+# Permissions are declared per-job (Sonar githubactions:S8264) so each job gets
+# only what it needs — not a workflow-wide read grant.
 jobs:
   # Decide whether this PR (or push) touches Go sources that postgres tests exercise.
   # Plan/docs-only PRs skip the expensive Postgres service job entirely.
@@ -20,6 +18,9 @@ jobs:
     name: 📁 Postgres paths filter
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # gh api lists PR files for the paths filter
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
     steps:
@@ -58,6 +59,8 @@ jobs:
     if: needs.changes.outputs.run-tests == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read # checkout only
     services:
       postgres:
         image: postgres:17-alpine
@@ -90,6 +93,7 @@ jobs:
     if: always() && needs.changes.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions: {} # no GITHUB_TOKEN / API access required
     steps:
       - name: Roll up postgres result
         run: |
