@@ -1,9 +1,26 @@
 # InputBEEF wire format — JSON number array for TypeScript storage interop
 
 **Issue:** [bsv-blockchain/go-wallet-toolbox#776](https://github.com/bsv-blockchain/go-wallet-toolbox/issues/776)
-**Related open code PR:** [#931](https://github.com/bsv-blockchain/go-wallet-toolbox/pull/931) (`fix/beef-json-encoding`) — may partially or fully address this; treat as related work, not a substitute for a clean implementable plan.
+**Related open code PR:** [#931](https://github.com/bsv-blockchain/go-wallet-toolbox/pull/931) (`fix/beef-json-encoding`) — **preferred implementation path** (see below).
 **Severity:** High for remote-storage users — Go clients talking to TypeScript storage servers (e.g. `storage.babbage.systems`) fail or mis-handle `CreateAction` when `inputBEEF` is present; SPV / proof attachment breaks downstream.
 **Estimated size:** S
+
+> **Plan-only PR note:** this document is the implementable checklist for #776. It does **not** close the issue (`Related to #776`, not `Fixes`). Do not land Go code on the plan branch.
+
+### Related code PR #931 (do not re-implement if landable)
+
+As of HEAD `cc19064` on `fix/beef-json-encoding`, **#931 already implements this plan’s Option A end-to-end**:
+
+| Plan item | #931 status |
+|-----------|-------------|
+| `BEEF.MarshalJSON` → number array via `ExplicitByteArray` | Done |
+| `BEEF.UnmarshalJSON` dual-accept (number array + legacy base64 + null) | Done |
+| `OutPoint` tags `json:"txid"` / `json:"vout"` | Done |
+| Remove obsolete `//nolint:musttag` on createAction in `v1adapter/handler.go` | Done |
+| `pkg/wdk/primitives/beef_test.go` unit cases | Done |
+| `pkg/wdk/storage_create_action_args_json_test.go` wire regression | Done |
+
+**Default action for implementers:** review/merge **#931** (resolve any remaining review feedback; CI was green after the nolint/lint fix). Only open a **new** code PR if #931 is abandoned or diverges from this plan. This plan PR must stay markdown-only and must not duplicate #931’s code.
 
 ---
 
@@ -219,7 +236,7 @@ golangci-lint run ./pkg/wdk/... ./pkg/storage/v1adapter/... --config .golangci.j
 - **Breaking JSON for `OutPoint`:** any external Go client decoding PascalCase outpoints will break. Mitigate by documenting in the PR; the old shape was already wrong for the shared protocol.
 - **`omitempty` + empty BEEF:** confirm nil vs empty slice behavior so clients do not unexpectedly send `"inputBEEF":[]` if the field should be omitted (mirror pre-fix omit behavior).
 - **Dual-accept unmarshal:** accepting base64 forever can hide producer bugs; keep it as a deliberate compatibility note, or gate it behind a short deprecation window if the team prefers strictness.
-- **PR #931 collision:** open code PR may already implement Option A + OutPoint tags + tests. Before coding, re-check whether #931 has merged; if merged and green, close this plan as done rather than re-implementing.
+- **PR #931 collision:** #931 already implements Option A + OutPoint tags + tests + nolint cleanup. Prefer landing that PR; do not open a second concurrent implementation. If #931 merges, mark #776 fixed with evidence and close this plan as done.
 
 **Non-goals**
 
@@ -227,23 +244,24 @@ golangci-lint run ./pkg/wdk/... ./pkg/storage/v1adapter/... --config .golangci.j
 - Reworking storage createAction business logic, funding, or SPV verification beyond wire decode.
 - Migrating every `[]byte` in the repo to number arrays — only WDK wire types that must match TS.
 - Closing #776 from a plan-only PR (use `Related to #776`, not `Fixes #776`).
+- Duplicating or superseding #931 while it is still open and landable.
 
 **Dependencies**
 
 - None beyond standard library `encoding/json` and existing `ExplicitByteArray`.
-- Coordinate with authors of [#931](https://github.com/bsv-blockchain/go-wallet-toolbox/pull/931) if that PR is still open: either land #931 (with any remaining review fixes) or implement this plan on a fresh branch and supersede.
+- **Coordinate with [#931](https://github.com/bsv-blockchain/go-wallet-toolbox/pull/931):** default is land/review #931. Only implement this plan on a fresh branch if #931 is closed without merge or is abandoned.
 
 ---
 
 ## Suggested implementation order
 
 1. Confirm bug still on `origin/main` (re-read `beef.go` / `outpoint.go`).
-2. If #931 is merged and complete → stop; mark issue fixed with evidence.
-3. Else implement Option A on `primitives.BEEF` + OutPoint tags + remove obsolete nolint.
-4. Add `beef_test.go` + full-args wire regression test.
+2. **Check #931 first:** if open and complete (Option A + tags + tests) → review/merge it; stop re-implementing. If merged and green → mark #776 fixed with evidence.
+3. Else (only if #931 is not landable) implement Option A on `primitives.BEEF` + OutPoint tags + remove obsolete nolint.
+4. Add `beef_test.go` + full-args wire regression test (or confirm #931’s equivalents cover the acceptance criteria).
 5. Run unit + lint commands above.
 6. Optional live TS storage smoke test.
-7. Open code PR with `Fixes #776` (implementation PR only — not this plan PR).
+7. Open/land **code** PR with `Fixes #776` (implementation PR only — never this plan PR).
 
 ---
 
