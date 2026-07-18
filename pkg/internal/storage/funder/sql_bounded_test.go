@@ -50,13 +50,12 @@ func (f *boundedFakeUTXORepository) FindNotReservedUTXOsForUpdate(
 }
 
 func (f *boundedFakeUTXORepository) FindSmallestSufficientUTXOForUpdate(
-	_ context.Context, _ *gorm.DB, _ int, _ string,
-	status wdk.UTXOStatus, minSatoshis uint64, excludedOutputIDs []uint,
+	_ context.Context, _ *gorm.DB, q wdk.BoundedUTXOQuery, minSatoshis uint64,
 ) (*models.UserUTXO, error) {
-	f.record("sufficient", status, minSatoshis, excludedOutputIDs)
+	f.record("sufficient", q.Status, minSatoshis, q.ExcludedOutputIDs)
 
 	var best *models.UserUTXO
-	for _, r := range f.eligible(status, excludedOutputIDs) {
+	for _, r := range f.eligible(q.Status, q.ExcludedOutputIDs) {
 		if r.Satoshis < minSatoshis {
 			continue
 		}
@@ -68,13 +67,12 @@ func (f *boundedFakeUTXORepository) FindSmallestSufficientUTXOForUpdate(
 }
 
 func (f *boundedFakeUTXORepository) FindLargestInsufficientUTXOsForUpdate(
-	_ context.Context, _ *gorm.DB, _ int, _ string,
-	status wdk.UTXOStatus, maxSatoshis uint64, limit int, excludedOutputIDs []uint,
+	_ context.Context, _ *gorm.DB, q wdk.BoundedUTXOQuery, maxSatoshis uint64, limit int,
 ) ([]*models.UserUTXO, error) {
-	f.record("insufficient", status, maxSatoshis, excludedOutputIDs)
+	f.record("insufficient", q.Status, maxSatoshis, q.ExcludedOutputIDs)
 
 	var result []*models.UserUTXO
-	for _, r := range f.eligible(status, excludedOutputIDs) {
+	for _, r := range f.eligible(q.Status, q.ExcludedOutputIDs) {
 		if r.Satoshis < maxSatoshis {
 			result = append(result, r)
 		}

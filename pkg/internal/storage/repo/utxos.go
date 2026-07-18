@@ -30,6 +30,10 @@ func NewUTXOs(db *gorm.DB, query *genquery.Query) *UTXOs {
 	}
 }
 
+// skipLockedOption is the clause.Locking Options value appended on Postgres/MySQL so concurrent
+// funders lock non-overlapping UTXO sets; SQLite omits row locks (it serializes writes).
+const skipLockedOption = "SKIP LOCKED"
+
 // FindNotReservedUTXOsForUpdate selects not-reserved UTXOs within the provided DB transaction.
 // On Postgres/MySQL it appends SELECT FOR UPDATE SKIP LOCKED so concurrent callers automatically
 // pick non-overlapping UTXO sets. On SQLite the lock is omitted since SQLite serializes writes;
@@ -76,7 +80,7 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 		Order(orderClause).Offset(page.Offset).Limit(page.Limit)
 
 	if tx.Name() != "sqlite" {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: skipLockedOption})
 	}
 
 	var result []*models.UserUTXO
@@ -97,30 +101,27 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 func (u *UTXOs) FindSmallestSufficientUTXOForUpdate(
 	ctx context.Context,
 	tx *gorm.DB,
-	userID int,
-	basketName string,
-	status wdk.UTXOStatus,
+	q wdk.BoundedUTXOQuery,
 	minSatoshis uint64,
-	excludedOutputIDs []uint,
 ) (*models.UserUTXO, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindSmallestSufficientUTXOForUpdate", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.String("UTXOStatus", string(status)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindSmallestSufficientUTXOForUpdate", attribute.Int("UserID", q.UserID), attribute.String("BasketName", q.BasketName), attribute.String("UTXOStatus", string(q.Status)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
 	query := tx.WithContext(ctx).Scopes(
-		scopes.UserID(userID),
-		scopes.BasketName(basketName),
+		scopes.UserID(q.UserID),
+		scopes.BasketName(q.BasketName),
 		notReserved(),
-		outputNotIn(excludedOutputIDs),
-	).Where("utxo_status = ?", string(status)).
+		outputNotIn(q.ExcludedOutputIDs),
+	).Where("utxo_status = ?", string(q.Status)).
 		Where("satoshis >= ?", minSatoshis).
 		Order("satoshis ASC, output_id ASC").
 		Limit(1)
 
 	if tx.Name() != "sqlite" {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: skipLockedOption})
 	}
 
 	var result []*models.UserUTXO
@@ -143,15 +144,12 @@ func (u *UTXOs) FindSmallestSufficientUTXOForUpdate(
 func (u *UTXOs) FindLargestInsufficientUTXOsForUpdate(
 	ctx context.Context,
 	tx *gorm.DB,
-	userID int,
-	basketName string,
-	status wdk.UTXOStatus,
+	q wdk.BoundedUTXOQuery,
 	maxSatoshis uint64,
 	limit int,
-	excludedOutputIDs []uint,
 ) ([]*models.UserUTXO, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindLargestInsufficientUTXOsForUpdate", attribute.Int("UserID", userID), attribute.String("BasketName", basketName), attribute.String("UTXOStatus", string(status)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-FindLargestInsufficientUTXOsForUpdate", attribute.Int("UserID", q.UserID), attribute.String("BasketName", q.BasketName), attribute.String("UTXOStatus", string(q.Status)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -166,17 +164,17 @@ func (u *UTXOs) FindLargestInsufficientUTXOsForUpdate(
 	}
 
 	query := tx.WithContext(ctx).Scopes(
-		scopes.UserID(userID),
-		scopes.BasketName(basketName),
+		scopes.UserID(q.UserID),
+		scopes.BasketName(q.BasketName),
 		notReserved(),
-		outputNotIn(excludedOutputIDs),
-	).Where("utxo_status = ?", string(status)).
+		outputNotIn(q.ExcludedOutputIDs),
+	).Where("utxo_status = ?", string(q.Status)).
 		Where("satoshis < ?", maxSatoshis).
 		Order("satoshis DESC, output_id DESC").
 		Limit(limit)
 
 	if tx.Name() != "sqlite" {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+		query = query.Clauses(clause.Locking{Strength: "UPDATE", Options: skipLockedOption})
 	}
 
 	var result []*models.UserUTXO

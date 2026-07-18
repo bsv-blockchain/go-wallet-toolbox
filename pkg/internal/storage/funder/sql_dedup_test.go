@@ -51,11 +51,8 @@ func (f *pagedFakeUTXORepository) FindNotReservedUTXOsForUpdate(
 func (f *pagedFakeUTXORepository) FindSmallestSufficientUTXOForUpdate(
 	_ context.Context,
 	_ *gorm.DB,
-	_ int,
-	_ string,
-	_ wdk.UTXOStatus,
+	_ wdk.BoundedUTXOQuery,
 	_ uint64,
-	_ []uint,
 ) (*models.UserUTXO, error) {
 	return nil, nil
 }
@@ -65,12 +62,9 @@ func (f *pagedFakeUTXORepository) FindSmallestSufficientUTXOForUpdate(
 func (f *pagedFakeUTXORepository) FindLargestInsufficientUTXOsForUpdate(
 	_ context.Context,
 	_ *gorm.DB,
-	_ int,
-	_ string,
-	_ wdk.UTXOStatus,
+	_ wdk.BoundedUTXOQuery,
 	_ uint64,
 	_ int,
-	_ []uint,
 ) ([]*models.UserUTXO, error) {
 	return nil, nil
 }

@@ -81,14 +81,24 @@ func newBoundedUTXOsFixture(t *testing.T) (*boundedUTXOsFixture, func()) {
 
 func (fx *boundedUTXOsFixture) sufficient(t *testing.T, status wdk.UTXOStatus, minSatoshis uint64, excluded []uint) *models.UserUTXO {
 	t.Helper()
-	result, err := fx.repos.FindSmallestSufficientUTXOForUpdate(t.Context(), fx.db, fx.userID, wdk.BasketNameForChange, status, minSatoshis, excluded)
+	result, err := fx.repos.FindSmallestSufficientUTXOForUpdate(t.Context(), fx.db, wdk.BoundedUTXOQuery{
+		UserID:            fx.userID,
+		BasketName:        wdk.BasketNameForChange,
+		Status:            status,
+		ExcludedOutputIDs: excluded,
+	}, minSatoshis)
 	require.NoError(t, err)
 	return result
 }
 
 func (fx *boundedUTXOsFixture) insufficient(t *testing.T, status wdk.UTXOStatus, maxSatoshis uint64, limit int, excluded []uint) []*models.UserUTXO {
 	t.Helper()
-	result, err := fx.repos.FindLargestInsufficientUTXOsForUpdate(t.Context(), fx.db, fx.userID, wdk.BasketNameForChange, status, maxSatoshis, limit, excluded)
+	result, err := fx.repos.FindLargestInsufficientUTXOsForUpdate(t.Context(), fx.db, wdk.BoundedUTXOQuery{
+		UserID:            fx.userID,
+		BasketName:        wdk.BasketNameForChange,
+		Status:            status,
+		ExcludedOutputIDs: excluded,
+	}, maxSatoshis, limit)
 	require.NoError(t, err)
 	return result
 }
@@ -179,7 +189,9 @@ func TestFindLargestInsufficientUTXOsForUpdate(t *testing.T) {
 		// widened.
 		for _, limit := range []int{0, -1} {
 			_, err := fx.repos.FindLargestInsufficientUTXOsForUpdate(
-				t.Context(), fx.db, fx.userID, wdk.BasketNameForChange, wdk.UTXOStatusMined, 1000, limit, nil)
+				t.Context(), fx.db,
+				wdk.BoundedUTXOQuery{UserID: fx.userID, BasketName: wdk.BasketNameForChange, Status: wdk.UTXOStatusMined},
+				1000, limit)
 			require.Errorf(t, err, "limit=%d must be rejected", limit)
 		}
 	})
