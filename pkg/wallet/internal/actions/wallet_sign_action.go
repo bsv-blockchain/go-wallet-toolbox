@@ -37,6 +37,12 @@ type SignAction struct {
 }
 
 func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (*wallet.SignActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	s.Logger = logging.Child(s.Logger, "SignAction")
 	s.originator = originator
 	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.

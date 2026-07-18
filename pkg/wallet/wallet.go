@@ -581,18 +581,19 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 		return nil, fmt.Errorf("failed to list outputs: %w", err)
 	}
 
-	if result.BEEF != nil {
-		err = w.party.BeefParty.MergeBeefFromParty(w.party.StorageParty, *result.BEEF)
+	if len(result.BEEF) > 0 {
+		err = w.party.BeefParty.MergeBeefFromParty(w.party.StorageParty, primitives.BEEF(result.BEEF))
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
 		}
 
-		beef, err := party.VerifyReturnedTxIDOnlyBeef(w.party.BeefParty, *result.BEEF)
+		var verifiedBeef primitives.BEEF
+		verifiedBeef, err = party.VerifyReturnedTxIDOnlyBeef(w.party.BeefParty, primitives.BEEF(result.BEEF))
 		if err != nil {
 			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
 		}
 
-		result.BEEF = &beef
+		result.BEEF = primitives.ExplicitByteArray(verifiedBeef)
 	}
 
 	mappedResult, err := mapping.MapListOutputsResult(result)

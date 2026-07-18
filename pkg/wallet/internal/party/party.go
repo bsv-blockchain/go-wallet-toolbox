@@ -6,14 +6,14 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-// WalletParty contain information about user and storage party identities and beef party
+// WalletParty contains information about user and storage party identities and beef party.
 type WalletParty struct {
 	UserParty    string
 	StorageParty string
 	BeefParty    *wdk.BeefParty
 }
 
-// GetKnownTxIDs merges new known transaction IDs into the wallet's known transactions and return list of known txIDs.
+// GetKnownTxIDs merges new known transaction IDs into the wallet's known transactions and returns a list of known txIDs.
 func (wp *WalletParty) GetKnownTxIDs(newKnownTxIDs ...chainhash.Hash) (primitives.TXIDHexStrings, error) {
 	for _, txID := range newKnownTxIDs {
 		wp.BeefParty.MergeTxidOnly(&txID)

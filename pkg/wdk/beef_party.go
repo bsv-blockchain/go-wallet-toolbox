@@ -34,7 +34,9 @@ func NewBeefParty(parties []string) *BeefParty {
 // AddParty adds a new party to the BeefParty.
 func (bp *BeefParty) AddParty(party string) {
 	bp.mu.Lock()
-	bp.knownTo[party] = []string{}
+	if _, ok := bp.knownTo[party]; !ok {
+		bp.knownTo[party] = []string{}
+	}
 	bp.mu.Unlock()
 }
 
@@ -71,23 +73,34 @@ func (bp *BeefParty) GetTrimmedBeefForParty(party string) (*transaction.Beef, er
 	}
 
 	prunedBeef := bp.Clone()
+	// TrimknownTxIDs is the go-sdk method name (lowercase 'k' is intentional in the SDK).
 	prunedBeef.TrimknownTxIDs(knownTxIDs)
 
 	return prunedBeef, nil
 }
 
 // AddKnownTxIDsForParty adds known transaction IDs for a specific party and merges them into the Beef.
+// Duplicate txIDs for a party are ignored. The knownTo update and Beef merge are performed under a single lock.
 func (bp *BeefParty) AddKnownTxIDsForParty(party string, txIDs ...string) error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
-	if _, ok := bp.knownTo[party]; !ok {
-		bp.knownTo[party] = []string{}
+	existing, ok := bp.knownTo[party]
+	if !ok {
+		existing = []string{}
 	}
 
-	bp.knownTo[party] = append(bp.knownTo[party], txIDs...)
+	seen := make(map[string]struct{}, len(existing)+len(txIDs))
+	for _, id := range existing {
+		seen[id] = struct{}{}
+	}
 
 	for _, txID := range txIDs {
+		if _, dup := seen[txID]; !dup {
+			existing = append(existing, txID)
+			seen[txID] = struct{}{}
+		}
+
 		hash, err := chainhash.NewHashFromHex(txID)
 		if err != nil {
 			return fmt.Errorf("failed to parse string txID Hex to chainhash %s: %w", txID, err)
@@ -96,13 +109,9 @@ func (bp *BeefParty) AddKnownTxIDsForParty(party string, txIDs ...string) error 
 		bp.MergeTxidOnly(hash)
 	}
 
-	return nil
-}
+	bp.knownTo[party] = existing
 
-func (bp *BeefParty) addTxIDsForParty(party string, txIDs []string) {
-	bp.mu.Lock()
-	bp.knownTo[party] = append(bp.knownTo[party], txIDs...)
-	bp.mu.Unlock()
+	return nil
 }
 
 // MergeBeefFromParty merges a Beef from a specific party into the BeefParty and updates known transaction IDs.

@@ -56,7 +56,7 @@ func verifyReturnedTxIDOnly(beefParty *wdk.BeefParty, beef *transaction.Beef, kn
 		}
 		tx := beefParty.FindAtomicTransactionByHash(btx.KnownTxID)
 		if tx == nil {
-			return nil, fmt.Errorf(" tx with only txid not found in beef party: %s", btx.KnownTxID.String())
+			return nil, fmt.Errorf("tx with only txid not found in beef party: %s", btx.KnownTxID.String())
 		}
 
 		_, err := beef.MergeTransaction(tx)
@@ -66,14 +66,16 @@ func verifyReturnedTxIDOnly(beefParty *wdk.BeefParty, beef *transaction.Beef, kn
 	}
 
 	for _, btx := range beef.Transactions {
-		txIDHexString := primitives.TXIDHexString(btx.Transaction.TxID().String())
+		if btx.DataFormat != transaction.TxIDOnly {
+			continue
+		}
+
+		txIDHexString := primitives.TXIDHexString(btx.KnownTxID.String())
 		if knownTxIDs != nil && contains(knownTxIDs, txIDHexString) {
 			continue
 		}
 
-		if btx.DataFormat == transaction.TxIDOnly {
-			return nil, fmt.Errorf("remaining txidOnly %s is not known", btx.KnownTxID.String())
-		}
+		return nil, fmt.Errorf("transaction %s returned as txidOnly but is not in the known transactions list", btx.KnownTxID.String())
 	}
 
 	return beef, nil
