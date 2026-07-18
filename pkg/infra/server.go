@@ -204,10 +204,12 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		go s.consumeTxProven(ctx)
 	}
 
-	if s.Config.Services.ChaintracksClient.Enabled {
-		if err := s.services.StartChaintracks(ctx); err != nil {
-			return fmt.Errorf("failed to start chaintracks: %w", err)
-		}
+	// StartBackgroundServices starts the Arcade circuit-breaker health probe (when
+	// the broadcast router is enabled) and chaintracks (no-op when disabled). Prefer
+	// this over StartChaintracks alone so half-open recovery does not rely solely on
+	// opportunistic broadcast trials after the circuit opens.
+	if err := s.services.StartBackgroundServices(ctx); err != nil {
+		return fmt.Errorf("failed to start background services: %w", err)
 	}
 
 	if s.monitor != nil {

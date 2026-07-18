@@ -3,12 +3,20 @@ package monitor
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // LastEventIDKey is the storage key used to persist the SSE replay cursor across restarts.
 const LastEventIDKey = "arcade_sse_last_event_id"
+
+// broadcastEventsReconnectBackoff bounds the outer reconnect loop when a streamer
+// returns without the context being canceled. The production Arcade SSE client
+// reconnects internally and only returns on cancel; this sleep is a safety net
+// for alternate streamers (and for future regressions) so a short-lived return
+// cannot hot-loop the CPU.
+const broadcastEventsReconnectBackoff = time.Second
 
 // BroadcastEventStreamer is implemented by services.WalletServices.
 type BroadcastEventStreamer interface {
@@ -65,10 +73,22 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 
 	// Reconnect loop: if the stream terminates unexpectedly (non-context error)
 	// we restart it from the most-recently persisted cursor so no events are
-	// missed.
+	// missed. Always sleep between attempts so a streamer that returns immediately
+	// cannot spin the CPU (production Arcade StreamEvents only returns on cancel
+	// and reconnects internally with its own backoff).
 	for ctx.Err() == nil {
-		if streamErr := streamer.BroadcastStatusEvents(ctx, lastEventID, onEvent); streamErr != nil && ctx.Err() == nil {
+		streamErr := streamer.BroadcastStatusEvents(ctx, lastEventID, onEvent)
+		if ctx.Err() != nil {
+			break
+		}
+		if streamErr != nil {
 			d.logger.ErrorContext(ctx, "Broadcast event stream terminated unexpectedly, will retry", slog.Any("error", streamErr))
+		} else {
+			d.logger.WarnContext(ctx, "Broadcast event stream returned without error, will retry")
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(broadcastEventsReconnectBackoff):
 		}
 	}
 
