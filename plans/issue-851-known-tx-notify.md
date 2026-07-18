@@ -28,12 +28,12 @@ A prior code fix PR ([#937](https://github.com/bsv-blockchain/go-wallet-toolbox/
 
 | Location | Symptom |
 |----------|---------|
-| `pkg/internal/storage/repo/syncrepo/sync_knowntx.go` ~L226 | `Notify: "{}"` hardcoded in `mapModelToTableProvenTxReqForSync` |
+| `pkg/internal/storage/repo/syncrepo/sync_knowntx.go` ~L232 | `Notify: "{}"` hardcoded in `mapModelToTableProvenTxReqForSync` |
 | `pkg/internal/storage/database/models/known_tx.go` | No `Notify` column on `KnownTx` |
 | `pkg/entity/known_tx.go` | No `Notify` field on entity |
-| `pkg/storage/internal/sync/chunk_processor.go` ~L217–228 (`upsertProvenTxReqs`) | Incoming `chunkProvenTxReq.Notify` not mapped into `entity.KnownTx` |
+| `pkg/storage/internal/sync/chunk_processor.go` ~L216–228 (`upsertProvenTxReqs`) | Incoming `chunkProvenTxReq.Notify` not mapped into `entity.KnownTx` |
 | `pkg/wdk/table_proven_tx_req.go` ~L23 | Wire type already has `Notify string \`json:"notify"\`` — no change needed |
-| `pkg/storage/internal/actions/process.go` ~L265 | Separate TODO: `// TODO: Add db transactionID to KnownTx.Notify` — **out of scope** (this issue is opaque storage/round-trip only) |
+| `pkg/storage/internal/actions/process.go` ~L267 | Separate TODO: `// TODO: Add db transactionID to KnownTx.Notify` — **out of scope** (this issue is opaque storage/round-trip only) |
 
 Hardcoded read path (current main):
 
@@ -217,7 +217,7 @@ Optional: `go test ./pkg/storage/ -run Sync -count=1` if a higher-level processS
 - Wire type: `pkg/wdk/table_proven_tx_req.go` (`Notify string \`json:"notify"\``).
 - Upsert + map: `pkg/internal/storage/repo/syncrepo/sync_knowntx.go` (`UpsertKnownTxForSync`, `mapModelToTableProvenTxReqForSync`).
 - Chunk ingest: `pkg/storage/internal/sync/chunk_processor.go` (`upsertProvenTxReqs`).
-- Local process TODO (out of scope): `pkg/storage/internal/actions/process.go` ~L265.
+- Local process TODO (out of scope): `pkg/storage/internal/actions/process.go` ~L267.
 - History note name used elsewhere for proofs: `pkg/internal/storage/history` `NotifyTxOfProof` — related conceptually, not part of this storage column.
 - TS reference: wallet-toolbox `ProvenTxReq` / entity merge paths treat `notify` as a stored string field on the proven-tx-req row.
 
@@ -225,7 +225,7 @@ Optional: `go test ./pkg/storage/ -run Sync -count=1` if a higher-level processS
 
 ## Notes / gotchas
 
-- Issue text mentions "~line 199"; on current main the hardcoded `Notify: "{}"` is in `mapModelToTableProvenTxReqForSync` (~L226). The *upsert* path never had a Notify assignment because the model field was missing entirely — both ends must be fixed.
+- Issue text mentions "~line 199"; on current main the hardcoded `Notify: "{}"` is in `mapModelToTableProvenTxReqForSync` (~L232). The *upsert* path never had a Notify assignment because the model field was missing entirely — both ends must be fixed.
 - Mined known txs are exported as `TableProvenTx` (no notify field). Only the unmined / req path carries notify. Tests must leave MerklePath empty so the row maps to ProvenTxReq.
 - `FindKnownTxsForSync` filters via EXISTS on user transactions — round-trip tests need a linking `Transaction` row with the same `tx_id`.
 - Do not use `require.Equal` on JSON strings in tests; use `require.JSONEq` where semantic JSON equality is intended (testifylint).
