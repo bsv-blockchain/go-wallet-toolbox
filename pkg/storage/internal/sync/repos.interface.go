@@ -46,4 +46,13 @@ type Repository interface {
 	FindTagByNumIDForSync(ctx context.Context, labelNumID uint) (*entity.Tag, error)
 	DeleteTagMapForSync(ctx context.Context, entity *entity.TagMap) (deleted bool, err error)
 	UpsertTagMapForSync(ctx context.Context, entity *entity.TagMap) (isNew bool, err error)
+
+	FindCertificatesForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableCertificate, error)
+	UpsertCertificateForSync(ctx context.Context, entity *pkgentity.Certificate) (isNew bool, certificateID uint, err error)
+
+	FindCertificateFieldsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableCertificateField, error)
+	UpsertCertificateFieldForSync(ctx context.Context, entity *pkgentity.CertificateField) (isNew bool, err error)
+
+	FindCommissionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableCommission, error)
+	UpsertCommissionForSync(ctx context.Context, entity *pkgentity.Commission) (isNew bool, commissionID uint, err error)
 }

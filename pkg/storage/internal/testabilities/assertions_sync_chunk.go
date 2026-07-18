@@ -173,6 +173,9 @@ func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.LabelsMapCount(0)
 	s.TagsCount(0)
 	s.TagsMapCount(0)
+	require.Empty(s, s.chunk.Certificates)
+	require.Empty(s, s.chunk.CertificateFields)
+	require.Empty(s, s.chunk.Commissions)
 	return s
 }
 
