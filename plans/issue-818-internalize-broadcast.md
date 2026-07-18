@@ -56,13 +56,17 @@ On broadcast failure TS looks like:
 
 ### Current Go path anchors
 
+Line numbers verified against `main` as of this plan revision (Track S already merged). Re-check after large `actions/` refactors.
+
 | Location | What happens |
 |----------|----------------|
 | `pkg/storage/internal/actions/internalize.go` `Internalize` (~L76–291) | UoW store, optional `updateKnownTxAsMined`, return fixed 4-field result |
-| `storeNewTx` (~L401–491) | Sets KnownTx `unsent` + user tx `sending` for unproven; if mined/`AlreadySent` → `unmined`/`unproven` and skips broadcaster |
+| `storeNewTx` (~L401–492) | Sets KnownTx `unsent` + user tx `sending` for unproven; if mined/`AlreadySent` → `unmined`/`unproven` and skips broadcaster |
 | `storeNewTx` (~L482–489) | `backgroundBroadcaster.Add(beef, []string{txID})` — async, result discarded |
-| `pkg/storage/internal/actions/actions.go` (~L74–85) | Wires `processAction.backgroundBroadcaster` into `newInternalizeAction` |
-| `pkg/storage/internal/actions/process.go` `BackgroundBroadcast` (~L863–907) | Sync post + `updateSingleTx`; returns `[]ReviewActionResult` — **already the right primitive** |
+| `pkg/storage/internal/actions/actions.go` (~L73–85) | Wires `processAction.backgroundBroadcaster` into `newInternalizeAction` |
+| `pkg/storage/internal/actions/process.go` `singleTxBroadcastResult` (~L850–903) | Canonical review ↔ sendWith status mapping (source of truth for the helper) |
+| `pkg/storage/internal/actions/process.go` `BackgroundBroadcast` (~L952–1009) | Sync `PostFromBEEF` + `updateSingleTx` + attempt bump; returns `[]ReviewActionResult` — **already the right primitive** |
+| `pkg/wdk/tx_status.go` `IsInFlight()` (~L125–136) | Already on main (Track S): `{sending, unsent, unprocessed}` — **reuse; do not re-add** |
 | `pkg/wdk/storage_process_action_result.go` | Canonical `SendWithResult` / `ReviewActionResult` types reused by ProcessAction |
 | `pkg/wallet/internal/mapping/mapping_internalize_action.go` `MapInternalizeActionResult` (~L88–92) | SDK map only exposes `Accepted` (go-sdk shape) — storage/RPC fix is independent |
 
@@ -100,16 +104,16 @@ The delayed ProcessAction / monitor architecture is **not** wrong and must stay.
 | File | Change |
 |------|--------|
 | `pkg/wdk/storage_internalize_action_args.go` | Add optional `SendWithResults []SendWithResult` and `NotDelayedResults []ReviewActionResult` with `json:",omitempty"` |
-| `pkg/storage/internal/actions/internalize.go` | Replace `backgroundBroadcaster` dependency with `*process`; `storeNewTx` returns `shouldBroadcast`; post-commit sync broadcast + map results; helper `sendWithResultsFromReview` |
+| `pkg/storage/internal/actions/internalize.go` | Replace `backgroundBroadcaster` dependency with `*process`; `storeNewTx` returns `shouldBroadcast`; capture flag out of UoW; post-commit sync broadcast + map results; helper `sendWithResultsFromReview` |
 | `pkg/storage/internal/actions/actions.go` | Pass `processAction` into `newInternalizeAction` instead of `processAction.backgroundBroadcaster` |
-| `pkg/storage/provider_internalize_action_test.go` | Assert result fields on happy path; add serviceError + merge-omit tests; adapt reorg intermediate-state test for sync broadcast |
-| `pkg/storage/internal/integrationtests/internalize_create_process_test.go` | Update golden JSON for new optional fields |
+| `pkg/storage/provider_internalize_action_test.go` | Assert result fields on happy path; drop ~10× `time.Sleep(200ms)` async waits; add serviceError + merge-omit tests; adapt reorg intermediate-state test for sync broadcast |
+| `pkg/storage/internal/integrationtests/internalize_create_process_test.go` | Update internalize-result expectations / comments (post-internalize KnownTx is already `unmined` on happy path after sync broadcast) |
 
 Optional / follow-up (out of minimal fix, document as non-goal or small add-on):
 
 | File | Note |
 |------|------|
-| `pkg/wdk/tx_status.go` | If you need a narrow “in-flight broadcast” predicate, add `IsInFlight()` (or reuse carefully — see below). `Sending()` today includes terminal-ish states (`invalid`, `doubleSpend`) and is broader than “someone else is posting this tx”. |
+| `pkg/wdk/tx_status.go` | **`IsInFlight()` already exists** on main (Track S). Prefer it over inventing a second predicate or using the broader `Sending()` (which includes terminal-ish `invalid` / `doubleSpend`). |
 | `pkg/wallet/internal/mapping/mapping_internalize_action.go` | go-sdk `InternalizeActionResult` still only has `Accepted`. Do **not** block the storage fix on SDK expansion. |
 
 ### Detailed algorithm
@@ -137,29 +141,51 @@ Same shapes as `ProcessActionResult` fields — reuse types, do not redefine.
 
 #### 3. `storeNewTx` → `(shouldBroadcast bool, err error)`
 
-Keep storage semantics; change only the broadcast decision surface:
+Keep storage semantics; change only the broadcast decision surface. **Do not** call `backgroundBroadcaster.Add` inside the UoW anymore — persistence only.
 
 | Condition | KnownTx / user tx status (existing) | `shouldBroadcast` |
 |-----------|-------------------------------------|-------------------|
 | `tx.MerklePath != nil` (mined in BEEF) | unmined / unproven | `false` |
 | Existing KnownTx `AlreadySent()` | unmined / unproven | `false` |
-| Existing KnownTx already in-flight by another path | unsent / sending (etc.) — **do not re-post** | `false` |
-| Fresh unknown unproven | unsent / sending | `true` |
+| Existing KnownTx `IsInFlight()` (cross-user / concurrent path) | leave KnownTx as-is via `SkipForStatuses`; still create this user’s sending row | `false` — **do not re-post** |
+| Fresh unknown unproven (incl. reorg re-queue: `AlreadySent(reorg)=false`) | unsent / sending | `true` |
 
 **In-flight skip (important):**
 
-Today main has `AlreadySent()` and `Sending()`, but no `IsInFlight()`. Options:
+`IsInFlight()` is **already on main** (`pkg/wdk/tx_status.go` ~L125–136): `{sending, unsent, unprocessed}`. Use it:
 
-1. **Preferred:** add a small helper on `ProvenTxReqStatus`, e.g. `IsInFlight()`, covering statuses where another worker owns the post (`unsent`, `sending`, `unprocessed`, and any other “actively being posted” states you confirm against ProcessAction). Keep it narrower than `Sending()` if `invalid`/`doubleSpend` should still allow a deliberate re-queue (internalize of a reorged/`WasBroadcast` path is already handled separately).
-2. **Minimal:** inline `switch` on `unsent|sending|unprocessed` at the call site without a named helper.
+```go
+if existingStatus, ok := statuses[txID]; ok {
+    if existingStatus.AlreadySent() {
+        alreadySent = true
+    } else if existingStatus.IsInFlight() {
+        // Another path owns the post; persist this user's row but skip re-broadcast.
+        shouldBroadcast = false
+    }
+}
+```
 
-Do **not** call `backgroundBroadcaster.Add` inside the UoW anymore. Persistence only.
+Do **not** use the broader `Sending()` predicate (includes terminal-ish `invalid` / `doubleSpend`). Reorged KnownTx (`reorg`) is neither `AlreadySent` nor `IsInFlight`, so it correctly re-queues (`shouldBroadcast=true`) — keep that W1-6 behaviour.
 
-#### 4. Post-commit broadcast in `Internalize`
+`SkipForStatuses` already protects shared KnownTx rows from being rewritten while `unsent|sending|unmined`; the in-flight check only gates the **post**, not the user-tx insert.
 
-After UoW success (and existing `updateKnownTxAsMined` when applicable):
+#### 4. Capture `shouldBroadcast` out of the UoW, then post-commit broadcast
+
+`storeNewTx` runs inside the UoW callback. Declare an outer flag and assign it from the return value (merge path leaves it `false`):
 
 ```text
+var shouldBroadcast bool
+
+uow.Do(...):
+  if isMerge:
+    upsertExistingTx(...)
+  else:
+    shouldBroadcast, err = storeNewTx(...)   // no Add() inside
+
+// after UoW success:
+if tx.MerklePath != nil:
+  updateKnownTxAsMined(...)   // existing best-effort path
+
 result := {Accepted, IsMerge, TxID, Satoshis}
 
 if shouldBroadcast && in.process != nil:
@@ -175,9 +201,11 @@ if shouldBroadcast && in.process != nil:
 return result, nil
 ```
 
+Always post the **request BEEF** already verified in `Internalize` (do not rebuild from shared KnownTx raw bytes).
+
 #### 5. Map review → sendWith
 
-Mirror ProcessAction expectations:
+Mirror `singleTxBroadcastResult` (`process.go` ~L850–903) — same statuses ProcessAction exposes:
 
 | `ReviewActionResultStatus` | `SendWithResultStatus` |
 |----------------------------|------------------------|
@@ -186,13 +214,13 @@ Mirror ProcessAction expectations:
 | `doubleSpend` / `invalidTx` | `failed` |
 | default | `sending` |
 
-Implement as a small private helper in `internalize.go` (e.g. `sendWithResultsFromReview`).
+Implement as a small private helper in `internalize.go` (e.g. `sendWithResultsFromReview`). Prefer mapping from the returned `[]ReviewActionResult` rather than re-running aggregation.
 
 ### Status / attempt side-effects (know these)
 
-- `BackgroundBroadcast` → `PostFromBEEF` → `updateSingleTx` increments attempts and transitions KnownTx (e.g. success → `unmined`, serviceError → `sending`). Happy-path tests should assert `WithAttempts(1)` and final KnownTx status accordingly.
-- `MarkKnownTxsAsSubmitting` (if still only transitions `unprocessed` → `sending`) is a **no-op** for internalize’s initial `unsent` — same as today’s delayed path. Do not expand its state machine in this fix unless you prove a regression; document as a known no-op.
-- Removing in-UoW `Add` means the async channel path is no longer used for this call. Monitor `SendWaitingTransactions` remains the retry path for soft failures / hard post errors.
+- `BackgroundBroadcast` → `PostFromBEEF` → `updateSingleTx` transitions KnownTx (e.g. success → `unmined`, serviceError → `sending`), then **bumps attempts once at the end** of the completed post round (`IncreaseKnownTxAttemptsForTxIDs`, ~L1004). Happy-path tests should assert `WithAttempts(1)` and final KnownTx status accordingly.
+- Foreground ProcessAction calls `MarkKnownTxsAsSubmitting` before posting; **`BackgroundBroadcast` does not**. Internalize’s initial KnownTx is `unsent`, so there is no `unprocessed→sending` edge on this path. Do not expand that state machine in this fix; monitor / `SendWaitingTransactions` remain the retry path for soft failures and hard post errors.
+- Removing in-UoW `Add` means the async channel path is no longer used for this call (ProcessAction delayed sends still use it).
 
 ---
 
@@ -200,32 +228,39 @@ Implement as a small private helper in `internalize.go` (e.g. `sendWithResultsFr
 
 ### Unit / provider tests (`pkg/storage/provider_internalize_action_test.go`)
 
+There are ~10 `time.Sleep(200 * time.Millisecond) // wait for background broadcaster` calls in this file today. After the sync path, **delete them** (broadcast completes before `InternalizeAction` returns). Prefer direct assertions; keep `require.Eventually` only where concurrency is intentional (reorg hold test).
+
 1. **Happy path (wallet payment / basket insertion)**  
    - Assert `SendWithResults[0].Status == unproven`, `NotDelayedResults[0].Status == success`.  
    - Assert KnownTx `unmined`, `WithAttempts(1)`.  
-   - **Remove** `time.Sleep` waits for background broadcaster (broadcast is sync).
+   - History notes still include `postBeefSuccess` / `aggregateResults` (same as today’s sleep-waited checks).
 
 2. **Mined BEEF** (`TestInternalizeAction_UpdateKnownTxAsMined_HappyPath`)  
-   - Assert empty `SendWithResults` / `NotDelayedResults` (no re-broadcast).
+   - Assert empty / nil `SendWithResults` and `NotDelayedResults` (no re-broadcast; `omitempty`).
 
 3. **Service error surfaces fields** (new)  
-   - `ARC().WhenQueryingTx(txID).WillReturnNoBody()` (or equivalent soft-error fixture used by ProcessAction tests).  
+   - Soft-error fixture used by ProcessAction: e.g. `ARC().WhenQueryingTx(txID).WillReturnNoBody()` (see `provider_process_action_test.go`).  
    - Expect `accepted=true`, `SendWithResults: sending`, `NotDelayedResults: serviceError`, KnownTx stays `sending`, user tx `sending`.
 
 4. **Merge path omits fields** (new)  
-   - Internalize an already-owned faucet tx as merge.  
-   - Assert `IsMerge=true` and both result slices empty.
+   - Internalize an already-owned faucet tx as merge (`TestInternalizeActionForAlreadyStoredTransaction` pattern).  
+   - Assert `IsMerge=true` and both result slices empty/nil.
 
 5. **Reorg intermediate state** (`TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance`)  
-   - Because broadcast is now synchronous, hold ARC POST, run `InternalizeAction` in a goroutine, `Eventually` assert KnownTx `unsent|sending` after storeNewTx, then release ARC and wait for completion.  
-   - Assert result still accepted + non-empty `SendWithResults` after release.
+   - Today the test holds ARC and calls `InternalizeAction` on the test goroutine (async `Add` returns immediately). With sync broadcast that pattern **deadlocks**.  
+   - Required shape: `HoldBroadcasting` + `defer ReleaseBroadcasting()` (always release — provider `Stop` waits on in-flight workers), run `InternalizeAction` in a goroutine, `Eventually` assert KnownTx `unsent|sending` after UoW commit, then release ARC and wait for the goroutine.  
+   - Assert result still `accepted` + non-empty `SendWithResults` after release. Keep W1-6 DB pins (`reorg` → rewrite to `unsent`, `WasBroadcast(true)`, Bob user tx `sending`).
 
-6. **Existing merge / multi-user tests**  
-   - Drop sleeps that only waited for the old async broadcaster; keep DB assertions.
+6. **Cross-user / multi-user** (`TestInternalizeTheSameTxByDifferentUsers`, etc.)  
+   - Drop sleeps; keep DB assertions.  
+   - After Alice’s successful sync broadcast, Bob’s internalize should hit `AlreadySent()` / merge-or-store path with `shouldBroadcast=false` (no second post). Concurrent same-tick double internalize is a residual race (both may see non-in-flight before either posts); document but do not block the fix on a full distributed lock.
 
-### Integration golden
+### Integration
 
-`pkg/storage/internal/integrationtests/internalize_create_process_test.go` — extend the internalize result JSON to include `sendWithResults` / `notDelayedResults` for the unproven faucet path (exact `reference` comes from `TestRandomizer` fixtures already used there).
+`pkg/storage/internal/integrationtests/internalize_create_process_test.go`:
+
+- Update comments that still say “after internalize the unmined tx is in Unsent/Sending state” — on the happy path KnownTx is already `unmined` once `InternalizeAction` returns.
+- If any golden/JSON dump of the internalize result is asserted, include optional `sendWithResults` / `notDelayedResults` for the unproven faucet path (exact `reference` comes from `TestRandomizer` fixtures already used there). ProcessAction assertions later in the file already exercise `SendWithResults` and should remain green.
 
 ### Commands
 
@@ -240,14 +275,26 @@ go test ./pkg/storage/ ./pkg/storage/internal/actions/ ./pkg/wdk/ -count=1
 ## Acceptance criteria
 
 - [ ] New unknown unproven internalize **broadcasts before return** via `process.BackgroundBroadcast` (request BEEF).
-- [ ] `wdk.InternalizeActionResult` includes optional `sendWithResults` and `notDelayedResults` with ProcessAction-compatible shapes and JSON tags.
+- [ ] `wdk.InternalizeActionResult` includes optional `sendWithResults` and `notDelayedResults` with ProcessAction-compatible shapes and JSON tags (`omitempty`).
 - [ ] Soft service errors leave `accepted: true` and populate both result fields (`sending` / `serviceError`); KnownTx remains retryable.
 - [ ] Hard post errors do not fail the Internalize RPC; result shows in-flight `sending`; monitor/`SendWaiting` can retry.
 - [ ] Merge path and mined/`AlreadySent` path omit both optional fields.
-- [ ] Cross-user / already in-flight KnownTx does **not** double-post (skip re-broadcast).
+- [ ] Existing KnownTx with `IsInFlight()` does **not** re-post (cross-user / concurrent skip).
+- [ ] Reorg re-queue still broadcasts (`AlreadySent(reorg)=false`, not `IsInFlight`).
 - [ ] No in-UoW fire-and-forget `backgroundBroadcaster.Add` for this path.
-- [ ] Provider + integration tests above green; no regressions in ProcessAction or monitor send-waiting tests.
+- [ ] Provider + integration tests above green; no regressions in ProcessAction or monitor send-waiting tests; no leftover `time.Sleep` broadcaster waits in internalize tests.
 - [ ] Issue #818 remains open until an implementation PR lands with `Fixes #818` (this plan PR only uses `Related to #818`).
+
+---
+
+## Implementation order (suggested)
+
+1. Extend `wdk.InternalizeActionResult` + compile.
+2. Wire `*process` into `internalize` / `actions.New`; remove `backgroundBroadcaster` field from `internalize`.
+3. Change `storeNewTx` to return `shouldBroadcast` (AlreadySent / mined / **IsInFlight** gates); delete in-UoW `Add`.
+4. Post-commit `BackgroundBroadcast` + `sendWithResultsFromReview` helper + hard-error soft-success.
+5. Rewrite provider tests (drop sleeps; add serviceError + merge-omit; reorg goroutine hold).
+6. Touch integration comments/expectations; run the three test commands above.
 
 ---
 
@@ -256,12 +303,13 @@ go test ./pkg/storage/ ./pkg/storage/internal/actions/ ./pkg/wdk/ -count=1
 | Risk | Mitigation |
 |------|------------|
 | Sync broadcast increases Internalize latency under ARC lag | Match TS; hold is intentional for caller visibility. Timeouts already exist on service clients. |
-| Holding ARC in tests can deadlock provider Stop | Always release ARC on all exit paths (`defer` + once-flag pattern from #945 draft). |
+| Holding ARC in tests can deadlock provider Stop / test goroutine | Always `defer ReleaseBroadcasting()`; run blocking `InternalizeAction` on a separate goroutine when holding ARC. |
 | Shared KnownTx + incomplete raw bytes | Always post the verified request BEEF, not a reconstituted one. |
-| Double broadcast with background worker | Removing `Add` for this path avoids double post on the same call; in-flight skip protects concurrent cross-user internalize. |
-| `MarkKnownTxsAsSubmitting` no-op on `unsent` | Acceptable; attempts still bump via broadcast path. Raise separately if product wants an explicit `unsent→sending` edge. |
+| Double broadcast with background worker | Removing `Add` for this path avoids double post on the same call; `IsInFlight()` skip protects cross-user re-post after the first path has written `unsent|sending|unprocessed`. |
+| Residual concurrent double-post race | Two internalize calls that both read empty KnownTx before either commits can both set `shouldBroadcast=true`. Accept for M; same class of race exists today with dual `Add`. |
+| `BackgroundBroadcast` never calls `MarkKnownTxsAsSubmitting` | Known; attempts still bump after the post round. Raise separately if product wants an explicit `unsent→sending` edge before post. |
 | Wallet SDK still only maps `Accepted` | Storage/RPC parity is the issue scope; SDK field expansion is a separate go-sdk + mapping change. |
-| Cycle risk wiring `process` into `internalize` | `process` is constructed first in `actions.New` today; pass the pointer — no new package cycle. |
+| Cycle risk wiring `process` into `internalize` | `process` is constructed first in `actions.New` today; pass the pointer — no new package cycle (same package `actions`). |
 
 ---
 
@@ -277,15 +325,16 @@ go test ./pkg/storage/ ./pkg/storage/internal/actions/ ./pkg/wdk/ -count=1
 
 ## Dependencies
 
-- Relies on existing `(*process).BackgroundBroadcast` (`process.go` ~L863+).
-- Relies on ARC/test fixtures already used by ProcessAction and internalize suites (`givenProvider.ARC()`, `HoldBroadcasting`, etc.).
-- Conformance schema note already documents the optional fields; no vector file rewrite required for the minimal fix (happy-path vector may still omit optional fields).
+- Relies on existing `(*process).BackgroundBroadcast` (`process.go` ~L952–1009).
+- Relies on existing `ProvenTxReqStatus.IsInFlight()` (`tx_status.go` ~L125–136) — already shipped with Track S; no new predicate required.
+- Relies on ARC/test fixtures already used by ProcessAction and internalize suites (`givenProvider.ARC()`, `HoldBroadcasting` / `ReleaseBroadcasting`, `WhenQueryingTx(...).WillReturnNoBody()`, etc.).
+- Conformance schema note already documents the optional fields (`adapter-conformance.json` ~L390); no vector file rewrite required for the minimal fix (happy-path vector may still omit optional fields).
 
 ---
 
 ## Estimated size
 
-**M** — focused API surface + one action path + test rewrites; no schema migration. Prior draft (#945) is a usable implementation sketch once rebased on current `main`.
+**M** — focused API surface + one action path + test rewrites (including reorg concurrency reshape and sleep removal); no schema migration. Prior draft (#945) is a usable implementation sketch once rebased on current `main`, but re-check against Track S status predicates (`IsInFlight`, reorg `AlreadySent` exclusion) rather than copying the draft blindly.
 
 ---
 
@@ -295,6 +344,8 @@ go test ./pkg/storage/ ./pkg/storage/internal/actions/ ./pkg/wdk/ -count=1
 - Closed draft impl: <https://github.com/bsv-blockchain/go-wallet-toolbox/pull/945>
 - TS reference: `wallet-toolbox` `internalizeAction.ts` `newInternalize` + `shareReqsWithWorld`
 - ProcessAction result types: `pkg/wdk/storage_process_action_result.go`
-- Background broadcaster (current async path): `pkg/storage/internal/service/background_broadcaster.go`
+- Review ↔ sendWith mapping source: `pkg/storage/internal/actions/process.go` `singleTxBroadcastResult` (~L850–903)
+- Sync broadcast primitive: `pkg/storage/internal/actions/process.go` `BackgroundBroadcast` (~L952–1009)
+- Background broadcaster (current async path for delayed ProcessAction): `pkg/storage/internal/service/background_broadcaster.go`
 - Storage adapter schema note: `conformance/vectors/wallet/storage/adapter-conformance.json` (~L390)
-- Related status semantics: `pkg/wdk/tx_status.go` (`AlreadySent`, `Sending`, `SendWithResultStatus`)
+- Related status semantics: `pkg/wdk/tx_status.go` (`AlreadySent`, `IsInFlight`, `Sending`, `SendWithResultStatus`)
