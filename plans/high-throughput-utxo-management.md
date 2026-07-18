@@ -218,15 +218,17 @@ utxo_management:
       interval_seconds: 10
       start_immediately: true
 
-  # --- Observability (no in-process alerting) ----------------------------------
-  # The wallet ships NO notifier machinery. Pool/reserve/funder/top-up metrics
-  # (§5.4) are exported as OpenTelemetry instruments through the same OTLP
-  # endpoint the existing `tracing` section configures; external tooling
-  # (Prometheus/Grafana, Alertmanager, Datadog, …) owns thresholds and paging.
-  observability:
-    metrics:
-      enabled: true
-      export_interval_seconds: 15
+# --- Observability (top-level: whole-system, not utxo_management-specific) ----
+# The wallet ships NO notifier machinery. Pool/reserve/funder/top-up metrics
+# (§5.4) are exported as OpenTelemetry instruments through the same OTLP
+# endpoint the existing `tracing` section configures (metrics reuse
+# tracing.dialAddr even when tracing.enabled is false — that flag gates span
+# export only); external tooling (Prometheus/Grafana, Alertmanager, Datadog, …)
+# owns thresholds and paging.
+observability:
+  metrics:
+    enabled: true
+    export_interval_seconds: 15
 ```
 
 ### Derivation & validation rules
@@ -323,8 +325,9 @@ A new monitor task (`pool_top_up` alongside `check_for_proofs` etc. in
    faster than the chain confirms just bloats the DB.
 
 The reserve is filled by the operator with ordinary `internalizeAction` deposits into
-`reserve_basket` (large UTXOs, e.g. whole coins). Reserve depth is what the
-`reserve_runway_low` alert watches.
+`reserve_basket` (large UTXOs, e.g. whole coins). Reserve depth feeds the
+`wallet.utxo.reserve.runway_seconds` gauge, which the external reserve-runway
+rule in §5.4 watches.
 
 ### 5.2a Basket separation — why `fuel` is its own basket (resolves §10 Q1)
 
@@ -408,10 +411,14 @@ tooling. Concretely:
 
 - **Extend `pkg/tracing` to metrics.** The package currently wires an OTLP *trace*
   exporter (`tracing.dialAddr`); Phase 3 adds an OTel `MeterProvider` on the same
-  endpoint, gated by `observability.metrics` (§4). Spans already exist throughout
-  (`tracing.StartTracing` in the funder, repos, and actions); the new funder fast
-  path, `pool_top_up` rounds, and consolidation get spans too, so traces and
-  metrics correlate.
+  endpoint, gated by `observability.metrics` (§4). Spans already exist in the
+  actions and repo layers (`tracing.StartTracing` — e.g. `StorageActions-Create`,
+  `Repository-UserUtxo-*`); the funder package itself is uninstrumented today, so
+  Phase 3 adds spans to both funder paths (existing bounded and new fast path)
+  plus `pool_top_up` rounds and consolidation, so traces and metrics correlate.
+  Metrics reuse `tracing.dialAddr` even when `tracing.enabled: false` (that flag
+  gates span export only); config validation rejects
+  `observability.metrics.enabled: true` with an empty `tracing.dialAddr`.
 - **Instrument catalog** (names final at implementation; attributes in braces):
   - Gauges (from the §5.3 accounting loop, never per-request):
     `wallet.utxo.pool.spendable{basket,status,denomination}`,
@@ -431,7 +438,9 @@ tooling. Concretely:
   `wallet_utxo_pool_runway_seconds < 900` (15 min of runway),
   `wallet_utxo_reserve_runway_seconds < 86400` (1 day of fee burn),
   `wallet_topup_consecutive_failures >= 3`,
-  `increase(wallet_funder_not_enough_funds[1m]) > 0`.
+  `increase(wallet_funder_not_enough_funds[1m]) > 0`, and
+  `wallet_utxo_pool_stale` elevated for longer than a consolidation round
+  (stale fuel not being recouped).
 - **Hot-path discipline is unchanged**: gauges are computed by the accounting
   loop, counters are lock-free increments, and metric export runs on the
   `export_interval_seconds` ticker — nothing new touches the claim path's
@@ -577,8 +586,9 @@ Honest observations the config must surface rather than hide:
    - Consolidation txs spend only self-created, first-seen-safe outputs; they run
      at lower priority than fan-out, count toward pipeline inventory for
      throttling, and reuse the same broadcast/maturation machinery.
-   - The stale-inventory gauge alerts (`stale_fuel` threshold) if consolidation
-     falls behind or is disabled.
+   - Stale inventory is visible on the `wallet.utxo.pool.stale` gauge (§5.4); an
+     external rule (see the stale-fuel entry in the §5.4 rule set) pages if
+     consolidation falls behind or is disabled.
    (Strategy *rollback* remains a pure relabel into `default` — §5.2a;
    consolidation is specifically for denomination changes while the strategy
    stays on.)

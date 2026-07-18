@@ -51,8 +51,8 @@ basket-insertion `internalizeAction` (see
 for the mechanics — the only difference is `basket: "reserve"`). Only the
 top-up task spends reserve; the funding paths cannot touch it.
 
-Plan reserve depth against burn: at the repo profile, average burn is
-~2.1 BSV/day (fuel + ~15% fan-out fee overhead), with bursts during the two
+Plan reserve depth against burn: at the repo profile, average fuel burn is
+~2.1 BSV/day, plus ~15% fan-out fee overhead and burst burn during the two
 peaks. The `wallet.utxo.reserve.runway_seconds` gauge reports how long the
 reserve lasts at the configured rated load.
 

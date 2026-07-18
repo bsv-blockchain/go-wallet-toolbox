@@ -38,6 +38,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 )
 
 // infraConfigYAML is the operator-facing configuration this example runs
@@ -48,7 +49,7 @@ const infraConfigYAML = `
 name: throughput-wallet
 bsv_network: main
 db:
-  engine: postgresql   # throughput mode targets Postgres; validation warns on SQLite
+  engine: postgres   # throughput mode targets Postgres; validation warns on SQLite
 
 fee_model:
   type: sat/kb
@@ -137,10 +138,10 @@ func main() {
 	// reserve; neither funding path can touch it. From here the top-up task
 	// fans out: reserve → chunks → 240-sat fuel outputs, ~5 min to maturity.
 	operator := example_setup.CreateAlice()
-	wallet, cleanup := operator.CreateWallet(ctx)
+	operatorWallet, cleanup := operator.CreateWallet(ctx)
 	defer cleanup()
 
-	depositIntoReserve(ctx, wallet) // see throughput-mode.md for the full flow
+	depositIntoReserve(ctx, operatorWallet) // see throughput-mode.md for the full flow
 
 	// --- 3. Issue packed createActions --------------------------------------
 	// The application batches by packing outputs into actions (there is no
@@ -155,7 +156,7 @@ func main() {
 		})
 	}
 
-	result, err := wallet.CreateAction(ctx, sdk.CreateActionArgs{
+	result, err := operatorWallet.CreateAction(ctx, sdk.CreateActionArgs{
 		Description: "repo market settlement batch",
 		Outputs:     outputs,
 	}, Originator)
@@ -190,9 +191,9 @@ func writeConfig() string {
 // The flow is the standard basket-insertion internalizeAction — see
 // examples/wallet_examples/internalize_tx_from_faucet for the mechanics; the
 // only throughput-mode specific detail is basket: "reserve".
-func depositIntoReserve(ctx context.Context, wallet *example_setup.UserWallet) {
+func depositIntoReserve(ctx context.Context, operatorWallet *wallet.Wallet) {
 	// sketch:
-	//   wallet.InternalizeAction(ctx, sdk.InternalizeActionArgs{
+	//   operatorWallet.InternalizeAction(ctx, sdk.InternalizeActionArgs{
 	//       Tx: fundingBEEF,
 	//       Outputs: []sdk.InternalizeOutput{{
 	//           OutputIndex: 0,
@@ -202,7 +203,7 @@ func depositIntoReserve(ctx context.Context, wallet *example_setup.UserWallet) {
 	//       Description: "operating reserve deposit",
 	//   }, Originator)
 	_ = ctx
-	_ = wallet
+	_ = operatorWallet
 }
 
 // settlementLockingScript stands in for the application's real per-leg
