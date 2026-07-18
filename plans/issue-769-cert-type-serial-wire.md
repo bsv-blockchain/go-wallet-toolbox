@@ -102,6 +102,8 @@ func EncodeBytes32Base64(b [32]byte) string {
 
 // DecodeBytes32Base64 accepts 0–32 decoded bytes (TS short forms),
 // zero-pads into [32]byte. Rejects >32 or invalid base64.
+// Empty string / empty decode → zero array (symmetry with go-sdk
+// StringBase64.ToArray / CertificateTypeFromBase64).
 func DecodeBytes32Base64(s string) ([32]byte, error) {
     raw, err := base64.StdEncoding.DecodeString(s)
     if err != nil {
@@ -117,6 +119,16 @@ func DecodeBytes32Base64(s string) ([32]byte, error) {
 ```
 
 Semantics mirror go-sdk `CertificateTypeFromBase64` on decode and the issue’s suggested `TrimmedBase64` on encode. **Do not** change go-sdk from this repo — stay inside toolbox boundaries and work around.
+
+**Locked decisions (do not re-litigate in the implementation PR):**
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Empty base64 / empty decode | Accept → zero `[32]byte` | Matches go-sdk pad-copy semantics; #941 did this |
+| Encoding alphabet | `base64.StdEncoding` only (not Raw/URL) | Matches every existing toolbox call site + storage |
+| All-zero array encode | Full 32-byte base64 (`AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`) | Distinct from “empty”; avoids empty-string wire |
+| Type **and** serial both trim | Yes, one rule | Consistent; serials from HMAC issuance are full 32 non-zero-biased bytes in practice |
+| Copy-source | Closed #941 helpers + call-site list | Already proven shape against this codebase |
 
 ### 2. Wire helpers through every toolbox boundary
 
@@ -167,13 +179,14 @@ If the BRC-100 HTTP surface unmarshals into SDK types before wallet entry, that 
 
 ### Unit — primitives
 
-1. **Short type round-trip:** decode `Q29tbW9uU291cmNlIGlkZW50aXR5` → `[32]byte` with trailing zeros → encode back to **exact** short string.
-2. **Naive pad must differ:** `EncodeToString(full[:])` ≠ short string; helper equals short string.
+1. **Short type round-trip:** decode `Q29tbW9uU291cmNlIGlkZW50aXR5` (28 chars, 21 decoded bytes, `"CommonSource identity"`) → `[32]byte` with 11 trailing zeros → encode back to **exact** short string.
+2. **Naive pad must differ:** `EncodeToString(full[:])` = `Q29tbW9uU291cmNlIGlkZW50aXR5AAAAAAAAAAAAAAA=` (44 chars); helper equals short string (28 chars).
 3. **Full 32-byte value:** no trim of interior zeros that are not trailing; only trailing `0x00`.
-4. **All-zero array:** encode yields full 32-byte base64 (not empty string).
-5. **Empty base64 / empty decode:** decode `""` → zero array (if accepted) or explicit error — pick one and document; recommend accept empty → zero array for symmetry with `StringBase64.ToArray`.
+4. **All-zero array:** encode yields `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=` (full 32-byte base64, not empty).
+5. **Empty base64 / empty decode:** decode `""` → zero array (**locked** above).
 6. **>32 decoded bytes:** error.
 7. **Invalid base64:** error.
+8. **Encode output always `Base64String.Validate`-safe:** length `% 4 == 0` (StdEncoding padding).
 
 ### Unit — mapping / wdk
 
@@ -199,7 +212,7 @@ Against a TS certifier (e.g. commonsource) with type `CommonSource identity`:
 
 ## Acceptance criteria
 
-- [ ] `DecodeBytes32Base64` accepts 0–32 decoded bytes and rejects `>32` / bad base64.
+- [ ] `DecodeBytes32Base64` accepts 0–32 decoded bytes (including empty → zero array) and rejects `>32` / bad base64.
 - [ ] `EncodeBytes32Base64` trims trailing `0x00`; all-zero keeps full 32-byte encoding.
 - [ ] All toolbox sites listed above that convert `[32]byte` ↔ base64 string for type/serial use the helpers (no remaining bare `EncodeToString(typeOrSerial[:])` for those fields).
 - [ ] Short TS type `Q29tbW9uU291cmNlIGlkZW50aXR5` survives list-filter mapping and `ToSDKCertificate` parse.
@@ -207,6 +220,48 @@ Against a TS certifier (e.g. commonsource) with type `CommonSource identity`:
 - [ ] Unit + targeted wallet/storage certificate tests green.
 - [ ] Implementation PR body links `Fixes #769` (this plan PR must **not** close the issue).
 - [ ] Residual go-sdk `Bytes32Base64` JSON strictness documented in the implementation PR (not silently ignored).
+
+### Completeness grep (implementation PR checklist)
+
+After the call-site swaps, these should return **no production hits** outside the helpers/tests:
+
+```bash
+# bare re-encode of Type/SerialNumber fixed arrays (should be empty after fix)
+rg -n 'EncodeToString\((args|cert|p\.Args)\.(Type|SerialNumber)\[:\]\)' pkg/
+
+# go-sdk padded Base64() used for wire/storage of cert type (should be empty after fix)
+rg -n 'cert\.Type\.Base64\(\)|args\.Type\.Base64\(\)' pkg/
+
+# remaining strict len==32 decode of type/serial (should be empty after DecodeBytes32Base64)
+rg -n 'len\((serialBytes|certTypeBytes|certBytes)\) != len\(' pkg/wdk pkg/wallet/internal/mapping
+```
+
+Positive check: helpers exist and are imported where needed:
+
+```bash
+rg -n 'EncodeBytes32Base64|DecodeBytes32Base64' pkg/
+```
+
+### End-to-end flow coverage (why each site matters)
+
+```text
+TS short type base64
+        │
+        ▼
+  DecodeBytes32Base64  ←── parseSerialNumber / parseCertificationType (wdk)
+        │                   MapVerifiableCertificateToCertificate (discover)
+        ▼
+   sdk.[32]byte  (zero-padded in memory)
+        │
+        ▼
+  EncodeBytes32Base64  ←── list filter, relinquish, direct insert,
+        │                   prove serial lookup, certifier issuance Type,
+        │                   validate_prove type/serial Validate strings
+        ▼
+  storage / HTTP / filter string  (== original short base64)
+```
+
+`ListCertificates` results re-enter via `WalletCertificate.ToSDKCertificate` → decode helpers. Issuance insert that already holds `p.CertTypeB64` / response serial **as received** must keep those strings (do not re-encode).
 
 ---
 
@@ -226,11 +281,17 @@ Against a TS certifier (e.g. commonsource) with type `CommonSource identity`:
 
 5. **BRC-104 HMAC** remains a separate failure after type encoding is fixed — do not scope-creep.
 
+6. **`Base64String.Validate` length rule:** toolbox requires `len(s) % 4 == 0`. `StdEncoding.EncodeToString` always produces that; short TS values that are valid StdEncoding (e.g. 28-char CommonSource type) already pass. Do not switch to RawStdEncoding.
+
+7. **Existing test fixtures:** `pkg/internal/testabilities/certificates.go` `CreateTestCertificateType` / `SerialNumber` fill 32 random bytes — typically no long trailing-zero run, so existing suites stay green without fixture changes. Add **new** short-type cases; do not rewrite the random fixtures.
+
+8. **Issuance serial length:** `wallet_acquire_certificate_issuance.go` still requires `len(parsedCert.SerialNumber) == NonceHMACSize` (32) for HMAC verify — that is protocol material, not a wire-format type. Do not loosen that check as part of this fix.
+
 ---
 
 ## Estimated size
 
-**S–M** — small pure helpers + mechanical call-site swaps + focused tests. No schema migration required for the minimal fix. Prior #941 already proved the shape; re-apply against current main and land with green CI.
+**S–M** — small pure helpers + mechanical call-site swaps + focused tests. No schema migration required for the minimal fix. Prior #941 already proved the shape (~11 files: helpers + tests + mapping/wdk/wallet/validate); re-apply against current main and land with green CI.
 
 ---
 
