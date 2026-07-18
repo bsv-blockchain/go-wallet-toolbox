@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
-	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
 
@@ -30,6 +29,11 @@ type Daemon struct {
 	activeTasks map[defs.MonitorTask]*ActiveTask
 
 	storage MonitoredStorage
+
+	// leaseLocker is set only when the daemon was built via
+	// NewDaemonWithGORMLocker; it is nil for a plain NewDaemon. When set,
+	// Start wires a per-job lease TTL derived from each task's interval.
+	leaseLocker *LeaseLocker
 
 	started   bool
 	startLock sync.Mutex
@@ -61,19 +65,22 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
+//
+// The lock is a lease per job (see LeaseLocker): every instance contends on the
+// same stable per-job key, so exactly one instance runs a job at a time and a
+// crashed owner is reclaimed once its lease expires. Per-job lease TTLs are
+// wired from task intervals in Start.
 func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...DaemonEventOption) (*Daemon, error) {
-	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
-	}
-
 	workerName, err := randomizer.New().Base64(12)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate worker name: %w", err)
 	}
-	locker, err := gormlock.NewGormLocker(db, workerName, gormlock.WithDefaultJobIdentifier(time.Millisecond))
+
+	workerLogger := logger.With(slog.String("worker", workerName))
+
+	locker, err := NewLeaseLocker(db.WithContext(ctx), workerName, workerLogger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
+		return nil, fmt.Errorf("failed to create lease locker: %w", err)
 	}
 
 	options := defaultDaemonEventOptions()
@@ -81,7 +88,13 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 		opt(options)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, options, gocron.WithDistributedLocker(locker))
+	daemon, err := NewDaemon(workerLogger, storage, options, gocron.WithDistributedLocker(locker))
+	if err != nil {
+		return nil, err
+	}
+	daemon.leaseLocker = locker
+
+	return daemon, nil
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
@@ -192,6 +205,13 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	return task, ok
 }
 
+// monitorJobName is the gocron job name for a task. gocron passes this exact
+// string to the distributed locker as the lock key, so lease TTLs must be
+// registered under the same name (see the SetLeaseTTL call in initializeTask).
+func monitorJobName(taskName defs.MonitorTask) string {
+	return fmt.Sprintf("monitor_%s", taskName)
+}
+
 func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, taskConfig defs.TaskConfig) error {
 	task := &ActiveTask{
 		Instance: taskInstance,
@@ -199,8 +219,19 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 		// NOTE: Cronjob (gocron.Job) is not set here, as it will be set when the job is created.
 	}
 
+	jobName := monitorJobName(taskName)
+
 	opts := []gocron.JobOption{
-		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
+		gocron.WithName(jobName),
+		// gocron runs each tick in a fresh goroutine and does NOT prevent a
+		// single process from overlapping runs of the same job. Without this,
+		// a run overrunning its interval would re-acquire its own lease
+		// (owner=me) and overlap itself; when the first run Unlocks
+		// (lease_until=now) another pod could claim mid-flight — a narrow
+		// break of exactly-once. Singleton mode makes the same-process
+		// non-overlap premise the lease relies on actually true; overlapping
+		// ticks are rescheduled rather than run concurrently.
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	}
 
 	if taskConfig.StartImmediately {
@@ -208,6 +239,19 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	}
 
 	interval := taskConfig.Interval()
+
+	// Wire the lease TTL for this job before it can run. The lock key gocron
+	// uses is jobName, so the TTL must be registered under jobName. A TTL of
+	// max(2*interval, 5m) tolerates a run overrunning its slot and gives a
+	// crashed owner enough slack that a healthy peer does not steal a job that
+	// is merely slow, while still reclaiming within a bounded time.
+	if d.leaseLocker != nil {
+		ttl := 2 * interval
+		if ttl < 5*time.Minute {
+			ttl = 5 * time.Minute
+		}
+		d.leaseLocker.SetLeaseTTL(jobName, ttl)
+	}
 
 	job, err := d.scheduler.NewJob(
 		gocron.DurationJob(interval),

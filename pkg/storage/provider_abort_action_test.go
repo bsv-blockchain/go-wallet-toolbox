@@ -1,8 +1,11 @@
 package storage_test
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -235,12 +238,6 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 				return createResult.Reference, testusers.Alice.AuthID()
 			},
 		},
-		"unprocessed_transaction": {
-			setupTransaction: func(given testabilities.StorageFixture, activeStorage *storage.Provider) (string, wdk.AuthID) {
-				createResult, _ := given.Action(activeStorage).Unprocessed()
-				return createResult.Reference, testusers.Alice.AuthID()
-			},
-		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -270,7 +267,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 	}
 }
 
-func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T) {
+func TestProcessAction_AutoAbortOnPreBroadcastFailure_ReleasesUTXOs(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -284,22 +281,147 @@ func TestProcessAction_AbortUnprocessedTransaction_AndRecreateUTXOs(t *testing.T
 		satoshisToSend        = 1000
 	)
 
-	// and:
-	createActionResult, _ := given.Action(activeStorage).
+	// and: create and sign the transaction (does not process yet)
+	createActionResult, signedTx := given.Action(activeStorage).
 		WithSatoshisToInternalize(satoshisToInternalize).
 		WithSatoshisToSend(satoshisToSend).
-		Unprocessed()
+		Created()
+
+	// and: mock scripts verifier to fail
+	scriptsVerifyMockError := fmt.Errorf("mock scripts verifier error")
+	given.Provider().ScriptsVerifier().WillReturnError(scriptsVerifyMockError)
 
 	// when:
-	abortResult, err := activeStorage.AbortAction(t.Context(), testusers.Alice.AuthID(), wdk.AbortActionArgs{
-		Reference: primitives.Base64String(createActionResult.Reference),
-	})
+	txID := signedTx.TxID().String()
+	args := wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		Reference: to.Ptr(createActionResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+	}
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
-	// then:
-	require.NoError(t, err)
-	require.True(t, abortResult.Aborted)
+	// then: process should fail with the scripts verifier error
+	require.Error(t, err)
+	require.ErrorIs(t, err, scriptsVerifyMockError)
 
-	// and:
+	// and: transaction should be automatically aborted (status=failed)
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
+		WithTxID(txID).WithStatus(wdk.TxStatusFailed)
+
+	// and: UTXOs should be automatically released and available for re-spending
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldBeAbleToReserveSatoshis(satoshisToInternalize)
+}
+
+func TestAbortActionRefusedWhenKnownTxInFlight(t *testing.T) {
+	// Regression test for P4 (abort is an input-release path): user-initiated
+	// AbortAction must refuse when the shared KnownTx shows broadcast/network
+	// evidence, even though the local Transaction row is still 'unprocessed'.
+	// This reproduces the window between MarkKnownTxsAsSubmitting (KnownTx ->
+	// 'sending') and the per-tx status write after broadcast (process.go),
+	// where the background sweep (#926) is already gated but user-initiated
+	// abort previously was not.
+
+	// given: Alice has a fully processed (broadcast) tx
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	createResult, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+
+	txRows, err := activeStorage.TransactionEntity().Read().
+		Reference().Equals(createResult.Reference).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+	transactionID := txRows[0].ID
+
+	// and: force the DB back into the race window - KnownTx is 'sending'
+	// (in-flight broadcast) while the local Transaction row is 'unprocessed'
+	db := activeStorage.Database.DB
+	require.NoError(t, db.Exec(
+		`UPDATE bsv_known_txes SET status = ? WHERE tx_id = ?`,
+		string(wdk.ProvenTxStatusSending), txID,
+	).Error)
+	require.NoError(t, db.Exec(
+		`UPDATE bsv_transactions SET status = ? WHERE id = ?`,
+		string(wdk.TxStatusUnprocessed), transactionID,
+	).Error)
+
+	// when:
+	_, err = activeStorage.AbortAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		wdk.AbortActionArgs{
+			Reference: primitives.Base64String(createResult.Reference),
+		},
+	)
+
+	// then: abort is refused
+	require.Error(t, err)
+	require.ErrorIs(t, err, wdk.ErrNotAbortableAction)
+
+	// and: the Transaction row was not touched by the abort path
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
+		WithStatus(wdk.TxStatusUnprocessed)
+
+	// and: the KnownTx row remains untouched (multi-user design)
+	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+
+	// and: the tx's inputs are still claimed (not released back to spendable)
+	spentOutputs, err := activeStorage.OutputsEntity().Read().
+		SpentBy().Equals(transactionID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, spentOutputs, "expected the aborted tx's inputs to still be claimed (spent_by unchanged)")
+}
+
+func TestAbortAction_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
+	// Regression test: outputs created by an aborted TX must be marked spendable=false.
+	// Before this fix, they remained spendable=true with a null tx_id, so ListOutputs
+	// could return them with a zero outpoint, causing "duplicate input" errors downstream.
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and: an unsigned TX is created (tx_id is null at this point)
+	createResult, _ := given.Action(activeStorage).
+		WithSatoshisToInternalize(10_000).
+		WithSatoshisToSend(1_000).
+		Created()
+
+	// and: find the internal transaction row ID to query its outputs
+	txRows, err := activeStorage.TransactionEntity().Read().
+		Reference().Equals(createResult.Reference).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+	transactionID := txRows[0].ID
+
+	// when:
+	_, err = activeStorage.AbortAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		wdk.AbortActionArgs{Reference: primitives.Base64String(createResult.Reference)},
+	)
+	require.NoError(t, err)
+
+	// then: outputs created by the aborted TX are all not spendable
+	outputs, err := activeStorage.OutputsEntity().Read().
+		TransactionID().Equals(transactionID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, outputs, "expected to find outputs for the aborted transaction")
+
+	for _, output := range outputs {
+		assert.False(t, output.Spendable,
+			"output vout=%d from aborted TX must not be spendable", output.Vout)
+	}
 }

@@ -21,19 +21,21 @@ type abortAction struct {
 	utxosRepo         UTXORepo
 	knownTxRepo       KnownTxRepo
 	failAbandonedLock sync.Mutex
+	uow               UnitOfWork
 }
 
 const (
 	txIDLength = 64
 )
 
-func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo KnownTxRepo) *abortAction {
+func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo KnownTxRepo, uow UnitOfWork) *abortAction {
 	return &abortAction{
 		logger:           logging.Child(logger, "abortAction"),
 		transactionsRepo: transactions,
 		outputsRepo:      outputsRepo,
 		utxosRepo:        utxosRepo,
 		knownTxRepo:      knownTxRepo,
+		uow:              uow,
 	}
 }
 
@@ -105,25 +107,37 @@ func (a *abortAction) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 	logger := a.logger.With(logging.Number("transactionID", id))
 
-	logger.DebugContext(ctx, "Unreserving UTXOs for transaction")
-	if err := a.utxosRepo.UnreserveUTXOsByTransactionID(ctx, id); err != nil {
-		return fmt.Errorf("failed to unreserve UTXOs for transaction: %w", err)
-	}
+	return a.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		logger.DebugContext(txCtx, "Unreserving UTXOs for transaction")
+		if err := repos.UTXORepo().UnreserveUTXOsByTransactionID(txCtx, id); err != nil {
+			return fmt.Errorf("failed to unreserve UTXOs for transaction: %w", err)
+		}
 
-	logger.DebugContext(ctx, "Recreating spent outputs for transaction")
-	if err := a.outputsRepo.RecreateSpentOutputs(ctx, id); err != nil {
-		return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)
-	}
+		logger.DebugContext(txCtx, "Recreating spent outputs for transaction")
+		if err := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); err != nil {
+			return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)
+		}
 
-	logger.DebugContext(ctx, "Updating transaction status to 'failed'")
-	if err := a.transactionsRepo.UpdateTransactionStatusByID(ctx, id, wdk.TxStatusFailed); err != nil {
-		return fmt.Errorf("failed to update transaction status: %w", err)
-	}
+		logger.DebugContext(txCtx, "Marking created outputs as not spendable for transaction")
+		if err := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); err != nil {
+			return fmt.Errorf("failed to mark created outputs as not spendable for transaction: %w", err)
+		}
 
-	// TODO: KnownTx is not touched here because the same transaction can be owend by another user and we don't want to affect their state.
-	// NOTE: The abandoned knownTx will be updated to failed by cron job
+		logger.DebugContext(txCtx, "Updating transaction status to 'failed'")
+		// Positive CAS: only abort a transaction still in an abortable status. If it raced
+		// to a non-abortable status between validation and here, the update matches zero rows
+		// and returns ErrStatusUpdateSkipped, which propagates and rolls back the whole abort
+		// UoW (the concurrent transition wins).
+		if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed,
+			wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail); err != nil {
+			return fmt.Errorf("failed to update transaction status: %w", err)
+		}
 
-	return nil
+		// TODO: KnownTx is not touched here because the same transaction can be owend by another user and we don't want to affect their state.
+		// NOTE: The abandoned knownTx will be updated to failed by cron job
+
+		return nil
+	})
 }
 
 func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transaction) error {
@@ -141,6 +155,23 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transa
 	logger.DebugContext(ctx, "Validating transaction status")
 	if err := validateTxStatusForAbort(txEntity.Status); err != nil {
 		return err
+	}
+
+	// NOTE (residual TOCTOU, deferred to W3a-2 per Decision Record v1): this gate reads
+	// KnownTx status outside the abort UoW, so a concurrent ProcessAction can flip KnownTx
+	// to 'sending' between this check and the abort's commit. The Transaction-status CAS in
+	// abortTx (UpdateTransactionStatusByID against the pre-abort abortable statuses) shrinks
+	// the race window to milliseconds - it does not close it. Full closure would require a
+	// row lease or a FOR UPDATE re-check of KnownTx inside the same UoW as the abort write.
+	logger.DebugContext(ctx, "Checking shared KnownTx for broadcast/network evidence")
+	if txEntity.TxID != nil {
+		statuses, err := a.knownTxRepo.FindKnownTxStatuses(ctx, *txEntity.TxID)
+		if err != nil {
+			return fmt.Errorf("failed to check broadcast evidence for abort: %w", err)
+		}
+		if status, ok := statuses[*txEntity.TxID]; ok && !abortableKnownTxStatus(status) {
+			return fmt.Errorf("%w: transaction %s has broadcast/network evidence (known status %q)", wdk.ErrNotAbortableAction, *txEntity.TxID, status)
+		}
 	}
 
 	logger.DebugContext(ctx, "Checking if transaction outputs are unspent")
@@ -165,4 +196,17 @@ func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
 
 func (a *abortAction) isPotentiallyTxID(reference string) bool {
 	return len(reference) == txIDLength
+}
+
+// abortableKnownTxStatus reports whether the shared KnownTx carries no
+// broadcast or network-acceptance evidence (P4: abort is an input release).
+func abortableKnownTxStatus(status wdk.ProvenTxReqStatus) bool {
+	//nolint:exhaustive // default case handles remaining statuses (all refused)
+	switch status {
+	case wdk.ProvenTxStatusUnprocessed, wdk.ProvenTxStatusNoSend,
+		wdk.ProvenTxStatusNonFinal, wdk.ProvenTxStatusUnknown:
+		return true
+	default:
+		return false
+	}
 }

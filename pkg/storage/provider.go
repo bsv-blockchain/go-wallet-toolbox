@@ -12,6 +12,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -48,6 +49,29 @@ type Provider struct {
 	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
 }
 
+type providersWrapper struct {
+	r *repo.Repositories
+}
+
+func (p *providersWrapper) TransactionsRepo() actions.TransactionsRepo { return p.r.Transactions }
+func (p *providersWrapper) OutputRepo() actions.OutputRepo             { return p.r.Outputs }
+func (p *providersWrapper) KnownTxRepo() actions.KnownTxRepo           { return p.r.KnownTx }
+func (p *providersWrapper) UTXORepo() actions.UTXORepo                 { return p.r.UTXOs }
+func (p *providersWrapper) BasketRepo() actions.BasketRepo             { return p.r.OutputBaskets }
+func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return p.r.Commission }
+func (p *providersWrapper) KeyValueRepo() actions.KeyValueRepo         { return p.r.KeyValue }
+
+type uow struct {
+	db *gorm.DB
+}
+
+func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Providers) error) error {
+	return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepos := repo.NewSQLRepositories(tx)
+		return fn(ctx, &providersWrapper{txRepos})
+	})
+}
+
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
 // NewGORMProvider creates a new storage provider with GORM repository.
@@ -72,14 +96,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 
 	log = logging.Child(log, "GormStorageProvider")
 
-	var transactionFunder funder.Funder
-	var tunableFunder *funder.SQL
-	if options.Funder != nil {
-		transactionFunder = options.Funder
-	} else {
-		sqlFunder := db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx).(*funder.SQL)
-		transactionFunder = sqlFunder
-		tunableFunder = sqlFunder
+	tunableFunder := options.Funder
+	if tunableFunder == nil {
+		tunableFunder = db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx)
 	}
 
 	defaultBasketCfg := wdk.BasketConfiguration{
@@ -96,9 +115,10 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		actions: actions.New(
 			options.BackgroundBroadcasterContext,
 			log,
-			transactionFunder,
+			tunableFunder,
 			options.Commission,
 			repos,
+			&uow{db.DB},
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,
@@ -381,6 +401,24 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		return nil, fmt.Errorf("failed to insert user: %w", err)
 	}
 
+	// A zero ID means CreateUser hit the identity_key conflict (DoNothing): a
+	// concurrent caller won the find-then-create race and already committed this
+	// user. Re-read the existing row and report it as not-new.
+	if user.ID == 0 {
+		user, err = p.repo.FindUser(ctx, identityKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find user after insert conflict: %w", err)
+		}
+		if user == nil {
+			return nil, fmt.Errorf("user %q not found after insert conflict", identityKey)
+		}
+
+		return &wdk.FindOrInsertUserResponse{
+			User:  *user.ToWDK(),
+			IsNew: false,
+		}, nil
+	}
+
 	return &wdk.FindOrInsertUserResponse{
 		User:  *user.ToWDK(),
 		IsNew: true,
@@ -415,6 +453,10 @@ func (p *Provider) UpdateChangeBasket(ctx context.Context, identityKey string, c
 	}
 
 	cfg.Name = wdk.BasketNameForChange
+	if err = validate.ValidBasketConfiguration(&cfg); err != nil {
+		return fmt.Errorf("invalid change basket configuration: %w", err)
+	}
+
 	_, err = p.repo.UpsertOutputBasket(ctx, user.ID, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to update change basket: %w", err)
@@ -562,7 +604,11 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 
 	results, err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send waiting transactions: %w", err)
+		// Preserve the assembled results even when some batches hard-failed: the per-batch errors
+		// are aggregated (joined) into err, but the results for the batches that DID succeed are
+		// still returned so callers can act on them (continue-on-error contract).
+		err = fmt.Errorf("failed to send waiting transactions: %w", err)
+		return results, err
 	}
 	return results, nil
 }
@@ -1113,11 +1159,9 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
-		var status wdk.StandardizedTxStatus
-		if s, ok := txStatusMap[ktx.TxID]; ok {
-			status = s.ToStandardizedStatus()
-		} else {
-			status = ktx.Status.ToStandardizedStatus()
+		status := ktx.Status.ToStandardizedStatus()
+		if txStatusMap[ktx.TxID] == wdk.TxStatusFailed {
+			status = wdk.TxUpdateStatusFailed
 		}
 
 		txUpdate := wdk.CurrentTxStatus{

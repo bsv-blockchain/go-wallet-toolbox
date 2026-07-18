@@ -28,6 +28,21 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
+// ErrUTXOContention is returned when concurrent transactions attempt to reserve the same UTXOs.
+// It wraps the public wdk.ErrUTXOContention sentinel so callers outside this package can match on
+// it via errors.Is(err, wdk.ErrUTXOContention). The retry (bounded, on contention only) happens in
+// create.Create, not here.
+var ErrUTXOContention = fmt.Errorf("storage layer: %w", wdk.ErrUTXOContention)
+
+// ErrProvidedInputConflict is returned when a create action's provided inputs (KnownOutputIDs) or
+// noSendChange outputs cannot be claimed because another transaction already set their spent_by.
+// Unlike contention over funder-selected UTXOs — which a retry can resolve by locking different
+// coins — a provided-input conflict is permanent: the same caller-supplied outpoints are
+// re-attempted on every retry, so the bounded funding retry loop (create.retryOnContention) must
+// NOT retry it. It wraps ErrUTXOContention so existing callers matching
+// errors.Is(err, wdk.ErrUTXOContention) keep working unchanged.
+var ErrProvidedInputConflict = fmt.Errorf("provided input already spent: %w", ErrUTXOContention)
+
 type Transactions struct {
 	query *genquery.Query
 	db    *gorm.DB
@@ -44,29 +59,73 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 		tracing.EndTracing(span, err)
 	}()
 
+	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return txs.createTransactionInTx(tx, newTx)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create transaction: %w", err)
+	}
+	return nil
+}
+
+// CreateTransactionInTx creates a new transaction record using an externally-managed DB transaction.
+// Use this when Fund and CreateTransaction must share a single DB transaction (e.g. SELECT FOR UPDATE).
+func (txs *Transactions) CreateTransactionInTx(ctx context.Context, tx *gorm.DB, newTx *entity.NewTx) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CreateTransactionInTx")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = txs.createTransactionInTx(tx.WithContext(ctx), newTx)
+	if err != nil {
+		return fmt.Errorf("failed to create transaction in tx: %w", err)
+	}
+	return nil
+}
+
+func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx) error {
 	model, err := txs.toTransactionModel(newTx)
 	if err != nil {
 		return err
 	}
 
-	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
-		err = txs.connectOutputsWithBaskets(tx, newTx, model)
-		if err != nil {
-			return fmt.Errorf("failed to connect outputs with baskets: %w", err)
-		}
+	if err = txs.connectOutputsWithBaskets(tx, newTx, model); err != nil {
+		return fmt.Errorf("failed to connect outputs with baskets: %w", err)
+	}
 
-		if err = tx.Create(model).Error; err != nil {
-			return fmt.Errorf("failed to create new transaction model: %w", err)
-		}
+	if err = tx.Create(model).Error; err != nil {
+		return fmt.Errorf("failed to create new transaction model: %w", err)
+	}
 
-		if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
-			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
-		}
+	if err = txs.reserveUTXOs(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+		return err
+	}
 
+	if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
+		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
+	}
+
+	return nil
+}
+
+// reserveUTXOs atomically reserves UTXOs for a transaction with a guard to detect concurrent reservation.
+// Returns ErrUTXOContention if another transaction already reserved any of the requested UTXOs.
+// The bounded retry on this error happens one layer up, in create.Create — this method itself
+// does not retry.
+func (txs *Transactions) reserveUTXOs(tx *gorm.DB, transactionID uint, userID int, outputIDs []uint) error {
+	if len(outputIDs) == 0 {
 		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	result := tx.Model(&models.UserUTXO{}).
+		Where("user_id = ? AND output_id IN ? AND reserved_by_id IS NULL", userID, outputIDs).
+		Update("reserved_by_id", transactionID)
+	if result.Error != nil {
+		return fmt.Errorf("failed to reserve UTXOs: %w", result.Error)
+	}
+	if result.RowsAffected != int64(len(outputIDs)) {
+		return fmt.Errorf("%w: reserving selected utxos: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
 	}
 	return nil
 }
@@ -93,13 +152,6 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 			return &models.Label{
 				Name:   string(label),
 				UserID: newTx.UserID,
-			}
-		}),
-		// TODO: verify if this won't blow up for not created UTXOs (when we're using noSendChange - which are not in UTXO table)
-		ReservedUtxos: slices.Map(newTx.ReservedOutputIDs, func(reservedOutputID uint) *models.UserUTXO {
-			return &models.UserUTXO{
-				UserID:   newTx.UserID,
-				OutputID: reservedOutputID,
 			}
 		}),
 		Outputs: outputs,
@@ -198,16 +250,19 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 		return nil
 	}
 
-	err := tx.Model(&models.Output{}).
+	result := tx.Model(&models.Output{}).
 		Where("id IN ?", outputIDs).
 		Where("user_id = ?", userID).
+		Where("spent_by IS NULL").
 		Updates(map[string]interface{}{
 			"spendable": false,
 			"spent_by":  spendingTransactionID,
-		}).
-		Error
-	if err != nil {
-		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
+		})
+	if result.Error != nil {
+		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", result.Error)
+	}
+	if result.RowsAffected != int64(len(outputIDs)) {
+		return fmt.Errorf("%w: claiming provided inputs: expected %d, got %d", ErrProvidedInputConflict, len(outputIDs), result.RowsAffected)
 	}
 	return nil
 }
@@ -369,7 +424,7 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			Status:          updatedTx.ReqTxStatus,
 			RawTx:           updatedTx.RawTx,
 			InputBeef:       updatedTx.InputBeef,
-			SkipForStatuses: []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted},
+			SkipForStatuses: wdk.ProvenTxReqBeyondBroadcastStageStatuses,
 		}, txNote)
 	})
 	if err != nil {
@@ -378,26 +433,45 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus) error {
+// statusInCondition is the shared WHERE fragment for status-set filters and CAS preconditions.
+const statusInCondition = "status IN ?"
+
+// UpdateTransactionStatusByTxID updates every transaction row matching txID to txStatus.
+// When expectedCurrent is non-empty it is applied as a positive CAS precondition
+// (AND status IN (...)); a zero-row result — absent row or failed precondition —
+// returns a %w-wrapped ErrStatusUpdateSkipped instead of a silent no-op.
+func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID string, txStatus wdk.TxStatus, expectedCurrent ...wdk.TxStatus) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByTxID", attribute.String("TransactionID", txID), attribute.String("Status", string(txStatus)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = txs.db.WithContext(ctx).Model(models.Transaction{}).
-		Where("tx_id = ?", txID).
-		Updates(map[string]any{
-			"status": txStatus,
-		}).Error
-	if err != nil {
-		return fmt.Errorf("failed to update transaction status by txID: %w", err)
+	query := txs.db.WithContext(ctx).Model(models.Transaction{}).
+		Where("tx_id = ?", txID)
+	if len(expectedCurrent) > 0 {
+		query = query.Where(statusInCondition, expectedCurrent)
+	}
+
+	result := query.Updates(map[string]any{
+		"status": txStatus,
+	})
+	if result.Error != nil {
+		err = fmt.Errorf("failed to update transaction status by txID: %w", result.Error)
+		return err
+	}
+	if result.RowsAffected == 0 {
+		err = fmt.Errorf("%w: transaction(s) with txID %s -> %s (expected current %v)", ErrStatusUpdateSkipped, txID, txStatus, expectedCurrent)
+		return err
 	}
 
 	return nil
 }
 
-func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus) error {
+// UpdateTransactionStatusByID updates a single transaction (by primary key) to txStatus.
+// When expectedCurrent is non-empty it is applied as a positive CAS precondition;
+// a zero-row result returns a %w-wrapped ErrStatusUpdateSkipped.
+func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transactionID uint, txStatus wdk.TxStatus, expectedCurrent ...wdk.TxStatus) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-UpdateTransactionStatusByID", attribute.String("TransactionID", fmt.Sprintf("%d", transactionID)), attribute.String("Status", string(txStatus)))
 	defer func() {
@@ -405,11 +479,19 @@ func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transa
 	}()
 
 	table := txs.query.Transaction
-	_, err = table.WithContext(ctx).
-		Where(table.ID.Eq(transactionID)).
-		Update(table.Status, txStatus)
+	dao := table.WithContext(ctx).Where(table.ID.Eq(transactionID))
+	if len(expectedCurrent) > 0 {
+		dao = dao.Where(table.Status.In(slices.Map(expectedCurrent, func(s wdk.TxStatus) string { return string(s) })...))
+	}
+
+	info, err := dao.Update(table.Status, txStatus)
 	if err != nil {
-		return fmt.Errorf("update query for transaction status failed: %w", err)
+		err = fmt.Errorf("update query for transaction status failed: %w", err)
+		return err
+	}
+	if info.RowsAffected == 0 {
+		err = fmt.Errorf("%w: transaction with ID %d -> %s (expected current %v)", ErrStatusUpdateSkipped, transactionID, txStatus, expectedCurrent)
+		return err
 	}
 	return nil
 }
@@ -450,7 +532,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			Where("user_id = ?", userID)
 
 		if len(filter.Status) > 0 {
-			query = query.Where("status IN ?", filter.Status)
+			query = query.Where(statusInCondition, filter.Status)
 		}
 
 		if len(filter.Labels) > 0 {
@@ -491,7 +573,7 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 		Where("user_id = ?", userID)
 
 	if len(filter.Status) > 0 {
-		query = query.Where("status IN ?", filter.Status)
+		query = query.Where(statusInCondition, filter.Status)
 	}
 	if len(filter.Labels) > 0 {
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
@@ -698,6 +780,53 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 	}), nil
 }
 
+func (txs *Transactions) FindTransactionIDsForAbort(ctx context.Context, opts ...queryopts.Options) ([]uint, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-FindTransactionIDsForAbort")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	txTable := txs.query.Transaction.TableName()
+	knownTxTable := txs.query.KnownTx.TableName()
+
+	query := txs.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Select(txTable+".id").
+		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.tx_id = %s.tx_id", knownTxTable, knownTxTable, txTable)).
+		Where(
+			fmt.Sprintf(
+				"(%s.status = ? OR (%s.status = ? AND COALESCE(%s.status, ?) = ?))",
+				txTable, txTable, knownTxTable,
+			),
+			wdk.TxStatusUnsigned,
+			wdk.TxStatusUnprocessed,
+			string(wdk.ProvenTxStatusUnprocessed),
+			wdk.ProvenTxStatusUnprocessed,
+		).
+		Order(txTable + ".created_at ASC")
+
+	options := queryopts.MergeOptions(opts)
+	if options.Until != nil {
+		options.Until.ApplyDefaults()
+		query = query.Where(fmt.Sprintf("%s.created_at <= ?", txTable), options.Until.Time)
+	}
+	if options.Page != nil {
+		options.Page.ApplyDefaults()
+		query = query.Offset(options.Page.Offset).Limit(options.Page.Limit)
+	}
+
+	var rows []*models.Transaction
+	err = query.Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("query for finding transaction ids for abort failed: %w", err)
+	}
+
+	return slices.Map(rows, func(row *models.Transaction) uint {
+		return row.ID
+	}), nil
+}
+
 func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Transaction) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-AddTransaction")
@@ -751,9 +880,14 @@ func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.
 		return nil
 	}
 
-	_, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	var info gen.ResultInfo
+	info, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
+	}
+	if info.RowsAffected == 0 {
+		err = fmt.Errorf("no rows updated for ID=%d", spec.ID)
+		return err
 	}
 
 	return nil

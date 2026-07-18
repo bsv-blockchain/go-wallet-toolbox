@@ -67,6 +67,23 @@ func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ..
 			Select(fmt.Sprintf("%s.*, num.num_id as basket_num_id", s.tableName())).
 			Scopes(filters...).
 			Scopes(joinWithNumericIDLookupScope(s.query, basketStringIDClause, s.query.OutputBasket.TableName(), clause.LeftJoin)).
+			// Deterministic tiebreak for offset pagination.
+			//
+			// The shared Paginate scope orders by `created_at DESC`, which is NOT a
+			// total order: a single create-action batch-inserts many rows sharing one
+			// `created_at`. Offset pagination over a non-total order is undefined —
+			// SQLite happens to break ties by rowid (insert order) so it looked stable,
+			// but Postgres returns tied rows in heap order, so chunk offsets could skip
+			// or duplicate rows (and index-based assertions in TestGetSyncChunk failed).
+			//
+			// Appending the unique primary key makes the order total and identical on
+			// every engine while preserving the existing `created_at DESC` primary sort.
+			// It does NOT affect the sync boundary: `syncState.When` is the max
+			// `updated_at` over all processed rows (chunk_processor.updateSyncState),
+			// computed independent of the order rows are returned in.
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				return db.Order(clause.OrderByColumn{Column: clause.Column{Table: s.tableName(), Name: "id"}})
+			}).
 			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
 				return db.Select("id, tx_id")
 			}).

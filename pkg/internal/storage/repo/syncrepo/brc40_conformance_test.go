@@ -213,6 +213,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 
 	basket := defaultBasket
 	existingSpentBy := asOptionalUint(t, v.Input.Existing["spentBy"])
+	seedSpenderTx(t, d.DB, existingSpentBy) // spent_by FK → bsv_transactions
 	_, outID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt:     parseISO(t, asString(v.Input.Existing["created_at"])),
 		UpdatedAt:     parseISO(t, asString(v.Input.Existing["updated_at"])),
@@ -229,6 +230,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 
 	// Drive incoming.
 	incomingSpentBy := asOptionalUint(t, v.Input.Incoming["spentBy"])
+	seedSpenderTx(t, d.DB, incomingSpentBy) // spent_by FK → bsv_transactions
 	_, _, err = repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt:     parseISO(t, asString(v.Input.Incoming["created_at"])),
 		UpdatedAt:     parseISO(t, asString(v.Input.Incoming["updated_at"])),

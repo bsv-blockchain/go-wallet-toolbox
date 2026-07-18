@@ -7,7 +7,27 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
+
+// CannedSendWaitingTxID is the txID carried by the canned SendWaitingTransactions result below, so
+// tests asserting the SendWaiting task's channel forwarding can match the emitted message.
+const CannedSendWaitingTxID = "0000000000000000000000000000000000000000000000000000000000000abc"
+
+// CannedSendWaitingResult is returned by MockStorage.SendWaitingTransactions. It carries a single
+// NotDelayedResults entry so the SendWaiting monitor task has something to forward onto the
+// TxBroadcasted channel (previously the storage layer always returned nil, so the forwarding path
+// was dead code that no test could exercise).
+var CannedSendWaitingResult = &wdk.ProcessActionResult{
+	NotDelayedResults: []wdk.ReviewActionResult{
+		{
+			TxID:      primitives.TXIDHexString(CannedSendWaitingTxID),
+			Status:    wdk.ReviewActionResultStatusSuccess,
+			Reference: "canned-reference",
+			Labels:    []string{"canned-label"},
+		},
+	},
+}
 
 type MockStorage struct {
 	SynchronizeTransactionStatusesCalled atomic.Int64
@@ -36,7 +56,7 @@ func (m *MockStorage) SynchronizeTransactionStatuses(_ context.Context) ([]wdk.T
 func (m *MockStorage) SendWaitingTransactions(_ context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error) {
 	m.SendWaitingTransactionsCalled.Add(1)
 	m.SendWaitingLastMinTransactionAge = minTransactionAge
-	return nil, nil
+	return CannedSendWaitingResult, nil
 }
 
 func (m *MockStorage) AbortAbandoned(_ context.Context) error {

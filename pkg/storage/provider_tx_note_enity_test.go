@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
@@ -81,6 +82,11 @@ func TestTxNoteFilters(t *testing.T) {
 }
 
 func insertTxNote(db *gorm.DB, txID, what string, userID *int, createdAt time.Time) (*models.TxNote, error) {
+	// Seed the parent bsv_known_txes row so the bsv_tx_notes.tx_id FK holds on
+	// Postgres (SQLite ignored the FK). Idempotent for repeated tx_ids.
+	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.KnownTx{TxID: txID}).Error; err != nil {
+		return nil, err
+	}
 	note := &models.TxNote{
 		TxID:      txID,
 		What:      what,

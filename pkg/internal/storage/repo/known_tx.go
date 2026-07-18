@@ -64,6 +64,32 @@ func (p *KnownTx) UpdateKnownTxStatus(ctx context.Context, txID string, status w
 	return updateKnownTxStatus(p.db.WithContext(ctx), txID, status, skipForStatuses, txNotes)
 }
 
+func (p *KnownTx) MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-MarkKnownTxsAsSubmitting")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(txIDs) == 0 {
+		return nil
+	}
+
+	err = p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Where("tx_id IN ?", txIDs).
+		Where("status = ?", wdk.ProvenTxStatusUnprocessed).
+		UpdateColumns(map[string]any{
+			"status":        wdk.ProvenTxStatusSending,
+			"was_broadcast": true,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to mark known txs as submitting: %w", err)
+	}
+
+	return nil
+}
+
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
 	var model models.KnownTx
 	err := tx.First(&model, "tx_id = ? ", req.TxID).Error
@@ -241,12 +267,17 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 		updates["was_broadcast"] = true
 	}
 
-	err := query.UpdateColumns(updates).Error
-	if err != nil {
-		return fmt.Errorf("failed to update known tx status: %w", err)
+	result := query.UpdateColumns(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update known tx status: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("%w: known tx %s -> %s", ErrStatusUpdateSkipped, txID, status)
 	}
 
-	err = addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+	// History notes are recorded only for transitions that actually matched a row;
+	// a skipped update (skip-list or absent row) must not leave misleading notes.
+	err := addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
 		return note.Entity(txID)
 	}))
 	if err != nil {
@@ -813,14 +844,14 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 			notes = append(notes, note)
 		}
 
-		if err := addTxNotes(tx, notes); err != nil {
-			return fmt.Errorf("failed to add reorg history notes: %w", err)
+		if notesErr := addTxNotes(tx, notes); notesErr != nil {
+			return fmt.Errorf("failed to add reorg history notes: %w", notesErr)
 		}
 
 		return nil
 	})
 
-	return affected, nil
+	return affected, err
 }
 
 func mapModelToEntityKnownTx(model *models.KnownTx) *pkgentity.KnownTx {

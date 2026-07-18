@@ -78,7 +78,9 @@ func TestBRC40Guard_KnownTx_EqualSkip(t *testing.T) {
 	repos := d.CreateRepositories()
 
 	t0 := time.Date(2026, 4, 23, 13, 0, 0, 0, time.UTC)
-	txID := "a1b2c3d4e5f60718293a4b5c6d7e8f9001112233445566778899aabbccddeeff0"
+	// 64 hex chars: bsv_known_txes.tx_id is varchar(64); the previous literal was
+	// 65 chars, which SQLite silently truncated/accepted but Postgres rejects.
+	txID := "a1b2c3d4e5f60718293a4b5c6d7e8f9001112233445566778899aabbccddeeff"
 	merklePath := []byte{0xab, 0xcd}
 	merkleRoot := "root-equal"
 	blockHash := "hash-equal"
@@ -314,6 +316,7 @@ func TestBRC40Guard_Output_SpendableRegression(t *testing.T) {
 	require.NoError(t, err)
 
 	spentBy := uint(42)
+	seedSpenderTx(t, d.DB, &spentBy) // spent_by FK → bsv_transactions
 	basketName := defaultBasket
 	// Seed newer: spendable=false (consumed), spent_by=42
 	isNew, outputID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
@@ -391,6 +394,7 @@ func TestBRC40Guard_Output_HappyUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	spentBy := uint(99)
+	seedSpenderTx(t, d.DB, &spentBy) // spent_by FK → bsv_transactions
 	_, _, err = repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt: tOld, UpdatedAt: tNew,
 		UserID: user.ID, TransactionID: txnDBID,
@@ -430,6 +434,7 @@ func TestBRC40Guard_Output_EqualSkip(t *testing.T) {
 	require.NoError(t, err)
 
 	spentBy := uint(7)
+	seedSpenderTx(t, d.DB, &spentBy) // spent_by FK → bsv_transactions
 	basketName := defaultBasket
 	_, outputID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt: t0, UpdatedAt: t0,

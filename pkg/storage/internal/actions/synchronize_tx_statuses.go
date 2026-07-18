@@ -49,6 +49,7 @@ type synchronizeTxStatuses struct {
 	transactionRepo      TransactionsRepo
 	outputRepo           OutputRepo
 	checkNoSendDuration  time.Duration
+	uow                  UnitOfWork
 }
 
 func newSynchronizeTxStatuses(
@@ -59,6 +60,7 @@ func newSynchronizeTxStatuses(
 	keyValueRepo KeyValueRepo,
 	transactionRepo TransactionsRepo,
 	outputRepo OutputRepo,
+	uow UnitOfWork,
 ) *synchronizeTxStatuses {
 	logger = logging.Child(logger, "synchronize_tx_statuses")
 
@@ -75,6 +77,7 @@ func newSynchronizeTxStatuses(
 		transactionRepo:      transactionRepo,
 		outputRepo:           outputRepo,
 		checkNoSendDuration:  time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
+		uow:                  uow,
 	}
 }
 
@@ -485,19 +488,29 @@ func (s *synchronizeTxStatuses) reviewKnownTxStatuses(ctx context.Context) error
 		}
 
 		for _, failedTx := range failedKnownTxs {
-			transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, failedTx.TxID)
+			err := s.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+				transactionIDs, uowErr := repos.TransactionsRepo().FindTransactionIDsByTxID(txCtx, failedTx.TxID)
+				if uowErr != nil {
+					return fmt.Errorf("failed to find transaction IDs for terminal failed tx %s: %w", failedTx.TxID, uowErr)
+				}
+
+				for _, transactionID := range transactionIDs {
+					if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, transactionID, wdk.TxStatusFailed); uowErr != nil {
+						return fmt.Errorf("failed to set failed transaction status for tx %s: %w", failedTx.TxID, uowErr)
+					}
+
+					if uowErr := repos.OutputRepo().RecreateSpentOutputs(txCtx, transactionID); uowErr != nil {
+						return fmt.Errorf("failed to restore spent outputs for terminal failed tx %s: %w", failedTx.TxID, uowErr)
+					}
+
+					if uowErr := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, transactionID); uowErr != nil {
+						return fmt.Errorf("failed to mark created outputs as not spendable for terminal failed tx %s: %w", failedTx.TxID, uowErr)
+					}
+				}
+				return nil
+			})
 			if err != nil {
-				return fmt.Errorf("failed to find transaction IDs for terminal failed tx %s: %w", failedTx.TxID, err)
-			}
-
-			for _, transactionID := range transactionIDs {
-				if err := s.transactionRepo.UpdateTransactionStatusByID(ctx, transactionID, wdk.TxStatusFailed); err != nil {
-					return fmt.Errorf("failed to set failed transaction status for tx %s: %w", failedTx.TxID, err)
-				}
-
-				if err := s.outputRepo.RecreateSpentOutputs(ctx, transactionID); err != nil {
-					return fmt.Errorf("failed to restore spent outputs for terminal failed tx %s: %w", failedTx.TxID, err)
-				}
+				return err
 			}
 		}
 

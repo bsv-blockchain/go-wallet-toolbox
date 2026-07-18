@@ -253,7 +253,11 @@ func TestTransactionPagedFind(t *testing.T) {
 
 func seedDbWithTransactions(t testing.TB) *storage.Provider {
 	given, cleanup := testabilities.Given(t)
-	defer cleanup()
+	// NOTE: register cleanup with t.Cleanup (not defer): the returned provider is
+	// used by the caller after this helper returns. Under Postgres the cleanup
+	// drops the schema and closes the pool, so a defer here would close the DB
+	// before the test runs (SQLite's cleanup is a no-op, which hid this).
+	t.Cleanup(cleanup)
 
 	activeStorage := given.Provider().GORM()
 
