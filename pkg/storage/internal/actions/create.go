@@ -108,6 +108,7 @@ type CreateActionParams struct {
 	TrustSelf                bool
 	IsNoSend                 bool
 	IsDelayed                bool
+	FuelShape                *wdk.ShapedChange
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -126,6 +127,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		NoSendChange:             args.Options.NoSendChange,
 		IsDelayed:                args.IsDelayed,
 		KnownTxIDs:               args.Options.KnownTxids,
+		FuelShape:                args.Options.FuelShape,
 	}
 }
 
@@ -241,10 +243,26 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// status tiers and a single deterministic change output), falling back to
 	// the default basket when the pool cannot cover the request. Sweeps always
 	// use the legacy default-basket path — a sweep must never drain the pool.
+	//
+	// Fan-out actions (FuelShape set) invert the flow: leaf shapes (minting
+	// into the pool basket) fund from the RESERVE basket, and chunk shapes
+	// (minting into the reserve basket) fund from the default basket directly —
+	// a fan-out must never consume the pool it replenishes.
+	if err = c.validateFuelShape(params.FuelShape, isSweep); err != nil {
+		return nil, err
+	}
+
 	fundingBasket := basket
 	useThroughput := c.throughput.Enabled && !isSweep
 	if useThroughput {
-		fundingBasket, err = c.ensureFuelBasket(ctx, userID)
+		switch {
+		case params.FuelShape != nil && string(params.FuelShape.Basket) == c.throughput.PoolBasket:
+			fundingBasket, err = c.ensureBasket(ctx, userID, c.throughput.ReserveBasket)
+		case params.FuelShape != nil:
+			fundingBasket = basket
+		default:
+			fundingBasket, err = c.ensureBasket(ctx, userID, c.throughput.PoolBasket)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -350,6 +368,19 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	outputCount := uint64(len(params.Outputs))
 	if commOut != nil {
 		outputCount++
+	}
+
+	// Shaped change accounting: the minted outputs are storage change, so they
+	// are covered like target satoshis (value) and provided outputs (size)
+	// rather than through the change heuristics.
+	if params.FuelShape != nil {
+		shapeValue, shapeErr := satoshi.Multiply(params.FuelShape.Count, uint64(params.FuelShape.Satoshis))
+		if shapeErr != nil {
+			return nil, fmt.Errorf("invalid fuel shape value: %w", shapeErr)
+		}
+		targetSat = satoshi.MustAdd(targetSat, shapeValue)
+		initialTxSize += params.FuelShape.Count * txutils.P2PKHOutputSize
+		outputCount += params.FuelShape.Count
 	}
 
 	var funding *funder.Result
@@ -478,6 +509,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			params.Outputs,
 			commOut,
 			params.RandomizeOutputs,
+			params.FuelShape,
 		)
 		if noErr != nil {
 			return fmt.Errorf("failed to create new outputs: %w", noErr)
@@ -621,28 +653,60 @@ func (c *create) classifyThroughputOutcome(funding *funder.Result, fundedViaFall
 	return FundingOutcomeMultiClaim
 }
 
-// ensureFuelBasket resolves the throughput pool basket for the user, creating
-// it lazily for users that predate enabling the throughput strategy.
-func (c *create) ensureFuelBasket(ctx context.Context, userID int) (*pkgentity.OutputBasket, error) {
-	fuelBasket, err := c.basketRepo.FindBasketByName(ctx, userID, c.throughput.PoolBasket)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find fuel basket: %w", err)
+// validateFuelShape checks a fan-out request against the throughput
+// configuration. A nil shape is always valid (the common case).
+func (c *create) validateFuelShape(shape *wdk.ShapedChange, isSweep bool) error {
+	if shape == nil {
+		return nil
 	}
-	if fuelBasket != nil {
-		return fuelBasket, nil
+	if !c.throughput.Enabled {
+		return fmt.Errorf("fuelShape requires the throughput UTXO management strategy")
+	}
+	if isSweep {
+		return fmt.Errorf("fuelShape cannot be combined with a sweep output")
+	}
+	if shape.Count == 0 || shape.Count > c.throughput.FanoutOutputsPerTx {
+		return fmt.Errorf("fuelShape count %d must be in 1..%d (fanout_outputs_per_tx)", shape.Count, c.throughput.FanoutOutputsPerTx)
 	}
 
-	if err = c.basketRepo.FindOrCreateBasket(ctx, userID, c.throughput.PoolBasket); err != nil {
-		return nil, fmt.Errorf("failed to create fuel basket: %w", err)
+	switch string(shape.Basket) {
+	case c.throughput.PoolBasket:
+		if uint64(shape.Satoshis) != c.throughput.Denomination {
+			return fmt.Errorf("fuelShape satoshis %d must equal the active denomination %d for pool-basket shapes", shape.Satoshis, c.throughput.Denomination)
+		}
+	case c.throughput.ReserveBasket:
+		minChunk := c.throughput.FanoutOutputsPerTx * c.throughput.Denomination
+		if uint64(shape.Satoshis) < minChunk {
+			return fmt.Errorf("fuelShape satoshis %d must be at least fanout_outputs_per_tx × denomination = %d for reserve-basket (chunk) shapes", shape.Satoshis, minChunk)
+		}
+	default:
+		return fmt.Errorf("fuelShape basket %q must be the pool (%s) or reserve (%s) basket", shape.Basket, c.throughput.PoolBasket, c.throughput.ReserveBasket)
 	}
-	fuelBasket, err = c.basketRepo.FindBasketByName(ctx, userID, c.throughput.PoolBasket)
+	return nil
+}
+
+// ensureBasket resolves one of the throughput baskets for the user, creating
+// it lazily for users that predate enabling the throughput strategy.
+func (c *create) ensureBasket(ctx context.Context, userID int, name string) (*pkgentity.OutputBasket, error) {
+	found, err := c.basketRepo.FindBasketByName(ctx, userID, name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find fuel basket after creation: %w", err)
+		return nil, fmt.Errorf("failed to find basket %q: %w", name, err)
 	}
-	if fuelBasket == nil {
-		return nil, fmt.Errorf("fuel basket (%s) not found after creation", c.throughput.PoolBasket)
+	if found != nil {
+		return found, nil
 	}
-	return fuelBasket, nil
+
+	if err = c.basketRepo.FindOrCreateBasket(ctx, userID, name); err != nil {
+		return nil, fmt.Errorf("failed to create basket %q: %w", name, err)
+	}
+	found, err = c.basketRepo.FindBasketByName(ctx, userID, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find basket %q after creation: %w", name, err)
+	}
+	if found == nil {
+		return nil, fmt.Errorf("basket %q not found after creation", name)
+	}
+	return found, nil
 }
 
 func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint, ref string) ([]*pkgentity.Output, error) {
@@ -780,10 +844,14 @@ func (c *create) newOutputs(
 	providedOutputs []wdk.ValidCreateActionOutput,
 	commissionOutput *serviceChargeOutput,
 	randomizeOutputs bool,
+	fuelShape *wdk.ShapedChange,
 ) ([]*entity.NewOutput, error) {
 	length := must.ConvertToIntFromUnsigned(changeCount) + len(providedOutputs)
 	if commissionOutput != nil {
 		length++
+	}
+	if fuelShape != nil {
+		length += must.ConvertToIntFromUnsigned(fuelShape.Count)
 	}
 	len32 := must.ConvertToUInt32(length)
 
@@ -838,6 +906,32 @@ func (c *create) newOutputs(
 			DerivationSuffix: to.Ptr(derivationSuffix),
 			Purpose:          wdk.ChangePurpose,
 		})
+	}
+
+	if fuelShape != nil {
+		// Shaped fan-out outputs are ordinary storage change rows in the fuel
+		// or reserve basket: Change=true materializes them as claimable
+		// UserUTXOs on broadcast success, and ProvidedBy=storage +
+		// Purpose=change lets the client assembler derive their locking
+		// scripts exactly like normal change.
+		for range fuelShape.Count {
+			derivationSuffix, err := c.randomDerivation()
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate random derivation suffix for shaped change: %w", err)
+			}
+
+			all = append(all, &entity.NewOutput{
+				Satoshis:         satoshi.MustFrom(fuelShape.Satoshis),
+				BasketName:       to.Ptr(string(fuelShape.Basket)),
+				Spendable:        true,
+				Change:           true,
+				ProvidedBy:       wdk.ProvidedByStorage,
+				Type:             wdk.OutputTypeP2PKH,
+				DerivationPrefix: to.Ptr(derivationPrefix),
+				DerivationSuffix: to.Ptr(derivationSuffix),
+				Purpose:          wdk.ChangePurpose,
+			})
+		}
 	}
 
 	if randomizeOutputs {

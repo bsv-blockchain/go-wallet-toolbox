@@ -387,6 +387,38 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	return result, nil
 }
 
+// FanOutFuel creates, signs, and broadcasts one fan-out transaction of the
+// throughput UTXO-management strategy: it mints shape.Count exact-value
+// storage change outputs into shape.Basket (the fuel or reserve basket).
+// Leaf shapes (into the pool basket) are funded from the reserve basket;
+// chunk shapes (into the reserve basket) are funded from the default basket.
+// The storage must run with strategy=throughput or the call fails.
+func (w *Wallet) FanOutFuel(ctx context.Context, shape wdk.ShapedChange, originator string) (*sdk.CreateActionResult, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Wallet-FanOutFuel", attribute.String("originator", originator))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	action := &actions.CreateAction{
+		KeyDeriver:              w.keyDeriver,
+		Storage:                 w.storage,
+		WalletOpts:              w.flags,
+		PendingSignActionsCache: w.pendingSignActionsCache,
+		WdkArgsMutator: func(args *wdk.ValidCreateActionArgs) {
+			args.Options.FuelShape = &shape
+		},
+	}
+
+	result, err := action.CreateAction(ctx, sdk.CreateActionArgs{
+		Description: "fuel fan-out",
+	}, originator)
+	if err != nil {
+		return nil, fmt.Errorf("fan-out fuel failed: %w", err)
+	}
+	return result, nil
+}
+
 // SignAction signs a transaction previously created using CreateAction.
 func (w *Wallet) SignAction(ctx context.Context, args sdk.SignActionArgs, originator string) (*sdk.SignActionResult, error) {
 	var err error

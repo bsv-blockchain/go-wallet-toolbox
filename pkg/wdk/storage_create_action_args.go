@@ -52,6 +52,21 @@ func (o *ValidCreateActionOutput) ScriptLength() (uint64, error) {
 	return lengthInBytes, nil
 }
 
+// ShapedChange requests exact-value storage change outputs — the fan-out
+// minting primitive of the throughput UTXO-management strategy. This is a
+// toolbox extension, not part of BRC-100: it is absent unless set by the fuel
+// keeper, and requires the storage to run with StrategyThroughput.
+type ShapedChange struct {
+	// Count is the number of exact-value outputs to mint (1..fanout_outputs_per_tx).
+	Count uint64 `json:"count"`
+	// Satoshis is the exact value of every minted output: the active
+	// denomination for pool-basket (leaf) shapes; at least
+	// fanout_outputs_per_tx × denomination for reserve-basket (chunk) shapes.
+	Satoshis primitives.SatoshiValue `json:"satoshis"`
+	// Basket is the destination: the configured pool or reserve basket.
+	Basket primitives.StringUnder300 `json:"basket"`
+}
+
 // ValidCreateActionOptions represents options for createAction
 type ValidCreateActionOptions struct {
 	AcceptDelayedBroadcast *primitives.BooleanDefaultTrue  `json:"acceptDelayedBroadcast,omitempty"`
@@ -63,6 +78,10 @@ type ValidCreateActionOptions struct {
 	KnownTxids             primitives.TXIDHexStrings       `json:"knownTxids"`
 	NoSendChange           []OutPoint                      `json:"noSendChange"`
 	RandomizeOutputs       bool                            `json:"randomizeOutputs"`
+
+	// FuelShape mints Count exact-value storage change outputs into the fuel or
+	// reserve basket (throughput strategy only). See ShapedChange.
+	FuelShape *ShapedChange `json:"fuelShape,omitempty"`
 }
 
 // ValidCreateActionArgs represents the arguments for creating a transaction action
