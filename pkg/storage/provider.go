@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -47,6 +48,10 @@ type Provider struct {
 	services      wdk.Services
 
 	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
+
+	// fuelDenomination is the resolved fuel UTXO value in satoshis when the
+	// throughput strategy is enabled; 0 under the privacy strategy.
+	fuelDenomination uint64
 }
 
 type providersWrapper struct {
@@ -107,6 +112,15 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		MinimumDesiredUTXOValue: options.ChangeBasket.MinimumDesiredUTXOValue,
 	}
 
+	var fuelDenomination uint64
+	if options.UTXOManagement.Enabled() {
+		// verify() already validated the throughput config, so derivation cannot fail here.
+		fuelDenomination, err = options.UTXOManagement.Throughput.Denomination(options.FeeModel, options.Commission)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve fuel denomination: %w", err)
+		}
+	}
+
 	p := &Provider{
 		Chain:         chain,
 		Database:      db,
@@ -126,9 +140,10 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			options.scriptsVerifier(),
 			options.BackgroundBroadcasterChannel,
 		),
-		options:  &options,
-		logger:   log,
-		services: services,
+		options:          &options,
+		logger:           log,
+		services:         services,
+		fuelDenomination: fuelDenomination,
 	}
 	p.defaultChangeBasket.Store(&defaultBasketCfg)
 	return p, nil
@@ -395,7 +410,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		ctx,
 		identityKey,
 		settings.StorageIdentityKey,
-		*p.defaultChangeBasket.Load(),
+		p.seedBaskets()...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert user: %w", err)
@@ -423,6 +438,38 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		User:  *user.ToWDK(),
 		IsNew: true,
 	}, nil
+}
+
+// seedBaskets returns the basket configurations every new user is created
+// with: the default change basket, plus — under the throughput strategy — the
+// fuel basket (min value = denomination, desired = target pool size, both
+// informational since throughput funding bypasses the change heuristics) and
+// the reserve basket (0/0, like other non-change baskets).
+func (p *Provider) seedBaskets() []wdk.BasketConfiguration {
+	baskets := []wdk.BasketConfiguration{*p.defaultChangeBasket.Load()}
+	if !p.options.UTXOManagement.Enabled() {
+		return baskets
+	}
+
+	throughput := &p.options.UTXOManagement.Throughput
+	targetPool := throughput.TargetPool()
+	desired := int64(math.MaxInt64)
+	if targetPool <= math.MaxInt64 {
+		desired = int64(targetPool) //nolint:gosec // bounded by the check above
+	}
+
+	return append(baskets,
+		wdk.BasketConfiguration{
+			Name:                    primitives.StringUnder300(throughput.PoolBasket),
+			NumberOfDesiredUTXOs:    desired,
+			MinimumDesiredUTXOValue: p.fuelDenomination,
+		},
+		wdk.BasketConfiguration{
+			Name:                    primitives.StringUnder300(throughput.ReserveBasket),
+			NumberOfDesiredUTXOs:    wdk.NonChangeBasketConfiguration.NumberOfDesiredUTXOs,
+			MinimumDesiredUTXOValue: wdk.NonChangeBasketConfiguration.MinimumDesiredUTXOValue,
+		},
+	)
 }
 
 // SetDefaultChangeBasket updates the basket configuration used when creating new users.

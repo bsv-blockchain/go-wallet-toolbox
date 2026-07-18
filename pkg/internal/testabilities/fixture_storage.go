@@ -135,6 +135,7 @@ func newStorageFixture(t testing.TB, identityKey, name string, configModifiers .
 		failAbandoned:          defs.DefaultFailAbandoned(),
 		syncTxStatuses:         defs.DefaultSynchronizeTxStatuses(),
 		changeBasket:           defs.DefaultChangeBasket(),
+		utxoManagement:         defs.DefaultUTXOManagement(),
 		randomizer:             randomizer.New(),
 		beefVerifierFixture:    newBeefVerifierFixture(),
 		scriptsVerifierFixture: newScriptsVerifierFixture(),
