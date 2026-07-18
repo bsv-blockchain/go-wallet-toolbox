@@ -539,6 +539,8 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
+		query = applyListActionsTimeFilters(query, filter)
+
 		if err = query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
@@ -579,7 +581,25 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 	}
 
+	query = applyListActionsTimeFilters(query, filter)
+
 	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+}
+
+// applyListActionsTimeFilters applies BRC-114 created_at range filters.
+// from is inclusive; to is exclusive — matching the TypeScript implementation.
+func applyListActionsTimeFilters(query *gorm.DB, filter entity.ListActionsFilter) *gorm.DB {
+	if !filter.TimeFilterRequested {
+		return query
+	}
+	query = query.Where("created_at IS NOT NULL")
+	if filter.CreatedAtFrom != nil {
+		query = query.Where("created_at >= ?", *filter.CreatedAtFrom)
+	}
+	if filter.CreatedAtTo != nil {
+		query = query.Where("created_at < ?", *filter.CreatedAtTo)
+	}
+	return query
 }
 
 // GetLabelsForSelectedActions fetches labels via JOIN with the selected actions subquery to avoid IN lists.

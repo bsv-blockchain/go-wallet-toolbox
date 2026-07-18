@@ -478,6 +478,15 @@ func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity
 		}
 		selected = selected.Where("id IN (?)", subQuery)
 	}
+	if filter.TimeFilterRequested {
+		selected = selected.Where("created_at IS NOT NULL")
+		if filter.CreatedAtFrom != nil {
+			selected = selected.Where("created_at >= ?", *filter.CreatedAtFrom)
+		}
+		if filter.CreatedAtTo != nil {
+			selected = selected.Where("created_at < ?", *filter.CreatedAtTo)
+		}
+	}
 	return selected.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
 }
 

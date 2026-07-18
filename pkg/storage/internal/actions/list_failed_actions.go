@@ -78,7 +78,7 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 		IncludeInputSourceLockingScripts: args.IncludeInputSourceLockingScripts,
 		IncludeInputUnlockingScripts:     args.IncludeInputUnlockingScripts,
 	}
-	if err := l.mapInputsOutputsLabels(actions, txs, inputMap, outputMap, labelMap, rawTxMap, mappingArgs); err != nil {
+	if err := l.mapInputsOutputsLabels(actions, txs, inputMap, outputMap, labelMap, rawTxMap, mappingArgs, filter.TimeFilterRequested); err != nil {
 		return nil, fmt.Errorf("failed to map inputs/outputs/labels: %w", err)
 	}
 
