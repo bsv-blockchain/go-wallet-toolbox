@@ -26,6 +26,18 @@ func TestValidBasketConfiguration_Success(t *testing.T) {
 				Name: primitives.StringUnder300(strings.Repeat("a", 300)),
 			},
 		},
+		"zero MinimumDesiredUTXOValue is allowed for non-change baskets": {
+			config: &wdk.BasketConfiguration{
+				Name:                    "not-the-change-basket",
+				MinimumDesiredUTXOValue: 0,
+			},
+		},
+		"non-zero MinimumDesiredUTXOValue for the change basket": {
+			config: &wdk.BasketConfiguration{
+				Name:                    wdk.BasketNameForChange,
+				MinimumDesiredUTXOValue: 1000,
+			},
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -51,6 +63,13 @@ func TestValidBasketConfiguration_Error(t *testing.T) {
 				Name: primitives.StringUnder300(strings.Repeat("a", 301)),
 			},
 			expectedErr: "invalid Basket name: no more than 300 length",
+		},
+		"zero MinimumDesiredUTXOValue for the change basket": {
+			config: &wdk.BasketConfiguration{
+				Name:                    wdk.BasketNameForChange,
+				MinimumDesiredUTXOValue: 0,
+			},
+			expectedErr: "minimumDesiredUTXOValue must be greater than 0 for the change basket, got 0",
 		},
 	}
 	for name, test := range tests {

@@ -139,3 +139,33 @@ func TestUpdateChangeBasket_ReturnsErrorForUnknownUser(t *testing.T) {
 	// then:
 	require.Error(t, err)
 }
+
+func TestUpdateChangeBasket_RejectsZeroMinimumDesiredUTXOValue(t *testing.T) {
+	// given: an existing user
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORMWithCleanDatabase()
+
+	respAlice, err := activeStorage.FindOrInsertUser(t.Context(), testusers.Alice.IdentityKey(t))
+	require.NoError(t, err)
+
+	// when: updating alice's change basket with MinimumDesiredUTXOValue=0
+	err = activeStorage.UpdateChangeBasket(t.Context(), testusers.Alice.IdentityKey(t), wdk.BasketConfiguration{
+		NumberOfDesiredUTXOs:    100,
+		MinimumDesiredUTXOValue: 0,
+	})
+
+	// then: the update is rejected before it reaches storage
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "minimumDesiredUTXOValue must be greater than 0")
+
+	// and: alice's basket configuration is unchanged
+	aliceBaskets, err := activeStorage.OutputBasketsEntity().Read().
+		UserID().Equals(respAlice.User.UserID).
+		Name().Equals(wdk.BasketNameForChange).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, aliceBaskets, 1)
+	assert.Equal(t, int64(32), aliceBaskets[0].NumberOfDesiredUTXOs)
+}

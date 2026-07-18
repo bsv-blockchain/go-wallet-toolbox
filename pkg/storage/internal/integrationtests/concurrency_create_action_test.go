@@ -21,12 +21,12 @@ import (
 // TestConcurrentCreateActionSameProvidedOutpoint_ExactlyOneSucceeds encodes the
 // provided-input double-claim (Decision Record v1, W0-3; discussion #933).
 //
-// It is INTENTIONALLY RED on current code: user-provided NON-change inputs route
-// to KnownOutputIDs and are claimed only by markReservedOutputsAsNotSpendable,
-// whose `spent_by IS NULL` UPDATE ignores RowsAffected. The spendability check is
-// an in-memory read on the base pool BEFORE the funding txn opens, so N concurrent
-// CreateActions all pass the read and all commit — the losers' UPDATE silently
-// matches 0 rows. W1-1 (RowsAffected equality) turns this test green.
+// User-provided NON-change inputs route to KnownOutputIDs and are claimed only by
+// markReservedOutputsAsNotSpendable, whose `spent_by IS NULL` UPDATE is guarded by
+// a RowsAffected equality check (W1-1, PR #934) — that guard is what keeps this
+// test green. Before W1-1 the losers' UPDATE silently matched 0 rows and all N
+// concurrent CreateActions committed (the spendability check is an in-memory read
+// on the base pool BEFORE the funding txn opens), which this test proved red.
 //
 // Postgres-only: the race needs true row-level concurrency, which the SQLite
 // single-connection test pin cannot provide.

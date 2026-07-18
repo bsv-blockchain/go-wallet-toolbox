@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"sync/atomic"
 
 	"github.com/go-softwarelab/common/pkg/must"
@@ -24,10 +25,17 @@ import (
 var changeOutputSize = txutils.P2PKHOutputSize
 
 const (
+	// utxoBatchSize is the page size of the exhaustive pager used by the sweep path.
 	utxoBatchSize = 1000
+	// insufficientBatchSize bounds how many largest-insufficient UTXOs are fetched
+	// per micro-query on the non-sweep path; it amortizes round trips when many
+	// small inputs are needed while keeping the number of locked rows small.
+	insufficientBatchSize = 16
 )
 
 type UTXORepository interface {
+	// FindNotReservedUTXOsForUpdate is the exhaustive, ordered, deduped pager — used
+	// only by the sweep path, which genuinely needs every eligible row.
 	FindNotReservedUTXOsForUpdate(
 		ctx context.Context,
 		tx *gorm.DB,
@@ -36,6 +44,23 @@ type UTXORepository interface {
 		page *queryopts.Paging,
 		forbiddenOutputIDs []uint,
 		includeSending bool,
+	) ([]*models.UserUTXO, error)
+	// FindSmallestSufficientUTXOForUpdate returns the UTXO with the smallest
+	// satoshis >= minSatoshis in q's status tier (nil, nil when none).
+	FindSmallestSufficientUTXOForUpdate(
+		ctx context.Context,
+		tx *gorm.DB,
+		q wdk.BoundedUTXOQuery,
+		minSatoshis uint64,
+	) (*models.UserUTXO, error)
+	// FindLargestInsufficientUTXOsForUpdate returns up to limit UTXOs with
+	// satoshis < maxSatoshis in q's status tier, largest first.
+	FindLargestInsufficientUTXOsForUpdate(
+		ctx context.Context,
+		tx *gorm.DB,
+		q wdk.BoundedUTXOQuery,
+		maxSatoshis uint64,
+		limit int,
 	) ([]*models.UserUTXO, error)
 }
 
@@ -101,36 +126,173 @@ func (f *SQL) Fund(
 		return collector.GetResult()
 	}
 
-	// Phase 2: Load all eligible UTXOs into a tiered pool.
-	pool, err := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
-	if err != nil {
-		return nil, err
-	}
-
-	// Phase 3: Sweep mode — allocate everything.
+	// Phase 2: Sweep mode — load every eligible UTXO and allocate everything.
 	if isSweep {
+		pool, poolErr := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
+		if poolErr != nil {
+			return nil, poolErr
+		}
 		return f.allocateSweep(collector, pool)
 	}
 
-	// Phase 4: Tiered best-fit selection.
-	// Each round: compute remaining need, pick optimal UTXO (exact → best-fit → largest),
-	// allocate it (which recalculates fee), repeat until funded.
-	for !collector.IsFunded() {
-		remaining := collector.remaining()
-		if remaining <= 0 {
-			break
-		}
-
-		utxo := pool.selectBest(uint64(remaining))
-		if utxo == nil {
-			return nil, wdk.ErrNotEnoughFunds
-		}
-		if err = collector.allocateUTXO(utxo); err != nil {
-			return nil, fmt.Errorf("failed to allocate utxo: %w", err)
-		}
+	// Phase 3: Bounded tiered best-fit selection — per-allocation target-aware
+	// micro-queries instead of loading (and locking) the whole pool.
+	if err = f.allocateBounded(ctx, collector, tx, userID, basket.Name, forbiddenOutputIDs, includeSending); err != nil {
+		return nil, err
 	}
 
 	return collector.GetResult()
+}
+
+// allocateBounded funds the collector with per-allocation micro-queries, walking
+// status tiers safest-first (mined → unproven → sending when included). Each round
+// recomputes the remaining need (allocation grows the fee, so remaining can shrink
+// by less than the allocated satoshis — or even INCREASE via the dust-floor branch
+// of remaining()) and, per tier, first asks for the smallest sufficient UTXO
+// (exact match, else smallest >= remaining — stages 1+2 of the old in-memory
+// selectBest), then falls back to a batch of largest insufficient UTXOs (stage 3).
+// A tier is only skipped when both queries come back empty, which means the tier
+// has no eligible rows at all. A full pass over all tiers without any allocation
+// means the pool is exhausted → wdk.ErrNotEnoughFunds.
+//
+// Every row allocated in this call is appended to the exclusion list: our own row
+// locks don't block our own queries and reserved_by_id stays NULL until
+// reserveUTXOs runs, so without the exclusion the same row would be returned again.
+func (f *SQL) allocateBounded(
+	ctx context.Context,
+	collector *utxoCollector,
+	tx *gorm.DB,
+	userID int,
+	basketName string,
+	forbiddenOutputIDs []uint,
+	includeSending bool,
+) error {
+	tiers := []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
+	if includeSending {
+		tiers = append(tiers, wdk.UTXOStatusSending)
+	}
+
+	a := &boundedAllocator{
+		repo:       f.utxoRepository,
+		tx:         tx,
+		userID:     userID,
+		basketName: basketName,
+		collector:  collector,
+		excluded:   slices.Clone(forbiddenOutputIDs),
+	}
+	return a.run(ctx, tiers)
+}
+
+// boundedAllocator carries the invariant state of a single allocateBounded pass so the
+// per-round/per-tier helpers stay small (in both parameter count and cognitive complexity).
+// excluded grows as rows are allocated and is threaded through every query in the pass: our
+// own row locks don't block our own queries and reserved_by_id stays NULL until reserveUTXOs
+// runs, so without the exclusion the same row would be returned again.
+type boundedAllocator struct {
+	repo       UTXORepository
+	tx         *gorm.DB
+	userID     int
+	basketName string
+	collector  *utxoCollector
+	excluded   []uint
+}
+
+// run drives allocation rounds until the collector is funded (nil), a round recomputes a
+// non-positive remaining need (nil — GetResult then decides funded vs. ErrNotEnoughFunds),
+// or a full pass over all tiers allocates nothing (wdk.ErrNotEnoughFunds).
+func (a *boundedAllocator) run(ctx context.Context, tiers []wdk.UTXOStatus) error {
+	for !a.collector.IsFunded() {
+		remaining := a.collector.remaining()
+		if remaining <= 0 {
+			return nil
+		}
+
+		allocated, err := a.round(ctx, tiers, remaining)
+		if err != nil {
+			return err
+		}
+		if !allocated {
+			return wdk.ErrNotEnoughFunds
+		}
+	}
+	return nil
+}
+
+// round tries each tier safest-first and stops at the first tier that allocates a row.
+func (a *boundedAllocator) round(ctx context.Context, tiers []wdk.UTXOStatus, remaining satoshi.Value) (bool, error) {
+	for _, tier := range tiers {
+		allocated, err := a.fromTier(ctx, tier, remaining)
+		if err != nil {
+			return false, err
+		}
+		if allocated {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// fromTier applies stages 1+2 (smallest sufficient — exact match, else smallest >= remaining)
+// then stage 3 (largest insufficient batch) of the old in-memory selectBest within one tier.
+func (a *boundedAllocator) fromTier(ctx context.Context, tier wdk.UTXOStatus, remaining satoshi.Value) (bool, error) {
+	q := wdk.BoundedUTXOQuery{
+		UserID:            a.userID,
+		BasketName:        a.basketName,
+		Status:            tier,
+		ExcludedOutputIDs: a.excluded,
+	}
+
+	utxo, err := a.repo.FindSmallestSufficientUTXOForUpdate(ctx, a.tx, q, remaining.MustUInt64())
+	if err != nil {
+		return false, fmt.Errorf("failed to find sufficient utxo: %w", err)
+	}
+	if utxo != nil {
+		if err = a.collector.allocateUTXO(utxo); err != nil {
+			return false, fmt.Errorf("failed to allocate utxo: %w", err)
+		}
+		a.excluded = append(a.excluded, utxo.OutputID)
+		return true, nil
+	}
+
+	batch, err := a.repo.FindLargestInsufficientUTXOsForUpdate(ctx, a.tx, q, remaining.MustUInt64(), insufficientBatchSize)
+	if err != nil {
+		return false, fmt.Errorf("failed to find insufficient utxos: %w", err)
+	}
+	return a.drainBatch(batch)
+}
+
+// drainBatch consumes the DESC largest-insufficient batch while each row stays equivalent to
+// the old pool.selectBest stage-3 pick.
+//
+// Drain rule (per-step equivalence with the old pool.selectBest): the sufficient query in
+// fromTier returned nothing, so every eligible row in this tier is < remaining and the DESC
+// batch therefore holds the tier's largest rows overall — batch[i] is always the largest
+// still-unallocated row of the tier. Consume batch[i] only while !IsFunded() AND
+// batch[i].Satoshis is still below the freshly recomputed remaining: in that case no row
+// >= remaining exists (batch[i] is the maximum), so selectBest would pick exactly batch[i]
+// (stage 3, largest insufficient). The moment batch[i].Satoshis >= remaining — remaining
+// shrank past it, or grew via the dust-floor branch — the "largest insufficient" premise
+// breaks and selectBest would instead pick the SMALLEST sufficient row, which need not be
+// batch[i]; so we stop draining and re-enter the outer loop, whose sufficient query finds
+// that row. Allocating batch[i] anyway would merely overfund harmlessly, but it would
+// diverge from the old selection.
+func (a *boundedAllocator) drainBatch(batch []*models.UserUTXO) (bool, error) {
+	allocated := false
+	for _, u := range batch {
+		if a.collector.IsFunded() {
+			break
+		}
+		remaining := a.collector.remaining()
+		if remaining <= 0 || u.Satoshis >= remaining.MustUInt64() {
+			break
+		}
+		if err := a.collector.allocateUTXO(u); err != nil {
+			return allocated, fmt.Errorf("failed to allocate utxo: %w", err)
+		}
+		a.excluded = append(a.excluded, u.OutputID)
+		allocated = true
+	}
+	return allocated, nil
 }
 
 func (f *SQL) allocateSweep(collector *utxoCollector, pool *utxoPool) (*Result, error) {
@@ -183,22 +345,36 @@ func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs 
 	return nil
 }
 
+// loadUTXOPool exhaustively pages every eligible UTXO into a tiered pool.
+// Sweep-only: the non-sweep path uses bounded micro-queries (see allocateBounded).
 func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
-	// Load all eligible UTXOs. The repository sorts by status tier + satoshis ASC,
-	// but the pool re-sorts internally per tier for 3-stage selection.
+	// The repository applies its own ORDER BY (status tier, satoshis ASC, output_id ASC);
+	// the Paging struct only supplies OFFSET/LIMIT here.
 	page := &queryopts.Paging{
-		Limit:  utxoBatchSize,
-		SortBy: "satoshis",
+		Limit: utxoBatchSize,
 	}
 
 	var allUTXOs []*models.UserUTXO
+	seen := make(map[uint]struct{})
 	for {
 		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketName, page, forbiddenOutputIDs, includeSending)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load utxos: %w", err)
 		}
 
-		allUTXOs = append(allUTXOs, utxos...)
+		// Dedup while accumulating: under concurrent lock churn between pages, OFFSET
+		// pagination can return the same row twice across pages even with a stable
+		// ORDER BY, if a row is locked/unlocked and shifts across the offset boundary.
+		// Loop termination below is based on the raw page length (pre-dedup), since a
+		// full page with duplicates removed must still be followed by another fetch.
+		for _, utxo := range utxos {
+			if _, ok := seen[utxo.OutputID]; ok {
+				continue
+			}
+			seen[utxo.OutputID] = struct{}{}
+			allUTXOs = append(allUTXOs, utxo)
+		}
+
 		if len(utxos) < utxoBatchSize {
 			break
 		}
@@ -232,9 +408,12 @@ type utxoCollector struct {
 
 func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, maxChangeOutputsPerTx uint64, isSweep bool) (c *utxoCollector, err error) {
 	c = &utxoCollector{
-		txSats:                  txSats,
-		outputCount:             outputCount,
-		minimumDesiredUTXOValue: minimumDesiredUTXOValue,
+		txSats:      txSats,
+		outputCount: outputCount,
+		// Clamped to at least 1: a zero value would divide-by-zero in calculateChangeCount.
+		// Baskets should never carry 0 here (see ValidBasketConfiguration and UpdateChangeBasket),
+		// but this is the last line of defense against any caller/DB state that slips through.
+		minimumDesiredUTXOValue: to.NoLessThan(minimumDesiredUTXOValue, 1),
 		maxChangeOutputsPerTx:   maxChangeOutputsPerTx,
 		feeCalculator:           feeCalculator,
 		allocatedUTXOs:          make([]*UTXO, 0),

@@ -453,6 +453,10 @@ func (p *Provider) UpdateChangeBasket(ctx context.Context, identityKey string, c
 	}
 
 	cfg.Name = wdk.BasketNameForChange
+	if err = validate.ValidBasketConfiguration(&cfg); err != nil {
+		return fmt.Errorf("invalid change basket configuration: %w", err)
+	}
+
 	_, err = p.repo.UpsertOutputBasket(ctx, user.ID, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to update change basket: %w", err)
