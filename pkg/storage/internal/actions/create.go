@@ -31,6 +31,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -77,6 +78,7 @@ func retryOnContention(ctx context.Context, logger *slog.Logger, random wdk.Rand
 		case <-time.After(backoffWithJitter(attempt, random)):
 		}
 
+		metrics.RecordContentionRetry(ctx)
 		logger.WarnContext(ctx, "retrying funding after UTXO contention", slog.Int("attempt", attempt), logging.Error(err))
 	}
 }
@@ -568,15 +570,20 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return c.db.WithContext(ctx).Transaction(fundingClosure)
 	})
 	if err != nil {
+		if errors.Is(err, wdk.ErrNotEnoughFunds) {
+			metrics.RecordNotEnoughFunds(ctx)
+		}
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
 	if useThroughput {
+		outcome := c.classifyThroughputOutcome(funding, fundedViaFallback)
+		metrics.RecordFundingOutcome(ctx, string(outcome))
 		c.logger.InfoContext(
 			ctx, "Throughput funding outcome",
 			logging.UserID(userID),
 			logging.Reference(reference),
-			slog.String("outcome", string(c.classifyThroughputOutcome(funding, fundedViaFallback))),
+			slog.String("outcome", string(outcome)),
 			slog.Int("claims", len(funding.AllocatedUTXOs)),
 		)
 	}

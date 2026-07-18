@@ -26,6 +26,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -52,6 +53,10 @@ type Provider struct {
 	// fuelDenomination is the resolved fuel UTXO value in satoshis when the
 	// throughput strategy is enabled; 0 under the privacy strategy.
 	fuelDenomination uint64
+
+	// unregisterPoolGauges removes the OTel pool gauge callback on Stop;
+	// nil under the privacy strategy.
+	unregisterPoolGauges func()
 }
 
 type providersWrapper struct {
@@ -154,12 +159,46 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		fuelDenomination: fuelDenomination,
 	}
 	p.defaultChangeBasket.Store(&defaultBasketCfg)
+
+	if options.UTXOManagement.Enabled() {
+		p.unregisterPoolGauges, err = metrics.RegisterPoolGauges(metrics.PoolGaugeConfig{
+			PoolBasket:        options.UTXOManagement.Throughput.PoolBasket,
+			ReserveBasket:     options.UTXOManagement.Throughput.ReserveBasket,
+			Denomination:      fuelDenomination,
+			TargetTPS:         options.UTXOManagement.Throughput.TargetTPS,
+			FanoutFeeOverhead: 0.15,
+		}, p.poolSnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to register pool gauges: %w", err)
+		}
+	}
+
 	return p, nil
+}
+
+// poolSnapshot returns the not-reserved UTXO inventory grouped by basket and
+// status. It runs once per metrics export interval, never on the funding path.
+func (p *Provider) poolSnapshot(ctx context.Context) ([]metrics.PoolRow, error) {
+	var rows []metrics.PoolRow
+	err := p.Database.DB.WithContext(ctx).
+		Model(&models.UserUTXO{}).
+		Select("basket_name AS basket, utxo_status AS status, COUNT(*) AS count, SUM(satoshis) AS satoshis").
+		Where("reserved_by_id IS NULL").
+		Group("basket_name, utxo_status").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to snapshot UTXO pool: %w", err)
+	}
+	return rows, nil
 }
 
 // Stop gracefully terminates the background broadcaster and releases related resources.
 func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
+
+	if p.unregisterPoolGauges != nil {
+		p.unregisterPoolGauges()
+	}
 
 	if err := p.Database.Close(); err != nil {
 		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))

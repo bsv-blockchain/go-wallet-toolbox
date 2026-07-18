@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 	"github.com/go-softwarelab/common/pkg/must"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -72,6 +74,25 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 
 		cleanupFuncs = append(cleanupFuncs, tracingCleanup)
 	}
+
+	// Metrics reuse the tracing OTLP endpoint; tracing.enabled gates spans only.
+	if cfg.Observability.Metrics.Enabled {
+		var metricsCleanup func()
+		metricsCleanup, err = tracing.EnableMetrics(logger, "server", cfg.TracingConfig.DialAddr,
+			time.Duration(cfg.Observability.Metrics.ExportIntervalSeconds)*time.Second)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable metrics: %w", err)
+		}
+
+		cleanupFuncs = append(cleanupFuncs, metricsCleanup)
+	}
+
+	// The throughput UTXO strategy on SQLite tops out far below its rated
+	// loads (single-writer); Postgres is the intended engine.
+	if cfg.UTXOManagement.Enabled() && cfg.DBConfig.Engine == defs.DBTypeSQLite {
+		logger.Warn("utxo_management strategy=throughput with the SQLite engine: expect single-writer contention; use Postgres for rated loads")
+	}
+
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
