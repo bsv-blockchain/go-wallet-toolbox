@@ -35,13 +35,17 @@ func TestSqliteDSNWithDefaults(t *testing.T) {
 			dsn:  "file:x.db?cache=shared&mode=memory",
 			want: "file:x.db?cache=shared&mode=memory",
 		},
-		"existing _journal_mode is left unchanged": {
+		"existing _journal_mode is preserved but the missing _busy_timeout is still added": {
 			dsn:  "file:x.db?_journal_mode=DELETE",
-			want: "file:x.db?_journal_mode=DELETE",
+			want: "file:x.db?_journal_mode=DELETE&_busy_timeout=5000",
 		},
-		"existing _busy_timeout is left unchanged": {
+		"existing _busy_timeout is preserved but the missing _journal_mode (WAL) is still added": {
 			dsn:  "file:x.db?_busy_timeout=100",
-			want: "file:x.db?_busy_timeout=100",
+			want: "file:x.db?_busy_timeout=100&_journal_mode=WAL",
+		},
+		"both pragmas already set are left entirely unchanged": {
+			dsn:  "file:x.db?_journal_mode=DELETE&_busy_timeout=100",
+			want: "file:x.db?_journal_mode=DELETE&_busy_timeout=100",
 		},
 	}
 

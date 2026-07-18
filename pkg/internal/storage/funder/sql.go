@@ -190,7 +190,7 @@ func (f *SQL) allocateBounded(
 
 		allocated := false
 		for _, tier := range tiers {
-			utxo, err := f.utxoRepository.FindSmallestSufficientUTXOForUpdate(ctx, tx, userID, basketName, tier, uint64(remaining), excluded)
+			utxo, err := f.utxoRepository.FindSmallestSufficientUTXOForUpdate(ctx, tx, userID, basketName, tier, remaining.MustUInt64(), excluded)
 			if err != nil {
 				return fmt.Errorf("failed to find sufficient utxo: %w", err)
 			}
@@ -203,7 +203,7 @@ func (f *SQL) allocateBounded(
 				break
 			}
 
-			batch, err := f.utxoRepository.FindLargestInsufficientUTXOsForUpdate(ctx, tx, userID, basketName, tier, uint64(remaining), insufficientBatchSize, excluded)
+			batch, err := f.utxoRepository.FindLargestInsufficientUTXOsForUpdate(ctx, tx, userID, basketName, tier, remaining.MustUInt64(), insufficientBatchSize, excluded)
 			if err != nil {
 				return fmt.Errorf("failed to find insufficient utxos: %w", err)
 			}
@@ -227,7 +227,7 @@ func (f *SQL) allocateBounded(
 					break
 				}
 				remaining = collector.remaining()
-				if remaining <= 0 || u.Satoshis >= uint64(remaining) {
+				if remaining <= 0 || u.Satoshis >= remaining.MustUInt64() {
 					break
 				}
 				if err = collector.allocateUTXO(u); err != nil {

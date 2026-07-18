@@ -34,6 +34,15 @@ import (
 // create.Create, not here.
 var ErrUTXOContention = fmt.Errorf("storage layer: %w", wdk.ErrUTXOContention)
 
+// ErrProvidedInputConflict is returned when a create action's provided inputs (KnownOutputIDs) or
+// noSendChange outputs cannot be claimed because another transaction already set their spent_by.
+// Unlike contention over funder-selected UTXOs — which a retry can resolve by locking different
+// coins — a provided-input conflict is permanent: the same caller-supplied outpoints are
+// re-attempted on every retry, so the bounded funding retry loop (create.retryOnContention) must
+// NOT retry it. It wraps ErrUTXOContention so existing callers matching
+// errors.Is(err, wdk.ErrUTXOContention) keep working unchanged.
+var ErrProvidedInputConflict = fmt.Errorf("provided input already spent: %w", ErrUTXOContention)
+
 type Transactions struct {
 	query *genquery.Query
 	db    *gorm.DB
@@ -116,7 +125,7 @@ func (txs *Transactions) reserveUTXOs(tx *gorm.DB, transactionID uint, userID in
 		return fmt.Errorf("failed to reserve UTXOs: %w", result.Error)
 	}
 	if result.RowsAffected != int64(len(outputIDs)) {
-		return fmt.Errorf("%w: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
+		return fmt.Errorf("%w: reserving selected utxos: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
 	}
 	return nil
 }
@@ -253,7 +262,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", result.Error)
 	}
 	if result.RowsAffected != int64(len(outputIDs)) {
-		return fmt.Errorf("%w: claiming provided inputs: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
+		return fmt.Errorf("%w: claiming provided inputs: expected %d, got %d", ErrProvidedInputConflict, len(outputIDs), result.RowsAffected)
 	}
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -58,6 +59,25 @@ func TestRetryOnContention_ExhaustsAttemptsOnPersistentContention(t *testing.T) 
 	require.Error(t, err)
 	require.ErrorIs(t, err, wdk.ErrUTXOContention)
 	require.Equal(t, maxFundingAttempts, calls, "expected exactly maxFundingAttempts closure executions")
+}
+
+// TestRetryOnContention_DoesNotRetryProvidedInputConflict covers the permanent-conflict case:
+// a provided-input conflict (repo.ErrProvidedInputConflict) wraps wdk.ErrUTXOContention but is
+// permanent — the same caller-supplied outpoints are re-attempted every time — so it must be
+// returned immediately without consuming retries, unlike transient funder-UTXO contention.
+func TestRetryOnContention_DoesNotRetryProvidedInputConflict(t *testing.T) {
+	withShrunkFundingBackoff(t)
+
+	var calls int
+	err := retryOnContention(t.Context(), logging.NewTestLogger(t), randomizer.NewTestRandomizer(), func() error {
+		calls++
+		return fmt.Errorf("attempt %d: %w", calls, repo.ErrProvidedInputConflict)
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, repo.ErrProvidedInputConflict)
+	require.ErrorIs(t, err, wdk.ErrUTXOContention, "provided-input conflict must still match the public contention sentinel")
+	require.Equal(t, 1, calls, "provided-input conflict is permanent and must not be retried")
 }
 
 // TestRetryOnContention_NonContentionErrorDoesNotRetry covers case (c): an error that does not

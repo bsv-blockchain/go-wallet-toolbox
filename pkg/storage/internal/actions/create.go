@@ -53,14 +53,21 @@ var fundingRetryBaseBackoff = 25 * time.Millisecond
 
 // retryOnContention runs fn up to maxFundingAttempts times, retrying only when fn returns an
 // error that wraps wdk.ErrUTXOContention (i.e. a concurrent transaction reserved one of the
-// UTXOs this attempt selected). Any other error, or success, returns immediately after the
-// first attempt. Between retries it waits backoffWithJitter(attempt, random), aborting early
-// if ctx is canceled while waiting.
+// funder-selected UTXOs this attempt locked). Provided-input conflicts
+// (repo.ErrProvidedInputConflict) are deliberately NOT retried: they wrap ErrUTXOContention but
+// are permanent — the same caller-supplied outpoints are re-attempted every time — so retrying
+// only adds latency and can flip the surfaced error to ErrNotEnoughFunds. Any other error, or
+// success, returns immediately after the first attempt. Between retries it waits
+// backoffWithJitter(attempt, random), aborting early if ctx is canceled while waiting. The
+// contention cause (which carries the failing site — reserve vs claim) is logged on each retry.
 func retryOnContention(ctx context.Context, logger *slog.Logger, random wdk.Randomizer, fn func() error) error {
 	var err error
 	for attempt := 1; ; attempt++ {
 		err = fn()
-		if err == nil || !errors.Is(err, wdk.ErrUTXOContention) || attempt == maxFundingAttempts {
+		if err == nil ||
+			!errors.Is(err, wdk.ErrUTXOContention) ||
+			errors.Is(err, repo.ErrProvidedInputConflict) ||
+			attempt == maxFundingAttempts {
 			return err
 		}
 
@@ -70,7 +77,7 @@ func retryOnContention(ctx context.Context, logger *slog.Logger, random wdk.Rand
 		case <-time.After(backoffWithJitter(attempt, random)):
 		}
 
-		logger.WarnContext(ctx, "retrying funding after UTXO contention", slog.Int("attempt", attempt))
+		logger.WarnContext(ctx, "retrying funding after UTXO contention", slog.Int("attempt", attempt), logging.Error(err))
 	}
 }
 

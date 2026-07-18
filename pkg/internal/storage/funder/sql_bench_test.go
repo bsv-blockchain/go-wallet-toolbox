@@ -10,11 +10,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// BenchmarkSQLFund is the baseline benchmark for the current whole-pool-loading
-// funder.SQL.Fund implementation, captured before Task 7 replaces it with a
-// bounded, target-aware fetch. Sub-benchmarks pool_1000 and pool_10000 seed a
-// fixed pool of UserUTXO rows for a single user/basket and repeatedly call Fund
-// with a target that forces multi-UTXO accumulation.
+// BenchmarkSQLFund tracks funder.SQL.Fund under the post–Track-P bounded,
+// target-aware selection (per-allocation micro-queries locking only the rows
+// considered). The pre–Task-7 whole-pool-loading numbers remain recorded as the
+// historical baseline in the SDD ledger for comparison. Sub-benchmarks pool_1000
+// and pool_10000 seed a fixed pool of UserUTXO rows for a single user/basket and
+// repeatedly call Fund with a target that forces multi-UTXO accumulation; cost
+// is now flat in pool size.
 //
 // Each iteration runs Fund inside its own DB transaction which is rolled back
 // (never committed) so the seeded pool stays constant across iterations.

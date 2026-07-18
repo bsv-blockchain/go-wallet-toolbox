@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -15,6 +16,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 )
+
+// ErrUTXONotFound is returned by UserUTXOs.Update when a reservation update (spec.ReservedByID
+// set) affects no rows because the target output_id does not exist — as distinct from
+// ErrUTXOContention, which means the row exists but is already reserved. Keeping them separate
+// stops callers (and any retry wrapper) from treating a permanent not-found as retryable
+// contention.
+var ErrUTXONotFound = errors.New("user utxo not found")
 
 type UserUTXOs struct {
 	db    *gorm.DB
@@ -94,6 +102,19 @@ func (r *UserUTXOs) Update(ctx context.Context, spec *entity.UserUTXOUpdateSpeci
 		return fmt.Errorf("failed to update user utxo: %w", err)
 	}
 	if spec.ReservedByID != nil && info.RowsAffected == 0 {
+		// Zero rows affected on a reservation update means either the row is already
+		// reserved (the "reserved_by_id IS NULL" guard excluded it) or the output_id
+		// does not exist. Re-read to distinguish so callers don't treat a permanent
+		// not-found as retryable contention.
+		var count int64
+		count, err = table.WithContext(ctx).Where(table.OutputID.Eq(spec.OutputID)).Count()
+		if err != nil {
+			return fmt.Errorf("failed to check user utxo existence (output_id=%d): %w", spec.OutputID, err)
+		}
+		if count == 0 {
+			err = fmt.Errorf("cannot reserve utxo (output_id=%d): %w", spec.OutputID, ErrUTXONotFound)
+			return err
+		}
 		err = fmt.Errorf("cannot reserve utxo (output_id=%d): %w", spec.OutputID, ErrUTXOContention)
 		return err
 	}

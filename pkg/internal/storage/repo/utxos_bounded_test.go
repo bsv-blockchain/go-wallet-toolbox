@@ -173,6 +173,17 @@ func TestFindLargestInsufficientUTXOsForUpdate(t *testing.T) {
 		require.Equal(t, []uint{fx.c, fx.b}, outputIDs(got))
 	})
 
+	t.Run("rejects non-positive limit", func(t *testing.T) {
+		// A limit of 0 would hit GORM's Limit(0) "no limit" footgun and lock the
+		// whole tier; negative is nonsensical. Both must be rejected, not silently
+		// widened.
+		for _, limit := range []int{0, -1} {
+			_, err := fx.repos.FindLargestInsufficientUTXOsForUpdate(
+				t.Context(), fx.db, fx.userID, wdk.BasketNameForChange, wdk.UTXOStatusMined, 1000, limit, nil)
+			require.Errorf(t, err, "limit=%d must be rejected", limit)
+		}
+	})
+
 	t.Run("respects exclusion list", func(t *testing.T) {
 		got := fx.insufficient(t, wdk.UTXOStatusMined, 1000, 10, []uint{fx.c})
 		require.Equal(t, []uint{fx.b, fx.a}, outputIDs(got))

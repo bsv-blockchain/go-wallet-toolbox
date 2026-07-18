@@ -174,6 +174,39 @@ func TestUserUTXOsUpdate_OtherFieldsUnaffectedByGuard(t *testing.T) {
 	require.Equal(t, reservedByID, *got.ReservedByID, "reserved_by_id must be untouched by an update that doesn't target it")
 }
 
+// TestUserUTXOsUpdate_MissingOutputReturnsNotFound covers the not-found/contention
+// disambiguation on the reservation path: a reservation update targeting an output_id with no
+// bsv_user_utxos row must return repo.ErrUTXONotFound (a permanent condition), NOT
+// repo.ErrUTXOContention — so callers never treat a missing row as retryable contention.
+//
+// given: no bsv_user_utxos row for the target output_id.
+// when:  Update is called with spec.ReservedByID set for that output_id.
+// then:  errors.Is(err, repo.ErrUTXONotFound) and NOT errors.Is(err, repo.ErrUTXOContention).
+func TestUserUTXOsUpdate_MissingOutputReturnsNotFound(t *testing.T) {
+	// given:
+	db, cleanup := dbfixtures.TestDatabase(t)
+	defer cleanup()
+
+	repos := repo.NewSQLRepositories(db.DB)
+	ctx := t.Context()
+
+	user, err := repos.CreateUser(ctx, "utxo-notfound-user", "test-storage", wdk.DefaultBasketConfiguration())
+	require.NoError(t, err)
+	newTx := createTestTx(t, repos, ctx, user.ID, "utxo-notfound-new-tx")
+
+	// when: reserve an output_id that has no user_utxo row.
+	newReservation := newTx.ID
+	updateErr := repos.Update(ctx, &entity.UserUTXOUpdateSpecification{
+		OutputID:     999999,
+		ReservedByID: &newReservation,
+	})
+
+	// then:
+	require.Error(t, updateErr)
+	require.ErrorIs(t, updateErr, repo.ErrUTXONotFound)
+	require.NotErrorIs(t, updateErr, repo.ErrUTXOContention, "a missing row must not be reported as contention")
+}
+
 // createTestTx creates and returns a minimal transaction owned by userID, used
 // as an FK parent for outputs and user_utxos.reserved_by_id in these tests.
 func createTestTx(t *testing.T, repos *repo.Repositories, ctx context.Context, userID int, reference string) *entity.Transaction {

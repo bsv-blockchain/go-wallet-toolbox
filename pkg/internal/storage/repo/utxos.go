@@ -156,6 +156,15 @@ func (u *UTXOs) FindLargestInsufficientUTXOsForUpdate(
 		tracing.EndTracing(span, err)
 	}()
 
+	// Guard against GORM's Limit(0) footgun (interpreted as "no limit", which would
+	// lock the whole tier). The only production caller passes insufficientBatchSize=16,
+	// but this method is part of the shared interface — reject non-positive limits so a
+	// future caller can't reintroduce whole-tier locking.
+	if limit <= 0 {
+		err = fmt.Errorf("limit must be positive, got %d", limit)
+		return nil, err
+	}
+
 	query := tx.WithContext(ctx).Scopes(
 		scopes.UserID(userID),
 		scopes.BasketName(basketName),
