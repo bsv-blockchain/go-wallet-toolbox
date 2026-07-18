@@ -103,6 +103,10 @@ monitor:
       interval_seconds: 600
       start_immediately: false
 name: go-storage-server
+observability:
+  metrics:
+    enabled: false
+    export_interval_seconds: 15
 server_private_key: ""
 synchronize_tx_statuses:
   blocks_delay: 1
@@ -113,6 +117,29 @@ tracing:
   dialAddr: http://localhost:4317
   enabled: false
   sample: 100
+utxo_management:
+  strategy: privacy
+  throughput:
+    consolidation_inputs_per_tx: 1000
+    denomination_satoshis: 0
+    expected_confirmation_seconds: 300
+    expected_output_satoshis: 170
+    expected_tx_size_bytes: 668
+    fanout_max_txs_per_round: 12000
+    fanout_outputs_per_tx: 100
+    fanout_tree_depth: 2
+    high_water_percent: 100
+    low_water_percent: 60
+    pool_basket: fuel
+    pool_headroom_factor: 1.5
+    reserve_basket: reserve
+    spend_policy: prefer_mined
+    target_pool_size: 0
+    target_tps: 10000
+    top_up:
+      enabled: true
+      interval_seconds: 10
+      start_immediately: true
 wallet_services:
   arc:
     callback_token: ""
