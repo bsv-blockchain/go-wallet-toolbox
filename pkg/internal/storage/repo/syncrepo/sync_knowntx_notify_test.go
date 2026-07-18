@@ -146,7 +146,7 @@ func TestKnownTxNotify_UpdateReplacesPayload(t *testing.T) {
 
 	var got models.KnownTx
 	require.NoError(t, d.DB.First(&got, "tx_id = ?", txID).Error)
-	require.Equal(t, `{"transactionIds":[1,2,3]}`, got.Notify,
+	require.JSONEq(t, `{"transactionIds":[1,2,3]}`, got.Notify,
 		"newer updated_at must replace notify payload")
 	require.Equal(t, wdk.ProvenTxStatusUnmined, got.Status)
 }
