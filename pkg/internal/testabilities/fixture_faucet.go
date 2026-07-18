@@ -41,6 +41,11 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		Purpose: "test-faucet-purpose",
 	}, opts...)
 
+	basketName := f.basketName
+	if options.Basket != "" {
+		basketName = options.Basket
+	}
+
 	senderPriv, senderPub := sdk.AnyoneKey()
 
 	_, derivationPrefixBase64 := testhelper.DerivationByNumber(int64(f.index))
@@ -112,7 +117,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		DerivationPrefix:  to.Ptr(derivationPrefixBase64),
 		DerivationSuffix:  to.Ptr(derivationSuffixBase64),
 		LockingScript:     spec.TX().Outputs[0].LockingScript.Bytes(),
-		BasketName:        &f.basketName,
+		BasketName:        &basketName,
 		SenderIdentityKey: to.Ptr(senderPub.ToDERHex()),
 
 		Transaction: transaction,
@@ -129,12 +134,17 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		},
 	}
 
+	utxoStatus := wdk.UTXOStatusUnproven
+	if options.Mined {
+		utxoStatus = wdk.UTXOStatusMined
+	}
+
 	utxo := &models.UserUTXO{
 		UserID:             f.user.ID,
 		Satoshis:           satoshis.MustUInt64(),
 		EstimatedInputSize: txutils.P2PKHEstimatedInputSize,
-		BasketName:         f.basketName,
-		UTXOStatus:         wdk.UTXOStatusUnproven,
+		BasketName:         basketName,
+		UTXOStatus:         utxoStatus,
 
 		Output: output,
 	}

@@ -96,6 +96,32 @@ func (f *SQL) SetMaxChangeOutputsPerTx(n uint64) {
 	f.maxChangeOutputsPerTx.Store(n)
 }
 
+// Constraints tune a single funding call beyond the legacy parameters.
+// The zero value reproduces legacy behavior exactly.
+type Constraints struct {
+	// Tiers overrides the status tier walk when non-nil. nil keeps the legacy
+	// tiers: mined, unproven, plus sending when includeSending is set.
+	Tiers []wdk.UTXOStatus
+	// MaxChangeOutputs caps change outputs for this call when > 0; 0 uses the
+	// funder-wide (atomic) maxChangeOutputsPerTx.
+	MaxChangeOutputs uint64
+}
+
+// SpendTiers maps a spend policy to the status tier walk used by the
+// throughput strategy, safest first.
+func SpendTiers(policy defs.SpendPolicy) []wdk.UTXOStatus {
+	switch policy {
+	case defs.SpendPolicyMinedOnly:
+		return []wdk.UTXOStatus{wdk.UTXOStatusMined}
+	case defs.SpendPolicyAny:
+		return []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending}
+	case defs.SpendPolicyPreferMined:
+		return []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
+	default:
+		return []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
+	}
+}
+
 // Fund selects and allocates UTXOs to cover targetSat within the provided DB transaction tx.
 // existing must be pre-fetched via CountUTXOs BEFORE opening the DB transaction to avoid a
 // SQLite connection-pool deadlock (the transaction holds the one connection).
@@ -113,7 +139,32 @@ func (f *SQL) Fund(
 	existing int64,
 	tx *gorm.DB,
 ) (*Result, error) {
-	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, f.maxChangeOutputsPerTx.Load(), isSweep)
+	return f.FundWithConstraints(ctx, targetSat, currentTxSize, outputCount, basket, userID, forbiddenOutputIDs, priorityOutputs, includeSending, isSweep, existing, Constraints{}, tx)
+}
+
+// FundWithConstraints is Fund with per-call Constraints; the zero-value
+// constraints reproduce Fund exactly.
+func (f *SQL) FundWithConstraints(
+	ctx context.Context,
+	targetSat satoshi.Value,
+	currentTxSize uint64,
+	outputCount uint64,
+	basket *entity.OutputBasket,
+	userID int,
+	forbiddenOutputIDs []uint,
+	priorityOutputs []*entity.Output,
+	includeSending bool,
+	isSweep bool,
+	existing int64,
+	constraints Constraints,
+	tx *gorm.DB,
+) (*Result, error) {
+	maxChangeOutputs := f.maxChangeOutputsPerTx.Load()
+	if constraints.MaxChangeOutputs > 0 {
+		maxChangeOutputs = constraints.MaxChangeOutputs
+	}
+
+	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, maxChangeOutputs, isSweep)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
@@ -137,7 +188,7 @@ func (f *SQL) Fund(
 
 	// Phase 3: Bounded tiered best-fit selection — per-allocation target-aware
 	// micro-queries instead of loading (and locking) the whole pool.
-	if err = f.allocateBounded(ctx, collector, tx, userID, basket.Name, forbiddenOutputIDs, includeSending); err != nil {
+	if err = f.allocateBounded(ctx, collector, tx, userID, basket.Name, forbiddenOutputIDs, includeSending, constraints.Tiers); err != nil {
 		return nil, err
 	}
 
@@ -166,10 +217,14 @@ func (f *SQL) allocateBounded(
 	basketName string,
 	forbiddenOutputIDs []uint,
 	includeSending bool,
+	tierOverride []wdk.UTXOStatus,
 ) error {
-	tiers := []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
-	if includeSending {
-		tiers = append(tiers, wdk.UTXOStatusSending)
+	tiers := tierOverride
+	if tiers == nil {
+		tiers = []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
+		if includeSending {
+			tiers = append(tiers, wdk.UTXOStatusSending)
+		}
 	}
 
 	a := &boundedAllocator{

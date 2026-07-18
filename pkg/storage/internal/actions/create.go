@@ -146,6 +146,7 @@ type create struct {
 	chaintracker    chaintracker.ChainTracker
 	beefVerifier    wdk.BeefVerifier
 	scriptsVerifier wdk.ScriptsVerifier
+	throughput      ThroughputConfig
 }
 
 func newCreateAction(
@@ -164,6 +165,7 @@ func newCreateAction(
 	chaintracker chaintracker.ChainTracker,
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
+	throughput ThroughputConfig,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -182,6 +184,7 @@ func newCreateAction(
 		chaintracker:    chaintracker,
 		beefVerifier:    beefVerifier,
 		scriptsVerifier: scriptsVerifier,
+		throughput:      throughput,
 	}
 
 	if commissionCfg.Enabled() {
@@ -232,6 +235,19 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 	if basket == nil {
 		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+	}
+
+	// Throughput strategy: fund from the fuel pool basket (with policy-driven
+	// status tiers and a single deterministic change output), falling back to
+	// the default basket when the pool cannot cover the request. Sweeps always
+	// use the legacy default-basket path — a sweep must never drain the pool.
+	fundingBasket := basket
+	useThroughput := c.throughput.Enabled && !isSweep
+	if useThroughput {
+		fundingBasket, err = c.ensureFuelBasket(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	priorityOutputs, err := c.getNoSendOutputs(ctx, userID, params.IsNoSend, params.NoSendChange, reference)
@@ -339,12 +355,28 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	var funding *funder.Result
 	var newOutputs []*entity.NewOutput
 	var derivationPrefix string
+	var fundedViaFallback bool
 
 	// CountUTXOs must run BEFORE opening the DB transaction to avoid a SQLite connection-pool
 	// deadlock (the transaction holds the one connection; CountUTXOs would block waiting for another).
-	existingUTXOs, err := c.utxoRepo.CountUTXOs(ctx, userID, basket.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count UTXOs: %w", err)
+	//
+	// Throughput mode skips the count entirely: the desired-UTXO-count change
+	// heuristic does not apply (change is capped at one deterministic output),
+	// so `existing` is pinned to the basket's desired count, which clamps the
+	// collector's change budget to exactly 1.
+	var existingUTXOs int64
+	var constraints funder.Constraints
+	if useThroughput {
+		existingUTXOs = fundingBasket.NumberOfDesiredUTXOs
+		constraints = funder.Constraints{
+			Tiers:            funder.SpendTiers(c.throughput.SpendPolicy),
+			MaxChangeOutputs: 1,
+		}
+	} else {
+		existingUTXOs, err = c.utxoRepo.CountUTXOs(ctx, userID, basket.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to count UTXOs: %w", err)
+		}
 	}
 
 	// fundingClosure is retried (see retryOnContention below) on UTXO contention: a concurrent
@@ -363,7 +395,18 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// outputs are created, which is clamped to >=1 downstream — never funds-safety.
 	fundingClosure := func(dbTx *gorm.DB) error {
 		var fundErr error
-		funding, fundErr = c.sqlFunder.Fund(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, dbTx)
+		funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, fundingBasket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, constraints, dbTx)
+		fundedViaFallback = false
+		if useThroughput && errors.Is(fundErr, wdk.ErrNotEnoughFunds) {
+			// The fuel pool cannot cover this request — fall back to the default
+			// basket within the same DB transaction, keeping the throughput
+			// constraints (policy tiers, single change output). Correctness never
+			// depends on pool health.
+			c.logger.WarnContext(ctx, "fuel pool exhausted, falling back to default basket",
+				logging.UserID(userID), logging.Reference(reference))
+			funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, basket.NumberOfDesiredUTXOs, constraints, dbTx)
+			fundedViaFallback = fundErr == nil
+		}
 		if fundErr != nil {
 			return fmt.Errorf("funding failed: %w", fundErr)
 		}
@@ -496,6 +539,16 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
+	if useThroughput {
+		c.logger.InfoContext(
+			ctx, "Throughput funding outcome",
+			logging.UserID(userID),
+			logging.Reference(reference),
+			slog.String("outcome", string(c.classifyThroughputOutcome(funding, fundedViaFallback))),
+			slog.Int("claims", len(funding.AllocatedUTXOs)),
+		)
+	}
+
 	c.logger.InfoContext(
 		ctx, "Transaction saved in database successfully",
 		logging.UserID(userID),
@@ -540,6 +593,56 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		InputBeef:               beef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+// FundingOutcome classifies how a throughput-mode request was funded; it feeds
+// the funder outcome metrics and logs.
+type FundingOutcome string
+
+// Possible throughput funding outcomes.
+const (
+	// FundingOutcomeExactMatch is the happy path: one claim of exactly the denomination.
+	FundingOutcomeExactMatch FundingOutcome = "exact_match"
+	// FundingOutcomeMultiClaim covers requests funded by several fuel claims
+	// (e.g. packed many-output actions) or off-denomination claims.
+	FundingOutcomeMultiClaim FundingOutcome = "multi_claim"
+	// FundingOutcomeFallback means the fuel pool could not cover the request
+	// and the default basket funded it.
+	FundingOutcomeFallback FundingOutcome = "fallback"
+)
+
+func (c *create) classifyThroughputOutcome(funding *funder.Result, fundedViaFallback bool) FundingOutcome {
+	if fundedViaFallback {
+		return FundingOutcomeFallback
+	}
+	if len(funding.AllocatedUTXOs) == 1 && funding.AllocatedUTXOs[0].Satoshis == satoshi.MustFrom(c.throughput.Denomination) {
+		return FundingOutcomeExactMatch
+	}
+	return FundingOutcomeMultiClaim
+}
+
+// ensureFuelBasket resolves the throughput pool basket for the user, creating
+// it lazily for users that predate enabling the throughput strategy.
+func (c *create) ensureFuelBasket(ctx context.Context, userID int) (*pkgentity.OutputBasket, error) {
+	fuelBasket, err := c.basketRepo.FindBasketByName(ctx, userID, c.throughput.PoolBasket)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find fuel basket: %w", err)
+	}
+	if fuelBasket != nil {
+		return fuelBasket, nil
+	}
+
+	if err = c.basketRepo.FindOrCreateBasket(ctx, userID, c.throughput.PoolBasket); err != nil {
+		return nil, fmt.Errorf("failed to create fuel basket: %w", err)
+	}
+	fuelBasket, err = c.basketRepo.FindBasketByName(ctx, userID, c.throughput.PoolBasket)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find fuel basket after creation: %w", err)
+	}
+	if fuelBasket == nil {
+		return nil, fmt.Errorf("fuel basket (%s) not found after creation", c.throughput.PoolBasket)
+	}
+	return fuelBasket, nil
 }
 
 func (c *create) getNoSendOutputs(ctx context.Context, userID int, isNoSend bool, noSendChange []wdk.OutPoint, ref string) ([]*pkgentity.Output, error) {
