@@ -23,7 +23,7 @@ type Repository interface {
 	FindBasketNameByNumIDForSync(ctx context.Context, basketNumID uint) (string, error)
 
 	FindKnownTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, []*wdk.TableProvenTx, error)
-	UpsertKnownTxForSync(ctx context.Context, entity *pkgentity.KnownTx) (isNew bool, err error)
+	UpsertKnownTxForSync(ctx context.Context, entity *pkgentity.KnownTx) (isNew bool, knownTxNumID uint, err error)
 
 	FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error)
 	UpsertTransactionForSync(ctx context.Context, entity *pkgentity.Transaction) (isNew bool, transactionID uint, err error)
