@@ -19,8 +19,10 @@ firehose of near-identical transactions — the motivating example:
 - The wallet must **never stall waiting for funds**: a pre-fanned-out pool of
   correctly-sized UTXOs (ideally matured to block inclusion, ~5 min average) must always
   be available.
-- The operator wants **sensible top-up automation** and **out-of-band alerting**
-  (e.g. SMS via Twilio) when funds run low.
+- The operator wants **sensible top-up automation** and **first-class metrics**
+  across the whole system, so external monitoring (Prometheus/Grafana,
+  Alertmanager, Datadog, …) can page when funds run low — no in-process
+  notification machinery.
 
 **Primary profile — repo market settlement.** The concrete deployment is a
 repurchase-agreement market: on average **~10 createActions/s**, with two sharp
@@ -56,7 +58,7 @@ pool size** (~0.16 ms/op at 10k-row pools in `BenchmarkSQLFund`). It also added:
 This proposal is therefore **not** a new funding engine. It is: (a) a *pool shape* that
 lets the Track P funder hit its best case ~100% of the time, (b) the *replenishment
 automation* that keeps that pool full at a rated throughput, and (c) the *policy,
-observability, and alerting knobs* around it. A uniform, exact-denomination pool turns
+and observability knobs* around it. A uniform, exact-denomination pool turns
 every fund into: one `FindSmallestSufficientUTXOForUpdate` micro-query → index-served
 exact match → single row locked → done. No stage-3 fallback, no multi-round
 accumulation, no cross-request lock overlap beyond `SKIP LOCKED` skips.
@@ -216,42 +218,15 @@ utxo_management:
       interval_seconds: 10
       start_immediately: true
 
-  # --- Alerting (strategy-independent, but designed for this workload) --------
-  alerting:
-    enabled: true
-    # Conditions are a closed, built-in set evaluated by the pool accounting
-    # loop (§5.3); each has a fixed comparison direction (< for runways,
-    # ≥ for failure/error counters) and a default severity.
-    rules:
-      # runway = spendable_pool / target_tps  (seconds until exhaustion at rated load)
-      - name: pool_runway_low
-        condition: pool_runway_seconds
-        threshold: 900          # alert when < 15 min of runway
-      - name: reserve_runway_low
-        condition: reserve_runway_seconds
-        threshold: 86400        # alert when reserve funds < 1 day of fee burn
-      - name: top_up_failing
-        condition: consecutive_top_up_failures
-        threshold: 3
-      - name: not_enough_funds
-        condition: create_action_funding_errors_per_minute
-        threshold: 1
-    # Alerts fan out to every configured notifier. Repeated alerts are
-    # rate-limited per rule via cooldown.
-    cooldown_seconds: 300
-    notifiers:
-      - type: webhook
-        url: https://ops.example.com/hooks/wallet
-      - type: twilio
-        # Secrets are supplied via the loader's viper AutomaticEnv override
-        # (as with db passwords), NOT written into the YAML. NOTE: env override
-        # of keys inside a list needs the notifier config restructured into a
-        # map (e.g. notifiers.twilio.*) or interpolation support added to
-        # internal/config/loader.go — an implementation decision for Phase 3.
-        account_sid: <set-via-env-override>
-        auth_token: <set-via-env-override>
-        from: "+15550001111"
-        to: ["+15552223333"]
+  # --- Observability (no in-process alerting) ----------------------------------
+  # The wallet ships NO notifier machinery. Pool/reserve/funder/top-up metrics
+  # (§5.4) are exported as OpenTelemetry instruments through the same OTLP
+  # endpoint the existing `tracing` section configures; external tooling
+  # (Prometheus/Grafana, Alertmanager, Datadog, …) owns thresholds and paging.
+  observability:
+    metrics:
+      enabled: true
+      export_interval_seconds: 15
 ```
 
 ### Derivation & validation rules
@@ -417,37 +392,50 @@ admin/stats endpoint):
   fanout_fee_overhead) × target_tps)` — the overhead factor matters: at a 24-sat
   denomination, fan-out fees add ~15% to burn (§6)
 - top-up round stats: minted count, per-round failures, **consecutive failed
-  rounds** (feeds the `top_up_failing` alert), round duration
+  rounds**, round duration
 - funder outcomes: exact-match hits, fallback hits, contention retries
-  (`ErrUTXOContention`), sub-dust overshoot burned (satoshis), and a windowed
-  funding-error rate (`ErrNotEnoughFunds`/min, feeds the `not_enough_funds` alert)
+  (`ErrUTXOContention`), sub-dust overshoot burned (satoshis), and
+  `ErrNotEnoughFunds` occurrences
 
-### 5.4 Alerting / notifiers
+All of these are exported as OpenTelemetry instruments (§5.4); external tooling
+computes rates and thresholds.
 
-A small `Notifier` interface in a new `pkg/alerting` package:
+### 5.4 Observability — OpenTelemetry across the whole system
 
-```go
-type Alert struct {
-    Rule      string            // e.g. "pool_runway_low"
-    Severity  Severity
-    Message   string            // human-readable, includes current values
-    Values    map[string]string
-    Timestamp time.Time
-}
+No in-process alerting. The wallet's job is to **emit complete, well-named
+telemetry**; thresholds, paging, and escalation live in the operator's external
+tooling. Concretely:
 
-type Notifier interface {
-    Notify(ctx context.Context, alert Alert) error
-}
-```
-
-- Built-in drivers: `webhook` (generic JSON POST — covers Slack, PagerDuty, ops
-  bridges) and `twilio` (SMS via Twilio's REST API; plain `net/http`, no SDK
-  dependency). The interface keeps other channels (email, opsgenie) as drop-ins.
-- Rules from §4 are evaluated by the pool accounting loop; firing is rate-limited by
-  `cooldown_seconds` per rule so a sustained low-water condition doesn't page every
-  tick.
-- Alerting is deliberately **decoupled from the funder hot path** — evaluation happens
-  in the monitor loop, never per-request.
+- **Extend `pkg/tracing` to metrics.** The package currently wires an OTLP *trace*
+  exporter (`tracing.dialAddr`); Phase 3 adds an OTel `MeterProvider` on the same
+  endpoint, gated by `observability.metrics` (§4). Spans already exist throughout
+  (`tracing.StartTracing` in the funder, repos, and actions); the new funder fast
+  path, `pool_top_up` rounds, and consolidation get spans too, so traces and
+  metrics correlate.
+- **Instrument catalog** (names final at implementation; attributes in braces):
+  - Gauges (from the §5.3 accounting loop, never per-request):
+    `wallet.utxo.pool.spendable{basket,status,denomination}`,
+    `wallet.utxo.pool.reserved`, `wallet.utxo.pool.immature`,
+    `wallet.utxo.pool.stale`, `wallet.utxo.reserve.balance_satoshis`,
+    `wallet.utxo.pool.runway_seconds`, `wallet.utxo.reserve.runway_seconds`,
+    `wallet.topup.consecutive_failures`
+  - Counters (atomic increments on the paths that already track these outcomes):
+    `wallet.funder.claims{result=exact_match|multi_claim|fallback}`,
+    `wallet.funder.contention_retries`, `wallet.funder.not_enough_funds`,
+    `wallet.funder.overshoot_burned_satoshis`,
+    `wallet.topup.outputs_minted{denomination}`, `wallet.topup.rounds{result}`,
+    `wallet.consolidation.inputs_recouped{stale_denomination}`
+  - Histograms: `wallet.funder.fund_duration`, `wallet.topup.round_duration`
+- **Low-funds alerting is an external concern**, e.g. Prometheus rules (full
+  worked set in `examples/throughput_mode/`):
+  `wallet_utxo_pool_runway_seconds < 900` (15 min of runway),
+  `wallet_utxo_reserve_runway_seconds < 86400` (1 day of fee burn),
+  `wallet_topup_consecutive_failures >= 3`,
+  `increase(wallet_funder_not_enough_funds[1m]) > 0`.
+- **Hot-path discipline is unchanged**: gauges are computed by the accounting
+  loop, counters are lock-free increments, and metric export runs on the
+  `export_interval_seconds` ticker — nothing new touches the claim path's
+  latency.
 
 ---
 
@@ -534,10 +522,16 @@ Honest observations the config must surface rather than hide:
    switch, denominated claim specialization (§5.1: pool-basket targeting, skip
    `CountUTXOs`, deterministic change, `spend_policy`), funder-outcome metrics.
    Immediately useful even without automation (operator can fan out manually).
+   `examples/throughput_mode/` ships alongside (build-tagged until the config
+   lands) so the operator-facing shape is reviewable from day one.
 2. **Phase 2 — top-up automation.** `reserve` basket convention, `pool_top_up`
    monitor task, tree fan-out builder, self-throttling, pool gauge + reconciliation.
-3. **Phase 3 — observability & alerting.** Stats surface, `pkg/alerting`, webhook +
-   Twilio notifiers, rules & cooldowns.
+3. **Phase 3 — observability.** OTel metrics via the existing OTLP wiring
+   (`pkg/tracing` gains a MeterProvider), the §5.4 instrument catalog, spans over
+   top-up/consolidation, and `examples/throughput_mode/` finalized as the
+   operator runbook: config, reserve funding, collector setup, and the external
+   alert-rule set (Prometheus/Grafana) for low-funds paging. No in-process
+   notifiers.
 4. **Phase 4 — scale hardening.** Internal claim batching (amortize N concurrent
    `createAction`s into one claim query — an internal optimization, NOT an API
    change; per §10 Q5 there is no batch endpoint, and at repo-market rates this is
@@ -556,10 +550,9 @@ Honest observations the config must surface rather than hide:
 - Key hygiene is *not* sacrificed: fan-out and change outputs keep fresh derivation
   suffixes (type-42 style), so key reuse does not increase even though values are
   uniform.
-- Twilio credentials are supplied the same way as DB passwords: via the config
-  loader's viper `AutomaticEnv` override of config keys (`internal/config/loader.go`),
-  never written into the YAML. Alert payloads must not include keys or derivation
-  material.
+- Telemetry must not leak sensitive material: metric attributes and span fields
+  carry basket names, statuses, denominations, and counts — never derivation
+  prefixes/suffixes, locking scripts, hash-puzzle secrets, or keys.
 
 ## 10. Open questions
 
