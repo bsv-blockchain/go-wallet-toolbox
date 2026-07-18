@@ -13,8 +13,11 @@ services:
       - PORT=${PORT}
       - SERVER_URL=${SERVER_URL}
     volumes:
-      # Persist SQLite database
-      - ./storage.sqlite:/app/storage.sqlite
+      # Persist the SQLite database directory. SQLite runs in WAL mode by default,
+      # which keeps -wal/-shm sibling files next to the database; a single-file
+      # bind mount would lose committed-but-not-checkpointed transactions on
+      # container restart, so the whole data directory is mounted instead.
+      - ./data:/app/data
       # Mount logs directory
       - ./logs:/app/logs
     restart: unless-stopped

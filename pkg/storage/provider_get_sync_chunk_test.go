@@ -33,7 +33,7 @@ func TestGetSyncChunk(t *testing.T) {
 	ownedTx2 := seed.SetLabels(commonLabel, customLabelTx2).OwnsMinedTransaction()
 	internalizedTxID, createActionResult := seed.OwnsInternalizedAndNotProcessedTx()
 
-	// and:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	args := given.RequestSyncChunk(testusers.Alice).Args()
 
 	// when:
@@ -53,7 +53,7 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.ProvenTxReqsCount(2)
 	thenChunk.ProvenTxReqAtIndex(0).
 		WithTxID(internalizedTxID).
-		HasHistoryNotes("internalizeAction")
+		HasHistoryNotes("internalizeAction", "postBeefSuccess", "postBeefError", "aggregateResults")
 
 	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx1)
 

@@ -18,6 +18,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -30,15 +31,17 @@ type OutputToInternalize struct {
 }
 
 type internalize struct {
-	logger             *slog.Logger
-	txRepo             TransactionsRepo
-	basketRepo         BasketRepo
-	knownTxRepo        KnownTxRepo
-	outputRepo         OutputRepo
-	random             wdk.Randomizer
-	beefVerifier       wdk.BeefVerifier
-	scriptsVerifier    wdk.ScriptsVerifier
-	blockHeaderService wdk.BlockHeaderLoader
+	logger                *slog.Logger
+	txRepo                TransactionsRepo
+	basketRepo            BasketRepo
+	knownTxRepo           KnownTxRepo
+	outputRepo            OutputRepo
+	random                wdk.Randomizer
+	beefVerifier          wdk.BeefVerifier
+	scriptsVerifier       wdk.ScriptsVerifier
+	blockHeaderService    wdk.BlockHeaderLoader
+	backgroundBroadcaster *service.BackgroundBroadcaster
+	uow                   UnitOfWork
 }
 
 func newInternalizeAction(
@@ -47,22 +50,26 @@ func newInternalizeAction(
 	basketRepo BasketRepo,
 	knownTxRepo KnownTxRepo,
 	outputRepo OutputRepo,
+	uow UnitOfWork,
 	random wdk.Randomizer,
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	blockHeader wdk.BlockHeaderLoader,
+	backgroundBroadcaster *service.BackgroundBroadcaster,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:             logger,
-		txRepo:             txRepo,
-		basketRepo:         basketRepo,
-		knownTxRepo:        knownTxRepo,
-		outputRepo:         outputRepo,
-		random:             random,
-		beefVerifier:       beefVerifier,
-		scriptsVerifier:    scriptsVerifier,
-		blockHeaderService: blockHeader,
+		logger:                logger,
+		txRepo:                txRepo,
+		basketRepo:            basketRepo,
+		knownTxRepo:           knownTxRepo,
+		outputRepo:            outputRepo,
+		uow:                   uow,
+		random:                random,
+		beefVerifier:          beefVerifier,
+		scriptsVerifier:       scriptsVerifier,
+		blockHeaderService:    blockHeader,
+		backgroundBroadcaster: backgroundBroadcaster,
 	}
 }
 
@@ -73,7 +80,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		tracing.EndTracing(span, err)
 	}()
 
-	in.logger.DebugContext(ctx, "Starting internalize action",
+	in.logger.DebugContext(
+		ctx, "Starting internalize action",
 		logging.UserID(userID),
 		slog.Int("txBeefSize", len(args.Tx)),
 		slog.Int("outputsCount", len(args.Outputs)),
@@ -85,7 +93,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to create atomic beef from bytes: %w", err)
 	}
 
-	in.logger.DebugContext(ctx, "Verifying beef transaction",
+	in.logger.DebugContext(
+		ctx, "Verifying beef transaction",
 		logging.UserID(userID),
 		slog.String("txID", txIDHash.String()),
 		slog.String("description", string(args.Description)),
@@ -132,109 +141,131 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 
 	txID := txIDHash.String()
 
-	in.logger.DebugContext(ctx, "BEEF verification completed successfully",
+	in.logger.DebugContext(
+		ctx, "BEEF verification completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.String("description", string(args.Description)),
 	)
 
-	in.logger.DebugContext(ctx, "Checking for existing transaction",
+	in.logger.DebugContext(
+		ctx, "Checking for existing transaction",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.String("description", string(args.Description)),
 	)
+	var outputs []*OutputToInternalize
+	var cumulativeSatoshis satoshi.Value
+	var isMerge bool
 
-	storedTx, err := in.txRepo.FindTransactionByUserIDAndTxID(ctx, userID, txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find transaction by userID and txID: %w", err)
-	}
-
-	isMerge := storedTx != nil
-
-	if isMerge {
-		in.logger.DebugContext(ctx, "Transaction already exists - performing merge",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.String("existingStatus", string(storedTx.Status)),
-			slog.String("description", string(args.Description)),
-		)
-	} else {
-		in.logger.DebugContext(ctx, "New transaction - creating fresh entry",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.String("description", string(args.Description)),
-		)
-	}
-
-	if isMerge && !in.isAllowedMergeStatus(storedTx.Status) {
-		return nil, fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
-	}
-
-	in.logger.DebugContext(ctx, "Processing outputs",
-		logging.UserID(userID),
-		slog.String("txID", txID),
-		slog.Int("outputsToProcess", len(args.Outputs)),
-		slog.Bool("isMerge", isMerge),
-		slog.String("description", string(args.Description)),
-	)
-
-	outputs, cumulativeSatoshis, err := in.makeOutputs(ctx, userID, tx, args.Outputs, isMerge)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new outputs: %w", err)
-	}
-
-	in.logger.DebugContext(ctx, "Outputs processed successfully",
-		logging.UserID(userID),
-		slog.String("txID", txID),
-		slog.Int("processedOutputsCount", len(outputs)),
-		logging.Number("cumulativeSatoshis", cumulativeSatoshis),
-		slog.String("description", string(args.Description)),
-	)
-
-	if isMerge {
-		in.logger.DebugContext(ctx, "Upserting existing transaction",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.Int("labelsCount", len(args.Labels)),
-			slog.Int("outputsCount", len(outputs)),
-			slog.String("description", string(args.Description)),
-		)
-
-		err = in.upsertExistingTx(ctx, storedTx, outputs, args.Labels)
-		if err != nil {
-			return nil, fmt.Errorf("failed to upsert outputs (isMerge): %w", err)
+	err = in.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+		var uowErr error
+		storedTx, uowErr := repos.TransactionsRepo().FindTransactionByUserIDAndTxID(txCtx, userID, txID)
+		if uowErr != nil {
+			return fmt.Errorf("failed to find transaction by userID and txID: %w", uowErr)
 		}
 
-		in.logger.DebugContext(ctx, "Existing transaction upserted successfully",
+		isMerge = storedTx != nil
+
+		if isMerge {
+			in.logger.DebugContext(
+				txCtx, "Transaction already exists - performing merge",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("existingStatus", string(storedTx.Status)),
+				slog.String("description", string(args.Description)),
+			)
+		} else {
+			in.logger.DebugContext(
+				txCtx, "New transaction - creating fresh entry",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("description", string(args.Description)),
+			)
+		}
+
+		if isMerge && !in.isAllowedMergeStatus(storedTx.Status) {
+			return fmt.Errorf("target transaction of internalizeAction has invalid status: %q", storedTx.Status)
+		}
+
+		in.logger.DebugContext(
+			txCtx, "Processing outputs",
 			logging.UserID(userID),
 			slog.String("txID", txID),
+			slog.Int("outputsToProcess", len(args.Outputs)),
+			slog.Bool("isMerge", isMerge),
 			slog.String("description", string(args.Description)),
 		)
-	} else {
-		in.logger.DebugContext(ctx, "Storing new transaction",
+
+		outputs, cumulativeSatoshis, uowErr = in.makeOutputs(txCtx, userID, tx, args.Outputs, isMerge, repos)
+		if uowErr != nil {
+			return fmt.Errorf("failed to create new outputs: %w", uowErr)
+		}
+
+		in.logger.DebugContext(
+			txCtx, "Outputs processed successfully",
 			logging.UserID(userID),
 			slog.String("txID", txID),
-			slog.Int("labelsCount", len(args.Labels)),
-			slog.Int("outputsCount", len(outputs)),
+			slog.Int("processedOutputsCount", len(outputs)),
 			logging.Number("cumulativeSatoshis", cumulativeSatoshis),
 			slog.String("description", string(args.Description)),
 		)
 
-		err = in.storeNewTx(ctx, userID, args, txID, tx, cumulativeSatoshis, outputs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to store new transaction: %w", err)
+		if isMerge {
+			in.logger.DebugContext(
+				txCtx, "Upserting existing transaction",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.Int("labelsCount", len(args.Labels)),
+				slog.Int("outputsCount", len(outputs)),
+				slog.String("description", string(args.Description)),
+			)
+
+			uowErr = in.upsertExistingTx(txCtx, storedTx, outputs, args.Labels, repos)
+			if uowErr != nil {
+				return fmt.Errorf("failed to upsert outputs (isMerge): %w", uowErr)
+			}
+
+			in.logger.DebugContext(
+				txCtx, "Existing transaction upserted successfully",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("description", string(args.Description)),
+			)
+		} else {
+			in.logger.DebugContext(
+				txCtx, "Storing new transaction",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.Int("labelsCount", len(args.Labels)),
+				slog.Int("outputsCount", len(outputs)),
+				logging.Number("cumulativeSatoshis", cumulativeSatoshis),
+				slog.String("description", string(args.Description)),
+			)
+
+			uowErr = in.storeNewTx(txCtx, userID, args, txID, tx, cumulativeSatoshis, outputs, beef, repos)
+			if uowErr != nil {
+				return fmt.Errorf("failed to store new transaction: %w", uowErr)
+			}
+
+			in.logger.DebugContext(
+				txCtx, "New transaction stored successfully",
+				logging.UserID(userID),
+				slog.String("txID", txID),
+				slog.String("description", string(args.Description)),
+			)
 		}
 
-		in.logger.DebugContext(ctx, "New transaction stored successfully",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-			slog.String("description", string(args.Description)),
-		)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	if tx.MerklePath != nil {
 		if err := in.updateKnownTxAsMined(ctx, userID, txID, tx); err != nil {
-			in.logger.Warn("updateKnownTxAsMined was not completed successfully",
+			in.logger.WarnContext(
+				ctx, "updateKnownTxAsMined was not completed successfully",
 				logging.UserID(userID),
 				slog.String("txID", txID),
 				slog.String("error", err.Error()),
@@ -242,7 +273,8 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		}
 	}
 
-	in.logger.DebugContext(ctx, "InternalizeAction completed successfully",
+	in.logger.DebugContext(
+		ctx, "InternalizeAction completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 		slog.Bool("accepted", true),
@@ -282,7 +314,8 @@ func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txI
 		return fmt.Errorf("failed to update known tx as mined: %w", err)
 	}
 
-	in.logger.DebugContext(ctx, "UpdateKnownTxAsMined completed successfully",
+	in.logger.DebugContext(
+		ctx, "UpdateKnownTxAsMined completed successfully",
 		logging.UserID(userID),
 		slog.String("txID", txID),
 	)
@@ -294,8 +327,8 @@ func convertStringLikeSlice[ResultType, ArgType ~string](input []ArgType) []Resu
 	return slices.Map(input, func(s ArgType) ResultType { return ResultType(s) })
 }
 
-func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgentity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300) error {
-	err := in.txRepo.AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
+func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgentity.Transaction, outputs []*OutputToInternalize, labels []primitives.StringUnder300, repos Providers) error {
+	err := repos.TransactionsRepo().AddLabels(ctx, existingTx.UserID, existingTx.ID, convertStringLikeSlice[string](labels)...)
 	if err != nil {
 		return fmt.Errorf("failed to replace labels for existing transaction: %w", err)
 	}
@@ -341,7 +374,23 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 		outputsToInternalize = append(outputsToInternalize, output)
 	}
 
-	err = in.outputRepo.SaveOutputs(ctx, outputsToInternalize)
+	// Ensure baskets exist before saving outputs (matching TS findOrInsertOutputBasket behavior)
+	seen := make(map[string]bool)
+	for _, output := range outputsToInternalize {
+		if output.BasketName == nil {
+			continue
+		}
+		name := *output.BasketName
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		if basketErr := repos.BasketRepo().FindOrCreateBasket(ctx, existingTx.UserID, name); basketErr != nil {
+			return fmt.Errorf("failed to ensure basket %q exists: %w", name, basketErr)
+		}
+	}
+
+	err = repos.OutputRepo().SaveOutputs(ctx, outputsToInternalize)
 	if err != nil {
 		return fmt.Errorf("failed to save output: %w", err)
 	}
@@ -357,13 +406,49 @@ func (in *internalize) storeNewTx(
 	tx *transaction.Transaction,
 	cumulativeSatoshis satoshi.Value,
 	outputs []*OutputToInternalize,
+	beef *transaction.Beef,
+	repos Providers,
 ) error {
-	err := in.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
-		TxID:          txID,
-		RawTx:         tx.Bytes(),
-		InputBeef:     args.Tx,
-		Status:        wdk.ProvenTxStatusUnmined,
-		SkipForStatus: to.Ptr(wdk.ProvenTxStatusCompleted),
+	isMined := tx.MerklePath != nil
+
+	// check if transaction already exists in DB with a confirmed broadcast status
+	statuses, err := repos.KnownTxRepo().FindKnownTxStatuses(ctx, txID)
+	if err != nil {
+		return fmt.Errorf("failed to find existing known tx status: %w", err)
+	}
+
+	alreadySent := false
+	if existingStatus, ok := statuses[txID]; ok {
+		if existingStatus.AlreadySent() {
+			alreadySent = true
+		}
+	}
+
+	knownTxStatus := wdk.ProvenTxStatusUnsent
+	txStatus := wdk.TxStatusSending
+	utxoStatus := wdk.UTXOStatusSending
+	shouldPushToBroadcaster := true
+
+	if isMined || alreadySent {
+		knownTxStatus = wdk.ProvenTxStatusUnmined
+		txStatus = wdk.TxStatusUnproven
+		utxoStatus = wdk.UTXOStatusUnproven
+		shouldPushToBroadcaster = false
+	}
+
+	skipForStatuses := []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted}
+	if knownTxStatus == wdk.ProvenTxStatusUnmined {
+		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined)
+	} else {
+		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent)
+	}
+
+	err = repos.KnownTxRepo().UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+		TxID:            txID,
+		RawTx:           tx.Bytes(),
+		InputBeef:       args.Tx,
+		Status:          knownTxStatus,
+		SkipForStatuses: skipForStatuses,
 	}, history.NewBuilder().InternalizeAction(userID))
 	if err != nil {
 		return fmt.Errorf("failed to upsert known tx: %w", err)
@@ -374,12 +459,12 @@ func (in *internalize) storeNewTx(
 		return fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
-	err = in.txRepo.CreateTransaction(ctx, &entity.NewTx{
+	err = repos.TransactionsRepo().CreateTransaction(ctx, &entity.NewTx{
 		UserID:      userID,
 		Version:     tx.Version,
 		LockTime:    tx.LockTime,
-		Status:      wdk.TxStatusUnproven,
-		UTXOStatus:  wdk.UTXOStatusUnproven,
+		Status:      txStatus,
+		UTXOStatus:  utxoStatus,
 		Reference:   reference,
 		IsOutgoing:  false,
 		Description: string(args.Description),
@@ -393,6 +478,16 @@ func (in *internalize) storeNewTx(
 	if err != nil {
 		return fmt.Errorf("failed to create transaction: %w", err)
 	}
+
+	if shouldPushToBroadcaster && in.backgroundBroadcaster != nil {
+		in.logger.DebugContext(
+			ctx, "Pushing unmined internalized tx to background broadcaster",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+		)
+		in.backgroundBroadcaster.Add(beef, []string{txID})
+	}
+
 	return nil
 }
 
@@ -402,6 +497,7 @@ func (in *internalize) makeOutputs(
 	tx *transaction.Transaction,
 	outputSpecs []*wdk.InternalizeOutput,
 	isMerge bool,
+	repos Providers,
 ) ([]*OutputToInternalize, satoshi.Value, error) {
 	satoshis := satoshi.Zero()
 
@@ -421,7 +517,7 @@ func (in *internalize) makeOutputs(
 
 		var existingOutput *pkgentity.Output
 		if isMerge {
-			existingOutput, err = in.outputRepo.FindOutput(ctx, userID, wdk.OutPoint{
+			existingOutput, err = repos.OutputRepo().FindOutput(ctx, userID, wdk.OutPoint{
 				TxID: tx.TxID().String(),
 				Vout: outputSpec.OutputIndex,
 			})
@@ -443,7 +539,7 @@ func (in *internalize) makeOutputs(
 			satoshis = satoshi.MustAdd(satoshis, output.Satoshis)
 
 			if !changeBasketVerified {
-				if err := in.checkChangeBasket(ctx, userID); err != nil {
+				if err := in.checkChangeBasket(ctx, userID, repos); err != nil {
 					return nil, 0, fmt.Errorf("failed to check change basket: %w", err)
 				}
 				changeBasketVerified = true
@@ -511,8 +607,8 @@ func (in *internalize) makeOutputs(
 	return newOutputs, satoshis, nil
 }
 
-func (in *internalize) checkChangeBasket(ctx context.Context, userID int) error {
-	basket, err := in.basketRepo.FindBasketByName(ctx, userID, wdk.BasketNameForChange)
+func (in *internalize) checkChangeBasket(ctx context.Context, userID int, repos Providers) error {
+	basket, err := repos.BasketRepo().FindBasketByName(ctx, userID, wdk.BasketNameForChange)
 	if err != nil {
 		return fmt.Errorf("failed to find basket for change: %w", err)
 	}
@@ -524,9 +620,9 @@ func (in *internalize) checkChangeBasket(ctx context.Context, userID int) error 
 
 func (in *internalize) isAllowedMergeStatus(status wdk.TxStatus) bool {
 	switch status {
-	case wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusNoSend:
+	case wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusNoSend, wdk.TxStatusSending:
 		return true
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return false
@@ -539,7 +635,9 @@ func (in *internalize) utxoStatusByTxStatusForMerge(txStatus wdk.TxStatus) (wdk.
 		return wdk.UTXOStatusMined, nil
 	case wdk.TxStatusUnproven:
 		return wdk.UTXOStatusUnproven, nil
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusSending, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusSending:
+		return wdk.UTXOStatusSending, nil
+	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return "", fmt.Errorf("unsupported transaction status for UTXO: %s", txStatus)

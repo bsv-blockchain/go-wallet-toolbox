@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -30,7 +29,8 @@ import (
 const testValueForFunding = 99904
 
 func TestCreateActionOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.CreateActionResult, error) {
 			args := fixtures.DefaultWalletCreateActionArgs(t)
 			return w.CreateAction(ctx, args, originator)
@@ -262,7 +262,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_SignableTxAndProvidedInput() {
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -396,13 +397,13 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
-		given.Services().ARC().HoldBroadcasting()
-
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
 		// and:
 		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		given.Services().ARC().HoldBroadcasting()
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast())
@@ -448,8 +449,6 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 		given, cleanup := testabilities.Given(t)
 		defer cleanup()
 
-		given.Services().ARC().HoldBroadcasting()
-
 		// and:
 		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
 
@@ -459,6 +458,8 @@ func (s *WalletTestSuite) TestWalletCreateActionNewWithDelayedBroadcast() {
 			// NOTE: We need to create multiple UTXOs one for each transaction because they will be reserved until the broadcast is released.
 			_, _ = faucet.TopUp(topUpValue)
 		}
+
+		given.Services().ARC().HoldBroadcasting()
 
 		// when:
 		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast(), walletargs.WithSatoshisAsFirstOutput(1))
@@ -734,7 +735,8 @@ func (s *WalletTestSuite) TestWalletCreateActionWithAllServicesDown() {
 		given.Services().AllDown()
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t,
+		args := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInput(input),
 			walletargs.WithSignAndProcess(false),
 		)
@@ -775,7 +777,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		assert.Empty(t, firstResult.SendWithResults, "Wallet result should have no send with results")
 
 		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t,
+		args = fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithNoSendChangeOutputs(firstResult.NoSendChange...),
 			walletargs.WithSendWith(firstResult.Txid),
 			walletargs.WithSatoshisAsFirstOutput(1),
@@ -811,7 +814,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		require.NoError(t, err)
 
 		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t,
+		args = fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithNoSendChangeOutputs(firstResult.NoSendChange...),
 			walletargs.WithNoSend(true),
 			walletargs.WithSatoshisAsFirstOutput(1),
@@ -823,7 +827,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		require.NoError(t, err)
 
 		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t,
+		args = fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithoutProvidedOutputs(),
 			walletargs.WithSendWith(firstResult.Txid, secondResult.Txid),
 		)
@@ -834,7 +839,8 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith() {
 		require.NoError(t, err)
 
 		// and:
-		testabilities.SendWithResultsAsserter(thirdResult.SendWithResults).ContainsTxsWithStatus(t, sdk.ActionResultStatusUnproven,
+		testabilities.SendWithResultsAsserter(thirdResult.SendWithResults).ContainsTxsWithStatus(
+			t, sdk.ActionResultStatusUnproven,
 			firstResult.Txid.String(),
 			secondResult.Txid.String(),
 		)
@@ -918,21 +924,17 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 
 		createActionResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
-		// then:
+		// then: CreateAction should fail with TransactionError
 		txError := &pkgerrors.TransactionError{}
 		require.ErrorAs(t, err, &txError)
 		assert.False(t, txError.WrongHash)
 		assert.Nil(t, createActionResult)
 
-		// when:
-		txIDToRetry := txError.TxID
+		// and: the failed transaction should be automatically aborted, releasing UTXOs
+		// when: user creates a NEW transaction using the released funds
 		given.ScriptsVerifier().DefaultBehavior()
-		createActionResult, err = aliceWallet.CreateAction(t.Context(), sdk.CreateActionArgs{
-			Options: &sdk.CreateActionOptions{
-				SendWith: []chainhash.Hash{txIDToRetry},
-			},
-			Description: "retry using sendWith",
-		}, fixtures.DefaultOriginator)
+		retryArgs := fixtures.DefaultWalletCreateActionArgs(t)
+		createActionResult, err = aliceWallet.CreateAction(t.Context(), retryArgs, fixtures.DefaultOriginator)
 
 		// then:
 		require.NoError(t, err)
@@ -948,17 +950,17 @@ func (s *WalletTestSuite) TestWalletCreateAction_SendWithAsRetryOfProcessAction(
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
+		// Second action (retry - new tx) should succeed
 		const fee = 1
 		thenCreatedAction := thenState.ActionAtIndex(1)
 		thenCreatedAction.
-			WithTxID(txIDToRetry.String()).
-			WithDescription(args.Description).
+			WithDescription(retryArgs.Description).
 			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
+			WithSatoshis(-int64(retryArgs.Outputs[0].Satoshis) - fee) //nolint:gosec // satoshi value fits in int64
 
 		thenCreatedAction.OutputAtIndex(0).
-			WithSatoshis(args.Outputs[0].Satoshis).
-			WithLockingScript(args.Outputs[0].LockingScript).
+			WithSatoshis(retryArgs.Outputs[0].Satoshis).
+			WithLockingScript(retryArgs.Outputs[0].LockingScript).
 			WithOutputIndex(0).
 			WithTags(fixtures.CreateActionTestTag).
 			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
@@ -1000,7 +1002,8 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		assert.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
 		// when:
-		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInputs([]sdk.CreateActionInput{
 				{
 					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},
@@ -1061,7 +1064,8 @@ func (s *WalletTestSuite) TestWalletCreateActionByBobBasedOnAliceCreateAction() 
 		require.NotEmpty(t, firstResult.Txid, "Alice wallet should return transaction ID")
 
 		// when:
-		bobsArgs := fixtures.DefaultWalletCreateActionArgs(t,
+		bobsArgs := fixtures.DefaultWalletCreateActionArgs(
+			t,
 			walletargs.WithInputs([]sdk.CreateActionInput{
 				{
 					Outpoint:         transaction.Outpoint{Txid: firstResult.Txid, Index: 0},

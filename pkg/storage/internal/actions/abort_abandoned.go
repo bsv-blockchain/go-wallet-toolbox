@@ -9,18 +9,12 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 const (
 	failAbandonedMaxPages     = 10
 	failAbandonedItemsPerPage = 1000
 )
-
-var statusesOfAbandonedTxs = []wdk.TxStatus{
-	wdk.TxStatusUnprocessed,
-	wdk.TxStatusUnsigned,
-}
 
 func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time.Duration) error {
 	var err error
@@ -34,7 +28,7 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 
 	lockAcquired := a.failAbandonedLock.TryLock()
 	if !lockAcquired {
-		log.Warn("FailAbandonedTransactions is already running, skipping this run")
+		log.WarnContext(ctx, "FailAbandonedTransactions is already running, skipping this run")
 		return nil
 	}
 	defer a.failAbandonedLock.Unlock()
@@ -47,14 +41,13 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 	var idsToAbort []uint
 
 	for range failAbandonedMaxPages {
-		transactionIDs, err := a.transactionsRepo.FindTransactionIDsByStatuses(
+		transactionIDs, err := a.transactionsRepo.FindTransactionIDsForAbort(
 			ctx,
-			statusesOfAbandonedTxs,
 			queryopts.WithUntil(until),
 			queryopts.WithPage(paging),
 		)
 		if err != nil {
-			return fmt.Errorf("failed to find transactions by statuses: %w", err)
+			return fmt.Errorf("failed to find transactions for abort: %w", err)
 		}
 
 		idsToAbort = append(idsToAbort, transactionIDs...)

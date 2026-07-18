@@ -8,6 +8,12 @@ import (
 	slicesx "github.com/go-softwarelab/common/pkg/slices"
 )
 
+const (
+	typeNameError  = "error"
+	typeNameString = "string"
+	typeNameBool   = "bool"
+)
+
 // MethodInfo holds information about a method in an interface
 type MethodInfo struct {
 	Name        string    `json:"name"`
@@ -61,7 +67,7 @@ type Results []TypeInfo
 // HasError checks whether any TypeInfo in the Results slice has a Type field equal to "error".
 func (r Results) HasError() bool {
 	return seq.Exists(seq.FromSlice(r), func(it TypeInfo) bool {
-		return it.Type == "error"
+		return it.Type == typeNameError
 	})
 }
 
@@ -69,11 +75,11 @@ func (r Results) HasError() bool {
 func (r Results) ReturnError(pkg Package, errVarName string) string {
 	returns := slicesx.Map(r, func(it TypeInfo) string {
 		switch it.Type {
-		case "error":
+		case typeNameError:
 			return errVarName
-		case "string":
+		case typeNameString:
 			return `""`
-		case "bool":
+		case typeNameBool:
 			return "false"
 		}
 

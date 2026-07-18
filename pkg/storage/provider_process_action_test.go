@@ -489,7 +489,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, scriptsVerifyMockError)
 
-	// and db state:
+	// and db state: transaction is automatically aborted on pre-broadcast failure
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID).
 		NotMined().
@@ -498,35 +498,173 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		HasRawTx()
 
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-		WithTxID(txID).WithStatus(wdk.TxStatusUnprocessed)
+		WithTxID(txID).WithStatus(wdk.TxStatusFailed)
+
+	// and: funds are released because the pre-broadcast abort unreserves UTXOs
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+}
+
+// TestServiceErrorBroadcastCreatesNoSpendableChange guards P5 (Decision Record v1, W2-1): when a
+// broadcast comes back as an aggregated service error (no positive evidence either way - not a
+// success, not a confirmed double spend, not invalid), the transaction's change output must NOT
+// become spendable. Making it spendable on a bare service error would let the wallet spend coins
+// backing a transaction that might still turn out to be a double spend or invalid, stranding the
+// spender with nothing behind those funds.
+func TestServiceErrorBroadcastCreatesNoSpendableChange(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	const (
+		satoshisToInternalize = 5000
+		satoshisToSend        = 1000
+		ownedSatoshisAfterTx  = satoshisToInternalize - satoshisToSend - 1
+	)
 
 	// and:
-	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
-		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+	createActionResult, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(satoshisToInternalize).
+		WithSatoshisToSend(satoshisToSend).
+		Created()
+	txID := signedTx.TxID().String()
 
-	// when, retry:
-	given.Provider().ScriptsVerifier().DefaultBehavior()
-	args = wdk.ProcessActionArgs{
-		IsNewTx: false,
-		TxID:    to.Ptr(primitives.TXIDHexString(txID)),
+	// and: ARC cannot confirm anything about this tx (empty response body) - a bare service
+	// error with no positive evidence of success, double spend, or invalidity.
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnNoBody()
+
+	// when:
+	args := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  false,
+		Reference:  to.Ptr(createActionResult.Reference),
+		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:      signedTx.Bytes(),
+		SendWith:   []primitives.TXIDHexString{},
 	}
-	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+	result, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
 
 	// then:
 	require.NoError(t, err)
+	require.Len(t, result.NotDelayedResults, 1)
+	assert.Equal(t, wdk.ReviewActionResultStatusServiceError, result.NotDelayedResults[0].Status)
 
-	thenDBState.HasKnownTX(txID).
-		NotMined().
-		WithStatus(wdk.ProvenTxStatusUnmined).
-		WithAttempts(1).
-		HasRawTx()
+	// and: both the known tx and the user's transaction stay retryable (sending), never proven:
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusSending)
 
-	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-		WithTxID(txID).WithStatus(wdk.TxStatusUnproven)
+	// and: P5 - no network evidence means the change must NOT become spendable yet.
+	//
+	// NOTE on the query below: CreateAction eagerly inserts a bsv_user_utxos row for every
+	// change output at creation time (see repo/transactions.go:makeNewOutput), well before any
+	// broadcast - with utxo_status = "" (Unknown). That row's existence is therefore NOT the
+	// signal to check (it exists in both the buggy and fixed behavior). The signal is whether
+	// CreateUTXOForSpendableOutputsByTxID (gated by `spendable` in singleTxBroadcastResult) has
+	// upserted it to a funder-recognized status. Before this fix, the ServiceError branch upserted
+	// utxo_status to "sending" - which IS selectable by the funder in HighAssurance mode
+	// (FindNotReservedUTXOsForUpdate's includeSending option) even though nothing here proves the
+	// broadcast will ever succeed. So the row must still carry no recognized status.
+	var activatedUTXORows int64
+	require.NoError(t, activeStorage.Database.DB.Raw(
+		`
+		SELECT count(*) FROM bsv_user_utxos uu
+		JOIN bsv_outputs o ON o.id = uu.output_id
+		JOIN bsv_transactions tx ON tx.id = o.transaction_id
+		WHERE tx.tx_id = ? AND uu.utxo_status != ''`,
+		txID,
+	).Scan(&activatedUTXORows).Error)
+	assert.Zerof(t, activatedUTXORows,
+		"expected no ACTIVATED (funder-recognized status) user_utxos rows for tx %s change after a service-error broadcast, got %d", txID, activatedUTXORows)
 
-	// and:
+	// and: the funder pool cannot reserve the change - it is not (yet) counted as spendable funds.
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+
+	// and: cross-table invariants still hold.
+	testabilities.AssertStorageInvariants(t, activeStorage.Database.DB)
+}
+
+// TestServiceErrorChangeBecomesSpendableAfterRetrySuccess guards the recovery side of P5: once a
+// later retry succeeds, the change that was withheld on the service error becomes spendable - the
+// funds are gated (not permanently stranded) until there is real network evidence for the tx.
+func TestServiceErrorChangeBecomesSpendableAfterRetrySuccess(t *testing.T) {
+	// given: same scenario as TestServiceErrorBroadcastCreatesNoSpendableChange - the tx is stuck
+	// in a service error, and its change is not yet spendable.
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	const (
+		satoshisToInternalize = 5000
+		satoshisToSend        = 1000
+		ownedSatoshisAfterTx  = satoshisToInternalize - satoshisToSend - 1
+	)
+
+	createActionResult, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(satoshisToInternalize).
+		WithSatoshisToSend(satoshisToSend).
+		Created()
+	txID := signedTx.TxID().String()
+
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnNoBody()
+
+	args := wdk.ProcessActionArgs{
+		IsNewTx:    true,
+		IsSendWith: false,
+		IsNoSend:   false,
+		IsDelayed:  false,
+		Reference:  to.Ptr(createActionResult.Reference),
+		TxID:       to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:      signedTx.Bytes(),
+		SendWith:   []primitives.TXIDHexString{},
+	}
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), args)
+	require.NoError(t, err)
+
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+
+	// sanity: not spendable yet (mirrors TestServiceErrorBroadcastCreatesNoSpendableChange).
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+
+	// when: ARC now confirms the tx is known to the network and a SendWaiting retry re-posts it.
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	_, err = activeStorage.SendWaitingTransactions(t.Context(), 0)
+
+	// then:
+	require.NoError(t, err)
+	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusUnmined)
+
+	// and: recovery is not stranded - the change's user_utxos row is now ACTIVATED (upserted to a
+	// funder-recognized status, see the NOTE in TestServiceErrorBroadcastCreatesNoSpendableChange).
+	var activatedUTXORows int64
+	require.NoError(t, activeStorage.Database.DB.Raw(
+		`
+		SELECT count(*) FROM bsv_user_utxos uu
+		JOIN bsv_outputs o ON o.id = uu.output_id
+		JOIN bsv_transactions tx ON tx.id = o.transaction_id
+		WHERE tx.tx_id = ? AND uu.utxo_status != ''`,
+		txID,
+	).Scan(&activatedUTXORows).Error)
+	assert.Positive(t, activatedUTXORows, "expected ACTIVATED user_utxos row(s) for tx %s change after retry success", txID)
+
+	// ... and the funder pool can now reserve it.
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldBeAbleToReserveSatoshis(ownedSatoshisAfterTx)
+
+	// and: cross-table invariants still hold.
+	testabilities.AssertStorageInvariants(t, activeStorage.Database.DB)
 }
 
 func TestProcessActionNLockTimeIsFinalSuccess(t *testing.T) {

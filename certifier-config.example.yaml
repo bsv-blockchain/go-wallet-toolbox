@@ -1,6 +1,7 @@
 server:
   port: "8080"
   network: test
+  max_request_body_bytes: 1048576
 certifier_wallet:
   private_key: 01b2414a784...
 storage:

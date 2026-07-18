@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/seqerr"
 
@@ -13,13 +14,15 @@ import (
 type AssembledTransaction struct {
 	*transaction.Transaction
 
-	inputBEEF *transaction.Beef
+	inputBEEF   *transaction.Beef
+	initialTxID *chainhash.Hash
 }
 
 func NewAssembledTxFromPendingSignAction(pendingSignAction *pending.SignAction) *AssembledTransaction {
 	return &AssembledTransaction{
 		Transaction: &pendingSignAction.Tx,
 		inputBEEF:   pendingSignAction.InputBEEF,
+		initialTxID: pendingSignAction.Tx.TxID(),
 	}
 }
 
@@ -45,6 +48,10 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 		return nil, fmt.Errorf("failed to merge input beef into transaction beef: %w", err)
 	}
 
+	if a.initialTxID != nil {
+		delete(beef.Transactions, *a.initialTxID)
+	}
+
 	allInputs := seqerr.FromSlice(a.Inputs)
 
 	var inputsWithSourceTx iter.Seq2[*transaction.TransactionInput, error]
@@ -56,13 +63,16 @@ func (a *AssembledTransaction) ToAtomicBEEF(allowPartials bool) (*transaction.Be
 		})
 	}
 
-	inputsRawTx := seqerr.Map(inputsWithSourceTx, inputRawTxBytes)
+	inputSourceTxs := seqerr.Map(inputsWithSourceTx, inputSourceTransaction)
 
-	allRawTxs := seqerr.Append(inputsRawTx, a.Bytes())
-
-	err = seqerr.ForEach(allRawTxs, mergeRawTxIntoBEEF(beef))
+	err = seqerr.ForEach(inputSourceTxs, mergeSourceTxIntoBEEF(beef))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build beef from tx, %w", err)
+	}
+
+	_, err = beef.MergeRawTx(a.Bytes(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot merge new tx into beef: %w", err)
 	}
 
 	return beef, nil
@@ -75,13 +85,22 @@ func validateInputs(input *transaction.TransactionInput) error {
 	return nil
 }
 
-func inputRawTxBytes(input *transaction.TransactionInput) []byte {
-	return input.SourceTransaction.Bytes()
+func inputSourceTransaction(input *transaction.TransactionInput) *transaction.Transaction {
+	return input.SourceTransaction
 }
 
-func mergeRawTxIntoBEEF(beef *transaction.Beef) func([]byte) error {
-	return func(rawTx []byte) error {
-		_, err := beef.MergeRawTx(rawTx, nil)
+func mergeSourceTxIntoBEEF(beef *transaction.Beef) func(*transaction.Transaction) error {
+	return func(tx *transaction.Transaction) error {
+		txid := tx.TxID()
+		if existing, ok := beef.Transactions[*txid]; ok && existing.DataFormat == transaction.RawTxAndBumpIndex {
+			// Already merged with the correct BumpIndex by MergeBeef above.
+			// Re-merging via MergeRawTx would clobber BumpIndex to 0 due to a
+			// bug in go-sdk Beef.MergeRawTx (it sets MerklePath but forgets to
+			// assign BeefTx.BumpIndex), causing the serialized BEEF to encode
+			// the wrong bump index for this transaction.
+			return nil
+		}
+		_, err := beef.MergeRawTx(tx.Bytes(), nil)
 		if err != nil {
 			return fmt.Errorf("cannot merge raw tx into beef: %w", err)
 		}

@@ -1,5 +1,8 @@
 package rpcserver
 
+// DEPRECATED: This file belongs to the legacy JSON-RPC storage remoting layer.
+// Use v1adapter + storage.Server instead. See rpc_server.go for full deprecation notice.
+
 import (
 	"context"
 	"fmt"

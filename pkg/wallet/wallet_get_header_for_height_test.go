@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 )
@@ -20,7 +21,8 @@ type testCase struct {
 }
 
 func TestGetHeaderForHeightOriginatorValidation(t *testing.T) {
-	RunOriginatorValidationErrorTests(t,
+	RunOriginatorValidationErrorTests(
+		t,
 		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.GetHeaderResult, error) {
 			args := sdk.GetHeaderArgs{
 				Height: 100,
@@ -37,6 +39,8 @@ func TestWallet_GetHeaderForHeight_Validation(t *testing.T) {
 	defer cleanup()
 
 	wallet := given.AliceWalletWithStorage(testabilities.StorageTypeMocked)
+
+	given.Services().WhatsOnChain().WillRespondWithMerkleRoot(testservices.TestBlockMerkleRoot)
 
 	tests := map[string]testCase{
 		"valid request": {

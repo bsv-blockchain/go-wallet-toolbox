@@ -36,6 +36,8 @@ type BackgroundBroadcaster struct {
 
 	// optional notification channel
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus
+
+	stopOnce sync.Once
 }
 
 type broadcastItem struct {
@@ -64,9 +66,11 @@ func (bb *BackgroundBroadcaster) Start() {
 }
 
 func (bb *BackgroundBroadcaster) Stop() {
-	bb.cancel()
-	bb.wg.Wait()
-	close(bb.broadcastChannel)
+	bb.stopOnce.Do(func() {
+		bb.cancel()
+		bb.wg.Wait()
+		close(bb.broadcastChannel)
+	})
 }
 
 func (bb *BackgroundBroadcaster) Add(beef *transaction.Beef, txIDs []string) (added bool) {
@@ -91,9 +95,9 @@ func (bb *BackgroundBroadcaster) worker() {
 				return
 			}
 			if err := bb.broadcast(&item); err != nil {
-				bb.logger.Error("Failed to broadcast transaction", "error", err, "txIDs", item.txIDs)
+				bb.logger.ErrorContext(bb.ctx, "Failed to broadcast transaction", "error", err, "txIDs", item.txIDs)
 			} else {
-				bb.logger.Info("Successfully broadcasted transaction", "txIDs", item.txIDs)
+				bb.logger.InfoContext(bb.ctx, "Successfully broadcasted transaction", "txIDs", item.txIDs)
 			}
 		}
 	}
@@ -120,6 +124,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 			TxID:      res.TxID.String(),
 			Status:    res.Status.ToStandardizedStatus(),
 			Reference: res.Reference,
+			Labels:    res.Labels,
 		}
 
 		if len(res.Errors) > 0 {
@@ -135,7 +140,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 		case <-bb.ctx.Done():
 			return fmt.Errorf("context done while sending tx status update: %w", bb.ctx.Err())
 		default:
-			bb.logger.Warn("TxBroadcasted channel in background broadcaster is full, dropping event")
+			bb.logger.WarnContext(bb.ctx, "TxBroadcasted channel in background broadcaster is full, dropping event")
 		}
 	}
 

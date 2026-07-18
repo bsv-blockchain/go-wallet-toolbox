@@ -21,12 +21,12 @@ func NewGetAddressHandler(deps methods.FaucetDeps) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		addr, err := methods.DeriveAddress(deps.FaucetPrivateKey, deps.Network)
 		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(AddressResponse{Status: "error", Message: err.Error()})
+			return c.Status(http.StatusBadRequest).JSON(AddressResponse{Status: statusError, Message: err.Error()})
 		}
 
 		balance, err := methods.ComputeBalance(c.Context(), deps.Wallet, "default")
 		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(AddressResponse{Status: "error", Message: err.Error()})
+			return c.Status(http.StatusInternalServerError).JSON(AddressResponse{Status: statusError, Message: err.Error()})
 		}
 
 		return c.JSON(AddressResponse{

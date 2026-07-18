@@ -78,61 +78,6 @@ func TestListTransactions_EmptyResult(t *testing.T) {
 	assert.Empty(t, result.Transactions)
 }
 
-func TestListTransactions_FilterByReference(t *testing.T) {
-	// Given:
-	ctx := t.Context()
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	activeStorage := given.Provider().GORM()
-
-	// Create actions with different references
-	customReference := "custom-tx-ref-123"
-	given.Action(activeStorage).WithReference(customReference).Processed()
-	given.Action(activeStorage).WithSatoshisToInternalize(50000).Processed()
-
-	// When: filter by specific reference
-	args := wdk.ListTransactionsArgs{
-		Limit:      10,
-		Offset:     0,
-		References: []string{customReference},
-	}
-	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
-
-	// Then:
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, primitives.PositiveInteger(1), result.TotalTransactions)
-	assert.Len(t, result.Transactions, 1)
-}
-
-func TestListTransactions_FilterByReferenceNoMatch(t *testing.T) {
-	// Given:
-	ctx := t.Context()
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	activeStorage := given.Provider().GORM()
-
-	// Create an action without specific reference
-	given.Action(activeStorage).Processed()
-
-	// When: filter by non-existent reference
-	nonExistentRef := "non-existent-reference"
-	args := wdk.ListTransactionsArgs{
-		Limit:      10,
-		Offset:     0,
-		References: []string{nonExistentRef},
-	}
-	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
-
-	// Then:
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, primitives.PositiveInteger(0), result.TotalTransactions)
-	assert.Empty(t, result.Transactions)
-}
-
 func TestListTransactions_FilterByTxID(t *testing.T) {
 	// Given:
 	ctx := t.Context()
@@ -163,7 +108,7 @@ func TestListTransactions_FilterByTxID(t *testing.T) {
 	assert.Equal(t, txID, result.Transactions[0].TxID)
 }
 
-func TestListTransactions_NilReferenceReturnsAll(t *testing.T) {
+func TestListTransactions_FilterByLabels(t *testing.T) {
 	// Given:
 	ctx := t.Context()
 	given, cleanup := testabilities.Given(t)
@@ -171,16 +116,18 @@ func TestListTransactions_NilReferenceReturnsAll(t *testing.T) {
 
 	activeStorage := given.Provider().GORM()
 
-	// Create multiple actions
-	customReference := "some-reference"
-	given.Action(activeStorage).WithReference(customReference).Processed()
-	given.Action(activeStorage).WithSatoshisToInternalize(50000).Processed()
+	// Create actions with labels
+	label1 := "label-1"
+	label2 := "label-2"
+	given.Action(activeStorage).WithLabels(label1).WithSatoshisToInternalize(100001).Processed()
+	given.Action(activeStorage).WithLabels(label1, label2).WithSatoshisToInternalize(100002).Processed()
+	given.Action(activeStorage).WithSatoshisToInternalize(100003).Processed() // No labels
 
-	// When: no reference filter (empty slice)
+	// When: filter by label1 (ANY)
 	args := wdk.ListTransactionsArgs{
-		Limit:      10,
-		Offset:     0,
-		References: nil,
+		Limit:  10,
+		Offset: 0,
+		Labels: []string{label1},
 	}
 	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
 

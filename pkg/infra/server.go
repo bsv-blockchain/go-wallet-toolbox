@@ -163,8 +163,10 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	requestPrice := must.ConvertToIntFromUnsigned(cfg.HTTPConfig.RequestPrice)
 
 	serverOptions := storage.ServerOptions{
-		Port:     cfg.HTTPConfig.Port,
-		Monetize: requestPrice != 0,
+		Port:                cfg.HTTPConfig.Port,
+		MaxRequestBodyBytes: cfg.HTTPConfig.MaxRequestBodyBytes,
+		CORS:                cfg.HTTPConfig.CORS,
+		Monetize:            requestPrice != 0,
 		CalculateRequestPrice: func(_ *http.Request) (int, error) {
 			return requestPrice, nil
 		},
@@ -187,21 +189,23 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 // ListenAndServe starts the JSON-RPC server
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.txBroadcastedCh != nil {
-		go s.consumeTxBroadcasted()
+		go s.consumeTxBroadcasted(ctx)
 	}
 
 	if s.txProvenCh != nil {
-		go s.consumeTxProven()
+		go s.consumeTxProven(ctx)
 	}
 
 	if s.Config.Services.ChaintracksClient.Enabled {
-		if err := s.services.StartChaintracks(context.Background()); err != nil {
+		if err := s.services.StartChaintracks(ctx); err != nil {
 			return fmt.Errorf("failed to start chaintracks: %w", err)
 		}
 	}
 
-	if err := s.monitor.Start(ctx, s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
-		return fmt.Errorf("failed to start storage monitor: %w", err)
+	if s.monitor != nil {
+		if err := s.monitor.Start(ctx, s.Config.Monitor.Tasks.EnabledTasks()); err != nil {
+			return fmt.Errorf("failed to start storage monitor: %w", err)
+		}
 	}
 
 	err := s.storageServer.Start()
@@ -214,7 +218,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 // Cleanup releases all resources held by the server
 func (s *Server) Cleanup() {
-	s.logger.Info("Cleaning up resources...")
+	s.logger.InfoContext(context.Background(), "Cleaning up resources...")
 
 	if s.monitor != nil {
 		_ = s.monitor.Stop()
@@ -225,9 +229,10 @@ func (s *Server) Cleanup() {
 	}
 }
 
-func (s *Server) consumeTxBroadcasted() {
+func (s *Server) consumeTxBroadcasted(ctx context.Context) {
 	for msg := range s.txBroadcastedCh {
-		s.logger.Info(
+		s.logger.InfoContext(
+			ctx,
 			"tx broadcasted",
 			slog.String("tx_id", msg.TxID),
 			slog.String("reference", msg.Reference),
@@ -235,7 +240,8 @@ func (s *Server) consumeTxBroadcasted() {
 		)
 
 		if msg.Error != nil {
-			s.logger.Error(
+			s.logger.ErrorContext(
+				ctx,
 				"tx broadcast error",
 				slog.String("tx_id", msg.TxID),
 				slog.Any("error", msg.Error.Errors),
@@ -244,9 +250,10 @@ func (s *Server) consumeTxBroadcasted() {
 	}
 }
 
-func (s *Server) consumeTxProven() {
+func (s *Server) consumeTxProven(ctx context.Context) {
 	for msg := range s.txProvenCh {
-		s.logger.Info(
+		s.logger.InfoContext(
+			ctx,
 			"tx proven",
 			slog.String("tx_id", msg.TxID),
 			slog.String("status", msg.Status.String()),

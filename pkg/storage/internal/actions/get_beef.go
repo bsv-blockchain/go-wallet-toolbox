@@ -161,7 +161,7 @@ func (g *getBeef) persistNewProven(ctx context.Context, subjectTxID, txID string
 		InputBeef: emptyBeef,
 		Status:    wdk.ProvenTxStatusCompleted,
 	}, history.NewBuilder().ServiceFetchedWhileGettingBeef(subjectTxID)); err != nil {
-		g.logger.Error("failed to upsert known transaction", "txID", txID, "error", err)
+		g.logger.ErrorContext(ctx, "failed to upsert known transaction", "txID", txID, "error", err)
 		return fmt.Errorf("failed to upsert known transaction %s: %w", txID, err)
 	}
 
@@ -174,7 +174,7 @@ func (g *getBeef) persistNewProven(ctx context.Context, subjectTxID, txID string
 		BlockHash:   fetched.header.Hash,
 		Notes:       []history.Builder{history.NewBuilder().GetMerklePathSuccess("services")},
 	}); err != nil {
-		g.logger.Error("failed to update known tx as mined", slog.String("txID", txID), slog.Any("error", err))
+		g.logger.ErrorContext(ctx, "failed to update known tx as mined", slog.String("txID", txID), slog.Any("error", err))
 		return fmt.Errorf("failed to update known tx as mined %s: %w", txID, err)
 	}
 

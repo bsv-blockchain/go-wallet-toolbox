@@ -23,6 +23,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -197,7 +198,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.RawTxMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) RawTxFunc {
 						return it.RawTx
-					})))...,
+					})),
+			)...,
 		),
 
 		postEFServices: servicequeue.NewQueue2(
@@ -207,7 +209,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.PostEFMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostEFFunc {
 						return it.PostEF
-					})))...,
+					})),
+			)...,
 		),
 
 		postTXServices: servicequeue.NewQueue1(
@@ -217,7 +220,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.PostTXMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostTXFunc {
 						return it.PostTX
-					})))...,
+					})),
+			)...,
 		),
 
 		merklePathServices: servicequeue.NewQueue1(
@@ -227,7 +231,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.MerklePathMethodsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) MerklePathFunc {
 						return it.MerklePath
-					})))...,
+					})),
+			)...,
 		),
 
 		findChainTipHeaderServices: servicequeue.NewQueue(
@@ -237,7 +242,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.FindChainTipHeaderModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) FindChainTipHeaderFunc {
 						return it.FindChainTipHeader
-					})))...,
+					})),
+			)...,
 		),
 
 		isValidRootForHeightServices: servicequeue.NewQueue2(
@@ -247,7 +253,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.IsValidRootForHeightModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsValidRootForHeightFunc {
 						return it.IsValidRootForHeight
-					})))...,
+					})),
+			)...,
 		),
 
 		currentHeightServices: servicequeue.NewQueue(
@@ -257,7 +264,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.CurrentHeightModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) CurrentHeightFunc {
 						return it.CurrentHeight
-					})))...,
+					})),
+			)...,
 		),
 
 		getScriptHashHistoryServices: servicequeue.NewQueue1(
@@ -267,7 +275,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.GetScriptHashHistoryModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetScriptHashHistoryFunc {
 						return it.GetScriptHashHistory
-					})))...,
+					})),
+			)...,
 		),
 
 		hashToHeaderServices: servicequeue.NewQueue1(
@@ -277,7 +286,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.HashToHeaderModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) HashToHeaderFunc {
 						return it.HashToHeader
-					})))...,
+					})),
+			)...,
 		),
 
 		chainHeaderByHeightServices: servicequeue.NewQueue1(
@@ -287,7 +297,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.ChainHeaderByHeightModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) ChainHeaderByHeightFunc {
 						return it.ChainHeaderByHeight
-					})))...,
+					})),
+			)...,
 		),
 
 		getStatusForTxIDsServices: servicequeue.NewQueue1(
@@ -297,7 +308,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.GetStatusForTxIDsModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetStatusForTxIDsFunc {
 						return it.GetStatusForTxIDs
-					})))...,
+					})),
+			)...,
 		),
 
 		getUtxoStatusServices: servicequeue.NewQueue2(
@@ -307,7 +319,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.GetUtxoStatusModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) GetUtxoStatusFunc {
 						return it.GetUtxoStatus
-					})))...,
+					})),
+			)...,
 		),
 
 		isUtxoServices: servicequeue.NewQueue2(
@@ -317,7 +330,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.IsUtxoModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) IsUtxo {
 						return it.IsUtxo
-					})))...,
+					})),
+			)...,
 		),
 
 		bsvExchangeRateServices: servicequeue.NewQueue(
@@ -327,7 +341,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				applyModifierIfExists(options.BsvExchangeRateModifier,
 					collectSingleMethodImplementations(allImplementations, func(it Implementation) BsvExchangeRateFunc {
 						return it.BsvExchangeRate
-					})))...,
+					})),
+			)...,
 		),
 
 		chaintracks:    chaintracksAdapter,
@@ -370,7 +385,7 @@ func (s *WalletServices) logActiveServices() {
 		return slog.String(methodName, strings.Join(serviceNames, ","))
 	})
 
-	s.logger.Debug("Active services by methods", logAttrs...)
+	s.logger.DebugContext(context.Background(), "Active services by methods", logAttrs...)
 }
 
 // StartChaintracks begins background chaintracks event subscription.
@@ -382,7 +397,8 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 
 	err := s.chaintracks.Start(ctx, chaintracksclient.Callbacks{
 		OnTip: func(bh *chaintracks.BlockHeader) error {
-			s.logger.Debug("new chain tip received",
+			s.logger.DebugContext(
+				ctx, "new chain tip received",
 				"height", bh.Height,
 				"hash", bh.Hash.String(),
 			)
@@ -390,7 +406,8 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 			return nil
 		},
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
-			s.logger.Info("reorg detected",
+			s.logger.InfoContext(
+				ctx, "reorg detected",
 				"depth", event.Depth,
 				"new_tip_hash", event.NewTip.Hash.String(),
 				"orphaned_count", len(event.OrphanedHashes),
@@ -403,7 +420,7 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 		return fmt.Errorf("failed to start chaintracks: %w", err)
 	}
 
-	s.logger.Info("chaintracks started")
+	s.logger.InfoContext(ctx, "chaintracks started")
 	return nil
 }
 
@@ -431,7 +448,12 @@ func (s *WalletServices) SubscribeTips(ch chan *chaintracks.BlockHeader) func() 
 
 // FindChainTipHeader queries multiple chain header services in sequence
 // and returns the most recent block header (chain tip) available.
-func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+func (s *WalletServices) FindChainTipHeader(ctx context.Context) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-FindChainTipHeader")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result, err := s.findChainTipHeaderServices.OneByOne(ctx)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -443,7 +465,12 @@ func (s *WalletServices) FindChainTipHeader(ctx context.Context) (*wdk.ChainBloc
 }
 
 // RawTx attempts to obtain the raw transaction bytes associated with a 32 byte transaction hash (txid).
-func (s *WalletServices) RawTx(ctx context.Context, txID string) (wdk.RawTxResult, error) {
+func (s *WalletServices) RawTx(ctx context.Context, txID string) (_ wdk.RawTxResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-RawTx")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result, err := s.rawTxServices.OneByOne(ctx, txID)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -455,7 +482,12 @@ func (s *WalletServices) RawTx(ctx context.Context, txID string) (wdk.RawTxResul
 }
 
 // ChainHeaderByHeight returns serialized block header for given height on active chain.
-func (s *WalletServices) ChainHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
+func (s *WalletServices) ChainHeaderByHeight(ctx context.Context, height uint32) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-ChainHeaderByHeight")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	h, err := s.chainHeaderByHeightServices.OneByOne(ctx, height)
 	if err != nil {
 		return nil, fmt.Errorf("unable to determine block header: all block header height services failed to return a result: %w", err)
@@ -464,7 +496,12 @@ func (s *WalletServices) ChainHeaderByHeight(ctx context.Context, height uint32)
 }
 
 // CurrentHeight returns the height of the active chain
-func (s *WalletServices) CurrentHeight(ctx context.Context) (uint32, error) {
+func (s *WalletServices) CurrentHeight(ctx context.Context) (_ uint32, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-CurrentHeight")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	h, err := s.currentHeightServices.OneByOne(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("all CurrentHeight providers failed: %w", err)
@@ -474,7 +511,12 @@ func (s *WalletServices) CurrentHeight(ctx context.Context) (uint32, error) {
 
 // BsvExchangeRate returns approximate exchange rate US Dollar / BSV, USD / BSV
 // This is the US Dollar price of one BSV
-func (s *WalletServices) BsvExchangeRate(ctx context.Context) (float64, error) {
+func (s *WalletServices) BsvExchangeRate(ctx context.Context) (_ float64, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-BsvExchangeRate")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	bsvExchangeRate, err := s.bsvExchangeRateServices.OneByOne(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("error during bsvExchangeRate: %w", err)
@@ -484,7 +526,12 @@ func (s *WalletServices) BsvExchangeRate(ctx context.Context) (float64, error) {
 }
 
 // MerklePath attempts to obtain the merkle proof associated with a 32 byte transaction hash (txid).
-func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.MerklePathResult, error) {
+func (s *WalletServices) MerklePath(ctx context.Context, txid string) (_ *wdk.MerklePathResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-MerklePath")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result, err := s.merklePathServices.OneByOne(ctx, txid)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -496,7 +543,12 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (*wdk.Merk
 }
 
 // PostFromBEEF attempts to broadcast transactions from BEEF to all configured services.
-func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (wdk.PostFromBeefResult, error) {
+func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Beef, txIDs []string) (_ wdk.PostFromBeefResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-PostFromBEEF")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	allResults := make([]*wdk.PostFromBEEFServiceResult, 0)
 
 	txutils.BindBumpsAndTransactions(beef, s.logger)
@@ -567,7 +619,12 @@ func (s *WalletServices) UtxoStatus(
 }
 
 // IsValidRootForHeight verifies the Merkle-root for a block height.
-func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-IsValidRootForHeight")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	ok, err := s.isValidRootForHeightServices.OneByOne(ctx, root, height)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -579,7 +636,12 @@ func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainha
 }
 
 // GetScriptHashHistory retrieves both confirmed and unconfirmed transaction history for a script hash
-func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash string) (*wdk.ScriptHistoryResult, error) {
+func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash string) (_ *wdk.ScriptHistoryResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetScriptHashHistory")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result, err := s.getScriptHashHistoryServices.OneByOne(ctx, scriptHash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -591,7 +653,12 @@ func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash st
 }
 
 // HashToHeader attempts to retrieve BlockHeader by its hash
-func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
+func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-HashToHeader")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result, err := s.hashToHeaderServices.OneByOne(ctx, hash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -603,7 +670,12 @@ func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (*wdk.Ch
 }
 
 // GetUtxoStatus retrieves the UTXO status for a given script hash and outpoint.
-func (s *WalletServices) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (*wdk.UtxoStatusResult, error) {
+func (s *WalletServices) GetUtxoStatus(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (_ *wdk.UtxoStatusResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetUtxoStatus")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result, err := s.getUtxoStatusServices.OneByOne(ctx, scriptHash, outpoint)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
@@ -615,7 +687,12 @@ func (s *WalletServices) GetUtxoStatus(ctx context.Context, scriptHash string, o
 }
 
 // IsUtxo checks if the given outpoint is a UTXO for the specified script hash.
-func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (bool, error) {
+func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint *transaction.Outpoint) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-IsUtxo")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if scriptHash == "" {
 		return false, fmt.Errorf("scriptHash is required")
 	}
@@ -635,7 +712,12 @@ func (s *WalletServices) IsUtxo(ctx context.Context, scriptHash string, outpoint
 }
 
 // GetStatusForTxIDs returns depth/status info for a list of txIDs.
-func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) (*wdk.GetStatusForTxIDsResult, error) {
+func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) (_ *wdk.GetStatusForTxIDsResult, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetStatusForTxIDs")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	if len(txIDs) == 0 {
 		return nil, fmt.Errorf("no txIDs provided")
 	}
@@ -653,7 +735,12 @@ func (s *WalletServices) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 // GetBEEF retrieves the BEEF structure for a given transaction ID.
 // It recursively fetches transaction ancestry up to a configured depth limit and merges transaction data, merkle paths, and input ancestry into the BEEF structure.
 // Use optional knownTxIDs to skip fetching of already-known transactions in the ancestry tree.
-func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (*transaction.Beef, error) {
+func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []string) (_ *transaction.Beef, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-GetBEEF")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	beef := transaction.NewBeefV2()
 
 	knownTxIDsLookup := make(map[string]struct{}, len(knownTxIDs))
@@ -666,7 +753,9 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 		if depth > s.config.GetBeefMaxDepth {
 			return fmt.Errorf("max depth of recursion reached: %d", s.config.GetBeefMaxDepth)
 		}
-		rawTxResult, err := s.RawTx(ctx, txID)
+
+		var rawTxResult wdk.RawTxResult
+		rawTxResult, err = s.RawTx(ctx, txID)
 		if err != nil {
 			return fmt.Errorf("failed to get raw transaction for txID %q: %w", txID, err)
 		}
@@ -675,12 +764,14 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 			return fmt.Errorf("raw transaction for txID %s is nil", txID)
 		}
 
-		tx, err := transaction.NewTransactionFromBytes(rawTxResult.RawTx)
+		var tx *transaction.Transaction
+		tx, err = transaction.NewTransactionFromBytes(rawTxResult.RawTx)
 		if err != nil {
 			return fmt.Errorf("failed to create transaction from raw bytes for txID %q: %w", txID, err)
 		}
 
-		merklePathResult, err := s.MerklePath(ctx, txID)
+		var merklePathResult *wdk.MerklePathResult
+		merklePathResult, err = s.MerklePath(ctx, txID)
 		if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
 			return fmt.Errorf("failed to get merkle path for txID %q: %w", txID, err)
 		}
@@ -719,7 +810,7 @@ func (s *WalletServices) GetBEEF(ctx context.Context, txID string, knownTxIDs []
 		return nil
 	}
 
-	err := txGetter(txID, 0)
+	err = txGetter(txID, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get BEEF for subject TxID %q: %w", txID, err)
 	}

@@ -35,6 +35,8 @@ type ProviderFixture interface {
 	WithFeeModel(feeModel defs.FeeModel) ProviderFixture
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
 	WithFailAbandonedMinTxAge(seconds uint) ProviderFixture
+	WithSynchronizeTxStatuses(config defs.SynchronizeTxStatuses) ProviderFixture
+	WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -52,6 +54,8 @@ type providerFixture struct {
 	commission             defs.Commission
 	feeModel               defs.FeeModel
 	failAbandoned          defs.FailAbandoned
+	syncTxStatuses         defs.SynchronizeTxStatuses
+	changeBasket           defs.ChangeBasket
 	randomizer             wdk.Randomizer
 	services               wdk.Services
 	beefVerifierFixture    *beefVerifierFixture
@@ -94,6 +98,16 @@ func (p *providerFixture) WithFailAbandonedMinTxAge(seconds uint) ProviderFixtur
 	return p
 }
 
+func (p *providerFixture) WithSynchronizeTxStatuses(config defs.SynchronizeTxStatuses) ProviderFixture {
+	p.syncTxStatuses = config
+	return p
+}
+
+func (p *providerFixture) WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture {
+	p.changeBasket = cfg
+	return p
+}
+
 func (p *providerFixture) withServices() ProviderFixture {
 	p.ARC().IsUpAndRunning()
 
@@ -104,6 +118,8 @@ func (p *providerFixture) withServices() ProviderFixture {
 
 	config := defs.DefaultServicesConfig(p.network)
 	config.BHS.Enabled = true
+	// NOTE: tests should not be slowed down by the client-side WoC rate limiter
+	config.WhatsOnChain.RequestsPerSecond = 10000
 
 	p.services = services.New(p.logger, config, services.WithRestyClient(client))
 	return p
@@ -143,6 +159,8 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithFeeModel(p.feeModel),
 		storage.WithCommission(p.commission),
 		storage.WithFailAbandoned(p.failAbandoned),
+		storage.WithSynchronizeTxStatuses(p.syncTxStatuses),
+		storage.WithChangeBasket(p.changeBasket),
 	)
 	p.require.NoError(err)
 

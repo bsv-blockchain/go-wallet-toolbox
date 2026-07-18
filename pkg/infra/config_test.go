@@ -314,6 +314,50 @@ func TestInvalidRequestPrice(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestInvalidHTTPMaxRequestBodyBytes(t *testing.T) {
+	// given:
+	cfg := infra.Defaults()
+	cfg.ServerPrivateKey = fixtures.StorageServerPrivKey
+	cfg.HTTPConfig.MaxRequestBodyBytes = 0
+
+	// when:
+	err := cfg.Validate()
+
+	// then:
+	require.ErrorContains(t, err, "max_request_body_bytes must be greater than 0")
+}
+
+func TestInvalidHTTPCORSWildcardOrigin(t *testing.T) {
+	// given:
+	cfg := infra.Defaults()
+	cfg.ServerPrivateKey = fixtures.StorageServerPrivKey
+	cfg.HTTPConfig.CORS.Enabled = true
+	cfg.HTTPConfig.CORS.AllowedOrigins = []string{"*"}
+
+	// when:
+	err := cfg.Validate()
+
+	// then:
+	require.ErrorContains(t, err, "wildcard origins are not allowed")
+}
+
+func TestChangeBasketEnvVars(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_CHANGE_BASKET_NUMBER_OF_DESIRED_UTXOS", "10000")
+	t.Setenv("TEST_CHANGE_BASKET_MINIMUM_DESIRED_UTXO_VALUE", "2000")
+	t.Setenv("TEST_CHANGE_BASKET_MAX_CHANGE_OUTPUTS_PER_TX", "50")
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, int64(10000), infraSrv.Config.ChangeBasket.NumberOfDesiredUTXOs)
+	require.Equal(t, uint64(2000), infraSrv.Config.ChangeBasket.MinimumDesiredUTXOValue)
+	require.Equal(t, uint64(50), infraSrv.Config.ChangeBasket.MaxChangeOutputsPerTx)
+}
+
 // setRequiredEnvs sets necessary environment variables for test configuration.
 // It ensures TEST_SERVER_PRIVATE_KEY is set with a valid private key value for proper test initialization.
 func setRequiredEnvs(t *testing.T) {

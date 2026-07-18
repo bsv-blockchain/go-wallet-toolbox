@@ -3,19 +3,19 @@ package funder
 import (
 	"context"
 	"fmt"
-	"iter"
 	"log/slog"
 	"math"
+	"slices"
+	"sync/atomic"
 
 	"github.com/go-softwarelab/common/pkg/must"
-	"github.com/go-softwarelab/common/pkg/seqerr"
 	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -25,49 +25,80 @@ import (
 var changeOutputSize = txutils.P2PKHOutputSize
 
 const (
+	// utxoBatchSize is the page size of the exhaustive pager used by the sweep path.
 	utxoBatchSize = 1000
+	// insufficientBatchSize bounds how many largest-insufficient UTXOs are fetched
+	// per micro-query on the non-sweep path; it amortizes round trips when many
+	// small inputs are needed while keeping the number of locked rows small.
+	insufficientBatchSize = 16
 )
 
-// MaxChangeOutputsPerTransaction limits how aggressively the wallet builds up its UTXO pool in one shot.
-// When a user first imports a large UTXO, without this cap the wallet would
-// attempt to create numberOfDesiredUTXOs change outputs in a single transaction.
-// That produces a very large transaction whose raw bytes are embedded in the BEEF
-// of every subsequent child transaction, bloating those BEEFs and slowing down external processors.
-//
-// With this cap the UTXO pool builds gradually — at most 8 net new change
-// outputs per transaction — so no single transaction becomes unreasonably large.
-// A pool of 144 desired UTXOs fills over roughly 18 transactions rather than 1.
-var MaxChangeOutputsPerTransaction uint64 = 8
-
 type UTXORepository interface {
-	FindNotReservedUTXOs(
+	// FindNotReservedUTXOsForUpdate is the exhaustive, ordered, deduped pager — used
+	// only by the sweep path, which genuinely needs every eligible row.
+	FindNotReservedUTXOsForUpdate(
 		ctx context.Context,
+		tx *gorm.DB,
 		userID int,
 		basketName string,
 		page *queryopts.Paging,
 		forbiddenOutputIDs []uint,
 		includeSending bool,
 	) ([]*models.UserUTXO, error)
-	CountUTXOs(ctx context.Context, userID int, basketName string) (int64, error)
+	// FindSmallestSufficientUTXOForUpdate returns the UTXO with the smallest
+	// satoshis >= minSatoshis in q's status tier (nil, nil when none).
+	FindSmallestSufficientUTXOForUpdate(
+		ctx context.Context,
+		tx *gorm.DB,
+		q wdk.BoundedUTXOQuery,
+		minSatoshis uint64,
+	) (*models.UserUTXO, error)
+	// FindLargestInsufficientUTXOsForUpdate returns up to limit UTXOs with
+	// satoshis < maxSatoshis in q's status tier, largest first.
+	FindLargestInsufficientUTXOsForUpdate(
+		ctx context.Context,
+		tx *gorm.DB,
+		q wdk.BoundedUTXOQuery,
+		maxSatoshis uint64,
+		limit int,
+	) ([]*models.UserUTXO, error)
 }
 
 type SQL struct {
-	logger         *slog.Logger
-	utxoRepository UTXORepository
-	feeCalculator  *feeCalc
+	logger                *slog.Logger
+	utxoRepository        UTXORepository
+	feeCalculator         *feeCalc
+	maxChangeOutputsPerTx atomic.Uint64
 }
 
-func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.FeeModel) *SQL {
+// NewSQL creates a new SQL funder. maxChangeOutputsPerTx limits how many change outputs are created
+// per transaction; it can be updated at runtime via SetMaxChangeOutputsPerTx.
+//
+// Without this cap the wallet would attempt to create numberOfDesiredUTXOs change outputs in a
+// single transaction, producing a very large transaction whose raw bytes are embedded in the BEEF
+// of every subsequent child transaction. With the cap the UTXO pool builds gradually.
+func NewSQL(logger *slog.Logger, utxoRepository UTXORepository, feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) *SQL {
 	logger = logging.Child(logger, "funderSQL")
 	feeCalculator := newFeeCalculator(feeModel)
 
-	return &SQL{
+	s := &SQL{
 		logger:         logger,
 		utxoRepository: utxoRepository,
 		feeCalculator:  feeCalculator,
 	}
+	s.maxChangeOutputsPerTx.Store(maxChangeOutputsPerTx)
+	return s
 }
 
+// SetMaxChangeOutputsPerTx updates the per-transaction change output cap at runtime.
+// Takes effect on the next Fund() call.
+func (f *SQL) SetMaxChangeOutputsPerTx(n uint64) {
+	f.maxChangeOutputsPerTx.Store(n)
+}
+
+// Fund selects and allocates UTXOs to cover targetSat within the provided DB transaction tx.
+// existing must be pre-fetched via CountUTXOs BEFORE opening the DB transaction to avoid a
+// SQLite connection-pool deadlock (the transaction holds the one connection).
 func (f *SQL) Fund(
 	ctx context.Context,
 	targetSat satoshi.Value,
@@ -78,87 +109,279 @@ func (f *SQL) Fund(
 	forbiddenOutputIDs []uint,
 	priorityOutputs []*entity.Output,
 	includeSending bool,
+	isSweep bool,
+	existing int64,
+	tx *gorm.DB,
 ) (*Result, error) {
-	existing, err := f.utxoRepository.CountUTXOs(ctx, userID, basket.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate desired utxo number in basket: %w", err)
-	}
-
-	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator)
+	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, f.maxChangeOutputsPerTx.Load(), isSweep)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
-	utxos := f.loadUTXOs(ctx, userID, basket.Name, forbiddenOutputIDs, priorityOutputs, includeSending)
+	// Phase 1: Allocate priority outputs (noSend change from prior TXs in same batch).
+	if err = f.allocatePriorityOutputs(collector, priorityOutputs, forbiddenOutputIDs, isSweep); err != nil {
+		return nil, err
+	}
+	if !isSweep && collector.IsFunded() {
+		return collector.GetResult()
+	}
 
-	err = collector.Allocate(utxos)
-	if err != nil {
-		return nil, fmt.Errorf("failed to allocate utxos: %w", err)
+	// Phase 2: Sweep mode — load every eligible UTXO and allocate everything.
+	if isSweep {
+		pool, poolErr := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
+		if poolErr != nil {
+			return nil, poolErr
+		}
+		return f.allocateSweep(collector, pool)
+	}
+
+	// Phase 3: Bounded tiered best-fit selection — per-allocation target-aware
+	// micro-queries instead of loading (and locking) the whole pool.
+	if err = f.allocateBounded(ctx, collector, tx, userID, basket.Name, forbiddenOutputIDs, includeSending); err != nil {
+		return nil, err
 	}
 
 	return collector.GetResult()
 }
 
-func (f *SQL) loadUTXOs(ctx context.Context, userID int, basketName string, forbiddenOutputIDs []uint, priorityOutputs []*entity.Output, includeSending bool) iter.Seq2[*models.UserUTXO, error] {
-	batches := seqerr.ProduceWithArg(
-		func(page *queryopts.Paging) ([]*models.UserUTXO, *queryopts.Paging, error) {
-			utxos, err := f.utxoRepository.FindNotReservedUTXOs(ctx, userID, basketName, page, forbiddenOutputIDs, includeSending)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to load utxos: %w", err)
-			}
-			page.Next()
-			return utxos, page, nil
-		},
-		&queryopts.Paging{
-			Limit:  utxoBatchSize,
-			SortBy: "satoshis",
-		})
-
-	standardUTXOs := seqerr.FlattenSlices(batches)
-	if len(priorityOutputs) == 0 {
-		return seqerr.Concat(standardUTXOs)
+// allocateBounded funds the collector with per-allocation micro-queries, walking
+// status tiers safest-first (mined → unproven → sending when included). Each round
+// recomputes the remaining need (allocation grows the fee, so remaining can shrink
+// by less than the allocated satoshis — or even INCREASE via the dust-floor branch
+// of remaining()) and, per tier, first asks for the smallest sufficient UTXO
+// (exact match, else smallest >= remaining — stages 1+2 of the old in-memory
+// selectBest), then falls back to a batch of largest insufficient UTXOs (stage 3).
+// A tier is only skipped when both queries come back empty, which means the tier
+// has no eligible rows at all. A full pass over all tiers without any allocation
+// means the pool is exhausted → wdk.ErrNotEnoughFunds.
+//
+// Every row allocated in this call is appended to the exclusion list: our own row
+// locks don't block our own queries and reserved_by_id stays NULL until
+// reserveUTXOs runs, so without the exclusion the same row would be returned again.
+func (f *SQL) allocateBounded(
+	ctx context.Context,
+	collector *utxoCollector,
+	tx *gorm.DB,
+	userID int,
+	basketName string,
+	forbiddenOutputIDs []uint,
+	includeSending bool,
+) error {
+	tiers := []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
+	if includeSending {
+		tiers = append(tiers, wdk.UTXOStatusSending)
 	}
 
-	return seqerr.Concat(noSendChangeOutputsIterator(forbiddenOutputIDs, priorityOutputs), standardUTXOs)
+	a := &boundedAllocator{
+		repo:       f.utxoRepository,
+		tx:         tx,
+		userID:     userID,
+		basketName: basketName,
+		collector:  collector,
+		excluded:   slices.Clone(forbiddenOutputIDs),
+	}
+	return a.run(ctx, tiers)
 }
 
-func noSendChangeOutputsIterator(forbiddenOutputIDs []uint, priorityOutputs []*entity.Output) iter.Seq2[*models.UserUTXO, error] {
-	forbiddenIDsLookup := make(map[uint]struct{}, len(forbiddenOutputIDs))
-	for _, id := range forbiddenOutputIDs {
-		forbiddenIDsLookup[id] = struct{}{}
-	}
+// boundedAllocator carries the invariant state of a single allocateBounded pass so the
+// per-round/per-tier helpers stay small (in both parameter count and cognitive complexity).
+// excluded grows as rows are allocated and is threaded through every query in the pass: our
+// own row locks don't block our own queries and reserved_by_id stays NULL until reserveUTXOs
+// runs, so without the exclusion the same row would be returned again.
+type boundedAllocator struct {
+	repo       UTXORepository
+	tx         *gorm.DB
+	userID     int
+	basketName string
+	collector  *utxoCollector
+	excluded   []uint
+}
 
-	return func(yield func(*models.UserUTXO, error) bool) {
-		for _, output := range priorityOutputs {
-			if _, ok := forbiddenIDsLookup[output.ID]; ok {
-				continue
-			}
+// run drives allocation rounds until the collector is funded (nil), a round recomputes a
+// non-positive remaining need (nil — GetResult then decides funded vs. ErrNotEnoughFunds),
+// or a full pass over all tiers allocates nothing (wdk.ErrNotEnoughFunds).
+func (a *boundedAllocator) run(ctx context.Context, tiers []wdk.UTXOStatus) error {
+	for !a.collector.IsFunded() {
+		remaining := a.collector.remaining()
+		if remaining <= 0 {
+			return nil
+		}
 
-			userID := output.UserID
-
-			var basket string
-			if output.BasketName != nil {
-				basket = *output.BasketName
-			}
-
-			satoshis, err := to.UInt64(output.Satoshis)
-			if err != nil {
-				yield(nil, fmt.Errorf("failed to convert output satoshis: %d to uint64: %w", output.Satoshis, err))
-				break
-			}
-
-			if !yield(&models.UserUTXO{
-				UserID:             userID,
-				OutputID:           output.ID,
-				BasketName:         basket,
-				Satoshis:           satoshis,
-				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-				CreatedAt:          output.CreatedAt,
-			}, nil) {
-				break
-			}
+		allocated, err := a.round(ctx, tiers, remaining)
+		if err != nil {
+			return err
+		}
+		if !allocated {
+			return wdk.ErrNotEnoughFunds
 		}
 	}
+	return nil
+}
+
+// round tries each tier safest-first and stops at the first tier that allocates a row.
+func (a *boundedAllocator) round(ctx context.Context, tiers []wdk.UTXOStatus, remaining satoshi.Value) (bool, error) {
+	for _, tier := range tiers {
+		allocated, err := a.fromTier(ctx, tier, remaining)
+		if err != nil {
+			return false, err
+		}
+		if allocated {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// fromTier applies stages 1+2 (smallest sufficient — exact match, else smallest >= remaining)
+// then stage 3 (largest insufficient batch) of the old in-memory selectBest within one tier.
+func (a *boundedAllocator) fromTier(ctx context.Context, tier wdk.UTXOStatus, remaining satoshi.Value) (bool, error) {
+	q := wdk.BoundedUTXOQuery{
+		UserID:            a.userID,
+		BasketName:        a.basketName,
+		Status:            tier,
+		ExcludedOutputIDs: a.excluded,
+	}
+
+	utxo, err := a.repo.FindSmallestSufficientUTXOForUpdate(ctx, a.tx, q, remaining.MustUInt64())
+	if err != nil {
+		return false, fmt.Errorf("failed to find sufficient utxo: %w", err)
+	}
+	if utxo != nil {
+		if err = a.collector.allocateUTXO(utxo); err != nil {
+			return false, fmt.Errorf("failed to allocate utxo: %w", err)
+		}
+		a.excluded = append(a.excluded, utxo.OutputID)
+		return true, nil
+	}
+
+	batch, err := a.repo.FindLargestInsufficientUTXOsForUpdate(ctx, a.tx, q, remaining.MustUInt64(), insufficientBatchSize)
+	if err != nil {
+		return false, fmt.Errorf("failed to find insufficient utxos: %w", err)
+	}
+	return a.drainBatch(batch)
+}
+
+// drainBatch consumes the DESC largest-insufficient batch while each row stays equivalent to
+// the old pool.selectBest stage-3 pick.
+//
+// Drain rule (per-step equivalence with the old pool.selectBest): the sufficient query in
+// fromTier returned nothing, so every eligible row in this tier is < remaining and the DESC
+// batch therefore holds the tier's largest rows overall — batch[i] is always the largest
+// still-unallocated row of the tier. Consume batch[i] only while !IsFunded() AND
+// batch[i].Satoshis is still below the freshly recomputed remaining: in that case no row
+// >= remaining exists (batch[i] is the maximum), so selectBest would pick exactly batch[i]
+// (stage 3, largest insufficient). The moment batch[i].Satoshis >= remaining — remaining
+// shrank past it, or grew via the dust-floor branch — the "largest insufficient" premise
+// breaks and selectBest would instead pick the SMALLEST sufficient row, which need not be
+// batch[i]; so we stop draining and re-enter the outer loop, whose sufficient query finds
+// that row. Allocating batch[i] anyway would merely overfund harmlessly, but it would
+// diverge from the old selection.
+func (a *boundedAllocator) drainBatch(batch []*models.UserUTXO) (bool, error) {
+	allocated := false
+	for _, u := range batch {
+		if a.collector.IsFunded() {
+			break
+		}
+		remaining := a.collector.remaining()
+		if remaining <= 0 || u.Satoshis >= remaining.MustUInt64() {
+			break
+		}
+		if err := a.collector.allocateUTXO(u); err != nil {
+			return allocated, fmt.Errorf("failed to allocate utxo: %w", err)
+		}
+		a.excluded = append(a.excluded, u.OutputID)
+		allocated = true
+	}
+	return allocated, nil
+}
+
+func (f *SQL) allocateSweep(collector *utxoCollector, pool *utxoPool) (*Result, error) {
+	for _, utxo := range pool.all() {
+		if err := collector.allocateUTXO(utxo); err != nil {
+			return nil, fmt.Errorf("failed to allocate utxo in sweep: %w", err)
+		}
+	}
+	return collector.GetResult()
+}
+
+func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs []*entity.Output, forbiddenOutputIDs []uint, isSweep bool) error {
+	forbiddenIDs := make(map[uint]struct{}, len(forbiddenOutputIDs))
+	for _, id := range forbiddenOutputIDs {
+		forbiddenIDs[id] = struct{}{}
+	}
+
+	for _, output := range priorityOutputs {
+		if _, ok := forbiddenIDs[output.ID]; ok {
+			continue
+		}
+
+		sats, err := to.UInt64(output.Satoshis)
+		if err != nil {
+			return fmt.Errorf("failed to convert output satoshis: %d to uint64: %w", output.Satoshis, err)
+		}
+
+		var basket string
+		if output.BasketName != nil {
+			basket = *output.BasketName
+		}
+
+		utxo := &models.UserUTXO{
+			UserID:             output.UserID,
+			OutputID:           output.ID,
+			BasketName:         basket,
+			Satoshis:           sats,
+			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
+			CreatedAt:          output.CreatedAt,
+		}
+
+		if err = collector.allocateUTXO(utxo); err != nil {
+			return fmt.Errorf("failed to allocate priority output: %w", err)
+		}
+
+		if !isSweep && collector.IsFunded() {
+			return nil
+		}
+	}
+	return nil
+}
+
+// loadUTXOPool exhaustively pages every eligible UTXO into a tiered pool.
+// Sweep-only: the non-sweep path uses bounded micro-queries (see allocateBounded).
+func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
+	// The repository applies its own ORDER BY (status tier, satoshis ASC, output_id ASC);
+	// the Paging struct only supplies OFFSET/LIMIT here.
+	page := &queryopts.Paging{
+		Limit: utxoBatchSize,
+	}
+
+	var allUTXOs []*models.UserUTXO
+	seen := make(map[uint]struct{})
+	for {
+		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketName, page, forbiddenOutputIDs, includeSending)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load utxos: %w", err)
+		}
+
+		// Dedup while accumulating: under concurrent lock churn between pages, OFFSET
+		// pagination can return the same row twice across pages even with a stable
+		// ORDER BY, if a row is locked/unlocked and shifts across the offset boundary.
+		// Loop termination below is based on the raw page length (pre-dedup), since a
+		// full page with duplicates removed must still be followed by another fetch.
+		for _, utxo := range utxos {
+			if _, ok := seen[utxo.OutputID]; ok {
+				continue
+			}
+			seen[utxo.OutputID] = struct{}{}
+			allUTXOs = append(allUTXOs, utxo)
+		}
+
+		if len(utxos) < utxoBatchSize {
+			break
+		}
+		page.Next()
+	}
+
+	return newUTXOPool(allUTXOs), nil
 }
 
 type utxoCollector struct {
@@ -174,20 +397,27 @@ type utxoCollector struct {
 	outputCount             uint64
 	numberOfDesiredUTXOs    uint64
 	minimumDesiredUTXOValue uint64
+	maxChangeOutputsPerTx   uint64
 	changeOutputsCount      uint64
 	minimumChange           uint64
 	// dustFloor is the minimum satoshi value a change output must have to be economically viable.
 	// An output below this threshold costs more to spend in a future transaction than it is worth.
 	dustFloor satoshi.Value
+	isSweep   bool
 }
 
-func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc) (c *utxoCollector, err error) {
+func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesiredUTXOs int64, minimumDesiredUTXOValue uint64, feeCalculator *feeCalc, maxChangeOutputsPerTx uint64, isSweep bool) (c *utxoCollector, err error) {
 	c = &utxoCollector{
-		txSats:                  txSats,
-		outputCount:             outputCount,
-		minimumDesiredUTXOValue: minimumDesiredUTXOValue,
+		txSats:      txSats,
+		outputCount: outputCount,
+		// Clamped to at least 1: a zero value would divide-by-zero in calculateChangeCount.
+		// Baskets should never carry 0 here (see ValidBasketConfiguration and UpdateChangeBasket),
+		// but this is the last line of defense against any caller/DB state that slips through.
+		minimumDesiredUTXOValue: to.NoLessThan(minimumDesiredUTXOValue, 1),
+		maxChangeOutputsPerTx:   maxChangeOutputsPerTx,
 		feeCalculator:           feeCalculator,
 		allocatedUTXOs:          make([]*UTXO, 0),
+		isSweep:                 isSweep,
 	}
 
 	err = c.increaseSize(txSize)
@@ -217,32 +447,57 @@ func newCollector(txSats satoshi.Value, txSize, outputCount uint64, numberOfDesi
 	return c, nil
 }
 
-func (c *utxoCollector) Allocate(utxos iter.Seq2[*models.UserUTXO, error]) error {
-	utxos = seqerr.TakeUntilTrue(utxos, c.IsFunded)
-	err := seqerr.ForEach(utxos, c.allocateUTXO)
-	if err != nil {
-		return fmt.Errorf("failed to allocate utxo: %w", err)
+func (c *utxoCollector) remaining() satoshi.Value {
+	if c.outputCount == 0 {
+		change := c.change()
+		if c.changeOutputsCount > 0 && change < c.dustFloor {
+			feeWithNextInput, err := c.feeCalculator.Calculate(c.txSize + txutils.P2PKHEstimatedInputSize)
+			if err != nil {
+				panic(fmt.Errorf("failed to calculate fee for next change input: %w", err))
+			}
+
+			toCover := satoshi.MustAdd(satoshi.MustAdd(c.txSats, feeWithNextInput), c.dustFloor)
+			if toCover > c.satsCovered {
+				return satoshi.MustSubtract(toCover, c.satsCovered)
+			}
+		}
+
+		if c.changeOutputsCount == 0 {
+			feeWithFirstChangeOutput, err := c.feeCalculator.Calculate(c.txSize + txutils.P2PKHEstimatedInputSize + changeOutputSize)
+			if err != nil {
+				panic(fmt.Errorf("failed to calculate fee for first change output: %w", err))
+			}
+
+			toCover := satoshi.MustAdd(satoshi.MustAdd(c.txSats, feeWithFirstChangeOutput), c.dustFloor)
+			if toCover > c.satsCovered {
+				return satoshi.MustSubtract(toCover, c.satsCovered)
+			}
+		}
 	}
-	return nil
+
+	return satoshi.MustSubtract(c.satsToCover(), c.satsCovered)
 }
 
 func (c *utxoCollector) IsFunded() bool {
 	// A valid Bitcoin transaction must have at least one output.
 	// If no outputs are defined and no change outputs will be created,
 	// we must continue allocating UTXOs to ensure at least one change output exists.
-	totalOutputs := c.outputCount + c.changeOutputsCount
-	if totalOutputs == 0 {
-		return c.satsCovered > c.satsToCover()
+	if c.outputCount == 0 {
+		return c.changeOutputsCount > 0 && c.change() >= c.dustFloor
+	}
+
+	if c.isSweep {
+		return false
 	}
 
 	return c.satsCovered >= c.satsToCover()
 }
 
 func (c *utxoCollector) GetResult() (*Result, error) {
-	if c.IsFunded() {
+	if c.IsFunded() || c.isSweep {
 		return c.prepareResult()
 	}
-	return nil, errfunder.ErrNotEnoughFunds
+	return nil, wdk.ErrNotEnoughFunds
 }
 
 func (c *utxoCollector) allocateUTXO(utxo *models.UserUTXO) (err error) {
@@ -341,8 +596,8 @@ func (c *utxoCollector) calculateChangeCount(changeVal uint64) {
 	}
 
 	capCount := c.numberOfDesiredUTXOs
-	if MaxChangeOutputsPerTransaction < capCount {
-		capCount = MaxChangeOutputsPerTransaction
+	if c.maxChangeOutputsPerTx < capCount {
+		capCount = c.maxChangeOutputsPerTx
 	}
 
 	c.changeOutputsCount = to.ValueBetween(c.changeOutputsCount, 1, capCount)

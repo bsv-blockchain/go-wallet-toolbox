@@ -22,7 +22,7 @@ type ProviderConfig struct {
 	DBConfig defs.Database
 	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
 
-	Funder                 funder.Funder
+	Funder                 *funder.SQL
 	Randomizer             wdk.Randomizer
 	BeefVerifierFactory    func() wdk.BeefVerifier
 	ScriptsVerifierFactory func() wdk.ScriptsVerifier
@@ -31,8 +31,9 @@ type ProviderConfig struct {
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
 
-	FeeModel   defs.FeeModel
-	Commission defs.Commission
+	FeeModel     defs.FeeModel
+	Commission   defs.Commission
+	ChangeBasket defs.ChangeBasket
 
 	BackgroundBroadcasterContext context.Context
 	BackgroundBroadcasterChannel chan<- wdk.CurrentTxStatus
@@ -77,11 +78,10 @@ func WithScriptsVerifier(scriptsVerifier wdk.ScriptsVerifier) ProviderOption {
 	}
 }
 
-// WithFunder sets the Funder implementation in the provider options.
-// Use to customize how funding logic is handled within the provider.
-func WithFunder(funder funder.Funder) ProviderOption {
+// WithFunder sets the SQL funder implementation in the provider options.
+func WithFunder(f *funder.SQL) ProviderOption {
 	return func(o *ProviderConfig) {
-		o.Funder = funder
+		o.Funder = f
 	}
 }
 
@@ -148,6 +148,16 @@ func WithDBConfig(dbConfig defs.Database) ProviderOption {
 	}
 }
 
+// WithChangeBasket sets the initial change basket configuration for the provider.
+// NumberOfDesiredUTXOs and MinimumDesiredUTXOValue are used as defaults when creating new users.
+// MaxChangeOutputsPerTx limits how many change outputs are created per transaction.
+// All three values can also be updated at runtime via Provider methods.
+func WithChangeBasket(cfg defs.ChangeBasket) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.ChangeBasket = cfg
+	}
+}
+
 func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConfig {
 	return ProviderConfig{
 		DBConfig:                     defs.DefaultDBConfig(),
@@ -158,6 +168,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
 		FeeModel:                     defs.DefaultFeeModel(),
 		Commission:                   defs.DefaultCommission(),
+		ChangeBasket:                 defs.DefaultChangeBasket(),
 		Logger:                       slog.Default(),
 		BackgroundBroadcasterContext: context.Background(),
 	}

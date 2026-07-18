@@ -100,7 +100,7 @@ func (s *GetSyncChunkAction) makeOffsetsLookup() OffsetsLookup {
 func (s *GetSyncChunkAction) approxJSONSize(chunk *wdk.SyncChunk) uint64 {
 	b, err := json.Marshal(chunk)
 	if err != nil {
-		s.logger.Warn("failed to marshal sync chunk for size estimation", slog.String("error", err.Error()))
+		s.logger.WarnContext(context.Background(), "failed to marshal sync chunk for size estimation", slog.String("error", err.Error()))
 		return 0
 	}
 	return must.ConvertToUInt64(len(b))

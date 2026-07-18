@@ -14,7 +14,8 @@ func printMerklePath(path *transaction.MerklePath) {
 	for lvl, elems := range path.Path {
 		for _, el := range elems {
 			isTx := el.Txid != nil && *el.Txid
-			fmt.Printf("%d,%d,%s,%t\n",
+			fmt.Printf(
+				"%d,%d,%s,%t\n",
 				lvl,
 				el.Offset,
 				el.Hash.String(),

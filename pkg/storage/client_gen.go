@@ -9,7 +9,7 @@ import (
 )
 
 type WalletStorageProviderClient struct {
-	client *rpcWalletStorageProvider
+	client *walletStorageProviderImpl
 }
 
 // Migrate migrates a wallet storage database.
@@ -115,7 +115,7 @@ func (c *WalletStorageProviderClient) ListTransactions(ctx context.Context, auth
 	return c.client.ListTransactions(ctx, auth, args)
 }
 
-type rpcWalletStorageProvider struct {
+type walletStorageProviderImpl struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
 	SetActive                 func(context.Context, wdk.AuthID, string) error

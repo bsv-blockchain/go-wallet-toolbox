@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -111,7 +111,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.thereAreUTXOInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 			// then:
 			then.Result(result).WithError(err)
@@ -203,12 +203,57 @@ func TestFunderSQLFund(t *testing.T) {
 			given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(test.possessedUTXOs).P2PKH().Stored()
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
 		})
 	}
+
+	t.Run("burn transaction funded exactly to fee still gets a change output", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and:
+		funder := given.NewFunderService()
+
+		// and:
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+
+		// and: the fixed input covers the fee exactly, but a no-output transaction is invalid.
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(2).P2PKH().Stored()
+
+		// when:
+		result, err := funder.Fund(ctx, -1, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// then:
+		then.Result(result).WithoutError(err).
+			HasAllocatedUTXOs().ForTotalAmount(2).
+			HasChangeCount(1).ForAmount(2).
+			HasFee(1)
+	})
+
+	t.Run("burn transaction funded exactly to fee errors when no viable change output can be funded", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		// and:
+		funder := given.NewFunderService()
+
+		// and:
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+
+		// and: one extra satoshi is still below the dust floor for a change output.
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(1).P2PKH().Stored()
+
+		// when:
+		result, err := funder.Fund(ctx, -1, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// then:
+		then.Result(result).WithError(err)
+	})
 
 	testCasesFundWholeTransaction := map[string]struct {
 		havingUTXOsInDB func(testabilities.FunderFixture, *entity.OutputBasket)
@@ -279,7 +324,7 @@ func TestFunderSQLFund(t *testing.T) {
 					HasChangeCount(1).ForAmount(10000)
 			},
 		},
-		"allocate biggest utxos first": {
+		"allocate smallest sufficient utxo first (best-fit)": {
 			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
@@ -292,13 +337,15 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         smallTransactionSize,
 			outputCount:    oneOutput,
 
+			// Sorted ASC in mined tier: 1(idx3), 100(idx1), 200(idx0), 300(idx4), 10101(idx2)
+			// Best-fit for remaining 101: exact? no. smallest >= 101? 200(idx0). Single UTXO suffices.
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
-				thenResult.HasAllocatedUTXOs().RowIndexes(2).
+				thenResult.HasAllocatedUTXOs().RowIndexes(0).
 					HasFee(1).
-					HasChangeCount(1).ForAmount(10000)
+					HasChangeCount(1).ForAmount(99)
 			},
 		},
-		"allocate several utxos and calculate the change from them": {
+		"allocate several utxos via best-fit (largest-insufficient fallback)": {
 			havingUTXOsInDB: func(given testabilities.FunderFixture, basket *entity.OutputBasket) {
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().Stored()
 				given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(100).P2PKH().Stored()
@@ -310,8 +357,13 @@ func TestFunderSQLFund(t *testing.T) {
 			txSize:         smallTransactionSize,
 			outputCount:    oneOutput,
 
+			// Need 550 (549+fee1). No single UTXO covers it.
+			// Round 1: selectBest(550) → none >= 550, largest = 300(idx3)
+			// Round 2: selectBest(250) → none >= 250, largest = 200(idx0)
+			// Round 3: selectBest(50) → smallest >= 50 = 100(idx1)
+			// Total: 300+200+100=600. Change=50. 1-sat UTXO(idx2) not needed.
 			expectations: func(thenResult testabilities.SuccessFundingResultAssertion) {
-				thenResult.HasAllocatedUTXOs().RowIndexes(0, 1, 3).
+				thenResult.HasAllocatedUTXOs().RowIndexes(3, 0, 1).
 					HasFee(1).
 					HasChangeCount(1).ForAmount(50)
 			},
@@ -333,7 +385,7 @@ func TestFunderSQLFund(t *testing.T) {
 			test.havingUTXOsInDB(given, basket)
 
 			// when:
-			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, test.targetSatoshis, test.txSize, test.outputCount, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 			// then:
 			test.expectations(then.Result(result).WithoutError(err))
@@ -352,7 +404,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -102, 990, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -102, 990, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -372,7 +424,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funder.Fund(ctx, -2, 999, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -2, 999, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -392,7 +444,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(0)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -411,7 +463,7 @@ func TestFunderSQLFund(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(-5)
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -436,7 +488,7 @@ func TestFunderSQLFund(t *testing.T) {
 		}
 
 		// when:
-		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funder.Fund(ctx, -5001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, int64(desiredNumber), given.GormDB())
 
 		// then:
 		then.Result(result).WithoutError(err).
@@ -460,7 +512,7 @@ func TestFunderSQLFund(t *testing.T) {
 		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
 
 		// when:
-		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+		_, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then:
 		require.Error(t, err)
@@ -483,12 +535,67 @@ func TestFunderSQLFund(t *testing.T) {
 		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(200).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
 
 		// when:
-		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true)
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true, false, 0, given.GormDB())
 
 		// then:
 		require.NoError(t, err)
 
 		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(0, 1)
+	})
+
+	t.Run("prefer mined UTXOs over unproven when both cover the target", func(t *testing.T) {
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funder := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 100
+
+		// unproven created first (lower index), but mined should be preferred
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(500).P2PKH().WithStatus(wdk.UTXOStatusUnproven).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(500).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// should pick mined UTXO (index 1), not unproven (index 0)
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(1)
+	})
+
+	t.Run("prefer mined over sending even when sending UTXO is smaller (better fit)", func(t *testing.T) {
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funder := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 100
+
+		// sending UTXO (101) is perfect fit, but mined (500) should be preferred
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(101).P2PKH().WithStatus(wdk.UTXOStatusSending).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(500).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, true, false, 0, given.GormDB())
+
+		// should pick mined (index 1), not better-fit sending (index 0)
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(1)
+	})
+
+	t.Run("best-fit: pick smallest UTXOs that cover target rather than largest", func(t *testing.T) {
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funder := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+		const targetSatoshis = 100
+
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(5000).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(150).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(1000).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+		given.UTXO().InBasket(basket).OwnedBy(testusers.Alice).WithSatoshis(50).P2PKH().WithStatus(wdk.UTXOStatusMined).Stored()
+
+		result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// Sorted ASC: 50(idx3), 150(idx1), 1000(idx2), 5000(idx0)
+		// Best-fit for 101: exact? no. smallest >= 101? 150(idx1). Single UTXO.
+		then.Result(result).WithoutError(err).HasAllocatedUTXOs().RowIndexes(1).
+			HasFee(1).
+			HasChangeCount(1).ForAmount(49)
 	})
 
 	testCasesSplitUserProvidedInputIntoChanges := map[string]struct {
@@ -560,7 +667,7 @@ func TestFunderSQLFund(t *testing.T) {
 			basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
 
 			// when:
-			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+			result, err := funder.Fund(ctx, targetSatoshis, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 			// then:
 			then.Result(result).WithoutError(err).
@@ -587,11 +694,11 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		// and: a single large UTXO covers the full desired pool value many times over
 		// 100_000_000 sats = 1 BSV
 		// when:
-		result, err := funderSvc.Fund(ctx, -100_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -100_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
-		// then: change outputs must be capped at MaxChangeOutputsPerTransaction, not 100
+		// then: change outputs must be capped at MaxChangeOutputsPerTx, not 100
 		then.Result(result).WithoutError(err).
-			HasChangeCount(int(funder.MaxChangeOutputsPerTransaction)). //nolint:gosec // MaxChangeOutputsPerTransaction is a small constant
+			HasChangeCount(int(defs.DefaultChangeBasket().MaxChangeOutputsPerTx)). //nolint:gosec // uint64 to int conversion is safe, value is bounded by config
 			ForAmount(100_000_000)
 	})
 
@@ -608,13 +715,34 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(desiredUTXOs)
 
 		// when:
-		result, err := funderSvc.Fund(ctx, largeInputSats, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, largeInputSats, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then: only MaxChangeOutputsPerTransaction outputs created, not 20
 		then.Result(result).WithoutError(err)
 
-		require.LessOrEqual(t, result.ChangeOutputsCount, funder.MaxChangeOutputsPerTransaction,
-			"ChangeOutputsCount should not exceed MaxChangeOutputsPerTransaction")
+		require.LessOrEqual(t, result.ChangeOutputsCount, defs.DefaultChangeBasket().MaxChangeOutputsPerTx,
+			"ChangeOutputsCount should not exceed MaxChangeOutputsPerTx")
+	})
+
+	t.Run("cap: SetMaxChangeOutputsPerTx takes effect on next Fund call", func(t *testing.T) {
+		// given: funder with default cap (8), basket wants 20 UTXOs
+		const desiredUTXOs = 20
+		const newCap = uint64(3)
+
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+		funderSvc := given.NewFunderService()
+		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(desiredUTXOs)
+
+		// when: cap is lowered to 3 at runtime
+		funderSvc.SetMaxChangeOutputsPerTx(newCap)
+
+		result, err := funderSvc.Fund(ctx, -10_000_001, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// then: new cap of 3 is respected
+		then.Result(result).WithoutError(err)
+		require.LessOrEqual(t, result.ChangeOutputsCount, newCap,
+			"ChangeOutputsCount should not exceed the runtime-updated cap")
 	})
 
 	t.Run("dust floor: change below dust floor (at high fee rate) is given to the miner instead of creating an output", func(t *testing.T) {
@@ -628,7 +756,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
 
 		// when:
-		result, err := funderSvc.Fund(ctx, -50, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -50, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		// then: no change output created; extra sats go to the miner (ChangeAmount > 0 is fine)
 		then.Result(result).WithoutError(err)
@@ -649,7 +777,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
 
 		// when: over-fund by 3500 sats – enough for 3 change outputs × 1000+ sats each
-		result, err := funderSvc.Fund(ctx, -3501, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -3501, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		then.Result(result).WithoutError(err)
 		// dustFloor = 44 sats; each output must be well above that
@@ -676,7 +804,7 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 			MinimumDesiredUTXOValue: 400,
 		}
 
-		result, err := funderSvc.Fund(ctx, -801, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false)
+		result, err := funderSvc.Fund(ctx, -801, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
 
 		then.Result(result).WithoutError(err)
 

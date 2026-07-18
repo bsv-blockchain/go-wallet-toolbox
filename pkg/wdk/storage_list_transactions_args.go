@@ -1,6 +1,7 @@
 package wdk
 
 import (
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
@@ -14,8 +15,10 @@ type ListTransactionsArgs struct {
 	Status *StandardizedTxStatus `json:"status,omitempty"`
 	// TxIDs filters transactions by any of the specified transaction IDs
 	TxIDs []string `json:"txids,omitempty"`
-	// References filters transactions by any of the specified reference strings
-	References []string `json:"references,omitempty"`
+	// Labels filters transactions by their labels
+	Labels []string `json:"labels"`
+	// LabelQueryMode defines how multiple labels are combined in the query (ALL or ANY)
+	LabelQueryMode defs.QueryMode `json:"labelQueryMode"`
 }
 
 // ListTransactionsResult defines the result of listing transactions

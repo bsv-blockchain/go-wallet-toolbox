@@ -1,5 +1,8 @@
 package rpcserver
 
+// DEPRECATED: tracing support for the legacy JSON-RPC layer (rpcserver).
+// The v1adapter uses standard http logging and does not require this tracer.
+
 import (
 	"context"
 	"encoding/json"

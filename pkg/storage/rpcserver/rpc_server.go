@@ -1,5 +1,13 @@
 package rpcserver
 
+// Package rpcserver is DEPRECATED.
+// The legacy JSON-RPC remoting layer has been replaced by the v1adapter
+// (pkg/storage/v1adapter) which implements the canonical BRC-100 /storage/v1/*
+// HTTP contract used by the TS wallet-storage and adapter conformance vectors.
+// New code should use storage.NewServer (which delegates to v1adapter) and
+// storage.NewClient (which now speaks V1 over authenticated HTTP).
+// This package is retained only for potential internal generator use and will be removed.
+
 import (
 	"log/slog"
 	"net/http"

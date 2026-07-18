@@ -2,6 +2,7 @@ package syncrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -68,6 +69,12 @@ func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID in
 			Scopes(joinWithNumericIDLookupScope(s.query, fmt.Sprintf("%s.tx_id", s.tableName()), s.query.KnownTx.TableName(), clause.LeftJoin)).
 			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.query.KnownTx.TableName(), s.tableName())).
 			Scopes(filters...).
+			// Deterministic tiebreak: append the unique primary key after the
+			// Paginate scope's non-unique `created_at DESC` so offset pagination is
+			// stable across engines. See FindOutputsForSync for the full rationale.
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				return db.Order(clause.OrderByColumn{Column: clause.Column{Table: s.tableName(), Name: "id"}})
+			}).
 			Find(&resultModels).Error
 		if err != nil {
 			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
@@ -101,28 +108,38 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updateTx := tx.Model(&models.Transaction{}).
-			Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
+		// Equal updated_at must SKIP. See ts-stack EntityTransaction.mergeExisting and
+		// conformance vector sync.brc40.merge.tx.error.regression.{1,2}.
+		var existing models.Transaction
+		existsErr := tx.Model(&models.Transaction{}).
+			Select("id, updated_at").
 			Scopes(scopes.UserID(entity.UserID)).
 			Where("reference = ?", entity.Reference).
-			Updates(model)
+			First(&existing).Error
 
-		if updateTx.Error != nil {
-			return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
+		if existsErr == nil {
+			if !model.UpdatedAt.After(existing.UpdatedAt) {
+				transactionID = existing.ID
+				return nil
+			}
+
+			updateTx := tx.Model(&models.Transaction{}).
+				Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+				Updates(model)
+
+			if updateTx.Error != nil {
+				return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
+			}
+
+			// RowsAffected == 0 means a concurrent writer advanced updated_at past
+			// our incoming value between the lookup and the UPDATE. Treat as skip.
+			transactionID = existing.ID
+			return nil
 		}
 
-		if updateTx.RowsAffected > 0 {
-			resultTxModel := models.Transaction{}
-			if err = updateTx.Scan(&resultTxModel).Error; err != nil {
-				return fmt.Errorf("failed to scan updated transaction: %w", err)
-			}
-
-			if resultTxModel.ID == 0 {
-				return fmt.Errorf("transaction ID is zero after update, this should not happen")
-			}
-
-			transactionID = resultTxModel.ID
-			return nil
+		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to lookup existing transaction: %w", existsErr)
 		}
 
 		if err = tx.Create(&model).Error; err != nil {

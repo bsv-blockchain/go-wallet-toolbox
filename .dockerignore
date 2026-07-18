@@ -21,6 +21,9 @@ vendor/
 
 # Binaries for programs and plugins
 dist/
+!dist/linux/
+!dist/linux-amd64/
+!dist/linux-arm64/
 gin-bin
 *.exe
 *.exe~

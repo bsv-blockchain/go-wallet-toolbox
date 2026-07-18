@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -37,11 +39,37 @@ type Provider struct {
 	Chain    defs.BSVNetwork
 	Database *database.Database
 
-	repo     *repo.Repositories
-	actions  *actions.Actions
-	options  *ProviderConfig
-	logger   *slog.Logger
-	services wdk.Services
+	repo          *repo.Repositories
+	actions       *actions.Actions
+	tunableFunder *funder.SQL
+	options       *ProviderConfig
+	logger        *slog.Logger
+	services      wdk.Services
+
+	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
+}
+
+type providersWrapper struct {
+	r *repo.Repositories
+}
+
+func (p *providersWrapper) TransactionsRepo() actions.TransactionsRepo { return p.r.Transactions }
+func (p *providersWrapper) OutputRepo() actions.OutputRepo             { return p.r.Outputs }
+func (p *providersWrapper) KnownTxRepo() actions.KnownTxRepo           { return p.r.KnownTx }
+func (p *providersWrapper) UTXORepo() actions.UTXORepo                 { return p.r.UTXOs }
+func (p *providersWrapper) BasketRepo() actions.BasketRepo             { return p.r.OutputBaskets }
+func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return p.r.Commission }
+func (p *providersWrapper) KeyValueRepo() actions.KeyValueRepo         { return p.r.KeyValue }
+
+type uow struct {
+	db *gorm.DB
+}
+
+func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Providers) error) error {
+	return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepos := repo.NewSQLRepositories(tx)
+		return fn(ctx, &providersWrapper{txRepos})
+	})
 }
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
@@ -68,24 +96,29 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 
 	log = logging.Child(log, "GormStorageProvider")
 
-	var transactionFunder funder.Funder
-	if options.Funder != nil {
-		transactionFunder = options.Funder
-	} else {
-		transactionFunder = db.CreateFunder(options.FeeModel)
+	tunableFunder := options.Funder
+	if tunableFunder == nil {
+		tunableFunder = db.CreateFunder(options.FeeModel, options.ChangeBasket.MaxChangeOutputsPerTx)
 	}
 
-	return &Provider{
-		Chain:    chain,
-		Database: db,
+	defaultBasketCfg := wdk.BasketConfiguration{
+		Name:                    wdk.BasketNameForChange,
+		NumberOfDesiredUTXOs:    options.ChangeBasket.NumberOfDesiredUTXOs,
+		MinimumDesiredUTXOValue: options.ChangeBasket.MinimumDesiredUTXOValue,
+	}
 
-		repo: repos,
+	p := &Provider{
+		Chain:         chain,
+		Database:      db,
+		repo:          repos,
+		tunableFunder: tunableFunder,
 		actions: actions.New(
 			options.BackgroundBroadcasterContext,
 			log,
-			transactionFunder,
+			tunableFunder,
 			options.Commission,
 			repos,
+			&uow{db.DB},
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,
@@ -96,7 +129,9 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		options:  &options,
 		logger:   log,
 		services: services,
-	}, nil
+	}
+	p.defaultChangeBasket.Store(&defaultBasketCfg)
+	return p, nil
 }
 
 // Stop gracefully terminates the background broadcaster and releases related resources.
@@ -104,7 +139,7 @@ func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
 
 	if err := p.Database.Close(); err != nil {
-		p.logger.Error("Failed to close database", slog.Any("err", err))
+		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))
 	}
 }
 
@@ -360,16 +395,73 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		ctx,
 		identityKey,
 		settings.StorageIdentityKey,
-		wdk.DefaultBasketConfiguration(),
+		*p.defaultChangeBasket.Load(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert user: %w", err)
+	}
+
+	// A zero ID means CreateUser hit the identity_key conflict (DoNothing): a
+	// concurrent caller won the find-then-create race and already committed this
+	// user. Re-read the existing row and report it as not-new.
+	if user.ID == 0 {
+		user, err = p.repo.FindUser(ctx, identityKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find user after insert conflict: %w", err)
+		}
+		if user == nil {
+			return nil, fmt.Errorf("user %q not found after insert conflict", identityKey)
+		}
+
+		return &wdk.FindOrInsertUserResponse{
+			User:  *user.ToWDK(),
+			IsNew: false,
+		}, nil
 	}
 
 	return &wdk.FindOrInsertUserResponse{
 		User:  *user.ToWDK(),
 		IsNew: true,
 	}, nil
+}
+
+// SetDefaultChangeBasket updates the basket configuration used when creating new users.
+// Takes effect on the next FindOrInsertUser call for a new user. Existing users are unaffected;
+// use UpdateChangeBasket to update a specific user's basket.
+func (p *Provider) SetDefaultChangeBasket(cfg wdk.BasketConfiguration) {
+	p.defaultChangeBasket.Store(&cfg)
+}
+
+// SetMaxChangeOutputsPerTx updates the per-transaction change output cap at runtime.
+// Takes effect on the next CreateAction call for any user.
+// Has no effect when a custom Funder was provided via WithFunder.
+func (p *Provider) SetMaxChangeOutputsPerTx(n uint64) {
+	if p.tunableFunder != nil {
+		p.tunableFunder.SetMaxChangeOutputsPerTx(n)
+	}
+}
+
+// UpdateChangeBasket updates the change basket configuration for a specific user.
+// Takes effect on the next CreateAction call for that user.
+func (p *Provider) UpdateChangeBasket(ctx context.Context, identityKey string, cfg wdk.BasketConfiguration) error {
+	user, err := p.repo.FindUser(ctx, identityKey)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found: %s", identityKey)
+	}
+
+	cfg.Name = wdk.BasketNameForChange
+	if err = validate.ValidBasketConfiguration(&cfg); err != nil {
+		return fmt.Errorf("invalid change basket configuration: %w", err)
+	}
+
+	_, err = p.repo.UpsertOutputBasket(ctx, user.ID, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to update change basket: %w", err)
+	}
+	return nil
 }
 
 // CreateAction Storage level processing for wallet `createAction`.
@@ -389,7 +481,8 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 		return nil, fmt.Errorf("invalid createAction args: %w", err)
 	}
 
-	p.logger.InfoContext(ctx, "Starting CreateAction process",
+	p.logger.InfoContext(
+		ctx, "Starting CreateAction process",
 		logging.UserID(auth.UserID),
 		slog.String("description", string(args.Description)),
 		slog.Int("outputCount", len(args.Outputs)),
@@ -399,14 +492,16 @@ func (p *Provider) CreateAction(ctx context.Context, auth wdk.AuthID, args wdk.V
 
 	res, err := p.actions.Create(ctx, *auth.UserID, actions.FromValidCreateActionArgs(&args))
 	if err != nil {
-		p.logger.DebugContext(ctx, "CreateAction completed with error",
+		p.logger.DebugContext(
+			ctx, "CreateAction completed with error",
 			logging.UserID(auth.UserID),
 			slog.String("description", string(args.Description)),
 		)
 		return nil, fmt.Errorf("failed to process createAction: %w", err)
 	}
 
-	p.logger.InfoContext(ctx, "CreateAction completed successfully",
+	p.logger.InfoContext(
+		ctx, "CreateAction completed successfully",
 		logging.UserID(auth.UserID),
 		logging.Reference(res.Reference),
 		slog.String("description", string(args.Description)),
@@ -509,7 +604,11 @@ func (p *Provider) SendWaitingTransactions(ctx context.Context, minTransactionAg
 
 	results, err := p.actions.SendWaitingTransactions(ctx, minTransactionAge)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send waiting transactions: %w", err)
+		// Preserve the assembled results even when some batches hard-failed: the per-batch errors
+		// are aggregated (joined) into err, but the results for the batches that DID succeed are
+		// still returned so callers can act on them (continue-on-error contract).
+		err = fmt.Errorf("failed to send waiting transactions: %w", err)
+		return results, err
 	}
 	return results, nil
 }
@@ -580,7 +679,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		tracing.EndTracing(span, err)
 	}()
 
-	logger := p.logger.With(logging.UserID(auth.UserID),
+	logger := p.logger.With(
+		logging.UserID(auth.UserID),
 		slog.String("output", args.Output),
 		slog.String("basket", args.Basket),
 	)
@@ -601,7 +701,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		basketName = &args.Basket
 	}
 
-	logger.InfoContext(ctx, "Starting RelinquishOutput process",
+	logger.InfoContext(
+		ctx, "Starting RelinquishOutput process",
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
@@ -610,7 +711,8 @@ func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args w
 		return fmt.Errorf("failed to relinquish output: %w", err)
 	}
 
-	logger.InfoContext(ctx, "RelinquishOutput completed successfully",
+	logger.InfoContext(
+		ctx, "RelinquishOutput completed successfully",
 		slog.String("txID", txID),
 		slog.Int("vout", int(vout)),
 	)
@@ -969,7 +1071,8 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 		return fmt.Errorf("failed to invalidate merkle proofs for reorg: %w", err)
 	}
 
-	p.logger.Info("Handled reorg - invalidated merkle proofs",
+	p.logger.InfoContext(
+		ctx, "Handled reorg - invalidated merkle proofs",
 		"orphaned_blocks", len(orphanedBlockHashes),
 		"affected_transactions", affected,
 	)
@@ -991,15 +1094,19 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	}
 
 	hasTxIDsFilter := len(args.TxIDs) > 0
-	hasReferencesFilter := len(args.References) > 0
 
 	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
 
-	if hasReferencesFilter {
-		txQuery = txQuery.Reference().In(args.References...)
-	}
 	if hasTxIDsFilter {
 		txQuery = txQuery.TxID().In(args.TxIDs...)
+	}
+
+	if len(args.Labels) > 0 {
+		if args.LabelQueryMode == defs.QueryModeAll {
+			txQuery = txQuery.Labels().ContainAll(args.Labels...)
+		} else {
+			txQuery = txQuery.Labels().ContainAny(args.Labels...)
+		}
 	}
 
 	userTxs, txErr := txQuery.Find(ctx)
@@ -1045,18 +1152,22 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	totalCount := uint64(len(knownTxs))
 
+	txLabelsMap, err := p.repo.GetLabelsForTxIDs(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching labels for transactions: %w", err)
+	}
+
 	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
-		var status wdk.StandardizedTxStatus
-		if s, ok := txStatusMap[ktx.TxID]; ok {
-			status = s.ToStandardizedStatus()
-		} else {
-			status = ktx.Status.ToStandardizedStatus()
+		status := ktx.Status.ToStandardizedStatus()
+		if txStatusMap[ktx.TxID] == wdk.TxStatusFailed {
+			status = wdk.TxUpdateStatusFailed
 		}
 
 		txUpdate := wdk.CurrentTxStatus{
 			TxID:   ktx.TxID,
 			Status: status,
+			Labels: txLabelsMap[ktx.TxID],
 		}
 
 		if ref, ok := txReferenceMap[ktx.TxID]; ok {
@@ -1093,7 +1204,8 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
 	var err error
 
-	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ProcessNewTip",
+	ctx, span := tracing.StartTracing(
+		ctx, "StorageProvider-ProcessNewTip",
 		attribute.Int("height", int(height)),
 		attribute.String("hash", hash),
 	)

@@ -62,7 +62,7 @@ func (o outputBasket) Table(newTableName string) *outputBasket {
 }
 
 func (o outputBasket) As(alias string) *outputBasket {
-	o.outputBasketDo.DO = *(o.outputBasketDo.As(alias).(*gen.DO))
+	o.outputBasketDo.DO = *o.outputBasketDo.As(alias).(*gen.DO)
 	return o.updateTableName(alias)
 }
 

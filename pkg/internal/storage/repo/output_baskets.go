@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -92,6 +93,24 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 	}
 
 	return isNew, nil
+}
+
+func (o *OutputBaskets) FindOrCreateBasket(ctx context.Context, userID int, name string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-FindOrCreateBasket", attribute.Int("UserID", userID), attribute.String("Name", name))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = o.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&models.OutputBasket{
+			UserID: userID,
+			Name:   name,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("failed to find or create basket %q: %w", name, err)
+	}
+	return nil
 }
 
 func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBasket {

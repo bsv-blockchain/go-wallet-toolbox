@@ -90,12 +90,12 @@ func (s ProvenTxReqStatus) SendWithResultStatus() SendWithResultStatus {
 }
 
 // Sending returns true if the ProvenTxReqStatus is considered still in the sending or processing phase.
+// Terminal failures (invalidTx, doubleSpend) are intentionally excluded: they are not "still sending",
+// so SendWithResultStatus() correctly falls through to failed for them.
 func (s ProvenTxReqStatus) Sending() bool {
 	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case ProvenTxStatusUnknown,
 		ProvenTxStatusNonFinal,
-		ProvenTxStatusInvalid,
-		ProvenTxStatusDoubleSpend,
 		ProvenTxStatusSending,
 		ProvenTxStatusUnsent,
 		ProvenTxStatusNoSend,
@@ -106,8 +106,67 @@ func (s ProvenTxReqStatus) Sending() bool {
 	}
 }
 
-// AlreadySent returns true if the transaction status indicates it has already been sent or processed.
+// AlreadySent returns true if the transaction status is evidence the network currently accepts it.
+// reorg is intentionally excluded: a reorged tx has had its proof invalidated and is NOT currently
+// accepted, so it must not be treated as already-sent (that would pretend network acceptance during
+// internalize/broadcast). Reorg re-sync eligibility rides on WasBroadcastStatus(), not this predicate.
 func (s ProvenTxReqStatus) AlreadySent() bool {
+	switch s { //nolint:exhaustive // default case handles remaining statuses
+	case ProvenTxStatusUnmined,
+		ProvenTxStatusCallback,
+		ProvenTxStatusUnconfirmed,
+		ProvenTxStatusCompleted:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsInFlight returns true while the tx is being pushed toward the network but has no acceptance
+// evidence yet: {sending, unsent, unprocessed}.
+func (s ProvenTxReqStatus) IsInFlight() bool {
+	switch s { //nolint:exhaustive // default case handles remaining statuses
+	case ProvenTxStatusSending,
+		ProvenTxStatusUnsent,
+		ProvenTxStatusUnprocessed:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsTerminalFailure returns true for statuses that are permanent, unrecoverable failures:
+// {invalidTx, doubleSpend}.
+func (s ProvenTxReqStatus) IsTerminalFailure() bool {
+	switch s { //nolint:exhaustive // default case handles remaining statuses
+	case ProvenTxStatusInvalid,
+		ProvenTxStatusDoubleSpend:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsAcceptedUnproven returns true for statuses proving network acceptance but without a mined proof yet:
+// {unmined, callback, unconfirmed}. Distinct from IsFinalMined (completed).
+func (s ProvenTxReqStatus) IsAcceptedUnproven() bool {
+	switch s { //nolint:exhaustive // default case handles remaining statuses
+	case ProvenTxStatusUnmined,
+		ProvenTxStatusCallback,
+		ProvenTxStatusUnconfirmed:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsFinalMined returns true only for the terminal mined-and-proven status: {completed}.
+func (s ProvenTxReqStatus) IsFinalMined() bool {
+	return s == ProvenTxStatusCompleted
+}
+
+// WasBroadcastStatus returns true for states proving the transaction was accepted by the network.
+func (s ProvenTxReqStatus) WasBroadcastStatus() bool {
 	switch s { //nolint:exhaustive // default case handles remaining statuses
 	case ProvenTxStatusUnmined,
 		ProvenTxStatusCallback,
@@ -151,7 +210,10 @@ var ProvenTxReqProblematicStatuses = []ProvenTxReqStatus{
 // ProvenTxReqBeyondBroadcastStageStatuses contains statuses indicating a proven transaction has passed the broadcast stage.
 var ProvenTxReqBeyondBroadcastStageStatuses = []ProvenTxReqStatus{
 	ProvenTxStatusUnmined,
+	ProvenTxStatusCallback,
+	ProvenTxStatusUnconfirmed,
 	ProvenTxStatusCompleted,
+	ProvenTxStatusReorg,
 }
 
 // CurrentTxStatus represents the response from a monitoring task
@@ -164,6 +226,7 @@ type CurrentTxStatus struct {
 	MerkleRoot  string
 	Error       *CurrentTxError
 	Reference   string
+	Labels      []string
 }
 
 // CurrentTxError represents the error details for a transaction status update, including competing transactions and error messages.
@@ -184,6 +247,7 @@ const (
 	TxUpdateStatusWaiting      StandardizedTxStatus = "waiting"
 	TxUpdateStatusMined        StandardizedTxStatus = "mined"
 	TxUpdateStatusUnknown      StandardizedTxStatus = "unknown"
+	TxUpdateStatusFailed       StandardizedTxStatus = "failed"
 )
 
 // String returns the string representation of StandardizedTxStatus

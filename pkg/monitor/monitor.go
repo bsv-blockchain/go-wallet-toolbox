@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
-	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
 	"github.com/go-co-op/gocron/v2"
 	"gorm.io/gorm"
 
@@ -30,6 +29,11 @@ type Daemon struct {
 	activeTasks map[defs.MonitorTask]*ActiveTask
 
 	storage MonitoredStorage
+
+	// leaseLocker is set only when the daemon was built via
+	// NewDaemonWithGORMLocker; it is nil for a plain NewDaemon. When set,
+	// Start wires a per-job lease TTL derived from each task's interval.
+	leaseLocker *LeaseLocker
 
 	started   bool
 	startLock sync.Mutex
@@ -60,19 +64,22 @@ type ActiveTask struct {
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
 // This ensures that scheduled tasks run on only one instance when multiple application instances are deployed.
+//
+// The lock is a lease per job (see LeaseLocker): every instance contends on the
+// same stable per-job key, so exactly one instance runs a job at a time and a
+// crashed owner is reclaimed once its lease expires. Per-job lease TTLs are
+// wired from task intervals in Start.
 func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage MonitoredStorage, db *gorm.DB, opts ...DaemonEventOption) (*Daemon, error) {
-	err := db.WithContext(ctx).AutoMigrate(gormlock.CronJobLock{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate cronjob table: %w", err)
-	}
-
 	workerName, err := randomizer.New().Base64(12)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate worker name: %w", err)
 	}
-	locker, err := gormlock.NewGormLocker(db, workerName, gormlock.WithDefaultJobIdentifier(time.Millisecond))
+
+	workerLogger := logger.With(slog.String("worker", workerName))
+
+	locker, err := NewLeaseLocker(db.WithContext(ctx), workerName, workerLogger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gorm locker: %w", err)
+		return nil, fmt.Errorf("failed to create lease locker: %w", err)
 	}
 
 	options := defaultDaemonEventOptions()
@@ -80,7 +87,13 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 		opt(options)
 	}
 
-	return NewDaemon(logger.With(slog.String("worker", workerName)), storage, options, gocron.WithDistributedLocker(locker))
+	daemon, err := NewDaemon(workerLogger, storage, options, gocron.WithDistributedLocker(locker))
+	if err != nil {
+		return nil, err
+	}
+	daemon.leaseLocker = locker
+
+	return daemon, nil
 }
 
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
@@ -111,7 +124,7 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 	defer d.startLock.Unlock()
 
 	if d.started {
-		d.logger.Warn("Daemon is already started. Skipping.")
+		d.logger.WarnContext(ctx, "Daemon is already started. Skipping.")
 		return nil
 	}
 
@@ -119,7 +132,7 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 	for taskName, taskConfig := range tasksToStart {
 		taskFactory, ok := factories[taskName]
 		if !ok {
-			d.logger.Warn("Task does not exist. Skipping.", slog.Any("task", taskName))
+			d.logger.WarnContext(ctx, "Task does not exist. Skipping.", slog.Any("task", taskName))
 			continue
 		}
 
@@ -149,7 +162,7 @@ func (d *Daemon) Pause() error {
 	defer d.startLock.Unlock()
 
 	if !d.started {
-		d.logger.Warn("Daemon is not started. Skipping.")
+		d.logger.WarnContext(context.Background(), "Daemon is not started. Skipping.")
 		return nil
 	}
 
@@ -168,7 +181,7 @@ func (d *Daemon) Stop() error {
 	defer d.startLock.Unlock()
 
 	if !d.started {
-		d.logger.Warn("Daemon is not started. Skipping.")
+		d.logger.WarnContext(context.Background(), "Daemon is not started. Skipping.")
 		return nil
 	}
 
@@ -186,6 +199,13 @@ func (d *Daemon) Get(name defs.MonitorTask) (*ActiveTask, bool) {
 	return task, ok
 }
 
+// monitorJobName is the gocron job name for a task. gocron passes this exact
+// string to the distributed locker as the lock key, so lease TTLs must be
+// registered under the same name (see the SetLeaseTTL call in initializeTask).
+func monitorJobName(taskName defs.MonitorTask) string {
+	return fmt.Sprintf("monitor_%s", taskName)
+}
+
 func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.MonitorTask, taskConfig defs.TaskConfig) error {
 	task := &ActiveTask{
 		Instance: taskInstance,
@@ -193,8 +213,19 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 		// NOTE: Cronjob (gocron.Job) is not set here, as it will be set when the job is created.
 	}
 
+	jobName := monitorJobName(taskName)
+
 	opts := []gocron.JobOption{
-		gocron.WithName(fmt.Sprintf("monitor_%s", taskName)),
+		gocron.WithName(jobName),
+		// gocron runs each tick in a fresh goroutine and does NOT prevent a
+		// single process from overlapping runs of the same job. Without this,
+		// a run overrunning its interval would re-acquire its own lease
+		// (owner=me) and overlap itself; when the first run Unlocks
+		// (lease_until=now) another pod could claim mid-flight — a narrow
+		// break of exactly-once. Singleton mode makes the same-process
+		// non-overlap premise the lease relies on actually true; overlapping
+		// ticks are rescheduled rather than run concurrently.
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	}
 
 	if taskConfig.StartImmediately {
@@ -202,6 +233,19 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	}
 
 	interval := taskConfig.Interval()
+
+	// Wire the lease TTL for this job before it can run. The lock key gocron
+	// uses is jobName, so the TTL must be registered under jobName. A TTL of
+	// max(2*interval, 5m) tolerates a run overrunning its slot and gives a
+	// crashed owner enough slack that a healthy peer does not steal a job that
+	// is merely slow, while still reclaiming within a bounded time.
+	if d.leaseLocker != nil {
+		ttl := 2 * interval
+		if ttl < 5*time.Minute {
+			ttl = 5 * time.Minute
+		}
+		d.leaseLocker.SetLeaseTTL(jobName, ttl)
+	}
 
 	job, err := d.scheduler.NewJob(
 		gocron.DurationJob(interval),
@@ -215,7 +259,7 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	task.Cronjob = job
 	d.activeTasks[taskName] = task
 
-	d.logger.Info("Starting a task", "task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
+	d.logger.InfoContext(context.Background(), "Starting a task", "task", taskName, "interval", interval, "start_immediately", taskConfig.StartImmediately)
 	return nil
 }
 
@@ -227,22 +271,22 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 			tracing.EndTracing(span, err)
 		}()
 
-		d.logger.Info("Run task", slog.Any("task", activeTask.TaskName))
+		d.logger.InfoContext(ctx, "Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
 			if err != nil {
-				d.logger.Error("Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+				d.logger.ErrorContext(ctx, "Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
 				return
 			}
 			if activeTask.Cronjob == nil {
 				return
 			}
 			nextRun, _ := activeTask.Cronjob.NextRun()
-			d.logger.Info("Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
+			d.logger.InfoContext(ctx, "Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
 		nextRun, err := activeTask.Cronjob.NextRun()
 		if err != nil {
-			d.logger.Error("Failed to get next run for task", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+			d.logger.ErrorContext(ctx, "Failed to get next run for task", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
 			return
 		}
 
@@ -270,10 +314,11 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (con
 }
 
 func (d *Daemon) handleReorgEvents(ctx context.Context) {
-	d.logger.Info("Starting reorg event handler")
+	d.logger.InfoContext(ctx, "Starting reorg event handler")
 
 	for event := range d.eventChannels.OnReorg {
-		d.logger.Info("Received reorg event",
+		d.logger.InfoContext(
+			ctx, "Received reorg event",
 			"depth", event.Depth,
 			"orphaned_count", len(event.OrphanedHashes),
 		)
@@ -284,18 +329,19 @@ func (d *Daemon) handleReorgEvents(ctx context.Context) {
 		}
 
 		if err := d.storage.HandleReorg(ctx, orphanedHashes); err != nil {
-			d.logger.Error("Failed to handle reorg", "error", err)
+			d.logger.ErrorContext(ctx, "Failed to handle reorg", "error", err)
 		}
 	}
 
-	d.logger.Info("reorg event handler stopped")
+	d.logger.InfoContext(ctx, "reorg event handler stopped")
 }
 
 func (d *Daemon) handleNewTipEvents(ctx context.Context) {
-	d.logger.Info("Starting new tip event handler")
+	d.logger.InfoContext(ctx, "Starting new tip event handler")
 
 	for header := range d.eventChannels.OnTip {
-		d.logger.Info("New tip received and processing",
+		d.logger.InfoContext(
+			ctx, "New tip received and processing",
 			"height", header.Height,
 			"hash", header.Hash.String(),
 		)
@@ -303,7 +349,7 @@ func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 		go func(h *chaintracks.BlockHeader) {
 			results, err := d.storage.ProcessNewTip(ctx, h.Height, h.Hash.String())
 			if err != nil {
-				d.logger.Error("ProcessNewTip failed", "error", err)
+				d.logger.ErrorContext(ctx, "ProcessNewTip failed", "error", err)
 				return
 			}
 
@@ -326,12 +372,13 @@ func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
 			BlockHash:   res.BlockHash,
 			BlockHeight: res.BlockHeight,
 			Reference:   res.Reference,
+			Labels:      res.Labels,
 		}
 
 		select {
 		case d.eventChannels.OnTxProven <- msg:
 		default:
-			d.logger.Warn("OnTxProven channel in monitor is full, dropping event")
+			d.logger.WarnContext(context.Background(), "OnTxProven channel in monitor is full, dropping event")
 		}
 	}
 }

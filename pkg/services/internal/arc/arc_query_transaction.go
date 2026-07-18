@@ -6,9 +6,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 )
 
-func (s *Service) queryTransaction(ctx context.Context, txID string) (*TXInfo, error) {
+func (s *Service) queryTransaction(ctx context.Context, txID string) (_ *TXInfo, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-queryTransaction", attribute.String("service", "arc"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	result := &TXInfo{}
 	arcErr := &APIError{}
 	req := s.httpClient.R().

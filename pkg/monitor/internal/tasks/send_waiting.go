@@ -44,6 +44,7 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 			TxID:      res.TxID.String(),
 			Status:    res.Status.ToStandardizedStatus(),
 			Reference: res.Reference,
+			Labels:    res.Labels,
 		}
 
 		if len(res.Errors) > 0 {
@@ -59,7 +60,7 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
 		default:
-			t.logger.Warn("TxBroadcasted channel full, dropping event")
+			t.logger.WarnContext(ctx, "TxBroadcasted channel full, dropping event")
 		}
 	}
 

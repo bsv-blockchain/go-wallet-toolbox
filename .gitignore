@@ -8,6 +8,8 @@
 *.so
 *.dylib
 
+.opencode
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -46,6 +48,10 @@ certifier-config.*.yaml
 storage.sqlite
 storage.*.sqlite
 storage.sqlite-journal
+storage.sqlite-wal
+storage.sqlite-shm
+storage.*.sqlite-wal
+storage.*.sqlite-shm
 
 # Example config
 examples/examples-config.yaml
@@ -54,6 +60,12 @@ examples/examples-config.yaml
 manual_tests/*.sqlite
 manual_tests/*.log
 manual_tests/*.sqlite-journal
+manual_tests/*.sqlite-wal
+manual_tests/*.sqlite-shm
 
 # Fuzz Tests
 testdata
+
+# Build output
+bin/
+

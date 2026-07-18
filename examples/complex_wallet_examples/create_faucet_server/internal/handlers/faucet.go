@@ -9,6 +9,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox-faucet-server/internal/methods"
 )
 
+const statusError = "error"
+
 type FaucetRequest struct {
 	Outputs []methods.FaucetOutput `json:"outputs"`
 }
@@ -24,32 +26,32 @@ func NewFaucetHandler(deps methods.FaucetDeps) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req FaucetRequest
 		if err := c.BodyParser(&req); err != nil {
-			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "invalid request format"})
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: statusError, Message: "invalid request format"})
 		}
 
 		if len(req.Outputs) == 0 {
-			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: "at least one output is required"})
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: statusError, Message: "at least one output is required"})
 		}
 
 		// Validate each output
 		totalAmount := uint64(0)
 		for i, output := range req.Outputs {
 			if output.Address == "" {
-				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("address is missing in output %d", i)})
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: statusError, Message: fmt.Sprintf("address is missing in output %d", i)})
 			}
 			if output.Amount == 0 {
-				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("amount equal to zero is not allowed in output %d", i)})
+				return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: statusError, Message: fmt.Sprintf("amount equal to zero is not allowed in output %d", i)})
 			}
 			totalAmount += output.Amount
 		}
 
 		if deps.MaxFaucetTotalAmount > 0 && totalAmount > deps.MaxFaucetTotalAmount {
-			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: "error", Message: fmt.Sprintf("total amount must be <= %d satoshis", deps.MaxFaucetTotalAmount)})
+			return c.Status(http.StatusBadRequest).JSON(FaucetResponse{Status: statusError, Message: fmt.Sprintf("total amount must be <= %d satoshis", deps.MaxFaucetTotalAmount)})
 		}
 
 		txid, beefHex, err := methods.FundAddress(c.Context(), deps, req.Outputs...)
 		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(FaucetResponse{Status: "error", Message: err.Error()})
+			return c.Status(http.StatusInternalServerError).JSON(FaucetResponse{Status: statusError, Message: err.Error()})
 		}
 
 		return c.JSON(FaucetResponse{Status: "ok", Message: "funded", Txid: txid, BEEFHex: beefHex})

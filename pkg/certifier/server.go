@@ -52,8 +52,10 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create certifier wallet: %w", err)
 	}
 
-	server, err := New(certifierWallet,
+	server, err := New(
+		certifierWallet,
 		WithPort(cfg.Server.Port),
+		WithMaxRequestBodyBytes(cfg.Server.MaxRequestBodyBytes),
 		WithLogger(logger),
 		WithRandomizer(randomizer.New()),
 		WithOriginator("certifier-server"),
@@ -98,7 +100,7 @@ func (s *Server) Start() error {
 		WriteTimeout:      2 * time.Minute,
 	}
 
-	s.config.Logger.Info("Listening...", slog.Any("addr", s.addr))
+	s.config.Logger.InfoContext(context.Background(), "Listening...", slog.Any("addr", s.addr))
 
 	err := s.httpServer.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
@@ -147,7 +149,7 @@ func (s *Server) setupRoutes() http.Handler {
 func createCertifierWallet(_ context.Context, cfg *Config, logger *slog.Logger) (*wallet.Wallet, func(), error) {
 	privateKey, err := primitives.PrivateKeyFromHex(cfg.CertifierWallet.PrivateKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create private key from hex %s: %w", cfg.CertifierWallet.PrivateKey, err)
+		return nil, nil, fmt.Errorf("failed to parse certifier wallet private key: %w", err)
 	}
 
 	// Create proto wallet for storage authentication

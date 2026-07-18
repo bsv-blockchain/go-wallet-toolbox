@@ -10,6 +10,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+const (
+	service1Name = "service1"
+	service2Name = "service2"
+)
+
 func TestPostBeefResult(t *testing.T) {
 	tests := map[string]struct {
 		given   wdk.PostFromBeefResult
@@ -18,7 +23,7 @@ func TestPostBeefResult(t *testing.T) {
 		"single success": {
 			given: wdk.PostFromBeefResult{
 				&wdk.PostFromBEEFServiceResult{
-					Name:             "service1",
+					Name:             service1Name,
 					PostedBEEFResult: &wdk.PostedBEEF{},
 				},
 			},
@@ -27,7 +32,7 @@ func TestPostBeefResult(t *testing.T) {
 		"single error": {
 			given: wdk.PostFromBeefResult{
 				&wdk.PostFromBEEFServiceResult{
-					Name:  "service1",
+					Name:  service1Name,
 					Error: fmt.Errorf("some-error"),
 				},
 			},
@@ -36,7 +41,7 @@ func TestPostBeefResult(t *testing.T) {
 		"single no postedBEEF": {
 			given: wdk.PostFromBeefResult{
 				&wdk.PostFromBEEFServiceResult{
-					Name: "service1",
+					Name: service1Name,
 				},
 			},
 			success: false,
@@ -44,11 +49,11 @@ func TestPostBeefResult(t *testing.T) {
 		"success and error": {
 			given: wdk.PostFromBeefResult{
 				&wdk.PostFromBEEFServiceResult{
-					Name:             "service1",
+					Name:             service1Name,
 					PostedBEEFResult: &wdk.PostedBEEF{},
 				},
 				&wdk.PostFromBEEFServiceResult{
-					Name:  "service2",
+					Name:  service2Name,
 					Error: fmt.Errorf("some-error"),
 				},
 			},
@@ -72,7 +77,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -107,7 +112,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -142,7 +147,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -153,7 +158,7 @@ func TestAggregated(t *testing.T) {
 				},
 			},
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service2",
+				Name: service2Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -189,7 +194,7 @@ func TestAggregated(t *testing.T) {
 		txID2 := mockTxID(2)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -200,7 +205,7 @@ func TestAggregated(t *testing.T) {
 				},
 			},
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service2",
+				Name: service2Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -236,7 +241,7 @@ func TestAggregated(t *testing.T) {
 		txID2 := mockTxID(2)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -251,7 +256,7 @@ func TestAggregated(t *testing.T) {
 				},
 			},
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service2",
+				Name: service2Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -290,7 +295,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -325,7 +330,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name:  "service1",
+				Name:  service1Name,
 				Error: fmt.Errorf("some-error"),
 			},
 		}
@@ -354,7 +359,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -391,7 +396,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -403,7 +408,7 @@ func TestAggregated(t *testing.T) {
 				},
 			},
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service2",
+				Name: service2Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -438,7 +443,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -475,7 +480,7 @@ func TestAggregated(t *testing.T) {
 		competingTxID := mockTxID(2)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -488,7 +493,7 @@ func TestAggregated(t *testing.T) {
 				},
 			},
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service2",
+				Name: service2Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -525,7 +530,7 @@ func TestAggregated(t *testing.T) {
 		txID := mockTxID(1)
 		result := wdk.PostFromBeefResult{
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service1",
+				Name: service1Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{
@@ -536,7 +541,7 @@ func TestAggregated(t *testing.T) {
 				},
 			},
 			&wdk.PostFromBEEFServiceResult{
-				Name: "service2",
+				Name: service2Name,
 				PostedBEEFResult: &wdk.PostedBEEF{
 					TxIDResults: []wdk.PostedTxID{
 						{

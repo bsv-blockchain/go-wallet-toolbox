@@ -3,6 +3,7 @@ package testabilities
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
@@ -79,4 +80,5 @@ func (f *faucetFixture) internalizeTopUp(beef []byte, paymentRemittance *sdk.Pay
 	require.NoError(f, err, "failed to internalize top up transaction - check the test setup and InternalizeAction method")
 	require.NotNil(f, action, "internalize action result should not be nil - check the InternalizeAction method")
 	require.True(f, action.Accepted, "internalize action should accept the transaction - check the InternalizeAction method")
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster to update status to spendable (Unproven)
 }

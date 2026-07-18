@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"runtime"
 
@@ -45,7 +46,15 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 		cfg.Services = defs.DefaultServicesConfig(network)
 	}
 
-	cfg.DBConfig.SQLite.ConnectionString = filepath.Join(getExamplesDir(), SQLiteStorageFile)
+	// The database lives in a data/ subdirectory so deployments can persist it by
+	// mounting that directory. SQLite runs in WAL mode by default, which keeps
+	// -wal/-shm sibling files next to the database; a single-file mount would lose
+	// committed-but-not-checkpointed transactions on restart.
+	dataDir := filepath.Join(getExamplesDir(), "data")
+	if err := os.MkdirAll(dataDir, 0o750); err != nil {
+		return nil, nil, fmt.Errorf("failed to create data directory %q: %w", dataDir, err)
+	}
+	cfg.DBConfig.SQLite.ConnectionString = filepath.Join(dataDir, SQLiteStorageFile)
 
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
@@ -84,7 +93,7 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 	cleanup := func() {
 		if daemon != nil {
 			if err := daemon.Stop(); err != nil {
-				slog.Error("failed to stop storage monitor", "error", err)
+				slog.ErrorContext(ctx, "failed to stop storage monitor", "error", err)
 			}
 		}
 		activeStorage.Stop()

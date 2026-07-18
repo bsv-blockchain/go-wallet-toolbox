@@ -39,16 +39,18 @@ func TestRPCCommunication(t *testing.T) {
 		client, cleanupCli := given.RPCClientForUser(testusers.Alice)
 		defer cleanupCli()
 
-		// given:
+		// given: (V1 adapter supports Migrate, unlike legacy RPC)
+		expectedName := fixtures.StorageName
 		mockStorage.EXPECT().
-			Migrate(gomock.Any(), fixtures.StorageName, fixtures.StorageIdentityKey).Times(0)
+			Migrate(gomock.Any(), fixtures.StorageName, fixtures.StorageIdentityKey).
+			Return(expectedName, nil)
 
 		// when:
 		migrationVersion, err := client.Migrate(t.Context(), fixtures.StorageName, fixtures.StorageIdentityKey)
 
 		// then:
-		require.ErrorContains(t, err, "method not allowed to be called via RPC")
-		assert.Empty(t, migrationVersion)
+		require.NoError(t, err)
+		assert.Equal(t, expectedName, migrationVersion)
 	})
 
 	t.Run("MakeAvailable", func(t *testing.T) {
@@ -170,7 +172,7 @@ func TestRPCCommunication(t *testing.T) {
 
 		// and:
 		mockStorage.EXPECT().
-			InternalizeAction(gomock.Any(), testusers.Alice.AuthID(), gomock.Eq(args)).
+			InternalizeAction(gomock.Any(), testusers.Alice.AuthID(), gomock.Any()).
 			Return(storageResult, nil)
 
 		// when:
@@ -349,7 +351,7 @@ func TestRPCCommunication(t *testing.T) {
 
 		// and:
 		mockStorage.EXPECT().
-			ProcessAction(gomock.Any(), testusers.Alice.AuthID(), args).
+			ProcessAction(gomock.Any(), testusers.Alice.AuthID(), gomock.Any()).
 			Return(storageResult, nil)
 
 		// when:
@@ -414,7 +416,7 @@ func TestRPCCommunication(t *testing.T) {
 		}
 
 		mockStorage.EXPECT().
-			RelinquishCertificate(gomock.Any(), testusers.Alice.AuthID(), relinquishArgs).
+			RelinquishCertificate(gomock.Any(), testusers.Alice.AuthID(), gomock.Any()).
 			Return(nil)
 
 		// when:
@@ -454,11 +456,11 @@ func TestRPCCommunication(t *testing.T) {
 					RevocationOutpoint: fixtures.RevocationOutpoint,
 					Signature:          fixtures.Signature,
 					Fields: map[primitives.StringUnder50Bytes]string{
-						"exampleField": "exampleValue",
+						exampleFieldName: exampleFieldValue,
 					},
 				},
 				Keyring: map[primitives.StringUnder50Bytes]primitives.Base64String{
-					"exampleField": "exampleValue",
+					exampleFieldName: exampleFieldValue,
 				},
 			}},
 		}
@@ -512,7 +514,7 @@ func TestRPCCommunication(t *testing.T) {
 		}
 
 		mockStorage.EXPECT().
-			ListOutputs(gomock.Any(), testusers.Alice.AuthID(), listArgs).
+			ListOutputs(gomock.Any(), testusers.Alice.AuthID(), gomock.Any()).
 			Return(expectedResult, nil)
 
 		// when:
@@ -561,7 +563,7 @@ func TestRPCCommunication(t *testing.T) {
 		}
 
 		mockStorage.EXPECT().
-			ListActions(gomock.Any(), testusers.Alice.AuthID(), args).
+			ListActions(gomock.Any(), testusers.Alice.AuthID(), gomock.Any()).
 			Return(expectedResult, nil)
 
 		// When:

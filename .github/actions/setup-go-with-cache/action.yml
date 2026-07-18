@@ -211,11 +211,11 @@ runs:
 
     # --------------------------------------------------------------------
     # Go module cache (shared across versions)
-    # Uses actions/cache@v4 which handles both restore and save
+    # Uses actions/cache which handles both restore and save
     # --------------------------------------------------------------------
     - name: 💾 Go module cache
       id: restore-gomod
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/go/pkg/mod
         key: ${{ steps.cache-keys.outputs.module-key }}
@@ -285,11 +285,11 @@ runs:
 
     # --------------------------------------------------------------------
     # Go build cache (per-version)
-    # Uses actions/cache@v4 which handles both restore and save
+    # Uses actions/cache which handles both restore and save
     # --------------------------------------------------------------------
     - name: 💾 Go build cache
       id: restore-gobuild
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.cache/go-build
@@ -442,7 +442,7 @@ runs:
     # --------------------------------------------------------------------
     - name: 🏗️ Set up Go
       id: setup-go
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
         go-version: ${{ inputs.go-version }}
         cache: false # we handle caches ourselves

@@ -59,6 +59,23 @@ func NewWalletStorageManager(identityKey string, logger *slog.Logger, active wdk
 	}
 }
 
+// AddWalletStorageProvider adds a new storage provider to the manager after construction.
+// This enables the remote-wallet pattern where the wallet is created with an empty storage manager,
+// then the storage client (which needs the wallet for auth) is added dynamically.
+// After adding, the manager re-partitions all stores by calling MakeAvailable.
+func (m *WalletStorageManager) AddWalletStorageProvider(ctx context.Context, provider wdk.WalletStorageProvider) error {
+	store := managed.NewManagedStorage(provider)
+	if _, err := store.MakeAvailableStorage(ctx, m.identityKey); err != nil {
+		return fmt.Errorf("failed to make new storage provider available: %w", err)
+	}
+	m.stores = append(m.stores, store)
+	m.isAvailable = false
+	if _, err := m.MakeAvailable(ctx); err != nil {
+		return fmt.Errorf("failed to re-partition after adding storage provider: %w", err)
+	}
+	return nil
+}
+
 // IsActiveEnabled The active storage is "enabled" only if its `storageIdentityKey` matches the user's currently selected `activeStorage`,
 // and only if there are no stores with conflicting `activeStorage` selections.
 //
@@ -152,7 +169,7 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 		return 0, 0, fmt.Errorf("writer wallet storage must be provided, it's nil")
 	}
 
-	m.logger.Info("starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
+	m.logger.InfoContext(ctx, "starting sync from active storage to writer storage", slog.String("identityKey", m.identityKey))
 
 	reader := options.ReaderFactory()
 	if reader == nil {
@@ -165,7 +182,8 @@ func (m *WalletStorageManager) SyncToWriter(ctx context.Context, writer wdk.Wall
 		err = fmt.Errorf("failed to sync from reader to writer: %w", err)
 	}
 
-	m.logger.Info("completed sync from active storage to writer storage",
+	m.logger.InfoContext(
+		ctx, "completed sync from active storage to writer storage",
 		slog.Int("inserts", inserts),
 		slog.Int("updates", updates),
 		slog.String("identityKey", m.identityKey),
@@ -214,7 +232,8 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 
 		// Merge state from conflicting actives into `newActive`.
 		for _, conflict := range m.conflictingActives {
-			m.logger.Info("merging state from conflicting actives",
+			m.logger.InfoContext(
+				ctx, "merging state from conflicting actives",
 				slog.String("from", conflict.Settings.StorageIdentityKey),
 				slog.String("to", newActive.Settings.StorageIdentityKey),
 			)
@@ -225,9 +244,9 @@ func (m *WalletStorageManager) SetActive(ctx context.Context, storageIdentityKey
 			}
 		}
 
-		m.logger.Info("propagate merged active state to non-actives")
+		m.logger.InfoContext(ctx, "propagate merged active state to non-actives")
 	} else {
-		m.logger.Info("backup current active state then set new active")
+		m.logger.InfoContext(ctx, "backup current active state then set new active")
 	}
 
 	// If there were conflicting actives,

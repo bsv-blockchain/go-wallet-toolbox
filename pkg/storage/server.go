@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,7 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/v1adapter"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -33,31 +34,35 @@ func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, wallet sd
 	}
 }
 
-// Handler returns an http.Handler configured with the storage RPC endpoints.
+// Handler returns an http.Handler configured with the storage v1 adapter endpoints
+// (the canonical BRC-100 /storage/v1/* remoting contract).
 func (s *Server) Handler() http.Handler {
-	provider := rpcserver.NewRPCStorageProvider(s.logger, s.provider)
+	// Use the new v1adapter as the core remoting implementation.
+	// This replaces the previous JSON-RPC layer.
+	coreHandler := v1adapter.NewHandler(s.provider, s.logger)
 
-	rpcServer := rpcserver.NewRPCHandler(s.logger, "remote_storage", provider)
-
-	mux := http.NewServeMux()
-	rpcServer.Register(mux)
-
-	var handler http.Handler = mux
+	handler := coreHandler
 
 	if s.options.Monetize {
 		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))
 		handler = paymentMiddleware.HTTPHandler(handler)
 	} else {
-		s.logger.Info("Payment middleware is disabled (Monetize=false)")
+		s.logger.InfoContext(context.Background(), "Payment middleware is disabled (Monetize=false)")
 		if s.options.CalculateRequestPrice != nil {
-			s.logger.Warn("CalculateRequestPrice option is set but will be ignored because Monetize=false")
+			s.logger.WarnContext(context.Background(), "CalculateRequestPrice option is set but will be ignored because Monetize=false")
 		}
 	}
 
-	authMiddleware := middleware.NewAuth(s.wallet, middleware.WithAuthLogger(s.logger))
+	authOpts := []func(*middleware.AuthMiddlewareConfig){middleware.WithAuthLogger(s.logger)}
+	if s.options.AllowUnauthenticated {
+		authOpts = append(authOpts, middleware.WithAuthAllowUnauthenticated())
+	}
+	authMiddleware := middleware.NewAuth(s.wallet, authOpts...)
 	handler = authMiddleware.HTTPHandler(handler)
-	// allow the API to be used everywhere when CORS is enforced.
-	handler = servercommon.AllowAllCORSMiddleware(handler)
+	handler = servercommon.MaxBytesMiddleware(handler, s.maxRequestBodyBytes())
+	if corsConfig, ok := s.corsConfig(); ok {
+		handler = servercommon.NewCORSMiddleware(handler, corsConfig)
+	}
 
 	return handler
 }
@@ -74,7 +79,7 @@ func (s *Server) Start() error {
 		WriteTimeout:      2 * time.Minute,
 	}
 
-	s.logger.Info("Listening...", slog.Any("port", port))
+	s.logger.InfoContext(context.Background(), "Listening...", slog.Any("port", port))
 	err := httpServer.ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
@@ -87,4 +92,32 @@ func withOptionalRequestPriceCalculator(calculator func(r *http.Request) (int, e
 		return func(c *middleware.PaymentMiddlewareConfig) {}
 	}
 	return middleware.WithRequestPriceCalculator(calculator)
+}
+
+func (s *Server) maxRequestBodyBytes() int64 {
+	if s.options.MaxRequestBodyBytes > 0 {
+		return s.options.MaxRequestBodyBytes
+	}
+	return servercommon.DefaultMaxRequestBodyBytes
+}
+
+func (s *Server) corsConfig() (servercommon.CORSConfig, bool) {
+	if s.options.DisableCORS {
+		return servercommon.CORSConfig{}, false
+	}
+	config := s.options.CORS
+	if isZeroCORSConfig(config) {
+		config = DefaultCORSConfig()
+	}
+	return config, config.Enabled
+}
+
+func isZeroCORSConfig(config servercommon.CORSConfig) bool {
+	return !config.Enabled &&
+		!config.AllowAllOrigins &&
+		!config.AllowPrivateNetwork &&
+		len(config.AllowedOrigins) == 0 &&
+		len(config.AllowedMethods) == 0 &&
+		len(config.AllowedHeaders) == 0 &&
+		len(config.ExposedHeaders) == 0
 }

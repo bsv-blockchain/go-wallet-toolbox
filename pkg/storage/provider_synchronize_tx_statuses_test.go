@@ -3,12 +3,15 @@ package storage_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities/nosendtest"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -254,39 +257,194 @@ func TestSynchronizeTxForTwoDifferentBlockHeights(t *testing.T) {
 	// NOTE: The second call should also trigger a request for the transaction, because the block height is different
 }
 
-func TestFailedSyncExceedsMaxAttempts(t *testing.T) {
+func TestSynchronizeTxRebroadcastsBroadcastTxAfterMaxAttempts(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 
 	// given:
 	givenProvider := given.Provider()
-	activeStorage := givenProvider.GORM()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 3
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
 
 	// and:
-	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
 
 	// and:
-	givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnTransactionWithoutMerklePath()
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
 	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
 		ExpectBlockHash:   testservices.TestBlockHash,
 		ExpectBlockHeight: int64(testservices.TestBlockHeight),
 	})
 
 	// when:
-	for attempt := range defs.DefaultSynchronizeTxStatuses().MaxAttempts {
+	for attempt := uint64(0); attempt < cfg.MaxAttempts-2; attempt++ {
 		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
 		require.NoError(t, err)
 
 		// then:
-		testabilities.ThenDBState(t, activeStorage).HasKnownTX(txSpec.ID().String()).WithAttempts(attempt + 1)
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnmined).
+			WithAttempts(attempt + 2).
+			WasBroadcast(true)
 	}
 
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
 	// and:
+	require.NoError(t, err)
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(txSpec.ID().String()).
-		WithStatus(wdk.ProvenTxStatusInvalid).
-		WithAttempts(defs.DefaultSynchronizeTxStatuses().MaxAttempts).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithAttempts(0).
+		WithRebroadcastAttempts(1).
+		WasBroadcast(true).
 		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusUnproven)
+
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(initialTopUp)
+}
+
+func TestSynchronizeTxMaxRebroadcastAttemptsCircuitBreaker(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and:
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	// and:
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		// when:
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnsent).
+			WithAttempts(0).
+			WithRebroadcastAttempts(cycle).
+			WasBroadcast(true)
+
+		testabilities.ThenDBState(t, activeStorage).
+			HasUserTransactionByTxID(testusers.Alice, txID).
+			WithStatus(wdk.TxStatusUnproven)
+
+		// when:
+		_, err = activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnmined).
+			WasBroadcast(true)
+	}
+
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithRebroadcastAttempts(cfg.MaxRebroadcastAttempts).
+		WasBroadcast(true).
+		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
+}
+
+func TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and:
+	const initialTopUp = 100_000
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(initialTopUp).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	// and:
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		// when:
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+
+		// then:
+		testabilities.ThenDBState(t, activeStorage).
+			HasKnownTX(txID).
+			WithStatus(wdk.ProvenTxStatusUnsent).
+			WithAttempts(0).
+			WithRebroadcastAttempts(cycle).
+			WasBroadcast(true)
+	}
+
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+
+	// then:
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithRebroadcastAttempts(cfg.MaxRebroadcastAttempts).
+		WasBroadcast(true).
+		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
 }
 
 func TestSynchronizeTxEdgeCases(t *testing.T) {
@@ -473,4 +631,69 @@ func TestSynchronizeTxNoSendBroadcastedExternally(t *testing.T) {
 		testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 			ShouldNotBeAbleToReserveSatoshis(inputSatoshis - 2)
 	})
+}
+
+func TestSynchronizeTxFailed_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
+	// Regression test: when sync exhausts retries and marks a TX as invalid/failed,
+	// the outputs *created* by that TX must be marked spendable=false.
+	// Before this fix they remained spendable=true, corrupting wallet state.
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 1
+	cfg.MaxRebroadcastAttempts = 2
+	activeStorage := givenProvider.
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and: a TX is processed and broadcast successfully, but merkle proof never arrives
+	_, signedTx := given.Action(activeStorage).
+		WithSatoshisToInternalize(10_000).
+		WithSatoshisToSend(1_000).
+		Processed()
+	txID := signedTx.TxID().String()
+
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// and: exhaust all rebroadcast attempts (mirrors TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx)
+	for cycle := uint64(1); cycle <= cfg.MaxRebroadcastAttempts; cycle++ {
+		_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+	}
+
+	// when: final sync exhausts the circuit breaker and marks the TX invalid/failed
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: user TX is failed
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
+
+	// and: outputs created by the failed TX are all not spendable
+	txRows, err := activeStorage.TransactionEntity().Read().
+		TxID().Equals(txID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+
+	outputs, err := activeStorage.OutputsEntity().Read().
+		TransactionID().Equals(txRows[0].ID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, outputs)
+
+	for _, output := range outputs {
+		assert.False(t, output.Spendable,
+			"output vout=%d from a sync-failed TX must not be spendable", output.Vout)
+	}
 }

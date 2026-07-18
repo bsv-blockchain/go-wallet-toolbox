@@ -19,7 +19,8 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 
 	repos := db.CreateRepositories()
 
-	user, err := repos.CreateUser(t.Context(), testusers.Alice.IdentityKey(t), "test-identity-key",
+	user, err := repos.CreateUser(
+		t.Context(), testusers.Alice.IdentityKey(t), "test-identity-key",
 		wdk.BasketConfiguration{
 			Name:                    "default",
 			NumberOfDesiredUTXOs:    1,

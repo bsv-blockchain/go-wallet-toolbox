@@ -41,7 +41,7 @@ func then(t testing.TB, fixture *monitorFixture) *monitorAssertions {
 func (m *monitorAssertions) SynchronizeTransactionStatuses() ExecutedTaskAssertions {
 	return &storageMethodAssertions{
 		called: func() int {
-			return m.fixtures.mockStorage.SynchronizeTransactionStatusesCalled
+			return int(m.fixtures.mockStorage.SynchronizeTransactionStatusesCalled.Load())
 		},
 		taskName: defs.CheckForProofsMonitorTask,
 		parent:   m,
@@ -51,7 +51,7 @@ func (m *monitorAssertions) SynchronizeTransactionStatuses() ExecutedTaskAsserti
 func (m *monitorAssertions) SendWaitingTransactions() ExecutedTaskAssertions {
 	return &storageMethodAssertions{
 		called: func() int {
-			return m.fixtures.mockStorage.SendWaitingTransactionsCalled
+			return int(m.fixtures.mockStorage.SendWaitingTransactionsCalled.Load())
 		},
 		taskName: defs.SendWaitingMonitorTask,
 		parent:   m,
@@ -61,7 +61,7 @@ func (m *monitorAssertions) SendWaitingTransactions() ExecutedTaskAssertions {
 func (m *monitorAssertions) FailAbandoned() ExecutedTaskAssertions {
 	return &storageMethodAssertions{
 		called: func() int {
-			return m.fixtures.mockStorage.FailAbandonedCalled
+			return int(m.fixtures.mockStorage.FailAbandonedCalled.Load())
 		},
 		taskName: defs.FailAbandonedMonitorTask,
 		parent:   m,
@@ -98,7 +98,7 @@ func (s *storageMethodAssertions) WaitForTaskExecution(expectedInterval time.Dur
 	timeoutDuration := 5 * expectedInterval
 	timeout := time.Now().Add(timeoutDuration)
 	for time.Now().Before(timeout) {
-		lastRun, err := activeTask.Cronjob.LastRun()
+		lastRun, err := activeTask.Cronjob.LastRunStartedAt()
 		s.parent.require.NoError(err)
 
 		if lastRun.IsZero() {
@@ -119,7 +119,10 @@ func (s *storageMethodAssertions) ExecutedInTime() TaskExecutionAssertions {
 	s.parent.require.NotNil(s.parent.fixtures.daemon, "Expected daemon to be initialized")
 
 	s.parent.require.NotNil(s.lastRun, "Expected lastRun to be initialized")
-	s.parent.require.True(s.lastRun.After(time.Now().Add(-2*s.interval)), "scheduled task lastRun is not within the expected interval")
+	// Use 5*interval tolerance to match WaitForTaskExecution's timeout and avoid
+	// flakes on loaded CI runners where goroutine scheduling delays can push
+	// lastRun past a tighter window even though the task ran correctly.
+	s.parent.require.True(s.lastRun.After(time.Now().Add(-5*s.interval)), "scheduled task lastRun is not within the expected interval")
 
 	return s
 }

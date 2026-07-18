@@ -25,7 +25,7 @@ func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.L
 	for _, output := range lookupAns.Outputs {
 		tx, err := transaction.NewTransactionFromBEEF(output.Beef)
 		if err != nil {
-			logger.Error("failed to create tx from output beef", slog.String("beef", string(output.Beef)), logging.Error(err))
+			logger.ErrorContext(ctx, "failed to create tx from output beef", slog.String("beef", string(output.Beef)), logging.Error(err))
 			continue
 		}
 
@@ -36,13 +36,13 @@ func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.L
 		var verifiableCertificate certificates.VerifiableCertificate
 		err = json.Unmarshal(decodedOutput.Fields[0], &verifiableCertificate)
 		if err != nil {
-			logger.Error("failed to unmarshal decodedOutput field into a certificate", logging.Error(err))
+			logger.ErrorContext(ctx, "failed to unmarshal decodedOutput field into a certificate", logging.Error(err))
 			continue
 		}
 
 		anyoneProtoWallet, err := wallet.NewCompletedProtoWallet(nil)
 		if err != nil {
-			logger.Error("failed to create anyone's proto wallet", logging.Error(err))
+			logger.ErrorContext(ctx, "failed to create anyone's proto wallet", logging.Error(err))
 			continue
 		}
 
@@ -51,14 +51,14 @@ func MapLookupAnswerToVerifiableCertificates(ctx context.Context, logger *slog.L
 			false,
 			"")
 		if err != nil {
-			logger.Error("failed to decrypt verifiableCertificate fields", logging.Error(err))
+			logger.ErrorContext(ctx, "failed to decrypt verifiableCertificate fields", logging.Error(err))
 			continue
 		}
 
 		// Verify the certificate signature is correct
 		err = verifiableCertificate.Verify(ctx)
 		if err != nil {
-			logger.Error("failed to verify certificate's signature", logging.Error(err))
+			logger.ErrorContext(ctx, "failed to verify certificate's signature", logging.Error(err))
 			continue
 		}
 

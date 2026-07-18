@@ -3,6 +3,7 @@ package storage_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	testvectors "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -12,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -64,6 +66,7 @@ func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
 	require.Equal(t, expectedResult, actualResult)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID.String()).WithBlockHash(to.Ptr(pkgtestabilities.TestBlockHash))
 }
@@ -108,14 +111,18 @@ func TestInternalizeActionWalletPaymentHappyPath(t *testing.T) {
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(1).
-				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+				Count(4).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, nil).
+				Note("postBeefError", nil, nil).
+				Note("aggregateResults", nil, nil)
 		})
 
 	thenDBState.AllOutputs(testusers.Alice).WithCountHavingTxID(1)
@@ -147,14 +154,18 @@ func TestInternalizeActionBasketInsertionHappyPath(t *testing.T) {
 	assert.Equal(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", result.TxID)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.
-				Count(1).
-				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil)
+				Count(4).
+				Note("internalizeAction", to.Ptr(testusers.Alice.ID), nil).
+				Note("postBeefSuccess", nil, nil).
+				Note("postBeefError", nil, nil).
+				Note("aggregateResults", nil, nil)
 		})
 
 	thenDBState.Outputs(testusers.Alice, wdk.BasketNameForChange).WithCount(0)
@@ -200,6 +211,7 @@ func TestInternalizeActionErrorCases(t *testing.T) {
 			require.Error(t, err)
 
 			// and db state:
+			time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 			thenDBState := testabilities.ThenDBState(t, activeStorage)
 			thenDBState.AllOutputs(testusers.Alice).WithCount(0)
 		})
@@ -237,6 +249,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(0), result.Satoshis)
 
 		// and db state:
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -311,7 +324,9 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.True(t, result.IsMerge)
 		assert.Equal(t, int64(0), result.Satoshis)
 
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		// and db state:
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -361,6 +376,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(-alreadyOwnedSatoshis), result.Satoshis)
 
 		// and db state:
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -425,6 +441,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		assert.Equal(t, int64(fixtures.DefaultCreateActionOutputSatoshis), result.Satoshis)
 
 		// and db state:
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasKnownTX(result.TxID).
 			NotMined().
@@ -467,6 +484,7 @@ func TestInternalizeActionForAlreadyStoredTransaction(t *testing.T) {
 		require.NoError(t, err)
 
 		// and db state:
+		time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 		thenDBState := testabilities.ThenDBState(t, activeStorage)
 		thenDBState.HasUserTransactionByReference(testusers.Alice, fixtures.FaucetReference(ownedTxSpec.ID().String())).
 			WithLabels(initialLabel, labelToAdd)
@@ -537,6 +555,7 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 	assert.Equal(t, int64(0), result.Satoshis)
 
 	// and db state:
+	time.Sleep(200 * time.Millisecond) // wait for background broadcaster
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(result.TxID).
 		NotMined().
@@ -544,4 +563,107 @@ func TestInternalizeTheSameTxByDifferentUsers(t *testing.T) {
 
 	thenDBState.AllOutputs(testusers.Alice).WithCount(1)
 	thenDBState.AllOutputs(testusers.Bob).WithCount(1)
+}
+
+// TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance pins the settled
+// reorg semantics of W1-6: after a reorg invalidates a tx's proof (KnownTx status=reorg),
+// internalizing that same tx for a different user must NOT pretend the network still
+// accepts it. Because AlreadySent(reorg)=false now, storeNewTx takes the fresh-tx branch
+// (re-queued for broadcast) rather than flipping the KnownTx to unmined-without-evidence.
+//
+// The background broadcaster is held for the duration of the assertions so we observe the
+// deterministic synchronous storeNewTx write (BackgroundBroadcast posts to ARC before any
+// DB write, so holding the ARC POST freezes the state). Under the OLD semantics this branch
+// would set knownTxStatus=unmined + txStatus=unproven with NO broadcast queued; under the
+// corrected semantics it sets knownTxStatus=unsent + txStatus=sending and queues a re-broadcast.
+func TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	// and: a mined tx owned by Alice (proof fetched via sync -> status completed, mined)
+	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	txID := txSpec.ID().String()
+
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+
+	// and: the block is orphaned by a reorg -> proof invalidated, status reorg, was_broadcast kept.
+	err = activeStorage.HandleReorg(t.Context(), []string{testservices.TestBlockHash})
+	require.NoError(t, err)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusReorg).
+		NotMined().
+		WasBroadcast(true)
+
+	// and: hold the background broadcaster so the fresh-tx branch's synchronous DB write is
+	// observable before any post-broadcast mutation. Release before cleanup so the provider's
+	// broadcaster Stop() (which wg.Wait()s in-flight workers) does not hang.
+	givenProvider.ARC().HoldBroadcasting()
+	defer givenProvider.ARC().ReleaseBroadcasting()
+
+	// when: a DIFFERENT user internalizes the same tx (fresh entry, not a merge).
+	result, err := activeStorage.InternalizeAction(
+		t.Context(),
+		testusers.Bob.AuthID(), // NOTE: different user -> storeNewTx path, not merge
+		wdk.InternalizeActionArgs{
+			Tx: txSpec.AtomicBEEF().Bytes(),
+			Outputs: []*wdk.InternalizeOutput{
+				{
+					OutputIndex: 0,
+					Protocol:    wdk.BasketInsertionProtocol,
+					InsertionRemittance: &wdk.BasketInsertion{
+						Basket: fixtures.CustomBasket,
+					},
+				},
+			},
+			Description: "internalize reorged tx",
+		},
+	)
+
+	// then: internalize is consistent (accepted, fresh entry).
+	require.NoError(t, err)
+	assert.True(t, result.Accepted)
+	assert.False(t, result.IsMerge)
+	assert.Equal(t, txID, result.TxID)
+
+	// and db state: the shared KnownTx is NOT flipped to unmined-without-evidence.
+	//
+	// storeNewTx else-branch (internalize.go): the internalized BEEF carries no merkle proof
+	// (isMined=false) and AlreadySent(reorg)=false, so knownTxStatus=unsent with
+	// skipForStatuses={completed, unmined, sending, unsent}. reorg is not in that skip list,
+	// so upsertKnownTx rewrites the row to unsent (re-queued for broadcast). It stays NotMined
+	// and keeps was_broadcast=true so proof re-sync remains eligible.
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		NotMined().
+		WasBroadcast(true)
+
+	// and: the internalizing user's transaction is in the fresh-send state (sending), not
+	// unproven — direct evidence the fresh-tx branch was taken rather than the accepted-unproven one.
+	thenDBState.HasUserTransactionsByTxIDsWithStatus(testusers.Bob, wdk.TxStatusSending, txID)
+
+	// and: the internalized output landed for Bob.
+	thenDBState.AllOutputs(testusers.Bob).WithCountHavingTxID(1)
+
+	// NOTE (concern, out of W1-6 scope): a full AssertStorageInvariants is intentionally NOT
+	// gated here. HandleReorg nulls the KnownTx proof but leaves Alice's original user
+	// transaction at status=completed, which violates money-safety invariant #2 ("no completed
+	// user transaction without a merkle proof"). That gap is pre-existing in HandleReorg and is
+	// independent of W1-6 (it reproduces right after HandleReorg, before this internalize). It
+	// is reported as a concern, not fixed in this task.
 }

@@ -170,7 +170,7 @@ func (l label) Table(newTableName string) *label {
 }
 
 func (l label) As(alias string) *label {
-	l.labelDo.DO = *(l.labelDo.As(alias).(*gen.DO))
+	l.labelDo.DO = *l.labelDo.As(alias).(*gen.DO)
 	return l.updateTableName(alias)
 }
 

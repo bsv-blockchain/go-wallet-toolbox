@@ -23,6 +23,7 @@ type Opts struct {
 	Client                 *http.Client
 	WalletSettingsManager  *wallet_settings_manager.WalletSettingsManager
 	LookupResolver         *lookup.LookupResolver
+	StorageManager         wdk.WalletStorage
 }
 
 type Flags struct {

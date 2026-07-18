@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -31,7 +34,12 @@ type txInfoResult struct {
 	BlockHeight uint32
 }
 
-func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (BroadcastStatus, string, error) {
+func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (_ BroadcastStatus, _ string, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-Broadcast", attribute.String("service", "whatsonchain"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	rawTxHex := hex.EncodeToString(rawTx)
 	txid := txutils.TransactionIDFromRawTx(rawTx)
 
@@ -136,7 +144,12 @@ func (woc *WhatsOnChain) processSingleTx(ctx context.Context, rawTx []byte) wdk.
 
 	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
 	if fetchErr != nil {
-		return woc.errorPostedTxID(rawTx, returnedTxid, fmt.Errorf("failed to fetch tx info for %s: %w", returnedTxid, fetchErr))
+		// The tx has already been accepted by WoC - block info is optional enrichment,
+		// and right after a broadcast the tx may not be indexed yet (or the endpoint may
+		// be rate limited), so a fetch failure must not void the successful broadcast.
+		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast",
+			"txid", returnedTxid, "error", fetchErr)
+		return result
 	}
 
 	if info != nil {

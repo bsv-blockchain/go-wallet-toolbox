@@ -117,6 +117,32 @@ func TestTipBroadcaster_UnsubscribeStopsReceiving(t *testing.T) {
 	}
 }
 
+func TestTipBroadcaster_BroadcastNilTipToFullSubscriberDoesNotPanic(t *testing.T) {
+	// given:
+	broadcaster := newTipBroadcaster(slog.Default())
+	ch := make(chan *chaintracks.BlockHeader)
+	unsub := broadcaster.Subscribe(ch)
+	defer unsub()
+
+	// then:
+	require.NotPanics(t, func() {
+		broadcaster.broadcast(nil)
+	})
+}
+
+func TestTipBroadcaster_BroadcastTipWithoutBlockHeaderToFullSubscriberDoesNotPanic(t *testing.T) {
+	// given:
+	broadcaster := newTipBroadcaster(slog.Default())
+	ch := make(chan *chaintracks.BlockHeader)
+	unsub := broadcaster.Subscribe(ch)
+	defer unsub()
+
+	// then:
+	require.NotPanics(t, func() {
+		broadcaster.broadcast(&chaintracks.BlockHeader{})
+	})
+}
+
 func createTestBlockHeader(height uint32, hashStr string) *chaintracks.BlockHeader {
 	hash, _ := chainhash.NewHashFromHex(hashStr)
 	merkleRoot, _ := chainhash.NewHashFromHex("0000000000000000000000000000000000000000000000000000000000000000")

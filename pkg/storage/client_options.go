@@ -3,8 +3,6 @@ package storage
 import (
 	"log/slog"
 	"net/http"
-
-	"github.com/filecoin-project/go-jsonrpc"
 )
 
 // ClientOptions is a function that can be used to override internal dependencies.
@@ -12,17 +10,12 @@ import (
 type ClientOptions = func(*clientOptions)
 
 type clientOptions struct {
-	rpcOptions []jsonrpc.Option
 	httpClient *http.Client
 	logger     *slog.Logger
 }
 
 func defaultClientOptions() clientOptions {
-	return clientOptions{
-		rpcOptions: []jsonrpc.Option{
-			jsonrpc.WithMethodNameFormatter(jsonrpc.NewMethodNameFormatter(false, jsonrpc.LowerFirstCharCase)),
-		},
-	}
+	return clientOptions{}
 }
 
 // WithClientLogger is a function that can be used to set the logger for a client.

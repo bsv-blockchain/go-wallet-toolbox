@@ -18,6 +18,7 @@ const (
 	secondArgument = "test"
 	thirdArgument  = 1
 	fourthArgument = true
+	successStatus  = "success"
 )
 
 var errFromPanic = errors.New("some panic occurred")
@@ -37,7 +38,7 @@ func TestQueueOneByOne(t *testing.T) {
 			services: []TestService{
 				TestService{Name: "successful"}.Successful(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"single service returning error should return error": {
@@ -78,7 +79,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "should-not-be-called-1"}.ShouldNotBeCalled(),
 				TestService{Name: "should-not-be-called-2"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"first service returning error but second returning success should return second result": {
@@ -87,7 +88,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "success-service"}.Successful(),
 				TestService{Name: "should-not-be-called"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"first service returning nil but second returning success should return second result": {
@@ -96,7 +97,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "success-service"}.Successful(),
 				TestService{Name: "should-not-be-called"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"first and second services returning error but third returning success should return third result": {
@@ -106,7 +107,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "success-service"}.Successful(),
 				TestService{Name: "should-not-be-called"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"first and second services returning nil but third returning success should return third result": {
@@ -116,7 +117,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "success-service"}.Successful(),
 				TestService{Name: "should-not-be-called"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"first service returning error, second returning nil, third returning success should return third result": {
@@ -126,7 +127,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "success-service"}.Successful(),
 				TestService{Name: "should-not-be-called"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"first service returning nil, second returning error, third returning success should return third result": {
@@ -136,7 +137,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "success-service"}.Successful(),
 				TestService{Name: "should-not-be-called"}.ShouldNotBeCalled(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 		"handle panic from service": {
@@ -153,7 +154,7 @@ func TestQueueOneByOne(t *testing.T) {
 				TestService{Name: "panicking"}.Panicking(),
 				TestService{Name: "ok"}.Successful(),
 			},
-			expectedResult:   &TestServiceResult{200, "success"},
+			expectedResult:   &TestServiceResult{200, successStatus},
 			errorExpectation: assert.NoError,
 		},
 	}
@@ -264,7 +265,7 @@ func TestQueueParallel(t *testing.T) {
 				TestService{Name: "successful"}.Successful(),
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
-				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, "success"})),
+				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, successStatus})),
 			},
 			errorExpectation: assert.NoError,
 		},
@@ -296,12 +297,12 @@ func TestQueueParallel(t *testing.T) {
 				TestService{Name: "good-job"}.Successful(),
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
-				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, "success"})),
+				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, successStatus})),
 				servicequeue.NewNamedResult("failing", types.FailureResult[*TestServiceResult](errors.New("some error occurred"))),
-				servicequeue.NewNamedResult("ok", types.SuccessResult(&TestServiceResult{200, "success"})),
+				servicequeue.NewNamedResult("ok", types.SuccessResult(&TestServiceResult{200, successStatus})),
 				servicequeue.NewNamedResult("nil-service", types.FailureResult[*TestServiceResult](servicequeue.ErrEmptyResult)),
 				servicequeue.NewNamedResult("bad-thing-happened", types.FailureResult[*TestServiceResult](errors.New("some error occurred"))),
-				servicequeue.NewNamedResult("good-job", types.SuccessResult(&TestServiceResult{200, "success"})),
+				servicequeue.NewNamedResult("good-job", types.SuccessResult(&TestServiceResult{200, successStatus})),
 			},
 			errorExpectation: assert.NoError,
 		},
@@ -422,9 +423,9 @@ func TestQueueParallel(t *testing.T) {
 				TestService{Name: "ok"}.Successful(),
 			},
 			expectedResults: []*servicequeue.NamedResult[*TestServiceResult]{
-				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, "success"})),
+				servicequeue.NewNamedResult("successful", types.SuccessResult(&TestServiceResult{200, successStatus})),
 				servicequeue.NewNamedResult("panicking", types.FailureResult[*TestServiceResult](errFromPanic)),
-				servicequeue.NewNamedResult("ok", types.SuccessResult(&TestServiceResult{200, "success"})),
+				servicequeue.NewNamedResult("ok", types.SuccessResult(&TestServiceResult{200, successStatus})),
 			},
 			errorExpectation: assert.NoError,
 		},
@@ -612,7 +613,7 @@ type TestService struct {
 
 func (s TestService) Successful() TestService {
 	s.createResult = func() (*TestServiceResult, error) {
-		return &TestServiceResult{200, "success"}, nil
+		return &TestServiceResult{200, successStatus}, nil
 	}
 	return s
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/errfunder"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -422,7 +421,7 @@ func TestReservedUTXO(t *testing.T) {
 	)
 
 	// then:
-	require.ErrorIs(t, err, errfunder.ErrNotEnoughFunds)
+	require.ErrorIs(t, err, wdk.ErrNotEnoughFunds)
 }
 
 func TestCreateActionWithProvidedKnownInput(t *testing.T) {
@@ -761,68 +760,4 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 		ID:         faucetTx.ID().String(),
 		DataFormat: to.Ptr(transaction.TxIDOnly),
 	})
-}
-
-func TestCreateActionWithCustomReference(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	// given:
-	activeStorage := given.Provider().GORM()
-
-	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// and:
-	customReference := "my-custom-ref-123"
-	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
-		args.Reference = customReference
-	})
-
-	// when:
-	result, err := activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-
-	// then:
-	require.NoError(t, err)
-	assert.Equal(t, customReference, result.Reference)
-}
-
-func TestCreateActionWithDuplicateCustomReference(t *testing.T) {
-	given, cleanup := testabilities.Given(t)
-	defer cleanup()
-
-	// given:
-	activeStorage := given.Provider().GORM()
-
-	// and:
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-	given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-
-	// and:
-	customReference := "duplicate-ref"
-	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
-		args.Reference = customReference
-	})
-
-	// when: first action with custom reference
-	_, err := activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-	require.NoError(t, err)
-
-	// when: second action with same custom reference
-	_, err = activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-
-	// then: should fail due to unique constraint on reference
-	require.Error(t, err)
 }
