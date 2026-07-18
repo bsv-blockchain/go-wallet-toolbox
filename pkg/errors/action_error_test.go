@@ -154,5 +154,5 @@ func TestProcessActionError_RecoverViaErrorsAsThroughTransactionError(t *testing
 	// Existing error interface behavior preserved.
 	var txErr *pkgerrors.TransactionError
 	require.ErrorAs(t, wrapped, &txErr)
-	assert.True(t, errors.Is(wrapped, processErr))
+	assert.ErrorIs(t, wrapped, processErr)
 }
