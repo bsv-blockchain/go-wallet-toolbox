@@ -79,7 +79,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 	if cfg.Observability.Metrics.Enabled {
 		var metricsCleanup func()
 		metricsCleanup, err = tracing.EnableMetrics(logger, "server", cfg.TracingConfig.DialAddr,
-			time.Duration(cfg.Observability.Metrics.ExportIntervalSeconds)*time.Second)
+			time.Duration(must.ConvertToInt64FromUnsigned(cfg.Observability.Metrics.ExportIntervalSeconds))*time.Second)
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable metrics: %w", err)
 		}

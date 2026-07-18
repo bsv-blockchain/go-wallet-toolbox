@@ -497,7 +497,8 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 // informational since throughput funding bypasses the change heuristics) and
 // the reserve basket (0/0, like other non-change baskets).
 func (p *Provider) seedBaskets() []wdk.BasketConfiguration {
-	baskets := []wdk.BasketConfiguration{*p.defaultChangeBasket.Load()}
+	baskets := make([]wdk.BasketConfiguration, 0, 3)
+	baskets = append(baskets, *p.defaultChangeBasket.Load())
 	if !p.options.UTXOManagement.Enabled() {
 		return baskets
 	}
@@ -506,7 +507,7 @@ func (p *Provider) seedBaskets() []wdk.BasketConfiguration {
 	targetPool := throughput.TargetPool()
 	desired := int64(math.MaxInt64)
 	if targetPool <= math.MaxInt64 {
-		desired = int64(targetPool) //nolint:gosec // bounded by the check above
+		desired = int64(targetPool)
 	}
 
 	return append(baskets,

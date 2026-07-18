@@ -121,8 +121,8 @@ func main() {
 		panic(fmt.Errorf("failed to create infra server: %w", err))
 	}
 	go func() {
-		if err := server.ListenAndServe(ctx); err != nil {
-			panic(err)
+		if serveErr := server.ListenAndServe(ctx); serveErr != nil {
+			panic(serveErr)
 		}
 	}()
 	defer server.Cleanup()
