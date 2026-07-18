@@ -1,11 +1,8 @@
 # Throughput Mode — Operator Runbook
 
-> **Status:** This example tracks the design proposal in
-> [`plans/high-throughput-utxo-management.md`](../../plans/high-throughput-utxo-management.md)
-> (PR #936). The Go file is excluded from builds via the `throughput_example`
-> build tag until the `utxo_management` configuration lands (Phases 1–3 of the
-> proposal); this runbook documents the intended operator flow so it can be
-> reviewed alongside the design.
+> **Status:** Implemented. Design:
+> [`plans/high-throughput-utxo-management.md`](../../plans/high-throughput-utxo-management.md);
+> spec: `docs/superpowers/specs/2026-07-18-throughput-fuel-funding-design.md`.
 
 This example shows how to set up and run a wallet server for sustained
 high-volume, single-operator workloads — the motivating profile is
@@ -43,13 +40,22 @@ actions.
 Derivation rules, validation identities, and the worked math are in the
 proposal §4 and §6.
 
-## Reserve funding
+## Funding and the FuelKeeper
 
-Deposit large UTXOs into the `reserve` basket with an ordinary
-basket-insertion `internalizeAction` (see
-[internalize_tx_from_faucet](../wallet_examples/internalize_tx_from_faucet/internalize_tx_from_faucet.md)
-for the mechanics — the only difference is `basket: "reserve"`). Only the
-top-up task spends reserve; the funding paths cannot touch it.
+Deposit operating funds with an ordinary wallet-payment `internalizeAction`
+(see
+[internalize_tx_from_faucet](../wallet_examples/internalize_tx_from_faucet/internalize_tx_from_faucet.md));
+they land in the **default** basket as funder-spendable change.
+
+The **FuelKeeper** (`pkg/wallet/fuelkeeper`) runs in the operator's process —
+fan-out transactions spend the operator's outputs, so they are signed
+client-side with the operator's keys; the storage server never holds them.
+Each round the keeper measures the pool and, below the low-water mark, mints
+toward high water: it splits default-basket funds into `reserve` chunks
+(interior fan-out layer, each chunk sized to fund one whole leaf), then fans
+chunks out into exact-denomination fuel (leaf layer). Only fan-out actions
+spend the reserve basket; regular funding paths cannot touch it, and fan-outs
+never consume the fuel pool they replenish.
 
 Plan reserve depth against burn: at the repo profile, average fuel burn is
 ~2.1 BSV/day, plus ~15% fan-out fee overhead and burst burn during the two
@@ -139,14 +145,13 @@ SMS gateway) — notification transport is deliberately outside the wallet.
 ## Running
 
 ```bash
-# once the feature lands, drop the build tag and:
-go run -tags throughput_example ./examples/throughput_mode
+go run ./examples/throughput_mode
 ```
 
-The server boots, creates the `fuel`/`reserve` baskets, and the top-up task
-starts filling the pool as soon as the reserve is funded. Until the first
-fuel matures (~5 min), createActions fund via the generic fallback path
-against the `default` basket — slower but correct.
+The server boots, seeds the `fuel`/`reserve` baskets for new users, and the
+FuelKeeper starts filling the pool as soon as operating funds are deposited.
+Until the first fuel is claimable, createActions fund via the transparent
+fallback path against the `default` basket — slower but correct.
 
 ## Safety properties worth knowing
 

@@ -1,27 +1,23 @@
-//go:build throughput_example
-
 // Throughput-mode wallet server — repo-market profile.
 //
-// STATUS: This example tracks the design proposal in
-// plans/high-throughput-utxo-management.md (PR #936). It is excluded from
-// normal builds via the `throughput_example` build tag until the
-// `utxo_management` configuration and the denominated funder land (Phases 1-3
-// of the proposal). The build tag will be removed when the feature ships.
-//
-// It demonstrates the intended end-to-end operator flow:
+// This example shows the end-to-end operator flow of the throughput
+// UTXO-management strategy (design: plans/high-throughput-utxo-management.md,
+// spec: docs/superpowers/specs/2026-07-18-throughput-fuel-funding-design.md):
 //
 //  1. Run an infra server with `strategy: throughput` — a denominated "fuel"
-//     pool sized to the typical action shape, refilled from a "reserve"
-//     basket by the pool_top_up monitor task.
-//  2. Deposit operating funds into the reserve basket (ordinary
-//     internalizeAction with basket insertion).
+//     pool sized to the typical action shape, claimed by the funder in one
+//     exact-match micro-query per action.
+//  2. Deposit operating funds via ordinary internalizeAction (default
+//     basket). The FuelKeeper — a CLIENT-side loop, because fan-out
+//     transactions are signed with the operator's keys — chunks those funds
+//     into the reserve basket and fans chunks out into exact-denomination
+//     fuel, keeping the pool between its water marks.
 //  3. Issue packed many-output createActions — the application-layer batching
 //     that carries peak load (~160k outputs/s as ~160 actions × 1,000
 //     outputs). Each typical 15-output action funds with ONE 240-sat fuel
-//     claim; no in-flight signing bottleneck, no COUNT(*), no change
-//     randomization.
+//     claim; no COUNT(*), no change randomization.
 //  4. Observe everything via OpenTelemetry: pool/reserve runway gauges and
-//     funder/top-up counters export over the same OTLP endpoint as traces, so
+//     funder counters export over the same OTLP endpoint as traces, so
 //     external tooling (Prometheus/Grafana/Alertmanager) owns low-funds
 //     paging. There is no in-process alerting. See throughput-mode.md for the
 //     collector setup and the alert-rule set.
@@ -30,6 +26,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,8 +34,10 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/example_setup"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/fuelkeeper"
 )
 
 // infraConfigYAML is the operator-facing configuration this example runs
@@ -128,20 +127,42 @@ func main() {
 	}()
 	defer server.Cleanup()
 
-	// On startup with strategy: throughput the provider find-or-creates the
-	// `fuel` and `reserve` baskets for the operator user, and the pool_top_up
-	// task begins watching the (empty) pool gauge.
+	// On startup with strategy: throughput, new users are seeded with the
+	// `fuel` and `reserve` baskets alongside `default`.
 
-	// --- 2. Fund the reserve ------------------------------------------------
-	// Deposit large UTXOs into the `reserve` basket with an ordinary
-	// internalizeAction (basket insertion). Only the top-up task ever spends
-	// reserve; neither funding path can touch it. From here the top-up task
-	// fans out: reserve → chunks → 240-sat fuel outputs, ~5 min to maturity.
+	// --- 2. Fund the operator and start the FuelKeeper ----------------------
+	// Deposit operating funds with an ordinary internalizeAction (they land
+	// in the default basket — see throughput-mode.md). The keeper runs in
+	// THIS process because fan-out transactions are signed with the
+	// operator's keys: each round it measures the pool and, when below low
+	// water, chunks default-basket funds into `reserve` and fans chunks out
+	// into exact-denomination fuel (~5 min to claimable maturity under
+	// prefer_mined; unproven fuel is claimable immediately).
 	operator := example_setup.CreateAlice()
 	operatorWallet, cleanup := operator.CreateWallet(ctx)
 	defer cleanup()
 
-	depositIntoReserve(ctx, operatorWallet) // see throughput-mode.md for the full flow
+	depositOperatingFunds(ctx, operatorWallet) // see throughput-mode.md for the full flow
+
+	logger := slog.Default()
+	keeper, err := fuelkeeper.New(operatorWallet, fuelkeeper.FromThroughput(defs.Throughput{
+		DenominationSatoshis:        240,
+		TargetTPS:                   10_000,
+		ExpectedConfirmationSeconds: 300,
+		PoolHeadroomFactor:          1.5,
+		TargetPoolSize:              18_000_000,
+		LowWaterPercent:             60,
+		HighWaterPercent:            100,
+		PoolBasket:                  "fuel",
+		ReserveBasket:               "reserve",
+		FanoutOutputsPerTx:          100,
+		FanoutMaxTxsPerRound:        12_000,
+		TopUp:                       defs.TaskConfig{Enabled: true, IntervalSeconds: 10},
+	}, 240), logger)
+	if err != nil {
+		panic(fmt.Errorf("failed to create fuel keeper: %w", err))
+	}
+	go keeper.Run(ctx)
 
 	// --- 3. Issue packed createActions --------------------------------------
 	// The application batches by packing outputs into actions (there is no
@@ -187,20 +208,21 @@ func writeConfig() string {
 	return path
 }
 
-// depositIntoReserve internalizes operating funds into the `reserve` basket.
-// The flow is the standard basket-insertion internalizeAction — see
-// examples/wallet_examples/internalize_tx_from_faucet for the mechanics; the
-// only throughput-mode specific detail is basket: "reserve".
-func depositIntoReserve(ctx context.Context, operatorWallet *wallet.Wallet) {
+// depositOperatingFunds internalizes operating funds with the standard
+// wallet-payment protocol — they land in the default basket as
+// funder-spendable change. See
+// examples/wallet_examples/internalize_tx_from_faucet for the full mechanics.
+// The FuelKeeper takes it from there: default → reserve chunks → fuel.
+func depositOperatingFunds(ctx context.Context, operatorWallet *wallet.Wallet) {
 	// sketch:
 	//   operatorWallet.InternalizeAction(ctx, sdk.InternalizeActionArgs{
 	//       Tx: fundingBEEF,
 	//       Outputs: []sdk.InternalizeOutput{{
-	//           OutputIndex: 0,
-	//           Protocol:    sdk.InternalizeProtocolBasketInsertion,
-	//           InsertionRemittance: &sdk.BasketInsertion{Basket: "reserve"},
+	//           OutputIndex:        0,
+	//           Protocol:           sdk.InternalizeProtocolWalletPayment,
+	//           PaymentRemittance:  &sdk.Payment{ /* derivation from the sender */ },
 	//       }},
-	//       Description: "operating reserve deposit",
+	//       Description: "operating funds deposit",
 	//   }, Originator)
 	_ = ctx
 	_ = operatorWallet
