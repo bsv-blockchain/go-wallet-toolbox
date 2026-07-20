@@ -35,7 +35,8 @@ On current `main`, Go **already wires** `args.KnownTxids` into `GetBEEFForTxIDs`
 | `pkg/wallet/internal/mapping/mapping_list_outputs.go` ~L21–49 | Does **not** map known txids (SDK type has no field) |
 | `pkg/storage/server_test.go` ~L496–501 | RPC round-trip fixture already sends `KnownTxids` in list args |
 
-**RPC-observable gap claimed by the issue:** “Go ignores `knownTxids` and always returns full BEEF.”  
+**RPC-observable gap claimed by the issue:** “Go ignores `knownTxids` and always returns full BEEF.”
+
 **Read of current main:** storage **does** pass known IDs into BEEF construction. The gap is lack of an end-to-end listOutputs assertion and a misleading TODO. A fix PR should prove the optimization with a test; if a test ever fails, then re-investigate wiring — do not assume the issue body is still accurate without re-probing.
 
 ---
