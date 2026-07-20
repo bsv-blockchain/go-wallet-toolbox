@@ -5,9 +5,9 @@ import "fmt"
 // OutPoint identifies a unique transaction output by its txid and index vout
 type OutPoint struct {
 	// TxID Transaction double sha256 hash as big endian hex string
-	TxID string
+	TxID string `json:"txid"`
 	// Vout Zero based output index within the transaction
-	Vout uint32
+	Vout uint32 `json:"vout"`
 }
 
 func (o OutPoint) String() string {
