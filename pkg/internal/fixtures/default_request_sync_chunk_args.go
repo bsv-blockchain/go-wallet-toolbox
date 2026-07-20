@@ -49,7 +49,18 @@ func DefaultRequestSyncChunkArgs(userIdentityKey, fromIdentityKey, toIdentityKey
 				Name:   wdk.OutputTagMapEntityName,
 				Offset: 0,
 			},
-			// TODO: Add more offsets for other entities when implemented
+			{
+				Name:   wdk.CertificateEntityName,
+				Offset: 0,
+			},
+			{
+				Name:   wdk.CertificateFieldEntityName,
+				Offset: 0,
+			},
+			{
+				Name:   wdk.CommissionEntityName,
+				Offset: 0,
+			},
 		},
 	}
 }

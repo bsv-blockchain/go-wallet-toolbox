@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-softwarelab/common/pkg/slices"
 	"go.opentelemetry.io/otel/attribute"
@@ -48,12 +49,24 @@ func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args w
 		tracing.EndTracing(span, err)
 	}()
 
-	tx := c.db.WithContext(ctx).Delete(&models.Certificate{}, "type = ? AND serial_number = ? AND certifier = ? AND user_id = ?", args.Type, args.SerialNumber, args.Certifier, userID)
-	if tx.RowsAffected == 0 {
-		return fmt.Errorf("failed to delete certificate model: certificate not found")
-	}
+	// Soft-delete and bump updated_at so getSyncChunk's since-filter picks up the
+	// relinquished certificate for cross-storage sync (issue #850). GORM's default
+	// soft-delete only sets deleted_at, which is invisible to the since filter.
+	now := time.Now().UTC()
+	tx := c.db.WithContext(ctx).
+		Unscoped().
+		Model(&models.Certificate{}).
+		Where("type = ? AND serial_number = ? AND certifier = ? AND user_id = ? AND deleted_at IS NULL",
+			args.Type, args.SerialNumber, args.Certifier, userID).
+		Updates(map[string]any{
+			"updated_at": now,
+			"deleted_at": now,
+		})
 	if tx.Error != nil {
 		return fmt.Errorf("failed to delete certificate model: %w", tx.Error)
+	}
+	if tx.RowsAffected == 0 {
+		return fmt.Errorf("failed to delete certificate model: certificate not found")
 	}
 
 	return nil
