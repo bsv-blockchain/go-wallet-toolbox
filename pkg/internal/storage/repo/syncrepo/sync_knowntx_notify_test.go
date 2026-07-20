@@ -26,7 +26,7 @@ func TestKnownTxNotify_UpsertPersistsOpaquePayload(t *testing.T) {
 	txID := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 	notifyPayload := `{"transactionIds":[42,99],"origin":"js-wallet"}`
 
-	isNew, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	isNew, _, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: t0,
 		UpdatedAt: t0,
 		TxID:      txID,
@@ -51,7 +51,7 @@ func TestKnownTxNotify_UpsertDefaultEmptyToObject(t *testing.T) {
 	t0 := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
 	txID := "11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff"
 
-	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: t0,
 		UpdatedAt: t0,
 		TxID:      txID,
@@ -96,7 +96,7 @@ func TestKnownTxNotify_FindForSyncRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: t0,
 		UpdatedAt: t0,
 		TxID:      txID,
@@ -124,7 +124,7 @@ func TestKnownTxNotify_UpdateReplacesPayload(t *testing.T) {
 	tNew := time.Date(2026, 7, 18, 13, 0, 0, 0, time.UTC)
 	txID := "ddeeff00112233445566778899aabbccddeeff00112233445566778899aabbcc"
 
-	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: tOld,
 		UpdatedAt: tOld,
 		TxID:      txID,
@@ -134,7 +134,7 @@ func TestKnownTxNotify_UpdateReplacesPayload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: tOld,
 		UpdatedAt: tNew,
 		TxID:      txID,
