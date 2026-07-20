@@ -132,20 +132,34 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*pkgentity.Transaction, inputMap, outputMap map[uint][]*pkgentity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs, timeFilterRequested bool) error {
+// mapActionDetails holds side-loaded maps used when enriching WalletAction rows.
+type mapActionDetails struct {
+	inputMap  map[uint][]*pkgentity.Output
+	outputMap map[uint][]*pkgentity.Output
+	labelMap  map[uint][]string
+	rawTxMap  map[string][]byte
+}
+
+func (l *listActions) mapInputsOutputsLabels(
+	actions []wdk.WalletAction,
+	txs []*pkgentity.Transaction,
+	details mapActionDetails,
+	args *wdk.ListActionsArgs,
+	timeFilterRequested bool,
+) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
 		if args.IncludeLabels.Value() {
-			l.mapLabelsToAction(action, tx, labelMap, timeFilterRequested)
+			l.mapLabelsToAction(action, tx, details.labelMap, timeFilterRequested)
 		}
 
 		if args.IncludeOutputs.Value() {
-			l.mapOutputsToAction(action, tx.ID, outputMap)
+			l.mapOutputsToAction(action, tx.ID, details.outputMap)
 		}
 
 		if args.IncludeInputs.Value() && tx.TxID != nil {
-			if err := l.mapInputsToAction(action, tx, inputMap, rawTxMap, args); err != nil {
+			if err := l.mapInputsToAction(action, tx, details.inputMap, details.rawTxMap, args); err != nil {
 				return err
 			}
 		}

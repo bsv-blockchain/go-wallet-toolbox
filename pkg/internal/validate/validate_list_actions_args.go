@@ -16,16 +16,31 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 	if err := args.LabelQueryMode.Validate(); err != nil {
 		return fmt.Errorf("invalid labelQueryMode: %s", *args.LabelQueryMode)
 	}
+	if err := validateListActionsPagination(args); err != nil {
+		return err
+	}
+	if err := validateListActionsLabels(args.Labels); err != nil {
+		return err
+	}
+	if !args.SeekPermission.Value() {
+		return fmt.Errorf("operation not allowed without permission (seekPermission=false)")
+	}
+	return validateListActionsIncludeFlags(args)
+}
 
+func validateListActionsPagination(args *wdk.ListActionsArgs) error {
 	if args.Limit > MaxPaginationLimit {
 		return fmt.Errorf("limit must be less than or equal to %d", MaxPaginationLimit)
 	}
 	if args.Offset > MaxPaginationOffset {
 		return fmt.Errorf("offset must be less than or equal to %d", MaxPaginationOffset)
 	}
+	return nil
+}
 
-	labelNames := make([]string, len(args.Labels))
-	for i, label := range args.Labels {
+func validateListActionsLabels(labels []primitives.StringUnder300) error {
+	labelNames := make([]string, len(labels))
+	for i, label := range labels {
 		if err := validateLabel(label); err != nil {
 			return fmt.Errorf("invalid label: %w", err)
 		}
@@ -36,16 +51,14 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 	if _, err := brc114.ParseActionTimeLabels(labelNames); err != nil {
 		return err
 	}
+	return nil
+}
 
-	if !args.SeekPermission.Value() {
-		return fmt.Errorf("operation not allowed without permission (seekPermission=false)")
-	}
-
+func validateListActionsIncludeFlags(args *wdk.ListActionsArgs) error {
 	if !args.IncludeInputs.Value() {
 		if args.IncludeInputUnlockingScripts.Value() {
 			return fmt.Errorf("includeInputUnlockingScripts cannot be true when includeInputs is false")
 		}
-
 		if args.IncludeInputSourceLockingScripts.Value() {
 			return fmt.Errorf("includeInputSourceLockingScripts cannot be true when includeInputs is false")
 		}
@@ -54,7 +67,6 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 	if !args.IncludeOutputs.Value() && args.IncludeOutputLockingScripts.Value() {
 		return fmt.Errorf("includeOutputLockingScripts cannot be true when includeOutputs is false")
 	}
-
 	return nil
 }
 

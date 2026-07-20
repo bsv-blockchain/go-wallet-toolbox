@@ -45,50 +45,75 @@ type ParsedActionTimeLabels struct {
 // Time control labels are removed from RemainingLabels so they are not treated as
 // ordinary DB label filters. Invalid control labels return an error.
 func ParseActionTimeLabels(labels []string) (ParsedActionTimeLabels, error) {
-	var from, to *int64
+	var state actionTimeParseState
 	remaining := make([]string, 0, len(labels))
-	timeFilterRequested := false
 
 	for _, label := range labels {
-		if strings.HasPrefix(label, ActionTimeFromPrefix) {
-			timeFilterRequested = true
-			if from != nil {
-				return ParsedActionTimeLabels{}, fmt.Errorf("labels: valid. Duplicate action time from label")
-			}
-			n, err := parseUnixMillis(label[len(ActionTimeFromPrefix):], "from")
-			if err != nil {
-				return ParsedActionTimeLabels{}, err
-			}
-			from = &n
-			continue
+		handled, err := state.consume(label)
+		if err != nil {
+			return ParsedActionTimeLabels{}, err
 		}
-
-		if strings.HasPrefix(label, ActionTimeToPrefix) {
-			timeFilterRequested = true
-			if to != nil {
-				return ParsedActionTimeLabels{}, fmt.Errorf("labels: valid. Duplicate action time to label")
-			}
-			n, err := parseUnixMillis(label[len(ActionTimeToPrefix):], "to")
-			if err != nil {
-				return ParsedActionTimeLabels{}, err
-			}
-			to = &n
-			continue
+		if !handled {
+			remaining = append(remaining, label)
 		}
-
-		remaining = append(remaining, label)
 	}
 
-	if from != nil && to != nil && *from >= *to {
-		return ParsedActionTimeLabels{}, fmt.Errorf("labels: valid. action time from must be less than action time to")
+	if err := state.validateRange(); err != nil {
+		return ParsedActionTimeLabels{}, err
 	}
 
 	return ParsedActionTimeLabels{
-		From:                from,
-		To:                  to,
-		TimeFilterRequested: timeFilterRequested,
+		From:                state.from,
+		To:                  state.to,
+		TimeFilterRequested: state.timeFilterRequested,
 		RemainingLabels:     remaining,
 	}, nil
+}
+
+// actionTimeParseState accumulates BRC-114 from/to control labels while scanning.
+type actionTimeParseState struct {
+	from                *int64
+	to                  *int64
+	timeFilterRequested bool
+}
+
+// consume tries to treat label as a time control. handled is true when the label
+// was a control (and must not appear in RemainingLabels).
+func (s *actionTimeParseState) consume(label string) (handled bool, err error) {
+	if strings.HasPrefix(label, ActionTimeFromPrefix) {
+		s.timeFilterRequested = true
+		if s.from != nil {
+			return true, fmt.Errorf("labels: valid. Duplicate action time from label")
+		}
+		n, err := parseUnixMillis(label[len(ActionTimeFromPrefix):], "from")
+		if err != nil {
+			return true, err
+		}
+		s.from = &n
+		return true, nil
+	}
+
+	if strings.HasPrefix(label, ActionTimeToPrefix) {
+		s.timeFilterRequested = true
+		if s.to != nil {
+			return true, fmt.Errorf("labels: valid. Duplicate action time to label")
+		}
+		n, err := parseUnixMillis(label[len(ActionTimeToPrefix):], "to")
+		if err != nil {
+			return true, err
+		}
+		s.to = &n
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (s *actionTimeParseState) validateRange() error {
+	if s.from != nil && s.to != nil && *s.from >= *s.to {
+		return fmt.Errorf("labels: valid. action time from must be less than action time to")
+	}
+	return nil
 }
 
 // MakeActionTimeLabel builds the computed response label for an action's creation time.
