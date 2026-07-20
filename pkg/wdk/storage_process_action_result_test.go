@@ -58,5 +58,5 @@ func TestReviewActionResult_JSONRoundTripWithErrors(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &dst))
 	require.Len(t, dst.NotDelayedResults, 1)
 	assert.Equal(t, wdk.ReviewActionResultStatusServiceError, dst.NotDelayedResults[0].Status)
-	assert.EqualError(t, dst.NotDelayedResults[0].Errors["svc"], "fail")
+	require.EqualError(t, dst.NotDelayedResults[0].Errors["svc"], "fail")
 }
