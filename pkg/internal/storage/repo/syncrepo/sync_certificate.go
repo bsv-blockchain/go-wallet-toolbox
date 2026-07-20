@@ -69,7 +69,26 @@ func (s *SyncCertificate) UpsertCertificateForSync(ctx context.Context, e *entit
 		return false, 0, fmt.Errorf("certificate entity is nil")
 	}
 
-	model := models.Certificate{
+	model := certificateModelFromEntity(e)
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		created, id, upsertErr := s.upsertCertificateModel(tx, e, model)
+		if upsertErr != nil {
+			return upsertErr
+		}
+		isNew = created
+		certificateID = id
+		return nil
+	})
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, certificateID, nil
+}
+
+func certificateModelFromEntity(e *entity.Certificate) models.Certificate {
+	return models.Certificate{
 		Model: gorm.Model{
 			CreatedAt: e.CreatedAt,
 			UpdatedAt: e.UpdatedAt,
@@ -83,77 +102,77 @@ func (s *SyncCertificate) UpsertCertificateForSync(ctx context.Context, e *entit
 		Signature:          e.Signature,
 		UserID:             e.UserID,
 	}
+}
 
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing models.Certificate
-		// Unscoped so we can restore a previously soft-deleted certificate.
-		existsErr := tx.Unscoped().
-			Model(&models.Certificate{}).
-			Select("id, updated_at, deleted_at").
-			Where("user_id = ? AND serial_number = ? AND certifier = ?", e.UserID, e.SerialNumber, e.Certifier).
-			First(&existing).Error
+func (s *SyncCertificate) upsertCertificateModel(tx *gorm.DB, e *entity.Certificate, model models.Certificate) (isNew bool, certificateID uint, err error) {
+	var existing models.Certificate
+	// Unscoped so we can restore a previously soft-deleted certificate.
+	existsErr := tx.Unscoped().
+		Model(&models.Certificate{}).
+		Select("id, updated_at, deleted_at").
+		Where("user_id = ? AND serial_number = ? AND certifier = ?", e.UserID, e.SerialNumber, e.Certifier).
+		First(&existing).Error
 
-		if existsErr == nil {
-			if !model.UpdatedAt.After(existing.UpdatedAt) {
-				certificateID = existing.ID
-				return nil
-			}
-
-			updateMap := map[string]any{
-				"type":                model.Type,
-				"subject":             model.Subject,
-				"serial_number":       model.SerialNumber,
-				"certifier":           model.Certifier,
-				"verifier":            model.Verifier,
-				"revocation_outpoint": model.RevocationOutpoint,
-				"signature":           model.Signature,
-				"updated_at":          model.UpdatedAt,
-			}
-			if e.IsDeleted {
-				updateMap["deleted_at"] = model.UpdatedAt
-			} else {
-				// Expr("NULL") forces a real NULL write; map nil is skipped by GORM.
-				updateMap["deleted_at"] = gorm.Expr("NULL")
-			}
-
-			updateTx := tx.Unscoped().
-				Model(&models.Certificate{}).
-				Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
-				Updates(updateMap)
-			if updateTx.Error != nil {
-				return fmt.Errorf("failed to update certificate: %w", updateTx.Error)
-			}
-
-			certificateID = existing.ID
-			return nil
-		}
-
-		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("failed to lookup existing certificate: %w", existsErr)
-		}
-
-		if err = tx.Create(&model).Error; err != nil {
-			return fmt.Errorf("failed to create certificate: %w", err)
-		}
-		if model.ID == 0 {
-			return fmt.Errorf("certificate ID is zero after creation")
-		}
-
-		if e.IsDeleted {
-			if err = tx.Delete(&models.Certificate{}, model.ID).Error; err != nil {
-				return fmt.Errorf("failed to soft-delete newly created certificate: %w", err)
-			}
-		}
-
-		isNew = true
-		certificateID = model.ID
-		return nil
-	})
-	if err != nil {
-		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	if existsErr == nil {
+		id, updateErr := s.updateCertificateIfNewer(tx, e, model, existing)
+		return false, id, updateErr
+	}
+	if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+		return false, 0, fmt.Errorf("failed to lookup existing certificate: %w", existsErr)
 	}
 
-	return isNew, certificateID, nil
+	id, createErr := s.createCertificateMaybeSoftDelete(tx, e, model)
+	if createErr != nil {
+		return false, 0, createErr
+	}
+	return true, id, nil
+}
+
+func (s *SyncCertificate) updateCertificateIfNewer(tx *gorm.DB, e *entity.Certificate, model models.Certificate, existing models.Certificate) (uint, error) {
+	if !model.UpdatedAt.After(existing.UpdatedAt) {
+		return existing.ID, nil
+	}
+
+	updateMap := map[string]any{
+		"type":                model.Type,
+		"subject":             model.Subject,
+		"serial_number":       model.SerialNumber,
+		"certifier":           model.Certifier,
+		"verifier":            model.Verifier,
+		"revocation_outpoint": model.RevocationOutpoint,
+		"signature":           model.Signature,
+		"updated_at":          model.UpdatedAt,
+	}
+	if e.IsDeleted {
+		updateMap["deleted_at"] = model.UpdatedAt
+	} else {
+		// Expr("NULL") forces a real NULL write; map nil is skipped by GORM.
+		updateMap["deleted_at"] = gorm.Expr("NULL")
+	}
+
+	updateTx := tx.Unscoped().
+		Model(&models.Certificate{}).
+		Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+		Updates(updateMap)
+	if updateTx.Error != nil {
+		return 0, fmt.Errorf("failed to update certificate: %w", updateTx.Error)
+	}
+	return existing.ID, nil
+}
+
+func (s *SyncCertificate) createCertificateMaybeSoftDelete(tx *gorm.DB, e *entity.Certificate, model models.Certificate) (uint, error) {
+	if err := tx.Create(&model).Error; err != nil {
+		return 0, fmt.Errorf("failed to create certificate: %w", err)
+	}
+	if model.ID == 0 {
+		return 0, fmt.Errorf("certificate ID is zero after creation")
+	}
+	if e.IsDeleted {
+		if err := tx.Delete(&models.Certificate{}, model.ID).Error; err != nil {
+			return 0, fmt.Errorf("failed to soft-delete newly created certificate: %w", err)
+		}
+	}
+	return model.ID, nil
 }
 
 func (s *SyncCertificate) mapModelToTableCertificate(model *models.Certificate) *wdk.TableCertificate {

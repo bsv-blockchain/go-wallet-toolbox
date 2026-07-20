@@ -68,7 +68,26 @@ func (s *SyncCommission) UpsertCommissionForSync(ctx context.Context, e *entity.
 		return false, 0, fmt.Errorf("commission entity is nil")
 	}
 
-	model := models.Commission{
+	model := commissionModelFromEntity(e)
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		created, id, upsertErr := s.upsertCommissionModel(tx, e, model)
+		if upsertErr != nil {
+			return upsertErr
+		}
+		isNew = created
+		commissionID = id
+		return nil
+	})
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, commissionID, nil
+}
+
+func commissionModelFromEntity(e *entity.Commission) models.Commission {
+	return models.Commission{
 		Model: gorm.Model{
 			CreatedAt: e.CreatedAt,
 			UpdatedAt: e.UpdatedAt,
@@ -80,55 +99,56 @@ func (s *SyncCommission) UpsertCommissionForSync(ctx context.Context, e *entity.
 		IsRedeemed:    e.IsRedeemed,
 		LockingScript: e.LockingScript,
 	}
+}
 
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing models.Commission
-		existsErr := tx.Model(&models.Commission{}).
-			Select("id, updated_at").
-			Where("user_id = ? AND transaction_id = ?", e.UserID, e.TransactionID).
-			First(&existing).Error
+func (s *SyncCommission) upsertCommissionModel(tx *gorm.DB, e *entity.Commission, model models.Commission) (isNew bool, commissionID uint, err error) {
+	var existing models.Commission
+	existsErr := tx.Model(&models.Commission{}).
+		Select("id, updated_at").
+		Where("user_id = ? AND transaction_id = ?", e.UserID, e.TransactionID).
+		First(&existing).Error
 
-		if existsErr == nil {
-			if !model.UpdatedAt.After(existing.UpdatedAt) {
-				commissionID = existing.ID
-				return nil
-			}
-
-			// TS mergeExisting only updates isRedeemed (plus updated_at).
-			updateTx := tx.Model(&models.Commission{}).
-				Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
-				Updates(map[string]any{
-					"is_redeemed": model.IsRedeemed,
-					"updated_at":  model.UpdatedAt,
-				})
-			if updateTx.Error != nil {
-				return fmt.Errorf("failed to update commission: %w", updateTx.Error)
-			}
-
-			commissionID = existing.ID
-			return nil
-		}
-
-		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("failed to lookup existing commission: %w", existsErr)
-		}
-
-		if err = tx.Create(&model).Error; err != nil {
-			return fmt.Errorf("failed to create commission: %w", err)
-		}
-		if model.ID == 0 {
-			return fmt.Errorf("commission ID is zero after creation")
-		}
-
-		isNew = true
-		commissionID = model.ID
-		return nil
-	})
-	if err != nil {
-		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	if existsErr == nil {
+		id, updateErr := s.updateCommissionIfNewer(tx, model, existing)
+		return false, id, updateErr
+	}
+	if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+		return false, 0, fmt.Errorf("failed to lookup existing commission: %w", existsErr)
 	}
 
-	return isNew, commissionID, nil
+	id, createErr := s.createCommission(tx, model)
+	if createErr != nil {
+		return false, 0, createErr
+	}
+	return true, id, nil
+}
+
+func (s *SyncCommission) updateCommissionIfNewer(tx *gorm.DB, model models.Commission, existing models.Commission) (uint, error) {
+	if !model.UpdatedAt.After(existing.UpdatedAt) {
+		return existing.ID, nil
+	}
+
+	// TS mergeExisting only updates isRedeemed (plus updated_at).
+	updateTx := tx.Model(&models.Commission{}).
+		Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+		Updates(map[string]any{
+			"is_redeemed": model.IsRedeemed,
+			"updated_at":  model.UpdatedAt,
+		})
+	if updateTx.Error != nil {
+		return 0, fmt.Errorf("failed to update commission: %w", updateTx.Error)
+	}
+	return existing.ID, nil
+}
+
+func (s *SyncCommission) createCommission(tx *gorm.DB, model models.Commission) (uint, error) {
+	if err := tx.Create(&model).Error; err != nil {
+		return 0, fmt.Errorf("failed to create commission: %w", err)
+	}
+	if model.ID == 0 {
+		return 0, fmt.Errorf("commission ID is zero after creation")
+	}
+	return model.ID, nil
 }
 
 func (s *SyncCommission) mapModelToTableCommission(model *models.Commission) *wdk.TableCommission {
