@@ -230,29 +230,29 @@ Implement as a small private helper in `internalize.go` (e.g. `sendWithResultsFr
 
 There are ~10 `time.Sleep(200 * time.Millisecond) // wait for background broadcaster` calls in this file today. After the sync path, **delete them** (broadcast completes before `InternalizeAction` returns). Prefer direct assertions; keep `require.Eventually` only where concurrency is intentional (reorg hold test).
 
-1. **Happy path (wallet payment / basket insertion)**  
-   - Assert `SendWithResults[0].Status == unproven`, `NotDelayedResults[0].Status == success`.  
-   - Assert KnownTx `unmined`, `WithAttempts(1)`.  
+1. **Happy path (wallet payment / basket insertion)**
+   - Assert `SendWithResults[0].Status == unproven`, `NotDelayedResults[0].Status == success`.
+   - Assert KnownTx `unmined`, `WithAttempts(1)`.
    - History notes still include `postBeefSuccess` / `aggregateResults` (same as today’s sleep-waited checks).
 
-2. **Mined BEEF** (`TestInternalizeAction_UpdateKnownTxAsMined_HappyPath`)  
+2. **Mined BEEF** (`TestInternalizeAction_UpdateKnownTxAsMined_HappyPath`)
    - Assert empty / nil `SendWithResults` and `NotDelayedResults` (no re-broadcast; `omitempty`).
 
-3. **Service error surfaces fields** (new)  
-   - Soft-error fixture used by ProcessAction: e.g. `ARC().WhenQueryingTx(txID).WillReturnNoBody()` (see `provider_process_action_test.go`).  
+3. **Service error surfaces fields** (new)
+   - Soft-error fixture used by ProcessAction: e.g. `ARC().WhenQueryingTx(txID).WillReturnNoBody()` (see `provider_process_action_test.go`).
    - Expect `accepted=true`, `SendWithResults: sending`, `NotDelayedResults: serviceError`, KnownTx stays `sending`, user tx `sending`.
 
-4. **Merge path omits fields** (new)  
-   - Internalize an already-owned faucet tx as merge (`TestInternalizeActionForAlreadyStoredTransaction` pattern).  
+4. **Merge path omits fields** (new)
+   - Internalize an already-owned faucet tx as merge (`TestInternalizeActionForAlreadyStoredTransaction` pattern).
    - Assert `IsMerge=true` and both result slices empty/nil.
 
-5. **Reorg intermediate state** (`TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance`)  
-   - Today the test holds ARC and calls `InternalizeAction` on the test goroutine (async `Add` returns immediately). With sync broadcast that pattern **deadlocks**.  
-   - Required shape: `HoldBroadcasting` + `defer ReleaseBroadcasting()` (always release — provider `Stop` waits on in-flight workers), run `InternalizeAction` in a goroutine, `Eventually` assert KnownTx `unsent|sending` after UoW commit, then release ARC and wait for the goroutine.  
+5. **Reorg intermediate state** (`TestInternalizeAction_ReorgedKnownTx_DoesNotClaimNetworkAcceptance`)
+   - Today the test holds ARC and calls `InternalizeAction` on the test goroutine (async `Add` returns immediately). With sync broadcast that pattern **deadlocks**.
+   - Required shape: `HoldBroadcasting` + `defer ReleaseBroadcasting()` (always release — provider `Stop` waits on in-flight workers), run `InternalizeAction` in a goroutine, `Eventually` assert KnownTx `unsent|sending` after UoW commit, then release ARC and wait for the goroutine.
    - Assert result still `accepted` + non-empty `SendWithResults` after release. Keep W1-6 DB pins (`reorg` → rewrite to `unsent`, `WasBroadcast(true)`, Bob user tx `sending`).
 
-6. **Cross-user / multi-user** (`TestInternalizeTheSameTxByDifferentUsers`, etc.)  
-   - Drop sleeps; keep DB assertions.  
+6. **Cross-user / multi-user** (`TestInternalizeTheSameTxByDifferentUsers`, etc.)
+   - Drop sleeps; keep DB assertions.
    - After Alice’s successful sync broadcast, Bob’s internalize should hit `AlreadySent()` / merge-or-store path with `shouldBroadcast=false` (no second post). Concurrent same-tick double internalize is a residual race (both may see non-in-flight before either posts); document but do not block the fix on a full distributed lock.
 
 ### Integration

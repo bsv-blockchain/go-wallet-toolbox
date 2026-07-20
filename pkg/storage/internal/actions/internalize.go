@@ -265,12 +265,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}
 
 	if tx.MerklePath != nil {
-		if err := in.updateKnownTxAsMined(ctx, userID, txID, tx); err != nil {
+		if mineErr := in.updateKnownTxAsMined(ctx, userID, txID, tx); mineErr != nil {
 			in.logger.WarnContext(
 				ctx, "updateKnownTxAsMined was not completed successfully",
 				logging.UserID(userID),
 				slog.String("txID", txID),
-				slog.String("error", err.Error()),
+				slog.String("error", mineErr.Error()),
 			)
 		}
 	}
