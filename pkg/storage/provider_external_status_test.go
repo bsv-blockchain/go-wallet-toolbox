@@ -592,7 +592,7 @@ func TestExternalStatusRejectedRacingCompletionLeavesCompletedTxUntouched(t *tes
 			var body struct {
 				Txids []string `json:"txids"`
 			}
-			if decodeErr := json.NewDecoder(req.Body).Decode(&body); decodeErr != nil {
+			if json.NewDecoder(req.Body).Decode(&body) != nil {
 				return httpmock.NewStringResponse(http.StatusBadRequest, "bad request"), nil
 			}
 			respItems := []map[string]any{}

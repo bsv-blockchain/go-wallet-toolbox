@@ -51,17 +51,29 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 			// same event on restart.  The polling tasks act as the safety net.
 		}
 
-		// Persist the replay cursor regardless of whether processing succeeded.
-		if persistErr := d.storage.SetKeyValue(ctx, LastEventIDKey, []byte(ev.EventID)); persistErr != nil {
+		// Persist the replay cursor regardless of whether processing succeeded,
+		// but only for events that actually carry an ID: an empty EventID must
+		// never overwrite a valid persisted cursor with "" (a restart would then
+		// resume with no Last-Event-ID and skip every event in the gap —
+		// replaying events is safe, skipping them is not).
+		if ev.EventID == "" {
+			d.logger.WarnContext(ctx, "Broadcast event carried no event ID, replay cursor not advanced",
+				slog.String("txID", ev.TxID),
+			)
+		} else if persistErr := d.storage.SetKeyValue(ctx, LastEventIDKey, []byte(ev.EventID)); persistErr != nil {
+			// Keep the old in-memory cursor on persist failure so reconnects
+			// resume from the last durably persisted position instead of a
+			// position the durable cursor never reached.
 			d.logger.ErrorContext(ctx, "Failed to persist SSE replay cursor",
 				slog.String("eventID", ev.EventID),
 				slog.Any("error", persistErr),
 			)
+		} else {
+			// Keep lastEventID up-to-date so reconnect attempts resume from the
+			// correct position — advanced only after a successful persist so the
+			// in-memory cursor never runs ahead of the durable one.
+			lastEventID = ev.EventID
 		}
-
-		// Keep lastEventID up-to-date so reconnect attempts resume from the
-		// correct position.
-		lastEventID = ev.EventID
 
 		if storageErr == nil {
 			d.sendProvenEvents(results)

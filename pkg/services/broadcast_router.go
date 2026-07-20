@@ -21,6 +21,10 @@ import (
 // Retry-After hint before retrying the primary broadcast.
 const defaultMaxBackpressureWait = 30 * time.Second
 
+// errNoResult reports a broadcastTarget contract violation: post returned a
+// nil result together with a nil error.
+var errNoResult = errors.New("service returned no result")
+
 // broadcastTarget is a single named broadcaster the router can use.
 // post receives both the EF hex and the raw tx bytes so that targets with
 // different broadcast inputs (PostEF vs PostTX) fit the same shape.
@@ -134,6 +138,12 @@ func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []
 		}
 	}
 
+	if err == nil && posted == nil {
+		// the primary broke the broadcastTarget contract (nil result, nil error):
+		// treat it as a transport failure so the failover chain still runs.
+		err = errNoResult
+	}
+
 	if err == nil {
 		r.breaker.RecordSuccess()
 		return []*wdk.PostFromBEEFServiceResult{targetResult(r.primary.name, posted)}, true
@@ -182,6 +192,11 @@ func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex stri
 func (r *broadcastRouter) runFailovers(ctx context.Context, efHex string, rawTx []byte, txID string, partialResults []*wdk.PostFromBEEFServiceResult) []*wdk.PostFromBEEFServiceResult {
 	for _, target := range r.failovers {
 		posted, err := target.post(ctx, efHex, rawTx, txID)
+		if err == nil && posted == nil {
+			// the target broke the broadcastTarget contract (nil result, nil error):
+			// report it as a failure so the chain moves on to the next target.
+			err = errNoResult
+		}
 		if err == nil {
 			return append(partialResults, targetResult(target.name, posted))
 		}
@@ -245,11 +260,12 @@ func resultAsTransportOutcome(posted *wdk.PostedTxID, err error) (*wdk.PostedTxI
 }
 
 // targetResult wraps a single posted-tx result into a named service result.
-// A nil result with no error breaks the broadcastTarget contract; it is folded
-// into an error result instead of panicking.
+// A nil result with no error breaks the broadcastTarget contract; the callers
+// turn it into errNoResult before getting here, but it stays folded into an
+// error result defensively instead of panicking.
 func targetResult(name string, posted *wdk.PostedTxID) *wdk.PostFromBEEFServiceResult {
 	if posted == nil {
-		return &wdk.PostFromBEEFServiceResult{Name: name, Error: errors.New("service returned no result")}
+		return &wdk.PostFromBEEFServiceResult{Name: name, Error: errNoResult}
 	}
 	return &wdk.PostFromBEEFServiceResult{
 		Name:             name,

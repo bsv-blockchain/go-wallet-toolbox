@@ -153,15 +153,22 @@ func (s *Service) streamOnce(ctx context.Context, lastEventID *string, onEvent f
 	}
 	// an incomplete frame at the end of the stream is discarded per the SSE spec
 
-	if scanErr := scanner.Err(); scanErr != nil {
-		// a watchdog-triggered cancellation only kills this connection: the outer ctx
-		// is still alive, so StreamEvents will reconnect instead of returning.
-		if connCtx.Err() != nil && ctx.Err() == nil {
-			return delivered, fmt.Errorf("arcade events stream stalled (no data for %s): %w", s.sseReadWatchdogTimeout, scanErr)
-		}
-		return delivered, fmt.Errorf("arcade events stream read failed: %w", scanErr)
+	return delivered, s.mapScanError(connCtx, ctx, scanner.Err())
+}
+
+// mapScanError wraps a scanner read error of the events stream, distinguishing a
+// watchdog-triggered stall (connCtx cancelled while the outer ctx is still alive)
+// from a plain read failure. A nil scanErr is returned as nil.
+func (s *Service) mapScanError(connCtx, ctx context.Context, scanErr error) error {
+	if scanErr == nil {
+		return nil
 	}
-	return delivered, nil
+	// a watchdog-triggered cancellation only kills this connection: the outer ctx
+	// is still alive, so StreamEvents will reconnect instead of returning.
+	if connCtx.Err() != nil && ctx.Err() == nil {
+		return fmt.Errorf("arcade events stream stalled (no data for %s): %w", s.sseReadWatchdogTimeout, scanErr)
+	}
+	return fmt.Errorf("arcade events stream read failed: %w", scanErr)
 }
 
 // sseFrame accumulates the fields of one SSE frame until a blank line dispatches it.
