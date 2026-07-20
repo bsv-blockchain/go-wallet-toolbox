@@ -88,7 +88,7 @@ func TestGetBalance_AuthFailure(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	assert.ErrorIs(t, err, storage.ErrAuthorization)
+	require.ErrorIs(t, err, storage.ErrAuthorization)
 	assert.Equal(t, uint64(0), balance)
 }
 
