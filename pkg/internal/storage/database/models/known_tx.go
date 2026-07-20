@@ -17,6 +17,10 @@ type KnownTx struct {
 	RebroadcastAttempts uint64 `gorm:"column:rebroadcast_attempts;default:0"`
 	Notified            bool
 	Batch               *string `gorm:"index"`
+	// Notify is an opaque JSON blob used by the TypeScript wallet to track
+	// which transactions to notify when proofs arrive. Stored and returned
+	// unchanged for sync round-trip compatibility.
+	Notify string `gorm:"type:text;default:'{}'"`
 
 	WasBroadcast bool
 

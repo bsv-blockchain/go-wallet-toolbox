@@ -222,6 +222,7 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		WasBroadcast:        chunkProvenTxReq.WasBroadcast || chunkProvenTxReq.Status.WasBroadcastStatus(),
 		RebroadcastAttempts: chunkProvenTxReq.RebroadcastAttempts,
 		Notified:            chunkProvenTxReq.Notified,
+		Notify:              chunkProvenTxReq.Notify,
 		RawTx:               chunkProvenTxReq.RawTx,
 		InputBEEF:           chunkProvenTxReq.InputBEEF,
 		TxNotes:             historyNotes,
