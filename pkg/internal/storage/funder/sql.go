@@ -122,6 +122,24 @@ func SpendTiers(policy defs.SpendPolicy) []wdk.UTXOStatus {
 	}
 }
 
+// FundArgs groups the inputs for a single Fund / FundWithConstraints call.
+// Existing must be pre-fetched via CountUTXOs BEFORE opening the DB transaction
+// to avoid a SQLite connection-pool deadlock (the transaction holds the one connection).
+type FundArgs struct {
+	TargetSat          satoshi.Value
+	CurrentTxSize      uint64
+	OutputCount        uint64
+	Basket             *entity.OutputBasket
+	UserID             int
+	ForbiddenOutputIDs []uint
+	PriorityOutputs    []*entity.Output
+	IncludeSending     bool
+	IsSweep            bool
+	Existing           int64
+	Constraints        Constraints
+	Tx                 *gorm.DB
+}
+
 // Fund selects and allocates UTXOs to cover targetSat within the provided DB transaction tx.
 // existing must be pre-fetched via CountUTXOs BEFORE opening the DB transaction to avoid a
 // SQLite connection-pool deadlock (the transaction holds the one connection).
@@ -139,47 +157,54 @@ func (f *SQL) Fund(
 	existing int64,
 	tx *gorm.DB,
 ) (*Result, error) {
-	return f.FundWithConstraints(ctx, targetSat, currentTxSize, outputCount, basket, userID, forbiddenOutputIDs, priorityOutputs, includeSending, isSweep, existing, Constraints{}, tx)
+	return f.FundWithConstraints(ctx, FundArgs{
+		TargetSat:          targetSat,
+		CurrentTxSize:      currentTxSize,
+		OutputCount:        outputCount,
+		Basket:             basket,
+		UserID:             userID,
+		ForbiddenOutputIDs: forbiddenOutputIDs,
+		PriorityOutputs:    priorityOutputs,
+		IncludeSending:     includeSending,
+		IsSweep:            isSweep,
+		Existing:           existing,
+		Tx:                 tx,
+	})
 }
 
 // FundWithConstraints is Fund with per-call Constraints; the zero-value
-// constraints reproduce Fund exactly.
-func (f *SQL) FundWithConstraints(
-	ctx context.Context,
-	targetSat satoshi.Value,
-	currentTxSize uint64,
-	outputCount uint64,
-	basket *entity.OutputBasket,
-	userID int,
-	forbiddenOutputIDs []uint,
-	priorityOutputs []*entity.Output,
-	includeSending bool,
-	isSweep bool,
-	existing int64,
-	constraints Constraints,
-	tx *gorm.DB,
-) (*Result, error) {
+// Constraints field reproduces Fund exactly.
+func (f *SQL) FundWithConstraints(ctx context.Context, args FundArgs) (*Result, error) {
 	maxChangeOutputs := f.maxChangeOutputsPerTx.Load()
-	if constraints.MaxChangeOutputs > 0 {
-		maxChangeOutputs = constraints.MaxChangeOutputs
+	if args.Constraints.MaxChangeOutputs > 0 {
+		maxChangeOutputs = args.Constraints.MaxChangeOutputs
 	}
 
-	collector, err := newCollector(targetSat, currentTxSize, outputCount, basket.NumberOfDesiredUTXOs-existing, basket.MinimumDesiredUTXOValue, f.feeCalculator, maxChangeOutputs, isSweep)
+	collector, err := newCollector(
+		args.TargetSat,
+		args.CurrentTxSize,
+		args.OutputCount,
+		args.Basket.NumberOfDesiredUTXOs-args.Existing,
+		args.Basket.MinimumDesiredUTXOValue,
+		f.feeCalculator,
+		maxChangeOutputs,
+		args.IsSweep,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start collecting utxo: %w", err)
 	}
 
 	// Phase 1: Allocate priority outputs (noSend change from prior TXs in same batch).
-	if err = f.allocatePriorityOutputs(collector, priorityOutputs, forbiddenOutputIDs, isSweep); err != nil {
+	if err = f.allocatePriorityOutputs(collector, args.PriorityOutputs, args.ForbiddenOutputIDs, args.IsSweep); err != nil {
 		return nil, err
 	}
-	if !isSweep && collector.IsFunded() {
+	if !args.IsSweep && collector.IsFunded() {
 		return collector.GetResult()
 	}
 
 	// Phase 2: Sweep mode — load every eligible UTXO and allocate everything.
-	if isSweep {
-		pool, poolErr := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
+	if args.IsSweep {
+		pool, poolErr := f.loadUTXOPool(ctx, args.Tx, args.UserID, args.Basket.Name, args.ForbiddenOutputIDs, args.IncludeSending)
 		if poolErr != nil {
 			return nil, poolErr
 		}
@@ -188,46 +213,41 @@ func (f *SQL) FundWithConstraints(
 
 	// Phase 3: Bounded tiered best-fit selection — per-allocation target-aware
 	// micro-queries instead of loading (and locking) the whole pool.
-	if err = f.allocateBounded(ctx, collector, tx, userID, basket.Name, forbiddenOutputIDs, includeSending, constraints.Tiers); err != nil {
+	//
+	// Every row allocated is appended to the exclusion list: our own row locks
+	// don't block our own queries and reserved_by_id stays NULL until
+	// reserveUTXOs runs, so without the exclusion the same row would be returned again.
+	allocator := f.newBoundedAllocator(args.Tx, args.UserID, args.Basket.Name, collector, args.ForbiddenOutputIDs)
+	if err = allocator.run(ctx, resolveTiers(args.IncludeSending, args.Constraints.Tiers)); err != nil {
 		return nil, err
 	}
 
 	return collector.GetResult()
 }
 
-// allocateBounded funds the collector with per-allocation micro-queries, walking
-// status tiers safest-first (mined → unproven → sending when included). Each round
-// recomputes the remaining need (allocation grows the fee, so remaining can shrink
-// by less than the allocated satoshis — or even INCREASE via the dust-floor branch
-// of remaining()) and, per tier, first asks for the smallest sufficient UTXO
-// (exact match, else smallest >= remaining — stages 1+2 of the old in-memory
-// selectBest), then falls back to a batch of largest insufficient UTXOs (stage 3).
-// A tier is only skipped when both queries come back empty, which means the tier
-// has no eligible rows at all. A full pass over all tiers without any allocation
-// means the pool is exhausted → wdk.ErrNotEnoughFunds.
-//
-// Every row allocated in this call is appended to the exclusion list: our own row
-// locks don't block our own queries and reserved_by_id stays NULL until
-// reserveUTXOs runs, so without the exclusion the same row would be returned again.
-func (f *SQL) allocateBounded(
-	ctx context.Context,
-	collector *utxoCollector,
+// resolveTiers returns the status tier walk for a funding call: an explicit
+// override when provided, otherwise the legacy mined → unproven (+ sending)
+// order used by Fund.
+func resolveTiers(includeSending bool, tierOverride []wdk.UTXOStatus) []wdk.UTXOStatus {
+	if tierOverride != nil {
+		return tierOverride
+	}
+	tiers := []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
+	if includeSending {
+		tiers = append(tiers, wdk.UTXOStatusSending)
+	}
+	return tiers
+}
+
+// newBoundedAllocator builds the per-call allocator that funds via micro-queries.
+func (f *SQL) newBoundedAllocator(
 	tx *gorm.DB,
 	userID int,
 	basketName string,
+	collector *utxoCollector,
 	forbiddenOutputIDs []uint,
-	includeSending bool,
-	tierOverride []wdk.UTXOStatus,
-) error {
-	tiers := tierOverride
-	if tiers == nil {
-		tiers = []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}
-		if includeSending {
-			tiers = append(tiers, wdk.UTXOStatusSending)
-		}
-	}
-
-	a := &boundedAllocator{
+) *boundedAllocator {
+	return &boundedAllocator{
 		repo:       f.utxoRepository,
 		tx:         tx,
 		userID:     userID,
@@ -235,10 +255,9 @@ func (f *SQL) allocateBounded(
 		collector:  collector,
 		excluded:   slices.Clone(forbiddenOutputIDs),
 	}
-	return a.run(ctx, tiers)
 }
 
-// boundedAllocator carries the invariant state of a single allocateBounded pass so the
+// boundedAllocator carries the invariant state of a single bounded funding pass so the
 // per-round/per-tier helpers stay small (in both parameter count and cognitive complexity).
 // excluded grows as rows are allocated and is threaded through every query in the pass: our
 // own row locks don't block our own queries and reserved_by_id stays NULL until reserveUTXOs

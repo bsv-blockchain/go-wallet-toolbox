@@ -214,11 +214,35 @@ func (t *Throughput) validate(feeModel FeeModel, commission Commission) error {
 	if t.SpendPolicy, err = ParseSpendPolicyStr(string(t.SpendPolicy)); err != nil {
 		return fmt.Errorf("invalid spend policy: %w", err)
 	}
-
 	if err = t.validateBaskets(); err != nil {
 		return err
 	}
+	if err = t.validateDenomination(feeModel, commission); err != nil {
+		return err
+	}
+	if err = t.validatePoolSizing(); err != nil {
+		return err
+	}
+	if err = t.validateFanoutShape(); err != nil {
+		return err
+	}
+	return t.validateTopUpCapacity()
+}
 
+func (t *Throughput) validateBaskets() error {
+	if t.PoolBasket == "" || t.ReserveBasket == "" {
+		return fmt.Errorf("pool_basket and reserve_basket must be non-empty")
+	}
+	if t.PoolBasket == t.ReserveBasket {
+		return fmt.Errorf("pool_basket and reserve_basket must differ, both are %q", t.PoolBasket)
+	}
+	if t.PoolBasket == defaultChangeBasketName || t.ReserveBasket == defaultChangeBasketName {
+		return fmt.Errorf("pool_basket and reserve_basket must not be the default change basket %q", defaultChangeBasketName)
+	}
+	return nil
+}
+
+func (t *Throughput) validateDenomination(feeModel FeeModel, commission Commission) error {
 	denomination, err := t.Denomination(feeModel, commission)
 	if err != nil {
 		return err
@@ -226,7 +250,10 @@ func (t *Throughput) validate(feeModel FeeModel, commission Commission) error {
 	if floor := MarginalFuelInputFee(feeModel); denomination <= floor {
 		return fmt.Errorf("denomination %d must exceed the marginal fuel input fee %d at the configured fee rate", denomination, floor)
 	}
+	return nil
+}
 
+func (t *Throughput) validatePoolSizing() error {
 	if t.TargetTPS == 0 {
 		return fmt.Errorf("target_tps must be greater than 0")
 	}
@@ -239,7 +266,10 @@ func (t *Throughput) validate(feeModel FeeModel, commission Commission) error {
 	if t.LowWaterPercent == 0 || t.LowWaterPercent > t.HighWaterPercent || t.HighWaterPercent > 100 {
 		return fmt.Errorf("water marks must satisfy 0 < low_water_percent (%d) <= high_water_percent (%d) <= 100", t.LowWaterPercent, t.HighWaterPercent)
 	}
+	return nil
+}
 
+func (t *Throughput) validateFanoutShape() error {
 	if t.FanoutTreeDepth != 1 && t.FanoutTreeDepth != 2 {
 		return fmt.Errorf("fanout_tree_depth must be 1 or 2, got %d", t.FanoutTreeDepth)
 	}
@@ -249,32 +279,22 @@ func (t *Throughput) validate(feeModel FeeModel, commission Commission) error {
 	if t.ConsolidationInputsPerTx == 0 {
 		return fmt.Errorf("consolidation_inputs_per_tx must be greater than 0")
 	}
-
-	if t.TopUp.Enabled {
-		if t.TopUp.IntervalSeconds == 0 {
-			return fmt.Errorf("top_up.interval_seconds must be greater than 0")
-		}
-		mintCapacity := float64(t.FanoutOutputsPerTx) * float64(t.FanoutMaxTxsPerRound)
-		required := float64(t.TargetTPS) * float64(t.TopUp.IntervalSeconds) * fanoutRecoveryMargin
-		if mintCapacity < required {
-			return fmt.Errorf(
-				"sustained-throughput identity violated: fanout_outputs_per_tx × fanout_max_txs_per_round = %.0f must be >= target_tps × top_up.interval_seconds × %.1f = %.0f",
-				mintCapacity, fanoutRecoveryMargin, required)
-		}
-	}
-
 	return nil
 }
 
-func (t *Throughput) validateBaskets() error {
-	if t.PoolBasket == "" || t.ReserveBasket == "" {
-		return fmt.Errorf("pool_basket and reserve_basket must be non-empty")
+func (t *Throughput) validateTopUpCapacity() error {
+	if !t.TopUp.Enabled {
+		return nil
 	}
-	if t.PoolBasket == t.ReserveBasket {
-		return fmt.Errorf("pool_basket and reserve_basket must differ, both are %q", t.PoolBasket)
+	if t.TopUp.IntervalSeconds == 0 {
+		return fmt.Errorf("top_up.interval_seconds must be greater than 0")
 	}
-	if t.PoolBasket == defaultChangeBasketName || t.ReserveBasket == defaultChangeBasketName {
-		return fmt.Errorf("pool_basket and reserve_basket must not be the default change basket %q", defaultChangeBasketName)
+	mintCapacity := float64(t.FanoutOutputsPerTx) * float64(t.FanoutMaxTxsPerRound)
+	required := float64(t.TargetTPS) * float64(t.TopUp.IntervalSeconds) * fanoutRecoveryMargin
+	if mintCapacity < required {
+		return fmt.Errorf(
+			"sustained-throughput identity violated: fanout_outputs_per_tx × fanout_max_txs_per_round = %.0f must be >= target_tps × top_up.interval_seconds × %.1f = %.0f",
+			mintCapacity, fanoutRecoveryMargin, required)
 	}
 	return nil
 }

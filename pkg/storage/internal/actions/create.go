@@ -449,7 +449,20 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// outputs are created, which is clamped to >=1 downstream — never funds-safety.
 	fundingClosure := func(dbTx *gorm.DB) error {
 		var fundErr error
-		funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, fundingBasket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, existingUTXOs, constraints, dbTx)
+		funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, funder.FundArgs{
+			TargetSat:          targetSat,
+			CurrentTxSize:      initialTxSize,
+			OutputCount:        outputCount,
+			Basket:             fundingBasket,
+			UserID:             userID,
+			ForbiddenOutputIDs: processedInputs.ChangeOutputIDs,
+			PriorityOutputs:    priorityOutputs,
+			IncludeSending:     includeUTXOsInSendingState,
+			IsSweep:            isSweep,
+			Existing:           existingUTXOs,
+			Constraints:        constraints,
+			Tx:                 dbTx,
+		})
 		fundedViaFallback = false
 		if useThroughput && fundingBasket.Name != basket.Name && errors.Is(fundErr, wdk.ErrNotEnoughFunds) {
 			// The funding basket cannot cover this request — fall back to the
@@ -461,7 +474,20 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			// so the spend policy narrows only pool claims, never the fallback.
 			c.logger.WarnContext(ctx, "funding basket exhausted, falling back to default basket",
 				logging.UserID(userID), logging.Reference(reference), slog.String("fundingBasket", fundingBasket.Name))
-			funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, targetSat, initialTxSize, outputCount, basket, userID, processedInputs.ChangeOutputIDs, priorityOutputs, includeUTXOsInSendingState, isSweep, basket.NumberOfDesiredUTXOs, funder.Constraints{MaxChangeOutputs: 1}, dbTx)
+			funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, funder.FundArgs{
+				TargetSat:          targetSat,
+				CurrentTxSize:      initialTxSize,
+				OutputCount:        outputCount,
+				Basket:             basket,
+				UserID:             userID,
+				ForbiddenOutputIDs: processedInputs.ChangeOutputIDs,
+				PriorityOutputs:    priorityOutputs,
+				IncludeSending:     includeUTXOsInSendingState,
+				IsSweep:            isSweep,
+				Existing:           basket.NumberOfDesiredUTXOs,
+				Constraints:        funder.Constraints{MaxChangeOutputs: 1},
+				Tx:                 dbTx,
+			})
 			fundedViaFallback = fundErr == nil
 		}
 		if fundErr != nil {

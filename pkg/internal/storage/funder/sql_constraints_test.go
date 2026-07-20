@@ -5,8 +5,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder/testabilities"
@@ -18,6 +20,18 @@ func TestSpendTiers(t *testing.T) {
 	assert.Equal(t, []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven}, funder.SpendTiers(defs.SpendPolicyPreferMined))
 	assert.Equal(t, []wdk.UTXOStatus{wdk.UTXOStatusMined, wdk.UTXOStatusUnproven, wdk.UTXOStatusSending}, funder.SpendTiers(defs.SpendPolicyAny))
 	assert.Equal(t, funder.SpendTiers(defs.SpendPolicyPreferMined), funder.SpendTiers("unknown"), "unknown policy defaults to prefer_mined")
+}
+
+func baseFundArgs(basket *entity.OutputBasket, userID int, constraints funder.Constraints, tx *gorm.DB) funder.FundArgs {
+	return funder.FundArgs{
+		TargetSat:     1000,
+		CurrentTxSize: 44,
+		OutputCount:   1,
+		Basket:        basket,
+		UserID:        userID,
+		Constraints:   constraints,
+		Tx:            tx,
+	}
 }
 
 func TestFundWithConstraints_TierOverride(t *testing.T) {
@@ -35,12 +49,12 @@ func TestFundWithConstraints_TierOverride(t *testing.T) {
 	// when/then: mined_only tiers cannot claim unproven rows
 	tx := given.GormDB().Begin()
 	defer tx.Rollback()
-	_, err := funderSvc.FundWithConstraints(t.Context(), 1000, 44, 1, basket, testusers.Alice.ID, nil, nil, false, false, 0, minedOnly, tx)
+	_, err := funderSvc.FundWithConstraints(t.Context(), baseFundArgs(basket, testusers.Alice.ID, minedOnly, tx))
 	require.ErrorIs(t, err, wdk.ErrNotEnoughFunds)
 
 	// and: prefer_mined tiers claim them
 	preferMined := funder.Constraints{Tiers: funder.SpendTiers(defs.SpendPolicyPreferMined)}
-	result, err := funderSvc.FundWithConstraints(t.Context(), 1000, 44, 1, basket, testusers.Alice.ID, nil, nil, false, false, 0, preferMined, tx)
+	result, err := funderSvc.FundWithConstraints(t.Context(), baseFundArgs(basket, testusers.Alice.ID, preferMined, tx))
 	require.NoError(t, err)
 	require.Len(t, result.AllocatedUTXOs, 1)
 }
@@ -60,7 +74,7 @@ func TestFundWithConstraints_MaxChangeOutputsCap(t *testing.T) {
 	// when:
 	tx := given.GormDB().Begin()
 	defer tx.Rollback()
-	result, err := funderSvc.FundWithConstraints(t.Context(), 1000, 44, 1, basket, testusers.Alice.ID, nil, nil, false, false, 0, singleChange, tx)
+	result, err := funderSvc.FundWithConstraints(t.Context(), baseFundArgs(basket, testusers.Alice.ID, singleChange, tx))
 
 	// then: exactly one change output regardless of the change amount
 	require.NoError(t, err)
@@ -83,7 +97,7 @@ func TestFundWithConstraints_ZeroValueMatchesFund(t *testing.T) {
 
 	tx2 := given.GormDB().Begin()
 	defer tx2.Rollback()
-	constrained, err := funderSvc.FundWithConstraints(t.Context(), 1000, 44, 1, basket, testusers.Alice.ID, nil, nil, false, false, 0, funder.Constraints{}, tx2)
+	constrained, err := funderSvc.FundWithConstraints(t.Context(), baseFundArgs(basket, testusers.Alice.ID, funder.Constraints{}, tx2))
 	require.NoError(t, err)
 
 	assert.Equal(t, legacy.ChangeOutputsCount, constrained.ChangeOutputsCount)
