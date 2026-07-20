@@ -50,6 +50,7 @@ func (a *CreateAction) handleNotNewTX(ctx context.Context) (*wallet.CreateAction
 
 	broadcastErr := a.validateProcessActionResult(processActionResult)
 	if broadcastErr != nil {
+		// sendWith-only path has no new transaction / noSendChange (matches TS WERR_REVIEW_ACTIONS optionals).
 		return nil, pkgerrors.NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).Wrap(broadcastErr)
 	}
 
@@ -140,9 +141,14 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 
 	broadcastErr := a.validateProcessActionResult(processActionResult)
 	if broadcastErr != nil {
-		return nil, pkgerrors.
-			NewProcessActionError(processActionResult.SendWithResults, processActionResult.NotDelayedResults).
-			Wrap(broadcastErr)
+		// Attach AtomicBEEF + noSendChange so callers can recover from review-required broadcasts
+		// (TypeScript WERR_REVIEW_ACTIONS carries txid, tx, noSendChange).
+		return nil, newProcessActionError(
+			processActionResult,
+			txID,
+			tx,
+			createActionResult.NoSendChangeOutputVouts,
+		).Wrap(broadcastErr)
 	}
 
 	return processActionResult, nil
