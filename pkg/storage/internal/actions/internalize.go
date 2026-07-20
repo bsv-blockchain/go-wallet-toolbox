@@ -18,7 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -31,17 +30,18 @@ type OutputToInternalize struct {
 }
 
 type internalize struct {
-	logger                *slog.Logger
-	txRepo                TransactionsRepo
-	basketRepo            BasketRepo
-	knownTxRepo           KnownTxRepo
-	outputRepo            OutputRepo
-	random                wdk.Randomizer
-	beefVerifier          wdk.BeefVerifier
-	scriptsVerifier       wdk.ScriptsVerifier
-	blockHeaderService    wdk.BlockHeaderLoader
-	backgroundBroadcaster *service.BackgroundBroadcaster
-	uow                   UnitOfWork
+	logger             *slog.Logger
+	txRepo             TransactionsRepo
+	basketRepo         BasketRepo
+	knownTxRepo        KnownTxRepo
+	outputRepo         OutputRepo
+	random             wdk.Randomizer
+	beefVerifier       wdk.BeefVerifier
+	scriptsVerifier    wdk.ScriptsVerifier
+	blockHeaderService wdk.BlockHeaderLoader
+	// process is used to reuse ProcessAction's broadcast path (BackgroundBroadcast) for unknown unproven txs.
+	process *process
+	uow     UnitOfWork
 }
 
 func newInternalizeAction(
@@ -55,21 +55,21 @@ func newInternalizeAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	blockHeader wdk.BlockHeaderLoader,
-	backgroundBroadcaster *service.BackgroundBroadcaster,
+	processAction *process,
 ) *internalize {
 	logger = logging.Child(logger, "internalizeAction")
 	return &internalize{
-		logger:                logger,
-		txRepo:                txRepo,
-		basketRepo:            basketRepo,
-		knownTxRepo:           knownTxRepo,
-		outputRepo:            outputRepo,
-		uow:                   uow,
-		random:                random,
-		beefVerifier:          beefVerifier,
-		scriptsVerifier:       scriptsVerifier,
-		blockHeaderService:    blockHeader,
-		backgroundBroadcaster: backgroundBroadcaster,
+		logger:             logger,
+		txRepo:             txRepo,
+		basketRepo:         basketRepo,
+		knownTxRepo:        knownTxRepo,
+		outputRepo:         outputRepo,
+		uow:                uow,
+		random:             random,
+		beefVerifier:       beefVerifier,
+		scriptsVerifier:    scriptsVerifier,
+		blockHeaderService: blockHeader,
+		process:            processAction,
 	}
 }
 
@@ -157,6 +157,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	var outputs []*OutputToInternalize
 	var cumulativeSatoshis satoshi.Value
 	var isMerge bool
+	var shouldBroadcast bool
 
 	err = in.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		var uowErr error
@@ -243,7 +244,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 				slog.String("description", string(args.Description)),
 			)
 
-			uowErr = in.storeNewTx(txCtx, userID, args, txID, tx, cumulativeSatoshis, outputs, beef, repos)
+			shouldBroadcast, uowErr = in.storeNewTx(txCtx, userID, args, txID, tx, cumulativeSatoshis, outputs, repos)
 			if uowErr != nil {
 				return fmt.Errorf("failed to store new transaction: %w", uowErr)
 			}
@@ -252,6 +253,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 				txCtx, "New transaction stored successfully",
 				logging.UserID(userID),
 				slog.String("txID", txID),
+				slog.Bool("shouldBroadcast", shouldBroadcast),
 				slog.String("description", string(args.Description)),
 			)
 		}
@@ -263,13 +265,54 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	}
 
 	if tx.MerklePath != nil {
-		if err := in.updateKnownTxAsMined(ctx, userID, txID, tx); err != nil {
+		if mineErr := in.updateKnownTxAsMined(ctx, userID, txID, tx); mineErr != nil {
 			in.logger.WarnContext(
 				ctx, "updateKnownTxAsMined was not completed successfully",
 				logging.UserID(userID),
 				slog.String("txID", txID),
+				slog.String("error", mineErr.Error()),
+			)
+		}
+	}
+
+	result := &wdk.InternalizeActionResult{
+		Accepted: true,
+		IsMerge:  isMerge,
+		TxID:     txID,
+		Satoshis: cumulativeSatoshis.Int64(),
+	}
+
+	// Broadcast unknown unproven txs immediately via ProcessAction's BackgroundBroadcast path
+	// (same post + status apply as delayed/monitor workers), matching TypeScript shareReqsWithWorld.
+	// Uses the already-verified request BEEF rather than rebuilding from KnownTx so partial/shared
+	// KnownTx rows (e.g. another user's in-flight send with incomplete raw bytes) cannot corrupt
+	// the post. Soft outcomes populate SendWithResults / NotDelayedResults; hard errors leave the
+	// tx for SendWaitingTransactions without rejecting the internalize.
+	if shouldBroadcast && in.process != nil {
+		in.logger.DebugContext(
+			ctx, "Broadcasting newly internalized unproven transaction",
+			logging.UserID(userID),
+			slog.String("txID", txID),
+		)
+
+		var reviewResults []wdk.ReviewActionResult
+		reviewResults, err = in.process.BackgroundBroadcast(ctx, beef, []string{txID})
+		if err != nil {
+			in.logger.WarnContext(
+				ctx, "broadcast after internalize failed; leaving tx for monitor retry",
+				logging.UserID(userID),
+				slog.String("txID", txID),
 				slog.String("error", err.Error()),
 			)
+			// Surface that a send was attempted so callers can observe in-flight status.
+			result.SendWithResults = []wdk.SendWithResult{{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: wdk.SendWithResultStatusSending,
+			}}
+			err = nil
+		} else {
+			result.NotDelayedResults = reviewResults
+			result.SendWithResults = sendWithResultsFromReview(reviewResults)
 		}
 	}
 
@@ -280,15 +323,12 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		slog.Bool("accepted", true),
 		slog.Bool("isMerge", isMerge),
 		logging.Number("satoshis", cumulativeSatoshis),
+		slog.Int("sendWithResultsCount", len(result.SendWithResults)),
+		slog.Int("notDelayedResultsCount", len(result.NotDelayedResults)),
 		slog.String("description", string(args.Description)),
 	)
 
-	return &wdk.InternalizeActionResult{
-		Accepted: true,
-		IsMerge:  isMerge,
-		TxID:     txID,
-		Satoshis: cumulativeSatoshis.Int64(),
-	}, nil
+	return result, nil
 }
 
 func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txID string, tx *transaction.Transaction) error {
@@ -398,6 +438,10 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 	return nil
 }
 
+// storeNewTx persists a newly internalized transaction.
+// It returns shouldBroadcast=true when the tx is unknown/unproven (no mining proof and no prior
+// network-acceptance evidence) so the caller can broadcast via ProcessAction's path and surface
+// SendWithResults / NotDelayedResults on the InternalizeActionResult.
 func (in *internalize) storeNewTx(
 	ctx context.Context,
 	userID int,
@@ -406,15 +450,14 @@ func (in *internalize) storeNewTx(
 	tx *transaction.Transaction,
 	cumulativeSatoshis satoshi.Value,
 	outputs []*OutputToInternalize,
-	beef *transaction.Beef,
 	repos Providers,
-) error {
+) (shouldBroadcast bool, err error) {
 	isMined := tx.MerklePath != nil
 
 	// check if transaction already exists in DB with a confirmed broadcast status
 	statuses, err := repos.KnownTxRepo().FindKnownTxStatuses(ctx, txID)
 	if err != nil {
-		return fmt.Errorf("failed to find existing known tx status: %w", err)
+		return false, fmt.Errorf("failed to find existing known tx status: %w", err)
 	}
 
 	alreadySent := false
@@ -427,13 +470,17 @@ func (in *internalize) storeNewTx(
 	knownTxStatus := wdk.ProvenTxStatusUnsent
 	txStatus := wdk.TxStatusSending
 	utxoStatus := wdk.UTXOStatusSending
-	shouldPushToBroadcaster := true
-
+	// Broadcast only truly unknown unproven txs. Skip when the network already accepted the
+	// tx, it is mined, or another path already has an in-flight broadcast (sending/unsent/unprocessed).
+	shouldBroadcast = true
 	if isMined || alreadySent {
 		knownTxStatus = wdk.ProvenTxStatusUnmined
 		txStatus = wdk.TxStatusUnproven
 		utxoStatus = wdk.UTXOStatusUnproven
-		shouldPushToBroadcaster = false
+		shouldBroadcast = false
+	} else if existingStatus, ok := statuses[txID]; ok && existingStatus.IsInFlight() {
+		// KnownTx already tracked as in-flight by another user/path — do not re-broadcast.
+		shouldBroadcast = false
 	}
 
 	skipForStatuses := []wdk.ProvenTxReqStatus{wdk.ProvenTxStatusCompleted}
@@ -451,12 +498,12 @@ func (in *internalize) storeNewTx(
 		SkipForStatuses: skipForStatuses,
 	}, history.NewBuilder().InternalizeAction(userID))
 	if err != nil {
-		return fmt.Errorf("failed to upsert known tx: %w", err)
+		return false, fmt.Errorf("failed to upsert known tx: %w", err)
 	}
 
 	reference, err := in.random.Base64(referenceLength)
 	if err != nil {
-		return fmt.Errorf("failed to generate random reference: %w", err)
+		return false, fmt.Errorf("failed to generate random reference: %w", err)
 	}
 
 	err = repos.TransactionsRepo().CreateTransaction(ctx, &entity.NewTx{
@@ -476,19 +523,10 @@ func (in *internalize) storeNewTx(
 		Labels: args.Labels,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create transaction: %w", err)
+		return false, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	if shouldPushToBroadcaster && in.backgroundBroadcaster != nil {
-		in.logger.DebugContext(
-			ctx, "Pushing unmined internalized tx to background broadcaster",
-			logging.UserID(userID),
-			slog.String("txID", txID),
-		)
-		in.backgroundBroadcaster.Add(beef, []string{txID})
-	}
-
-	return nil
+	return shouldBroadcast, nil
 }
 
 func (in *internalize) makeOutputs(
@@ -642,4 +680,25 @@ func (in *internalize) utxoStatusByTxStatusForMerge(txStatus wdk.TxStatus) (wdk.
 	default:
 		return "", fmt.Errorf("unsupported transaction status for UTXO: %s", txStatus)
 	}
+}
+
+// sendWithResultsFromReview maps ProcessAction / BackgroundBroadcast review results to the
+// SendWithResult statuses callers expect on InternalizeActionResult (and ProcessActionResult).
+func sendWithResultsFromReview(review []wdk.ReviewActionResult) []wdk.SendWithResult {
+	out := make([]wdk.SendWithResult, 0, len(review))
+	for _, r := range review {
+		sw := wdk.SendWithResult{TxID: r.TxID}
+		switch r.Status {
+		case wdk.ReviewActionResultStatusSuccess:
+			sw.Status = wdk.SendWithResultStatusUnproven
+		case wdk.ReviewActionResultStatusServiceError:
+			sw.Status = wdk.SendWithResultStatusSending
+		case wdk.ReviewActionResultStatusDoubleSpend, wdk.ReviewActionResultStatusInvalidTx:
+			sw.Status = wdk.SendWithResultStatusFailed
+		default:
+			sw.Status = wdk.SendWithResultStatusSending
+		}
+		out = append(out, sw)
+	}
+	return out
 }

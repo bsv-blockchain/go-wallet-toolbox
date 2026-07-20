@@ -106,9 +106,15 @@ type InternalizeActionArgs struct {
 }
 
 // InternalizeActionResult represents the result of an internalize action with a status indicating if it was accepted or not.
+//
+// SendWithResults and NotDelayedResults are populated when a new (non-merge) unproven transaction is
+// broadcast immediately after storage, matching ProcessAction / TypeScript shareReqsWithWorld behavior.
+// They are omitted for merges and for transactions that already have mining proof or prior acceptance evidence.
 type InternalizeActionResult struct {
-	Accepted bool   `json:"accepted"`
-	IsMerge  bool   `json:"isMerge"`
-	TxID     string `json:"txid"`
-	Satoshis int64  `json:"satoshis"`
+	Accepted          bool                 `json:"accepted"`
+	IsMerge           bool                 `json:"isMerge"`
+	TxID              string               `json:"txid"`
+	Satoshis          int64                `json:"satoshis"`
+	SendWithResults   []SendWithResult     `json:"sendWithResults,omitempty"`
+	NotDelayedResults []ReviewActionResult `json:"notDelayedResults,omitempty"`
 }
