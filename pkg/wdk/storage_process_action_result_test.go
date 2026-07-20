@@ -24,8 +24,8 @@ func TestReviewActionErrors_JSONRoundTrip(t *testing.T) {
 	var dst wdk.ReviewActionErrors
 	require.NoError(t, json.Unmarshal(raw, &dst))
 	require.Len(t, dst, 2)
-	assert.EqualError(t, dst["PostFromBEEF Validation"], "boom")
-	assert.EqualError(t, dst["other"], "other err")
+	require.EqualError(t, dst["PostFromBEEF Validation"], "boom")
+	require.EqualError(t, dst["other"], "other err")
 }
 
 func TestReviewActionErrors_UnmarshalLegacyEmptyObjects(t *testing.T) {
