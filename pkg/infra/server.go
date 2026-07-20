@@ -93,7 +93,6 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		logger.Warn("utxo_management strategy=throughput with the SQLite engine: expect single-writer contention; use Postgres for rated loads")
 	}
 
-
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage identity key: %w", err)

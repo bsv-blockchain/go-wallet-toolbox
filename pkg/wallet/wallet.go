@@ -412,7 +412,7 @@ func (w *Wallet) FanOutFuel(ctx context.Context, shape wdk.ShapedChange, origina
 
 	result, err := action.CreateAction(ctx, sdk.CreateActionArgs{
 		Description: "fuel fan-out",
-	}, originator)
+	}, originator, w.party)
 	if err != nil {
 		return nil, fmt.Errorf("fan-out fuel failed: %w", err)
 	}
