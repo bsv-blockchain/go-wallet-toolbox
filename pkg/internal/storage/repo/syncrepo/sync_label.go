@@ -15,57 +15,55 @@ import (
 )
 
 type SyncLabel struct {
-	common *labelTagCommons[models.Label, models.TransactionLabel, LabelReadModel]
+	common *labelTagCommons[models.TxLabel, models.TxLabelsMap, models.TxLabel]
 	db     *gorm.DB
 	query  *genquery.Query
 }
 
 func NewSyncLabel(db *gorm.DB, query *genquery.Query) *SyncLabel {
 	return &SyncLabel{
-		common: &labelTagCommons[models.Label, models.TransactionLabel, LabelReadModel]{
+		common: &labelTagCommons[models.TxLabel, models.TxLabelsMap, models.TxLabel]{
 			db:                   db,
 			query:                query,
-			tableName:            query.Label.TableName(),
-			relationUserIDColumn: query.TransactionLabel.LabelUserID.ColumnName().String(),
-			relationNameColumn:   query.TransactionLabel.LabelName.ColumnName().String(),
+			tableName:            query.TxLabel.TableName(),
+			relationUserIDColumn: query.TxLabel.UserID.ColumnName().String(),
+			relationValueColumn:  query.TxLabel.Label.ColumnName().String(),
 		},
 		db:    db,
 		query: query,
 	}
 }
 
-type LabelReadModel struct {
-	models.Label
-
-	NumID uint
-}
-
 func (s *SyncLabel) FindLabelsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTxLabel, error) {
 	result, err := s.common.FindChunk(ctx, userID, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find tags for sync: %w", err)
+		return nil, fmt.Errorf("failed to find labels for sync: %w", err)
 	}
 
 	return slices.Map(result, s.mapModelToTableTxLabel), nil
 }
 
-func (s *SyncLabel) UpsertLabelForSync(ctx context.Context, entity *entity.Label) (isNew bool, labelNumID uint, err error) {
-	model := models.Label{
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+func (s *SyncLabel) UpsertLabelForSync(ctx context.Context, entity *entity.TxLabel) (isNew bool, labelID uint, err error) {
+	model := models.TxLabel{
+		Timestamps: models.Timestamps{
+			CreatedAt: entity.CreatedAt,
+			UpdatedAt: entity.UpdatedAt,
+		},
 		UserID:    entity.UserID,
-		Name:      entity.Name,
+		Label:     entity.Label,
+		IsDeleted: false,
 	}
 
-	return s.common.Upsert(ctx, entity.UserID, entity.Name, &model)
+	isNew, _, err = s.common.Upsert(ctx, entity.UserID, entity.Label, &model)
+	return isNew, model.TxLabelID, err
 }
 
-func (s *SyncLabel) DeleteLabelForSync(ctx context.Context, entity *entity.Label) (deleted bool, err error) {
-	return s.common.Delete(ctx, entity.UserID, entity.Name)
+func (s *SyncLabel) DeleteLabelForSync(ctx context.Context, entity *entity.TxLabel) (deleted bool, err error) {
+	return s.common.Delete(ctx, entity.UserID, entity.Label)
 }
 
-func (s *SyncLabel) FindLabelByNumIDForSync(ctx context.Context, numID uint) (*entity.Label, error) {
-	model, err := s.common.FindByNumID(ctx, numID)
+func (s *SyncLabel) FindLabelByIDForSync(ctx context.Context, labelID uint) (*entity.TxLabel, error) {
+	model, err := s.common.FindByID(ctx, labelID, "txLabelId")
 	if err != nil {
 		return nil, err
 	}
@@ -74,21 +72,21 @@ func (s *SyncLabel) FindLabelByNumIDForSync(ctx context.Context, numID uint) (*e
 		return nil, nil
 	}
 
-	return &entity.Label{
+	return &entity.TxLabel{
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,
 		UserID:    model.UserID,
-		Name:      model.Name,
+		Label:     model.Label,
 	}, nil
 }
 
-func (s *SyncLabel) mapModelToTableTxLabel(model *LabelReadModel) *wdk.TableTxLabel {
+func (s *SyncLabel) mapModelToTableTxLabel(model *models.TxLabel) *wdk.TableTxLabel {
 	return &wdk.TableTxLabel{
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,
-		TxLabelID: model.NumID,
+		TxLabelID: uint(model.TxLabelID),
 		UserID:    model.UserID,
-		Label:     model.Name,
-		IsDeleted: model.DeletedAt.Valid,
+		Label:     model.Label,
+		IsDeleted: model.IsDeleted,
 	}
 }

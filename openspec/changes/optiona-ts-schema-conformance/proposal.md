@@ -108,7 +108,7 @@ After Phase 3 + Phase 6, `numeric_id_lookup` and every wrapper in `pkg/internal/
 
 | Table | Columns | Notes |
 |-------|---------|-------|
-| `users` | drop `activeStorage` (no TS equivalent) | breaking |
+| `users` | keep `activeStorage` (present in TS) | — |
 | `outputs` | add `sequenceNumber`, `spendingDescription`, `scriptLength`, `scriptOffset`, `txid` | |
 | `outputs` | replace `basketName` string with `basketId` int FK | |
 | `transactions` | add `provenTxId` int FK (nullable until proven), `rawTx` blob | |
@@ -160,7 +160,7 @@ At target load of 10 tps, no significant impact expected. Estimated 5-15% added 
 
 ## Decisions confirmed by author
 
-1. **Drop `users.activeStorage`** — strict conformance. Multi-storage routing reintroduced via spec only if TS adds it upstream.
+1. **Keep `users.activeStorage`** — **REVISED 2026-07-08** (was "drop"): this column IS present in TS at the pinned commit, added by migration `2025-01-21-001` and made NOT NULL by `2025-02-22-001`. Actively used by `WalletStorageManager` for multi-storage routing. The original drop decision rested on a wrong premise.
 2. **Keep `sync_states.when` and `sync_states.satoshis`** — **REVISED 2026-06-08** (was "drop"): both columns exist in TS at the pinned commit `7a840ff97e1f685f778210818933e6da0dac22c2`, so conformance requires retaining them. The original drop rested on a wrong premise.
 3. **Drop `user_utxo` unconditionally** — no benchmark gate. UTXO selection moves to `outputs.spendable` index. Perf at 10 tps target accepted; higher-tps issues addressed via indexing later.
 4. **ts-stack pin: latest main HEAD** at Phase 0 start. Refresh policy in `ts-pin.md`.

@@ -15,29 +15,23 @@ import (
 )
 
 type SyncTag struct {
-	common *labelTagCommons[models.Tag, models.OutputTag, TagReadModel]
+	common *labelTagCommons[models.OutputTag, models.OutputTagsMap, models.OutputTag]
 	db     *gorm.DB
 	query  *genquery.Query
 }
 
 func NewSyncTag(db *gorm.DB, query *genquery.Query) *SyncTag {
 	return &SyncTag{
-		common: &labelTagCommons[models.Tag, models.OutputTag, TagReadModel]{
+		common: &labelTagCommons[models.OutputTag, models.OutputTagsMap, models.OutputTag]{
 			db:                   db,
 			query:                query,
-			tableName:            query.Tag.TableName(),
-			relationUserIDColumn: query.OutputTag.TagUserID.ColumnName().String(),
-			relationNameColumn:   query.OutputTag.TagName.ColumnName().String(),
+			tableName:            query.OutputTag.TableName(),
+			relationUserIDColumn: query.OutputTag.UserID.ColumnName().String(),
+			relationValueColumn:  query.OutputTag.Tag.ColumnName().String(),
 		},
 		db:    db,
 		query: query,
 	}
-}
-
-type TagReadModel struct {
-	models.Tag
-
-	NumID uint
 }
 
 func (s *SyncTag) FindTagsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTag, error) {
@@ -49,23 +43,27 @@ func (s *SyncTag) FindTagsForSync(ctx context.Context, userID int, opts ...query
 	return slices.Map(result, s.mapModelToTableTag), nil
 }
 
-func (s *SyncTag) UpsertTagForSync(ctx context.Context, entity *entity.Tag) (isNew bool, tagNumID uint, err error) {
-	model := models.Tag{
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+func (s *SyncTag) UpsertTagForSync(ctx context.Context, entity *entity.OutputTag) (isNew bool, tagID uint, err error) {
+	model := models.OutputTag{
+		Timestamps: models.Timestamps{
+			CreatedAt: entity.CreatedAt,
+			UpdatedAt: entity.UpdatedAt,
+		},
 		UserID:    entity.UserID,
-		Name:      entity.Name,
+		Tag:       entity.Tag,
+		IsDeleted: false,
 	}
 
-	return s.common.Upsert(ctx, entity.UserID, entity.Name, &model)
+	isNew, _, err = s.common.Upsert(ctx, entity.UserID, entity.Tag, &model)
+	return isNew, model.OutputTagID, err
 }
 
-func (s *SyncTag) DeleteTagForSync(ctx context.Context, entity *entity.Tag) (deleted bool, err error) {
-	return s.common.Delete(ctx, entity.UserID, entity.Name)
+func (s *SyncTag) DeleteTagForSync(ctx context.Context, entity *entity.OutputTag) (deleted bool, err error) {
+	return s.common.Delete(ctx, entity.UserID, entity.Tag)
 }
 
-func (s *SyncTag) FindTagByNumIDForSync(ctx context.Context, numID uint) (*entity.Tag, error) {
-	model, err := s.common.FindByNumID(ctx, numID)
+func (s *SyncTag) FindTagByIDForSync(ctx context.Context, tagID uint) (*entity.OutputTag, error) {
+	model, err := s.common.FindByID(ctx, tagID, "outputTagId")
 	if err != nil {
 		return nil, err
 	}
@@ -74,21 +72,21 @@ func (s *SyncTag) FindTagByNumIDForSync(ctx context.Context, numID uint) (*entit
 		return nil, nil
 	}
 
-	return &entity.Tag{
+	return &entity.OutputTag{
 		CreatedAt: model.CreatedAt,
 		UpdatedAt: model.UpdatedAt,
 		UserID:    model.UserID,
-		Name:      model.Name,
+		Tag:       model.Tag,
 	}, nil
 }
 
-func (s *SyncTag) mapModelToTableTag(model *TagReadModel) *wdk.TableOutputTag {
+func (s *SyncTag) mapModelToTableTag(model *models.OutputTag) *wdk.TableOutputTag {
 	return &wdk.TableOutputTag{
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,
-		OutputTagID: model.NumID,
+		OutputTagID: uint(model.OutputTagID),
 		UserID:      model.UserID,
-		Tag:         model.Name,
-		IsDeleted:   model.DeletedAt.Valid,
+		Tag:         model.Tag,
+		IsDeleted:   model.IsDeleted,
 	}
 }

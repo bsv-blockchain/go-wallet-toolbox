@@ -40,6 +40,7 @@ func (f *basketFixture) ThatPrefersSingleChange() *entity.OutputBasket {
 
 func (f *basketFixture) WithNumberOfDesiredUTXOs(number int) *entity.OutputBasket {
 	return &entity.OutputBasket{
+		ID:                      1, // matches dummy basketId in UTXOFixture
 		UserID:                  f.user.ID,
 		Name:                    "default",
 		NumberOfDesiredUTXOs:    int64(number),

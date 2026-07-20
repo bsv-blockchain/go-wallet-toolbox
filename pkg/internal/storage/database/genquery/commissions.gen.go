@@ -28,16 +28,15 @@ func newCommission(db *gorm.DB, opts ...gen.DOOption) commission {
 
 	tableName := _commission.commissionDo.TableName()
 	_commission.ALL = field.NewAsterisk(tableName)
-	_commission.ID = field.NewUint(tableName, "id")
 	_commission.CreatedAt = field.NewTime(tableName, "created_at")
 	_commission.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_commission.DeletedAt = field.NewField(tableName, "deleted_at")
-	_commission.UserID = field.NewInt(tableName, "user_id")
-	_commission.TransactionID = field.NewUint(tableName, "transaction_id")
-	_commission.Satoshis = field.NewUint64(tableName, "satoshis")
-	_commission.KeyOffset = field.NewString(tableName, "key_offset")
-	_commission.IsRedeemed = field.NewBool(tableName, "is_redeemed")
-	_commission.LockingScript = field.NewBytes(tableName, "locking_script")
+	_commission.CommissionID = field.NewUint(tableName, "commissionId")
+	_commission.UserID = field.NewInt(tableName, "userId")
+	_commission.TransactionID = field.NewUint(tableName, "transactionId")
+	_commission.Satoshis = field.NewInt(tableName, "satoshis")
+	_commission.KeyOffset = field.NewString(tableName, "keyOffset")
+	_commission.IsRedeemed = field.NewBool(tableName, "isRedeemed")
+	_commission.LockingScript = field.NewBytes(tableName, "lockingScript")
 
 	_commission.fillFieldMap()
 
@@ -48,13 +47,12 @@ type commission struct {
 	commissionDo
 
 	ALL           field.Asterisk
-	ID            field.Uint
 	CreatedAt     field.Time
 	UpdatedAt     field.Time
-	DeletedAt     field.Field
+	CommissionID  field.Uint
 	UserID        field.Int
 	TransactionID field.Uint
-	Satoshis      field.Uint64
+	Satoshis      field.Int
 	KeyOffset     field.String
 	IsRedeemed    field.Bool
 	LockingScript field.Bytes
@@ -68,22 +66,21 @@ func (c commission) Table(newTableName string) *commission {
 }
 
 func (c commission) As(alias string) *commission {
-	c.commissionDo.DO = *c.commissionDo.As(alias).(*gen.DO)
+	c.commissionDo.DO = *(c.commissionDo.As(alias).(*gen.DO))
 	return c.updateTableName(alias)
 }
 
 func (c *commission) updateTableName(table string) *commission {
 	c.ALL = field.NewAsterisk(table)
-	c.ID = field.NewUint(table, "id")
 	c.CreatedAt = field.NewTime(table, "created_at")
 	c.UpdatedAt = field.NewTime(table, "updated_at")
-	c.DeletedAt = field.NewField(table, "deleted_at")
-	c.UserID = field.NewInt(table, "user_id")
-	c.TransactionID = field.NewUint(table, "transaction_id")
-	c.Satoshis = field.NewUint64(table, "satoshis")
-	c.KeyOffset = field.NewString(table, "key_offset")
-	c.IsRedeemed = field.NewBool(table, "is_redeemed")
-	c.LockingScript = field.NewBytes(table, "locking_script")
+	c.CommissionID = field.NewUint(table, "commissionId")
+	c.UserID = field.NewInt(table, "userId")
+	c.TransactionID = field.NewUint(table, "transactionId")
+	c.Satoshis = field.NewInt(table, "satoshis")
+	c.KeyOffset = field.NewString(table, "keyOffset")
+	c.IsRedeemed = field.NewBool(table, "isRedeemed")
+	c.LockingScript = field.NewBytes(table, "lockingScript")
 
 	c.fillFieldMap()
 
@@ -100,17 +97,16 @@ func (c *commission) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (c *commission) fillFieldMap() {
-	c.fieldMap = make(map[string]field.Expr, 10)
-	c.fieldMap["id"] = c.ID
+	c.fieldMap = make(map[string]field.Expr, 9)
 	c.fieldMap["created_at"] = c.CreatedAt
 	c.fieldMap["updated_at"] = c.UpdatedAt
-	c.fieldMap["deleted_at"] = c.DeletedAt
-	c.fieldMap["user_id"] = c.UserID
-	c.fieldMap["transaction_id"] = c.TransactionID
+	c.fieldMap["commissionId"] = c.CommissionID
+	c.fieldMap["userId"] = c.UserID
+	c.fieldMap["transactionId"] = c.TransactionID
 	c.fieldMap["satoshis"] = c.Satoshis
-	c.fieldMap["key_offset"] = c.KeyOffset
-	c.fieldMap["is_redeemed"] = c.IsRedeemed
-	c.fieldMap["locking_script"] = c.LockingScript
+	c.fieldMap["keyOffset"] = c.KeyOffset
+	c.fieldMap["isRedeemed"] = c.IsRedeemed
+	c.fieldMap["lockingScript"] = c.LockingScript
 }
 
 func (c commission) clone(db *gorm.DB) commission {

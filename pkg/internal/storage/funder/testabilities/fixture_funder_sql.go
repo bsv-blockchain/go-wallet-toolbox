@@ -30,14 +30,14 @@ var feeModel = defs.FeeModel{
 type funderFixture struct {
 	t            testing.TB
 	db           *database.Database
-	createdUTXOs []*models.UserUTXO
+	createdUTXOs []*models.Output
 }
 
 func newFixture(t testing.TB, db *database.Database) FunderFixture {
 	return &funderFixture{
 		t:            t,
 		db:           db,
-		createdUTXOs: make([]*models.UserUTXO, 0),
+		createdUTXOs: make([]*models.Output, 0),
 	}
 }
 
@@ -56,7 +56,7 @@ func (f *funderFixture) UTXO() UserUTXOFixture {
 	return newUtxoFixture(f.t, f, index)
 }
 
-func (f *funderFixture) Save(utxo *models.UserUTXO) {
+func (f *funderFixture) Save(utxo *models.Output) {
 	err := f.db.DB.Create(&utxo).Error
 	require.NoError(f.t, err)
 	f.createdUTXOs = append(f.createdUTXOs, utxo)

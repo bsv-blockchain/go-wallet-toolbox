@@ -85,7 +85,7 @@ func (c chaintracksLiveHeader) Table(newTableName string) *chaintracksLiveHeader
 }
 
 func (c chaintracksLiveHeader) As(alias string) *chaintracksLiveHeader {
-	c.chaintracksLiveHeaderDo.DO = *c.chaintracksLiveHeaderDo.As(alias).(*gen.DO)
+	c.chaintracksLiveHeaderDo.DO = *(c.chaintracksLiveHeaderDo.As(alias).(*gen.DO))
 	return c.updateTableName(alias)
 }
 
@@ -134,6 +134,7 @@ func (c *chaintracksLiveHeader) fillFieldMap() {
 	c.fieldMap["time"] = c.Time
 	c.fieldMap["bits"] = c.Bits
 	c.fieldMap["nonce"] = c.Nonce
+
 }
 
 func (c chaintracksLiveHeader) clone(db *gorm.DB) chaintracksLiveHeader {

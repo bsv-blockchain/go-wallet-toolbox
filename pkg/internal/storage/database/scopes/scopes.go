@@ -22,7 +22,7 @@ func Paginate(page *queryopts.Paging) func(db *gorm.DB) *gorm.DB {
 // UserID is a scope function that filters by user ID.
 func UserID(id int) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("user_id = ?", id)
+		return db.Where("userId = ?", id)
 	}
 }
 

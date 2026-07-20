@@ -28,179 +28,247 @@ func newOutput(db *gorm.DB, opts ...gen.DOOption) output {
 
 	tableName := _output.outputDo.TableName()
 	_output.ALL = field.NewAsterisk(tableName)
-	_output.ID = field.NewUint(tableName, "id")
 	_output.CreatedAt = field.NewTime(tableName, "created_at")
 	_output.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_output.DeletedAt = field.NewField(tableName, "deleted_at")
-	_output.UserID = field.NewInt(tableName, "user_id")
-	_output.TransactionID = field.NewUint(tableName, "transaction_id")
-	_output.SpentBy = field.NewUint(tableName, "spent_by")
+	_output.OutputID = field.NewUint(tableName, "outputId")
+	_output.UserID = field.NewInt(tableName, "userId")
+	_output.TransactionID = field.NewUint(tableName, "transactionId")
+	_output.SpentBy = field.NewUint(tableName, "spentBy")
 	_output.Vout = field.NewUint32(tableName, "vout")
 	_output.Satoshis = field.NewInt64(tableName, "satoshis")
-	_output.LockingScript = field.NewBytes(tableName, "locking_script")
-	_output.CustomInstructions = field.NewString(tableName, "custom_instructions")
-	_output.DerivationPrefix = field.NewString(tableName, "derivation_prefix")
-	_output.DerivationSuffix = field.NewString(tableName, "derivation_suffix")
-	_output.BasketName = field.NewString(tableName, "basket_name")
+	_output.LockingScript = field.NewBytes(tableName, "lockingScript")
+	_output.CustomInstructions = field.NewString(tableName, "customInstructions")
+	_output.DerivationPrefix = field.NewString(tableName, "derivationPrefix")
+	_output.DerivationSuffix = field.NewString(tableName, "derivationSuffix")
+	_output.BasketID = field.NewUint(tableName, "basketId")
 	_output.Spendable = field.NewBool(tableName, "spendable")
 	_output.Change = field.NewBool(tableName, "change")
-	_output.Description = field.NewString(tableName, "description")
-	_output.ProvidedBy = field.NewString(tableName, "provided_by")
+	_output.Description = field.NewString(tableName, "outputDescription")
+	_output.ProvidedBy = field.NewString(tableName, "providedBy")
 	_output.Purpose = field.NewString(tableName, "purpose")
 	_output.Type = field.NewString(tableName, "type")
-	_output.SenderIdentityKey = field.NewString(tableName, "sender_identity_key")
-	_output.UserUTXO = outputHasOneUserUTXO{
+	_output.SenderIdentityKey = field.NewString(tableName, "senderIdentityKey")
+	_output.Txid = field.NewString(tableName, "txid")
+	_output.SequenceNumber = field.NewUint32(tableName, "sequenceNumber")
+	_output.SpendingDescription = field.NewString(tableName, "spendingDescription")
+	_output.ScriptLength = field.NewUint32(tableName, "scriptLength")
+	_output.ScriptOffset = field.NewUint32(tableName, "scriptOffset")
+	_output.Basket = outputHasOneBasket{
 		db: db.Session(&gorm.Session{}),
 
-		RelationField: field.NewRelation("UserUTXO", "models.UserUTXO"),
-		Output: struct {
+		RelationField: field.NewRelation("Basket", "models.OutputBasket"),
+	}
+
+	_output.Transaction = outputHasOneTransaction{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("Transaction", "models.Transaction"),
+		Commission: struct {
 			field.RelationField
+		}{
+			RelationField: field.NewRelation("Transaction.Commission", "models.Commission"),
+		},
+		ProvenTx: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("Transaction.ProvenTx", "models.ProvenTx"),
+		},
+		Outputs: struct {
+			field.RelationField
+			SpentByTransaction struct {
+				field.RelationField
+			}
 			Basket struct {
 				field.RelationField
 			}
 			Transaction struct {
-				field.RelationField
-				Commission struct {
-					field.RelationField
-				}
-				Outputs struct {
-					field.RelationField
-				}
-				Inputs struct {
-					field.RelationField
-				}
-				ReservedUtxos struct {
-					field.RelationField
-				}
-				Labels struct {
-					field.RelationField
-					Transactions struct {
-						field.RelationField
-					}
-				}
-			}
-			SpentByTransaction struct {
-				field.RelationField
-			}
-			UserUTXO struct {
 				field.RelationField
 			}
 			Tags struct {
 				field.RelationField
 			}
 		}{
-			RelationField: field.NewRelation("UserUTXO.Output", "models.Output"),
-			Basket: struct {
-				field.RelationField
-			}{
-				RelationField: field.NewRelation("UserUTXO.Output.Basket", "models.OutputBasket"),
-			},
-			Transaction: struct {
-				field.RelationField
-				Commission struct {
-					field.RelationField
-				}
-				Outputs struct {
-					field.RelationField
-				}
-				Inputs struct {
-					field.RelationField
-				}
-				ReservedUtxos struct {
-					field.RelationField
-				}
-				Labels struct {
-					field.RelationField
-					Transactions struct {
-						field.RelationField
-					}
-				}
-			}{
-				RelationField: field.NewRelation("UserUTXO.Output.Transaction", "models.Transaction"),
-				Commission: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("UserUTXO.Output.Transaction.Commission", "models.Commission"),
-				},
-				Outputs: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("UserUTXO.Output.Transaction.Outputs", "models.Output"),
-				},
-				Inputs: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("UserUTXO.Output.Transaction.Inputs", "models.Output"),
-				},
-				ReservedUtxos: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("UserUTXO.Output.Transaction.ReservedUtxos", "models.UserUTXO"),
-				},
-				Labels: struct {
-					field.RelationField
-					Transactions struct {
-						field.RelationField
-					}
-				}{
-					RelationField: field.NewRelation("UserUTXO.Output.Transaction.Labels", "models.Label"),
-					Transactions: struct {
-						field.RelationField
-					}{
-						RelationField: field.NewRelation("UserUTXO.Output.Transaction.Labels.Transactions", "models.Transaction"),
-					},
-				},
-			},
+			RelationField: field.NewRelation("Transaction.Outputs", "models.Output"),
 			SpentByTransaction: struct {
 				field.RelationField
 			}{
-				RelationField: field.NewRelation("UserUTXO.Output.SpentByTransaction", "models.Transaction"),
+				RelationField: field.NewRelation("Transaction.Outputs.SpentByTransaction", "models.Transaction"),
 			},
-			UserUTXO: struct {
+			Basket: struct {
 				field.RelationField
 			}{
-				RelationField: field.NewRelation("UserUTXO.Output.UserUTXO", "models.UserUTXO"),
+				RelationField: field.NewRelation("Transaction.Outputs.Basket", "models.OutputBasket"),
+			},
+			Transaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Transaction.Outputs.Transaction", "models.Transaction"),
 			},
 			Tags: struct {
 				field.RelationField
 			}{
-				RelationField: field.NewRelation("UserUTXO.Output.Tags", "models.Tag"),
+				RelationField: field.NewRelation("Transaction.Outputs.Tags", "models.OutputTag"),
 			},
 		},
-		Basket: struct {
+		Inputs: struct {
 			field.RelationField
+			SpentByTransaction struct {
+				field.RelationField
+			}
+			Basket struct {
+				field.RelationField
+			}
+			Transaction struct {
+				field.RelationField
+			}
+			Tags struct {
+				field.RelationField
+			}
 		}{
-			RelationField: field.NewRelation("UserUTXO.Basket", "models.OutputBasket"),
+			RelationField: field.NewRelation("Transaction.Inputs", "models.Output"),
+			SpentByTransaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Transaction.Inputs.SpentByTransaction", "models.Transaction"),
+			},
+			Basket: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Transaction.Inputs.Basket", "models.OutputBasket"),
+			},
+			Transaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Transaction.Inputs.Transaction", "models.Transaction"),
+			},
+			Tags: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Transaction.Inputs.Tags", "models.OutputTag"),
+			},
 		},
-		ReservedBy: struct {
+		Labels: struct {
 			field.RelationField
+			Transactions struct {
+				field.RelationField
+			}
 		}{
-			RelationField: field.NewRelation("UserUTXO.ReservedBy", "models.Transaction"),
+			RelationField: field.NewRelation("Transaction.Labels", "models.TxLabel"),
+			Transactions: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Transaction.Labels.Transactions", "models.Transaction"),
+			},
 		},
-	}
-
-	_output.Basket = outputBelongsToBasket{
-		db: db.Session(&gorm.Session{}),
-
-		RelationField: field.NewRelation("Basket", "models.OutputBasket"),
-	}
-
-	_output.Transaction = outputBelongsToTransaction{
-		db: db.Session(&gorm.Session{}),
-
-		RelationField: field.NewRelation("Transaction", "models.Transaction"),
 	}
 
 	_output.SpentByTransaction = outputBelongsToSpentByTransaction{
 		db: db.Session(&gorm.Session{}),
 
 		RelationField: field.NewRelation("SpentByTransaction", "models.Transaction"),
+		Commission: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("SpentByTransaction.Commission", "models.Commission"),
+		},
+		ProvenTx: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("SpentByTransaction.ProvenTx", "models.ProvenTx"),
+		},
+		Outputs: struct {
+			field.RelationField
+			SpentByTransaction struct {
+				field.RelationField
+			}
+			Basket struct {
+				field.RelationField
+			}
+			Transaction struct {
+				field.RelationField
+			}
+			Tags struct {
+				field.RelationField
+			}
+		}{
+			RelationField: field.NewRelation("SpentByTransaction.Outputs", "models.Output"),
+			SpentByTransaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Outputs.SpentByTransaction", "models.Transaction"),
+			},
+			Basket: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Outputs.Basket", "models.OutputBasket"),
+			},
+			Transaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Outputs.Transaction", "models.Transaction"),
+			},
+			Tags: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Outputs.Tags", "models.OutputTag"),
+			},
+		},
+		Inputs: struct {
+			field.RelationField
+			SpentByTransaction struct {
+				field.RelationField
+			}
+			Basket struct {
+				field.RelationField
+			}
+			Transaction struct {
+				field.RelationField
+			}
+			Tags struct {
+				field.RelationField
+			}
+		}{
+			RelationField: field.NewRelation("SpentByTransaction.Inputs", "models.Output"),
+			SpentByTransaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Inputs.SpentByTransaction", "models.Transaction"),
+			},
+			Basket: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Inputs.Basket", "models.OutputBasket"),
+			},
+			Transaction: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Inputs.Transaction", "models.Transaction"),
+			},
+			Tags: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Inputs.Tags", "models.OutputTag"),
+			},
+		},
+		Labels: struct {
+			field.RelationField
+			Transactions struct {
+				field.RelationField
+			}
+		}{
+			RelationField: field.NewRelation("SpentByTransaction.Labels", "models.TxLabel"),
+			Transactions: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("SpentByTransaction.Labels.Transactions", "models.Transaction"),
+			},
+		},
 	}
 
 	_output.Tags = outputManyToManyTags{
 		db: db.Session(&gorm.Session{}),
 
-		RelationField: field.NewRelation("Tags", "models.Tag"),
+		RelationField: field.NewRelation("Tags", "models.OutputTag"),
 	}
 
 	_output.fillFieldMap()
@@ -211,33 +279,35 @@ func newOutput(db *gorm.DB, opts ...gen.DOOption) output {
 type output struct {
 	outputDo
 
-	ALL                field.Asterisk
-	ID                 field.Uint
-	CreatedAt          field.Time
-	UpdatedAt          field.Time
-	DeletedAt          field.Field
-	UserID             field.Int
-	TransactionID      field.Uint
-	SpentBy            field.Uint
-	Vout               field.Uint32
-	Satoshis           field.Int64
-	LockingScript      field.Bytes
-	CustomInstructions field.String
-	DerivationPrefix   field.String
-	DerivationSuffix   field.String
-	BasketName         field.String
-	Spendable          field.Bool
-	Change             field.Bool
-	Description        field.String
-	ProvidedBy         field.String
-	Purpose            field.String
-	Type               field.String
-	SenderIdentityKey  field.String
-	UserUTXO           outputHasOneUserUTXO
+	ALL                 field.Asterisk
+	CreatedAt           field.Time
+	UpdatedAt           field.Time
+	OutputID            field.Uint
+	UserID              field.Int
+	TransactionID       field.Uint
+	SpentBy             field.Uint
+	Vout                field.Uint32
+	Satoshis            field.Int64
+	LockingScript       field.Bytes
+	CustomInstructions  field.String
+	DerivationPrefix    field.String
+	DerivationSuffix    field.String
+	BasketID            field.Uint
+	Spendable           field.Bool
+	Change              field.Bool
+	Description         field.String
+	ProvidedBy          field.String
+	Purpose             field.String
+	Type                field.String
+	SenderIdentityKey   field.String
+	Txid                field.String
+	SequenceNumber      field.Uint32
+	SpendingDescription field.String
+	ScriptLength        field.Uint32
+	ScriptOffset        field.Uint32
+	Basket              outputHasOneBasket
 
-	Basket outputBelongsToBasket
-
-	Transaction outputBelongsToTransaction
+	Transaction outputHasOneTransaction
 
 	SpentByTransaction outputBelongsToSpentByTransaction
 
@@ -252,33 +322,37 @@ func (o output) Table(newTableName string) *output {
 }
 
 func (o output) As(alias string) *output {
-	o.outputDo.DO = *o.outputDo.As(alias).(*gen.DO)
+	o.outputDo.DO = *(o.outputDo.As(alias).(*gen.DO))
 	return o.updateTableName(alias)
 }
 
 func (o *output) updateTableName(table string) *output {
 	o.ALL = field.NewAsterisk(table)
-	o.ID = field.NewUint(table, "id")
 	o.CreatedAt = field.NewTime(table, "created_at")
 	o.UpdatedAt = field.NewTime(table, "updated_at")
-	o.DeletedAt = field.NewField(table, "deleted_at")
-	o.UserID = field.NewInt(table, "user_id")
-	o.TransactionID = field.NewUint(table, "transaction_id")
-	o.SpentBy = field.NewUint(table, "spent_by")
+	o.OutputID = field.NewUint(table, "outputId")
+	o.UserID = field.NewInt(table, "userId")
+	o.TransactionID = field.NewUint(table, "transactionId")
+	o.SpentBy = field.NewUint(table, "spentBy")
 	o.Vout = field.NewUint32(table, "vout")
 	o.Satoshis = field.NewInt64(table, "satoshis")
-	o.LockingScript = field.NewBytes(table, "locking_script")
-	o.CustomInstructions = field.NewString(table, "custom_instructions")
-	o.DerivationPrefix = field.NewString(table, "derivation_prefix")
-	o.DerivationSuffix = field.NewString(table, "derivation_suffix")
-	o.BasketName = field.NewString(table, "basket_name")
+	o.LockingScript = field.NewBytes(table, "lockingScript")
+	o.CustomInstructions = field.NewString(table, "customInstructions")
+	o.DerivationPrefix = field.NewString(table, "derivationPrefix")
+	o.DerivationSuffix = field.NewString(table, "derivationSuffix")
+	o.BasketID = field.NewUint(table, "basketId")
 	o.Spendable = field.NewBool(table, "spendable")
 	o.Change = field.NewBool(table, "change")
-	o.Description = field.NewString(table, "description")
-	o.ProvidedBy = field.NewString(table, "provided_by")
+	o.Description = field.NewString(table, "outputDescription")
+	o.ProvidedBy = field.NewString(table, "providedBy")
 	o.Purpose = field.NewString(table, "purpose")
 	o.Type = field.NewString(table, "type")
-	o.SenderIdentityKey = field.NewString(table, "sender_identity_key")
+	o.SenderIdentityKey = field.NewString(table, "senderIdentityKey")
+	o.Txid = field.NewString(table, "txid")
+	o.SequenceNumber = field.NewUint32(table, "sequenceNumber")
+	o.SpendingDescription = field.NewString(table, "spendingDescription")
+	o.ScriptLength = field.NewUint32(table, "scriptLength")
+	o.ScriptOffset = field.NewUint32(table, "scriptOffset")
 
 	o.fillFieldMap()
 
@@ -295,34 +369,37 @@ func (o *output) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (o *output) fillFieldMap() {
-	o.fieldMap = make(map[string]field.Expr, 26)
-	o.fieldMap["id"] = o.ID
+	o.fieldMap = make(map[string]field.Expr, 29)
 	o.fieldMap["created_at"] = o.CreatedAt
 	o.fieldMap["updated_at"] = o.UpdatedAt
-	o.fieldMap["deleted_at"] = o.DeletedAt
-	o.fieldMap["user_id"] = o.UserID
-	o.fieldMap["transaction_id"] = o.TransactionID
-	o.fieldMap["spent_by"] = o.SpentBy
+	o.fieldMap["outputId"] = o.OutputID
+	o.fieldMap["userId"] = o.UserID
+	o.fieldMap["transactionId"] = o.TransactionID
+	o.fieldMap["spentBy"] = o.SpentBy
 	o.fieldMap["vout"] = o.Vout
 	o.fieldMap["satoshis"] = o.Satoshis
-	o.fieldMap["locking_script"] = o.LockingScript
-	o.fieldMap["custom_instructions"] = o.CustomInstructions
-	o.fieldMap["derivation_prefix"] = o.DerivationPrefix
-	o.fieldMap["derivation_suffix"] = o.DerivationSuffix
-	o.fieldMap["basket_name"] = o.BasketName
+	o.fieldMap["lockingScript"] = o.LockingScript
+	o.fieldMap["customInstructions"] = o.CustomInstructions
+	o.fieldMap["derivationPrefix"] = o.DerivationPrefix
+	o.fieldMap["derivationSuffix"] = o.DerivationSuffix
+	o.fieldMap["basketId"] = o.BasketID
 	o.fieldMap["spendable"] = o.Spendable
 	o.fieldMap["change"] = o.Change
-	o.fieldMap["description"] = o.Description
-	o.fieldMap["provided_by"] = o.ProvidedBy
+	o.fieldMap["outputDescription"] = o.Description
+	o.fieldMap["providedBy"] = o.ProvidedBy
 	o.fieldMap["purpose"] = o.Purpose
 	o.fieldMap["type"] = o.Type
-	o.fieldMap["sender_identity_key"] = o.SenderIdentityKey
+	o.fieldMap["senderIdentityKey"] = o.SenderIdentityKey
+	o.fieldMap["txid"] = o.Txid
+	o.fieldMap["sequenceNumber"] = o.SequenceNumber
+	o.fieldMap["spendingDescription"] = o.SpendingDescription
+	o.fieldMap["scriptLength"] = o.ScriptLength
+	o.fieldMap["scriptOffset"] = o.ScriptOffset
+
 }
 
 func (o output) clone(db *gorm.DB) output {
 	o.outputDo.ReplaceConnPool(db.Statement.ConnPool)
-	o.UserUTXO.db = db.Session(&gorm.Session{Initialized: true})
-	o.UserUTXO.db.Statement.ConnPool = db.Statement.ConnPool
 	o.Basket.db = db.Session(&gorm.Session{Initialized: true})
 	o.Basket.db.Statement.ConnPool = db.Statement.ConnPool
 	o.Transaction.db = db.Session(&gorm.Session{Initialized: true})
@@ -336,7 +413,6 @@ func (o output) clone(db *gorm.DB) output {
 
 func (o output) replaceDB(db *gorm.DB) output {
 	o.outputDo.ReplaceDB(db)
-	o.UserUTXO.db = db.Session(&gorm.Session{})
 	o.Basket.db = db.Session(&gorm.Session{})
 	o.Transaction.db = db.Session(&gorm.Session{})
 	o.SpentByTransaction.db = db.Session(&gorm.Session{})
@@ -344,56 +420,137 @@ func (o output) replaceDB(db *gorm.DB) output {
 	return o
 }
 
-type outputHasOneUserUTXO struct {
+type outputHasOneBasket struct {
+	db *gorm.DB
+
+	field.RelationField
+}
+
+func (a outputHasOneBasket) Where(conds ...field.Expr) *outputHasOneBasket {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a outputHasOneBasket) WithContext(ctx context.Context) *outputHasOneBasket {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a outputHasOneBasket) Session(session *gorm.Session) *outputHasOneBasket {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a outputHasOneBasket) Model(m *models.Output) *outputHasOneBasketTx {
+	return &outputHasOneBasketTx{a.db.Model(m).Association(a.Name())}
+}
+
+func (a outputHasOneBasket) Unscoped() *outputHasOneBasket {
+	a.db = a.db.Unscoped()
+	return &a
+}
+
+type outputHasOneBasketTx struct{ tx *gorm.Association }
+
+func (a outputHasOneBasketTx) Find() (result *models.OutputBasket, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a outputHasOneBasketTx) Append(values ...*models.OutputBasket) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a outputHasOneBasketTx) Replace(values ...*models.OutputBasket) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a outputHasOneBasketTx) Delete(values ...*models.OutputBasket) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a outputHasOneBasketTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a outputHasOneBasketTx) Count() int64 {
+	return a.tx.Count()
+}
+
+func (a outputHasOneBasketTx) Unscoped() *outputHasOneBasketTx {
+	a.tx = a.tx.Unscoped()
+	return &a
+}
+
+type outputHasOneTransaction struct {
 	db *gorm.DB
 
 	field.RelationField
 
-	Output struct {
+	Commission struct {
 		field.RelationField
+	}
+	ProvenTx struct {
+		field.RelationField
+	}
+	Outputs struct {
+		field.RelationField
+		SpentByTransaction struct {
+			field.RelationField
+		}
 		Basket struct {
 			field.RelationField
 		}
 		Transaction struct {
-			field.RelationField
-			Commission struct {
-				field.RelationField
-			}
-			Outputs struct {
-				field.RelationField
-			}
-			Inputs struct {
-				field.RelationField
-			}
-			ReservedUtxos struct {
-				field.RelationField
-			}
-			Labels struct {
-				field.RelationField
-				Transactions struct {
-					field.RelationField
-				}
-			}
-		}
-		SpentByTransaction struct {
-			field.RelationField
-		}
-		UserUTXO struct {
 			field.RelationField
 		}
 		Tags struct {
 			field.RelationField
 		}
 	}
-	Basket struct {
+	Inputs struct {
 		field.RelationField
+		SpentByTransaction struct {
+			field.RelationField
+		}
+		Basket struct {
+			field.RelationField
+		}
+		Transaction struct {
+			field.RelationField
+		}
+		Tags struct {
+			field.RelationField
+		}
 	}
-	ReservedBy struct {
+	Labels struct {
 		field.RelationField
+		Transactions struct {
+			field.RelationField
+		}
 	}
 }
 
-func (a outputHasOneUserUTXO) Where(conds ...field.Expr) *outputHasOneUserUTXO {
+func (a outputHasOneTransaction) Where(conds ...field.Expr) *outputHasOneTransaction {
 	if len(conds) == 0 {
 		return &a
 	}
@@ -406,32 +563,32 @@ func (a outputHasOneUserUTXO) Where(conds ...field.Expr) *outputHasOneUserUTXO {
 	return &a
 }
 
-func (a outputHasOneUserUTXO) WithContext(ctx context.Context) *outputHasOneUserUTXO {
+func (a outputHasOneTransaction) WithContext(ctx context.Context) *outputHasOneTransaction {
 	a.db = a.db.WithContext(ctx)
 	return &a
 }
 
-func (a outputHasOneUserUTXO) Session(session *gorm.Session) *outputHasOneUserUTXO {
+func (a outputHasOneTransaction) Session(session *gorm.Session) *outputHasOneTransaction {
 	a.db = a.db.Session(session)
 	return &a
 }
 
-func (a outputHasOneUserUTXO) Model(m *models.Output) *outputHasOneUserUTXOTx {
-	return &outputHasOneUserUTXOTx{a.db.Model(m).Association(a.Name())}
+func (a outputHasOneTransaction) Model(m *models.Output) *outputHasOneTransactionTx {
+	return &outputHasOneTransactionTx{a.db.Model(m).Association(a.Name())}
 }
 
-func (a outputHasOneUserUTXO) Unscoped() *outputHasOneUserUTXO {
+func (a outputHasOneTransaction) Unscoped() *outputHasOneTransaction {
 	a.db = a.db.Unscoped()
 	return &a
 }
 
-type outputHasOneUserUTXOTx struct{ tx *gorm.Association }
+type outputHasOneTransactionTx struct{ tx *gorm.Association }
 
-func (a outputHasOneUserUTXOTx) Find() (result *models.UserUTXO, err error) {
+func (a outputHasOneTransactionTx) Find() (result *models.Transaction, err error) {
 	return result, a.tx.Find(&result)
 }
 
-func (a outputHasOneUserUTXOTx) Append(values ...*models.UserUTXO) (err error) {
+func (a outputHasOneTransactionTx) Append(values ...*models.Transaction) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -439,7 +596,7 @@ func (a outputHasOneUserUTXOTx) Append(values ...*models.UserUTXO) (err error) {
 	return a.tx.Append(targetValues...)
 }
 
-func (a outputHasOneUserUTXOTx) Replace(values ...*models.UserUTXO) (err error) {
+func (a outputHasOneTransactionTx) Replace(values ...*models.Transaction) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -447,7 +604,7 @@ func (a outputHasOneUserUTXOTx) Replace(values ...*models.UserUTXO) (err error) 
 	return a.tx.Replace(targetValues...)
 }
 
-func (a outputHasOneUserUTXOTx) Delete(values ...*models.UserUTXO) (err error) {
+func (a outputHasOneTransactionTx) Delete(values ...*models.Transaction) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -455,177 +612,15 @@ func (a outputHasOneUserUTXOTx) Delete(values ...*models.UserUTXO) (err error) {
 	return a.tx.Delete(targetValues...)
 }
 
-func (a outputHasOneUserUTXOTx) Clear() error {
+func (a outputHasOneTransactionTx) Clear() error {
 	return a.tx.Clear()
 }
 
-func (a outputHasOneUserUTXOTx) Count() int64 {
+func (a outputHasOneTransactionTx) Count() int64 {
 	return a.tx.Count()
 }
 
-func (a outputHasOneUserUTXOTx) Unscoped() *outputHasOneUserUTXOTx {
-	a.tx = a.tx.Unscoped()
-	return &a
-}
-
-type outputBelongsToBasket struct {
-	db *gorm.DB
-
-	field.RelationField
-}
-
-func (a outputBelongsToBasket) Where(conds ...field.Expr) *outputBelongsToBasket {
-	if len(conds) == 0 {
-		return &a
-	}
-
-	exprs := make([]clause.Expression, 0, len(conds))
-	for _, cond := range conds {
-		exprs = append(exprs, cond.BeCond().(clause.Expression))
-	}
-	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
-	return &a
-}
-
-func (a outputBelongsToBasket) WithContext(ctx context.Context) *outputBelongsToBasket {
-	a.db = a.db.WithContext(ctx)
-	return &a
-}
-
-func (a outputBelongsToBasket) Session(session *gorm.Session) *outputBelongsToBasket {
-	a.db = a.db.Session(session)
-	return &a
-}
-
-func (a outputBelongsToBasket) Model(m *models.Output) *outputBelongsToBasketTx {
-	return &outputBelongsToBasketTx{a.db.Model(m).Association(a.Name())}
-}
-
-func (a outputBelongsToBasket) Unscoped() *outputBelongsToBasket {
-	a.db = a.db.Unscoped()
-	return &a
-}
-
-type outputBelongsToBasketTx struct{ tx *gorm.Association }
-
-func (a outputBelongsToBasketTx) Find() (result *models.OutputBasket, err error) {
-	return result, a.tx.Find(&result)
-}
-
-func (a outputBelongsToBasketTx) Append(values ...*models.OutputBasket) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Append(targetValues...)
-}
-
-func (a outputBelongsToBasketTx) Replace(values ...*models.OutputBasket) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Replace(targetValues...)
-}
-
-func (a outputBelongsToBasketTx) Delete(values ...*models.OutputBasket) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Delete(targetValues...)
-}
-
-func (a outputBelongsToBasketTx) Clear() error {
-	return a.tx.Clear()
-}
-
-func (a outputBelongsToBasketTx) Count() int64 {
-	return a.tx.Count()
-}
-
-func (a outputBelongsToBasketTx) Unscoped() *outputBelongsToBasketTx {
-	a.tx = a.tx.Unscoped()
-	return &a
-}
-
-type outputBelongsToTransaction struct {
-	db *gorm.DB
-
-	field.RelationField
-}
-
-func (a outputBelongsToTransaction) Where(conds ...field.Expr) *outputBelongsToTransaction {
-	if len(conds) == 0 {
-		return &a
-	}
-
-	exprs := make([]clause.Expression, 0, len(conds))
-	for _, cond := range conds {
-		exprs = append(exprs, cond.BeCond().(clause.Expression))
-	}
-	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
-	return &a
-}
-
-func (a outputBelongsToTransaction) WithContext(ctx context.Context) *outputBelongsToTransaction {
-	a.db = a.db.WithContext(ctx)
-	return &a
-}
-
-func (a outputBelongsToTransaction) Session(session *gorm.Session) *outputBelongsToTransaction {
-	a.db = a.db.Session(session)
-	return &a
-}
-
-func (a outputBelongsToTransaction) Model(m *models.Output) *outputBelongsToTransactionTx {
-	return &outputBelongsToTransactionTx{a.db.Model(m).Association(a.Name())}
-}
-
-func (a outputBelongsToTransaction) Unscoped() *outputBelongsToTransaction {
-	a.db = a.db.Unscoped()
-	return &a
-}
-
-type outputBelongsToTransactionTx struct{ tx *gorm.Association }
-
-func (a outputBelongsToTransactionTx) Find() (result *models.Transaction, err error) {
-	return result, a.tx.Find(&result)
-}
-
-func (a outputBelongsToTransactionTx) Append(values ...*models.Transaction) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Append(targetValues...)
-}
-
-func (a outputBelongsToTransactionTx) Replace(values ...*models.Transaction) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Replace(targetValues...)
-}
-
-func (a outputBelongsToTransactionTx) Delete(values ...*models.Transaction) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Delete(targetValues...)
-}
-
-func (a outputBelongsToTransactionTx) Clear() error {
-	return a.tx.Clear()
-}
-
-func (a outputBelongsToTransactionTx) Count() int64 {
-	return a.tx.Count()
-}
-
-func (a outputBelongsToTransactionTx) Unscoped() *outputBelongsToTransactionTx {
+func (a outputHasOneTransactionTx) Unscoped() *outputHasOneTransactionTx {
 	a.tx = a.tx.Unscoped()
 	return &a
 }
@@ -634,6 +629,49 @@ type outputBelongsToSpentByTransaction struct {
 	db *gorm.DB
 
 	field.RelationField
+
+	Commission struct {
+		field.RelationField
+	}
+	ProvenTx struct {
+		field.RelationField
+	}
+	Outputs struct {
+		field.RelationField
+		SpentByTransaction struct {
+			field.RelationField
+		}
+		Basket struct {
+			field.RelationField
+		}
+		Transaction struct {
+			field.RelationField
+		}
+		Tags struct {
+			field.RelationField
+		}
+	}
+	Inputs struct {
+		field.RelationField
+		SpentByTransaction struct {
+			field.RelationField
+		}
+		Basket struct {
+			field.RelationField
+		}
+		Transaction struct {
+			field.RelationField
+		}
+		Tags struct {
+			field.RelationField
+		}
+	}
+	Labels struct {
+		field.RelationField
+		Transactions struct {
+			field.RelationField
+		}
+	}
 }
 
 func (a outputBelongsToSpentByTransaction) Where(conds ...field.Expr) *outputBelongsToSpentByTransaction {
@@ -751,11 +789,11 @@ func (a outputManyToManyTags) Unscoped() *outputManyToManyTags {
 
 type outputManyToManyTagsTx struct{ tx *gorm.Association }
 
-func (a outputManyToManyTagsTx) Find() (result []*models.Tag, err error) {
+func (a outputManyToManyTagsTx) Find() (result []*models.OutputTag, err error) {
 	return result, a.tx.Find(&result)
 }
 
-func (a outputManyToManyTagsTx) Append(values ...*models.Tag) (err error) {
+func (a outputManyToManyTagsTx) Append(values ...*models.OutputTag) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -763,7 +801,7 @@ func (a outputManyToManyTagsTx) Append(values ...*models.Tag) (err error) {
 	return a.tx.Append(targetValues...)
 }
 
-func (a outputManyToManyTagsTx) Replace(values ...*models.Tag) (err error) {
+func (a outputManyToManyTagsTx) Replace(values ...*models.OutputTag) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -771,7 +809,7 @@ func (a outputManyToManyTagsTx) Replace(values ...*models.Tag) (err error) {
 	return a.tx.Replace(targetValues...)
 }
 
-func (a outputManyToManyTagsTx) Delete(values ...*models.Tag) (err error) {
+func (a outputManyToManyTagsTx) Delete(values ...*models.OutputTag) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v

@@ -1,10 +1,9 @@
 package testabilities
 
 import (
+	"fmt"
 	"testing"
 	"time"
-
-	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -25,7 +24,7 @@ type UserUTXOFixture interface {
 }
 
 type UTXODatabase interface {
-	Save(utxo *models.UserUTXO)
+	Save(utxo *models.Output)
 }
 
 var defaultBasket = entity.OutputBasket{
@@ -96,22 +95,31 @@ func (f *userUtxoFixture) Stored() {
 		return
 	}
 
-	utxo := &models.UserUTXO{
+	basketId := uint(1) // dummy basket id
+
+	txStatus := wdk.TxStatusUnproven
+	if f.status == wdk.UTXOStatusMined {
+		txStatus = wdk.TxStatusCompleted
+	} else if f.status == wdk.UTXOStatusSending {
+		txStatus = wdk.TxStatusSending
+	}
+
+	utxo := &models.Output{
 		UserID:             f.userID,
 		OutputID:           f.index,
-		Satoshis:           f.satoshis,
-		EstimatedInputSize: f.estimatedInputSize,
-		CreatedAt:          FirstCreatedAt.Add(time.Duration(f.index) * time.Second), //nolint:gosec // test fixture, index is always small
-		BasketName:         f.basket.Name,
-		UTXOStatus:         f.status,
+		Satoshis:           int64(f.satoshis),
+		BasketID:           &basketId,
+		Spendable:          true,
 		Basket: &models.OutputBasket{
-			CreatedAt:               FirstCreatedAt,
-			UpdatedAt:               FirstCreatedAt,
-			DeletedAt:               gorm.DeletedAt{},
 			Name:                    f.basket.Name,
 			UserID:                  f.basket.UserID,
 			NumberOfDesiredUTXOs:    f.basket.NumberOfDesiredUTXOs,
 			MinimumDesiredUTXOValue: f.basket.MinimumDesiredUTXOValue,
+		},
+		Transaction: &models.Transaction{
+			UserID:    f.userID,
+			Status:    txStatus,
+			Reference: fmt.Sprintf("test-funder-utxo-%d", f.index),
 		},
 	}
 

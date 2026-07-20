@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -35,9 +36,7 @@ func DBConfigForTests() defs.Database {
 			dbConfig.PostgreSQL.Password = mode.Password
 		}
 	default:
-		{
-			dbConfig.SQLite.ConnectionString = "file:storage.test.sqlite?mode=memory"
-		}
+			dbConfig.SQLite.ConnectionString = "file:storage.test." + uuid.NewString() + ".sqlite?mode=memory"
 	}
 	return dbConfig
 }

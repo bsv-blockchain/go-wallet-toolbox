@@ -42,7 +42,7 @@ func (c *Commission) AddCommission(ctx context.Context, commission *entity.Commi
 	model := &models.Commission{
 		UserID:        commission.UserID,
 		TransactionID: commission.TransactionID,
-		Satoshis:      commission.Satoshis,
+		Satoshis:      int(commission.Satoshis),
 		KeyOffset:     commission.KeyOffset,
 		IsRedeemed:    commission.IsRedeemed,
 		LockingScript: commission.LockingScript,
@@ -97,7 +97,7 @@ func (c *Commission) UpdateCommission(ctx context.Context, spec *entity.Commissi
 		return nil
 	}
 
-	_, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(toUpdate)
+	_, err = table.WithContext(ctx).Where(table.CommissionID.Eq(spec.ID)).Updates(toUpdate)
 	if err != nil {
 		return fmt.Errorf("failed to update commission: %w", err)
 	}
@@ -153,7 +153,7 @@ func (c *Commission) conditionsBySpec(spec *entity.CommissionReadSpecification) 
 	table := &c.query.Commission
 
 	if spec.ID != nil {
-		return []gen.Condition{table.ID.Eq(*spec.ID)}
+		return []gen.Condition{table.CommissionID.Eq(*spec.ID)}
 	}
 
 	var conditions []gen.Condition
@@ -163,7 +163,7 @@ func (c *Commission) conditionsBySpec(spec *entity.CommissionReadSpecification) 
 	}
 
 	if spec.Satoshis != nil {
-		conditions = append(conditions, cmpCondition(table.Satoshis, spec.Satoshis))
+		conditions = append(conditions, cmpCondition(table.Satoshis, mapComparableUint64ToInt(spec.Satoshis)))
 	}
 
 	if spec.TransactionID != nil {
@@ -187,14 +187,32 @@ func mapModelToEntityCommission(model *models.Commission) *entity.Commission {
 	}
 
 	return &entity.Commission{
-		ID:            model.ID,
+		ID:            model.CommissionID,
 		CreatedAt:     model.CreatedAt,
 		UpdatedAt:     model.UpdatedAt,
 		UserID:        model.UserID,
 		TransactionID: model.TransactionID,
-		Satoshis:      model.Satoshis,
+		Satoshis:      uint64(model.Satoshis),
 		KeyOffset:     model.KeyOffset,
 		IsRedeemed:    model.IsRedeemed,
 		LockingScript: model.LockingScript,
+	}
+}
+
+func mapComparableUint64ToInt(c *entity.Comparable[uint64]) *entity.Comparable[int] {
+	if c == nil {
+		return nil
+	}
+	var inValues []int
+	if c.InValues != nil {
+		for _, v := range c.InValues {
+			inValues = append(inValues, int(v))
+		}
+	}
+	return &entity.Comparable[int]{
+		Value:      int(c.Value),
+		ValueRight: int(c.ValueRight),
+		InValues:   inValues,
+		Cmp:        c.Cmp,
 	}
 }

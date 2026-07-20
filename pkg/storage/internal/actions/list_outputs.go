@@ -26,11 +26,11 @@ import (
 type listOutputs struct {
 	logger           *slog.Logger
 	outputsRepo      OutputRepo
-	knownTxRepo      KnownTxRepo
+	knownTxRepo      ProvenTxReqRepo
 	transactionsRepo TransactionsRepo
 }
 
-func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo KnownTxRepo, transactionsRepo TransactionsRepo) *listOutputs {
+func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo ProvenTxReqRepo, transactionsRepo TransactionsRepo) *listOutputs {
 	return &listOutputs{
 		logger:           logging.Child(logger, "list_outputs"),
 		knownTxRepo:      knownTxRepo,
@@ -113,7 +113,7 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 		beef, err := l.knownTxRepo.GetBEEFForTxIDs(
 			ctx,
 			uniqueTxIDs,
-			entity.WithKnownTxIDs(args.KnownTxids...),
+			entity.WithProvenTxReqIDs(args.KnownTxids...),
 			entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
 		)
 		if err != nil {

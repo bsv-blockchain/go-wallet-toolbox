@@ -28,30 +28,93 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 
 	tableName := _transaction.transactionDo.TableName()
 	_transaction.ALL = field.NewAsterisk(tableName)
-	_transaction.ID = field.NewUint(tableName, "id")
 	_transaction.CreatedAt = field.NewTime(tableName, "created_at")
 	_transaction.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_transaction.DeletedAt = field.NewField(tableName, "deleted_at")
-	_transaction.UserID = field.NewInt(tableName, "user_id")
+	_transaction.TransactionID = field.NewUint(tableName, "transactionId")
+	_transaction.UserID = field.NewInt(tableName, "userId")
 	_transaction.Status = field.NewString(tableName, "status")
 	_transaction.Reference = field.NewString(tableName, "reference")
-	_transaction.IsOutgoing = field.NewBool(tableName, "is_outgoing")
+	_transaction.IsOutgoing = field.NewBool(tableName, "isOutgoing")
 	_transaction.Satoshis = field.NewInt64(tableName, "satoshis")
 	_transaction.Description = field.NewString(tableName, "description")
 	_transaction.Version = field.NewUint32(tableName, "version")
-	_transaction.LockTime = field.NewUint32(tableName, "lock_time")
-	_transaction.TxID = field.NewString(tableName, "tx_id")
-	_transaction.InputBeef = field.NewBytes(tableName, "input_beef")
+	_transaction.LockTime = field.NewUint32(tableName, "lockTime")
+	_transaction.TxID = field.NewString(tableName, "txid")
+	_transaction.InputBeef = field.NewBytes(tableName, "inputBeef")
+	_transaction.ProvenTxID = field.NewUint(tableName, "provenTxId")
+	_transaction.RawTx = field.NewBytes(tableName, "rawTx")
 	_transaction.Commission = transactionHasOneCommission{
 		db: db.Session(&gorm.Session{}),
 
 		RelationField: field.NewRelation("Commission", "models.Commission"),
 	}
 
+	_transaction.ProvenTx = transactionHasOneProvenTx{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("ProvenTx", "models.ProvenTx"),
+	}
+
 	_transaction.Outputs = transactionHasManyOutputs{
 		db: db.Session(&gorm.Session{}),
 
 		RelationField: field.NewRelation("Outputs", "models.Output"),
+		SpentByTransaction: struct {
+			field.RelationField
+			Commission struct {
+				field.RelationField
+			}
+			ProvenTx struct {
+				field.RelationField
+			}
+			Outputs struct {
+				field.RelationField
+			}
+			Inputs struct {
+				field.RelationField
+			}
+			Labels struct {
+				field.RelationField
+				Transactions struct {
+					field.RelationField
+				}
+			}
+		}{
+			RelationField: field.NewRelation("Outputs.SpentByTransaction", "models.Transaction"),
+			Commission: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Outputs.SpentByTransaction.Commission", "models.Commission"),
+			},
+			ProvenTx: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Outputs.SpentByTransaction.ProvenTx", "models.ProvenTx"),
+			},
+			Outputs: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Outputs.SpentByTransaction.Outputs", "models.Output"),
+			},
+			Inputs: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Outputs.SpentByTransaction.Inputs", "models.Output"),
+			},
+			Labels: struct {
+				field.RelationField
+				Transactions struct {
+					field.RelationField
+				}
+			}{
+				RelationField: field.NewRelation("Outputs.SpentByTransaction.Labels", "models.TxLabel"),
+				Transactions: struct {
+					field.RelationField
+				}{
+					RelationField: field.NewRelation("Outputs.SpentByTransaction.Labels.Transactions", "models.Transaction"),
+				},
+			},
+		},
 		Basket: struct {
 			field.RelationField
 		}{
@@ -62,23 +125,14 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 			Commission struct {
 				field.RelationField
 			}
+			ProvenTx struct {
+				field.RelationField
+			}
 			Outputs struct {
 				field.RelationField
 			}
 			Inputs struct {
 				field.RelationField
-			}
-			ReservedUtxos struct {
-				field.RelationField
-				Output struct {
-					field.RelationField
-				}
-				Basket struct {
-					field.RelationField
-				}
-				ReservedBy struct {
-					field.RelationField
-				}
 			}
 			Labels struct {
 				field.RelationField
@@ -93,6 +147,11 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 			}{
 				RelationField: field.NewRelation("Outputs.Transaction.Commission", "models.Commission"),
 			},
+			ProvenTx: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Outputs.Transaction.ProvenTx", "models.ProvenTx"),
+			},
 			Outputs: struct {
 				field.RelationField
 			}{
@@ -103,42 +162,13 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 			}{
 				RelationField: field.NewRelation("Outputs.Transaction.Inputs", "models.Output"),
 			},
-			ReservedUtxos: struct {
-				field.RelationField
-				Output struct {
-					field.RelationField
-				}
-				Basket struct {
-					field.RelationField
-				}
-				ReservedBy struct {
-					field.RelationField
-				}
-			}{
-				RelationField: field.NewRelation("Outputs.Transaction.ReservedUtxos", "models.UserUTXO"),
-				Output: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("Outputs.Transaction.ReservedUtxos.Output", "models.Output"),
-				},
-				Basket: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("Outputs.Transaction.ReservedUtxos.Basket", "models.OutputBasket"),
-				},
-				ReservedBy: struct {
-					field.RelationField
-				}{
-					RelationField: field.NewRelation("Outputs.Transaction.ReservedUtxos.ReservedBy", "models.Transaction"),
-				},
-			},
 			Labels: struct {
 				field.RelationField
 				Transactions struct {
 					field.RelationField
 				}
 			}{
-				RelationField: field.NewRelation("Outputs.Transaction.Labels", "models.Label"),
+				RelationField: field.NewRelation("Outputs.Transaction.Labels", "models.TxLabel"),
 				Transactions: struct {
 					field.RelationField
 				}{
@@ -146,20 +176,10 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 				},
 			},
 		},
-		SpentByTransaction: struct {
-			field.RelationField
-		}{
-			RelationField: field.NewRelation("Outputs.SpentByTransaction", "models.Transaction"),
-		},
-		UserUTXO: struct {
-			field.RelationField
-		}{
-			RelationField: field.NewRelation("Outputs.UserUTXO", "models.UserUTXO"),
-		},
 		Tags: struct {
 			field.RelationField
 		}{
-			RelationField: field.NewRelation("Outputs.Tags", "models.Tag"),
+			RelationField: field.NewRelation("Outputs.Tags", "models.OutputTag"),
 		},
 	}
 
@@ -167,18 +187,139 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 		db: db.Session(&gorm.Session{}),
 
 		RelationField: field.NewRelation("Inputs", "models.Output"),
-	}
-
-	_transaction.ReservedUtxos = transactionHasManyReservedUtxos{
-		db: db.Session(&gorm.Session{}),
-
-		RelationField: field.NewRelation("ReservedUtxos", "models.UserUTXO"),
+		SpentByTransaction: struct {
+			field.RelationField
+			Commission struct {
+				field.RelationField
+			}
+			ProvenTx struct {
+				field.RelationField
+			}
+			Outputs struct {
+				field.RelationField
+			}
+			Inputs struct {
+				field.RelationField
+			}
+			Labels struct {
+				field.RelationField
+				Transactions struct {
+					field.RelationField
+				}
+			}
+		}{
+			RelationField: field.NewRelation("Inputs.SpentByTransaction", "models.Transaction"),
+			Commission: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.SpentByTransaction.Commission", "models.Commission"),
+			},
+			ProvenTx: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.SpentByTransaction.ProvenTx", "models.ProvenTx"),
+			},
+			Outputs: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.SpentByTransaction.Outputs", "models.Output"),
+			},
+			Inputs: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.SpentByTransaction.Inputs", "models.Output"),
+			},
+			Labels: struct {
+				field.RelationField
+				Transactions struct {
+					field.RelationField
+				}
+			}{
+				RelationField: field.NewRelation("Inputs.SpentByTransaction.Labels", "models.TxLabel"),
+				Transactions: struct {
+					field.RelationField
+				}{
+					RelationField: field.NewRelation("Inputs.SpentByTransaction.Labels.Transactions", "models.Transaction"),
+				},
+			},
+		},
+		Basket: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("Inputs.Basket", "models.OutputBasket"),
+		},
+		Transaction: struct {
+			field.RelationField
+			Commission struct {
+				field.RelationField
+			}
+			ProvenTx struct {
+				field.RelationField
+			}
+			Outputs struct {
+				field.RelationField
+			}
+			Inputs struct {
+				field.RelationField
+			}
+			Labels struct {
+				field.RelationField
+				Transactions struct {
+					field.RelationField
+				}
+			}
+		}{
+			RelationField: field.NewRelation("Inputs.Transaction", "models.Transaction"),
+			Commission: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.Transaction.Commission", "models.Commission"),
+			},
+			ProvenTx: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.Transaction.ProvenTx", "models.ProvenTx"),
+			},
+			Outputs: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.Transaction.Outputs", "models.Output"),
+			},
+			Inputs: struct {
+				field.RelationField
+			}{
+				RelationField: field.NewRelation("Inputs.Transaction.Inputs", "models.Output"),
+			},
+			Labels: struct {
+				field.RelationField
+				Transactions struct {
+					field.RelationField
+				}
+			}{
+				RelationField: field.NewRelation("Inputs.Transaction.Labels", "models.TxLabel"),
+				Transactions: struct {
+					field.RelationField
+				}{
+					RelationField: field.NewRelation("Inputs.Transaction.Labels.Transactions", "models.Transaction"),
+				},
+			},
+		},
+		Tags: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("Inputs.Tags", "models.OutputTag"),
+		},
 	}
 
 	_transaction.Labels = transactionManyToManyLabels{
 		db: db.Session(&gorm.Session{}),
 
-		RelationField: field.NewRelation("Labels", "models.Label"),
+		RelationField: field.NewRelation("Labels", "models.TxLabel"),
+		Transactions: struct {
+			field.RelationField
+		}{
+			RelationField: field.NewRelation("Labels.Transactions", "models.Transaction"),
+		},
 	}
 
 	_transaction.fillFieldMap()
@@ -189,28 +330,29 @@ func newTransaction(db *gorm.DB, opts ...gen.DOOption) transaction {
 type transaction struct {
 	transactionDo
 
-	ALL         field.Asterisk
-	ID          field.Uint
-	CreatedAt   field.Time
-	UpdatedAt   field.Time
-	DeletedAt   field.Field
-	UserID      field.Int
-	Status      field.String
-	Reference   field.String
-	IsOutgoing  field.Bool
-	Satoshis    field.Int64
-	Description field.String
-	Version     field.Uint32
-	LockTime    field.Uint32
-	TxID        field.String
-	InputBeef   field.Bytes
-	Commission  transactionHasOneCommission
+	ALL           field.Asterisk
+	CreatedAt     field.Time
+	UpdatedAt     field.Time
+	TransactionID field.Uint
+	UserID        field.Int
+	Status        field.String
+	Reference     field.String
+	IsOutgoing    field.Bool
+	Satoshis      field.Int64
+	Description   field.String
+	Version       field.Uint32
+	LockTime      field.Uint32
+	TxID          field.String
+	InputBeef     field.Bytes
+	ProvenTxID    field.Uint
+	RawTx         field.Bytes
+	Commission    transactionHasOneCommission
+
+	ProvenTx transactionHasOneProvenTx
 
 	Outputs transactionHasManyOutputs
 
 	Inputs transactionHasManyInputs
-
-	ReservedUtxos transactionHasManyReservedUtxos
 
 	Labels transactionManyToManyLabels
 
@@ -223,26 +365,27 @@ func (t transaction) Table(newTableName string) *transaction {
 }
 
 func (t transaction) As(alias string) *transaction {
-	t.transactionDo.DO = *t.transactionDo.As(alias).(*gen.DO)
+	t.transactionDo.DO = *(t.transactionDo.As(alias).(*gen.DO))
 	return t.updateTableName(alias)
 }
 
 func (t *transaction) updateTableName(table string) *transaction {
 	t.ALL = field.NewAsterisk(table)
-	t.ID = field.NewUint(table, "id")
 	t.CreatedAt = field.NewTime(table, "created_at")
 	t.UpdatedAt = field.NewTime(table, "updated_at")
-	t.DeletedAt = field.NewField(table, "deleted_at")
-	t.UserID = field.NewInt(table, "user_id")
+	t.TransactionID = field.NewUint(table, "transactionId")
+	t.UserID = field.NewInt(table, "userId")
 	t.Status = field.NewString(table, "status")
 	t.Reference = field.NewString(table, "reference")
-	t.IsOutgoing = field.NewBool(table, "is_outgoing")
+	t.IsOutgoing = field.NewBool(table, "isOutgoing")
 	t.Satoshis = field.NewInt64(table, "satoshis")
 	t.Description = field.NewString(table, "description")
 	t.Version = field.NewUint32(table, "version")
-	t.LockTime = field.NewUint32(table, "lock_time")
-	t.TxID = field.NewString(table, "tx_id")
-	t.InputBeef = field.NewBytes(table, "input_beef")
+	t.LockTime = field.NewUint32(table, "lockTime")
+	t.TxID = field.NewString(table, "txid")
+	t.InputBeef = field.NewBytes(table, "inputBeef")
+	t.ProvenTxID = field.NewUint(table, "provenTxId")
+	t.RawTx = field.NewBytes(table, "rawTx")
 
 	t.fillFieldMap()
 
@@ -259,33 +402,35 @@ func (t *transaction) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (t *transaction) fillFieldMap() {
-	t.fieldMap = make(map[string]field.Expr, 19)
-	t.fieldMap["id"] = t.ID
+	t.fieldMap = make(map[string]field.Expr, 20)
 	t.fieldMap["created_at"] = t.CreatedAt
 	t.fieldMap["updated_at"] = t.UpdatedAt
-	t.fieldMap["deleted_at"] = t.DeletedAt
-	t.fieldMap["user_id"] = t.UserID
+	t.fieldMap["transactionId"] = t.TransactionID
+	t.fieldMap["userId"] = t.UserID
 	t.fieldMap["status"] = t.Status
 	t.fieldMap["reference"] = t.Reference
-	t.fieldMap["is_outgoing"] = t.IsOutgoing
+	t.fieldMap["isOutgoing"] = t.IsOutgoing
 	t.fieldMap["satoshis"] = t.Satoshis
 	t.fieldMap["description"] = t.Description
 	t.fieldMap["version"] = t.Version
-	t.fieldMap["lock_time"] = t.LockTime
-	t.fieldMap["tx_id"] = t.TxID
-	t.fieldMap["input_beef"] = t.InputBeef
+	t.fieldMap["lockTime"] = t.LockTime
+	t.fieldMap["txid"] = t.TxID
+	t.fieldMap["inputBeef"] = t.InputBeef
+	t.fieldMap["provenTxId"] = t.ProvenTxID
+	t.fieldMap["rawTx"] = t.RawTx
+
 }
 
 func (t transaction) clone(db *gorm.DB) transaction {
 	t.transactionDo.ReplaceConnPool(db.Statement.ConnPool)
 	t.Commission.db = db.Session(&gorm.Session{Initialized: true})
 	t.Commission.db.Statement.ConnPool = db.Statement.ConnPool
+	t.ProvenTx.db = db.Session(&gorm.Session{Initialized: true})
+	t.ProvenTx.db.Statement.ConnPool = db.Statement.ConnPool
 	t.Outputs.db = db.Session(&gorm.Session{Initialized: true})
 	t.Outputs.db.Statement.ConnPool = db.Statement.ConnPool
 	t.Inputs.db = db.Session(&gorm.Session{Initialized: true})
 	t.Inputs.db.Statement.ConnPool = db.Statement.ConnPool
-	t.ReservedUtxos.db = db.Session(&gorm.Session{Initialized: true})
-	t.ReservedUtxos.db.Statement.ConnPool = db.Statement.ConnPool
 	t.Labels.db = db.Session(&gorm.Session{Initialized: true})
 	t.Labels.db.Statement.ConnPool = db.Statement.ConnPool
 	return t
@@ -294,9 +439,9 @@ func (t transaction) clone(db *gorm.DB) transaction {
 func (t transaction) replaceDB(db *gorm.DB) transaction {
 	t.transactionDo.ReplaceDB(db)
 	t.Commission.db = db.Session(&gorm.Session{})
+	t.ProvenTx.db = db.Session(&gorm.Session{})
 	t.Outputs.db = db.Session(&gorm.Session{})
 	t.Inputs.db = db.Session(&gorm.Session{})
-	t.ReservedUtxos.db = db.Session(&gorm.Session{})
 	t.Labels.db = db.Session(&gorm.Session{})
 	return t
 }
@@ -382,17 +527,98 @@ func (a transactionHasOneCommissionTx) Unscoped() *transactionHasOneCommissionTx
 	return &a
 }
 
+type transactionHasOneProvenTx struct {
+	db *gorm.DB
+
+	field.RelationField
+}
+
+func (a transactionHasOneProvenTx) Where(conds ...field.Expr) *transactionHasOneProvenTx {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a transactionHasOneProvenTx) WithContext(ctx context.Context) *transactionHasOneProvenTx {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a transactionHasOneProvenTx) Session(session *gorm.Session) *transactionHasOneProvenTx {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a transactionHasOneProvenTx) Model(m *models.Transaction) *transactionHasOneProvenTxTx {
+	return &transactionHasOneProvenTxTx{a.db.Model(m).Association(a.Name())}
+}
+
+func (a transactionHasOneProvenTx) Unscoped() *transactionHasOneProvenTx {
+	a.db = a.db.Unscoped()
+	return &a
+}
+
+type transactionHasOneProvenTxTx struct{ tx *gorm.Association }
+
+func (a transactionHasOneProvenTxTx) Find() (result *models.ProvenTx, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a transactionHasOneProvenTxTx) Append(values ...*models.ProvenTx) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a transactionHasOneProvenTxTx) Replace(values ...*models.ProvenTx) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a transactionHasOneProvenTxTx) Delete(values ...*models.ProvenTx) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a transactionHasOneProvenTxTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a transactionHasOneProvenTxTx) Count() int64 {
+	return a.tx.Count()
+}
+
+func (a transactionHasOneProvenTxTx) Unscoped() *transactionHasOneProvenTxTx {
+	a.tx = a.tx.Unscoped()
+	return &a
+}
+
 type transactionHasManyOutputs struct {
 	db *gorm.DB
 
 	field.RelationField
 
-	Basket struct {
-		field.RelationField
-	}
-	Transaction struct {
+	SpentByTransaction struct {
 		field.RelationField
 		Commission struct {
+			field.RelationField
+		}
+		ProvenTx struct {
 			field.RelationField
 		}
 		Outputs struct {
@@ -401,18 +627,6 @@ type transactionHasManyOutputs struct {
 		Inputs struct {
 			field.RelationField
 		}
-		ReservedUtxos struct {
-			field.RelationField
-			Output struct {
-				field.RelationField
-			}
-			Basket struct {
-				field.RelationField
-			}
-			ReservedBy struct {
-				field.RelationField
-			}
-		}
 		Labels struct {
 			field.RelationField
 			Transactions struct {
@@ -420,11 +634,29 @@ type transactionHasManyOutputs struct {
 			}
 		}
 	}
-	SpentByTransaction struct {
+	Basket struct {
 		field.RelationField
 	}
-	UserUTXO struct {
+	Transaction struct {
 		field.RelationField
+		Commission struct {
+			field.RelationField
+		}
+		ProvenTx struct {
+			field.RelationField
+		}
+		Outputs struct {
+			field.RelationField
+		}
+		Inputs struct {
+			field.RelationField
+		}
+		Labels struct {
+			field.RelationField
+			Transactions struct {
+				field.RelationField
+			}
+		}
 	}
 	Tags struct {
 		field.RelationField
@@ -510,6 +742,55 @@ type transactionHasManyInputs struct {
 	db *gorm.DB
 
 	field.RelationField
+
+	SpentByTransaction struct {
+		field.RelationField
+		Commission struct {
+			field.RelationField
+		}
+		ProvenTx struct {
+			field.RelationField
+		}
+		Outputs struct {
+			field.RelationField
+		}
+		Inputs struct {
+			field.RelationField
+		}
+		Labels struct {
+			field.RelationField
+			Transactions struct {
+				field.RelationField
+			}
+		}
+	}
+	Basket struct {
+		field.RelationField
+	}
+	Transaction struct {
+		field.RelationField
+		Commission struct {
+			field.RelationField
+		}
+		ProvenTx struct {
+			field.RelationField
+		}
+		Outputs struct {
+			field.RelationField
+		}
+		Inputs struct {
+			field.RelationField
+		}
+		Labels struct {
+			field.RelationField
+			Transactions struct {
+				field.RelationField
+			}
+		}
+	}
+	Tags struct {
+		field.RelationField
+	}
 }
 
 func (a transactionHasManyInputs) Where(conds ...field.Expr) *transactionHasManyInputs {
@@ -587,91 +868,14 @@ func (a transactionHasManyInputsTx) Unscoped() *transactionHasManyInputsTx {
 	return &a
 }
 
-type transactionHasManyReservedUtxos struct {
-	db *gorm.DB
-
-	field.RelationField
-}
-
-func (a transactionHasManyReservedUtxos) Where(conds ...field.Expr) *transactionHasManyReservedUtxos {
-	if len(conds) == 0 {
-		return &a
-	}
-
-	exprs := make([]clause.Expression, 0, len(conds))
-	for _, cond := range conds {
-		exprs = append(exprs, cond.BeCond().(clause.Expression))
-	}
-	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
-	return &a
-}
-
-func (a transactionHasManyReservedUtxos) WithContext(ctx context.Context) *transactionHasManyReservedUtxos {
-	a.db = a.db.WithContext(ctx)
-	return &a
-}
-
-func (a transactionHasManyReservedUtxos) Session(session *gorm.Session) *transactionHasManyReservedUtxos {
-	a.db = a.db.Session(session)
-	return &a
-}
-
-func (a transactionHasManyReservedUtxos) Model(m *models.Transaction) *transactionHasManyReservedUtxosTx {
-	return &transactionHasManyReservedUtxosTx{a.db.Model(m).Association(a.Name())}
-}
-
-func (a transactionHasManyReservedUtxos) Unscoped() *transactionHasManyReservedUtxos {
-	a.db = a.db.Unscoped()
-	return &a
-}
-
-type transactionHasManyReservedUtxosTx struct{ tx *gorm.Association }
-
-func (a transactionHasManyReservedUtxosTx) Find() (result []*models.UserUTXO, err error) {
-	return result, a.tx.Find(&result)
-}
-
-func (a transactionHasManyReservedUtxosTx) Append(values ...*models.UserUTXO) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Append(targetValues...)
-}
-
-func (a transactionHasManyReservedUtxosTx) Replace(values ...*models.UserUTXO) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Replace(targetValues...)
-}
-
-func (a transactionHasManyReservedUtxosTx) Delete(values ...*models.UserUTXO) (err error) {
-	targetValues := make([]interface{}, len(values))
-	for i, v := range values {
-		targetValues[i] = v
-	}
-	return a.tx.Delete(targetValues...)
-}
-
-func (a transactionHasManyReservedUtxosTx) Clear() error {
-	return a.tx.Clear()
-}
-
-func (a transactionHasManyReservedUtxosTx) Count() int64 {
-	return a.tx.Count()
-}
-
-func (a transactionHasManyReservedUtxosTx) Unscoped() *transactionHasManyReservedUtxosTx {
-	a.tx = a.tx.Unscoped()
-	return &a
-}
-
 type transactionManyToManyLabels struct {
 	db *gorm.DB
 
 	field.RelationField
+
+	Transactions struct {
+		field.RelationField
+	}
 }
 
 func (a transactionManyToManyLabels) Where(conds ...field.Expr) *transactionManyToManyLabels {
@@ -708,11 +912,11 @@ func (a transactionManyToManyLabels) Unscoped() *transactionManyToManyLabels {
 
 type transactionManyToManyLabelsTx struct{ tx *gorm.Association }
 
-func (a transactionManyToManyLabelsTx) Find() (result []*models.Label, err error) {
+func (a transactionManyToManyLabelsTx) Find() (result []*models.TxLabel, err error) {
 	return result, a.tx.Find(&result)
 }
 
-func (a transactionManyToManyLabelsTx) Append(values ...*models.Label) (err error) {
+func (a transactionManyToManyLabelsTx) Append(values ...*models.TxLabel) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -720,7 +924,7 @@ func (a transactionManyToManyLabelsTx) Append(values ...*models.Label) (err erro
 	return a.tx.Append(targetValues...)
 }
 
-func (a transactionManyToManyLabelsTx) Replace(values ...*models.Label) (err error) {
+func (a transactionManyToManyLabelsTx) Replace(values ...*models.TxLabel) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v
@@ -728,7 +932,7 @@ func (a transactionManyToManyLabelsTx) Replace(values ...*models.Label) (err err
 	return a.tx.Replace(targetValues...)
 }
 
-func (a transactionManyToManyLabelsTx) Delete(values ...*models.Label) (err error) {
+func (a transactionManyToManyLabelsTx) Delete(values ...*models.TxLabel) (err error) {
 	targetValues := make([]interface{}, len(values))
 	for i, v := range values {
 		targetValues[i] = v

@@ -9,7 +9,7 @@ This change is anchored to the TS schema at a specific commit. All conformance w
 - Commit: `7a840ff97e1f685f778210818933e6da0dac22c2` (HEAD of `main` at Wave 0 start)
 - Path: `packages/wallet/wallet-toolbox/src/storage/schema/KnexMigrations.ts`
 - Date pinned: 2026-07-06
-- Local checkout used for extraction: `/Users/personal/git/ts-stack`
+- Local checkout used for extraction: `/Users/pawellewandowski/gignative/bitcoin-sv/toolbox/ts-stack`
 
 ## Schema-pin vs conformance-vector-pin (MUST reconcile in Wave 0)
 

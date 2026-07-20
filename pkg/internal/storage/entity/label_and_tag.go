@@ -4,36 +4,40 @@ import (
 	"time"
 )
 
-type Label struct {
+type TxLabel struct {
+	ID        uint
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Name   string
-	UserID int
+	Label     string
+	UserID    int
+	IsDeleted bool
 }
 
-type LabelMap struct {
+type TxLabelsMap struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Name          string
-	UserID        int
+	TxLabelID     uint
 	TransactionID uint
+	IsDeleted     bool
 }
 
-type Tag struct {
+type OutputTag struct {
+	ID        uint
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Name   string
-	UserID int
+	Tag       string
+	UserID    int
+	IsDeleted bool
 }
 
-type TagMap struct {
+type OutputTagsMap struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Name     string
-	UserID   int
-	OutputID uint
+	OutputTagID uint
+	OutputID    uint
+	IsDeleted   bool
 }

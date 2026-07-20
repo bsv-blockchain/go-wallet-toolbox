@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,7 +21,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -87,35 +85,16 @@ func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx)
 		return fmt.Errorf("failed to create new transaction model: %w", err)
 	}
 
-	if err = txs.reserveUTXOs(tx, model.ID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
-		return err
-	}
+	
 
-	if err = txs.markReservedOutputsAsNotSpendable(tx, model.ID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
+	if err = txs.markReservedOutputsAsNotSpendable(tx, model.TransactionID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
 		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
 	}
 
 	return nil
 }
 
-// reserveUTXOs atomically reserves UTXOs for a transaction with a guard to detect concurrent reservation.
-// Returns ErrUTXOContention if another transaction already reserved any of the requested UTXOs.
-func (txs *Transactions) reserveUTXOs(tx *gorm.DB, transactionID uint, userID int, outputIDs []uint) error {
-	if len(outputIDs) == 0 {
-		return nil
-	}
 
-	result := tx.Model(&models.UserUTXO{}).
-		Where("user_id = ? AND output_id IN ? AND reserved_by_id IS NULL", userID, outputIDs).
-		Update("reserved_by_id", transactionID)
-	if result.Error != nil {
-		return fmt.Errorf("failed to reserve UTXOs: %w", result.Error)
-	}
-	if result.RowsAffected != int64(len(outputIDs)) {
-		return fmt.Errorf("%w: expected %d, got %d", ErrUTXOContention, len(outputIDs), result.RowsAffected)
-	}
-	return nil
-}
 
 func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transaction, error) {
 	outputs, err := slices.MapOrError(newTx.Outputs, func(output *entity.NewOutput) (*models.Output, error) {
@@ -131,13 +110,13 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 		IsOutgoing:  newTx.IsOutgoing,
 		Satoshis:    newTx.Satoshis,
 		Description: newTx.Description,
-		Version:     newTx.Version,
-		LockTime:    newTx.LockTime,
+		Version:            ptrUint32(newTx.Version),
+		LockTime:           ptrUint32(newTx.LockTime),
 		InputBeef:   newTx.InputBeef,
 		TxID:        newTx.TxID,
-		Labels: slices.Map(newTx.Labels, func(label primitives.StringUnder300) *models.Label {
-			return &models.Label{
-				Name:   string(label),
+		Labels: slices.Map(newTx.Labels, func(label primitives.StringUnder300) *models.TxLabel {
+			return &models.TxLabel{
+				Label:   string(label),
 				UserID: newTx.UserID,
 			}
 		}),
@@ -145,7 +124,7 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 		Commission: to.If(newTx.Commission != nil, func() *models.Commission {
 			return &models.Commission{
 				UserID:        newTx.UserID,
-				Satoshis:      newTx.Commission.Satoshis,
+				Satoshis:      int(newTx.Commission.Satoshis),
 				KeyOffset:     newTx.Commission.KeyOffset,
 				IsRedeemed:    newTx.Commission.IsRedeemed,
 				LockingScript: newTx.Commission.LockingScript,
@@ -157,27 +136,14 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 }
 
 func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.NewTx, model *models.Transaction) error {
-	basketMaker := newCachedBasketMaker(tx, newTx.UserID)
-	for _, out := range model.Outputs {
-		if out.BasketName == nil || *out.BasketName == "" {
-			continue
-		}
-		err := basketMaker.createIfNotExist(tx, *out.BasketName, wdk.NonChangeBasketConfiguration.NumberOfDesiredUTXOs, wdk.NonChangeBasketConfiguration.MinimumDesiredUTXOValue)
-		if err != nil {
-			return fmt.Errorf("failed to find or create output basket: %w", err)
-		}
-
-		if out.UserUTXO != nil {
-			out.UserUTXO.BasketName = *out.BasketName
-		}
-	}
+	// TODO: Fix basket association if needed
 	return nil
 }
 
 func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput, utxoStatus wdk.UTXOStatus) (*models.Output, error) {
-	tags := slices.Map(output.Tags, func(tag string) *models.Tag {
-		return &models.Tag{
-			Name:   tag,
+	tags := slices.Map(output.Tags, func(tag string) *models.OutputTag {
+		return &models.OutputTag{
+			Tag:   tag,
 			UserID: userID,
 		}
 	})
@@ -206,28 +172,9 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput, utx
 		LockingScript:      lockingScript,
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
-		BasketName:         output.BasketName,
+		BasketID:           output.BasketID,
+		
 		Tags:               tags,
-	}
-
-	if out.Spendable && out.Change {
-		if is.EmptyString(output.BasketName) {
-			return nil, fmt.Errorf("basket not provided for change output")
-		}
-		if out.Satoshis == 0 {
-			return nil, fmt.Errorf("change output with zero satoshis")
-		}
-		sats, err := to.UInt64(out.Satoshis)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert satoshis to uint64: %w", err)
-		}
-
-		out.UserUTXO = &models.UserUTXO{
-			UserID:             userID,
-			Satoshis:           sats,
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(output.Type),
-			UTXOStatus:         utxoStatus,
-		}
 	}
 	return &out, nil
 }
@@ -238,12 +185,12 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 	}
 
 	err := tx.Model(&models.Output{}).
-		Where("id IN ?", outputIDs).
-		Where("user_id = ?", userID).
-		Where("spent_by IS NULL").
+		Where("outputId IN ?", outputIDs).
+		Where("userId = ?", userID).
+		Where("spentBy IS NULL").
 		Updates(map[string]interface{}{
 			"spendable": false,
-			"spent_by":  spendingTransactionID,
+			"spentBy":  spendingTransactionID,
 		}).
 		Error
 	if err != nil {
@@ -260,7 +207,7 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 	}()
 
 	var transaction models.Transaction
-	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("tx_id = ?", txID).Preload("Labels").First(&transaction).Error
+	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("txid = ?", txID).Preload("Labels").First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = nil
@@ -281,7 +228,7 @@ func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID stri
 
 	var transactions []*models.Transaction
 	err = txs.db.WithContext(ctx).
-		Select(txs.query.Transaction.ID.ColumnName().String()).
+		Select(txs.query.Transaction.TransactionID.ColumnName().String()).
 		Where(txs.query.Transaction.TxID.Eq(txID)).
 		Find(&transactions).Error
 	if err != nil {
@@ -289,7 +236,7 @@ func (txs *Transactions) FindTransactionIDsByTxID(ctx context.Context, txID stri
 	}
 
 	return slices.Map(transactions, func(tx *models.Transaction) uint {
-		return tx.ID
+		return tx.TransactionID
 	}), nil
 }
 
@@ -306,8 +253,8 @@ func (txs *Transactions) FindReferencesByTxIDs(ctx context.Context, txIDs []stri
 
 	var transactions []*models.Transaction
 	err = txs.db.WithContext(ctx).
-		Select("tx_id", "reference").
-		Where("tx_id IN ?", txIDs).
+		Select("txid", "reference").
+		Where("txid IN ?", txIDs).
 		Find(&transactions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find references by TxIDs: %w", err)
@@ -359,27 +306,24 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
 		err = tx.Model(models.Transaction{}).
 			Scopes(scopes.UserID(updatedTx.UserID)).
-			Where("id = ?", updatedTx.TransactionID).
+			Where("transactionId = ?", updatedTx.TransactionID).
 			Updates(map[string]any{
-				"tx_id":      updatedTx.TxID,
-				"input_beef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the KnownTx (storage-wide)
+				"txid":       updatedTx.TxID,
+				"inputBeef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the KnownTx (storage-wide)
 				"status":     updatedTx.TxStatus,
 			}).Error
 		if err != nil {
 			return err
 		}
 
-		err = tx.Delete(models.UserUTXO{}, "reserved_by_id = ?", updatedTx.TransactionID).Error
-		if err != nil {
-			return err
-		}
+		
 
 		var changeOutputs []*models.Output
 		err = tx.Model(&models.Output{}).
-			Select(txs.query.Output.ID.ColumnName().String(), txs.query.Output.Vout.ColumnName().String()).
+			Select(txs.query.Output.TransactionID.ColumnName().String(), txs.query.Output.Vout.ColumnName().String()).
 			Scopes(scopes.UserID(updatedTx.UserID)).
 			Where(txs.query.Output.TransactionID.Eq(updatedTx.TransactionID)).
-			Where(txs.query.Output.BasketName.IsNotNull()).
+			Where(txs.query.Output.BasketID.IsNotNull()).
 			Where(txs.query.Output.Change.Is(true)).
 			Where(txs.query.Output.Satoshis.Gt(0)).
 			Where(txs.query.Output.SpentBy.IsNull()).
@@ -395,7 +339,7 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			}
 
 			err = tx.Model(&models.Output{}).
-				Where("id = ?", output.ID).
+				Where("outputId = ?", output.OutputID).
 				Updates(map[string]any{
 					txs.query.Output.LockingScript.ColumnName().String(): lockingScript,
 				}).Error
@@ -404,7 +348,7 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			}
 		}
 
-		return upsertKnownTx(tx, &entity.UpsertKnownTx{
+		return upsertProvenTxReq(tx, &entity.UpsertProvenTxReq{
 			TxID:            updatedTx.TxID,
 			Status:          updatedTx.ReqTxStatus,
 			RawTx:           updatedTx.RawTx,
@@ -426,7 +370,7 @@ func (txs *Transactions) UpdateTransactionStatusByTxID(ctx context.Context, txID
 	}()
 
 	err = txs.db.WithContext(ctx).Model(models.Transaction{}).
-		Where("tx_id = ?", txID).
+		Where("txid = ?", txID).
 		Updates(map[string]any{
 			"status": txStatus,
 		}).Error
@@ -446,7 +390,7 @@ func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transa
 
 	table := txs.query.Transaction
 	_, err = table.WithContext(ctx).
-		Where(table.ID.Eq(transactionID)).
+		Where(table.TransactionID.Eq(transactionID)).
 		Update(table.Status, txStatus)
 	if err != nil {
 		return fmt.Errorf("update query for transaction status failed: %w", err)
@@ -456,7 +400,7 @@ func (txs *Transactions) UpdateTransactionStatusByID(ctx context.Context, transa
 
 func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) *pkgentity.Transaction {
 	return &pkgentity.Transaction{
-		ID:          model.ID,
+		ID:          model.TransactionID,
 		CreatedAt:   model.CreatedAt,
 		UpdatedAt:   model.UpdatedAt,
 		UserID:      model.UserID,
@@ -469,8 +413,8 @@ func (txs *Transactions) mapModelToTransactionEntity(model *models.Transaction) 
 		LockTime:    model.LockTime,
 		TxID:        model.TxID,
 		InputBEEF:   model.InputBeef,
-		Labels: slices.Map(model.Labels, func(label *models.Label) string {
-			return label.Name
+		Labels: slices.Map(model.Labels, func(label *models.TxLabel) string {
+			return label.Label
 		}),
 	}
 }
@@ -487,7 +431,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.Model(&models.Transaction{}).
-			Where("user_id = ?", userID)
+			Where("userId = ?", userID)
 
 		if len(filter.Status) > 0 {
 			query = query.Where("status IN ?", filter.Status)
@@ -508,7 +452,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		if err = query.
 			Limit(filter.Limit).
 			Offset(filter.Offset).
-			Order("id ASC").
+			Order("transactionId ASC").
 			Find(&actions).Error; err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
@@ -522,13 +466,13 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 	return slices.Map(actions, txs.mapModelToTransactionEntity), total, nil
 }
 
-// buildSelectedActionsSubQuery constructs a subquery selecting the current page of actions (id, tx_id)
+// buildSelectedActionsSubQuery constructs a subquery selecting the current page of actions (transactionId, txid)
 // matching the provided filter. It mirrors ListAndCountActions ordering and pagination so it can be
 // reused in JOINs to avoid large IN (...) clauses.
 func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, filter entity.ListActionsFilter) *gorm.DB {
 	query := tx.Model(&models.Transaction{}).
-		Select("id, tx_id").
-		Where("user_id = ?", userID)
+		Select("transactionId, txid").
+		Where("userId = ?", userID)
 
 	if len(filter.Status) > 0 {
 		query = query.Where("status IN ?", filter.Status)
@@ -537,7 +481,7 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 	}
 
-	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+	return query.Order("transactionId ASC").Limit(filter.Limit).Offset(filter.Offset)
 }
 
 // GetLabelsForSelectedActions fetches labels via JOIN with the selected actions subquery to avoid IN lists.
@@ -553,12 +497,14 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 		selected := txs.buildSelectedActionsSubQuery(tx, userID, filter)
 		var closeErr error
 		var rows *sql.Rows
-		rows, err = tx.Table("bsv_transaction_labels tl").
-			Select("tl.transaction_id, tl.label_name").
-			Joins("JOIN (?) s ON s.id = tl.transaction_id", selected).
-			Where("tl.label_name IS NOT NULL").
-			Where("tl.deleted_at IS NULL").
-			Rows()
+		rows, err = tx.Table("bsv_tx_labels tl").
+				Select("tlm.transaction_id, tl.label AS label_name").
+				Joins("JOIN bsv_tx_labels_map tlm ON tlm.tx_label_id = tl.txLabelId").
+				Joins("JOIN (?) s ON s.transactionId = tlm.transaction_id", selected).
+				Where("tl.label IS NOT NULL").
+				Where("tl.isDeleted = ?", false).
+				Where("tlm.isDeleted = ?", false).
+				Rows()
 		if err != nil {
 			return fmt.Errorf("failed to query labels rows: %w", err)
 		}
@@ -605,9 +551,9 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 
 	var rows []resultRow
 	err = txs.db.WithContext(ctx).
-		Model(&models.TransactionLabel{}).
+		Model(&models.TxLabelsMap{}).
 		Select("transaction_id, label_name").
-		Where("transaction_id IN ?", txIDs).
+		Where("transactionId IN ?", txIDs).
 		Where("label_name IS NOT NULL").
 		Scan(&rows).Error
 	if err != nil {
@@ -639,13 +585,15 @@ func (txs *Transactions) GetLabelsForTxIDs(ctx context.Context, txIDs []string) 
 
 	var rows []resultRow
 	err = txs.db.WithContext(ctx).
-		Table("bsv_transactions t").
-		Select("t.tx_id, tl.label_name").
-		Joins("JOIN bsv_transaction_labels tl ON tl.transaction_id = t.id").
-		Where("t.tx_id IN ?", txIDs).
-		Where("tl.label_name IS NOT NULL").
-		Where("tl.deleted_at IS NULL").
-		Scan(&rows).Error
+			Table("bsv_transactions t").
+			Select("t.txid, tl.label AS label_name").
+			Joins("JOIN bsv_tx_labels_map tlm ON tlm.transaction_id = t.transactionId").
+			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.tx_label_id").
+			Where("t.txid IN ?", txIDs).
+			Where("tl.label IS NOT NULL").
+			Where("tl.isDeleted = ?", false).
+			Where("tlm.isDeleted = ?", false).
+			Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to batch fetch labels by txID: %w", err)
 	}
@@ -665,8 +613,8 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 	}()
 
 	newLabels := slices.Map(labels, func(value string) any {
-		return &models.Label{
-			Name:   value,
+		return &models.TxLabel{
+			Label:   value,
 			UserID: userID,
 		}
 	})
@@ -676,7 +624,7 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err = tx.Model(models.Transaction{}).
 			Select("*").
-			Where("id = ?", transactionID).
+			Where("transactionId = ?", transactionID).
 			Preload("Labels").
 			First(&transactionModel).Error
 		if err != nil {
@@ -703,16 +651,19 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 
 func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.TransactionLabel{}).
-			Select("transaction_id").
-			Where("label_name IN ?", filter.Labels).
-			Where("label_user_id = ?", userID)
+		subQuery := tx.Table("bsv_tx_labels_map tlm").
+			Select("tlm.transaction_id").
+			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.tx_label_id").
+			Where("tl.label IN ?", filter.Labels).
+			Where("tl.userId = ?", userID).
+			Where("tl.isDeleted = ?", false).
+			Where("tlm.isDeleted = ?", false)
 
 		if filter.LabelQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+			subQuery = subQuery.Group("tlm.transaction_id").Having("COUNT(DISTINCT tl.label) = ?", len(filter.Labels))
 		}
 
-		return query.Where("id IN (?)", subQuery)
+		return query.Where("bsv_transactions.transactionId IN (?)", subQuery)
 	}
 }
 
@@ -725,7 +676,7 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 
 	table := &txs.query.Transaction
 	rows, err := table.WithContext(ctx).
-		Select(table.ID).
+		Select(table.TransactionID).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
 		Where(table.Status.In(slices.Map(txStatus, func(txStatus wdk.TxStatus) string { return string(txStatus) })...)).
 		Find()
@@ -734,7 +685,7 @@ func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txSta
 	}
 
 	return slices.Map(rows, func(row *models.Transaction) uint {
-		return row.ID
+		return row.TransactionID
 	}), nil
 }
 
@@ -746,12 +697,12 @@ func (txs *Transactions) FindTransactionIDsForAbort(ctx context.Context, opts ..
 	}()
 
 	txTable := txs.query.Transaction.TableName()
-	knownTxTable := txs.query.KnownTx.TableName()
+	knownTxTable := txs.query.ProvenTxReq.TableName()
 
 	query := txs.db.WithContext(ctx).
 		Model(&models.Transaction{}).
 		Select(txTable+".id").
-		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.tx_id = %s.tx_id", knownTxTable, knownTxTable, txTable)).
+		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.txid = %s.txid", knownTxTable, knownTxTable, txTable)).
 		Where(
 			fmt.Sprintf(
 				"(%s.status = ? OR (%s.status = ? AND COALESCE(%s.status, ?) = ?))",
@@ -781,7 +732,7 @@ func (txs *Transactions) FindTransactionIDsForAbort(ctx context.Context, opts ..
 	}
 
 	return slices.Map(rows, func(row *models.Transaction) uint {
-		return row.ID
+		return row.TransactionID
 	}), nil
 }
 
@@ -808,8 +759,8 @@ func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Trans
 		IsOutgoing:  tx.IsOutgoing,
 		Satoshis:    tx.Satoshis,
 		Description: tx.Description,
-		Version:     tx.Version,
-		LockTime:    tx.LockTime,
+		Version:            derefUint32(tx.Version),
+		LockTime:           derefUint32(tx.LockTime),
 		TxID:        tx.TxID,
 		Labels:      labels,
 	}
@@ -838,7 +789,7 @@ func (txs *Transactions) UpdateTransaction(ctx context.Context, spec *pkgentity.
 		return nil
 	}
 
-	_, err = table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	_, err = table.WithContext(ctx).Where(table.TransactionID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
@@ -894,7 +845,7 @@ func (txs *Transactions) conditionsBySpec(ctx context.Context, spec *pkgentity.T
 
 	table := &txs.query.Transaction
 	if spec.ID != nil {
-		return []gen.Condition{table.ID.Eq(*spec.ID)}
+		return []gen.Condition{table.TransactionID.Eq(*spec.ID)}
 	}
 
 	var conditions []gen.Condition
@@ -913,6 +864,9 @@ func (txs *Transactions) conditionsBySpec(ctx context.Context, spec *pkgentity.T
 	if spec.Satoshis != nil {
 		conditions = append(conditions, cmpCondition(table.Satoshis, spec.Satoshis))
 	}
+	if spec.ID != nil {
+		conditions = append(conditions, table.TransactionID.Eq(*spec.ID))
+	}
 	if spec.TxID != nil {
 		conditions = append(conditions, cmpCondition(table.TxID, spec.TxID))
 	}
@@ -929,12 +883,13 @@ func (txs *Transactions) conditionsBySpec(ctx context.Context, spec *pkgentity.T
 func (txs *Transactions) labelConditions(ctx context.Context, labels *pkgentity.ComparableSet[string]) []gen.Condition {
 	var conds []gen.Condition
 	table := &txs.query.Transaction
-	txl := &txs.query.TransactionLabel
+	tl := &txs.query.TxLabel
+	txl := &txs.query.TxLabelsMap
 
 	if labels.Empty {
 		sub := txl.WithContext(ctx).
 			Select(txl.TransactionID).
-			Where(txl.TransactionID.EqCol(table.ID))
+			Where(txl.TransactionID.EqCol(table.TransactionID))
 
 		return []gen.Condition{
 			field.Not(field.CompareSubQuery(field.ExistsOp, nil, sub.UnderlyingDB())),
@@ -943,10 +898,11 @@ func (txs *Transactions) labelConditions(ctx context.Context, labels *pkgentity.
 
 	if len(labels.ContainAny) > 0 {
 		sub := txl.WithContext(ctx).
+			Join(tl, tl.TxLabelID.EqCol(txl.TxLabelID)).
 			Select(txl.TransactionID).
 			Where(
-				txl.LabelName.In(labels.ContainAny...),
-				txl.TransactionID.EqCol(table.ID),
+				tl.Label.In(labels.ContainAny...),
+				txl.TransactionID.EqCol(table.TransactionID),
 			)
 		conds = append(conds, gen.Exists(sub))
 	}
@@ -954,14 +910,27 @@ func (txs *Transactions) labelConditions(ctx context.Context, labels *pkgentity.
 	if len(labels.ContainAll) > 0 {
 		for _, label := range labels.ContainAll {
 			sub := txl.WithContext(ctx).
+				Join(tl, tl.TxLabelID.EqCol(txl.TxLabelID)).
 				Select(txl.TransactionID).
 				Where(
-					txl.LabelName.Eq(label),
-					txl.TransactionID.EqCol(table.ID),
+					tl.Label.Eq(label),
+					txl.TransactionID.EqCol(table.TransactionID),
 				)
 			conds = append(conds, gen.Exists(sub))
 		}
 	}
 
 	return conds
+}
+
+
+func derefUint32(v *uint32) uint32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func ptrUint32(v uint32) *uint32 {
+	return &v
 }

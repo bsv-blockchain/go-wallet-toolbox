@@ -18,7 +18,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testhelper"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -34,7 +33,7 @@ type faucetFixture struct {
 	index      int
 }
 
-func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO) {
+func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.Output) {
 	f.t.Helper()
 
 	options := to.OptionsWithDefault(TopUpOptions{
@@ -69,7 +68,7 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	beef, err := txObj.BEEF()
 	require.NoError(f.t, err)
 
-	knownTx := &models.KnownTx{
+	knownTx := &models.ProvenTxReq{
 		TxID:         spec.ID().String(),
 		Status:       wdk.ProvenTxStatusUnmined,
 		WasBroadcast: true,
@@ -84,20 +83,25 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		IsOutgoing:  false,
 		Satoshis:    satoshis.Int64(),
 		Description: "test-faucet-tx",
-		Version:     1,
-		LockTime:    0,
+		Version:     to.Ptr[uint32](1),
+		LockTime:    to.Ptr[uint32](0),
 		InputBeef:   nil,
 		TxID:        to.Ptr(spec.ID().String()),
 	}
 
 	if len(options.Labels) > 0 {
-		transaction.Labels = slices.Map(options.Labels, func(label string) *models.Label {
-			return &models.Label{
-				Name:   label,
+		transaction.Labels = slices.Map(options.Labels, func(label string) *models.TxLabel {
+			return &models.TxLabel{
+				Label:  label,
 				UserID: f.user.ID,
 			}
 		})
 	}
+
+	var basket models.OutputBasket
+	err = f.db.DB.Where("name = ? AND userId = ?", f.basketName, f.user.ID).First(&basket).Error
+	require.NoError(f.t, err, "Failed to find basket in faucet")
+	f.t.Logf("FETCHED BASKET: %+v, BasketID=%d", basket, basket.BasketID)
 
 	output := &models.Output{
 		Vout:              0,
@@ -112,51 +116,63 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 		DerivationPrefix:  to.Ptr(derivationPrefixBase64),
 		DerivationSuffix:  to.Ptr(derivationSuffixBase64),
 		LockingScript:     spec.TX().Outputs[0].LockingScript.Bytes(),
-		BasketName:        &f.basketName,
+		BasketID:          to.Ptr(basket.BasketID),
 		SenderIdentityKey: to.Ptr(senderPub.ToDERHex()),
+		Txid:              to.Ptr(spec.ID().String()),
 
-		Transaction: transaction,
-
-		Tags: []*models.Tag{
+		Tags: []*models.OutputTag{
 			{
-				Name:   fixtures.CreateActionTestTag,
+				Tag:    fixtures.CreateActionTestTag,
 				UserID: f.user.ID,
 			},
 			{
-				Name:   fixtures.FaucetTag(f.index),
+				Tag:    fixtures.FaucetTag(f.index),
 				UserID: f.user.ID,
 			},
 		},
 	}
 
-	utxo := &models.UserUTXO{
-		UserID:             f.user.ID,
-		Satoshis:           satoshis.MustUInt64(),
-		EstimatedInputSize: txutils.P2PKHEstimatedInputSize,
-		BasketName:         f.basketName,
-		UTXOStatus:         wdk.UTXOStatusUnproven,
-
-		Output: output,
-	}
-
+	var provenTx *models.ProvenTx
 	if txObj.MerklePath != nil {
 		merkleRoot, err := txObj.MerklePath.ComputeRootHex(to.Ptr(spec.ID().String()))
 		require.NoError(f.t, err)
 
 		knownTx.Status = wdk.ProvenTxStatusCompleted
-		knownTx.BlockHeight = &txObj.MerklePath.BlockHeight
-		knownTx.MerklePath = txObj.MerklePath.Bytes()
-		knownTx.MerkleRoot = to.Ptr(merkleRoot)
-		knownTx.BlockHash = to.Ptr(TestBlockHash)
+		provenTx = &models.ProvenTx{
+			TxID:       spec.ID().String(),
+			Height:     to.Ptr(txObj.MerklePath.BlockHeight),
+			MerklePath: txObj.MerklePath.Bytes(),
+			MerkleRoot: to.Ptr(merkleRoot),
+			BlockHash:  to.Ptr(TestBlockHash),
+		}
 
 		transaction.Status = wdk.TxStatusCompleted
 	}
 
 	tx := f.db.DB.WithContext(f.t.Context())
-	tx.Create(utxo)
+	
+	// We insert transaction first
+	err = tx.Create(transaction).Error
+	require.NoError(f.t, err)
+
+	// Set the transaction ID on the output
+	output.TransactionID = transaction.TransactionID
+
+	// Insert the output separately without omitting associations, as output.Basket is already nil
+	err = tx.Create(output).Error
+	require.NoError(f.t, err, "Failed to create faucet output")
+
+	var res []map[string]interface{}
+	tx.Raw("SELECT basketId, txid FROM bsv_outputs").Scan(&res)
+	panic(fmt.Sprintf("DB AFTER CREATE PANIC: %+v", res))
+
+	if provenTx != nil {
+		tx.Create(provenTx)
+		knownTx.ProvenTxID = &provenTx.ProvenTxID
+	}
 	tx.Create(knownTx)
 
 	f.index++
 
-	return spec, utxo
+	return spec, output
 }

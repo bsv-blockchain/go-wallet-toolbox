@@ -1,15 +1,12 @@
 package models
 
-import "time"
-
 // User is the database model of the user
 type User struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Timestamps
 
-	UserID        int    `gorm:"primaryKey;not null"`
-	IdentityKey   string `gorm:"type:varchar(130);not null;uniqueIndex"`
-	ActiveStorage string `gorm:"type:varchar(255);not null"`
+	UserID        int    `gorm:"column:userId;primaryKey;autoIncrement"`
+	IdentityKey   string `gorm:"column:identityKey;type:varchar(130);not null;default:'';uniqueIndex"`
+	ActiveStorage string `gorm:"column:activeStorage;type:varchar(130);not null;default:''"`
 
 	OutputBaskets     []*OutputBasket     `gorm:"foreignKey:UserID"`
 	Certificates      []*Certificate      `gorm:"foreignKey:UserID"`

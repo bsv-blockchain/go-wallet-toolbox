@@ -61,14 +61,23 @@ func (l *listActions) mapTransactionsToActions(txs []*pkgentity.Transaction) ([]
 			txIDs = append(txIDs, *tx.TxID)
 		}
 
+		var version uint32
+		if tx.Version != nil {
+			version = *tx.Version
+		}
+		var lockTime uint32
+		if tx.LockTime != nil {
+			lockTime = *tx.LockTime
+		}
+
 		actions[i] = wdk.WalletAction{
 			Satoshis:    tx.Satoshis,
 			Status:      string(tx.Status),
 			IsOutgoing:  tx.IsOutgoing,
 			Description: tx.Description,
 			TxID:        optional.OfPtr(tx.TxID).OrZeroValue(),
-			Version:     tx.Version,
-			LockTime:    tx.LockTime,
+			Version:     version,
+			LockTime:    lockTime,
 		}
 	}
 
@@ -155,7 +164,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*pkgentity.Output) []wd
 			Tags:               o.Tags,
 			OutputIndex:        o.Vout,
 			OutputDescription:  o.Description,
-			Basket:             optional.OfPtr(o.BasketName).OrZeroValue(),
+			Basket:             "",
 			LockingScript:      hex.EncodeToString(o.LockingScript),
 			CustomInstructions: optional.OfPtr(o.CustomInstructions).OrZeroValue(),
 		})

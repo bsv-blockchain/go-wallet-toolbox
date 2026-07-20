@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -15,31 +14,25 @@ import (
 )
 
 type SyncTagMap struct {
-	common *labelTagMapCommons[models.OutputTag, TagsMapReadModel]
+	common *labelTagMapCommons[models.OutputTagsMap]
 	db     *gorm.DB
 	query  *genquery.Query
 }
 
 func NewSyncTagMap(db *gorm.DB, query *genquery.Query) *SyncTagMap {
 	return &SyncTagMap{
-		common: &labelTagMapCommons[models.OutputTag, TagsMapReadModel]{
+		common: &labelTagMapCommons[models.OutputTagsMap]{
 			db:                     db,
 			query:                  query,
-			subjectTableName:       query.Tag.TableName(),
-			relationTableName:      query.OutputTag.TableName(),
-			relationUserIDColumn:   query.OutputTag.TagUserID.ColumnName().String(),
-			relationNameColumn:     query.OutputTag.TagName.ColumnName().String(),
-			relationParentIDColumn: query.OutputTag.OutputID.ColumnName().String(),
+			relationTableName:      query.OutputTagsMap.TableName(),
+			parentTableName:        query.OutputTag.TableName(),
+			relationPkColumn:       query.OutputTagsMap.OutputTagID.ColumnName().String(),
+			parentPkColumn:         query.OutputTag.OutputTagID.ColumnName().String(),
+			relationParentIDColumn: query.OutputTagsMap.OutputID.ColumnName().String(),
 		},
 		db:    db,
 		query: query,
 	}
-}
-
-type TagsMapReadModel struct {
-	models.OutputTag
-
-	NumID uint
 }
 
 func (s *SyncTagMap) FindTagsMapForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutputTagMap, error) {
@@ -51,22 +44,20 @@ func (s *SyncTagMap) FindTagsMapForSync(ctx context.Context, userID int, opts ..
 	return slices.Map(result, s.mapModelToTableOutputTagMap), nil
 }
 
-func (s *SyncTagMap) mapModelToTableOutputTagMap(model *TagsMapReadModel) *wdk.TableOutputTagMap {
-	deleted := model.DeletedAt.Valid
-
+func (s *SyncTagMap) mapModelToTableOutputTagMap(model *models.OutputTagsMap) *wdk.TableOutputTagMap {
 	return &wdk.TableOutputTagMap{
 		CreatedAt:   model.CreatedAt,
-		UpdatedAt:   to.IfThen(!deleted, model.UpdatedAt).ElseThen(model.DeletedAt.Time),
-		OutputID:    model.OutputID,
-		OutputTagID: model.NumID,
-		IsDeleted:   deleted,
+		UpdatedAt:   model.UpdatedAt,
+		OutputID:    uint(model.OutputID),
+		OutputTagID: uint(model.OutputTagID),
+		IsDeleted:   model.IsDeleted,
 	}
 }
 
-func (s *SyncTagMap) UpsertTagMapForSync(ctx context.Context, entity *entity.TagMap) (isNew bool, err error) {
-	return s.common.Upsert(ctx, entity.OutputID, entity.UserID, entity.Name, entity.UpdatedAt)
+func (s *SyncTagMap) UpsertTagMapForSync(ctx context.Context, e *entity.OutputTagsMap) (isNew bool, err error) {
+	return s.common.Upsert(ctx, uint(e.OutputID), uint(e.OutputTagID), e.UpdatedAt)
 }
 
-func (s *SyncTagMap) DeleteTagMapForSync(ctx context.Context, entity *entity.TagMap) (deleted bool, err error) {
-	return s.common.Delete(ctx, entity.OutputID, entity.UserID, entity.Name)
+func (s *SyncTagMap) DeleteTagMapForSync(ctx context.Context, e *entity.OutputTagsMap) (deleted bool, err error) {
+	return s.common.Delete(ctx, uint(e.OutputID), uint(e.OutputTagID))
 }

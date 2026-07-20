@@ -105,7 +105,6 @@ func TestBRC100Conformance_GetPublicKey(t *testing.T) {
 			given, cleanup := testabilities.Given(t)
 			defer cleanup()
 
-
 			root := v.Input.RootKey
 			if root == "" {
 				root = "0000000000000000000000000000000000000000000000000000000000000001"
@@ -201,7 +200,6 @@ func TestBRC100Conformance_ListActions(t *testing.T) {
 				if d, ok := expAction["description"].(string); ok {
 					require.Equal(t, d, act.Description, "action[%d].description mismatch for %s", i, v.ID)
 				}
->>>>>>> main
 			}
 		})
 	}

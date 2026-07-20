@@ -55,7 +55,7 @@ type StorageFixture interface {
 }
 
 type FaucetFixture interface {
-	TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.UserUTXO)
+	TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtestabilities.TransactionSpec, *models.Output)
 }
 
 type TopUpOptions struct {

@@ -56,10 +56,10 @@ func loadAdapterVectors(t *testing.T) []adapterVector {
 }
 
 // TestStorageAdapterConformance drives the exact HTTP contract from the ts-stack
-// adapter-conformance vectors against the Go v1adapter implementation.
+// adapter-conformance vectors against the Go v2adapter implementation.
 // It uses a *real* storage.Provider from the testabilities fixture (GORM + seeded DB + faucet)
 // so that all happy-path vectors exercise genuine provider behavior, DB state, and
-// full call paths through auth middleware + v1adapter.
+// full call paths through auth middleware + v2adapter.
 func TestStorageAdapterConformance(t *testing.T) {
 	vectors := loadAdapterVectors(t)
 
@@ -230,9 +230,9 @@ func runCommissionPaymentTests(t *testing.T, given testabilities.StorageFixture)
 	defer cleanupSrv()
 
 	base := given.ServerURL()
-	// Fire a createAction request with the test token (will hit payment mw then v1adapter -> mock)
+	// Fire a createAction request with the test token (will hit payment mw then v2adapter -> mock)
 	body := []byte(`{"args":{"description":"commission test","outputs":[{"lockingScript":"76a914000000000000000000000000000000000000000088ac","satoshis":1000}]}}`)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base+"/storage/v1/actions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base+"/storage/v2/actions", bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer brc103-session-token-abc123") // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
@@ -253,7 +253,7 @@ func runCommissionPaymentTests(t *testing.T, given testabilities.StorageFixture)
 
 	base2 := given.ServerURL()
 	body2 := []byte(`{"args":{"description":"with commission","outputs":[{"lockingScript":"76a914f54a5851e9372b87810a8e60cdd2e7cfd80b6e5388ac","satoshis":50000}]}}`)
-	req2, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base2+"/storage/v1/actions", bytes.NewReader(body2))
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base2+"/storage/v2/actions", bytes.NewReader(body2))
 	require.NoError(t, err)
 	req2.Header.Set("Content-Type", "application/json")
 	req2.Header.Set("Authorization", "Bearer brc103-session-token-abc123") // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data

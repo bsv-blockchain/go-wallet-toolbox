@@ -7,14 +7,12 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -23,7 +21,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -38,7 +35,7 @@ func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
 }
 
 type txIDsReadModel struct {
-	TransactionID string `gorm:"column:tx_id"`
+	TransactionID string `gorm:"column:txid"`
 }
 
 func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[uint]) ([]string, error) {
@@ -61,8 +58,8 @@ func (o *Outputs) FindTxIDsByOutputIDs(ctx context.Context, outputIDs iter.Seq[u
 	err = outTable.
 		WithContext(ctx).
 		Distinct(txTable.TxID).
-		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
-		Where(outTable.ID.In(idsClause...)).
+		Join(txTable, txTable.TransactionID.EqCol(outTable.TransactionID)).
+		Where(outTable.OutputID.In(idsClause...)).
 		Scan(&txIDsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
@@ -91,9 +88,9 @@ func (o *Outputs) FindOutputsByIDs(ctx context.Context, outputIDs iter.Seq[uint]
 	err = o.db.WithContext(ctx).
 		Model(models.Output{}).
 		Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id, tx_id")
+			return db.Select("transactionId, txid")
 		}).
-		Where("id IN ?", idsClause).
+		Where("outputId IN ?", idsClause).
 		Find(&outputs).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
@@ -129,7 +126,7 @@ func (o *Outputs) FindOutputs(ctx context.Context, spec *pkgentity.OutputReadSpe
 				tx.TxID,
 				tx.Status,
 			).
-			Join(tx, tx.ID.EqCol(output.TransactionID))
+			Join(tx, tx.TransactionID.EqCol(output.TransactionID))
 	}
 
 	rows, err := dao.Find()
@@ -152,7 +149,7 @@ func (o *Outputs) FindOutputsByTransactionID(ctx context.Context, transactionID 
 	var outputRows []*models.Output
 	err = session.
 		Model(models.Output{}).
-		Where("transaction_id = ?", transactionID).
+		Where("transactionId = ?", transactionID).
 		Find(&outputRows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs for transactionID: %d: %w", transactionID, err)
@@ -174,9 +171,9 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 	if err := o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.
 			Model(&models.Output{}).
-			Where("user_id = ?", filter.UserID).
+			Where("userId = ?", filter.UserID).
 			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-				return db.Select("id, tx_id")
+				return db.Select("outputId, txid")
 			})
 
 		var omitFields []string
@@ -214,12 +211,13 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal,
 		}
 		query = query.Where(
-			"transaction_id IN (?)",
-			tx.Model(&models.Transaction{}).
-				Select("id").
-				Where("user_id = ?", filter.UserID).
-				Where("status IN ?", allowedStatuses),
-		)
+			"transactionId IN (?)",
+		).
+		Where(func(db *gorm.DB) *gorm.DB {
+			return db.
+				Where("userId = ?", filter.UserID).
+				Where("status IN ?", allowedStatuses)
+		})
 
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
@@ -245,15 +243,15 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 
 	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.Model(&models.Output{}).
-			Select("id").
+			Select("outputId").
 			Scopes(scopes.UserID(userID)).
 			Where("vout = ?", outpoint.Vout).
 			Where(
-				"transaction_id IN (?)",
+				"transactionId IN (?)",
 				tx.Model(&models.Transaction{}).
-					Select("id").
+					Select("outputId").
 					Scopes(scopes.UserID(userID)).
-					Where("tx_id = ?", outpoint.TxID),
+					Where("txid = ?", outpoint.TxID),
 			)
 
 		if basketName != nil {
@@ -274,16 +272,11 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 		}
 
 		result := tx.Model(&models.Output{}).
-			Where("id = ?", output.ID).
-			Update("basket_name", nil)
+			Where("outputId = ?", output.OutputID).
+			Update("basketId", nil)
 
 		if result.Error != nil {
 			return fmt.Errorf("failed to unlink output from basket: %w", result.Error)
-		}
-
-		err = tx.Delete(models.UserUTXO{}, "reserved_by_id IS NULL and output_id = ?", output.ID).Error
-		if err != nil {
-			return fmt.Errorf("failed to delete user utxo for output %d (it can be reserved): %w", output.ID, err)
 		}
 
 		return nil
@@ -314,10 +307,10 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	query := o.db.WithContext(ctx).Table(
 		"(?) as out",
 		o.db.Model(&models.Output{}).
-			Select(fmt.Sprintf("%s.*, tx.tx_id as tx_id", outputTableName)).
-			Joins(fmt.Sprintf("INNER JOIN %s tx ON tx.id = %s.transaction_id", transactionTableName, outputTableName)).
-			Where(fmt.Sprintf("%s.user_id = ?", outputTableName), userID),
-	).Where("(tx_id,vout) IN (?)", outpointStrings)
+			Select(fmt.Sprintf("%s.*, tx.txid as txid", outputTableName)).
+			Joins(fmt.Sprintf("INNER JOIN %s tx ON tx.transactionId = %s.transactionId", transactionTableName, outputTableName)).
+			Where(fmt.Sprintf("%s.userId = ?", outputTableName), userID),
+	).Where("(txid,vout) IN (?)", outpointStrings)
 
 	type outputWithTxID struct {
 		*models.Output
@@ -356,11 +349,11 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 		Scopes(scopes.UserID(userID)).
 		Where("vout = ?", outpoint.Vout).
 		Where(
-			"transaction_id IN (?)",
+			"transactionId IN (?)",
 			o.db.Model(&models.Transaction{}).
-				Select("id").
+				Select("outputId").
 				Scopes(scopes.UserID(userID)).
-				Where("tx_id = ?", outpoint.TxID),
+				Where("txid = ?", outpoint.TxID),
 		).
 		First(&output).Error
 	if err != nil {
@@ -392,11 +385,11 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	query := o.db.WithContext(ctx).
 		Model(&models.Output{}).
 		Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id, tx_id")
+			return db.Select("outputId, txid")
 		}).
 		Preload("Basket").
 		Preload("Tags").
-		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs)
+		Where("transactionId IN ? OR spentBy IN ?", txIDs, txIDs)
 
 	if !includeLockingScripts {
 		query = query.Omit("locking_script")
@@ -463,44 +456,44 @@ func (o *Outputs) FindInputsAndOutputsForSelectedActions(ctx context.Context, us
 // selectedActionsSubquery returns the current page of action IDs with applied filters
 func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity.ListActionsFilter) *gorm.DB {
 	selected := tx.Model(&models.Transaction{}).
-		Select("id").
-		Where("user_id = ?", userID)
+		Select("transactionId").
+		Where("userId = ?", userID)
 	if len(filter.Status) > 0 {
 		selected = selected.Where("status IN ?", filter.Status)
 	}
 	if len(filter.Labels) > 0 {
-		subQuery := tx.Model(&models.TransactionLabel{}).
-			Select("transaction_id").
-			Where("label_name IN ?", filter.Labels).
-			Where("label_user_id = ?", userID)
+		subQuery := tx.Table("bsv_tx_labels_map tlm").
+			Select("tlm.transaction_id").
+			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.tx_label_id").
+			Where("tl.label IN ?", filter.Labels).
+			Where("tl.userId = ?", userID).
+			Where("tl.isDeleted = ?", false).
+			Where("tlm.isDeleted = ?", false)
 		if filter.LabelQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
+			subQuery = subQuery.Group("tlm.transaction_id").Having("COUNT(DISTINCT tl.label) = ?", len(filter.Labels))
 		}
-		selected = selected.Where("id IN (?)", subQuery)
+		selected = selected.Where("transactionId IN (?)", subQuery)
 	}
-	return selected.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
+	return selected.Order("transactionId ASC").Limit(filter.Limit).Offset(filter.Offset)
 }
 
 // buildOutputsJoinQuery constructs the JOIN query to fetch outputs (and tags) for selected actions
 func (o *Outputs) buildOutputsJoinQuery(tx, selected *gorm.DB, userID int, includeLockingScripts bool) *gorm.DB {
 	outputTable := o.query.Output.TableName()
 	txTable := o.query.Transaction.TableName()
-	otTable := o.query.OutputTag.TableName()
-	tagsTable := o.query.Tag.TableName()
 
 	dbq := tx.
 		Table(outputTable+" o").
-		Joins("JOIN (?) s ON s.id = o.transaction_id OR s.id = o.spent_by", selected).
-		Joins("LEFT JOIN "+txTable+" t ON t.id = o.transaction_id").
-		Joins("LEFT JOIN "+otTable+" ot ON ot.output_id = o.id AND ot.tag_user_id = o.user_id AND ot.deleted_at IS NULL").
-		Joins("LEFT JOIN "+tagsTable+" tg ON tg.name = ot.tag_name AND tg.user_id = ot.tag_user_id AND tg.deleted_at IS NULL").
-		Where("o.user_id = ?", userID).
-		Where("o.deleted_at IS NULL").
-		Order("o.id ASC").
-		Select("o.*, t.tx_id as tx_id, tg.name as tag_name")
+		Joins("JOIN (?) s ON s.transactionId = o.transactionId OR s.transactionId = o.spentBy", selected).
+		Joins("LEFT JOIN "+txTable+" t ON t.transactionId = o.transactionId").
+		Joins("LEFT JOIN bsv_output_tags_map otm ON otm.output_id = o.outputId AND otm.isDeleted = false").
+		Joins("LEFT JOIN bsv_output_tags ot ON ot.outputTagId = otm.output_tag_id AND ot.userId = o.userId AND ot.isDeleted = false").
+		Where("o.userId = ?", userID).
+		Order("o.outputId ASC").
+		Select("o.*, t.txid as txid, ot.tag as tag")
 
 	if !includeLockingScripts {
-		dbq = dbq.Omit("o.locking_script")
+		dbq = dbq.Omit("o.lockingScript")
 	}
 	return dbq
 }
@@ -510,8 +503,8 @@ func (o *Outputs) readOutputsIntoMaps(tx *gorm.DB, rows *sql.Rows) (map[uint][]*
 	type readRow struct {
 		models.Output
 
-		TxID *string `gorm:"column:tx_id"`
-		Tag  *string `gorm:"column:tag_name"`
+		TxID *string `gorm:"column:txid"`
+		Tag  *string `gorm:"column:tag"`
 	}
 
 	inputMap := make(map[uint][]*pkgentity.Output)
@@ -581,9 +574,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 	modelsToStore := slices.Map(outputs, func(output *pkgentity.Output) *outputWithTags {
 		res := &outputWithTags{
 			Output: models.Output{
-				Model: gorm.Model{
-					ID: output.ID,
-				},
+				OutputID:           output.ID,
 				UserID:             output.UserID,
 				TransactionID:      output.TransactionID,
 				SpentBy:            output.SpentBy,
@@ -593,7 +584,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 				CustomInstructions: output.CustomInstructions,
 				DerivationPrefix:   output.DerivationPrefix,
 				DerivationSuffix:   output.DerivationSuffix,
-				BasketName:         output.BasketName,
+				BasketID:           output.BasketID,
 				Spendable:          output.Spendable,
 				Change:             output.Change,
 				Description:        output.Description,
@@ -603,25 +594,11 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 				SenderIdentityKey:  output.SenderIdentityKey,
 			},
 			Tags: slices.Map(output.Tags, func(tag string) any {
-				return &models.Tag{
-					Name:   tag,
+				return &models.OutputTag{
+					Tag:    tag,
 					UserID: output.UserID,
 				}
 			}),
-		}
-
-		if output.UserUTXO != nil {
-			basketName := ""
-			if output.BasketName != nil {
-				basketName = *output.BasketName
-			}
-			res.Output.UserUTXO = &models.UserUTXO{
-				UserID:             output.UserUTXO.UserID,
-				BasketName:         basketName,
-				Satoshis:           output.UserUTXO.Satoshis,
-				EstimatedInputSize: output.UserUTXO.EstimatedInputSize,
-				UTXOStatus:         output.UserUTXO.Status,
-			}
 		}
 
 		return res
@@ -670,21 +647,8 @@ func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionI
 				Scopes(isChangeDaoScope(query))
 		}
 
-		var changeOutputs []*outputWithTxStatus
-		changeOutputs, err = getOutputsWithTxStatus(ctx, query, changeSpentScope)
-		if err != nil {
-			return err
-		}
-
+		_, err = getOutputsWithTxStatus(ctx, query, changeSpentScope)
 		err = makeOutputsSpendable(ctx, query, allSpentScope)
-		if err != nil {
-			return err
-		}
-
-		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
-		if err != nil {
-			return err
-		}
 
 		return nil
 	})
@@ -699,7 +663,7 @@ func isChangeDaoScope(query *genquery.Query) func(dao gen.Dao) gen.Dao {
 	outTable := &query.Output
 	return func(dao gen.Dao) gen.Dao {
 		return dao.
-			Where(outTable.BasketName.IsNotNull()).
+			Where(outTable.BasketID.IsNotNull()).
 			Where(outTable.Change.Is(true)).
 			Where(outTable.Satoshis.Gt(0))
 	}
@@ -718,14 +682,14 @@ func getOutputsWithTxStatus(ctx context.Context, query *genquery.Query, filterSc
 	var changeOutputs []*outputWithTxStatus
 	err := outTable.WithContext(ctx).
 		Select(
-			outTable.ID,
-			outTable.BasketName,
+			outTable.OutputID,
+			outTable.BasketID,
 			outTable.Satoshis,
 			outTable.Type,
 			outTable.UserID,
 			txTable.Status.As("tx_status"),
 		).
-		Join(txTable, txTable.ID.EqCol(outTable.TransactionID)).
+		Join(txTable, txTable.TransactionID.EqCol(outTable.TransactionID)).
 		Scopes(filterScope).
 		Scan(&changeOutputs)
 	if err != nil {
@@ -733,41 +697,6 @@ func getOutputsWithTxStatus(ctx context.Context, query *genquery.Query, filterSc
 	}
 
 	return changeOutputs, nil
-}
-
-func createUTXOsFromOutputs(ctx context.Context, query *genquery.Query, changeOutputs []*outputWithTxStatus) error {
-	utxoTable := &query.UserUTXO
-
-	if len(changeOutputs) == 0 {
-		return nil
-	}
-
-	newUTXOs := make([]*models.UserUTXO, 0, len(changeOutputs))
-	for _, output := range changeOutputs {
-		utxoStatus := output.TxStatus.ToUTXOStatus()
-		if utxoStatus == wdk.UTXOStatusUnknown {
-			continue
-		}
-
-		newUTXOs = append(newUTXOs, &models.UserUTXO{
-			UserID:             output.UserID,
-			OutputID:           output.ID,
-			BasketName:         *output.BasketName,
-			Satoshis:           must.ConvertToUInt64(output.Satoshis),
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-			UTXOStatus:         utxoStatus,
-		})
-	}
-
-	err := utxoTable.
-		WithContext(ctx).
-		Clauses(clause.OnConflict{UpdateAll: true}).
-		Create(newUTXOs...)
-	if err != nil {
-		return fmt.Errorf("failed to create new UTXOs: %w", err)
-	}
-
-	return nil
 }
 
 func makeOutputsSpendable(ctx context.Context, query *genquery.Query, filterScope func(dao gen.Dao) gen.Dao) error {
@@ -790,11 +719,11 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 	output := &pkgentity.Output{
 		CreatedAt:          model.CreatedAt,
 		UpdatedAt:          model.UpdatedAt,
-		ID:                 model.ID,
+		ID:                 model.OutputID,
 		UserID:             model.UserID,
 		TransactionID:      model.TransactionID,
 		SpentBy:            model.SpentBy,
-		BasketName:         model.BasketName,
+		BasketID:           model.BasketID,
 		Spendable:          model.Spendable,
 		Change:             model.Change,
 		Description:        model.Description,
@@ -808,14 +737,11 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 		CustomInstructions: model.CustomInstructions,
 		LockingScript:      model.LockingScript,
 		SenderIdentityKey:  model.SenderIdentityKey,
-		Tags:               slices.Map(model.Tags, func(tag *models.Tag) string { return tag.Name }),
+		Tags:               slices.Map(model.Tags, func(tag *models.OutputTag) string { return tag.Tag }),
 	}
 	if model.Transaction != nil && model.Transaction.TxID != nil {
 		output.TxID = model.Transaction.TxID
 		output.TxStatus = model.Transaction.Status
-	}
-	if model.UserUTXO != nil {
-		output.UserUTXO = mapModelToEntityUserUTXO(model.UserUTXO)
 	}
 	return output
 }
@@ -823,15 +749,15 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
 		subQuery := tx.Model(&models.OutputTag{}).
-			Select("output_id").
-			Where("tag_name IN ?", filter.Tags).
-			Where("tag_user_id = ?", filter.UserID)
+			Select("outputId").
+			Where("tag IN ?", filter.Tags).
+			Where("userId = ?", filter.UserID)
 
 		if filter.TagsQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("output_id").Having("COUNT(DISTINCT tag_name) = ?", len(filter.Tags))
+			subQuery = subQuery.Group("outputId").Having("COUNT(DISTINCT tag) = ?", len(filter.Tags))
 		}
 
-		return query.Where("id IN (?)", subQuery)
+		return query.Where("outputId IN (?)", subQuery)
 	}
 }
 
@@ -888,7 +814,7 @@ func (o *Outputs) MarkCreatedOutputsAsSpendableByTxID(ctx context.Context, txID 
 
 	txTable := &o.query.Transaction
 	outTable := &o.query.Output
-	subquery := txTable.WithContext(ctx).Select(txTable.ID).Where(txTable.TxID.Eq(txID))
+	subquery := txTable.WithContext(ctx).Select(txTable.TransactionID).Where(txTable.TxID.Eq(txID))
 
 	_, err = outTable.WithContext(ctx).
 		Where(field.ContainsSubQuery([]field.Expr{outTable.TransactionID}, subquery.UnderlyingDB())).
@@ -953,7 +879,7 @@ func (o *Outputs) UpdateOutput(ctx context.Context, spec *pkgentity.OutputUpdate
 		return nil
 	}
 
-	res, err := table.WithContext(ctx).Where(table.ID.Eq(spec.ID)).Updates(updates)
+	res, err := table.WithContext(ctx).Where(table.OutputID.Eq(spec.ID)).Updates(updates)
 	if err != nil {
 		return fmt.Errorf("failed to update output: %w", err)
 	}
@@ -981,7 +907,7 @@ func (o *Outputs) CountOutputs(ctx context.Context, spec *pkgentity.OutputReadSp
 
 	if needsTransactionJoin(spec) {
 		dao = dao.
-			Join(tx, tx.ID.EqCol(table.TransactionID))
+			Join(tx, tx.TransactionID.EqCol(table.TransactionID))
 	}
 
 	count, err := dao.Count()
@@ -1000,7 +926,7 @@ func (o *Outputs) conditionsBySpec(ctx context.Context, spec *pkgentity.OutputRe
 
 	table := &o.query.Output
 	if spec.ID != nil {
-		return []gen.Condition{table.ID.Eq(*spec.ID)}
+		return []gen.Condition{table.OutputID.Eq(*spec.ID)}
 	}
 
 	var conditions []gen.Condition
@@ -1013,8 +939,8 @@ func (o *Outputs) conditionsBySpec(ctx context.Context, spec *pkgentity.OutputRe
 	if spec.SpentBy != nil {
 		conditions = append(conditions, cmpCondition(table.SpentBy, spec.SpentBy))
 	}
-	if spec.BasketName != nil {
-		conditions = append(conditions, cmpCondition(table.BasketName, spec.BasketName))
+	if spec.BasketID != nil {
+		conditions = append(conditions, cmpCondition(table.BasketID, spec.BasketID))
 	}
 	if spec.Spendable != nil {
 		conditions = append(conditions, cmpBoolCondition(table.Spendable, spec.Spendable))
@@ -1045,32 +971,35 @@ func (o *Outputs) tagConditions(ctx context.Context, tags *pkgentity.ComparableS
 	var conds []gen.Condition
 	table := &o.query.Output
 	ot := &o.query.OutputTag
+	otm := &o.query.OutputTagsMap
 
 	if tags.Empty {
-		sub := ot.WithContext(ctx).
-			Select(ot.OutputID).
-			Where(ot.OutputID.EqCol(table.ID))
+		sub := otm.WithContext(ctx).
+			Select(otm.OutputID).
+			Where(otm.OutputID.EqCol(table.OutputID))
 
 		return []gen.Condition{field.Not(field.CompareSubQuery(field.ExistsOp, nil, sub.UnderlyingDB()))}
 	}
 
 	if len(tags.ContainAny) > 0 {
-		sub := ot.WithContext(ctx).
-			Select(ot.OutputID).
+		sub := otm.WithContext(ctx).
+			Join(ot, ot.OutputTagID.EqCol(otm.OutputTagID)).
+			Select(otm.OutputID).
 			Where(
-				ot.TagName.In(tags.ContainAny...),
-				ot.OutputID.EqCol(table.ID),
+				ot.Tag.In(tags.ContainAny...),
+				otm.OutputID.EqCol(table.OutputID),
 			)
 		conds = append(conds, gen.Exists(sub))
 	}
 
 	if len(tags.ContainAll) > 0 {
 		for _, tag := range tags.ContainAll {
-			sub := ot.WithContext(ctx).
-				Select(ot.OutputID).
+			sub := otm.WithContext(ctx).
+				Join(ot, ot.OutputTagID.EqCol(otm.OutputTagID)).
+				Select(otm.OutputID).
 				Where(
-					ot.TagName.Eq(tag),
-					ot.OutputID.EqCol(table.ID),
+					ot.Tag.Eq(tag),
+					otm.OutputID.EqCol(table.OutputID),
 				)
 			conds = append(conds, gen.Exists(sub))
 		}
@@ -1081,11 +1010,7 @@ func (o *Outputs) tagConditions(ctx context.Context, tags *pkgentity.ComparableS
 
 func mapEntityToModelOutput(e *pkgentity.Output) *models.Output {
 	m := &models.Output{
-		Model: gorm.Model{
-			ID:        e.ID,
-			CreatedAt: e.CreatedAt,
-			UpdatedAt: e.UpdatedAt,
-		},
+		OutputID:           e.ID,
 		UserID:             e.UserID,
 		TransactionID:      e.TransactionID,
 		SpentBy:            e.SpentBy,
@@ -1095,7 +1020,7 @@ func mapEntityToModelOutput(e *pkgentity.Output) *models.Output {
 		CustomInstructions: e.CustomInstructions,
 		DerivationPrefix:   e.DerivationPrefix,
 		DerivationSuffix:   e.DerivationSuffix,
-		BasketName:         e.BasketName,
+		BasketID:           e.BasketID,
 		Spendable:          e.Spendable,
 		Change:             e.Change,
 		Description:        e.Description,
@@ -1106,45 +1031,11 @@ func mapEntityToModelOutput(e *pkgentity.Output) *models.Output {
 	}
 
 	for _, tag := range e.Tags {
-		m.Tags = append(m.Tags, &models.Tag{
-			Name:   tag,
+		m.Tags = append(m.Tags, &models.OutputTag{
+			Tag:    tag,
 			UserID: e.UserID,
 		})
 	}
 
-	m.UserUTXO = mapEntityToModelUserUTXO(e.UserUTXO)
-
 	return m
-}
-
-func mapEntityToModelUserUTXO(e *pkgentity.UserUTXO) *models.UserUTXO {
-	if e == nil {
-		return nil
-	}
-	return &models.UserUTXO{
-		UserID:             e.UserID,
-		OutputID:           e.OutputID,
-		BasketName:         e.BasketName,
-		Satoshis:           e.Satoshis,
-		EstimatedInputSize: e.EstimatedInputSize,
-		CreatedAt:          e.CreatedAt,
-		ReservedByID:       e.ReservedByID,
-		UTXOStatus:         e.Status,
-	}
-}
-
-func mapModelToEntityUserUTXO(m *models.UserUTXO) *pkgentity.UserUTXO {
-	if m == nil {
-		return nil
-	}
-	return &pkgentity.UserUTXO{
-		UserID:             m.UserID,
-		OutputID:           m.OutputID,
-		BasketName:         m.BasketName,
-		Satoshis:           m.Satoshis,
-		EstimatedInputSize: m.EstimatedInputSize,
-		CreatedAt:          m.CreatedAt,
-		ReservedByID:       m.ReservedByID,
-		Status:             m.UTXOStatus,
-	}
 }

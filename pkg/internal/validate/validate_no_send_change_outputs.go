@@ -21,13 +21,6 @@ func NoSendChangeOutputs(outputs []*entity.Output) error {
 			return fmt.Errorf("purpose field value doesn't match %s value - output ID %d", wdk.ChangePurpose, output.ID)
 		}
 
-		if output.BasketName == nil {
-			return fmt.Errorf("basket name field value is set to nil - output ID %d", output.ID)
-		}
-
-		if *output.BasketName != wdk.BasketNameForChange {
-			return fmt.Errorf("basket name field value doesn't match %s value - output ID %d", wdk.BasketNameForChange, output.ID)
-		}
 	}
 
 	return nil

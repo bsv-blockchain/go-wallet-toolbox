@@ -2,11 +2,11 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
-	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/optional"
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -34,7 +34,7 @@ type internalize struct {
 	logger                *slog.Logger
 	txRepo                TransactionsRepo
 	basketRepo            BasketRepo
-	knownTxRepo           KnownTxRepo
+	knownTxRepo           ProvenTxReqRepo
 	outputRepo            OutputRepo
 	random                wdk.Randomizer
 	beefVerifier          wdk.BeefVerifier
@@ -48,7 +48,7 @@ func newInternalizeAction(
 	logger *slog.Logger,
 	txRepo TransactionsRepo,
 	basketRepo BasketRepo,
-	knownTxRepo KnownTxRepo,
+	knownTxRepo ProvenTxReqRepo,
 	outputRepo OutputRepo,
 	uow UnitOfWork,
 	random wdk.Randomizer,
@@ -302,7 +302,7 @@ func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txI
 		return fmt.Errorf("failed to compute root hex: %w", err)
 	}
 
-	err = in.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+	err = in.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.ProvenTxAsMined{
 		TxID:        txID,
 		BlockHeight: tx.MerklePath.BlockHeight,
 		MerklePath:  tx.MerklePath.Bytes(),
@@ -344,51 +344,19 @@ func (in *internalize) upsertExistingTx(ctx context.Context, existingTx *pkgenti
 		}
 
 		if output.Spendable && output.Change {
-			if is.EmptyString(output.BasketName) {
+			if output.BasketID == nil {
 				return fmt.Errorf("basket not provided for change output")
 			}
 
 			if output.Satoshis == 0 {
 				return fmt.Errorf("change output with zero satoshis")
 			}
-			var sats uint64
-			sats, err = satoshi.Value(output.Satoshis).UInt64()
-			if err != nil {
-				return fmt.Errorf("failed to convert satoshis to uint64: %w", err)
-			}
-
-			var utxoStatus wdk.UTXOStatus
-			utxoStatus, err = in.utxoStatusByTxStatusForMerge(existingTx.Status)
-			if err != nil {
-				return fmt.Errorf("failed to get UTXO status by transaction status: %w", err)
-			}
-
-			output.UserUTXO = &pkgentity.UserUTXO{
-				UserID:             output.UserID,
-				Satoshis:           sats,
-				EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-				Status:             utxoStatus,
-			}
 		}
 
 		outputsToInternalize = append(outputsToInternalize, output)
 	}
 
-	// Ensure baskets exist before saving outputs (matching TS findOrInsertOutputBasket behavior)
-	seen := make(map[string]bool)
-	for _, output := range outputsToInternalize {
-		if output.BasketName == nil {
-			continue
-		}
-		name := *output.BasketName
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		if basketErr := repos.BasketRepo().FindOrCreateBasket(ctx, existingTx.UserID, name); basketErr != nil {
-			return fmt.Errorf("failed to ensure basket %q exists: %w", name, basketErr)
-		}
-	}
+	// Baskets are already ensured and resolved to BasketID during makeOutputs.
 
 	err = repos.OutputRepo().SaveOutputs(ctx, outputsToInternalize)
 	if err != nil {
@@ -412,7 +380,7 @@ func (in *internalize) storeNewTx(
 	isMined := tx.MerklePath != nil
 
 	// check if transaction already exists in DB with a confirmed broadcast status
-	statuses, err := repos.KnownTxRepo().FindKnownTxStatuses(ctx, txID)
+	statuses, err := repos.ProvenTxReqRepo().FindKnownTxStatuses(ctx, txID)
 	if err != nil {
 		return fmt.Errorf("failed to find existing known tx status: %w", err)
 	}
@@ -443,7 +411,7 @@ func (in *internalize) storeNewTx(
 		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent)
 	}
 
-	err = repos.KnownTxRepo().UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+	err = repos.ProvenTxReqRepo().UpsertProvenTxReq(ctx, &entity.UpsertProvenTxReq{
 		TxID:            txID,
 		RawTx:           tx.Bytes(),
 		InputBeef:       args.Tx,
@@ -502,6 +470,14 @@ func (in *internalize) makeOutputs(
 	satoshis := satoshi.Zero()
 
 	changeBasketVerified := false
+	changeBasket, err := repos.BasketRepo().FindBasketByName(ctx, userID, wdk.BasketNameForChange)
+	if err != nil {
+		if errors.Is(err, wdk.ErrNotFoundError) {
+			return nil, 0, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+		}
+		return nil, 0, fmt.Errorf("failed to load basket for change: %w", err)
+	}
+	changeBasketID := changeBasket.ID
 
 	var newOutputs []*OutputToInternalize
 	outputsCount, err := to.UInt32(len(tx.Outputs))
@@ -527,7 +503,7 @@ func (in *internalize) makeOutputs(
 			// NOTE: FindOutput can return nil if the output is not found
 		}
 
-		wasChangeOutput := existingOutput != nil && existingOutput.BasketName != nil && *existingOutput.BasketName == wdk.BasketNameForChange
+		wasChangeOutput := existingOutput != nil && existingOutput.BasketID != nil && *existingOutput.BasketID == changeBasketID
 
 		switch outputSpec.Protocol {
 		case wdk.WalletPaymentProtocol:
@@ -551,7 +527,7 @@ func (in *internalize) makeOutputs(
 					Vout:              outputSpec.OutputIndex,
 					Spendable:         true,
 					LockingScript:     to.Ptr(primitives.HexString(output.LockingScript.String())),
-					BasketName:        to.Ptr(wdk.BasketNameForChange),
+					BasketID:          &changeBasketID,
 					Satoshis:          satoshi.MustFrom(output.Satoshis),
 					SenderIdentityKey: to.Ptr(string(remittance.SenderIdentityKey)),
 					Type:              wdk.OutputTypeP2PKH,
@@ -575,12 +551,20 @@ func (in *internalize) makeOutputs(
 				return string(tag)
 			})
 
+			if err := repos.BasketRepo().FindOrCreateBasket(ctx, userID, string(remittance.Basket)); err != nil {
+				return nil, 0, fmt.Errorf("failed to ensure basket %q exists: %w", string(remittance.Basket), err)
+			}
+			remittanceBasket, err := repos.BasketRepo().FindBasketByName(ctx, userID, string(remittance.Basket))
+			if err != nil {
+				return nil, 0, fmt.Errorf("failed to find basket %q: %w", string(remittance.Basket), err)
+			}
+
 			out := &OutputToInternalize{
 				NewOutput: &entity.NewOutput{
 					Vout:               outputSpec.OutputIndex,
 					Spendable:          true,
 					LockingScript:      to.Ptr(primitives.HexString(output.LockingScript.String())),
-					BasketName:         to.Ptr(string(remittance.Basket)),
+					BasketID:           &remittanceBasket.ID,
 					Satoshis:           satoshi.MustFrom(output.Satoshis),
 					Type:               wdk.OutputTypeCustom,
 					CustomInstructions: remittance.CustomInstructions,
@@ -608,13 +592,14 @@ func (in *internalize) makeOutputs(
 }
 
 func (in *internalize) checkChangeBasket(ctx context.Context, userID int, repos Providers) error {
-	basket, err := repos.BasketRepo().FindBasketByName(ctx, userID, wdk.BasketNameForChange)
+	_, err := repos.BasketRepo().FindBasketByName(ctx, userID, wdk.BasketNameForChange)
 	if err != nil {
-		return fmt.Errorf("failed to find basket for change: %w", err)
+		if errors.Is(err, wdk.ErrNotFoundError) {
+			return fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+		}
+		return fmt.Errorf("failed to query basket for change (%s): %w", wdk.BasketNameForChange, err)
 	}
-	if basket == nil {
-		return fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
-	}
+
 	return nil
 }
 

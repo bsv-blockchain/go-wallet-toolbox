@@ -38,7 +38,7 @@ func (c *Certificates) CreateCertificate(ctx context.Context, certificate *model
 	if err != nil {
 		return 0, fmt.Errorf("failed to create certificate model: %w", err)
 	}
-	return certificate.ID, nil
+	return certificate.CertificateID, nil
 }
 
 func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args wdk.RelinquishCertificateArgs) error {
@@ -48,7 +48,7 @@ func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args w
 		tracing.EndTracing(span, err)
 	}()
 
-	tx := c.db.WithContext(ctx).Delete(&models.Certificate{}, "type = ? AND serial_number = ? AND certifier = ? AND user_id = ?", args.Type, args.SerialNumber, args.Certifier, userID)
+	tx := c.db.WithContext(ctx).Delete(&models.Certificate{}, "type = ? AND serialNumber = ? AND certifier = ? AND userId = ?", args.Type, args.SerialNumber, args.Certifier, userID)
 	if tx.RowsAffected == 0 {
 		return fmt.Errorf("failed to delete certificate model: certificate not found")
 	}
@@ -61,7 +61,7 @@ func (c *Certificates) DeleteCertificate(ctx context.Context, userID int, args w
 
 func mapCertifierModelToEntity(model *models.Certificate) *entity.Certificate {
 	return &entity.Certificate{
-		ID:                 model.ID,
+		ID:                 model.CertificateID,
 		CreatedAt:          model.CreatedAt,
 		UpdatedAt:          model.UpdatedAt,
 		Certifier:          model.Certifier,
@@ -134,7 +134,7 @@ func (c *Certificates) conditionsBySpec(spec *entity.CertificateReadSpecificatio
 
 	table := &c.query.Certificate
 	if spec.ID != nil {
-		return []gen.Condition{table.ID.Eq(*spec.ID)}
+		return []gen.Condition{table.CertificateID.Eq(*spec.ID)}
 	}
 
 	var conditions []gen.Condition

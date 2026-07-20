@@ -37,7 +37,7 @@ type process struct {
 	commissionCfg         defs.Commission
 	txRepo                TransactionsRepo
 	outputRepo            OutputRepo
-	knownTxRepo           KnownTxRepo
+	knownTxRepo           ProvenTxReqRepo
 	commissionRepo        CommissionRepo
 	utxoRepo              UTXORepo
 	services              wdk.Services
@@ -55,7 +55,7 @@ func newProcessAction(
 	txRepo TransactionsRepo,
 	commissionCfg defs.Commission,
 	outputRepo OutputRepo,
-	knownTxRepo KnownTxRepo,
+	knownTxRepo ProvenTxReqRepo,
 	commissionRepo CommissionRepo,
 	utxoRepo UTXORepo,
 	uow UnitOfWork,
@@ -708,7 +708,7 @@ func (p *process) updateSingleTx(
 			}
 		}
 
-		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
+		uowErr = repos.ProvenTxReqRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
 		if uowErr != nil {
 			return fmt.Errorf("failed to update transaction status after broadcast: %w", uowErr)
 		}

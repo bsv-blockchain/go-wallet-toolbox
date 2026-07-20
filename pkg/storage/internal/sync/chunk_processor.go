@@ -7,15 +7,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-softwarelab/common/pkg/optional"
-	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/slogx"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/go-softwarelab/common/pkg/types"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -29,8 +26,8 @@ type ChunkProcessor struct {
 	args            *wdk.RequestSyncChunkArgs
 	syncState       *entity.SyncState
 	basketNameCache map[uint]string
-	labelCache      map[uint]*entity.Label
-	tagCache        map[uint]*entity.Tag
+	labelCache      map[uint]*entity.TxLabel
+	tagCache        map[uint]*entity.OutputTag
 	logger          *slog.Logger
 }
 
@@ -48,8 +45,8 @@ func NewChunkProcessor(ctx context.Context, logger *slog.Logger, repo Repository
 		args:            args,
 		user:            user,
 		basketNameCache: map[uint]string{},
-		labelCache:      map[uint]*entity.Label{},
-		tagCache:        map[uint]*entity.Tag{},
+		labelCache:      map[uint]*entity.TxLabel{},
+		tagCache:        map[uint]*entity.OutputTag{},
 		logger:          logger,
 	}
 }
@@ -213,18 +210,18 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		return fmt.Errorf("failed to get history notes for TxID %q: %w", chunkProvenTxReq.TxID, err)
 	}
 
-	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
+	isNew, err := p.repo.UpsertProvenTxReqForSync(p.ctx, &pkgentity.ProvenTxReq{
 		CreatedAt:           chunkProvenTxReq.CreatedAt,
 		UpdatedAt:           chunkProvenTxReq.UpdatedAt,
 		TxID:                chunkProvenTxReq.TxID,
 		Status:              chunkProvenTxReq.Status,
-		Attempts:            chunkProvenTxReq.Attempts,
+		Attempts:            uint32(chunkProvenTxReq.Attempts),
 		WasBroadcast:        chunkProvenTxReq.WasBroadcast || chunkProvenTxReq.Status.WasBroadcastStatus(),
-		RebroadcastAttempts: chunkProvenTxReq.RebroadcastAttempts,
+		RebroadcastAttempts: uint32(chunkProvenTxReq.RebroadcastAttempts),
 		Notified:            chunkProvenTxReq.Notified,
 		RawTx:               chunkProvenTxReq.RawTx,
 		InputBEEF:           chunkProvenTxReq.InputBEEF,
-		TxNotes:             historyNotes,
+		History:             historyNotes,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert proven tx req for TxID %q: %w", chunkProvenTxReq.TxID, err)
@@ -239,43 +236,34 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 	return nil
 }
 
-func (p *ChunkProcessor) getHistoryNotes(txID, encoded string) ([]*pkgentity.TxHistoryNote, error) {
+func (p *ChunkProcessor) getHistoryNotes(txID, encoded string) (pkgentity.ProvenTxReqHistory, error) {
+	var history pkgentity.ProvenTxReqHistory
 	const minLength = 12 // len of `{"notes":[]}`
 	if len(encoded) < minLength {
-		return nil, nil
+		return history, nil
 	}
 
-	var notesObj struct {
-		Notes []wdk.HistoryNote `json:"notes"`
-	}
-	err := json.Unmarshal([]byte(encoded), &notesObj)
+	err := json.Unmarshal([]byte(encoded), &history)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal history notes: %w", err)
+		return history, fmt.Errorf("failed to unmarshal history notes: %w", err)
 	}
 
-	return slices.Map(notesObj.Notes, func(note wdk.HistoryNote) *pkgentity.TxHistoryNote {
-		// TODO: UserIDs can mismatch because the translation is not implemented (in TS also)
-
-		return &pkgentity.TxHistoryNote{
-			HistoryNote: note,
-			TxID:        txID,
-		}
-	}), nil
+	return history, nil
 }
 
 func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {
 	p.logger.DebugContext(p.ctx, "upserting proven tx", slog.String("txid", chunkProvenTx.TxID))
 
-	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
-		CreatedAt:   chunkProvenTx.CreatedAt,
-		UpdatedAt:   chunkProvenTx.UpdatedAt,
-		TxID:        chunkProvenTx.TxID,
-		Status:      wdk.ProvenTxStatusCompleted,
-		RawTx:       chunkProvenTx.RawTx,
-		BlockHeight: to.Ptr(chunkProvenTx.Height),
-		MerklePath:  chunkProvenTx.MerklePath,
-		MerkleRoot:  to.Ptr(chunkProvenTx.MerkleRoot),
-		BlockHash:   to.Ptr(chunkProvenTx.BlockHash),
+	isNew, err := p.repo.UpsertProvenTxForSync(p.ctx, &pkgentity.ProvenTx{
+		CreatedAt:  chunkProvenTx.CreatedAt,
+		UpdatedAt:  chunkProvenTx.UpdatedAt,
+		TxID:       chunkProvenTx.TxID,
+		Height:     chunkProvenTx.Height,
+		Index:      uint32(chunkProvenTx.Index),
+		MerklePath: chunkProvenTx.MerklePath,
+		RawTx:      chunkProvenTx.RawTx,
+		BlockHash:  chunkProvenTx.BlockHash,
+		MerkleRoot: chunkProvenTx.MerkleRoot,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upsert proven tx for TxID %q: %w", chunkProvenTx.TxID, err)
@@ -306,8 +294,8 @@ func (p *ChunkProcessor) upsertTransaction(chunkTransaction *wdk.TableTransactio
 		IsOutgoing:  chunkTransaction.IsOutgoing,
 		Satoshis:    chunkTransaction.Satoshis,
 		Description: chunkTransaction.Description,
-		Version:     optional.OfPtr(chunkTransaction.Version).OrZeroValue(),
-		LockTime:    optional.OfPtr(chunkTransaction.LockTime).OrZeroValue(),
+		Version:     chunkTransaction.Version,
+		LockTime:    chunkTransaction.LockTime,
 		TxID:        chunkTransaction.TxID,
 		InputBEEF:   chunkTransaction.InputBEEF,
 	})
@@ -339,19 +327,13 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 
 	p.logger.DebugContext(p.ctx, "upserting output", logging.Number("txid", chunkOutput.TransactionID), logging.Number("vout", chunkOutput.Vout))
 
-	var basketName *string
+	var localBasketID *uint
 	if chunkOutput.BasketID != nil {
 		basketIDOnWriterSide, err := translateID(p, wdk.OutputBasketEntityName, *chunkOutput.BasketID)
 		if err != nil {
 			return fmt.Errorf("failed to translate basket ID %d: %w", *chunkOutput.BasketID, err)
 		}
-
-		name, err := p.getBasketNameByNumID(basketIDOnWriterSide)
-		if err != nil {
-			return fmt.Errorf("failed to get basket name for basket ID %d: %w", basketIDOnWriterSide, err)
-		}
-
-		basketName = &name
+		localBasketID = &basketIDOnWriterSide
 	}
 
 	transactionIDOnWriterSide, err := translateID(p, wdk.TransactionEntityName, chunkOutput.TransactionID)
@@ -390,24 +372,7 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		Type:               chunkOutput.Type,
 		SenderIdentityKey:  chunkOutput.SenderIdentityKey,
 		Tags:               nil, // TODO: Implement it along with tags backup support.
-		BasketName:         basketName,
-	}
-
-	if chunkOutput.Spendable && basketName != nil && *basketName == wdk.BasketNameForChange {
-		var satoshis uint64
-		satoshis, err = to.UInt64(chunkOutput.Satoshis)
-		if err != nil {
-			return fmt.Errorf("failed to convert change-basket's satoshis %d to uint64: %w", chunkOutput.Satoshis, err)
-		}
-
-		output.UserUTXO = &pkgentity.UserUTXO{
-			UserID:             p.user.ID,
-			BasketName:         wdk.BasketNameForChange,
-			Satoshis:           satoshis,
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-			CreatedAt:          chunkOutput.CreatedAt,
-			ReservedByID:       nil, // TODO: Talk to Damian how to deal with this - as it cannot be deduced from the output.
-		}
+		BasketID:           localBasketID,
 	}
 
 	isNew, outputID, err := p.repo.UpsertOutputForSync(p.ctx, output)
@@ -439,11 +404,11 @@ func (p *ChunkProcessor) upsertLabel(chunkLabel *wdk.TableTxLabel) error {
 
 	p.logger.DebugContext(p.ctx, "upserting label", slog.String("name", chunkLabel.Label))
 
-	entityLabel := &entity.Label{
+	entityLabel := &entity.TxLabel{
 		CreatedAt: chunkLabel.CreatedAt,
 		UpdatedAt: chunkLabel.UpdatedAt,
 		UserID:    p.user.ID,
-		Name:      chunkLabel.Label,
+		Label:     chunkLabel.Label,
 	}
 
 	if chunkLabel.IsDeleted {
@@ -511,11 +476,10 @@ func (p *ChunkProcessor) upsertLabelMap(chunkLabelMap *wdk.TableTxLabelMap) erro
 		return fmt.Errorf("label with num ID %d belongs to user ID %d, but current user ID is %d", labelNumIDOrWriterSide, labelEntity.UserID, p.user.ID)
 	}
 
-	entityLabelMap := &entity.LabelMap{
+	entityLabelMap := &entity.TxLabelsMap{
 		CreatedAt:     chunkLabelMap.CreatedAt,
 		UpdatedAt:     chunkLabelMap.UpdatedAt,
-		Name:          labelEntity.Name,
-		UserID:        labelEntity.UserID,
+		TxLabelID:     labelNumIDOrWriterSide,
 		TransactionID: transactionIDOnWriterSide,
 	}
 
@@ -553,11 +517,11 @@ func (p *ChunkProcessor) upsertTag(chunkTag *wdk.TableOutputTag) error {
 
 	p.logger.DebugContext(p.ctx, "upserting tag", slog.String("name", chunkTag.Tag))
 
-	entityTag := &entity.Tag{
+	entityTag := &entity.OutputTag{
 		CreatedAt: chunkTag.CreatedAt,
 		UpdatedAt: chunkTag.UpdatedAt,
 		UserID:    p.user.ID,
-		Name:      chunkTag.Tag,
+		Tag:       chunkTag.Tag,
 	}
 
 	if chunkTag.IsDeleted {
@@ -625,12 +589,11 @@ func (p *ChunkProcessor) upsertTagMap(chunkTagMap *wdk.TableOutputTagMap) error 
 		return fmt.Errorf("tag with num ID %d belongs to user ID %d, but current user ID is %d", tagNumIDOrWriterSide, tagEntity.UserID, p.user.ID)
 	}
 
-	entityTagMap := &entity.TagMap{
-		CreatedAt: chunkTagMap.CreatedAt,
-		UpdatedAt: chunkTagMap.UpdatedAt,
-		Name:      tagEntity.Name,
-		UserID:    tagEntity.UserID,
-		OutputID:  outputIDOnWriterSide,
+	entityTagMap := &entity.OutputTagsMap{
+		CreatedAt:   chunkTagMap.CreatedAt,
+		UpdatedAt:   chunkTagMap.UpdatedAt,
+		OutputTagID: tagNumIDOrWriterSide,
+		OutputID:    outputIDOnWriterSide,
 	}
 
 	if chunkTagMap.IsDeleted {
@@ -726,12 +689,12 @@ func (p *ChunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) 
 	return basketName, nil
 }
 
-func (p *ChunkProcessor) getLabelByNumID(labelNumID uint) (*entity.Label, error) {
+func (p *ChunkProcessor) getLabelByNumID(labelNumID uint) (*entity.TxLabel, error) {
 	if label, ok := p.labelCache[labelNumID]; ok {
 		return label, nil
 	}
 
-	label, err := p.repo.FindLabelByNumIDForSync(p.ctx, labelNumID)
+	label, err := p.repo.FindLabelByIDForSync(p.ctx, labelNumID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find label by num ID %d: %w", labelNumID, err)
 	}
@@ -741,12 +704,12 @@ func (p *ChunkProcessor) getLabelByNumID(labelNumID uint) (*entity.Label, error)
 	return label, nil
 }
 
-func (p *ChunkProcessor) getTagByNumID(tagNumID uint) (*entity.Tag, error) {
+func (p *ChunkProcessor) getTagByNumID(tagNumID uint) (*entity.OutputTag, error) {
 	if tag, ok := p.tagCache[tagNumID]; ok {
 		return tag, nil
 	}
 
-	tag, err := p.repo.FindTagByNumIDForSync(p.ctx, tagNumID)
+	tag, err := p.repo.FindTagByIDForSync(p.ctx, tagNumID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find tag by num ID %d: %w", tagNumID, err)
 	}

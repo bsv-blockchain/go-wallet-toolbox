@@ -36,7 +36,7 @@ type ValidSyncChunkAssertion interface {
 	BasketAtIndex(index int) BasketAssertion
 
 	ProvenTxReqsCount(length int) ValidSyncChunkAssertion
-	ProvenTxReqAtIndex(index int) ProvenTxReqAssertion
+	ProvenTxReqAtIndex(index int) SyncChunkProvenTxReqAssertion
 
 	ProvenTxsCount(length int) ValidSyncChunkAssertion
 	ProvenTxAtIndex(index int) ProvenTxAssertion
@@ -62,10 +62,10 @@ type BasketAssertion interface {
 	IsDefaultBasket() BasketAssertion
 }
 
-type ProvenTxReqAssertion interface {
-	AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxReqAssertion
-	WithTxID(txID string) ProvenTxReqAssertion
-	HasHistoryNotes(whatFields ...string) ProvenTxReqAssertion
+type SyncChunkProvenTxReqAssertion interface {
+	AlignsWithTxSpec(txSpec testvectors.TransactionSpec) SyncChunkProvenTxReqAssertion
+	WithTxID(txID string) SyncChunkProvenTxReqAssertion
+	HasHistoryNotes(whatFields ...string) SyncChunkProvenTxReqAssertion
 }
 
 type ProvenTxAssertion interface {
@@ -237,7 +237,7 @@ func (s *syncChunkAssertion) ProvenTxReqsCount(length int) ValidSyncChunkAsserti
 	return s
 }
 
-func (s *syncChunkAssertion) ProvenTxReqAtIndex(index int) ProvenTxReqAssertion {
+func (s *syncChunkAssertion) ProvenTxReqAtIndex(index int) SyncChunkProvenTxReqAssertion {
 	s.Helper()
 	require.GreaterOrEqual(s, index, 0)
 	require.Less(s, index, len(s.chunk.ProvenTxReqs))
@@ -254,14 +254,14 @@ type proveTxReqAssertion struct {
 	txReq  *wdk.TableProvenTxReq
 }
 
-func (p *proveTxReqAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpec) ProvenTxReqAssertion {
+func (p *proveTxReqAssertion) AlignsWithTxSpec(txSpec testvectors.TransactionSpec) SyncChunkProvenTxReqAssertion {
 	p.parent.Helper()
 	assert.Equal(p.parent, txSpec.ID().String(), p.txReq.TxID, "Expected txReq to align with transaction spec TxID")
 	assert.Equal(p.parent, txSpec.TX().Bytes(), []byte(p.txReq.RawTx), "Expected txReq to align with transaction spec RawTx")
 	return p
 }
 
-func (p *proveTxReqAssertion) HasHistoryNotes(whatFields ...string) ProvenTxReqAssertion {
+func (p *proveTxReqAssertion) HasHistoryNotes(whatFields ...string) SyncChunkProvenTxReqAssertion {
 	p.parent.Helper()
 
 	historyNotes := p.getHistoryNotes()
@@ -288,7 +288,7 @@ func (p *proveTxReqAssertion) getHistoryNotes() []map[string]any {
 	return notesObj.Notes
 }
 
-func (p *proveTxReqAssertion) WithTxID(txID string) ProvenTxReqAssertion {
+func (p *proveTxReqAssertion) WithTxID(txID string) SyncChunkProvenTxReqAssertion {
 	p.parent.Helper()
 	assert.Equal(p.parent, txID, p.txReq.TxID)
 	return p

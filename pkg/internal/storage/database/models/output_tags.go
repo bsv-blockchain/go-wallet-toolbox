@@ -1,17 +1,13 @@
 package models
 
-import (
-	"time"
-
-	"gorm.io/gorm"
-)
-
 type OutputTag struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+	Timestamps
+	OutputTagID uint   `gorm:"primarykey;column:outputTagId"`
+	Tag         string `gorm:"type:varchar(150);column:tag"`
+	UserID      int    `gorm:"column:userId"`
+	IsDeleted   bool   `gorm:"column:isDeleted;default:false"`
+}
 
-	OutputID  uint   `gorm:"primary_key"`
-	TagName   string `gorm:"primary_key"`
-	TagUserID int    `gorm:"primary_key"`
+func (OutputTag) TableName() string {
+	return "bsv_output_tags"
 }

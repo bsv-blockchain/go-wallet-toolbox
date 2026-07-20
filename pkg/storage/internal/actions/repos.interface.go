@@ -55,19 +55,19 @@ type TransactionsRepo interface {
 	FindTransactionIDsForAbort(ctx context.Context, opts ...queryopts.Options) ([]uint, error)
 }
 
-type KnownTxRepo interface {
-	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
+type ProvenTxReqRepo interface {
+	UpsertProvenTxReq(ctx context.Context, req *entity.UpsertProvenTxReq, txNote history.Builder) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
-	FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
-	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
-	FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.KnownTxForStatusSync, error)
+	FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.ProvenTxReqForStatusSync, error)
+	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.ProvenTxReqForStatusSync, error)
+	FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.ProvenTxReqForStatusSync, error)
 	GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error)
-	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error
+	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.ProvenTxAsMined) error
 	GetBEEFForTxIDs(ctx context.Context, txids iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error)
 	AllKnownTxsExist(ctx context.Context, txIDs []string, sourceTxsStatusFilter []wdk.ProvenTxReqStatus) (bool, error)
 	IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []string) error
-	ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadcastAttempts uint64, statuses []wdk.ProvenTxReqStatus) ([]models.KnownTx, error)
+	ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadcastAttempts uint64, statuses []wdk.ProvenTxReqStatus) ([]models.ProvenTxReq, error)
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
 	MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error
@@ -92,7 +92,7 @@ type UTXORepo interface {
 type Providers interface {
 	TransactionsRepo() TransactionsRepo
 	OutputRepo() OutputRepo
-	KnownTxRepo() KnownTxRepo
+	ProvenTxReqRepo() ProvenTxReqRepo
 	UTXORepo() UTXORepo
 	BasketRepo() BasketRepo
 	CommissionRepo() CommissionRepo

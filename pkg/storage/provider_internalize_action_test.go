@@ -18,7 +18,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-func TestInternalizeAction_UpdateKnownTxAsMined_HappyPath(t *testing.T) {
+func TestInternalizeAction_UpdateProvenTxAsMined_HappyPath(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
 

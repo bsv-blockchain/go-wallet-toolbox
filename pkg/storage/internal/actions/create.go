@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -84,7 +85,7 @@ type create struct {
 	txRepoConcrete  *repo.Transactions
 	utxoRepo        *repo.UTXOs
 	outputRepo      OutputRepo
-	knownTxRepo     KnownTxRepo
+	knownTxRepo     ProvenTxReqRepo
 	commissionRepo  CommissionRepo
 	commission      *commission.ScriptGenerator
 	commissionCfg   defs.Commission
@@ -104,7 +105,7 @@ func newCreateAction(
 	txRepoConcrete *repo.Transactions,
 	utxoRepo *repo.UTXOs,
 	outputRepo OutputRepo,
-	knownTxRepo KnownTxRepo,
+	knownTxRepo ProvenTxReqRepo,
 	commissionRepo CommissionRepo,
 	random wdk.Randomizer,
 	chaintracker chaintracker.ChainTracker,
@@ -174,10 +175,24 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	basket, err := c.basketRepo.FindBasketByName(ctx, userID, wdk.BasketNameForChange)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find basket for change: %w", err)
+		if errors.Is(err, wdk.ErrNotFoundError) {
+			return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+		}
+		return nil, fmt.Errorf("failed to load basket for change: %w", err)
 	}
-	if basket == nil {
-		return nil, fmt.Errorf("basket for change (%s) not found", wdk.BasketNameForChange)
+
+	basketIDMap := make(map[string]uint)
+	for _, o := range params.Outputs {
+		if o.Basket != nil {
+			name := string(*o.Basket)
+			if _, ok := basketIDMap[name]; !ok {
+				b, err := c.basketRepo.FindBasketByName(ctx, userID, name)
+				if err != nil {
+					return nil, fmt.Errorf("basket %s not found: %w", name, err)
+				}
+				basketIDMap[name] = b.ID
+			}
+		}
 	}
 
 	priorityOutputs, err := c.getNoSendOutputs(ctx, userID, params.IsNoSend, params.NoSendChange, reference)
@@ -288,7 +303,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	// CountUTXOs must run BEFORE opening the DB transaction to avoid a SQLite connection-pool
 	// deadlock (the transaction holds the one connection; CountUTXOs would block waiting for another).
-	existingUTXOs, err := c.utxoRepo.CountUTXOs(ctx, userID, basket.Name)
+	existingUTXOs, err := c.utxoRepo.CountUTXOs(ctx, userID, &basket.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count UTXOs: %w", err)
 	}
@@ -367,6 +382,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			params.Outputs,
 			commOut,
 			params.RandomizeOutputs,
+			basketIDMap,
+			&basket.ID,
 		)
 		if noErr != nil {
 			return fmt.Errorf("failed to create new outputs: %w", noErr)
@@ -605,6 +622,8 @@ func (c *create) newOutputs(
 	providedOutputs []wdk.ValidCreateActionOutput,
 	commissionOutput *serviceChargeOutput,
 	randomizeOutputs bool,
+	basketIDMap map[string]uint,
+	changeBasketID *uint,
 ) ([]*entity.NewOutput, error) {
 	length := must.ConvertToIntFromUnsigned(changeCount) + len(providedOutputs)
 	if commissionOutput != nil {
@@ -619,9 +638,14 @@ func (c *create) newOutputs(
 			return string(tag)
 		})
 
+		var bID *uint
+		if output.Basket != nil {
+			id := basketIDMap[string(*output.Basket)]
+			bID = &id
+		}
 		all = append(all, &entity.NewOutput{
 			Satoshis:           satoshi.MustFrom(output.Satoshis),
-			BasketName:         (*string)(output.Basket),
+			BasketID:           bID,
 			Spendable:          true,
 			Change:             false,
 			ProvidedBy:         wdk.ProvidedByYou,
@@ -637,7 +661,7 @@ func (c *create) newOutputs(
 		all = append(all, &entity.NewOutput{
 			LockingScript: to.Ptr(commissionOutput.LockingScript),
 			Satoshis:      satoshi.MustFrom(commissionOutput.Satoshis),
-			BasketName:    nil,
+			BasketID:      nil,
 			Spendable:     false,
 			Change:        false,
 			ProvidedBy:    wdk.ProvidedByStorage,
@@ -654,7 +678,7 @@ func (c *create) newOutputs(
 
 		all = append(all, &entity.NewOutput{
 			Satoshis:         satoshis,
-			BasketName:       to.Ptr(wdk.BasketNameForChange),
+			BasketID:         changeBasketID,
 			Spendable:        true,
 			Change:           true,
 			ProvidedBy:       wdk.ProvidedByStorage,
@@ -691,7 +715,7 @@ func (c *create) resultOutputs(newOutputs []*entity.NewOutput) []*wdk.StorageCre
 				OutputDescription:  primitives.String5to2000Bytes(output.Description),
 				CustomInstructions: output.CustomInstructions,
 				LockingScript:      optional.OfPtr(output.LockingScript).OrZeroValue(),
-				Basket:             (*primitives.StringUnder300)(output.BasketName),
+				Basket:             nil, // Basket is now identified by BasketID, not returned here
 				Tags: slices.Map(output.Tags, func(tag string) primitives.StringUnder300 {
 					return primitives.StringUnder300(tag)
 				}),
@@ -833,7 +857,7 @@ func (c *create) mergeAllocatedUTXOs(
 		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
 	}
 
-	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
+	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), entity.WithMergeToBEEF(inputBeef), entity.WithProvenTxReqIDs(knownTxIDs.ToStringSlice()...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get BEEF for allocated UTXOs: %w", err)
 	}

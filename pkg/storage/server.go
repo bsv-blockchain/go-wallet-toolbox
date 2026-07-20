@@ -12,7 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/v1adapter"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/v2adapter"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -35,11 +35,11 @@ func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, wallet sd
 }
 
 // Handler returns an http.Handler configured with the storage v1 adapter endpoints
-// (the canonical BRC-100 /storage/v1/* remoting contract).
+// (the canonical BRC-100 /storage/v2/* remoting contract).
 func (s *Server) Handler() http.Handler {
-	// Use the new v1adapter as the core remoting implementation.
+	// Use the new v2adapter as the core remoting implementation.
 	// This replaces the previous JSON-RPC layer.
-	coreHandler := v1adapter.NewHandler(s.provider, s.logger)
+	coreHandler := v2adapter.NewHandler(s.provider, s.logger)
 
 	handler := coreHandler
 

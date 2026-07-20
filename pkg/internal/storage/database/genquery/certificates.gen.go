@@ -28,18 +28,18 @@ func newCertificate(db *gorm.DB, opts ...gen.DOOption) certificate {
 
 	tableName := _certificate.certificateDo.TableName()
 	_certificate.ALL = field.NewAsterisk(tableName)
-	_certificate.ID = field.NewUint(tableName, "id")
 	_certificate.CreatedAt = field.NewTime(tableName, "created_at")
 	_certificate.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_certificate.DeletedAt = field.NewField(tableName, "deleted_at")
+	_certificate.CertificateID = field.NewUint(tableName, "certificateId")
 	_certificate.Type = field.NewString(tableName, "type")
-	_certificate.SerialNumber = field.NewString(tableName, "serial_number")
+	_certificate.SerialNumber = field.NewString(tableName, "serialNumber")
 	_certificate.Certifier = field.NewString(tableName, "certifier")
 	_certificate.Subject = field.NewString(tableName, "subject")
 	_certificate.Verifier = field.NewString(tableName, "verifier")
-	_certificate.RevocationOutpoint = field.NewString(tableName, "revocation_outpoint")
+	_certificate.RevocationOutpoint = field.NewString(tableName, "revocationOutpoint")
 	_certificate.Signature = field.NewString(tableName, "signature")
-	_certificate.UserID = field.NewInt(tableName, "user_id")
+	_certificate.IsDeleted = field.NewBool(tableName, "isDeleted")
+	_certificate.UserID = field.NewInt(tableName, "userId")
 	_certificate.CertificateFields = certificateHasManyCertificateFields{
 		db: db.Session(&gorm.Session{}),
 
@@ -55,10 +55,9 @@ type certificate struct {
 	certificateDo
 
 	ALL                field.Asterisk
-	ID                 field.Uint
 	CreatedAt          field.Time
 	UpdatedAt          field.Time
-	DeletedAt          field.Field
+	CertificateID      field.Uint
 	Type               field.String
 	SerialNumber       field.String
 	Certifier          field.String
@@ -66,6 +65,7 @@ type certificate struct {
 	Verifier           field.String
 	RevocationOutpoint field.String
 	Signature          field.String
+	IsDeleted          field.Bool
 	UserID             field.Int
 	CertificateFields  certificateHasManyCertificateFields
 
@@ -78,24 +78,24 @@ func (c certificate) Table(newTableName string) *certificate {
 }
 
 func (c certificate) As(alias string) *certificate {
-	c.certificateDo.DO = *c.certificateDo.As(alias).(*gen.DO)
+	c.certificateDo.DO = *(c.certificateDo.As(alias).(*gen.DO))
 	return c.updateTableName(alias)
 }
 
 func (c *certificate) updateTableName(table string) *certificate {
 	c.ALL = field.NewAsterisk(table)
-	c.ID = field.NewUint(table, "id")
 	c.CreatedAt = field.NewTime(table, "created_at")
 	c.UpdatedAt = field.NewTime(table, "updated_at")
-	c.DeletedAt = field.NewField(table, "deleted_at")
+	c.CertificateID = field.NewUint(table, "certificateId")
 	c.Type = field.NewString(table, "type")
-	c.SerialNumber = field.NewString(table, "serial_number")
+	c.SerialNumber = field.NewString(table, "serialNumber")
 	c.Certifier = field.NewString(table, "certifier")
 	c.Subject = field.NewString(table, "subject")
 	c.Verifier = field.NewString(table, "verifier")
-	c.RevocationOutpoint = field.NewString(table, "revocation_outpoint")
+	c.RevocationOutpoint = field.NewString(table, "revocationOutpoint")
 	c.Signature = field.NewString(table, "signature")
-	c.UserID = field.NewInt(table, "user_id")
+	c.IsDeleted = field.NewBool(table, "isDeleted")
+	c.UserID = field.NewInt(table, "userId")
 
 	c.fillFieldMap()
 
@@ -113,18 +113,19 @@ func (c *certificate) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 
 func (c *certificate) fillFieldMap() {
 	c.fieldMap = make(map[string]field.Expr, 13)
-	c.fieldMap["id"] = c.ID
 	c.fieldMap["created_at"] = c.CreatedAt
 	c.fieldMap["updated_at"] = c.UpdatedAt
-	c.fieldMap["deleted_at"] = c.DeletedAt
+	c.fieldMap["certificateId"] = c.CertificateID
 	c.fieldMap["type"] = c.Type
-	c.fieldMap["serial_number"] = c.SerialNumber
+	c.fieldMap["serialNumber"] = c.SerialNumber
 	c.fieldMap["certifier"] = c.Certifier
 	c.fieldMap["subject"] = c.Subject
 	c.fieldMap["verifier"] = c.Verifier
-	c.fieldMap["revocation_outpoint"] = c.RevocationOutpoint
+	c.fieldMap["revocationOutpoint"] = c.RevocationOutpoint
 	c.fieldMap["signature"] = c.Signature
-	c.fieldMap["user_id"] = c.UserID
+	c.fieldMap["isDeleted"] = c.IsDeleted
+	c.fieldMap["userId"] = c.UserID
+
 }
 
 func (c certificate) clone(db *gorm.DB) certificate {

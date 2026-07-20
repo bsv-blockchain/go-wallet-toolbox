@@ -4,7 +4,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-type UpsertKnownTx struct {
+type UpsertProvenTxReq struct {
 	InputBeef       []byte
 	RawTx           []byte
 	TxID            string

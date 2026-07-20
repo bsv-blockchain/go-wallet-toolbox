@@ -19,25 +19,27 @@ func NewMigrator(db *gorm.DB) *Migrator {
 }
 
 func (m *Migrator) Migrate(ctx context.Context) error {
+	
+	
+
 	err := m.db.WithContext(ctx).AutoMigrate(
 		models.Setting{},
 		models.User{},
 		models.OutputBasket{},
 		models.CertificateField{},
 		models.Certificate{},
-		models.UserUTXO{},
 		models.Transaction{},
 		models.Output{},
-		models.KnownTx{},
-		models.Label{},
-		models.TransactionLabel{},
-		models.NumericIDLookup{},
+		models.ProvenTxReq{},
+		models.ProvenTx{},
+		models.TxLabel{},
+		models.TxLabelsMap{},
 		models.SyncState{},
 		models.KeyValue{},
-		models.Tag{},
 		models.OutputTag{},
+		models.OutputTagsMap{},
 		models.Commission{},
-		models.TxNote{},
+		models.MonitorEvent{},
 		models.ChaintracksLiveHeader{},
 		models.ChaintracksBulkFile{},
 	)
@@ -49,21 +51,12 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 		return fmt.Errorf("failed to backfill known tx broadcast state: %w", err)
 	}
 
-	err = m.db.SetupJoinTable(&models.Transaction{}, "Labels", &models.TransactionLabel{})
-	if err != nil {
-		return fmt.Errorf("failed to setup join table for Transaction and Labels: %w", err)
-	}
-
-	err = m.db.SetupJoinTable(&models.Output{}, "Tags", &models.OutputTag{})
-	if err != nil {
-		return fmt.Errorf("failed to setup join table for Output and Tags: %w", err)
-	}
 
 	return nil
 }
 
 func backfillKnownTxBroadcastState(db *gorm.DB) error {
-	return db.Model(&models.KnownTx{}).
+	return db.Model(&models.ProvenTxReq{}).
 		Where("status IN ?", []string{
 			string(wdk.ProvenTxStatusUnmined),
 			string(wdk.ProvenTxStatusCallback),
@@ -71,7 +64,7 @@ func backfillKnownTxBroadcastState(db *gorm.DB) error {
 			string(wdk.ProvenTxStatusCompleted),
 			string(wdk.ProvenTxStatusReorg),
 		}).
-		Where("was_broadcast = ?", false).
-		UpdateColumn("was_broadcast", true).
+		Where("wasBroadcast = ?", false).
+		UpdateColumn("wasBroadcast", true).
 		Error
 }

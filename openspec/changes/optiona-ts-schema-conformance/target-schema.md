@@ -4,7 +4,7 @@ Every task in this change codes against THIS document, not against prose column-
 
 **Extraction source:** `packages/wallet/wallet-toolbox/src/storage/schema/KnexMigrations.ts` @ `7a840ff97e1f685f778210818933e6da0dac22c2`.
 
-**Extraction method (Wave 0 finalizes this file):** Knex runs migrations in **sorted-key order**, NOT file order. Final state = apply every `createTable` then every `alterTable`/`dropColumn` in key order. Columns added by one migration and dropped by a later one are **absent** in final state. The tables below are extracted from the `createTable` blocks; items flagged **⚠ RESOLVE** are touched by later `alterTable` migrations and Wave 0 must confirm net state before models are written.
+**Extraction method:** Knex runs migrations in **sorted-key order**, NOT file order. Final state = apply every `createTable` then every `alterTable`/`dropColumn` in key order. Columns added by one migration and dropped by a later one are **absent** in final state. The tables below represent the migration-resolved final state. All previously flagged ⚠ RESOLVE items have been confirmed against the sorted migration sequence (resolved 2026-07-08).
 
 ## Naming convention (CRITICAL — the prose plan got this wrong)
 
@@ -56,12 +56,13 @@ PK `provenTxReqId` auto-incr
 - `notify` text/longtext NOT NULL default `'{}'`
 - `rawTx` binary NOT NULL
 - `inputBEEF` binary NULL
-- ⚠ RESOLVE `wasBroadcast` bool + `rebroadcastAttempts` int — **added** by migration `2026-04-30-001`, **dropped** by a later migration. Net state appears **ABSENT**. Go currently HAS `rebroadcast_attempts` on `KnownTx`; if net-absent, Go must drop it. Confirm sorted-key order in Wave 0.
+- `wasBroadcast` bool NOT NULL default false   ← ✅ RESOLVED: **PRESENT**. Added by migration `2026-04-30-001` (the last migration in sorted order). No later migration drops it — the `down()` is rollback only. Go must add this column.
+- `rebroadcastAttempts` int unsigned NOT NULL default 0   ← ✅ RESOLVED: **PRESENT**. Same migration. Go currently has `rebroadcast_attempts` on `KnownTx` — rename to camelCase `rebroadcastAttempts` and carry forward to `ProvenTxReq`.
 
 ### users
 PK `userId` auto-incr
 - `identityKey` varchar(130) NOT NULL UNIQUE
-- (NO `activeStorage` — added then dropped in TS; confirmed net-absent. Drop Go's.)
+- `activeStorage` varchar(130) NOT NULL   ← ✅ RESOLVED: **PRESENT**. Added by `2025-01-21-001` (nullable), altered to NOT NULL by `2025-02-22-001`. No migration drops it. Actively used by `WalletStorageManager` for multi-storage routing. Go must **keep** (not drop) this column.
 
 ### certificates  (soft-delete)
 PK `certificateId` auto-incr
@@ -103,7 +104,7 @@ PK `transactionId` auto-incr
 - `satoshis` bigint NOT NULL default 0
 - `version` int unsigned NULL
 - `lockTime` int unsigned NULL
-- `description` varchar(2048) NOT NULL  (⚠ created at 500, altered to 2048)
+- `description` varchar(2048) NOT NULL   ← ✅ RESOLVED: created at 500 by `2024-12-26-001`, altered to 2048 by `2025-03-03-001`. Net: **2048**.
 - `txid` varchar(64) NULL
 - `inputBEEF` binary NULL
 - `rawTx` binary NULL
@@ -129,11 +130,11 @@ PK `outputId` auto-incr
 - `providedBy` varchar(130) NOT NULL
 - `purpose` varchar(20) NOT NULL
 - `type` varchar(50) NOT NULL
-- `outputDescription` varchar(2048)  (⚠ created 300, altered to 2048)  ← Go `Description`
+- `outputDescription` varchar(2048) NULL   ← ✅ RESOLVED: created at 300 by `2024-12-26-001`, altered to 2048 by `2025-03-03-001`. Net: **2048**. Go `Description`.
 - `txid` varchar(64) NULL
 - `senderIdentityKey` varchar(130) NULL
-- `derivationPrefix` varchar(32) NULL  (⚠ 200→32 final)
-- `derivationSuffix` varchar(32) NULL
+- `derivationPrefix` varchar(200) NULL   ← ✅ RESOLVED: created at 32 by `2024-12-26-001`, altered to 200 by `2025-02-28-001`. Net: **200** (NOT 32).
+- `derivationSuffix` varchar(200) NULL   ← ✅ RESOLVED: same migration path. Net: **200**.
 - `customInstructions` varchar(2500) NULL
 - `spentBy` int unsigned NULL → FK `transactions.transactionId`
 - `sequenceNumber` int unsigned NULL

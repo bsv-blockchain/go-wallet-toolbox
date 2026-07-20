@@ -1,17 +1,15 @@
 package models
 
-import (
-	"time"
+type TxLabel struct {
+	Timestamps
+	TxLabelID uint   `gorm:"primarykey;column:txLabelId"`
+	Label     string `gorm:"type:varchar(300);column:label"`
+	UserID    int    `gorm:"column:userId"`
+	IsDeleted bool   `gorm:"column:isDeleted;default:false"`
 
-	"gorm.io/gorm"
-)
+	Transactions []*Transaction `gorm:"many2many:tx_labels_map;joinForeignKey:TxLabelID;joinReferences:TransactionID"`
+}
 
-type TransactionLabel struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-
-	TransactionID uint   `gorm:"primary_key"`
-	LabelName     string `gorm:"primary_key"`
-	LabelUserID   int    `gorm:"primary_key"`
+func (TxLabel) TableName() string {
+	return "bsv_tx_labels"
 }

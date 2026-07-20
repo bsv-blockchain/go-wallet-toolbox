@@ -15,13 +15,11 @@ type Repositories struct {
 	*UTXOs
 	*Transactions
 	*Outputs
-	*KnownTx
+	*ProvenTxReqRepo
 	*Sync
 	*SyncState
 	*KeyValue
 	*Commission
-	*TxNotes
-	*UserUTXOs
 
 	DB *gorm.DB
 }
@@ -29,21 +27,19 @@ type Repositories struct {
 func NewSQLRepositories(db *gorm.DB) *Repositories {
 	query := genquery.Use(db)
 	repositories := &Repositories{
-		DB:            db,
-		Migrator:      NewMigrator(db),
-		Settings:      NewSettings(db),
-		OutputBaskets: NewOutputBaskets(db, query),
-		Certificates:  NewCertificates(db, query),
-		UTXOs:         NewUTXOs(db, query),
-		Transactions:  NewTransactions(db, query),
-		Outputs:       NewOutputs(db, query),
-		KnownTx:       NewKnownTxRepo(db, query),
-		Sync:          NewSync(db, query),
-		SyncState:     NewSyncState(db),
-		KeyValue:      NewKeyValue(db),
-		Commission:    NewCommission(db, query),
-		TxNotes:       NewTxNotes(db, query),
-		UserUTXOs:     NewUserUTXOs(db, query),
+		DB:              db,
+		Migrator:        NewMigrator(db),
+		Settings:        NewSettings(db),
+		OutputBaskets:   NewOutputBaskets(db, query),
+		Certificates:    NewCertificates(db, query),
+		UTXOs:           NewUTXOs(db, query),
+		Transactions:    NewTransactions(db, query),
+		Outputs:         NewOutputs(db, query),
+		ProvenTxReqRepo: NewProvenTxReqRepo(db, query),
+		Sync:            NewSync(db, query),
+		SyncState:       NewSyncState(db),
+		KeyValue:        NewKeyValue(db),
+		Commission:      NewCommission(db, query),
 	}
 	repositories.Users = NewUsers(db, query, repositories.Settings, repositories.OutputBaskets)
 

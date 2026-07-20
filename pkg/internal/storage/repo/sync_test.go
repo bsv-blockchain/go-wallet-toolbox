@@ -36,7 +36,7 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	page := queryopts.Paging{
 		Limit:  10,
 		Offset: 0,
-		SortBy: "number_of_desired_utxos",
+		SortBy: "numberOfDesiredUTXOs",
 		Sort:   "asc",
 	}
 
@@ -71,5 +71,5 @@ func TestSyncWithNumericIDLookup(t *testing.T) {
 	require.Len(t, baskets, 3)
 	require.Equal(t, 1, baskets[0].BasketID)
 	require.Equal(t, 2, baskets[1].BasketID)
-	require.Equal(t, 5, baskets[2].BasketID)
+	require.Equal(t, 3, baskets[2].BasketID)
 }

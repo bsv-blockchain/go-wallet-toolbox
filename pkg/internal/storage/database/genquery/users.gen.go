@@ -30,9 +30,9 @@ func newUser(db *gorm.DB, opts ...gen.DOOption) user {
 	_user.ALL = field.NewAsterisk(tableName)
 	_user.CreatedAt = field.NewTime(tableName, "created_at")
 	_user.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_user.UserID = field.NewInt(tableName, "user_id")
-	_user.IdentityKey = field.NewString(tableName, "identity_key")
-	_user.ActiveStorage = field.NewString(tableName, "active_storage")
+	_user.UserID = field.NewInt(tableName, "userId")
+	_user.IdentityKey = field.NewString(tableName, "identityKey")
+	_user.ActiveStorage = field.NewString(tableName, "activeStorage")
 	_user.OutputBaskets = userHasManyOutputBaskets{
 		db: db.Session(&gorm.Session{}),
 
@@ -85,7 +85,7 @@ func (u user) Table(newTableName string) *user {
 }
 
 func (u user) As(alias string) *user {
-	u.userDo.DO = *u.userDo.As(alias).(*gen.DO)
+	u.userDo.DO = *(u.userDo.As(alias).(*gen.DO))
 	return u.updateTableName(alias)
 }
 
@@ -93,9 +93,9 @@ func (u *user) updateTableName(table string) *user {
 	u.ALL = field.NewAsterisk(table)
 	u.CreatedAt = field.NewTime(table, "created_at")
 	u.UpdatedAt = field.NewTime(table, "updated_at")
-	u.UserID = field.NewInt(table, "user_id")
-	u.IdentityKey = field.NewString(table, "identity_key")
-	u.ActiveStorage = field.NewString(table, "active_storage")
+	u.UserID = field.NewInt(table, "userId")
+	u.IdentityKey = field.NewString(table, "identityKey")
+	u.ActiveStorage = field.NewString(table, "activeStorage")
 
 	u.fillFieldMap()
 
@@ -115,9 +115,10 @@ func (u *user) fillFieldMap() {
 	u.fieldMap = make(map[string]field.Expr, 8)
 	u.fieldMap["created_at"] = u.CreatedAt
 	u.fieldMap["updated_at"] = u.UpdatedAt
-	u.fieldMap["user_id"] = u.UserID
-	u.fieldMap["identity_key"] = u.IdentityKey
-	u.fieldMap["active_storage"] = u.ActiveStorage
+	u.fieldMap["userId"] = u.UserID
+	u.fieldMap["identityKey"] = u.IdentityKey
+	u.fieldMap["activeStorage"] = u.ActiveStorage
+
 }
 
 func (u user) clone(db *gorm.DB) user {

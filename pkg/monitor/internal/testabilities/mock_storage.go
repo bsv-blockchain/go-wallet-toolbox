@@ -49,3 +49,7 @@ func (m *MockStorage) ProcessNewTip(_ context.Context, _ uint32, _ string) ([]wd
 	m.ProcessNewTipCalled.Add(1)
 	return nil, nil
 }
+
+func (m *MockStorage) RecordMonitorEvent(_ context.Context, _ string, _ string) error {
+	return nil
+}

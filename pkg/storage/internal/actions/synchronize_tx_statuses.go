@@ -42,7 +42,7 @@ var statusesReadyToSync = []wdk.ProvenTxReqStatus{
 type synchronizeTxStatuses struct {
 	lock                 sync.Mutex
 	logger               *slog.Logger
-	provenTxRepo         KnownTxRepo
+	provenTxRepo         ProvenTxReqRepo
 	keyValueRepo         KeyValueRepo
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
@@ -56,7 +56,7 @@ func newSynchronizeTxStatuses(
 	logger *slog.Logger,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
 	services wdk.Services,
-	provenTxRepo KnownTxRepo,
+	provenTxRepo ProvenTxReqRepo,
 	keyValueRepo KeyValueRepo,
 	transactionRepo TransactionsRepo,
 	outputRepo OutputRepo,
@@ -205,12 +205,12 @@ func (s *synchronizeTxStatuses) setLastBlock(ctx context.Context, height uint, h
 // filterTxsByConfirmationDepth filters transactions to only those that have at least BlocksDelay confirmations.
 // This prevents unnecessary MerklePath calls for transactions that are not yet sufficiently confirmed.
 // If the status service is unavailable, it returns an empty slice to skip synchronization.
-func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) { //nolint:unparam // error return reserved for future validation
+func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.ProvenTxReqForStatusSync) ([]*entity.ProvenTxReqForStatusSync, error) { //nolint:unparam // error return reserved for future validation
 	if len(txs) == 0 {
 		return txs, nil
 	}
 
-	txIDs := slices.Map(txs, func(tx *entity.KnownTxForStatusSync) string {
+	txIDs := slices.Map(txs, func(tx *entity.ProvenTxReqForStatusSync) string {
 		return tx.TxID
 	})
 
@@ -234,7 +234,7 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		depthByTxID[result.TxID] = *result.Depth
 	}
 
-	filtered := slices.Filter(txs, func(tx *entity.KnownTxForStatusSync) bool {
+	filtered := slices.Filter(txs, func(tx *entity.ProvenTxReqForStatusSync) bool {
 		depth, ok := depthByTxID[tx.TxID]
 		if !ok {
 			s.logger.DebugContext(
@@ -310,10 +310,10 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	}
 
 	var txStatuses []wdk.TxSynchronizedStatus
-	var txsToSync []*entity.KnownTxForStatusSync
+	var txsToSync []*entity.ProvenTxReqForStatusSync
 	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
 	for range syncTxStatusMaxPages {
-		var txsPage []*entity.KnownTxForStatusSync
+		var txsPage []*entity.ProvenTxReqForStatusSync
 		txsPage, err = s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, queryopts.WithPage(paging))
 		if err != nil {
 			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsReadyForStatusSync failed: %w", err)
@@ -349,7 +349,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, nil
 	}
 
-	txIDs := slices.Map(txsToSync, func(tx *entity.KnownTxForStatusSync) string {
+	txIDs := slices.Map(txsToSync, func(tx *entity.ProvenTxReqForStatusSync) string {
 		return tx.TxID
 	})
 	txReferencesLookup, err := s.transactionRepo.FindReferencesByTxIDs(ctx, txIDs)
@@ -412,7 +412,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			return history.NewBuilder().NotifyTxOfProof(transactionID)
 		})
 
-		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.ProvenTxAsMined{
 			TxID:        txToSync.TxID,
 			BlockHeight: merkleResult.BlockHeader.Height,
 			MerklePath:  merkleResult.MerklePath.Bytes(),

@@ -13,15 +13,17 @@ type Transaction struct {
 	UpdatedAt time.Time
 
 	UserID      int
+	ProvenTxID  *uint
 	Status      wdk.TxStatus
 	Reference   string
 	IsOutgoing  bool
 	Satoshis    int64
 	Description string
-	Version     uint32
-	LockTime    uint32
+	Version     *uint32
+	LockTime    *uint32
 	TxID        *string
 	InputBEEF   []byte
+	RawTx       []byte
 	Labels      []string
 }
 

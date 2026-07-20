@@ -21,8 +21,8 @@ import (
 
 const contentTypeJSON = "application/json"
 
-// NewClient returns a WalletStorageProviderClient that speaks the V1 storage adapter
-// HTTP contract (/storage/v1/*) using authenticated requests via the go-sdk auth client.
+// NewClient returns a WalletStorageProviderClient that speaks the V2 storage adapter
+// HTTP contract (/storage/v2/*) using authenticated requests via the go-sdk auth client.
 // This replaces the legacy JSON-RPC implementation (now deprecated).
 // The returned cleanup func is a no-op (no persistent connection).
 func NewClient(addr string, wallet sdk.Interface, opts ...ClientOptions) (*WalletStorageProviderClient, func(), error) {
@@ -100,7 +100,7 @@ func migrate(r *authriteRequester) func(ctx context.Context, storageName, storag
 			StorageName string `json:"storageName"`
 		}
 		payload := map[string]string{"storageName": storageName, "storageIdentityKey": storageIdentityKey}
-		if err := r.post(ctx, "/storage/v1/migrate", payload, &res); err != nil {
+		if err := r.post(ctx, "/storage/v2/migrate", payload, &res); err != nil {
 			return "", err
 		}
 		return res.StorageName, nil
@@ -110,7 +110,7 @@ func migrate(r *authriteRequester) func(ctx context.Context, storageName, storag
 func makeAvailable(r *authriteRequester) func(ctx context.Context) (*wdk.TableSettings, error) {
 	return func(ctx context.Context) (*wdk.TableSettings, error) {
 		var res wdk.TableSettings
-		if err := r.get(ctx, "/storage/v1/settings", &res); err != nil {
+		if err := r.get(ctx, "/storage/v2/settings", &res); err != nil {
 			return nil, err
 		}
 		return &res, nil
@@ -127,7 +127,7 @@ func findOrInsertUser(r *authriteRequester) func(ctx context.Context, identityKe
 	return func(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
 		var res wdk.FindOrInsertUserResponse
 		payload := map[string]string{"identityKey": identityKey}
-		if err := r.post(ctx, "/storage/v1/users", payload, &res); err != nil {
+		if err := r.post(ctx, "/storage/v2/users", payload, &res); err != nil {
 			return nil, err
 		}
 		return &res, nil
@@ -141,7 +141,7 @@ func internalizeAction(r *authriteRequester) func(ctx context.Context, auth wdk.
 			IdentityKey string                    `json:"identityKey,omitempty"`
 			Args        wdk.InternalizeActionArgs `json:"args"`
 		}{IdentityKey: auth.IdentityKey, Args: args}
-		if err := r.post(ctx, "/storage/v1/actions/internalize", payload, &res); err != nil {
+		if err := r.post(ctx, "/storage/v2/actions/internalize", payload, &res); err != nil {
 			return nil, err
 		}
 		return &res, nil
@@ -150,13 +150,13 @@ func internalizeAction(r *authriteRequester) func(ctx context.Context, auth wdk.
 
 func createAction(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
-		return postArgs[wdk.ValidCreateActionArgs, wdk.StorageCreateActionResult](r, ctx, "/storage/v1/actions", args)
+		return postArgs[wdk.ValidCreateActionArgs, wdk.StorageCreateActionResult](r, ctx, "/storage/v2/actions", args)
 	}
 }
 
 func processAction(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
-		return postArgs[wdk.ProcessActionArgs, wdk.ProcessActionResult](r, ctx, "/storage/v1/actions/process", args)
+		return postArgs[wdk.ProcessActionArgs, wdk.ProcessActionResult](r, ctx, "/storage/v2/actions/process", args)
 	}
 }
 
@@ -166,7 +166,7 @@ func insertCertificateAuth(r *authriteRequester) func(ctx context.Context, auth 
 			CertificateID uint `json:"certificateId"`
 			ID            uint `json:"id"`
 		}
-		if err := r.post(ctx, "/storage/v1/certificates", certificate, &res); err != nil {
+		if err := r.post(ctx, "/storage/v2/certificates", certificate, &res); err != nil {
 			return 0, err
 		}
 		if res.CertificateID != 0 {
@@ -178,43 +178,43 @@ func insertCertificateAuth(r *authriteRequester) func(ctx context.Context, auth 
 
 func relinquishCertificate(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishCertificateArgs) error {
-		return postArgsNoResult[wdk.RelinquishCertificateArgs](r, ctx, "/storage/v1/certificates/relinquish", args)
+		return postArgsNoResult[wdk.RelinquishCertificateArgs](r, ctx, "/storage/v2/certificates/relinquish", args)
 	}
 }
 
 func relinquishOutput(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
-		return postArgsNoResult[wdk.RelinquishOutputArgs](r, ctx, "/storage/v1/outputs/relinquish", args)
+		return postArgsNoResult[wdk.RelinquishOutputArgs](r, ctx, "/storage/v2/outputs/relinquish", args)
 	}
 }
 
 func listCertificates(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListCertificatesArgs) (*wdk.ListCertificatesResult, error) {
-		return postArgs[wdk.ListCertificatesArgs, wdk.ListCertificatesResult](r, ctx, "/storage/v1/list/certificates", args)
+		return postArgs[wdk.ListCertificatesArgs, wdk.ListCertificatesResult](r, ctx, "/storage/v2/list/certificates", args)
 	}
 }
 
 func listOutputs(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
-		return postArgs[wdk.ListOutputsArgs, wdk.ListOutputsResult](r, ctx, "/storage/v1/list/outputs", args)
+		return postArgs[wdk.ListOutputsArgs, wdk.ListOutputsResult](r, ctx, "/storage/v2/list/outputs", args)
 	}
 }
 
 func listActions(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error) {
-		return postArgs[wdk.ListActionsArgs, wdk.ListActionsResult](r, ctx, "/storage/v1/list/actions", args)
+		return postArgs[wdk.ListActionsArgs, wdk.ListActionsResult](r, ctx, "/storage/v2/list/actions", args)
 	}
 }
 
 func listTransactions(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {
-		return postArgs[wdk.ListTransactionsArgs, wdk.ListTransactionsResult](r, ctx, "/storage/v1/list/transactions", args)
+		return postArgs[wdk.ListTransactionsArgs, wdk.ListTransactionsResult](r, ctx, "/storage/v2/list/transactions", args)
 	}
 }
 
 func getSyncChunk(r *authriteRequester) func(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
 	return func(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-		return postArgs[wdk.RequestSyncChunkArgs, wdk.SyncChunk](r, ctx, "/storage/v1/sync/chunk", args)
+		return postArgs[wdk.RequestSyncChunkArgs, wdk.SyncChunk](r, ctx, "/storage/v2/sync/chunk", args)
 	}
 }
 
@@ -222,7 +222,7 @@ func findOrInsertSyncStateAuth(r *authriteRequester) func(ctx context.Context, a
 	return func(ctx context.Context, auth wdk.AuthID, storageIdentityKey, storageName string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 		var res wdk.FindOrInsertSyncStateAuthResponse
 		payload := map[string]string{"storageIdentityKey": storageIdentityKey, "storageName": storageName}
-		if err := r.post(ctx, "/storage/v1/sync/state", payload, &res); err != nil {
+		if err := r.post(ctx, "/storage/v2/sync/state", payload, &res); err != nil {
 			return nil, err
 		}
 		return &res, nil
@@ -237,7 +237,7 @@ func processSyncChunk() func(ctx context.Context, args wdk.RequestSyncChunkArgs,
 
 func abortAction(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
 	return func(ctx context.Context, auth wdk.AuthID, args wdk.AbortActionArgs) (*wdk.AbortActionResult, error) {
-		return postArgs[wdk.AbortActionArgs, wdk.AbortActionResult](r, ctx, "/storage/v1/actions/abort", args)
+		return postArgs[wdk.AbortActionArgs, wdk.AbortActionResult](r, ctx, "/storage/v2/actions/abort", args)
 	}
 }
 
@@ -333,7 +333,7 @@ func (r *authriteRequester) post(ctx context.Context, path string, payload, resu
 		Error string `json:"error"`
 	}
 	if json.Unmarshal(data, &errResp) == nil && errResp.Error != "" {
-		return fmt.Errorf("storage v1 error: %s", errResp.Error)
+		return fmt.Errorf("storage v2 error: %s", errResp.Error)
 	}
 
 	if result != nil {
@@ -361,7 +361,7 @@ func (r *authriteRequester) get(ctx context.Context, path string, result any) er
 		Error string `json:"error"`
 	}
 	if json.Unmarshal(data, &errResp) == nil && errResp.Error != "" {
-		return fmt.Errorf("storage v1 error: %s", errResp.Error)
+		return fmt.Errorf("storage v2 error: %s", errResp.Error)
 	}
 
 	if result != nil {

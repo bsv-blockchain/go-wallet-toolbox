@@ -18,11 +18,11 @@ type listActions struct {
 	logger           *slog.Logger
 	transactionsRepo TransactionsRepo
 	outputsRepo      OutputRepo
-	knownTxRepo      KnownTxRepo
+	knownTxRepo      ProvenTxReqRepo
 	basketRepo       BasketRepo
 }
 
-func newListActions(logger *slog.Logger, transactions TransactionsRepo, outputs OutputRepo, knownTxRepo KnownTxRepo, basket BasketRepo) *listActions {
+func newListActions(logger *slog.Logger, transactions TransactionsRepo, outputs OutputRepo, knownTxRepo ProvenTxReqRepo, basket BasketRepo) *listActions {
 	return &listActions{
 		logger:           logging.Child(logger, "list_actions"),
 		transactionsRepo: transactions,

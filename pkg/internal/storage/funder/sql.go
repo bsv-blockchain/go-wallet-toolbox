@@ -32,11 +32,11 @@ type UTXORepository interface {
 		ctx context.Context,
 		tx *gorm.DB,
 		userID int,
-		basketName string,
+		basketID *uint,
 		page *queryopts.Paging,
 		forbiddenOutputIDs []uint,
 		includeSending bool,
-	) ([]*models.UserUTXO, error)
+	) ([]*models.Output, error)
 }
 
 type SQL struct {
@@ -101,8 +101,13 @@ func (f *SQL) Fund(
 		return collector.GetResult()
 	}
 
+	var basketID *uint
+	if basket != nil && basket.Name != "" {
+		id := basket.ID
+		basketID = &id
+	}
 	// Phase 2: Load all eligible UTXOs into a tiered pool.
-	pool, err := f.loadUTXOPool(ctx, tx, userID, basket.Name, forbiddenOutputIDs, includeSending)
+	pool, err := f.loadUTXOPool(ctx, tx, userID, basketID, forbiddenOutputIDs, includeSending)
 	if err != nil {
 		return nil, err
 	}
@@ -158,19 +163,14 @@ func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs 
 			return fmt.Errorf("failed to convert output satoshis: %d to uint64: %w", output.Satoshis, err)
 		}
 
-		var basket string
-		if output.BasketName != nil {
-			basket = *output.BasketName
+		utxo := &models.Output{
+			UserID:   output.UserID,
+			OutputID: output.ID,
+			BasketID: output.BasketID,
+			Satoshis: int64(sats),
+			Type:     output.Type,
 		}
-
-		utxo := &models.UserUTXO{
-			UserID:             output.UserID,
-			OutputID:           output.ID,
-			BasketName:         basket,
-			Satoshis:           sats,
-			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
-			CreatedAt:          output.CreatedAt,
-		}
+		utxo.CreatedAt = output.CreatedAt
 
 		if err = collector.allocateUTXO(utxo); err != nil {
 			return fmt.Errorf("failed to allocate priority output: %w", err)
@@ -183,7 +183,7 @@ func (f *SQL) allocatePriorityOutputs(collector *utxoCollector, priorityOutputs 
 	return nil
 }
 
-func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketName string, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
+func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketID *uint, forbiddenOutputIDs []uint, includeSending bool) (*utxoPool, error) {
 	// Load all eligible UTXOs. The repository sorts by status tier + satoshis ASC,
 	// but the pool re-sorts internally per tier for 3-stage selection.
 	page := &queryopts.Paging{
@@ -191,9 +191,9 @@ func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketN
 		SortBy: "satoshis",
 	}
 
-	var allUTXOs []*models.UserUTXO
+	var allUTXOs []*models.Output
 	for {
-		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketName, page, forbiddenOutputIDs, includeSending)
+		utxos, err := f.utxoRepository.FindNotReservedUTXOsForUpdate(ctx, tx, userID, basketID, page, forbiddenOutputIDs, includeSending)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load utxos: %w", err)
 		}
@@ -203,6 +203,24 @@ func (f *SQL) loadUTXOPool(ctx context.Context, tx *gorm.DB, userID int, basketN
 			break
 		}
 		page.Next()
+	}
+
+	if len(allUTXOs) > 0 {
+		txIDs := make([]uint, len(allUTXOs))
+		for i, u := range allUTXOs {
+			txIDs[i] = u.TransactionID
+		}
+		var txs []*models.Transaction
+		if err := tx.WithContext(ctx).Where("transactionId IN ?", txIDs).Select("transactionId", "status").Find(&txs).Error; err != nil {
+			return nil, fmt.Errorf("failed to load transaction statuses: %w", err)
+		}
+		statusMap := make(map[uint]wdk.TxStatus, len(txs))
+		for _, t := range txs {
+			statusMap[t.TransactionID] = t.Status
+		}
+		for _, u := range allUTXOs {
+			u.Transaction = &models.Transaction{Status: statusMap[u.TransactionID]}
+		}
 	}
 
 	return newUTXOPool(allUTXOs), nil
@@ -321,15 +339,15 @@ func (c *utxoCollector) GetResult() (*Result, error) {
 	return nil, wdk.ErrNotEnoughFunds
 }
 
-func (c *utxoCollector) allocateUTXO(utxo *models.UserUTXO) (err error) {
+func (c *utxoCollector) allocateUTXO(utxo *models.Output) (err error) {
 	c.addToAllocated(utxo)
 
-	err = c.increaseSize(utxo.EstimatedInputSize)
+	err = c.increaseSize(txutils.EstimatedInputSizeByType(wdk.OutputType(utxo.Type)))
 	if err != nil {
 		return fmt.Errorf("failed to increase tx size: %w", err)
 	}
 
-	err = c.increaseValue(satoshi.MustFrom(utxo.Satoshis))
+	err = c.increaseValue(satoshi.MustFrom(uint64(utxo.Satoshis)))
 	if err != nil {
 		return fmt.Errorf("failed to increase tx value: %w", err)
 	}
@@ -342,10 +360,10 @@ func (c *utxoCollector) allocateUTXO(utxo *models.UserUTXO) (err error) {
 	return nil
 }
 
-func (c *utxoCollector) addToAllocated(utxo *models.UserUTXO) {
+func (c *utxoCollector) addToAllocated(utxo *models.Output) {
 	c.allocatedUTXOs = append(c.allocatedUTXOs, &UTXO{
 		OutputID: utxo.OutputID,
-		Satoshis: satoshi.MustFrom(utxo.Satoshis),
+		Satoshis: satoshi.MustFrom(uint64(utxo.Satoshis)),
 	})
 }
 

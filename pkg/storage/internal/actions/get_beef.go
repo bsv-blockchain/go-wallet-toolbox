@@ -19,11 +19,11 @@ import (
 
 type getBeef struct {
 	logger      *slog.Logger
-	knownTxRepo KnownTxRepo
+	knownTxRepo ProvenTxReqRepo
 	services    wdk.Services
 }
 
-func newGetBeef(logger *slog.Logger, knownTxRepo KnownTxRepo, services wdk.Services) *getBeef {
+func newGetBeef(logger *slog.Logger, knownTxRepo ProvenTxReqRepo, services wdk.Services) *getBeef {
 	return &getBeef{
 		logger:      logger,
 		knownTxRepo: knownTxRepo,
@@ -80,7 +80,7 @@ func (g *getBeef) prepareOptions(options wdk.StorageGetBeefOptions, serviceFetch
 		getBeefOptions = append(getBeefOptions, entity.WithTxGetterFcn(txGetter))
 	}
 	if len(options.KnownTxIDs) > 0 {
-		getBeefOptions = append(getBeefOptions, entity.WithKnownTxIDs(options.KnownTxIDs...))
+		getBeefOptions = append(getBeefOptions, entity.WithProvenTxReqIDs(options.KnownTxIDs...))
 	}
 	if options.TrustSelf != "" {
 		getBeefOptions = append(getBeefOptions, entity.WithTrustSelf(options.TrustSelf))
@@ -155,18 +155,18 @@ func (g *getBeef) persistNewProven(ctx context.Context, subjectTxID, txID string
 		return fmt.Errorf("failed to serialize empty beef for transaction %s: %w", txID, err)
 	}
 
-	if err := g.knownTxRepo.UpsertKnownTx(ctx, &entity.UpsertKnownTx{
+	if err := g.knownTxRepo.UpsertProvenTxReq(ctx, &entity.UpsertProvenTxReq{
 		TxID:      txID,
 		RawTx:     fetched.rawTx,
 		InputBeef: emptyBeef,
 		Status:    wdk.ProvenTxStatusCompleted,
 	}, history.NewBuilder().ServiceFetchedWhileGettingBeef(subjectTxID)); err != nil {
-		g.logger.ErrorContext(ctx, "failed to upsert known transaction", "txID", txID, "error", err)
-		return fmt.Errorf("failed to upsert known transaction %s: %w", txID, err)
+		g.logger.ErrorContext(ctx, "failed to upsert proven transaction request", "txID", txID, "error", err)
+		return fmt.Errorf("failed to upsert proven transaction request %s: %w", txID, err)
 	}
 
 	merklePathBytes := fetched.merklePath.Bytes()
-	if err := g.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+	if err := g.knownTxRepo.UpdateKnownTxAsMined(ctx, &entity.ProvenTxAsMined{
 		TxID:        txID,
 		BlockHeight: fetched.header.Height,
 		MerklePath:  merklePathBytes,

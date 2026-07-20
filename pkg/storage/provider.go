@@ -20,10 +20,10 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
@@ -55,7 +55,7 @@ type providersWrapper struct {
 
 func (p *providersWrapper) TransactionsRepo() actions.TransactionsRepo { return p.r.Transactions }
 func (p *providersWrapper) OutputRepo() actions.OutputRepo             { return p.r.Outputs }
-func (p *providersWrapper) KnownTxRepo() actions.KnownTxRepo           { return p.r.KnownTx }
+func (p *providersWrapper) ProvenTxReqRepo() actions.ProvenTxReqRepo { return p.r.ProvenTxReqRepo }
 func (p *providersWrapper) UTXORepo() actions.UTXORepo                 { return p.r.UTXOs }
 func (p *providersWrapper) BasketRepo() actions.BasketRepo             { return p.r.OutputBaskets }
 func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return p.r.Commission }
@@ -141,6 +141,11 @@ func (p *Provider) Stop() {
 	if err := p.Database.Close(); err != nil {
 		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))
 	}
+}
+
+// Repo returns the underlying repositories instance.
+func (p *Provider) Repo() *repo.Repositories {
+	return p.repo
 }
 
 func configureDatabase(logger *slog.Logger, dbConfig defs.Database, options *ProviderConfig) (*database.Database, error) {
@@ -310,36 +315,36 @@ func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args w
 		return nil, fmt.Errorf("invalid listCertificates args: %w", err)
 	}
 
-	query := p.CertifierEntity().Read().
-		Paged(must.ConvertToIntFromUnsigned(args.Limit), must.ConvertToIntFromUnsigned(args.Offset), false).
-		UserID().
-		Equals(*auth.UserID)
+	spec := &entity.CertificateReadSpecification{
+		UserID: &entity.Comparable[int]{Value: *auth.UserID, Cmp: entity.Equal},
+	}
 
 	if len(args.Types) > 0 {
-		query = query.Type().In(slices.Map(args.Types, to.String)...)
+		spec.Type = &entity.Comparable[string]{InValues: slices.Map(args.Types, to.String), Cmp: entity.In}
 	}
 	if len(args.Certifiers) > 0 {
-		query = query.Certifier().In(slices.Map(args.Certifiers, to.String)...)
+		spec.Certifier = &entity.Comparable[string]{InValues: slices.Map(args.Certifiers, to.String), Cmp: entity.In}
 	}
 	if args.SerialNumber != nil {
-		query = query.SerialNumber().Like(string(*args.SerialNumber))
+		spec.SerialNumber = &entity.Comparable[string]{Value: string(*args.SerialNumber), Cmp: entity.Like}
 	}
 	if args.Subject != nil {
-		query = query.Subject().Like(string(*args.Subject))
+		spec.Subject = &entity.Comparable[string]{Value: string(*args.Subject), Cmp: entity.Like}
 	}
 	if args.RevocationOutpoint != nil {
-		query = query.RevocationOutpoint().Like(string(*args.RevocationOutpoint))
+		spec.RevocationOutpoint = &entity.Comparable[string]{Value: string(*args.RevocationOutpoint), Cmp: entity.Like}
 	}
 	if args.Signature != nil {
-		query = query.Signature().Like(string(*args.Signature))
+		spec.Signature = &entity.Comparable[string]{Value: string(*args.Signature), Cmp: entity.Like}
 	}
 
-	certsCount, err := query.Count(ctx)
+	opts := queryopts.WithPage(queryopts.Paging{Limit: must.ConvertToIntFromUnsigned(args.Limit), Offset: must.ConvertToIntFromUnsigned(args.Offset), Sort: "asc"})
+	certsCount, err := p.repo.Certificates.CountCertifiers(ctx, spec, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error during counting certificates action: %w", err)
 	}
 
-	certEntities, err := query.Find(ctx)
+	certEntities, err := p.repo.Certificates.FindCertifiers(ctx, spec, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error during listing certificates action: %w", err)
 	}
@@ -640,6 +645,14 @@ func (p *Provider) UnFail(ctx context.Context) error {
 	return nil
 }
 
+// RecordMonitorEvent writes a monitor event to the database.
+func (p *Provider) RecordMonitorEvent(ctx context.Context, event string, details string) error {
+	return p.Database.DB.WithContext(ctx).Create(&models.MonitorEvent{
+		Event:   event,
+		Details: details,
+	}).Error
+}
+
 // ListOutputs will list outputs with provided args
 func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
 	var err error
@@ -902,51 +915,6 @@ func (p *Provider) GetBeefForTransaction(ctx context.Context, txID string, optio
 	return beef, nil
 }
 
-// CommissionEntity returns a Commission interface for querying and filtering Commission records in the storage provider.
-func (p *Provider) CommissionEntity() crud.Commission {
-	return crud.NewCommission(p.repo.Commission)
-}
-
-// KnownTxEntity returns an accessor to perform read operations on known transactions in the underlying repository.
-func (p *Provider) KnownTxEntity() crud.KnownTx {
-	return crud.NewKnownTx(p.repo.KnownTx)
-}
-
-// TransactionEntity returns an accessor to perform read and update operations on transactions in the underlying repository.
-func (p *Provider) TransactionEntity() crud.Transaction {
-	return crud.NewTransaction(p.repo.Transactions)
-}
-
-// UserEntity returns a User interface for querying and filtering user records in the storage provider.
-func (p *Provider) UserEntity() crud.User {
-	return crud.NewUser(p.repo.Users)
-}
-
-// OutputBasketsEntity returns an accessor to perform read and write operations on output baskets in the underlying repository.
-func (p *Provider) OutputBasketsEntity() crud.OutputBasket {
-	return crud.NewOutputBasket(p.repo.OutputBaskets)
-}
-
-// OutputsEntity returns an accessor to perform read and write operations on outputs in the underlying repository.
-func (p *Provider) OutputsEntity() crud.Output {
-	return crud.NewOutput(p.repo.Outputs)
-}
-
-// TxNoteEntity returns a TxNote interface for querying and filtering TxNote records in the storage provider.
-func (p *Provider) TxNoteEntity() crud.TxNote {
-	return crud.NewTxNote(p.repo.TxNotes)
-}
-
-// UserUTXOEntity returns a UserUTXO interface for querying and filtering UserUTXO records in the storage provider.
-func (p *Provider) UserUTXOEntity() crud.UserUTXO {
-	return crud.NewUserUTXO(p.repo.UserUTXOs)
-}
-
-// CertifierEntity returns a Certifier interface for querying distinct certifiers in the storage provider.
-func (p *Provider) CertifierEntity() crud.Certifier {
-	return crud.NewCertificate(p.repo.Certificates)
-}
-
 // FindOutputBasketsAuth finds output baskets for the authenticated user based on the provided filters.
 func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error) {
 	var err error
@@ -959,20 +927,21 @@ func (p *Provider) FindOutputBasketsAuth(ctx context.Context, auth wdk.AuthID, f
 		return nil, ErrAuthorization
 	}
 
-	query := p.OutputBasketsEntity().Read().
-		UserID().Equals(*auth.UserID)
+	spec := &entity.OutputBasketReadSpecification{
+		UserID: &entity.Comparable[int]{Value: *auth.UserID, Cmp: entity.Equal},
+	}
 
 	if filters.Name != nil {
-		query = query.Name().Equals(*filters.Name)
+		spec.Name = &entity.Comparable[string]{Value: *filters.Name, Cmp: entity.Equal}
 	}
 	if filters.MinimumDesiredUTXOValue != nil {
-		query = query.MinimumDesiredUTXOValue().Equals(*filters.MinimumDesiredUTXOValue)
+		spec.MinimumDesiredUTXOValue = &entity.Comparable[uint64]{Value: *filters.MinimumDesiredUTXOValue, Cmp: entity.Equal}
 	}
 	if filters.NumberOfDesiredUTXOs != nil {
-		query = query.NumberOfDesiredUTXOs().Equals(*filters.NumberOfDesiredUTXOs)
+		spec.NumberOfDesiredUTXOs = &entity.Comparable[int64]{Value: *filters.NumberOfDesiredUTXOs, Cmp: entity.Equal}
 	}
 
-	entities, err := query.Find(ctx)
+	entities, err := p.repo.OutputBaskets.FindOutputBaskets(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find output baskets: %w", err)
 	}
@@ -994,46 +963,43 @@ func (p *Provider) FindOutputsAuth(ctx context.Context, auth wdk.AuthID, filters
 		return nil, ErrAuthorization
 	}
 
-	query := p.OutputsEntity().Read().
-		UserID().Equals(*auth.UserID)
-
-	var finder crud.OutputReadOperations
+	spec := &entity.OutputReadSpecification{
+		UserID: &entity.Comparable[int]{Value: *auth.UserID, Cmp: entity.Equal},
+	}
 
 	if filters.OutputID != nil {
-		finder = query.ID(*filters.OutputID)
+		spec.ID = filters.OutputID
 	} else {
 		if len(filters.TxStatus) > 0 {
-			query = query.TxStatus().In(filters.TxStatus...)
+			spec.TxStatus = &entity.Comparable[wdk.TxStatus]{InValues: filters.TxStatus, Cmp: entity.In}
 		}
 
 		if filters.Satoshis != nil {
-			query = query.Satoshis().Equals(*filters.Satoshis)
+			spec.Satoshis = &entity.Comparable[int64]{Value: *filters.Satoshis, Cmp: entity.Equal}
 		}
 
 		if filters.TransactionID != nil {
-			query = query.TransactionID().Equals(*filters.TransactionID)
+			spec.TransactionID = &entity.Comparable[uint]{Value: *filters.TransactionID, Cmp: entity.Equal}
 		}
 
 		if filters.TxID != nil {
-			query = query.TxID().Equals(*filters.TxID)
+			spec.TxID = &entity.Comparable[string]{Value: *filters.TxID, Cmp: entity.Equal}
 		}
 
 		if filters.Change != nil {
-			query = query.Change().Equals(*filters.Change)
+			spec.Change = &entity.Comparable[bool]{Value: *filters.Change, Cmp: entity.Equal}
 		}
 
 		if filters.Vout != nil {
-			query = query.Vout().Equals(*filters.Vout)
+			spec.Vout = &entity.Comparable[uint32]{Value: *filters.Vout, Cmp: entity.Equal}
 		}
 
 		if filters.Spendable != nil {
-			query = query.Spendable().Equals(*filters.Spendable)
+			spec.Spendable = &entity.Comparable[bool]{Value: *filters.Spendable, Cmp: entity.Equal}
 		}
-
-		finder = query
 	}
 
-	entities, err := finder.Find(ctx)
+	entities, err := p.repo.Outputs.FindOutputs(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find outputs: %w", err)
 	}
@@ -1087,21 +1053,23 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 
 	hasTxIDsFilter := len(args.TxIDs) > 0
 
-	txQuery := p.TransactionEntity().Read().UserID().Equals(*auth.UserID)
+	spec := &entity.TransactionReadSpecification{
+		UserID: &entity.Comparable[int]{Value: *auth.UserID, Cmp: entity.Equal},
+	}
 
 	if hasTxIDsFilter {
-		txQuery = txQuery.TxID().In(args.TxIDs...)
+		spec.TxID = &entity.Comparable[string]{InValues: args.TxIDs, Cmp: entity.In}
 	}
 
 	if len(args.Labels) > 0 {
 		if args.LabelQueryMode == defs.QueryModeAll {
-			txQuery = txQuery.Labels().ContainAll(args.Labels...)
+			spec.Labels = &entity.ComparableSet[string]{ContainAll: args.Labels}
 		} else {
-			txQuery = txQuery.Labels().ContainAny(args.Labels...)
+			spec.Labels = &entity.ComparableSet[string]{ContainAny: args.Labels}
 		}
 	}
 
-	userTxs, txErr := txQuery.Find(ctx)
+	userTxs, txErr := p.repo.Transactions.FindTransactions(ctx, spec)
 	if txErr != nil {
 		return nil, fmt.Errorf("error finding transactions: %w", txErr)
 	}
@@ -1131,13 +1099,15 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		}, nil
 	}
 
-	query := p.KnownTxEntity().Read().Paged(must.ConvertToIntFromUnsigned(args.Limit), must.ConvertToIntFromUnsigned(args.Offset), false)
-
-	if args.Status != nil {
-		query = query.Status().Equals(wdk.ProvenTxReqStatus(*args.Status))
+	knownTxSpec := &entity.ProvenTxReqReadSpecification{
+		TxIDs: txIDs,
 	}
 
-	knownTxs, err := query.TxIDs(txIDs...).Find(ctx)
+	if args.Status != nil {
+		knownTxSpec.Status = &entity.Comparable[wdk.ProvenTxReqStatus]{Value: wdk.ProvenTxReqStatus(*args.Status), Cmp: entity.Equal}
+	}
+
+	knownTxs, err := p.repo.ProvenTxReqRepo.FindKnownTxs(ctx, knownTxSpec, queryopts.WithPage(queryopts.Paging{Limit: must.ConvertToIntFromUnsigned(args.Limit), Offset: must.ConvertToIntFromUnsigned(args.Offset), Sort: "asc"}))
 	if err != nil {
 		return nil, fmt.Errorf("error listing transactions: %w", err)
 	}
@@ -1168,21 +1138,6 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 			txUpdate.Reference = ref
 		}
 
-		if ktx.BlockHash != nil {
-			txUpdate.BlockHash = *ktx.BlockHash
-		}
-		if ktx.BlockHeight != nil {
-			txUpdate.BlockHeight = *ktx.BlockHeight
-		}
-		if ktx.MerkleRoot != nil {
-			txUpdate.MerkleRoot = *ktx.MerkleRoot
-		}
-		if len(ktx.MerklePath) > 0 {
-			merklePath, parseErr := transaction.NewMerklePathFromBinary(ktx.MerklePath)
-			if parseErr == nil {
-				txUpdate.MerklePath = merklePath
-			}
-		}
 
 		transactions = append(transactions, txUpdate)
 	}

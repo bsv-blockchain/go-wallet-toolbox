@@ -38,21 +38,20 @@ func main() {
 
 	g.ApplyBasic(
 		models.Commission{},
-		models.NumericIDLookup{},
 		models.OutputBasket{},
-		models.KnownTx{},
+		models.ProvenTx{},
+		models.ProvenTxReq{},
 		models.Transaction{},
 		models.Output{},
-		models.Label{},
-		models.TransactionLabel{},
-		models.Tag{},
+		models.TxLabel{},
+		models.TxLabelsMap{},
 		models.OutputTag{},
-		models.UserUTXO{},
+		models.OutputTagsMap{},
 		models.User{},
-		models.TxNote{},
 		models.Certificate{},
 		models.ChaintracksLiveHeader{},
 		models.ChaintracksBulkFile{},
+		models.MonitorEvent{},
 	)
 
 	g.Execute()

@@ -40,7 +40,7 @@ func (u *Users) FindUser(ctx context.Context, identityKey string) (*entity.User,
 	}()
 
 	user := &models.User{}
-	err = u.db.WithContext(ctx).First(&user, "identity_key = ?", identityKey).Error
+	err = u.db.WithContext(ctx).First(&user, "identityKey = ?", identityKey).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -93,7 +93,7 @@ func (u *Users) UpdateUserForSync(ctx context.Context, userID int, activeStorage
 		Model(&models.User{}).
 		Scopes(scopes.UserID(userID)).
 		Updates(map[string]any{
-			"active_storage": activeStorage,
+			"activeStorage": activeStorage,
 			"updated_at":     updatedAt,
 		}).Error
 	if err != nil {

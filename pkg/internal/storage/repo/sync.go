@@ -9,7 +9,8 @@ import (
 
 type Sync struct {
 	*syncrepo.SyncBasket
-	*syncrepo.SyncKnownTx
+	*syncrepo.SyncProvenTxReq
+	*syncrepo.SyncProvenTx
 	*syncrepo.SyncTransaction
 	*syncrepo.SyncOutput
 	*syncrepo.SyncLabel
@@ -25,7 +26,8 @@ func NewSync(db *gorm.DB, query *genquery.Query) *Sync {
 		db: db,
 
 		SyncBasket:      syncrepo.NewSyncBasket(db, query),
-		SyncKnownTx:     syncrepo.NewSyncKnownTx(db, query),
+		SyncProvenTxReq: syncrepo.NewSyncProvenTxReq(db, query),
+		SyncProvenTx:    syncrepo.NewSyncProvenTx(db, query),
 		SyncTransaction: syncrepo.NewSyncTransaction(db, query),
 		SyncOutput:      syncrepo.NewSyncOutput(db, query),
 		SyncLabel:       syncrepo.NewSyncLabel(db, query),

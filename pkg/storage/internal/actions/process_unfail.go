@@ -91,7 +91,7 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 
 	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		builder := history.NewBuilder().GetMerklePathNotFound(string(wdk.ProvenTxStatusUnfail))
-		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); uowErr != nil {
+		if uowErr := repos.ProvenTxReqRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusInvalid, nil, []history.Builder{builder}); uowErr != nil {
 			return fmt.Errorf("failed to set known tx to 'invalid': %w", uowErr)
 		}
 
@@ -128,7 +128,7 @@ func (p *process) unfailSingle(ctx context.Context, log *slog.Logger, txID strin
 func (p *process) markAsUnminedAndUnproven(ctx context.Context, log *slog.Logger, txID string) {
 	err := p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		builder := history.NewBuilder().GetMerklePathSuccess(string(wdk.ProvenTxStatusUnfail))
-		if uowErr := repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); uowErr != nil {
+		if uowErr := repos.ProvenTxReqRepo().UpdateKnownTxStatus(txCtx, txID, wdk.ProvenTxStatusUnmined, nil, []history.Builder{builder}); uowErr != nil {
 			return fmt.Errorf("failed to set known tx to 'unmined': %w", uowErr)
 		}
 		if uowErr := repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, wdk.TxStatusUnproven); uowErr != nil {

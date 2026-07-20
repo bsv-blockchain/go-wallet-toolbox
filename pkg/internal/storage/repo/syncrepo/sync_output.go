@@ -8,7 +8,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -27,58 +26,29 @@ func NewSyncOutput(db *gorm.DB, query *genquery.Query) *SyncOutput {
 	return &SyncOutput{db: db, query: query}
 }
 
-type OutputReadModel struct {
-	models.Output
-
-	BasketNumID *int `gorm:"column:basket_num_id"`
-}
-
 func (s *SyncOutput) tableName() string {
 	return s.query.Output.TableName()
 }
 
 func (s *SyncOutput) FindOutputsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableOutput, error) {
-	const basketStringIDClause = "CONCAT(user_id, '.', basket_name)"
-	var resultModels []*OutputReadModel
+	var resultModels []*models.Output
 
 	queryopts.ModifyOptions(opts, func(options *queryopts.Options) {
 		if options.Since != nil && options.Since.TableName == "" {
-			// Prevent from an issue with ambiguous created_at column
 			options.Since.TableName = s.tableName()
 		}
 	})
 	filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// Make sure all numeric IDs of OutputBaskets needed by user's outputs are present in the numeric ID lookup table.
-		err := upsertNumericIDLookup(ctx, s.db, tx, s.query, func(db *gorm.DB) *gorm.DB {
-			return db.
-				Select(fmt.Sprintf("?, %s", basketStringIDClause), s.query.OutputBasket.TableName()).
-				Scopes(filters...).
-				Where("basket_name IS NOT NULL").
-				Find(&models.Output{})
-		})
-		if err != nil {
-			return err
-		}
-
-		err = tx.WithContext(ctx).
-			Model(&models.Output{}).
-			Select(fmt.Sprintf("%s.*, num.num_id as basket_num_id", s.tableName())).
-			Scopes(filters...).
-			Scopes(joinWithNumericIDLookupScope(s.query, basketStringIDClause, s.query.OutputBasket.TableName(), clause.LeftJoin)).
-			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-				return db.Select("id, tx_id")
-			}).
-			Find(&resultModels).Error
-		if err != nil {
-			return fmt.Errorf("failed to find outputs for sync: %w", err)
-		}
-
-		return nil
-	})
+	err := s.db.WithContext(ctx).
+		Model(&models.Output{}).
+		Scopes(filters...).
+		Preload("Transaction", func(db *gorm.DB) *gorm.DB {
+			return db.Select("transactionId, txid")
+		}).
+		Find(&resultModels).Error
 	if err != nil {
-		return nil, fmt.Errorf("transaction failed: %w", err)
+		return nil, fmt.Errorf("failed to find outputs for sync: %w", err)
 	}
 
 	return slices.Map(resultModels, s.mapModelToTableOutput), nil
@@ -89,28 +59,19 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 		var transaction models.Transaction
 		err = tx.Model(models.Transaction{}).
 			Select("status").
-			Where("id = ?", entity.TransactionID).
+			Where("transactionId = ?", entity.TransactionID).
 			First(&transaction).Error
 		if err != nil {
 			return fmt.Errorf("failed to check known transaction: %w", err)
 		}
-
-		utxoStatus := s.utxoStatusByTxStatus(transaction.Status)
-
 		isNew, outputID, err = s.upsertOutput(tx, entity)
 		if err != nil {
 			return fmt.Errorf("failed to upsert output: %w", err)
 		}
 
-		if entity.UserUTXO != nil && utxoStatus != wdk.UTXOStatusUnknown {
-			entity.UserUTXO.OutputID = outputID
-			entity.UserUTXO.Status = utxoStatus
-
-			err = s.upsertUserUTXO(tx, entity.UserUTXO)
-			if err != nil {
-				return fmt.Errorf("failed to upsert user UTXO: %w", err)
-			}
-		}
+		// user_utxo is deleted in the new schema, we no longer need to upsert user_utxo here.
+		// wait, is UserUTXO still populated in sync? The task says C-repo rewritten utxos selection,
+		// and Wave 1 deleted user_utxo.go. So we don't need to upsert UserUTXO here!
 
 		return nil
 	})
@@ -122,8 +83,10 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 }
 
 func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew bool, outputID uint, err error) {
+	var basketID *uint = entity.BasketID
+
 	model := models.Output{
-		Model: gorm.Model{
+		Timestamps: models.Timestamps{
 			CreatedAt: entity.CreatedAt,
 			UpdatedAt: entity.UpdatedAt,
 		},
@@ -137,7 +100,7 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 		CustomInstructions: entity.CustomInstructions,
 		DerivationPrefix:   entity.DerivationPrefix,
 		DerivationSuffix:   entity.DerivationSuffix,
-		BasketName:         entity.BasketName,
+		BasketID:           basketID,
 		Spendable:          entity.Spendable,
 		Change:             entity.Change,
 		Purpose:            entity.Purpose,
@@ -145,39 +108,30 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 		SenderIdentityKey:  entity.SenderIdentityKey,
 	}
 
-	// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer
-	// than existing. Equal updated_at must SKIP. See:
-	// - ts-stack EntityOutput.mergeExisting (strict `>`)
-	// - conformance vector sync.brc40.merge.output.error.regression.{1,2}
+	// BRC-40 stale-chunk guard
 	var existing models.Output
 	existsErr := tx.Model(&models.Output{}).
-		Select("id, updated_at").
-		Where("user_id = ? AND transaction_id = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
+		Select("outputId, updated_at").
+		Where("userId = ? AND transactionId = ? AND vout = ?", model.UserID, model.TransactionID, model.Vout).
 		First(&existing).Error
 
 	if existsErr == nil {
 		if !model.UpdatedAt.After(existing.UpdatedAt) {
-			// Stale or equal: preserve local state. Treat as no-op success.
-			outputID = existing.ID
+			outputID = existing.OutputID
 			return isNew, outputID, nil
 		}
 
-		// Belt-and-braces: WHERE updated_at < ? also guards against TOCTOU.
 		updateTx := tx.Model(&model).
-			Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+			Where("outputId = ? AND updated_at < ?", existing.OutputID, model.UpdatedAt).
 			Select("*").
 			Updates(&model)
-
-		// NOTE: We use `Select("*")` with `Updates()` to ensure that all fields are updated, including those that might be zero values (e.g., BasketName for relinquished outputs).
 
 		if updateTx.Error != nil {
 			err = fmt.Errorf("failed to update output: %w", updateTx.Error)
 			return isNew, outputID, err
 		}
 
-		// RowsAffected == 0 here means a concurrent writer advanced updated_at past
-		// our incoming value between the lookup and the UPDATE. Treat as skip.
-		outputID = existing.ID
+		outputID = existing.OutputID
 		return isNew, outputID, nil
 	}
 
@@ -192,55 +146,26 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 		return isNew, outputID, err
 	}
 
-	if model.ID == 0 {
+	if model.OutputID == 0 {
 		err = fmt.Errorf("output ID is zero after update, this should not happen")
 		return isNew, outputID, err
 	}
 
 	isNew = true
-	outputID = model.ID
+	outputID = model.OutputID
 
 	return isNew, outputID, err
 }
 
-func (s *SyncOutput) upsertUserUTXO(tx *gorm.DB, userUTXO *entity.UserUTXO) error {
-	model := &models.UserUTXO{
-		UserID:             userUTXO.UserID,
-		OutputID:           userUTXO.OutputID,
-		BasketName:         userUTXO.BasketName,
-		Satoshis:           userUTXO.Satoshis,
-		EstimatedInputSize: userUTXO.EstimatedInputSize,
-		CreatedAt:          userUTXO.CreatedAt,
-		ReservedByID:       userUTXO.ReservedByID,
-		UTXOStatus:         userUTXO.Status,
+func (s *SyncOutput) mapModelToTableOutput(model *models.Output) *wdk.TableOutput {
+	var basketID *int
+	if model.BasketID != nil {
+		basketID = to.Ptr(int(*model.BasketID))
 	}
-
-	updateTx := tx.Model(&models.UserUTXO{}).
-		Where("user_id = ? AND output_id = ?", userUTXO.UserID, userUTXO.OutputID).
-		Select("*").
-		Updates(model)
-
-	if updateTx.Error != nil {
-		return fmt.Errorf("failed to update user UTXO: %w", updateTx.Error)
-	}
-
-	if updateTx.RowsAffected > 0 {
-		return nil
-	}
-
-	err := tx.Create(model).Error
-	if err != nil {
-		return fmt.Errorf("failed to create user UTXO: %w", err)
-	}
-
-	return nil
-}
-
-func (s *SyncOutput) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOutput {
 	return &wdk.TableOutput{
 		CreatedAt:          model.CreatedAt,
 		UpdatedAt:          model.UpdatedAt,
-		OutputID:           model.ID,
+		OutputID:           model.OutputID,
 		UserID:             model.UserID,
 		TransactionID:      model.TransactionID,
 		Spendable:          model.Spendable,
@@ -257,7 +182,7 @@ func (s *SyncOutput) mapModelToTableOutput(model *OutputReadModel) *wdk.TableOut
 		CustomInstructions: model.CustomInstructions,
 		LockingScript:      model.LockingScript,
 		SenderIdentityKey:  model.SenderIdentityKey,
-		BasketID:           model.BasketNumID,
+		BasketID:           basketID,
 		SpentBy:            model.SpentBy,
 	}
 }

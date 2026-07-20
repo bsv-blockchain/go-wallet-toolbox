@@ -15,14 +15,13 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 type StorageReader interface {
-	KnownTxEntity() crud.KnownTx
-	TransactionEntity() crud.Transaction
+	Repo() *repo.Repositories
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
@@ -31,7 +30,7 @@ type StorageReader interface {
 
 type DBStateAssertion interface {
 	HasKnownTXs(txIDs ...string) DBStateAssertion
-	HasKnownTX(txID string) KnownTxAssertion
+	HasKnownTX(txID string) ProvenTxReqAssertion
 	HasUserTransactionByReference(user testusers.User, reference string) UserTransactionAssertion
 	HasUserTransactionByTxID(user testusers.User, txID string) UserTransactionAssertion
 
@@ -52,19 +51,19 @@ type DBStateAssertion interface {
 	CanCreateActionForSatoshis(user testusers.User, satoshi uint64) //
 }
 
-type KnownTxAssertion interface {
-	WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion
-	WithAttempts(attempts uint64) KnownTxAssertion
-	WithRebroadcastAttempts(attempts uint64) KnownTxAssertion
-	WasBroadcast(expected bool) KnownTxAssertion
-	IsMined() KnownTxAssertion
-	NotMined() KnownTxAssertion
-	HasRawTx() KnownTxAssertion
-	IsNotified(expected bool) KnownTxAssertion
-	WithBlockHeight(expected *uint32) KnownTxAssertion
-	WithMerkleRoot(expected *string) KnownTxAssertion
-	WithBlockHash(expected *string) KnownTxAssertion
-	TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion
+type ProvenTxReqAssertion interface {
+	WithStatus(state wdk.ProvenTxReqStatus) ProvenTxReqAssertion
+	WithAttempts(attempts uint64) ProvenTxReqAssertion
+	WithRebroadcastAttempts(attempts uint64) ProvenTxReqAssertion
+	WasBroadcast(expected bool) ProvenTxReqAssertion
+	IsMined() ProvenTxReqAssertion
+	NotMined() ProvenTxReqAssertion
+	HasRawTx() ProvenTxReqAssertion
+	IsNotified(expected bool) ProvenTxReqAssertion
+	WithBlockHeight(expected *uint32) ProvenTxReqAssertion
+	WithMerkleRoot(expected *string) ProvenTxReqAssertion
+	WithBlockHash(expected *string) ProvenTxReqAssertion
+	TxNotes(assertion func(TxNotesAssertion)) ProvenTxReqAssertion
 }
 
 type UserTransactionAssertion interface {
@@ -126,7 +125,7 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 	missingTXs := map[string]struct{}{}
 
 	for _, txID := range txIDs {
-		found, err := d.storage.KnownTxEntity().Read().TxID(txID).Find(d.Context())
+		found, err := d.storage.Repo().ProvenTxReqRepo.FindKnownTxs(d.Context(), &pkgentity.ProvenTxReqReadSpecification{TxIDs: []string{txID}})
 		require.NoError(d, err)
 
 		if len(found) == 0 {
@@ -142,13 +141,10 @@ func (d *dbStateAssertion) HasKnownTXs(txIDs ...string) DBStateAssertion {
 	return d
 }
 
-func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
+func (d *dbStateAssertion) HasKnownTX(txID string) ProvenTxReqAssertion {
 	d.Helper()
 
-	found, err := d.storage.KnownTxEntity().Read().
-		TxID(txID).
-		IncludeHistoryNotes().
-		Find(d.Context())
+	found, err := d.storage.Repo().ProvenTxReqRepo.FindKnownTxs(d.Context(), &pkgentity.ProvenTxReqReadSpecification{TxIDs: []string{txID}, IncludeHistoryNotes: true})
 	require.NoError(d, err)
 
 	if len(found) == 0 {
@@ -168,90 +164,92 @@ func (d *dbStateAssertion) HasKnownTX(txID string) KnownTxAssertion {
 type knownTxAssertion struct {
 	testing.TB
 
-	knownTx *pkgentity.KnownTx
+	knownTx *pkgentity.ProvenTxReq
 }
 
-func (d *knownTxAssertion) WithStatus(state wdk.ProvenTxReqStatus) KnownTxAssertion {
+func (d *knownTxAssertion) WithStatus(state wdk.ProvenTxReqStatus) ProvenTxReqAssertion {
 	d.Helper()
 	assert.Equal(d, state, d.knownTx.Status, "Expected known transaction to have the status %s", state)
 	return d
 }
 
-func (d *knownTxAssertion) IsMined() KnownTxAssertion {
+func (d *knownTxAssertion) IsMined() ProvenTxReqAssertion {
 	d.Helper()
-	assert.NotNil(d, d.knownTx.BlockHeight)
-	assert.NotEmpty(d, d.knownTx.MerklePath)
-	assert.NotEmpty(d, d.knownTx.MerkleRoot)
-	assert.NotEmpty(d, d.knownTx.BlockHash)
+	assert.NotNil(d, d.knownTx.ProvenTxID)
 	return d
 }
 
-func (d *knownTxAssertion) NotMined() KnownTxAssertion {
+func (d *knownTxAssertion) NotMined() ProvenTxReqAssertion {
 	d.Helper()
-	assert.Nil(d, d.knownTx.BlockHeight)
-	assert.Empty(d, d.knownTx.MerklePath)
-	assert.Empty(d, d.knownTx.MerkleRoot)
-	assert.Empty(d, d.knownTx.BlockHash)
+	assert.Nil(d, d.knownTx.ProvenTxID)
 	assert.NotEqual(d, wdk.ProvenTxStatusCompleted, d.knownTx.Status)
 	return d
 }
 
-func (d *knownTxAssertion) HasRawTx() KnownTxAssertion {
+func (d *knownTxAssertion) HasRawTx() ProvenTxReqAssertion {
 	d.Helper()
 	assert.NotEmpty(d, d.knownTx.RawTx, "Expected known transaction to have a non-empty RawTx")
 	return d
 }
 
-func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) KnownTxAssertion {
-	for _, note := range d.knownTx.TxNotes {
-		assert.Equal(d, d.knownTx.TxID, note.TxID, "Expected TxNote to have the same TxID as the known transaction")
-	}
-
+func (d *knownTxAssertion) TxNotes(assertion func(TxNotesAssertion)) ProvenTxReqAssertion {
 	assertion(&txNotesAssertion{
 		TB:      d.TB,
-		txNotes: d.knownTx.TxNotes,
+		txNotes: d.knownTx.History,
 	})
 
 	return d
 }
 
-func (d *knownTxAssertion) WithAttempts(expected uint64) KnownTxAssertion {
+func (d *knownTxAssertion) WithAttempts(expected uint64) ProvenTxReqAssertion {
 	d.Helper()
 	assert.Equal(d, expected, d.knownTx.Attempts, "Expected known transaction to have %d Attempts", expected)
 	return d
 }
 
-func (d *knownTxAssertion) WithRebroadcastAttempts(expected uint64) KnownTxAssertion {
+func (d *knownTxAssertion) WithRebroadcastAttempts(expected uint64) ProvenTxReqAssertion {
 	d.Helper()
 	assert.Equal(d, expected, d.knownTx.RebroadcastAttempts, "Expected known transaction to have %d RebroadcastAttempts", expected)
 	return d
 }
 
-func (d *knownTxAssertion) WasBroadcast(expected bool) KnownTxAssertion {
+func (d *knownTxAssertion) WasBroadcast(expected bool) ProvenTxReqAssertion {
 	d.Helper()
 	assert.Equal(d, expected, d.knownTx.WasBroadcast, "Expected known transaction to have WasBroadcast = %v", expected)
 	return d
 }
 
-func (d *knownTxAssertion) WithBlockHeight(expected *uint32) KnownTxAssertion {
+func (d *knownTxAssertion) WithBlockHeight(expected *uint32) ProvenTxReqAssertion {
 	d.Helper()
-	assert.Equal(d, expected, d.knownTx.BlockHeight, "Expected known tx to have BlockHeight = %v", expected)
+	if expected == nil {
+		assert.Nil(d, d.knownTx.ProvenTxID)
+	} else {
+		assert.NotNil(d, d.knownTx.ProvenTxID)
+	}
 	return d
 }
 
-func (d *knownTxAssertion) WithMerkleRoot(expected *string) KnownTxAssertion {
+func (d *knownTxAssertion) WithMerkleRoot(expected *string) ProvenTxReqAssertion {
 	d.Helper()
-	assert.Equal(d, expected, d.knownTx.MerkleRoot, "Expected MerkleRoot = %v", expected)
+	if expected == nil {
+		assert.Nil(d, d.knownTx.ProvenTxID)
+	} else {
+		assert.NotNil(d, d.knownTx.ProvenTxID)
+	}
 	return d
 }
 
-func (d *knownTxAssertion) WithBlockHash(expected *string) KnownTxAssertion {
+func (d *knownTxAssertion) WithBlockHash(expected *string) ProvenTxReqAssertion {
 	d.Helper()
-	assert.Equal(d, expected, d.knownTx.BlockHash, "Expected BlockHash = %v", expected)
+	if expected == nil {
+		assert.Nil(d, d.knownTx.ProvenTxID)
+	} else {
+		assert.NotNil(d, d.knownTx.ProvenTxID)
+	}
 	return d
 }
 
-func (d *knownTxAssertion) IsNotified(expected bool) KnownTxAssertion {
+func (d *knownTxAssertion) IsNotified(expected bool) ProvenTxReqAssertion {
 	d.Helper()
 	assert.Equal(d, expected, d.knownTx.Notified, "Expected known transaction to have Notified = %v", expected)
 	return d
@@ -260,7 +258,7 @@ func (d *knownTxAssertion) IsNotified(expected bool) KnownTxAssertion {
 type txNotesAssertion struct {
 	testing.TB
 
-	txNotes      []*pkgentity.TxHistoryNote
+	txNotes      pkgentity.ProvenTxReqHistory
 	currentIndex int
 }
 
@@ -270,7 +268,7 @@ func (d *txNotesAssertion) Count(expected int) TxNotesAssertion {
 		return d
 	}
 
-	assert.Len(d, d.txNotes, expected, "Expected known transaction to have %d TxNotes, but got %d", expected, len(d.txNotes))
+	assert.Len(d, d.txNotes.Notes, expected, "Expected known transaction to have %d TxNotes, but got %d", expected, len(d.txNotes.Notes))
 	return d
 }
 
@@ -281,21 +279,31 @@ func (d *txNotesAssertion) Note(what string, userID *int, attrs map[string]any) 
 		return d
 	}
 
-	if d.currentIndex >= len(d.txNotes) {
+	if d.currentIndex >= len(d.txNotes.Notes) {
 		assert.Failf(d, "No more TxNotes available", "Expected to find a TxNote with what=%s, userID=%v, attrs=%v", what, userID, attrs)
 		return d
 	}
 
-	note := d.txNotes[d.currentIndex]
+	note := d.txNotes.Notes[d.currentIndex]
 	d.currentIndex++
 
-	assert.Equal(d, what, note.What, "Expected TxNote to have the same 'What' as requested")
-	assert.Equal(d, userID, note.UserID, "Expected TxNote to have the same 'UserID' as requested")
-	var zeroTime time.Time
-	assert.NotEqual(d, zeroTime, note.When, "Expected TxNote to have a non-zero 'When' timestamp")
+	assert.Equal(d, what, note.What(), "Expected TxNote to have the same 'What' as requested")
+	
+	if userID != nil {
+		if uid, ok := note["userId"]; ok {
+			assert.Equal(d, fmt.Sprintf("%d", *userID), fmt.Sprintf("%v", uid), "Expected TxNote to have the same 'UserID' as requested")
+		} else {
+			assert.Fail(d, "note['userId'] not found")
+		}
+	} else {
+		_, ok := note["userId"]
+		assert.False(d, ok, "Expected no userID")
+	}
+
+	assert.NotNil(d, note.When(), "Expected TxNote to have a non-zero 'When' timestamp")
 
 	for k, v := range attrs {
-		val, ok := note.Attributes[k]
+		val, ok := note[k]
 		assert.True(d, ok, "Expected TxNote to have attribute '%s'", k)
 		assert.Equal(d, fmt.Sprintf("%v", v), fmt.Sprintf("%v", val), "Expected TxNote to have the same value for attribute '%s'", k)
 	}
@@ -307,10 +315,10 @@ func (d *dbStateAssertion) getUserTransactionByReference(user testusers.User, re
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
-	txs, err := d.storage.TransactionEntity().Read().
-		UserID().Equals(userID).
-		Reference().Equals(reference).
-		Find(d.Context())
+	txs, err := d.storage.Repo().Transactions.FindTransactions(d.Context(), &pkgentity.TransactionReadSpecification{
+		UserID:    &pkgentity.Comparable[int]{Value: userID, Cmp: pkgentity.Equal},
+		Reference: &pkgentity.Comparable[string]{Value: reference, Cmp: pkgentity.Equal},
+	})
 	require.NoError(d, err)
 	require.Len(d, txs, 1)
 
@@ -355,10 +363,10 @@ func (d *dbStateAssertion) HasUserTransactionByTxID(user testusers.User, txID st
 	d.Helper()
 
 	userID := d.userIDByIdentityKey(user.IdentityKey(d))
-	txs, err := d.storage.TransactionEntity().Read().
-		UserID().Equals(userID).
-		TxID().Equals(txID).
-		Find(d.Context())
+	txs, err := d.storage.Repo().Transactions.FindTransactions(d.Context(), &pkgentity.TransactionReadSpecification{
+		UserID: &pkgentity.Comparable[int]{Value: userID, Cmp: pkgentity.Equal},
+		TxID:   &pkgentity.Comparable[string]{Value: txID, Cmp: pkgentity.Equal},
+	})
 	require.NoError(d, err)
 	require.Len(d, txs, 1)
 

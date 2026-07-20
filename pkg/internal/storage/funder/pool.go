@@ -18,13 +18,13 @@ const (
 // exact match → smallest sufficient → largest insufficient, evaluated tier by tier
 // (mined first, then unproven, then sending).
 type utxoPool struct {
-	tiers [tierCount][]*models.UserUTXO
+	tiers [tierCount][]*models.Output
 }
 
-func newUTXOPool(utxos []*models.UserUTXO) *utxoPool {
+func newUTXOPool(utxos []*models.Output) *utxoPool {
 	p := &utxoPool{}
 	for _, u := range utxos {
-		tier := statusToTier(u.UTXOStatus)
+		tier := statusToTier(wdk.UTXOStatus(u.Transaction.Status))
 		p.tiers[tier] = append(p.tiers[tier], u)
 	}
 	for i := range p.tiers {
@@ -40,7 +40,7 @@ func newUTXOPool(utxos []*models.UserUTXO) *utxoPool {
 //  1. Exact match (satoshis == target)
 //  2. Smallest sufficient (smallest satoshis >= target)
 //  3. Largest insufficient (largest satoshis < target)
-func (p *utxoPool) selectBest(targetSatoshis uint64) *models.UserUTXO {
+func (p *utxoPool) selectBest(targetSatoshis uint64) *models.Output {
 	for tierIdx := range p.tiers {
 		if len(p.tiers[tierIdx]) == 0 {
 			continue
@@ -48,14 +48,14 @@ func (p *utxoPool) selectBest(targetSatoshis uint64) *models.UserUTXO {
 
 		// Stage 1: Exact match
 		for i, u := range p.tiers[tierIdx] {
-			if u.Satoshis == targetSatoshis {
+			if uint64(u.Satoshis) == targetSatoshis {
 				return p.removeAt(tierIdx, i)
 			}
 		}
 
 		// Stage 2: Smallest sufficient (tier sorted ASC, first >= target)
 		for i, u := range p.tiers[tierIdx] {
-			if u.Satoshis >= targetSatoshis {
+			if uint64(u.Satoshis) >= targetSatoshis {
 				return p.removeAt(tierIdx, i)
 			}
 		}
@@ -68,15 +68,15 @@ func (p *utxoPool) selectBest(targetSatoshis uint64) *models.UserUTXO {
 }
 
 // all returns every remaining UTXO across all tiers (for sweep mode).
-func (p *utxoPool) all() []*models.UserUTXO {
-	var result []*models.UserUTXO
+func (p *utxoPool) all() []*models.Output {
+	var result []*models.Output
 	for _, tier := range p.tiers {
 		result = append(result, tier...)
 	}
 	return result
 }
 
-func (p *utxoPool) removeAt(tierIdx, i int) *models.UserUTXO {
+func (p *utxoPool) removeAt(tierIdx, i int) *models.Output {
 	tier := p.tiers[tierIdx]
 	u := tier[i]
 	p.tiers[tierIdx] = append(tier[:i], tier[i+1:]...)

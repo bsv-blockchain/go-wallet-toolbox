@@ -37,7 +37,7 @@ func (s *SyncState) FindSyncState(ctx context.Context, userID int, storageIdenti
 	var model models.SyncState
 	err = s.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
-		Where("storage_identity_key = ?", storageIdentityKey).
+		Where("storageIdentityKey = ?", storageIdentityKey).
 		First(&model).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -66,6 +66,7 @@ func (s *SyncState) CreateSyncState(ctx context.Context, syncState *entity.SyncS
 		StorageIdentityKey: syncState.StorageIdentityKey,
 		StorageName:        syncState.StorageName,
 		Status:             syncState.Status,
+		SyncStateID:        syncState.ID,
 		RefNum:             syncState.Reference,
 		SyncMap:            syncMapJSON,
 		When:               syncState.When,
@@ -107,7 +108,7 @@ func (s *SyncState) UpdateSyncState(ctx context.Context, syncState *entity.SyncS
 
 	err = s.db.WithContext(ctx).
 		Model(&models.SyncState{}).
-		Where("id = ?", syncState.ID).
+		Where("syncStateId = ?", syncState.ID).
 		Updates(toUpdate).Error
 	if err != nil {
 		return fmt.Errorf("failed to update sync state: %w", err)
@@ -123,7 +124,7 @@ func mapModelToSyncStateEntity(model models.SyncState) (*entity.SyncState, error
 	}
 
 	entityModel := &entity.SyncState{
-		ID:                 model.ID,
+		ID:                 model.SyncStateID,
 		CreatedAt:          model.CreatedAt,
 		UpdatedAt:          model.UpdatedAt,
 		UserID:             model.UserID,

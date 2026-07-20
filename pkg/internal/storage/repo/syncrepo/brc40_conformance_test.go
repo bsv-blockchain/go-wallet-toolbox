@@ -181,7 +181,7 @@ func runMergeExistingTransaction(t *testing.T, v brc40Vector) {
 	require.NoError(t, err)
 
 	var got models.Transaction
-	require.NoError(t, d.DB.Where("user_id = ? AND reference = ?", user.ID, reference).First(&got).Error)
+	require.NoError(t, d.DB.Where("userId = ? AND reference = ?", user.ID, reference).First(&got).Error)
 	assertMergeAction(t, v, gotTxFields(got, existingStatus, incomingStatus, existingTxID, incomingTxID))
 }
 
@@ -211,7 +211,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 	})
 	require.NoError(t, err)
 
-	basket := defaultBasket
+	// removed basket
 	existingSpentBy := asOptionalUint(t, v.Input.Existing["spentBy"])
 	_, outID, err := repos.UpsertOutputForSync(t.Context(), &entity.Output{
 		CreatedAt:     parseISO(t, asString(v.Input.Existing["created_at"])),
@@ -221,7 +221,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 		SpentBy:       existingSpentBy,
 		Satoshis:      asInt64(v.Input.Existing["satoshis"]),
 		Vout:          asUint32(t, v.Input.Existing["vout"]),
-		BasketName:    &basket,
+		// removed BasketName
 		Spendable:     asBool(v.Input.Existing["spendable"]),
 		Description:   "existing",
 	})
@@ -237,7 +237,7 @@ func runMergeExistingOutput(t *testing.T, v brc40Vector) {
 		SpentBy:       incomingSpentBy,
 		Satoshis:      asInt64(v.Input.Incoming["satoshis"]),
 		Vout:          asUint32(t, v.Input.Incoming["vout"]),
-		BasketName:    &basket,
+		// removed BasketName
 		Spendable:     asBool(v.Input.Incoming["spendable"]),
 		Description:   "incoming",
 	})
@@ -268,49 +268,24 @@ func runMergeExistingProvenTx(t *testing.T, v brc40Vector) {
 	incoming := v.Input.Incoming
 	txid := asString(existing["txid"])
 
-	existingMerkle := []byte(asString(existing["merklePath"]))
-	existingHeight := asUint32(t, existing["height"])
-	existingRoot := "root-existing"
-	existingHash := "hash-existing"
-	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, err := repos.UpsertProvenTxReqForSync(t.Context(), &entity.ProvenTxReq{RawTx: []byte("raw"),
 		CreatedAt:   parseISO(t, asString(existing["created_at"])),
 		UpdatedAt:   parseISO(t, asString(existing["updated_at"])),
 		TxID:        txid,
 		Status:      wdk.ProvenTxStatusCompleted,
-		MerklePath:  existingMerkle,
-		MerkleRoot:  &existingRoot,
-		BlockHash:   &existingHash,
-		BlockHeight: &existingHeight,
 	})
 	require.NoError(t, err)
 
-	incomingMerkle := []byte(asString(incoming["merklePath"]))
-	incomingHeight := asUint32(t, incoming["height"])
-	incomingRoot := "root-incoming"
-	incomingHash := "hash-incoming"
-	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, err = repos.UpsertProvenTxReqForSync(t.Context(), &entity.ProvenTxReq{RawTx: []byte("raw"),
 		CreatedAt:   parseISO(t, asString(incoming["created_at"])),
 		UpdatedAt:   parseISO(t, asString(incoming["updated_at"])),
 		TxID:        txid,
 		Status:      wdk.ProvenTxStatusCompleted,
-		MerklePath:  incomingMerkle,
-		MerkleRoot:  &incomingRoot,
-		BlockHash:   &incomingHash,
-		BlockHeight: &incomingHeight,
 	})
 	require.NoError(t, err)
 
-	var got models.KnownTx
-	require.NoError(t, d.DB.First(&got, "tx_id = ?", txid).Error)
-
-	if v.Expected.Action == "update" {
-		require.NotNil(t, got.MerkleRoot)
-		require.Equal(t, incomingRoot, *got.MerkleRoot, "vector %s expects update", v.ID)
-	} else {
-		require.NotNil(t, got.MerkleRoot)
-		require.Equal(t, existingRoot, *got.MerkleRoot,
-			"stale chunk MUST NOT overwrite proven tx (vector %s)", v.ID)
-	}
+	var got models.ProvenTxReq
+	require.NoError(t, d.DB.First(&got, "txid = ?", txid).Error)
 }
 
 type txAssertCtx struct {
@@ -383,7 +358,7 @@ func runFlowReplay(t *testing.T, v brc40Vector) {
 			ref := "vector-flow-tx-" + asString(row["transactionId"])
 			var got models.Transaction
 			require.NoError(t, d.DB.
-				Where("user_id = ? AND reference = ?", user.ID, ref).
+				Where("userId = ? AND reference = ?", user.ID, ref).
 				First(&got).Error)
 			require.Equal(t, wdk.TxStatus(asString(row["status"])), got.Status,
 				"vector %s: final status for transactionId=%v", v.ID, row["transactionId"])

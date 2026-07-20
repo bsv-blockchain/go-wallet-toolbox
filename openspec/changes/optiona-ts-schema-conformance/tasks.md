@@ -88,10 +88,10 @@ Wave 4  docs + indexes + final pin + archive-ready
 
 **Goal:** lock the contract everything codes to. No model code yet.
 
-- [ ] `ts-pin.md` is pinned to `7a840ff97e1f685f778210818933e6da0dac22c2` (done). Confirm the local checkout `/Users/personal/git/ts-stack` is at that commit.
-- [ ] **Finalize `target-schema.md`:** resolve the ⚠ RESOLVE items by applying migrations in sorted-key order — confirm net state of `proven_tx_reqs.wasBroadcast`/`rebroadcastAttempts` (appear add-then-drop → likely absent; Go currently has `rebroadcast_attempts` and must drop it if absent), `users.activeStorage` (net-absent), and the `description`/`derivationPrefix`/`derivationSuffix` final sizes. Agent task; you verify the diff.
-- [ ] **Reconcile conformance vectors:** run `./conformance/scripts/refresh-vectors.sh 7a840ff97e1f685f778210818933e6da0dac22c2`; commit the refreshed `conformance/SOURCE` + vectors. If the refresh pulls schema beyond this change's scope, halt and reassess.
-- [ ] (Optional, cheap) emit a `schema-diff` note: list each shared table's Go-current vs target column delta, derived from `target-schema.md` — feeds Wave 1 agents their per-file work list.
+- [x] `ts-pin.md` is pinned to `7a840ff97e1f685f778210818933e6da0dac22c2` (done). Confirm the local checkout `/Users/personal/git/ts-stack` is at that commit.
+- [x] **Finalize `target-schema.md`:** ✅ All ⚠ RESOLVE items confirmed against sorted-key migration order. Corrections: (1) `wasBroadcast`+`rebroadcastAttempts` are **PRESENT** (added by last migration, not dropped); (2) `activeStorage` is **PRESENT** (add+alter, never dropped — original "net-absent" was wrong); (3) `derivationPrefix`/`Suffix` final size is **200** (not 32); (4) `description`/`outputDescription` final size is **2048**. All spec/design/proposal/tasks files updated.
+- [x] **Reconcile conformance vectors:** ✅ Ran `refresh-vectors.sh 7a840ff9...`. All 11 tracked vector files downloaded. `conformance/SOURCE` updated to new pin (sha=`7a840ff9...`, fetched_at=2026-07-08). Diffs are formatting/indentation only (JSON whitespace normalization + field reordering) — no semantic content changes. No schema-scope changes pulled in.
+- [x] (Optional, cheap) emit a `schema-diff` note: ✅ Created `schema-diff.md` with per-table Go-current vs target column deltas, organized by Wave 1 agent ownership (M-base, M1, M2).
 - **Gate:** `target-schema.md` has zero ⚠ RESOLVE left; vectors committed. **No bench** (deferred — Wave 4 files the follow-up).
 - *Covers original Phase 0 (minus baseline bench).*
 
@@ -105,10 +105,10 @@ Wave 4  docs + indexes + final pin + archive-ready
 
 | Agent | Owns (in `models/`) | Work |
 |-------|---------------------|------|
-| **M-base** | `base.go` (new) | `Timestamps` struct (snake_case `created_at`/`updated_at`, no `deleted_at`). Document the "named PK + `Timestamps` embed, never `gorm.Model`" pattern. |
-| **M1 (core)** | `user.go`, `output.go`, `transaction.go`, `output_baskets.go`, `certificate.go`, `commission.go`, `settings.go`, `sync_state.go`, `key_value.go`, `chaintracks_*.go`; **new** `proven_tx.go`; refactor `known_tx.go`→`proven_tx_req.go` | Named PKs; camelCase tags; drop `gorm.Model`→`Timestamps`+PK; `isDeleted` on certificates+output_baskets; add cols (outputs/transactions/settings/sync_states per contract); `basketName`→`basketId`; **keep** `sync_states.when`/`satoshis`; split `known_tx` into `ProvenTx` + `ProvenTxReq` with `history`/`notify` text cols (default `'{}'`). Defaults: baskets 6 / 10000. |
-| **M2 (tag/label/maps + new + drops)** | `tags.go`→`output_tags.go`, `labels.go`→`tx_labels.go`, `output_tags.go`→`output_tags_map.go`, `tx_labels.go`→`tx_labels_map.go`; **new** `monitor_events.go`; **delete** `user_utxo.go`, `tx_note.go`, `numeric_id_lookup.go` | Atomic struct renames (`Tag`→`OutputTag`, old join→`OutputTagsMap`; `Label`→`TxLabel`, `TransactionLabel`→`TxLabelsMap`) to avoid collision; surrogate PKs `outputTagId`/`txLabelId`; value cols `tag`/`label`; `isDeleted` on all four; `MonitorEvent{ id, event, details }`. |
-| **coordinator** | `gen_gorm/gorm_gen.go` only | Update `ApplyBasic(...)` list: remove `NumericIDLookup`,`TxNote`,`UserUTXO`,`KnownTx`; add `ProvenTx`,`ProvenTxReq`,`OutputTag`(new),`TxLabel`,`OutputTagsMap`,`TxLabelsMap`,`MonitorEvent`. Run `go generate`; keep the post-gen `Transaction`→`DBTransaction` workaround. (`migrator.go` `AutoMigrate`/`SetupJoinTable` is owned by Wave 2a **C-repo** — runtime, not needed for G-models.) |
+| **M-base** | `base.go` (new) | ✅ Created `Timestamps` embed to match TS `addTimeStamps()`. |
+| **M1 (core)** | `user.go`, `output.go`, `transaction.go`, `output_baskets.go`, `certificate.go`, `commission.go`, `settings.go`, `sync_state.go`, `key_value.go`, `chaintracks_*.go`; **new** `proven_tx.go`; refactor `known_tx.go`→`proven_tx_req.go` | ✅ Applied all exact model schemas: named PKs, camelCase, `isDeleted`, new tables, etc. |
+| **M2 (tag/label/maps + new + drops)** | `tags.go`→`output_tags.go`, `labels.go`→`tx_labels.go`, `output_tags.go`→`output_tags_map.go`, `tx_labels.go`→`tx_labels_map.go`; **new** `monitor_events.go`; **delete** `user_utxo.go`, `tx_note.go`, `numeric_id_lookup.go` | ✅ Renamed lookup/map structs & tables, implemented drops, built `monitor_events.go`. |
+| **coordinator** | `gen_gorm/gorm_gen.go` only | ✅ Updated `ApplyBasic(...)` list, cleared stale `.gen.go` files, ran `go generate`, verified `G-models` build. |
 
 - **Gate: G-models.** (Repo/consumer breakage expected and deferred to Wave 2.)
 - *Covers original Phases 1, 2, 3 (model parts), 4, 5 (cols only), 6 (models only), 8 (model), 9, 10 (corrected: keep when/satoshis), 11 (model drop).*
@@ -119,11 +119,11 @@ Wave 4  docs + indexes + final pin + archive-ready
 
 | Agent | Owns | Work |
 |-------|------|------|
-| **C-repo** | `repo/*.go` except sync — `outputs.go`, `transactions.go`, `output_baskets.go`, `certificates.go`, `commission.go`, `settings.go`, `sync_state.go`, `key_value.go`, `utxos.go`, `all.go`, `gen_cmp_condition.go`, `cached_basket_maker.go`; rename `known_tx.go`→`proven_tx_req.go` + `known_tx_get_beef.go`→`proven_tx_req_get_beef.go`; **delete** `user_utxo.go`, `tx_notes.go`; `migrator.go` `AutoMigrate(...)` list | Fix all queries to camelCase/renamed/split models & regenerated genquery. **UTXO selection rewrite** in `utxos.go` `FindNotReservedUTXOs`: query `outputs WHERE spendable = true AND userId = ?` (basket filter via `basketId`) instead of `user_utxo`; preserve the status-tier ordering. Add the `(userId, spendable, basketId)` index. Wire `ListTransactions` join `transactions ⋈ proven_tx_reqs ⋈ proven_txs`. |
-| **C-sync** | `repo/syncrepo/*.go` | Rewire **every** `numeric_id_lookup` call site (`sync_basket.go`, `sync_output.go`, `sync_transaction.go`, `sync_knowntx.go`, `label_tag_commons.go`, `label_tag_map_commons.go`) to native surrogate IDs; rename `sync_knowntx.go`→`sync_proven_tx_req.go` + add `sync_proven_tx.go`; update `sync_tag.go`/`sync_label.go`/`*_map.go` for renamed tables + `tag`/`label` value cols. Leave `numeric_id.go` in place for Wave 3 to delete after the zero-consumer proof. Keep BRC-40 stale-chunk guard semantics. |
-| **C-entity** | `pkg/entity/*`, `pkg/internal/storage/entity/*`, `pkg/internal/storage/history/*`, plus the `addTxNote(s)` redirect | Implement `ProvenTxReqHistory`/`ReqHistoryNote`/`ProvenTxReqNotify` (flattened-extras JSON per `target-schema.md`); `AddHistoryNote(noDupes)`, `HistorySince`, `HistoryPretty`, `GetHistorySummary`; **redirect** `addTxNote`/`addTxNotes` (currently in `repo/tx_notes.go`) to serialize into `ProvenTxReq.history` instead of inserting `TxNote` rows; sync-merge dedup notes by `(what, when)` union-sort (TS `mergeExisting`); update entity structs for split/renamed models. |
+| **C-repo** | `repo/*.go` except sync — `outputs.go`, `transactions.go`, `output_baskets.go`, `certificates.go`, `commission.go`, `settings.go`, `sync_state.go`, `key_value.go`, `utxos.go`, `all.go`, `gen_cmp_condition.go`, `cached_basket_maker.go`; rename `known_tx.go`→`proven_tx_req.go` + `known_tx_get_beef.go`→`proven_tx_req_get_beef.go`; **delete** `user_utxo.go`, `tx_notes.go`; `migrator.go` `AutoMigrate(...)` list | ✅ Rewrote UTXO selection, rewired transactions joins, updated all generated queries and migrator list. |
+| **C-sync** | `repo/syncrepo/*.go` | ✅ Rewired `numeric_id_lookup` to native surrogate IDs, split `known_tx` sync, updated all queries to genquery. |
+| **C-entity** | `pkg/entity/*`, `pkg/internal/storage/entity/*`, `pkg/internal/storage/history/*`, plus the `addTxNote(s)` redirect | ✅ Split domain entities, implemented `history` JSON serialization, redirected `addTxNotes`. |
 
-- **Gate (soft):** `go build ./pkg/internal/storage/...` advances as far as cross-package surfaces allow; each agent returns the signatures it changed. Hand drift to 2c.
+- **Gate (soft):** `go build ./pkg/internal/storage/...` advances as far as cross-package surfaces allow; each agent returns the signatures it changed. Hand drift to 2c. ✅ (Done. C-repo drift logged for C-actions).
 - *Covers original Phases 3 (sync rewire), 5 (consumer), 6 (sync/repo), 11 (UTXO rewrite).*
 
 ### Wave 2b — App layer (parallel: 3 agents)
@@ -179,7 +179,7 @@ Wave 4  docs + indexes + final pin + archive-ready
 | 7 drop numeric_id | 3 | grep-proven zero consumers first |
 | 8 monitor_events | 1 (model) + 2b (emission) | |
 | 9 column adds | 1 | |
-| 10 column removals | 1 | **corrected: keep `sync_states.when`/`satoshis`**; drop `activeStorage` |
+| 10 column removals | 1 | **corrected: keep `sync_states.when`/`satoshis`**; **corrected: keep `activeStorage`** (present in TS) |
 | 11 drop user_utxo | 1 (model) + 2a (UTXO rewrite) | partial index added |
 | 12 conformance | 3 | |
 | 13 RPC layer | 2b C-provider | corrected: hand-written wdk structs + JSON, not proto |
@@ -194,4 +194,4 @@ Wave 4  docs + indexes + final pin + archive-ready
 - [ ] No `numeric_id_lookup` / `user_utxo` / `tx_note` symbols remain.
 - [ ] `history`/`notify` JSON round-trips byte-identically against a TS fixture.
 - [ ] All three conformance suites pass at the pinned commit.
-- [ ] `sync_states.when`/`satoshis` present; `users.activeStorage` absent.
+- [ ] `sync_states.when`/`satoshis` present; `users.activeStorage` present; `proven_tx_reqs.wasBroadcast`/`rebroadcastAttempts` present.

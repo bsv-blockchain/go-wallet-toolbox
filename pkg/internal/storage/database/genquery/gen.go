@@ -22,18 +22,17 @@ func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 		ChaintracksBulkFile:   newChaintracksBulkFile(db, opts...),
 		ChaintracksLiveHeader: newChaintracksLiveHeader(db, opts...),
 		Commission:            newCommission(db, opts...),
-		KnownTx:               newKnownTx(db, opts...),
-		Label:                 newLabel(db, opts...),
-		NumericIDLookup:       newNumericIDLookup(db, opts...),
+		MonitorEvent:          newMonitorEvent(db, opts...),
 		Output:                newOutput(db, opts...),
 		OutputBasket:          newOutputBasket(db, opts...),
 		OutputTag:             newOutputTag(db, opts...),
-		Tag:                   newTag(db, opts...),
+		OutputTagsMap:         newOutputTagsMap(db, opts...),
+		ProvenTx:              newProvenTx(db, opts...),
+		ProvenTxReq:           newProvenTxReq(db, opts...),
 		Transaction:           newTransaction(db, opts...),
-		TransactionLabel:      newTransactionLabel(db, opts...),
-		TxNote:                newTxNote(db, opts...),
+		TxLabel:               newTxLabel(db, opts...),
+		TxLabelsMap:           newTxLabelsMap(db, opts...),
 		User:                  newUser(db, opts...),
-		UserUTXO:              newUserUTXO(db, opts...),
 	}
 }
 
@@ -44,21 +43,22 @@ type Query struct {
 	ChaintracksBulkFile   chaintracksBulkFile
 	ChaintracksLiveHeader chaintracksLiveHeader
 	Commission            commission
-	KnownTx               knownTx
-	Label                 label
-	NumericIDLookup       numericIDLookup
+	MonitorEvent          monitorEvent
 	Output                output
 	OutputBasket          outputBasket
 	OutputTag             outputTag
-	Tag                   tag
+	OutputTagsMap         outputTagsMap
+	ProvenTx              provenTx
+	ProvenTxReq           provenTxReq
 	Transaction           transaction
-	TransactionLabel      transactionLabel
-	TxNote                txNote
+	TxLabel               txLabel
+	TxLabelsMap           txLabelsMap
 	User                  user
-	UserUTXO              userUTXO
 }
 
 func (q *Query) Available() bool { return q.db != nil }
+
+func (q *Query) UnderlyingDB() *gorm.DB { return q.db }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
@@ -67,27 +67,26 @@ func (q *Query) clone(db *gorm.DB) *Query {
 		ChaintracksBulkFile:   q.ChaintracksBulkFile.clone(db),
 		ChaintracksLiveHeader: q.ChaintracksLiveHeader.clone(db),
 		Commission:            q.Commission.clone(db),
-		KnownTx:               q.KnownTx.clone(db),
-		Label:                 q.Label.clone(db),
-		NumericIDLookup:       q.NumericIDLookup.clone(db),
+		MonitorEvent:          q.MonitorEvent.clone(db),
 		Output:                q.Output.clone(db),
 		OutputBasket:          q.OutputBasket.clone(db),
 		OutputTag:             q.OutputTag.clone(db),
-		Tag:                   q.Tag.clone(db),
+		OutputTagsMap:         q.OutputTagsMap.clone(db),
+		ProvenTx:              q.ProvenTx.clone(db),
+		ProvenTxReq:           q.ProvenTxReq.clone(db),
 		Transaction:           q.Transaction.clone(db),
-		TransactionLabel:      q.TransactionLabel.clone(db),
-		TxNote:                q.TxNote.clone(db),
+		TxLabel:               q.TxLabel.clone(db),
+		TxLabelsMap:           q.TxLabelsMap.clone(db),
 		User:                  q.User.clone(db),
-		UserUTXO:              q.UserUTXO.clone(db),
 	}
 }
 
 func (q *Query) ReadDB() *Query {
-	return q.ReplaceDB(q.db.Clauses(dbresolver.Read))
+	return q.clone(q.db.Clauses(dbresolver.Read))
 }
 
 func (q *Query) WriteDB() *Query {
-	return q.ReplaceDB(q.db.Clauses(dbresolver.Write))
+	return q.clone(q.db.Clauses(dbresolver.Write))
 }
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
@@ -97,18 +96,17 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 		ChaintracksBulkFile:   q.ChaintracksBulkFile.replaceDB(db),
 		ChaintracksLiveHeader: q.ChaintracksLiveHeader.replaceDB(db),
 		Commission:            q.Commission.replaceDB(db),
-		KnownTx:               q.KnownTx.replaceDB(db),
-		Label:                 q.Label.replaceDB(db),
-		NumericIDLookup:       q.NumericIDLookup.replaceDB(db),
+		MonitorEvent:          q.MonitorEvent.replaceDB(db),
 		Output:                q.Output.replaceDB(db),
 		OutputBasket:          q.OutputBasket.replaceDB(db),
 		OutputTag:             q.OutputTag.replaceDB(db),
-		Tag:                   q.Tag.replaceDB(db),
+		OutputTagsMap:         q.OutputTagsMap.replaceDB(db),
+		ProvenTx:              q.ProvenTx.replaceDB(db),
+		ProvenTxReq:           q.ProvenTxReq.replaceDB(db),
 		Transaction:           q.Transaction.replaceDB(db),
-		TransactionLabel:      q.TransactionLabel.replaceDB(db),
-		TxNote:                q.TxNote.replaceDB(db),
+		TxLabel:               q.TxLabel.replaceDB(db),
+		TxLabelsMap:           q.TxLabelsMap.replaceDB(db),
 		User:                  q.User.replaceDB(db),
-		UserUTXO:              q.UserUTXO.replaceDB(db),
 	}
 }
 
@@ -117,18 +115,17 @@ type queryCtx struct {
 	ChaintracksBulkFile   IChaintracksBulkFileDo
 	ChaintracksLiveHeader IChaintracksLiveHeaderDo
 	Commission            ICommissionDo
-	KnownTx               IKnownTxDo
-	Label                 ILabelDo
-	NumericIDLookup       INumericIDLookupDo
+	MonitorEvent          IMonitorEventDo
 	Output                IOutputDo
 	OutputBasket          IOutputBasketDo
 	OutputTag             IOutputTagDo
-	Tag                   ITagDo
+	OutputTagsMap         IOutputTagsMapDo
+	ProvenTx              IProvenTxDo
+	ProvenTxReq           IProvenTxReqDo
 	Transaction           ITransactionDo
-	TransactionLabel      ITransactionLabelDo
-	TxNote                ITxNoteDo
+	TxLabel               ITxLabelDo
+	TxLabelsMap           ITxLabelsMapDo
 	User                  IUserDo
-	UserUTXO              IUserUTXODo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
@@ -137,18 +134,17 @@ func (q *Query) WithContext(ctx context.Context) *queryCtx {
 		ChaintracksBulkFile:   q.ChaintracksBulkFile.WithContext(ctx),
 		ChaintracksLiveHeader: q.ChaintracksLiveHeader.WithContext(ctx),
 		Commission:            q.Commission.WithContext(ctx),
-		KnownTx:               q.KnownTx.WithContext(ctx),
-		Label:                 q.Label.WithContext(ctx),
-		NumericIDLookup:       q.NumericIDLookup.WithContext(ctx),
+		MonitorEvent:          q.MonitorEvent.WithContext(ctx),
 		Output:                q.Output.WithContext(ctx),
 		OutputBasket:          q.OutputBasket.WithContext(ctx),
 		OutputTag:             q.OutputTag.WithContext(ctx),
-		Tag:                   q.Tag.WithContext(ctx),
+		OutputTagsMap:         q.OutputTagsMap.WithContext(ctx),
+		ProvenTx:              q.ProvenTx.WithContext(ctx),
+		ProvenTxReq:           q.ProvenTxReq.WithContext(ctx),
 		Transaction:           q.Transaction.WithContext(ctx),
-		TransactionLabel:      q.TransactionLabel.WithContext(ctx),
-		TxNote:                q.TxNote.WithContext(ctx),
+		TxLabel:               q.TxLabel.WithContext(ctx),
+		TxLabelsMap:           q.TxLabelsMap.WithContext(ctx),
 		User:                  q.User.WithContext(ctx),
-		UserUTXO:              q.UserUTXO.WithContext(ctx),
 	}
 }
 

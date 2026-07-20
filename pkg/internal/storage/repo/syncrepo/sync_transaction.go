@@ -6,9 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
-	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -28,13 +26,6 @@ func NewSyncTransaction(db *gorm.DB, query *genquery.Query) *SyncTransaction {
 	return &SyncTransaction{db: db, query: query}
 }
 
-type TransactionWithKnownTx struct {
-	models.Transaction
-
-	KnownTxNumID *int `gorm:"column:num_id"`
-	BlockHeight  *uint32
-}
-
 func (s *SyncTransaction) tableName() string {
 	return s.query.Transaction.TableName()
 }
@@ -42,42 +33,19 @@ func (s *SyncTransaction) tableName() string {
 func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error) {
 	queryopts.ModifyOptions(opts, func(options *queryopts.Options) {
 		if options.Since != nil && options.Since.TableName == "" {
-			// Prevent from an issue with ambiguous created_at column
 			options.Since.TableName = s.tableName()
 		}
 	})
 	filters := append(scopes.FromQueryOpts(opts), scopes.UserID(userID))
 
-	var resultModels []*TransactionWithKnownTx
+	var resultModels []*models.Transaction
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// Make sure all numeric IDs of KnownTxs needed by user's transactions are present in the numeric ID lookup table.
-		err := upsertNumericIDLookup(ctx, s.db, tx, s.query, func(db *gorm.DB) *gorm.DB {
-			return db.
-				Select("?, tx_id", s.query.KnownTx.TableName()).
-				Scopes(filters...).
-				Where("tx_id IS NOT NULL").
-				Find(&models.Transaction{})
-		})
-		if err != nil {
-			return err
-		}
-
-		err = tx.WithContext(ctx).
-			Model(&models.Transaction{}).
-			Select(fmt.Sprintf("%s.*, num.num_id, known_tx.block_height", s.tableName())).
-			Scopes(joinWithNumericIDLookupScope(s.query, fmt.Sprintf("%s.tx_id", s.tableName()), s.query.KnownTx.TableName(), clause.LeftJoin)).
-			Joins(fmt.Sprintf("LEFT JOIN %s as known_tx ON known_tx.tx_id = %s.tx_id", s.query.KnownTx.TableName(), s.tableName())).
-			Scopes(filters...).
-			Find(&resultModels).Error
-		if err != nil {
-			return fmt.Errorf("failed to find proven tx requests for sync: %w", err)
-		}
-
-		return nil
-	})
+	err := s.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Scopes(filters...).
+		Find(&resultModels).Error
 	if err != nil {
-		return nil, fmt.Errorf("transaction failed: %w", err)
+		return nil, fmt.Errorf("failed to find transactions for sync: %w", err)
 	}
 
 	return slices.Map(resultModels, s.mapModelToTableTransaction), nil
@@ -85,7 +53,7 @@ func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID in
 
 func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *pkgentity.Transaction) (isNew bool, transactionID uint, err error) {
 	model := models.Transaction{
-		Model: gorm.Model{
+		Timestamps: models.Timestamps{
 			CreatedAt: entity.CreatedAt,
 			UpdatedAt: entity.UpdatedAt,
 		},
@@ -102,33 +70,28 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
-		// Equal updated_at must SKIP. See ts-stack EntityTransaction.mergeExisting and
-		// conformance vector sync.brc40.merge.tx.error.regression.{1,2}.
 		var existing models.Transaction
 		existsErr := tx.Model(&models.Transaction{}).
-			Select("id, updated_at").
+			Select("transactionId, updated_at").
 			Scopes(scopes.UserID(entity.UserID)).
 			Where("reference = ?", entity.Reference).
 			First(&existing).Error
 
 		if existsErr == nil {
 			if !model.UpdatedAt.After(existing.UpdatedAt) {
-				transactionID = existing.ID
+				transactionID = existing.TransactionID
 				return nil
 			}
 
 			updateTx := tx.Model(&models.Transaction{}).
-				Where("id = ? AND updated_at < ?", existing.ID, model.UpdatedAt).
+				Where("transactionId = ? AND updated_at < ?", existing.TransactionID, model.UpdatedAt).
 				Updates(model)
 
 			if updateTx.Error != nil {
 				return fmt.Errorf("failed to update transaction: %w", updateTx.Error)
 			}
 
-			// RowsAffected == 0 means a concurrent writer advanced updated_at past
-			// our incoming value between the lookup and the UPDATE. Treat as skip.
-			transactionID = existing.ID
+			transactionID = existing.TransactionID
 			return nil
 		}
 
@@ -140,12 +103,12 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 			return fmt.Errorf("failed to create transaction: %w", err)
 		}
 
-		if model.ID == 0 {
+		if model.TransactionID == 0 {
 			return fmt.Errorf("transaction ID is zero after creation, this should not happen")
 		}
 
 		isNew = true
-		transactionID = model.ID
+		transactionID = model.TransactionID
 
 		return nil
 	})
@@ -156,23 +119,28 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 	return isNew, transactionID, nil
 }
 
-func (s *SyncTransaction) mapModelToTableTransaction(model *TransactionWithKnownTx) *wdk.TableTransaction {
+func (s *SyncTransaction) mapModelToTableTransaction(model *models.Transaction) *wdk.TableTransaction {
+	var provenTxID *int
+	if model.ProvenTxID != nil {
+		id := int(*model.ProvenTxID)
+		provenTxID = &id
+	}
+
 	return &wdk.TableTransaction{
 		CreatedAt:     model.CreatedAt,
 		UpdatedAt:     model.UpdatedAt,
-		TransactionID: model.ID,
+		TransactionID: model.TransactionID,
 		UserID:        model.UserID,
 		Status:        model.Status,
 		Reference:     primitives.Base64String(model.Reference),
 		IsOutgoing:    model.IsOutgoing,
 		Satoshis:      model.Satoshis,
 		Description:   model.Description,
-		Version:       &model.Version,
-		LockTime:      &model.LockTime,
+		Version:       model.Version,
+		LockTime:      model.LockTime,
 		TxID:          model.TxID,
 		InputBEEF:     model.InputBeef,
 
-		// NOTE: ProvenTxID is set only if the transaction is known to be mined (has a numeric ID in the KnownTx table).
-		ProvenTxID: to.IfThen(model.BlockHeight != nil, model.KnownTxNumID).ElseThen(nil),
+		ProvenTxID: provenTxID,
 	}
 }

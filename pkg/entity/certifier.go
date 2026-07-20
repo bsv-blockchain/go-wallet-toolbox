@@ -15,6 +15,7 @@ type Certificate struct {
 	Verifier           string
 	RevocationOutpoint string
 	Signature          string
+	IsDeleted          bool
 	CertificateFields  []CertificateField
 }
 

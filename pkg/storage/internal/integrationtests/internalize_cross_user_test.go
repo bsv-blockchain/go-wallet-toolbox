@@ -28,7 +28,7 @@ func TestInternalizeCrossUser(t *testing.T) {
 
 	t.Run("User A's transaction is waiting to broadcast", func(t *testing.T) {
 		// Simulate User A having this transaction in "sending" state
-		knownTx := models.KnownTx{
+		knownTx := models.ProvenTxReq{
 			TxID:   txID,
 			Status: wdk.ProvenTxStatusSending,
 			RawTx:  []byte("fake_raw_tx"),
@@ -37,7 +37,7 @@ func TestInternalizeCrossUser(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify it's sending
-		var check models.KnownTx
+		var check models.ProvenTxReq
 		err = activeStorage.Database.DB.First(&check, "tx_id = ?", txID).Error
 		require.NoError(t, err)
 		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status)
@@ -76,12 +76,12 @@ func TestInternalizeCrossUser(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// Check the global KnownTx status again
-		var check models.KnownTx
+		// Check the global ProvenTxReq status again
+		var check models.ProvenTxReq
 		err = activeStorage.Database.DB.First(&check, "tx_id = ?", txID).Error
 		require.NoError(t, err)
 
-		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status, "KnownTx was correctly preserved as Sending")
+		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status, "ProvenTxReq was correctly preserved as Sending")
 	})
 
 	activeStorage.Stop()

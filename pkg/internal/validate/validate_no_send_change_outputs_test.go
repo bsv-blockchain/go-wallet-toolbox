@@ -3,7 +3,6 @@ package validate_test
 import (
 	"testing"
 
-	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +21,6 @@ func TestNoSendChangeOutputs_Success(t *testing.T) {
 					ID:         1,
 					ProvidedBy: string(wdk.ProvidedByStorage),
 					Purpose:    wdk.ChangePurpose,
-					BasketName: to.Ptr(wdk.BasketNameForChange),
 				},
 			},
 		},
@@ -32,13 +30,11 @@ func TestNoSendChangeOutputs_Success(t *testing.T) {
 					ID:         1,
 					ProvidedBy: string(wdk.ProvidedByStorage),
 					Purpose:    wdk.ChangePurpose,
-					BasketName: to.Ptr(wdk.BasketNameForChange),
 				},
 				{
 					ID:         2,
 					ProvidedBy: string(wdk.ProvidedByStorage),
 					Purpose:    wdk.ChangePurpose,
-					BasketName: to.Ptr(wdk.BasketNameForChange),
 				},
 			},
 		},
@@ -64,7 +60,6 @@ func TestNoSendChangeOutputs_Error(t *testing.T) {
 				ID:         4,
 				ProvidedBy: string(wdk.ProvidedByYou),
 				Purpose:    wdk.ChangePurpose,
-				BasketName: to.Ptr(wdk.BasketNameForChange),
 			}},
 			expected: "provided by field value doesn't match",
 		},
@@ -74,26 +69,8 @@ func TestNoSendChangeOutputs_Error(t *testing.T) {
 				ID:         5,
 				ProvidedBy: string(wdk.ProvidedByStorage),
 				Purpose:    "bad-purpose",
-				BasketName: to.Ptr(wdk.BasketNameForChange),
 			}},
 			expected: "purpose field value doesn't match",
-		},
-		"'BasketName' field value is nil": {
-			outputs: []*entity.Output{{
-				ID:         5,
-				ProvidedBy: string(wdk.ProvidedByStorage),
-				Purpose:    wdk.ChangePurpose,
-			}},
-			expected: "basket name field value is set to nil",
-		},
-		"'BasketName' field value doesn't match wdk.BasketNameForChange value": {
-			outputs: []*entity.Output{{
-				ID:         5,
-				ProvidedBy: string(wdk.ProvidedByStorage),
-				Purpose:    wdk.ChangePurpose,
-				BasketName: to.Ptr("bad-basket-name"),
-			}},
-			expected: "basket name field value doesn't match",
 		},
 	}
 	for name, test := range tests {

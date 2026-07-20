@@ -12,7 +12,7 @@ type TableTransaction struct {
 	UpdatedAt     time.Time                    `json:"updated_at"`
 	TransactionID uint                         `json:"transactionId"`
 	UserID        int                          `json:"userId"`
-	ProvenTxID    *int                         `json:"proveTxId"`
+	ProvenTxID    *int                         `json:"provenTxId"`
 	Status        TxStatus                     `json:"status"`
 	Reference     primitives.Base64String      `json:"reference"`
 	IsOutgoing    bool                         `json:"isOutgoing"`
@@ -22,4 +22,5 @@ type TableTransaction struct {
 	LockTime      *uint32                      `json:"lockTime"`
 	TxID          *string                      `json:"txid"`
 	InputBEEF     primitives.ExplicitByteArray `json:"inputBEEF"`
+	RawTx         primitives.ExplicitByteArray `json:"rawTx"`
 }

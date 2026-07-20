@@ -51,7 +51,7 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 }
 
 func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, basket wdk.BasketConfiguration) (isNew bool, err error) {
-	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-UpsertOutputBasket", attribute.Int("UserID", userID), attribute.String("BasketName", string(basket.Name)))
+	ctx, span := tracing.StartTracing(ctx, "Repository-OutputBasket-UpsertOutputBasket", attribute.Int("UserID", userID), attribute.String("BasketID", string(basket.Name)))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
@@ -68,8 +68,8 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 			Scopes(scopes.UserID(userID)).
 			Where("name = ?", basket.Name).
 			Updates(map[string]interface{}{
-				"number_of_desired_utxos":    basket.NumberOfDesiredUTXOs,
-				"minimum_desired_utxo_value": basket.MinimumDesiredUTXOValue,
+				"numberOfDesiredUTXOs":    basket.NumberOfDesiredUTXOs,
+				"minimumDesiredUTXOValue": basket.MinimumDesiredUTXOValue,
 			})
 		if updateTx.Error != nil {
 			return fmt.Errorf("failed to update existing output basket: %w", updateTx.Error)
@@ -115,6 +115,7 @@ func (o *OutputBaskets) FindOrCreateBasket(ctx context.Context, userID int, name
 
 func mapModelToEntityOutputBasket(model *models.OutputBasket) *entity.OutputBasket {
 	return &entity.OutputBasket{
+		ID:                      model.BasketID,
 		Name:                    model.Name,
 		UserID:                  model.UserID,
 		CreatedAt:               model.CreatedAt,
@@ -158,8 +159,8 @@ func (o *OutputBaskets) UpdateOutputBasket(ctx context.Context, spec *entity.Out
 		Scopes(scopes.UserID(spec.UserID)).
 		Where("name = ?", spec.Name).
 		Updates(map[string]interface{}{
-			"number_of_desired_utxos":    spec.NumberOfDesiredUTXOs,
-			"minimum_desired_utxo_value": spec.MinimumDesiredUTXOValue,
+			"numberOfDesiredUTXOs":    spec.NumberOfDesiredUTXOs,
+			"minimumDesiredUTXOValue": spec.MinimumDesiredUTXOValue,
 		}).Error
 	if err != nil {
 		return fmt.Errorf("failed to update output basket: %w", err)

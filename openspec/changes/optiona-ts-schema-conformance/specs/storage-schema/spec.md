@@ -158,7 +158,7 @@ A `monitor_events` table SHALL exist with columns `id` (auto-incr PK), `event` (
 
 ### Requirement: `users` table shape
 
-The `users` table SHALL contain columns `userId` (auto-incr PK), `identityKey` (varchar 130, unique), and standard timestamps. The Go-only `activeStorage` column SHALL be removed.
+The `users` table SHALL contain columns `userId` (auto-incr PK), `identityKey` (varchar 130, unique), `activeStorage` (varchar 130, NOT NULL), and standard timestamps.
 
 #### Scenario: User identity uniqueness
 
@@ -232,7 +232,7 @@ The `sync_states` table SHALL include an `init` boolean column. The `when` (date
 
 ### Requirement: `users.activeStorage` column
 
-**Reason:** No TS equivalent. If multi-storage routing is needed in TS, propose addition there first.
+**RESCINDED 2026-07-08.** This column IS present in TS at the pinned commit `7a840ff97e1f685f778210818933e6da0dac22c2` and is retained (see the MODIFIED `users` table shape requirement). Added by migration `2025-01-21-001`, altered to NOT NULL by `2025-02-22-001`. Actively used by `WalletStorageManager` for multi-storage routing. The original removal rested on a wrong premise (the `dropColumn` exists only in the `down()` rollback path, not in `up()`).
 
 ### Requirement: `sync_states.when` and `sync_states.satoshis` columns
 

@@ -28,7 +28,7 @@ Pinned ts-stack commit recorded in `ts-pin.md`. Schema source of truth:
 | Baskets | `output_baskets` | `output_baskets` | surrogate `basketId` |
 | Tags | `output_tags` + `output_tags_map` | `output_tags` + `output_tags_map` | rename + surrogate id |
 | Labels | `tx_labels` + `tx_labels_map` | `tx_labels` + `tx_labels_map` | rename + surrogate id |
-| Users | `users` | `users` | drop `activeStorage`; auto-incr `userId` |
+| Users | `users` | `users` | keep `activeStorage` (present in TS); auto-incr `userId` |
 | Certificates | `certificates` + `certificate_fields` | same | `isDeleted` flag |
 | Commissions | `commissions` | `commissions` | unchanged |
 | Sync state | `sync_states` | `sync_states` | add `init`; **keep** `when`/`satoshis` (present in TS) |

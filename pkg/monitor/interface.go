@@ -16,4 +16,5 @@ type MonitoredStorage interface {
 
 	HandleReorg(ctx context.Context, orphanedBlockHashes []string) error
 	ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error)
+	RecordMonitorEvent(ctx context.Context, event string, details string) error
 }

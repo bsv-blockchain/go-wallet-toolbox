@@ -27,7 +27,7 @@ type Output struct {
 	DerivationPrefix *string
 	DerivationSuffix *string
 
-	BasketName *string
+	BasketID *uint
 
 	Spendable bool
 	Change    bool
@@ -41,7 +41,10 @@ type Output struct {
 
 	Tags []string
 
-	UserUTXO *UserUTXO
+	SequenceNumber      *uint32
+	SpendingDescription *string
+	ScriptLength        *uint64
+	ScriptOffset        *uint64
 }
 
 // ToWDK converts the Output entity to its WDK representation.
@@ -76,7 +79,7 @@ type OutputReadSpecification struct {
 	UserID        *Comparable[int]
 	TransactionID *Comparable[uint]
 	SpentBy       *Comparable[uint]
-	BasketName    *Comparable[string]
+	BasketID      *Comparable[uint]
 	Spendable     *Comparable[bool]
 	Change        *Comparable[bool]
 	TxStatus      *Comparable[wdk.TxStatus]

@@ -30,11 +30,12 @@ func newOutputBasket(db *gorm.DB, opts ...gen.DOOption) outputBasket {
 	_outputBasket.ALL = field.NewAsterisk(tableName)
 	_outputBasket.CreatedAt = field.NewTime(tableName, "created_at")
 	_outputBasket.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_outputBasket.DeletedAt = field.NewField(tableName, "deleted_at")
+	_outputBasket.BasketID = field.NewUint(tableName, "basketId")
 	_outputBasket.Name = field.NewString(tableName, "name")
-	_outputBasket.UserID = field.NewInt(tableName, "user_id")
-	_outputBasket.NumberOfDesiredUTXOs = field.NewInt64(tableName, "number_of_desired_utxos")
-	_outputBasket.MinimumDesiredUTXOValue = field.NewUint64(tableName, "minimum_desired_utxo_value")
+	_outputBasket.UserID = field.NewInt(tableName, "userId")
+	_outputBasket.NumberOfDesiredUTXOs = field.NewInt64(tableName, "numberOfDesiredUTXOs")
+	_outputBasket.MinimumDesiredUTXOValue = field.NewUint64(tableName, "minimumDesiredUTXOValue")
+	_outputBasket.IsDeleted = field.NewBool(tableName, "isDeleted")
 
 	_outputBasket.fillFieldMap()
 
@@ -47,11 +48,12 @@ type outputBasket struct {
 	ALL                     field.Asterisk
 	CreatedAt               field.Time
 	UpdatedAt               field.Time
-	DeletedAt               field.Field
+	BasketID                field.Uint
 	Name                    field.String
 	UserID                  field.Int
 	NumberOfDesiredUTXOs    field.Int64
 	MinimumDesiredUTXOValue field.Uint64
+	IsDeleted               field.Bool
 
 	fieldMap map[string]field.Expr
 }
@@ -62,7 +64,7 @@ func (o outputBasket) Table(newTableName string) *outputBasket {
 }
 
 func (o outputBasket) As(alias string) *outputBasket {
-	o.outputBasketDo.DO = *o.outputBasketDo.As(alias).(*gen.DO)
+	o.outputBasketDo.DO = *(o.outputBasketDo.As(alias).(*gen.DO))
 	return o.updateTableName(alias)
 }
 
@@ -70,11 +72,12 @@ func (o *outputBasket) updateTableName(table string) *outputBasket {
 	o.ALL = field.NewAsterisk(table)
 	o.CreatedAt = field.NewTime(table, "created_at")
 	o.UpdatedAt = field.NewTime(table, "updated_at")
-	o.DeletedAt = field.NewField(table, "deleted_at")
+	o.BasketID = field.NewUint(table, "basketId")
 	o.Name = field.NewString(table, "name")
-	o.UserID = field.NewInt(table, "user_id")
-	o.NumberOfDesiredUTXOs = field.NewInt64(table, "number_of_desired_utxos")
-	o.MinimumDesiredUTXOValue = field.NewUint64(table, "minimum_desired_utxo_value")
+	o.UserID = field.NewInt(table, "userId")
+	o.NumberOfDesiredUTXOs = field.NewInt64(table, "numberOfDesiredUTXOs")
+	o.MinimumDesiredUTXOValue = field.NewUint64(table, "minimumDesiredUTXOValue")
+	o.IsDeleted = field.NewBool(table, "isDeleted")
 
 	o.fillFieldMap()
 
@@ -91,14 +94,15 @@ func (o *outputBasket) GetFieldByName(fieldName string) (field.OrderExpr, bool) 
 }
 
 func (o *outputBasket) fillFieldMap() {
-	o.fieldMap = make(map[string]field.Expr, 7)
+	o.fieldMap = make(map[string]field.Expr, 8)
 	o.fieldMap["created_at"] = o.CreatedAt
 	o.fieldMap["updated_at"] = o.UpdatedAt
-	o.fieldMap["deleted_at"] = o.DeletedAt
+	o.fieldMap["basketId"] = o.BasketID
 	o.fieldMap["name"] = o.Name
-	o.fieldMap["user_id"] = o.UserID
-	o.fieldMap["number_of_desired_utxos"] = o.NumberOfDesiredUTXOs
-	o.fieldMap["minimum_desired_utxo_value"] = o.MinimumDesiredUTXOValue
+	o.fieldMap["userId"] = o.UserID
+	o.fieldMap["numberOfDesiredUTXOs"] = o.NumberOfDesiredUTXOs
+	o.fieldMap["minimumDesiredUTXOValue"] = o.MinimumDesiredUTXOValue
+	o.fieldMap["isDeleted"] = o.IsDeleted
 }
 
 func (o outputBasket) clone(db *gorm.DB) outputBasket {

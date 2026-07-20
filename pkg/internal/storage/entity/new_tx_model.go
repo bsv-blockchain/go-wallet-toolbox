@@ -41,7 +41,7 @@ type NewOutput struct {
 	LockingScript      *primitives.HexString
 	CustomInstructions *string
 	Satoshis           satoshi.Value
-	BasketName         *string
+	BasketID           *uint
 	Spendable          bool
 	Change             bool
 	ProvidedBy         wdk.ProvidedBy
@@ -81,7 +81,7 @@ func (no *NewOutput) ToOutput(id uint, userID int, transactionID uint) (*entity.
 		CustomInstructions: no.CustomInstructions,
 		DerivationPrefix:   no.DerivationPrefix,
 		DerivationSuffix:   no.DerivationSuffix,
-		BasketName:         no.BasketName,
+		BasketID:           no.BasketID,
 		Spendable:          no.Spendable,
 		Change:             no.Change,
 		Description:        no.Description,

@@ -15,8 +15,8 @@ type GetBEEFOptions struct {
 	StatusesToFilterOut []wdk.ProvenTxReqStatus
 	TxGetterFcn         TxGetterFcn
 	MergeToBEEF         *transaction.Beef
-	KnownTxIDs          []string
-	KnownTxIDsSet       map[string]struct{}
+	ProvenTxReqIDs      []string
+	ProvenTxReqIDsSet   map[string]struct{}
 	TrustSelf           wallet.TrustSelf
 	MinProofLevel       int
 }
@@ -41,13 +41,13 @@ func WithTxGetterFcn(txGetterFcn TxGetterFcn) GetBEEFOption {
 	}
 }
 
-func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
+func WithProvenTxReqIDs(provenTxReqIDs ...string) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
-		if opts.KnownTxIDsSet == nil {
-			opts.KnownTxIDsSet = make(map[string]struct{})
+		if opts.ProvenTxReqIDsSet == nil {
+			opts.ProvenTxReqIDsSet = make(map[string]struct{})
 		}
-		for _, txID := range knownTxIDs {
-			opts.KnownTxIDsSet[txID] = struct{}{}
+		for _, txID := range provenTxReqIDs {
+			opts.ProvenTxReqIDsSet[txID] = struct{}{}
 		}
 	}
 }
@@ -64,11 +64,11 @@ func WithMinProofLevel(level int) GetBEEFOption {
 	}
 }
 
-func (ko *GetBEEFOptions) IsKnownTxID(txID string) bool {
-	if ko.KnownTxIDsSet == nil {
+func (ko *GetBEEFOptions) IsProvenTxReqID(txID string) bool {
+	if ko.ProvenTxReqIDsSet == nil {
 		return false
 	}
-	_, ok := ko.KnownTxIDsSet[txID]
+	_, ok := ko.ProvenTxReqIDsSet[txID]
 	return ok
 }
 

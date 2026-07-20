@@ -362,4 +362,5 @@ func TestChangeBasketEnvVars(t *testing.T) {
 // It ensures TEST_SERVER_PRIVATE_KEY is set with a valid private key value for proper test initialization.
 func setRequiredEnvs(t *testing.T) {
 	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
+	t.Setenv("TEST_DB_SQLITE_CONNECTION_STRING", "file:"+t.Name()+"?mode=memory&cache=shared")
 }

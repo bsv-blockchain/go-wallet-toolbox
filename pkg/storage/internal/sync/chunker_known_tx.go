@@ -57,9 +57,14 @@ func (c *chunkerKnownTxs) FirstPage(offsetsLookup OffsetsLookup) *queryopts.Pagi
 func (c *chunkerKnownTxs) Process(ctx context.Context, userID int, page *queryopts.Paging, since *time.Time, result *wdk.SyncChunk) (num uint64, err error) {
 	opts := chunkerQueryOptions(page, since)
 
-	reqs, mined, err := c.repo.FindKnownTxsForSync(ctx, userID, opts...)
+	reqs, err := c.repo.FindProvenTxReqsForSync(ctx, userID, opts...)
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch known transactions by user id: %w", err)
+		return 0, fmt.Errorf("failed to fetch proven tx reqs by user id: %w", err)
+	}
+
+	mined, err := c.repo.FindProvenTxsForSync(ctx, userID, opts...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch proven txs by user id: %w", err)
 	}
 
 	result.ProvenTxReqs = append(result.ProvenTxReqs, reqs...)

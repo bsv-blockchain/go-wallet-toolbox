@@ -228,11 +228,16 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 		}()
 
 		d.logger.InfoContext(ctx, "Run task", slog.Any("task", activeTask.TaskName))
+		_ = d.storage.RecordMonitorEvent(ctx, string(activeTask.TaskName), "started")
+
 		defer func() {
 			if err != nil {
 				d.logger.ErrorContext(ctx, "Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
+				_ = d.storage.RecordMonitorEvent(ctx, string(activeTask.TaskName), fmt.Sprintf("failed: %v", err))
 				return
 			}
+			_ = d.storage.RecordMonitorEvent(ctx, string(activeTask.TaskName), "completed")
+
 			if activeTask.Cronjob == nil {
 				return
 			}

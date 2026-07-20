@@ -30,10 +30,10 @@ func newOutputTag(db *gorm.DB, opts ...gen.DOOption) outputTag {
 	_outputTag.ALL = field.NewAsterisk(tableName)
 	_outputTag.CreatedAt = field.NewTime(tableName, "created_at")
 	_outputTag.UpdatedAt = field.NewTime(tableName, "updated_at")
-	_outputTag.DeletedAt = field.NewField(tableName, "deleted_at")
-	_outputTag.OutputID = field.NewUint(tableName, "output_id")
-	_outputTag.TagName = field.NewString(tableName, "tag_name")
-	_outputTag.TagUserID = field.NewInt(tableName, "tag_user_id")
+	_outputTag.OutputTagID = field.NewUint(tableName, "outputTagId")
+	_outputTag.Tag = field.NewString(tableName, "tag")
+	_outputTag.UserID = field.NewInt(tableName, "userId")
+	_outputTag.IsDeleted = field.NewBool(tableName, "isDeleted")
 
 	_outputTag.fillFieldMap()
 
@@ -43,13 +43,13 @@ func newOutputTag(db *gorm.DB, opts ...gen.DOOption) outputTag {
 type outputTag struct {
 	outputTagDo
 
-	ALL       field.Asterisk
-	CreatedAt field.Time
-	UpdatedAt field.Time
-	DeletedAt field.Field
-	OutputID  field.Uint
-	TagName   field.String
-	TagUserID field.Int
+	ALL         field.Asterisk
+	CreatedAt   field.Time
+	UpdatedAt   field.Time
+	OutputTagID field.Uint
+	Tag         field.String
+	UserID      field.Int
+	IsDeleted   field.Bool
 
 	fieldMap map[string]field.Expr
 }
@@ -60,7 +60,7 @@ func (o outputTag) Table(newTableName string) *outputTag {
 }
 
 func (o outputTag) As(alias string) *outputTag {
-	o.outputTagDo.DO = *o.outputTagDo.As(alias).(*gen.DO)
+	o.outputTagDo.DO = *(o.outputTagDo.As(alias).(*gen.DO))
 	return o.updateTableName(alias)
 }
 
@@ -68,10 +68,10 @@ func (o *outputTag) updateTableName(table string) *outputTag {
 	o.ALL = field.NewAsterisk(table)
 	o.CreatedAt = field.NewTime(table, "created_at")
 	o.UpdatedAt = field.NewTime(table, "updated_at")
-	o.DeletedAt = field.NewField(table, "deleted_at")
-	o.OutputID = field.NewUint(table, "output_id")
-	o.TagName = field.NewString(table, "tag_name")
-	o.TagUserID = field.NewInt(table, "tag_user_id")
+	o.OutputTagID = field.NewUint(table, "outputTagId")
+	o.Tag = field.NewString(table, "tag")
+	o.UserID = field.NewInt(table, "userId")
+	o.IsDeleted = field.NewBool(table, "isDeleted")
 
 	o.fillFieldMap()
 
@@ -91,10 +91,10 @@ func (o *outputTag) fillFieldMap() {
 	o.fieldMap = make(map[string]field.Expr, 6)
 	o.fieldMap["created_at"] = o.CreatedAt
 	o.fieldMap["updated_at"] = o.UpdatedAt
-	o.fieldMap["deleted_at"] = o.DeletedAt
-	o.fieldMap["output_id"] = o.OutputID
-	o.fieldMap["tag_name"] = o.TagName
-	o.fieldMap["tag_user_id"] = o.TagUserID
+	o.fieldMap["outputTagId"] = o.OutputTagID
+	o.fieldMap["tag"] = o.Tag
+	o.fieldMap["userId"] = o.UserID
+	o.fieldMap["isDeleted"] = o.IsDeleted
 }
 
 func (o outputTag) clone(db *gorm.DB) outputTag {

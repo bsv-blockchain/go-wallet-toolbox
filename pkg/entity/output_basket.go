@@ -9,6 +9,7 @@ import (
 
 // OutputBasket represents a user's basket for holding outputs.
 type OutputBasket struct {
+	ID     uint
 	Name   string
 	UserID int
 
@@ -17,10 +18,12 @@ type OutputBasket struct {
 
 	NumberOfDesiredUTXOs    int64
 	MinimumDesiredUTXOValue uint64
+	IsDeleted               bool
 }
 
 // OutputBasketReadSpecification is used to read OutputBasket entities from the database.
 type OutputBasketReadSpecification struct {
+	ID                      *uint
 	UserID                  *Comparable[int]
 	Name                    *Comparable[string]
 	NumberOfDesiredUTXOs    *Comparable[int64]
@@ -29,6 +32,7 @@ type OutputBasketReadSpecification struct {
 
 // OutputBasketUpdateSpecification is used to update OutputBasket entities in the database.
 type OutputBasketUpdateSpecification struct {
+	ID                      uint
 	UserID                  int
 	Name                    *string
 	NumberOfDesiredUTXOs    *int64
@@ -46,6 +50,6 @@ func (o *OutputBasket) ToWDK() *wdk.TableOutputBasket {
 		CreatedAt: o.CreatedAt,
 		UpdatedAt: o.UpdatedAt,
 		UserID:    o.UserID,
-		IsDeleted: false,
+		IsDeleted: o.IsDeleted,
 	}
 }

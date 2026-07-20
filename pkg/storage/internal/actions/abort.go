@@ -19,7 +19,7 @@ type abortAction struct {
 	transactionsRepo  TransactionsRepo
 	outputsRepo       OutputRepo
 	utxosRepo         UTXORepo
-	knownTxRepo       KnownTxRepo
+	knownTxRepo       ProvenTxReqRepo
 	failAbandonedLock sync.Mutex
 	uow               UnitOfWork
 }
@@ -28,7 +28,7 @@ const (
 	txIDLength = 64
 )
 
-func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo KnownTxRepo, uow UnitOfWork) *abortAction {
+func newAbortAction(logger *slog.Logger, transactions TransactionsRepo, outputsRepo OutputRepo, utxosRepo UTXORepo, knownTxRepo ProvenTxReqRepo, uow UnitOfWork) *abortAction {
 	return &abortAction{
 		logger:           logging.Child(logger, "abortAction"),
 		transactionsRepo: transactions,

@@ -7,29 +7,32 @@ import (
 
 	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 )
 
-type labelTagMapCommons[Model, ReadModel any] struct {
+type labelTagMapCommons[Model any] struct {
 	db                     *gorm.DB
 	query                  *genquery.Query
-	subjectTableName       string
 	relationTableName      string
-	relationUserIDColumn   string
-	relationNameColumn     string
-	relationParentIDColumn string
+	parentTableName        string
+	relationPkColumn       string // e.g. txLabelId or outputTagId
+	parentPkColumn         string // e.g. txLabelId or outputTagId (in parent table)
+	relationParentIDColumn string // e.g. transactionId or outputId
 }
 
-func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID int, opts ...queryopts.Options) ([]*ReadModel, error) {
-	labelStringIDClause := fmt.Sprintf("CONCAT(%s, '.', %s)", f.relationUserIDColumn, f.relationNameColumn)
-	var resultModels []*ReadModel
+func (f *labelTagMapCommons[Model]) FindChunk(ctx context.Context, userID int, opts ...queryopts.Options) ([]*Model, error) {
+	var resultModels []*Model
 
 	scopesToApply := []func(*gorm.DB) *gorm.DB{
-		joinWithNumericIDLookupScope(f.query, labelStringIDClause, f.subjectTableName, clause.InnerJoin),
+		func(db *gorm.DB) *gorm.DB {
+			return db.Joins(fmt.Sprintf("INNER JOIN %s ON %s.%s = %s.%s", f.parentTableName, f.relationTableName, f.relationPkColumn, f.parentTableName, f.parentPkColumn))
+		},
+		func(db *gorm.DB) *gorm.DB {
+			return db.Where(fmt.Sprintf("%s.userId = ?", f.parentTableName), userID)
+		},
 	}
 
 	options := queryopts.MergeOptions(opts)
@@ -38,15 +41,13 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	}
 
 	if options.Since != nil {
-		scopesToApply = append(scopesToApply, f.sinceUpdateOrDeleteScope(options.Since.Time))
+		scopesToApply = append(scopesToApply, f.sinceUpdateScope(options.Since.Time))
 	}
 
 	err := f.db.WithContext(ctx).
 		Model(f.zeroModelPtr()).
-		Select(fmt.Sprintf("%s.*, num_id", f.relationTableName)).
+		Select(fmt.Sprintf("%s.*", f.relationTableName)).
 		Scopes(scopesToApply...).
-		Where(fmt.Sprintf("%s = ?", f.relationUserIDColumn), userID).
-		Unscoped().
 		Find(&resultModels).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to find many2many relation %q: %w", f.relationTableName, err)
@@ -55,12 +56,10 @@ func (f *labelTagMapCommons[_, ReadModel]) FindChunk(ctx context.Context, userID
 	return resultModels, nil
 }
 
-func (f *labelTagMapCommons[Model, _]) Upsert(ctx context.Context, parentID uint, userID int, name string, updatedAt time.Time) (isNew bool, err error) {
+func (f *labelTagMapCommons[Model]) Upsert(ctx context.Context, parentID uint, pkID uint, updatedAt time.Time) (isNew bool, err error) {
 	err = f.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		updateTx := tx.Model(f.zeroModelPtr()).
-			Where(fmt.Sprintf("%s = ?", f.relationParentIDColumn), parentID).
-			Where(fmt.Sprintf("%s = ?", f.relationUserIDColumn), userID).
-			Where(fmt.Sprintf("%s = ?", f.relationNameColumn), name).
+			Where(fmt.Sprintf("%s = ? AND %s = ?", f.relationParentIDColumn, f.relationPkColumn), parentID, pkID).
 			UpdateColumn("updated_at", updatedAt)
 
 		if updateTx.Error != nil {
@@ -73,9 +72,9 @@ func (f *labelTagMapCommons[Model, _]) Upsert(ctx context.Context, parentID uint
 
 		err = tx.Model(f.zeroModelPtr()).Create(map[string]any{
 			f.relationParentIDColumn: parentID,
-			f.relationUserIDColumn:   userID,
-			f.relationNameColumn:     name,
+			f.relationPkColumn:       pkID,
 			"updated_at":             updatedAt,
+			"isDeleted":              false,
 		}).Error
 		if err != nil {
 			return fmt.Errorf("failed to create many2many relation: %w", err)
@@ -92,11 +91,11 @@ func (f *labelTagMapCommons[Model, _]) Upsert(ctx context.Context, parentID uint
 	return isNew, nil
 }
 
-func (f *labelTagMapCommons[_, _]) Delete(ctx context.Context, parentID uint, userID int, name string) (deleted bool, err error) {
+func (f *labelTagMapCommons[Model]) Delete(ctx context.Context, parentID uint, pkID uint) (deleted bool, err error) {
 	txDelete := f.db.WithContext(ctx).Delete(
 		f.zeroModelPtr(),
-		fmt.Sprintf("%s = ? AND %s = ? AND %s = ?", f.relationParentIDColumn, f.relationUserIDColumn, f.relationNameColumn),
-		parentID, userID, name,
+		fmt.Sprintf("%s = ? AND %s = ?", f.relationParentIDColumn, f.relationPkColumn),
+		parentID, pkID,
 	)
 	if txDelete.Error != nil {
 		return false, fmt.Errorf("failed to delete many2many relation %q: %w", f.relationTableName, txDelete.Error)
@@ -106,12 +105,12 @@ func (f *labelTagMapCommons[_, _]) Delete(ctx context.Context, parentID uint, us
 	return deleted, nil
 }
 
-func (f *labelTagMapCommons[Model, _]) zeroModelPtr() *Model {
+func (f *labelTagMapCommons[Model]) zeroModelPtr() *Model {
 	return to.Ptr(to.ZeroValue[Model]())
 }
 
-func (f *labelTagMapCommons[_, _]) sinceUpdateOrDeleteScope(since time.Time) func(*gorm.DB) *gorm.DB {
+func (f *labelTagMapCommons[Model]) sinceUpdateScope(since time.Time) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("updated_at >= ? OR deleted_at >= ?", since, since)
+		return db.Where(fmt.Sprintf("%s.updated_at >= ?", f.relationTableName), since)
 	}
 }
