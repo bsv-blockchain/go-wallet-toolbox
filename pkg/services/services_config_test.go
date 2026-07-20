@@ -32,8 +32,10 @@ func TestServicesConfig_CustomServiceImplementation(t *testing.T) {
 	// and:
 	customImplementation := services.ToImplementation(mock)
 
-	// and:
+	// and: Arcade is disabled so that broadcasting flows through the
+	// legacy queues where the custom PostEF/PostTX implementations live
 	service := given.Services().
+		Config(testservices.WithEnabledArcade(false)).
 		Opts(services.WithCustomImplementation(customImplementationName, customImplementation)).
 		New()
 
@@ -168,8 +170,9 @@ func TestServicesConfig_UseModifiers(t *testing.T) {
 		}),
 	}
 
-	// and:
+	// and: Arcade is disabled so that the PostEF/PostTX queue modifiers take effect
 	service := given.Services().
+		Config(testservices.WithEnabledArcade(false)).
 		Opts(opts...).
 		New()
 
@@ -226,6 +229,7 @@ func TestServicesConfig_DisableAllPredefinedServices(t *testing.T) {
 	// and:
 	service := given.Services().
 		Config(
+			testservices.WithEnabledArcade(false),
 			testservices.WithEnabledARC(false),
 			testservices.WithEnabledBHS(false),
 			testservices.WithEnabledWoC(false),

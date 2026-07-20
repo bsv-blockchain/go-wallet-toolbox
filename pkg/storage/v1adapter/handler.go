@@ -54,12 +54,21 @@ type Handler struct {
 
 // NewHandler returns an http.Handler that speaks the storage adapter protocol.
 func NewHandler(provider wdk.WalletStorageProvider, parentLogger *slog.Logger) http.Handler {
+	mux := http.NewServeMux()
+	RegisterRoutes(mux, provider, parentLogger)
+	return mux
+}
+
+// RegisterRoutes registers all /storage/v1/* REST routes onto an existing mux.
+// Use this when building a combined handler that serves both the REST adapter
+// (for Go clients) and a JSON-RPC endpoint at POST / (for TS clients) on the
+// same ServeMux — Go's pattern-matching gives priority to the more-specific
+// /storage/v1/* routes over a catch-all POST /.
+func RegisterRoutes(mux *http.ServeMux, provider wdk.WalletStorageProvider, parentLogger *slog.Logger) {
 	h := &Handler{
 		provider: provider,
 		logger:   logging.Child(parentLogger, "V1StorageAdapter"),
 	}
-
-	mux := http.NewServeMux()
 
 	// Settings & lifecycle
 	mux.HandleFunc("GET /storage/v1/settings", h.getSettings)
@@ -80,18 +89,16 @@ func NewHandler(provider wdk.WalletStorageProvider, parentLogger *slog.Logger) h
 	mux.HandleFunc("POST /storage/v1/balance", h.getBalance)
 
 	// Certificates
-	mux.HandleFunc("POST /storage/v1/certificates", h.insertCertificate) // or prove/relinquish variants
+	mux.HandleFunc("POST /storage/v1/certificates", h.insertCertificate)
 	mux.HandleFunc("POST /storage/v1/certificates/relinquish", h.relinquishCertificate)
 
 	// Outputs
 	mux.HandleFunc("POST /storage/v1/outputs/relinquish", h.relinquishOutput)
 
-	// Sync (HTTP shape only — GASP message content is out of scope for this adapter conformance)
+	// Sync
 	mux.HandleFunc("POST /storage/v1/sync/active", h.syncActive)
 	mux.HandleFunc("POST /storage/v1/sync/chunk", h.syncChunk)
 	mux.HandleFunc("POST /storage/v1/sync/state", h.syncState)
-
-	return mux
 }
 
 // writeJSON is a small helper for consistent JSON responses.

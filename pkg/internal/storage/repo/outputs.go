@@ -661,36 +661,40 @@ func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionI
 	}()
 
 	err = o.query.DBTransaction(func(query *genquery.Query) error {
-		allSpentScope := func(dao gen.Dao) gen.Dao {
-			return dao.Where(query.Output.SpentBy.Eq(spendingTransactionID))
-		}
-
-		changeSpentScope := func(dao gen.Dao) gen.Dao {
-			return dao.
-				Where(query.Output.SpentBy.Eq(spendingTransactionID)).
-				Scopes(isChangeDaoScope(query))
-		}
-
-		var changeOutputs []*outputWithTxStatus
-		changeOutputs, err = getOutputsWithTxStatus(ctx, query, changeSpentScope)
-		if err != nil {
-			return err
-		}
-
-		err = makeOutputsSpendable(ctx, query, allSpentScope)
-		if err != nil {
-			return err
-		}
-
-		err = createUTXOsFromOutputs(ctx, query, changeOutputs)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return recreateSpentOutputs(ctx, query, spendingTransactionID)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to restore spent outputs: %w", err)
+	}
+
+	return nil
+}
+
+// recreateSpentOutputs restores the outputs spent by the given transaction using the
+// caller-provided (transaction-bound) query, so that callers composing larger atomic
+// flows can run it inside their own database transaction.
+func recreateSpentOutputs(ctx context.Context, query *genquery.Query, spendingTransactionID uint) error {
+	allSpentScope := func(dao gen.Dao) gen.Dao {
+		return dao.Where(query.Output.SpentBy.Eq(spendingTransactionID))
+	}
+
+	changeSpentScope := func(dao gen.Dao) gen.Dao {
+		return dao.
+			Where(query.Output.SpentBy.Eq(spendingTransactionID)).
+			Scopes(isChangeDaoScope(query))
+	}
+
+	changeOutputs, err := getOutputsWithTxStatus(ctx, query, changeSpentScope)
+	if err != nil {
+		return err
+	}
+
+	if err := makeOutputsSpendable(ctx, query, allSpentScope); err != nil {
+		return err
+	}
+
+	if err := createUTXOsFromOutputs(ctx, query, changeOutputs); err != nil {
+		return err
 	}
 
 	return nil

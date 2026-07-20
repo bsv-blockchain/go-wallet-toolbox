@@ -38,7 +38,8 @@ type Daemon struct {
 	started   bool
 	startLock sync.Mutex
 
-	eventChannels EventChannels
+	eventChannels          EventChannels
+	broadcastEventStreamer BroadcastEventStreamer
 }
 
 // EventChannels holds channels for bidirectional communication with the monitor.
@@ -115,6 +116,7 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *Daem
 			OnReorg:         eventOptions.onReorg,
 			OnTip:           eventOptions.onTip,
 		},
+		broadcastEventStreamer: eventOptions.broadcastEventStreamer,
 	}, nil
 }
 
@@ -147,6 +149,10 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 
 	if d.eventChannels.OnTip != nil {
 		go d.handleNewTipEvents(ctx)
+	}
+
+	if d.broadcastEventStreamer != nil {
+		go d.handleBroadcastEvents(ctx, d.broadcastEventStreamer)
 	}
 
 	d.scheduler.Start()

@@ -12,6 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	servercommon "github.com/bsv-blockchain/go-wallet-toolbox/pkg/server"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/rpcserver"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/v1adapter"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -34,14 +35,27 @@ func NewServer(logger *slog.Logger, storage wdk.WalletStorageProvider, wallet sd
 	}
 }
 
-// Handler returns an http.Handler configured with the storage v1 adapter endpoints
-// (the canonical BRC-100 /storage/v1/* remoting contract).
+// Handler returns an http.Handler that serves both remoting protocols on one mux:
+//   - POST /           JSON-RPC (TS wallet-toolbox StorageClient compatibility)
+//   - /storage/v1/*    REST adapter (Go client + BRC-100 conformance vectors)
+//
+// Go's ServeMux gives priority to the more-specific /storage/v1/* patterns, so
+// the two sets of routes coexist without conflict.
 func (s *Server) Handler() http.Handler {
-	// Use the new v1adapter as the core remoting implementation.
-	// This replaces the previous JSON-RPC layer.
-	coreHandler := v1adapter.NewHandler(s.provider, s.logger)
+	mux := http.NewServeMux()
 
-	handler := coreHandler
+	// REST routes for Go clients and conformance vectors.
+	v1adapter.RegisterRoutes(mux, s.provider, s.logger)
+
+	// JSON-RPC at POST / for TS StorageClient compatibility.
+	// The auth middleware upstream has already verified the caller's identity
+	// before the request reaches here, so RPCStorageProvider's identity checks
+	// operate on the context values set by that middleware.
+	rpcProvider := rpcserver.NewRPCStorageProvider(s.logger, s.provider)
+	rpcHandler := rpcserver.NewRPCHandler(s.logger, "storage", rpcProvider)
+	rpcHandler.Register(mux)
+
+	handler := http.Handler(mux)
 
 	if s.options.Monetize {
 		paymentMiddleware := middleware.NewPayment(s.wallet, withOptionalRequestPriceCalculator(s.options.CalculateRequestPrice), middleware.WithPaymentLogger(s.logger))

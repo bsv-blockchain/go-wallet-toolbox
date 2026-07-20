@@ -38,11 +38,16 @@ func (arc *ARC) Validate() error {
 }
 
 func (arc *ARC) validateCallbackURL() error {
-	if arc.CallbackURL == "" {
+	return validateExternalCallbackURL(arc.CallbackURL)
+}
+
+// validateExternalCallbackURL checks that a callback URL (when set) uses an
+// http/https scheme and does not point at the local network. It is shared by
+// the ARC and Arcade configurations.
+func validateExternalCallbackURL(callbackURLString string) error {
+	if callbackURLString == "" {
 		return nil
 	}
-
-	callbackURLString := arc.CallbackURL
 
 	callbackURL, err := url.Parse(callbackURLString)
 	if err != nil {
@@ -56,14 +61,14 @@ func (arc *ARC) validateCallbackURL() error {
 
 	hostname := callbackURL.Hostname()
 
-	if arc.isLocalNetworkHost(hostname) {
+	if isLocalNetworkHost(hostname) {
 		return fmt.Errorf("invalid callback host: %s - must be a valid external URL - not a localhost", hostname)
 	}
 
 	return nil
 }
 
-func (arc *ARC) isLocalNetworkHost(hostname string) bool {
+func isLocalNetworkHost(hostname string) bool {
 	if strings.Contains(hostname, "localhost") {
 		return true
 	}

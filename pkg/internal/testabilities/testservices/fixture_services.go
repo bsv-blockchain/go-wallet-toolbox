@@ -198,6 +198,14 @@ func WithEnabledARC(enabled bool) func(*defs.WalletServices) {
 	}
 }
 
+// WithEnabledArcade toggles the Arcade primary broadcaster. When disabled,
+// PostFromBEEF falls back to the legacy parallel-queue broadcast path.
+func WithEnabledArcade(enabled bool) func(*defs.WalletServices) {
+	return func(ws *defs.WalletServices) {
+		ws.Arcade.Enabled = enabled
+	}
+}
+
 func WithEnabledWoC(enabled bool) func(*defs.WalletServices) {
 	return func(ws *defs.WalletServices) {
 		ws.WhatsOnChain.Enabled = enabled

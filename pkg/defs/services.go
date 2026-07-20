@@ -62,11 +62,13 @@ type WalletServices struct {
 	ExchangeratesAPIKey string            `mapstructure:"exchangerates_api_key"`
 	GetBeefMaxDepth     uint              `mapstructure:"get_beef_max_depth"`
 
-	ArcConfig         ARC               `mapstructure:"arc"`
-	WhatsOnChain      WhatsOnChain      `mapstructure:"whats_on_chain"`
-	Bitails           Bitails           `mapstructure:"bitails"`
-	BHS               BHS               `mapstructure:"bhs"`
-	ChaintracksClient ChaintracksClient `mapstructure:"chaintracks"`
+	ArcConfig            ARC               `mapstructure:"arc"`
+	Arcade               Arcade            `mapstructure:"arcade"`
+	ArcGorillaPoolConfig ARC               `mapstructure:"arc_gorillapool"`
+	WhatsOnChain         WhatsOnChain      `mapstructure:"whats_on_chain"`
+	Bitails              Bitails           `mapstructure:"bitails"`
+	BHS                  BHS               `mapstructure:"bhs"`
+	ChaintracksClient    ChaintracksClient `mapstructure:"chaintracks"`
 }
 
 // Validate checks the validity of the WalletServices struct
@@ -87,6 +89,14 @@ func (ws *WalletServices) Validate() error {
 
 	if err = ws.ArcConfig.Validate(); err != nil {
 		return fmt.Errorf("invalid ARC config: %w", err)
+	}
+
+	if err = ws.Arcade.Validate(); err != nil {
+		return fmt.Errorf("invalid Arcade config: %w", err)
+	}
+
+	if err = ws.ArcGorillaPoolConfig.Validate(); err != nil {
+		return fmt.Errorf("invalid GorillaPool ARC config: %w", err)
 	}
 
 	if err = ws.Bitails.Validate(); err != nil {
@@ -110,6 +120,22 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			Enabled: true,
 			URL:     to.IfThen(chain == NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
 			Token:   to.IfThen(chain == NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
+		},
+		Arcade: Arcade{
+			Enabled: chain == NetworkMainnet,
+			// off mainnet the URL is left empty on purpose: flipping Enabled on testnet
+			// must not silently hit mainnet - Validate() then forces an explicit URL.
+			URL:               to.IfThen(chain == NetworkMainnet, ArcadeURL).ElseThen(""),
+			EventsURL:         to.IfThen(chain == NetworkMainnet, ArcadeURL).ElseThen(""),
+			FullStatusUpdates: true,
+			CircuitBreaker: ArcadeCircuitBreaker{
+				FailureThreshold:           3,
+				HealthProbeIntervalSeconds: 30,
+			},
+		},
+		ArcGorillaPoolConfig: ARC{
+			Enabled: chain == NetworkMainnet,
+			URL:     to.IfThen(chain == NetworkMainnet, GorillaPoolArcURL).ElseThen(""),
 		},
 		BHS: BHS{
 			Enabled: false,

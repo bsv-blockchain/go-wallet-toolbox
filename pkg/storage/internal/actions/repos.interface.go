@@ -72,6 +72,16 @@ type KnownTxRepo interface {
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
 	MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error
 	SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error
+	// FailKnownTxAsDoubleSpend atomically applies the terminal double-spend failure
+	// (KnownTx -> doubleSpend guarded by skipForStatuses FIRST; Transactions -> failed and
+	// spent outputs restored only when the guarded transition applied). Returns
+	// applied=false (and writes nothing) when the guard held.
+	FailKnownTxAsDoubleSpend(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (bool, error)
+	// AdvanceKnownTxToBroadcasted atomically advances a tx to the post-broadcast state
+	// (KnownTx -> unmined guarded by skipForStatuses FIRST; Transactions -> unproven and
+	// UTXOs for spendable change outputs only when the guarded transition applied). Returns
+	// applied=false (and writes nothing) when the guard held.
+	AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (bool, error)
 }
 
 type KeyValueRepo interface {

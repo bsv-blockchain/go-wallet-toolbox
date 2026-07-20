@@ -1245,3 +1245,44 @@ func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string
 
 	return results, nil
 }
+
+// ProcessExternalTxStatusUpdate applies a broadcaster-pushed lifecycle update
+// (e.g. from the Arcade SSE stream) rather than one discovered by polling.
+// Returns the synchronized statuses for any tx whose stored state changed.
+func (p *Provider) ProcessExternalTxStatusUpdate(ctx context.Context, ev wdk.BroadcastStatusEvent) ([]wdk.TxSynchronizedStatus, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(
+		ctx, "StorageProvider-ProcessExternalTxStatusUpdate",
+		attribute.String("txID", ev.TxID),
+		attribute.String("status", ev.Status),
+	)
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	results, err := p.actions.ProcessExternalTxStatusUpdate(ctx, ev)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process external tx status update: %w", err)
+	}
+
+	return results, nil
+}
+
+// GetKeyValue reads a value from the key_value table for small instance state
+// (e.g. the SSE replay cursor). Returns found=false when the key does not exist.
+func (p *Provider) GetKeyValue(ctx context.Context, key string) ([]byte, bool, error) {
+	value, found, err := p.repo.Get(ctx, key)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get value for key %s: %w", key, err)
+	}
+	return value, found, nil
+}
+
+// SetKeyValue stores a value in the key_value table, overwriting any existing value.
+func (p *Provider) SetKeyValue(ctx context.Context, key string, value []byte) error {
+	if err := p.repo.Set(ctx, key, value); err != nil {
+		return fmt.Errorf("failed to set value for key %s: %w", key, err)
+	}
+	return nil
+}

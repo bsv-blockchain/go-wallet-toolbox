@@ -73,12 +73,16 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		cleanupFuncs = append(cleanupFuncs, tracingCleanup)
 	}
 
-	activeServices := services.New(logger, cfg.Services)
-
 	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage identity key: %w", err)
 	}
+
+	if cfg.Services.Arcade.Enabled && cfg.Services.Arcade.CallbackToken == "" {
+		cfg.Services.Arcade.CallbackToken = wdk.DeriveArcadeCallbackToken(storageIdentityKey)
+	}
+
+	activeServices := services.New(logger, cfg.Services)
 
 	providerOptions := append(
 		GORMProviderOptionsFromConfig(&cfg),
@@ -153,6 +157,10 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 			}
 		}
 
+		if cfg.Services.Arcade.Enabled {
+			monitorOpts = append(monitorOpts, monitor.WithBroadcastEventStream(activeServices))
+		}
+
 		daemon, err = monitor.NewDaemonWithGORMLocker(ctx, logger, activeStorage, activeStorage.Database.DB, monitorOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create daemon: %w", err)
@@ -196,10 +204,12 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		go s.consumeTxProven(ctx)
 	}
 
-	if s.Config.Services.ChaintracksClient.Enabled {
-		if err := s.services.StartChaintracks(ctx); err != nil {
-			return fmt.Errorf("failed to start chaintracks: %w", err)
-		}
+	// StartBackgroundServices starts the Arcade circuit-breaker health probe (when
+	// the broadcast router is enabled) and chaintracks (no-op when disabled). Prefer
+	// this over StartChaintracks alone so half-open recovery does not rely solely on
+	// opportunistic broadcast trials after the circuit opens.
+	if err := s.services.StartBackgroundServices(ctx); err != nil {
+		return fmt.Errorf("failed to start background services: %w", err)
 	}
 
 	if s.monitor != nil {

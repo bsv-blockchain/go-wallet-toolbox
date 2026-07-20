@@ -35,6 +35,7 @@ type Config = defs.ARC
 const ServiceName = defs.ArcServiceName
 
 type Service struct {
+	name             string
 	logger           *slog.Logger
 	httpClient       *resty.Client
 	config           Config
@@ -43,8 +44,15 @@ type Service struct {
 	broadcastHeaders httpx.Headers
 }
 
-// New creates a new arc service.
+// New creates a new arc service registered under the default ServiceName.
 func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service {
+	return NewNamed(ServiceName, logger, httpClient, config)
+}
+
+// NewNamed creates a new arc service reported under the given name in results
+// and history notes. It allows multiple ARC instances (e.g. TAAL and
+// GorillaPool) to be distinguished while sharing the same client code.
+func NewNamed(name string, logger *slog.Logger, httpClient *resty.Client, config Config) *Service {
 	logger = logging.Child(logger, "arc")
 
 	headers := httpx.NewHeaders().
@@ -60,6 +68,7 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 		SetDebug(logging.IsDebug(logger))
 
 	service := &Service{
+		name:       name,
 		logger:     logger,
 		httpClient: httpClient,
 		config:     config,
@@ -76,6 +85,11 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 	return service
 }
 
+// Name returns the name under which this ARC instance is reported in results and history notes.
+func (s *Service) Name() string {
+	return s.name
+}
+
 // PostEF attempts to post EF with given txIDs
 func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.PostedTxID, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Services-PostEF", attribute.String("service", "arc"))
@@ -90,7 +104,7 @@ func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.Posted
 			Result: wdk.PostedTxIDResultError,
 			Error:  fmt.Errorf("failed to broadcast tx: %w", err),
 		}
-		withBroadcastNote(&result, efHex, []string{txID})
+		s.withBroadcastNote(&result, efHex, []string{txID})
 		return &result, nil // nil error - error info is in the result
 	}
 
@@ -104,15 +118,15 @@ func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.Posted
 	}
 
 	result := toResultForPostTxID(namedResult)
-	withBroadcastNote(&result, efHex, []string{txID})
+	s.withBroadcastNote(&result, efHex, []string{txID})
 
 	return &result, nil
 }
 
-func withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
+func (s *Service) withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
 	switch result.Result {
 	case wdk.PostedTxIDResultSuccess, wdk.PostedTxIDResultAlreadyKnown:
-		result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, txIDs).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefSuccess(s.name, txIDs).Note().AsList()
 	case wdk.PostedTxIDResultError, wdk.PostedTxIDResultDoubleSpend, wdk.PostedTxIDResultMissingInputs:
 		fallthrough
 	default:
@@ -120,7 +134,7 @@ func withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
-		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Hex(efHex), txIDs, msg).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefError(s.name, history.Hex(efHex), txIDs, msg).Note().AsList()
 	}
 }
 
