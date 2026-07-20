@@ -912,12 +912,12 @@ func (w *Wallet) acquireDirectCertificate(ctx context.Context, args sdk.AcquireC
 		verifier = args.KeyringRevealer.PubKey.ToDERHex()
 	}
 
-	// Insert certificate into storage
+	// Insert certificate into storage (trim zero-pad on wire so short TS types round-trip)
 	_, err = w.storage.InsertCertificateAuth(ctx, &wdk.TableCertificateX{
 		TableCertificate: wdk.TableCertificate{
 			UserID:             to.Value(auth.UserID),
-			Type:               primitives.Base64String(base64.StdEncoding.EncodeToString(args.Type[:])),
-			SerialNumber:       primitives.Base64String(base64.StdEncoding.EncodeToString(args.SerialNumber[:])),
+			Type:               primitives.Base64String(primitives.EncodeBytes32Base64([32]byte(args.Type))),
+			SerialNumber:       primitives.Base64String(primitives.EncodeBytes32Base64([32]byte(to.Value(args.SerialNumber)))),
 			Certifier:          primitives.PubKeyHex(args.Certifier.ToDERHex()),
 			Subject:            primitives.PubKeyHex(key.PublicKey.ToDERHex()),
 			RevocationOutpoint: primitives.OutpointString(args.RevocationOutpoint.String()),
@@ -1020,7 +1020,7 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 	sHex := fmt.Sprintf("%064x", cert.Signature.S)
 	sigHex := rHex + sHex
 
-	serialNumber := base64.StdEncoding.EncodeToString(cert.SerialNumber[:])
+	serialNumber := primitives.EncodeBytes32Base64([32]byte(cert.SerialNumber))
 
 	// Fetch certificate from storage
 	listCertificatesResult, err := w.storage.ListCertificates(ctx, wdk.ListCertificatesArgs{
@@ -1061,7 +1061,7 @@ func (w *Wallet) ProveCertificate(ctx context.Context, args sdk.ProveCertificate
 	certificateFields := certificateFieldsResult.CertificateFields
 	masterKeyring := certificateFieldsResult.MasterKeyring
 	verifier := sdk.Counterparty{Type: sdk.CounterpartyTypeOther, Counterparty: args.Verifier}
-	serial := sdk.StringBase64(base64.StdEncoding.EncodeToString(args.Certificate.SerialNumber[:]))
+	serial := sdk.StringBase64(primitives.EncodeBytes32Base64([32]byte(args.Certificate.SerialNumber)))
 
 	// Validate certificate field names
 	fieldNames, err := mapping.MapToCertificateFieldNameUnder50BytesSlice(certificateFields)

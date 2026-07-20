@@ -15,7 +15,9 @@ type Certificate struct {
 	Verifier           string
 	RevocationOutpoint string
 	Signature          string
-	CertificateFields  []CertificateField
+	// IsDeleted is set during sync when the certificate was soft-deleted on the reader side.
+	IsDeleted         bool
+	CertificateFields []CertificateField
 }
 
 // CertificateReadSpecification defines filter criteria for querying certificates based on various optional comparable fields.
@@ -36,7 +38,9 @@ type CertificateField struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	FieldName  string
-	FieldValue string
-	MasterKey  string
+	UserID        int
+	CertificateID uint
+	FieldName     string
+	FieldValue    string
+	MasterKey     string
 }
