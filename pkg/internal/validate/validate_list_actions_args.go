@@ -3,6 +3,7 @@ package validate
 import (
 	"fmt"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/brc114"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
@@ -23,10 +24,17 @@ func ListActionsArgs(args *wdk.ListActionsArgs) error {
 		return fmt.Errorf("offset must be less than or equal to %d", MaxPaginationOffset)
 	}
 
-	for _, label := range args.Labels {
+	labelNames := make([]string, len(args.Labels))
+	for i, label := range args.Labels {
 		if err := validateLabel(label); err != nil {
 			return fmt.Errorf("invalid label: %w", err)
 		}
+		labelNames[i] = string(label)
+	}
+
+	// BRC-114 time control labels are validated (and later stripped) for TS parity.
+	if _, err := brc114.ParseActionTimeLabels(labelNames); err != nil {
+		return err
 	}
 
 	if !args.SeekPermission.Value() {
