@@ -1,7 +1,6 @@
 package mapping
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -24,8 +23,8 @@ func MapRelinquishRelinquishCertificateArgs(args sdk.RelinquishCertificateArgs) 
 	}
 
 	return wdk.RelinquishCertificateArgs{
-		Type:         primitives.Base64String(base64.StdEncoding.EncodeToString(args.Type[:])),
-		SerialNumber: primitives.Base64String(base64.StdEncoding.EncodeToString(args.SerialNumber[:])),
+		Type:         primitives.Base64String(primitives.EncodeBytes32Base64([32]byte(args.Type))),
+		SerialNumber: primitives.Base64String(primitives.EncodeBytes32Base64([32]byte(args.SerialNumber))),
 		Certifier:    primitives.PubKeyHex(args.Certifier.ToDERHex()),
 	}, nil
 }

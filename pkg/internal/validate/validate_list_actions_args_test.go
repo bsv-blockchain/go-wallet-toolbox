@@ -39,6 +39,16 @@ func TestListActionsArgs(t *testing.T) {
 				SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(true)),
 			},
 		},
+		"valid BRC-114 time labels": {
+			args: &wdk.ListActionsArgs{
+				Labels: []primitives.StringUnder300{
+					"run",
+					"action time from 1704067200000",
+					"action time to 1704067202000",
+				},
+				SeekPermission: to.Ptr(primitives.BooleanDefaultTrue(true)),
+			},
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -88,6 +98,21 @@ func TestWrongListActionsArgs(t *testing.T) {
 		"inconsistent includeOutputLockingScripts with no includeOutputs": {
 			args: &wdk.ListActionsArgs{
 				IncludeOutputLockingScripts: to.Ptr(primitives.BooleanDefaultFalse(true)),
+			},
+		},
+		"duplicate BRC-114 action time from": {
+			args: &wdk.ListActionsArgs{
+				Labels: []primitives.StringUnder300{"action time from 0", "action time from 1"},
+			},
+		},
+		"BRC-114 from >= to": {
+			args: &wdk.ListActionsArgs{
+				Labels: []primitives.StringUnder300{"action time from 2", "action time to 1"},
+			},
+		},
+		"invalid BRC-114 timestamp": {
+			args: &wdk.ListActionsArgs{
+				Labels: []primitives.StringUnder300{"action time from abc"},
 			},
 		},
 	}

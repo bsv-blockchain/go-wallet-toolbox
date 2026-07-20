@@ -12,19 +12,26 @@ import (
 	commonslices "github.com/go-softwarelab/common/pkg/slices"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/brc114"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) { //nolint:unparam // error return reserved for future validation
+func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (entity.ListActionsFilter, error) {
 	labelNames := commonslices.Map(args.Labels, func(label primitives.StringUnder300) string {
 		return string(label)
 	})
 
+	// BRC-114: strip time-control labels and capture created_at range filters.
+	parsed, err := brc114.ParseActionTimeLabels(labelNames)
+	if err != nil {
+		return entity.ListActionsFilter{}, fmt.Errorf("invalid BRC-114 action time labels: %w", err)
+	}
+
 	isFailedQuery := false
-	filteredLabels := make([]string, 0, len(labelNames))
-	for _, label := range labelNames {
+	filteredLabels := make([]string, 0, len(parsed.RemainingLabels))
+	for _, label := range parsed.RemainingLabels {
 		if label == string(wdk.TxStatusUnfail) {
 			isFailedQuery = true
 			continue
@@ -41,14 +48,26 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 		statuses = []wdk.TxStatus{wdk.TxStatusFailed}
 	}
 
-	return entity.ListActionsFilter{
-		UserID:         userID,
-		Labels:         filteredLabels,
-		Status:         statuses,
-		LabelQueryMode: args.LabelQueryMode.MustGetValue(),
-		Limit:          must.ConvertToIntFromUnsigned(args.Limit),
-		Offset:         must.ConvertToIntFromUnsigned(args.Offset),
-	}, nil
+	filter := entity.ListActionsFilter{
+		UserID:              userID,
+		Labels:              filteredLabels,
+		Status:              statuses,
+		LabelQueryMode:      args.LabelQueryMode.MustGetValue(),
+		Limit:               must.ConvertToIntFromUnsigned(args.Limit),
+		Offset:              must.ConvertToIntFromUnsigned(args.Offset),
+		TimeFilterRequested: parsed.TimeFilterRequested,
+	}
+
+	if parsed.From != nil {
+		t := brc114.FromMillis(*parsed.From)
+		filter.CreatedAtFrom = &t
+	}
+	if parsed.To != nil {
+		t := brc114.FromMillis(*parsed.To)
+		filter.CreatedAtTo = &t
+	}
+
+	return filter, nil
 }
 
 func (l *listActions) mapTransactionsToActions(txs []*pkgentity.Transaction) ([]uint, []string, []wdk.WalletAction) {
@@ -113,20 +132,34 @@ func (l *listActions) loadRawTxsIfNeeded(ctx context.Context, txIDStrs []string,
 	return rawTxMap, nil
 }
 
-func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*pkgentity.Transaction, inputMap, outputMap map[uint][]*pkgentity.Output, labelMap map[uint][]string, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
+// mapActionDetails holds side-loaded maps used when enriching WalletAction rows.
+type mapActionDetails struct {
+	inputMap  map[uint][]*pkgentity.Output
+	outputMap map[uint][]*pkgentity.Output
+	labelMap  map[uint][]string
+	rawTxMap  map[string][]byte
+}
+
+func (l *listActions) mapInputsOutputsLabels(
+	actions []wdk.WalletAction,
+	txs []*pkgentity.Transaction,
+	details mapActionDetails,
+	args *wdk.ListActionsArgs,
+	timeFilterRequested bool,
+) error {
 	for i, tx := range txs {
 		action := &actions[i]
 
 		if args.IncludeLabels.Value() {
-			l.mapLabelsToAction(action, tx.ID, labelMap)
+			l.mapLabelsToAction(action, tx, details.labelMap, timeFilterRequested)
 		}
 
 		if args.IncludeOutputs.Value() {
-			l.mapOutputsToAction(action, tx.ID, outputMap)
+			l.mapOutputsToAction(action, tx.ID, details.outputMap)
 		}
 
 		if args.IncludeInputs.Value() && tx.TxID != nil {
-			if err := l.mapInputsToAction(action, tx, inputMap, rawTxMap, args); err != nil {
+			if err := l.mapInputsToAction(action, tx, details.inputMap, details.rawTxMap, args); err != nil {
 				return err
 			}
 		}
@@ -134,11 +167,19 @@ func (l *listActions) mapInputsOutputsLabels(actions []wdk.WalletAction, txs []*
 	return nil
 }
 
-func (l *listActions) mapLabelsToAction(action *wdk.WalletAction, txID uint, labelMap map[uint][]string) {
-	if labels, ok := labelMap[txID]; ok {
+func (l *listActions) mapLabelsToAction(action *wdk.WalletAction, tx *pkgentity.Transaction, labelMap map[uint][]string, timeFilterRequested bool) {
+	if labels, ok := labelMap[tx.ID]; ok {
 		action.Labels = slices.Clone(labels)
 	} else {
 		action.Labels = []string{}
+	}
+
+	// BRC-114: when time filtering is active, inject computed "action time {ms}" labels.
+	if timeFilterRequested && !tx.CreatedAt.IsZero() {
+		timeLabel := brc114.MakeActionTimeLabel(tx.CreatedAt.UnixMilli())
+		if !slices.Contains(action.Labels, timeLabel) {
+			action.Labels = append(action.Labels, timeLabel)
+		}
 	}
 }
 

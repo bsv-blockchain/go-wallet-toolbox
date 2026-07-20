@@ -274,7 +274,7 @@ func runMergeExistingProvenTx(t *testing.T, v brc40Vector) {
 	existingHeight := asUint32(t, existing["height"])
 	existingRoot := "root-existing"
 	existingHash := "hash-existing"
-	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:   parseISO(t, asString(existing["created_at"])),
 		UpdatedAt:   parseISO(t, asString(existing["updated_at"])),
 		TxID:        txid,
@@ -290,7 +290,7 @@ func runMergeExistingProvenTx(t *testing.T, v brc40Vector) {
 	incomingHeight := asUint32(t, incoming["height"])
 	incomingRoot := "root-incoming"
 	incomingHash := "hash-incoming"
-	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:   parseISO(t, asString(incoming["created_at"])),
 		UpdatedAt:   parseISO(t, asString(incoming["updated_at"])),
 		TxID:        txid,

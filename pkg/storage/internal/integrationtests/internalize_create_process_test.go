@@ -79,17 +79,30 @@ func TestInternalizeThenCreateThenProcess(t *testing.T) {
 		// then:
 		require.NoError(t, err)
 
+		// Unknown unproven internalize broadcasts immediately and surfaces send/review fields
+		// (issue #818 / TS shareReqsWithWorld). Exact reference string is from TestRandomizer.
 		require.JSONEq(t, `{
 		  "accepted": true,
 		  "isMerge": false,
 		  "txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
-		  "satoshis": 99904
+		  "satoshis": 99904,
+		  "sendWithResults": [
+		    {"txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6", "status": "unproven"}
+		  ],
+		  "notDelayedResults": [
+		    {
+		      "txid": "756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6",
+		      "status": "success",
+		      "reference": "YWFhYWFhYWFhYWFh",
+		      "labels": ["label1", "label2"]
+		    }
+		  ]
 		}`, string(resultJSON))
 	})
 
 	t.Run("Broadcast internalized tx", func(t *testing.T) {
-		// After internalize, the unmined tx is in Unsent/Sending state.
-		// We need to broadcast it so UTXOs transition from Sending to Unproven (spendable).
+		// On the happy path, InternalizeAction already broadcasts synchronously and leaves
+		// KnownTx unmined with UTXOs unproven/spendable. Keep SendWaiting as a no-op safety net.
 		given.Provider().ARC().WhenQueryingTx("756754d5ad8f00e05c36d89a852971c0a1dc0c10f20cd7840ead347aff475ef6").WillReturnTransactionWithoutMerklePath()
 		_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
 		require.NoError(t, err)

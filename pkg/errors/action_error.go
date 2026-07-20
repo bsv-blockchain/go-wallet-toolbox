@@ -128,10 +128,26 @@ func (c *CreateActionError) Is(target error) bool {
 }
 
 // ProcessActionError represents an error that occurred during processing actions, including send and review results.
+//
+// When undelayed createAction/signAction broadcast outcomes require review (matching TypeScript
+// WERR_REVIEW_ACTIONS), optional TxID, Tx (AtomicBEEF bytes), and NoSendChange carry the same
+// recovery data a successful result would have returned. Callers can recover them via errors.As:
+//
+//	var processErr *errors.ProcessActionError
+//	if errors.As(err, &processErr) {
+//	    _ = processErr.Tx
+//	    _ = processErr.NoSendChange
+//	}
 type ProcessActionError struct {
 	SendWithResults []wdk.SendWithResult
 	ReviewResults   []wdk.ReviewActionResult
-	Cause           error
+	// TxID is the hex transaction id of the new transaction, when available.
+	TxID string
+	// Tx is AtomicBEEF bytes of the new transaction, when available.
+	Tx []byte
+	// NoSendChange is outpoint strings ("txid.vout") for change outputs from noSend batches.
+	NoSendChange []string
+	Cause        error
 }
 
 // NewProcessActionError creates a new ProcessActionError instance from send and review operation results.
@@ -142,11 +158,29 @@ func NewProcessActionError(sendWithResults []wdk.SendWithResult, reviewResults [
 	}
 }
 
+// WithTx attaches the new transaction id and optional AtomicBEEF bytes for caller recovery.
+// tx may be nil when only the txid is known (e.g. beef serialization failed).
+func (p *ProcessActionError) WithTx(txID string, tx []byte) *ProcessActionError {
+	p.TxID = txID
+	p.Tx = tx
+	return p
+}
+
+// WithNoSendChange attaches noSend change outpoints as "txid.vout" strings for chained noSend workflows.
+func (p *ProcessActionError) WithNoSendChange(noSendChange []string) *ProcessActionError {
+	p.NoSendChange = noSendChange
+	return p
+}
+
 func (p *ProcessActionError) Error() string {
 	var parts []string
 
 	baseMsg := "process action failed"
 	parts = append(parts, baseMsg)
+
+	if p.TxID != "" {
+		parts = append(parts, fmt.Sprintf("txID: %s", p.TxID))
+	}
 
 	if len(p.SendWithResults) > 0 {
 		successCount := 0
