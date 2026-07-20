@@ -81,7 +81,7 @@ func New(
 			beefVerifier,
 			scriptsVerifier,
 			services,
-			processAction.backgroundBroadcaster,
+			processAction,
 		),
 		process:               processAction,
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
