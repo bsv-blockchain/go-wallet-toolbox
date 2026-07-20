@@ -4,9 +4,9 @@ package storage
 
 import (
 	"context"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 type WalletStorageProviderClient struct {
 	client *walletStorageProviderImpl
@@ -115,6 +115,15 @@ func (c *WalletStorageProviderClient) ListTransactions(ctx context.Context, auth
 	return c.client.ListTransactions(ctx, auth, args)
 }
 
+// GetBalance returns total spendable satoshis in the given basket for the authenticated user.
+// Empty basket defaults to BasketNameForChange ("default").
+func (c *WalletStorageProviderClient) GetBalance(ctx context.Context, auth wdk.AuthID, basket string) (uint64, error) {
+	return c.client.GetBalance(ctx, auth, basket)
+}
+
+// walletStorageProviderImpl holds the concrete function implementations for the
+// V1 HTTP storage client. The generator historically emits rpcWalletStorageProvider;
+// this codebase renames it for clarity after generate.
 type walletStorageProviderImpl struct {
 	Migrate                   func(context.Context, string, string) (string, error)
 	MakeAvailable             func(context.Context) (*wdk.TableSettings, error)
@@ -136,4 +145,5 @@ type walletStorageProviderImpl struct {
 	FindOutputBasketsAuth     func(context.Context, wdk.AuthID, wdk.FindOutputBasketsArgs) (wdk.TableOutputBaskets, error)
 	FindOutputsAuth           func(context.Context, wdk.AuthID, wdk.FindOutputsArgs) (wdk.TableOutputs, error)
 	ListTransactions          func(context.Context, wdk.AuthID, wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error)
+	GetBalance                func(context.Context, wdk.AuthID, string) (uint64, error)
 }

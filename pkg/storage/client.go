@@ -70,6 +70,7 @@ func newClientImpl(r *authriteRequester) *walletStorageProviderImpl {
 		AbortAction:               abortAction(r),
 		FindOutputBasketsAuth:     findOutputBasketsAuth(),
 		FindOutputsAuth:           findOutputsAuth(),
+		GetBalance:                getBalance(r),
 	}
 }
 
@@ -250,6 +251,19 @@ func findOutputBasketsAuth() func(ctx context.Context, auth wdk.AuthID, filters 
 func findOutputsAuth() func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
 	return func(ctx context.Context, auth wdk.AuthID, filters wdk.FindOutputsArgs) (wdk.TableOutputs, error) {
 		return wdk.TableOutputs{}, nil
+	}
+}
+
+func getBalance(r *authriteRequester) func(ctx context.Context, auth wdk.AuthID, basket string) (uint64, error) {
+	return func(ctx context.Context, auth wdk.AuthID, basket string) (uint64, error) {
+		var res struct {
+			Balance uint64 `json:"balance"`
+		}
+		payload := map[string]string{"basket": basket}
+		if err := r.post(ctx, "/storage/v1/balance", payload, &res); err != nil {
+			return 0, err
+		}
+		return res.Balance, nil
 	}
 }
 

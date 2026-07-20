@@ -671,6 +671,31 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 	return result, nil
 }
 
+// GetBalance returns total spendable satoshis in the given basket for the authenticated user.
+// Empty basket defaults to BasketNameForChange ("default").
+func (p *Provider) GetBalance(ctx context.Context, auth wdk.AuthID, basket string) (balance uint64, err error) {
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-GetBalance",
+		attribute.String("basket", basket),
+	)
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if auth.UserID == nil {
+		return 0, ErrAuthorization
+	}
+
+	if basket == "" {
+		basket = wdk.BasketNameForChange
+	}
+
+	balance, err = p.actions.GetBalance(ctx, *auth.UserID, basket)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get balance: %w", err)
+	}
+	return balance, nil
+}
+
 // RelinquishOutput removes a specified output from a basket
 func (p *Provider) RelinquishOutput(ctx context.Context, auth wdk.AuthID, args wdk.RelinquishOutputArgs) error {
 	var err error

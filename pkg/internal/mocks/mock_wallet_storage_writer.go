@@ -131,6 +131,21 @@ func (mr *MockWalletStorageProviderMockRecorder) FindOutputsAuth(ctx, auth, filt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOutputsAuth", reflect.TypeOf((*MockWalletStorageProvider)(nil).FindOutputsAuth), ctx, auth, filters)
 }
 
+// GetBalance mocks base method.
+func (m *MockWalletStorageProvider) GetBalance(ctx context.Context, auth wdk.AuthID, basket string) (uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBalance", ctx, auth, basket)
+	ret0, _ := ret[0].(uint64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBalance indicates an expected call of GetBalance.
+func (mr *MockWalletStorageProviderMockRecorder) GetBalance(ctx, auth, basket any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockWalletStorageProvider)(nil).GetBalance), ctx, auth, basket)
+}
+
 // GetSyncChunk mocks base method.
 func (m *MockWalletStorageProvider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
 	m.ctrl.T.Helper()
