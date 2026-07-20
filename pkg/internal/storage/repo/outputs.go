@@ -478,6 +478,7 @@ func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity
 		}
 		selected = selected.Where("id IN (?)", subQuery)
 	}
+	selected = applyListActionsTimeFilters(selected, filter)
 	return selected.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
 }
 
