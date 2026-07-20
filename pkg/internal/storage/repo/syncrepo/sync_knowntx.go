@@ -83,7 +83,7 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 	return provenTxReqs, provenTxs, nil
 }
 
-func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
+func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, knownTxNumID uint, err error) {
 	model := models.KnownTx{
 		CreatedAt:           entity.CreatedAt,
 		UpdatedAt:           entity.UpdatedAt,
@@ -102,6 +102,15 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Always ensure a numeric_id_lookup entry exists so processSyncChunk can
+		// populate provenTx/provenTxReq idMap (readerID → writerID) for round-trips.
+		// Mint before the BRC-40 guard so stale/equal skips still contribute idMap entries.
+		numID, numErr := s.saveNumericIDForKnownTx(ctx, tx, entity.TxID)
+		if numErr != nil {
+			return numErr
+		}
+		knownTxNumID = numID
+
 		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
 		// Equal updated_at must SKIP. TxNote delete/insert side-effects only fire
 		// inside the post-guard branch. See ts-stack EntityProvenTx.mergeExisting and
@@ -157,10 +166,17 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("transaction failed: %w", err)
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return isNew, nil
+	return isNew, knownTxNumID, nil
+}
+
+func (s *SyncKnownTx) saveNumericIDForKnownTx(ctx context.Context, tx *gorm.DB, txID string) (uint, error) {
+	if err := saveNumericIDLookup(ctx, tx, s.tableName(), txID); err != nil {
+		return 0, fmt.Errorf("failed to save numeric ID lookup for known tx %q: %w", txID, err)
+	}
+	return findNumericIDLookup(ctx, tx, s.tableName(), txID)
 }
 
 func (s *SyncKnownTx) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
