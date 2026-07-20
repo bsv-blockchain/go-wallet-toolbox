@@ -407,13 +407,13 @@ Optional later: port vectors from TS `listActions.brc114.test.ts` into `conforma
 
 ## Suggested implementation order
 
-1. `pkg/internal/brc114` parse/make + unit tests  
-2. `ListActionsFilter` fields + `applyListActionsTimeFilters` on all three repo builders  
-3. `toFilterParams` + label injection + validate wiring + call-site signatures  
-4. Storage integration tests (explicit `created_at`, boundary + pagination + label strip)  
-5. Full package regression commands above  
+1. `pkg/internal/brc114` parse/make + unit tests
+2. `ListActionsFilter` fields + `applyListActionsTimeFilters` on all three repo builders
+3. `toFilterParams` + label injection + validate wiring + call-site signatures
+4. Storage integration tests (explicit `created_at`, boundary + pagination + label strip)
+5. Full package regression commands above
 
-**Commit message for the eventual fix PR (not this plan PR):**  
+**Commit message for the eventual fix PR (not this plan PR):**
 `fix: implement BRC-114 action time label filtering in listActions`
 
 **This plan PR only** adds this document under `plans/` — no application code. Does **not** close #822 (`Related to #822` only).
