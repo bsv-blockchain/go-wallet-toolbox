@@ -253,5 +253,18 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.Contains(t, result.Outputs[0].Tags, "tag1", "Should contain expected tag")
 		assert.Contains(t, result.Outputs[0].Tags, "tag2", "Should contain expected tag")
 		assert.NotEmpty(t, result.Outputs[0].CustomInstructions, "Custom instructions should be included")
+
+		// and: includeLabels=true should populate transaction labels on each output
+		assert.NotEmpty(t, result.Outputs[0].Labels, "Labels should be included when IncludeLabels=true")
+		assert.Contains(t, result.Outputs[0].Labels, "label1", "Should contain expected label")
+		assert.Contains(t, result.Outputs[0].Labels, "label2", "Should contain expected label")
+
+		// when: includeLabels=false
+		falseValue := false
+		args.IncludeLabels = &falseValue
+		resultWithoutLabels, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.NotEmpty(t, resultWithoutLabels.Outputs)
+		assert.Empty(t, resultWithoutLabels.Outputs[0].Labels, "Labels should be empty when IncludeLabels=false")
 	})
 }

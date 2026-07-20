@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -416,4 +417,102 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 	if len(result.Outputs) == 1 {
 		require.Less(t, result.Outputs[0].Satoshis, primitives.SatoshiValue(5))
 	}
+}
+
+func TestListOutputs_IncludeLabels_True(t *testing.T) {
+	// given: an internalized tx with labels and a created action with CreateActionTestLabel
+	// Labels are transaction-level: every output of a labelled tx inherits the same labels.
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+	given.Action(activeStorage).Processed()
+
+	// when:
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: true,
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Outputs)
+
+	var foundLabeled bool
+	for _, output := range result.Outputs {
+		if slices.Contains(output.Labels, fixtures.CreateActionTestLabel) {
+			foundLabeled = true
+			break
+		}
+	}
+	require.True(t, foundLabeled, "IncludeLabels=true should populate CreateActionTestLabel on at least one output")
+}
+
+func TestListOutputs_IncludeLabels_False(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+	given.Action(activeStorage).Processed()
+
+	// when: includeLabels omitted/false (default zero value)
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: false,
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Outputs)
+	for _, output := range result.Outputs {
+		assert.Empty(t, output.Labels, "IncludeLabels=false should leave labels empty")
+	}
+}
+
+func TestListOutputs_IncludeLabels_Internalize(t *testing.T) {
+	// given: internalized output with known labels (transaction-level)
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	internalizeArgs := fixtures.DefaultInternalizeActionArgs(t, wdk.BasketInsertionProtocol)
+	internalizeResult, err := activeStorage.InternalizeAction(ctx, testusers.Alice.AuthID(), internalizeArgs)
+	require.NoError(t, err)
+
+	outpoint := primitives.NewOutpointString(internalizeResult.TxID, 0)
+
+	// when: includeLabels=true
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: true,
+	})
+	require.NoError(t, err)
+
+	// then: labels from internalize are present on the output
+	output, _ := testutils.FindOutput(t, result.Outputs, func(p *wdk.WalletOutput) bool {
+		return p.Outpoint == outpoint
+	})
+	require.NotNil(t, output)
+	for _, label := range internalizeArgs.Labels {
+		assert.Contains(t, output.Labels, label)
+	}
+
+	// when: includeLabels=false
+	result, err = activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: false,
+	})
+	require.NoError(t, err)
+
+	// then: labels are empty
+	output, _ = testutils.FindOutput(t, result.Outputs, func(p *wdk.WalletOutput) bool {
+		return p.Outpoint == outpoint
+	})
+	require.NotNil(t, output)
+	assert.Empty(t, output.Labels)
 }
