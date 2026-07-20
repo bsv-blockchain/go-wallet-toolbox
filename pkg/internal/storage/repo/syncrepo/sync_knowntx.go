@@ -83,8 +83,40 @@ func (s *SyncKnownTx) FindKnownTxsForSync(ctx context.Context, userID int, opts 
 	return provenTxReqs, provenTxs, nil
 }
 
-func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, err error) {
-	model := models.KnownTx{
+func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.KnownTx) (isNew bool, knownTxNumID uint, err error) {
+	model := knownTxModelFromEntity(entity)
+
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Always ensure a numeric_id_lookup entry exists so processSyncChunk can
+		// populate provenTx/provenTxReq idMap (readerID → writerID) for round-trips.
+		// Mint before the BRC-40 guard so stale/equal skips still contribute idMap entries.
+		numID, numErr := s.saveNumericIDForKnownTx(ctx, tx, entity.TxID)
+		if numErr != nil {
+			return numErr
+		}
+		knownTxNumID = numID
+
+		created, upsertErr := s.upsertKnownTxModel(ctx, tx, entity, model)
+		if upsertErr != nil {
+			return upsertErr
+		}
+		isNew = created
+		return nil
+	})
+	if err != nil {
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
+	}
+
+	return isNew, knownTxNumID, nil
+}
+
+func knownTxModelFromEntity(entity *entity.KnownTx) models.KnownTx {
+	notify := entity.Notify
+	if notify == "" {
+		notify = "{}"
+	}
+
+	return models.KnownTx{
 		CreatedAt:           entity.CreatedAt,
 		UpdatedAt:           entity.UpdatedAt,
 		TxID:                entity.TxID,
@@ -93,6 +125,7 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		WasBroadcast:        entity.WasBroadcast || entity.Status.WasBroadcastStatus(),
 		RebroadcastAttempts: entity.RebroadcastAttempts,
 		Notified:            entity.Notified,
+		Notify:              notify,
 		RawTx:               entity.RawTx,
 		InputBeef:           entity.InputBEEF,
 		BlockHeight:         entity.BlockHeight,
@@ -100,67 +133,70 @@ func (s *SyncKnownTx) UpsertKnownTxForSync(ctx context.Context, entity *entity.K
 		MerkleRoot:          entity.MerkleRoot,
 		BlockHash:           entity.BlockHash,
 	}
+}
 
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
-		// Equal updated_at must SKIP. TxNote delete/insert side-effects only fire
-		// inside the post-guard branch. See ts-stack EntityProvenTx.mergeExisting and
-		// conformance vector sync.brc40.merge.proventx.error.regression.1.
-		var existing models.KnownTx
-		existsErr := tx.Model(&models.KnownTx{}).
-			Select("tx_id, updated_at").
-			Where("tx_id = ?", entity.TxID).
-			First(&existing).Error
+// upsertKnownTxModel applies BRC-40 merge: UPDATE only when incoming is strictly newer;
+// equal updated_at skips; CREATE when missing. TxNote rewrite only runs after a successful
+// update. See ts-stack EntityProvenTx.mergeExisting and
+// conformance vector sync.brc40.merge.proventx.error.regression.1.
+func (s *SyncKnownTx) upsertKnownTxModel(ctx context.Context, tx *gorm.DB, entity *entity.KnownTx, model models.KnownTx) (isNew bool, err error) {
+	var existing models.KnownTx
+	existsErr := tx.Model(&models.KnownTx{}).
+		Select("tx_id, updated_at").
+		Where("tx_id = ?", entity.TxID).
+		First(&existing).Error
 
-		if existsErr == nil {
-			if !model.UpdatedAt.After(existing.UpdatedAt) {
-				return nil
-			}
+	if existsErr == nil {
+		return false, s.updateKnownTxIfNewer(ctx, tx, entity, model, existing)
+	}
+	if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
+		return false, fmt.Errorf("failed to lookup existing known tx: %w", existsErr)
+	}
+	if err = s.createKnownTxWithNotes(ctx, tx, entity, model); err != nil {
+		return false, err
+	}
+	return true, nil
+}
 
-			updateTx := tx.Model(&models.KnownTx{}).
-				Where("tx_id = ? AND updated_at < ?", entity.TxID, model.UpdatedAt).
-				Updates(model)
-
-			if updateTx.Error != nil {
-				return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
-			}
-
-			if updateTx.RowsAffected == 0 {
-				return nil
-			}
-
-			if deleteErr := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; deleteErr != nil {
-				return fmt.Errorf("failed to delete existing transaction notes: %w", deleteErr)
-			}
-
-			if noteErr := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); noteErr != nil {
-				return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", noteErr)
-			}
-
-			return nil
-		}
-
-		if !errors.Is(existsErr, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("failed to lookup existing known tx: %w", existsErr)
-		}
-
-		if err = tx.Create(&model).Error; err != nil {
-			return fmt.Errorf("failed to create proven tx req: %w", err)
-		}
-
-		if err = s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
-			return fmt.Errorf("failed to add transaction history notes while creating knownTx: %w", err)
-		}
-
-		isNew = true
-
+func (s *SyncKnownTx) updateKnownTxIfNewer(ctx context.Context, tx *gorm.DB, entity *entity.KnownTx, model models.KnownTx, existing models.KnownTx) error {
+	if !model.UpdatedAt.After(existing.UpdatedAt) {
 		return nil
-	})
-	if err != nil {
-		return false, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return isNew, nil
+	updateTx := tx.Model(&models.KnownTx{}).
+		Where("tx_id = ? AND updated_at < ?", entity.TxID, model.UpdatedAt).
+		Updates(model)
+	if updateTx.Error != nil {
+		return fmt.Errorf("failed to update proven tx req: %w", updateTx.Error)
+	}
+	if updateTx.RowsAffected == 0 {
+		return nil
+	}
+
+	if err := tx.Delete(&models.TxNote{}, "tx_id = ?", entity.TxID).Error; err != nil {
+		return fmt.Errorf("failed to delete existing transaction notes: %w", err)
+	}
+	if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+		return fmt.Errorf("failed to add transaction history notes while updating knownTx: %w", err)
+	}
+	return nil
+}
+
+func (s *SyncKnownTx) createKnownTxWithNotes(ctx context.Context, tx *gorm.DB, entity *entity.KnownTx, model models.KnownTx) error {
+	if err := tx.Create(&model).Error; err != nil {
+		return fmt.Errorf("failed to create proven tx req: %w", err)
+	}
+	if err := s.addHistoryNotes(ctx, tx, entity.TxID, entity.TxNotes); err != nil {
+		return fmt.Errorf("failed to add transaction history notes while creating knownTx: %w", err)
+	}
+	return nil
+}
+
+func (s *SyncKnownTx) saveNumericIDForKnownTx(ctx context.Context, tx *gorm.DB, txID string) (uint, error) {
+	if err := saveNumericIDLookup(ctx, tx, s.tableName(), txID); err != nil {
+		return 0, fmt.Errorf("failed to save numeric ID lookup for known tx %q: %w", txID, err)
+	}
+	return findNumericIDLookup(ctx, tx, s.tableName(), txID)
 }
 
 func (s *SyncKnownTx) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
@@ -217,6 +253,11 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (
 		return nil, err
 	}
 
+	notify := model.Notify
+	if notify == "" {
+		notify = "{}"
+	}
+
 	return &wdk.TableProvenTxReq{
 		CreatedAt:           model.CreatedAt,
 		UpdatedAt:           model.UpdatedAt,
@@ -229,7 +270,7 @@ func (s *SyncKnownTx) mapModelToTableProvenTxReqForSync(model *KnownTxWithNum) (
 		TxID:                model.TxID,
 		Batch:               nil, // TODO: For now batch broadcasting is not supported, will be added later
 		History:             historyNotes,
-		Notify:              "{}", // TODO: Notify includes transaction IDs and they are only used by JS-version of the wallet, so we can ignore it for now
+		Notify:              notify,
 		RawTx:               model.RawTx,
 		InputBEEF:           model.InputBeef,
 	}, nil

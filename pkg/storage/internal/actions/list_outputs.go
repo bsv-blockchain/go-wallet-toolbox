@@ -40,8 +40,6 @@ func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo Kno
 }
 
 func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
-	// TODO: Handle args.IncludeLabels
-
 	userID := *auth.UserID
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageActions-ListOutputs", attribute.Int("userID", userID))
@@ -77,26 +75,18 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 		return nil, fmt.Errorf("error during listing outputs: %w", err)
 	}
 
-	outputs := make([]*wdk.WalletOutput, len(outputModels))
-
-	var labelMap map[uint][]string
-	if args.IncludeLabels {
-		var txIDs []uint
-		for _, m := range outputModels {
-			txIDs = append(txIDs, m.TransactionID)
-		}
-
-		if labels, err := l.transactionsRepo.GetLabelsForTransactions(ctx, txIDs); err == nil {
-			labelMap = labels
-		}
+	labelMap, err := l.loadLabelsIfNeeded(ctx, outputModels, args.IncludeLabels)
+	if err != nil {
+		return nil, err
 	}
 
+	outputs := make([]*wdk.WalletOutput, len(outputModels))
 	for i, m := range outputModels {
 		out := l.outputModelToResult(m)
-		if labelMap != nil {
-			if labels, ok := labelMap[m.TransactionID]; ok {
-				out.Labels = slices.Map(labels, func(s string) primitives.StringUnder300 { return primitives.StringUnder300(s) })
-			}
+		if labels, ok := labelMap[m.TransactionID]; ok {
+			out.Labels = slices.Map(labels, func(s string) primitives.StringUnder300 {
+				return primitives.StringUnder300(s)
+			})
 		}
 		outputs[i] = out
 	}
@@ -128,6 +118,28 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	}
 
 	return result, nil
+}
+
+// loadLabelsIfNeeded fetches transaction labels when includeLabels is true.
+// Labels live on the parent transaction (TxLabel / transaction_labels);
+// each output inherits its parent tx's labels.
+func (l *listOutputs) loadLabelsIfNeeded(
+	ctx context.Context,
+	outputModels []*pkgentity.Output,
+	includeLabels bool,
+) (map[uint][]string, error) {
+	if !includeLabels {
+		return map[uint][]string{}, nil
+	}
+	txIDs := make([]uint, 0, len(outputModels))
+	for _, m := range outputModels {
+		txIDs = append(txIDs, m.TransactionID)
+	}
+	labelMap, err := l.transactionsRepo.GetLabelsForTransactions(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load labels: %w", err)
+	}
+	return labelMap, nil
 }
 
 func (l *listOutputs) uniqueTxTDsForAllOutputs(outputModels []*pkgentity.Output) iter.Seq[string] {

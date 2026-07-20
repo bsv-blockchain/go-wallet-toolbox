@@ -19,6 +19,9 @@ type KnownTx struct {
 	Notified            bool
 	WasBroadcast        bool
 	RebroadcastAttempts uint64
+	// Notify is an opaque payload (typically JSON) from ProvenTxReq.notify.
+	// Persisted and returned unchanged for sync round-trip; no Go-side semantics.
+	Notify string
 
 	RawTx     []byte
 	InputBEEF []byte
