@@ -32,6 +32,7 @@ import (
 //	POST /storage/v1/list/outputs
 //	POST /storage/v1/list/certificates     (ListCertificates)
 //	POST /storage/v1/list/transactions     (ListTransactions)
+//	POST /storage/v1/balance               (GetBalance)
 //	POST /storage/v1/certificates
 //	POST /storage/v1/certificates/relinquish
 //	POST /storage/v1/outputs/relinquish
@@ -85,6 +86,7 @@ func RegisterRoutes(mux *http.ServeMux, provider wdk.WalletStorageProvider, pare
 	mux.HandleFunc("POST /storage/v1/list/outputs", h.listOutputs)
 	mux.HandleFunc("POST /storage/v1/list/certificates", h.listCertificates)
 	mux.HandleFunc("POST /storage/v1/list/transactions", h.listTransactions)
+	mux.HandleFunc("POST /storage/v1/balance", h.getBalance)
 
 	// Certificates
 	mux.HandleFunc("POST /storage/v1/certificates", h.insertCertificate)
@@ -455,6 +457,28 @@ func (h *Handler) listCertificates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Basket string `json:"basket"`
+	}
+	// Empty body is allowed (defaults to change basket server-side).
+	if err := decodeArgs(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid JSON body for getBalance")
+		return
+	}
+	auth, err := h.resolveAuthID(r)
+	if err != nil {
+		h.writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	balance, err := h.provider.GetBalance(r.Context(), auth, req.Basket)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]uint64{"balance": balance})
 }
 
 func (h *Handler) listTransactions(w http.ResponseWriter, r *http.Request) {

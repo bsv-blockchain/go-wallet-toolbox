@@ -5,17 +5,19 @@ package storage
 import (
 	"context"
 	"fmt"
-
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 
 // Migrate migrates a wallet storage database.
 func (m *WalletStorageManager) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
+
 	return m.getActiveWriter().Migrate(ctx, storageName, storageIdentityKey)
 }
 
 // FindOrInsertUser retrieves an existing user or inserts a new one based on the given identity key.
 func (m *WalletStorageManager) FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error) {
+
 	return m.getActiveWriter().FindOrInsertUser(ctx, identityKey)
 }
 
@@ -147,4 +149,15 @@ func (m *WalletStorageManager) ListTransactions(ctx context.Context, args wdk.Li
 	}
 
 	return m.getActiveReader().ListTransactions(ctx, auth, args)
+}
+
+// GetBalance returns total spendable satoshis in the given basket for the authenticated user.
+// Empty basket defaults to BasketNameForChange ("default").
+func (m *WalletStorageManager) GetBalance(ctx context.Context, basket string) (uint64, error) {
+	auth, err := m.GetAuth(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user authentication: %w", err)
+	}
+
+	return m.getActiveReader().GetBalance(ctx, auth, basket)
 }
