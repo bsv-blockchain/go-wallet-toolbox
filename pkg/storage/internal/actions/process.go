@@ -857,7 +857,7 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 ) {
 	reviewActionResult = wdk.ReviewActionResult{
 		TxID:      primitives.TXIDHexString(txID),
-		Errors:    serviceErrors,
+		Errors:    wdk.ReviewActionErrors(serviceErrors),
 		Reference: reference,
 		Labels:    labels,
 	}

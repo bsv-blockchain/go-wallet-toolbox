@@ -874,9 +874,11 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorF
 
 		// and:
 		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+		// second createAction also spends wallet change; ensure enough UTXOs
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		// when:
-		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithNoSend(true))
+		args := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithNoSend(true), walletargs.WithSatoshisAsFirstOutput(1))
 
 		firstResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
@@ -891,13 +893,73 @@ func (s *WalletTestSuite) TestWalletCreateAction_NoSend_SendWith_BroadcastErrorF
 		// given:
 		given.Services().ARC().WhenQueryingTx(firstResult.Txid.String()).WillReturnDoubleSpending()
 
-		// when:
-		args = fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSendWith(firstResult.Txid))
+		// when: new tx + sendWith of the failed noSend tx (review-required undelayed broadcast)
+		args = fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithSendWith(firstResult.Txid), walletargs.WithSatoshisAsFirstOutput(1))
 
-		_, err = aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+		result, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
 
 		// then:
 		require.Error(t, err)
+		assert.Nil(t, result)
+
+		// and: ProcessActionError is recoverable with AtomicBEEF of the new tx (#819)
+		var processErr *pkgerrors.ProcessActionError
+		require.ErrorAs(t, err, &processErr)
+		require.NotEmpty(t, processErr.TxID, "review error should carry new txid")
+		require.NotEmpty(t, processErr.Tx, "review error should carry AtomicBEEF bytes of the new tx")
+		require.NotEmpty(t, processErr.SendWithResults)
+		require.NotEmpty(t, processErr.ReviewResults)
+
+		// and: TxID is present in the error message
+		assert.Contains(t, processErr.Error(), processErr.TxID)
+	})
+
+	s.Run("review-required createAction with noSend populates noSendChange on ProcessActionError", func() {
+		t := s.T()
+		const topUpValue = testValueForFunding
+
+		// given:
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+		_, _ = given.Faucet(aliceWallet).TopUp(topUpValue)
+
+		// and: a prior noSend tx that will fail review when sendWith'd
+		firstArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithNoSend(true), walletargs.WithSatoshisAsFirstOutput(1))
+		firstResult, err := aliceWallet.CreateAction(t.Context(), firstArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.NotEmpty(t, firstResult.NoSendChange)
+
+		given.Services().ARC().WhenQueryingTx(firstResult.Txid.String()).WillReturnDoubleSpending()
+
+		// when: create another noSend tx while sendWithing the double-spend one
+		// (SendWith overrides NoSend broadcast skip for listed txs; new tx still produces noSendChange)
+		secondArgs := fixtures.DefaultWalletCreateActionArgs(
+			t,
+			walletargs.WithNoSend(true),
+			walletargs.WithSendWith(firstResult.Txid),
+			walletargs.WithSatoshisAsFirstOutput(1),
+		)
+		result, err := aliceWallet.CreateAction(t.Context(), secondArgs, fixtures.DefaultOriginator)
+
+		// then:
+		require.Error(t, err)
+		assert.Nil(t, result)
+
+		var processErr *pkgerrors.ProcessActionError
+		require.ErrorAs(t, err, &processErr)
+		require.NotEmpty(t, processErr.TxID, "review error should carry new txid")
+		require.NotEmpty(t, processErr.Tx, "review error should carry AtomicBEEF of the new noSend tx")
+		require.NotEmpty(t, processErr.NoSendChange, "review error should carry noSendChange outpoints")
+		require.NotEmpty(t, processErr.SendWithResults)
+		require.NotEmpty(t, processErr.ReviewResults)
+
+		// and: noSendChange outpoints reference the new txid
+		for _, op := range processErr.NoSendChange {
+			assert.True(t, strings.HasPrefix(op, processErr.TxID+"."), "noSendChange outpoint %q should start with new txid", op)
+		}
 	})
 }
 

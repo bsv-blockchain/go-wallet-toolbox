@@ -1,8 +1,10 @@
 package storage_test
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -12,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -196,6 +199,74 @@ func TestListOutputs_IncludeTransactions(t *testing.T) {
 		assert.NotEmpty(t, output.Outpoint)
 		require.NoError(t, output.Outpoint.Validate())
 		assert.NotNil(t, beef.FindTransaction(output.Outpoint.MustGetTxID()))
+	}
+}
+
+// TestListOutputs_KnownTxids verifies that knownTxids optimizes returned BEEF by
+// representing already-known transactions as TxIDOnly (matching TS listOutputs behavior).
+func TestListOutputs_KnownTxids(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	_, signedTx := given.Action(activeStorage).Processed()
+	signedTxID := signedTx.TxID().String()
+
+	// baseline: full BEEF without knownTxids embeds parent + grandparent + created tx
+	fullResult, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:               100,
+		IncludeTransactions: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, fullResult.BEEF)
+	fullBeef := testutils.BEEFFromBytes(t, fullResult.BEEF)
+	require.Len(t, fullBeef.Transactions, 3)
+
+	// knownTxids = direct input parents of the created tx (same optimization surface as TS)
+	knownTxids := make([]string, 0, len(signedTx.Inputs))
+	for _, in := range signedTx.Inputs {
+		require.NotNil(t, in.SourceTXID)
+		knownTxids = append(knownTxids, in.SourceTXID.String())
+	}
+	require.NotEmpty(t, knownTxids)
+
+	// when: listOutputs with knownTxids
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:               100,
+		IncludeTransactions: true,
+		KnownTxids:          knownTxids,
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.NotNil(t, result.BEEF)
+	assert.Less(t, len(result.BEEF), len(fullResult.BEEF),
+		"knownTxids should reduce BEEF payload size by omitting embedded raw txs / proofs")
+
+	optimizedBeef := testutils.BEEFFromBytes(t, result.BEEF)
+
+	// known parents appear as TxIDOnly stubs (mergeTxidOnly), matching TS listOutputs
+	for _, known := range knownTxids {
+		pkgtestabilities.AssertBEEFState(t, result.BEEF, pkgtestabilities.ExpectedBeefTransactionState{
+			ID:         known,
+			DataFormat: to.Ptr(transaction.TxIDOnly),
+		})
+	}
+
+	// further ancestors that were only reachable via known parents are dropped entirely
+	assert.Less(t, len(optimizedBeef.Transactions), len(fullBeef.Transactions),
+		"knownTxids should stop recursion so unused ancestors are excluded from BEEF")
+
+	// the caller's unknown (newly created) tx remains fully embedded (not TxIDOnly)
+	require.NotNil(t, optimizedBeef.FindTransaction(signedTxID))
+	for hash, beefTx := range optimizedBeef.Transactions {
+		if hash.String() == signedTxID {
+			assert.NotEqual(t, transaction.TxIDOnly, beefTx.DataFormat,
+				"created tx must keep full transaction data for the caller")
+		}
 	}
 }
 
@@ -416,4 +487,102 @@ func TestListOutputs_ShouldReturnOnlySpendableOutputs(t *testing.T) {
 	if len(result.Outputs) == 1 {
 		require.Less(t, result.Outputs[0].Satoshis, primitives.SatoshiValue(5))
 	}
+}
+
+func TestListOutputs_IncludeLabels_True(t *testing.T) {
+	// given: an internalized tx with labels and a created action with CreateActionTestLabel
+	// Labels are transaction-level: every output of a labelled tx inherits the same labels.
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+	given.Action(activeStorage).Processed()
+
+	// when:
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: true,
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Outputs)
+
+	var foundLabeled bool
+	for _, output := range result.Outputs {
+		if slices.Contains(output.Labels, fixtures.CreateActionTestLabel) {
+			foundLabeled = true
+			break
+		}
+	}
+	require.True(t, foundLabeled, "IncludeLabels=true should populate CreateActionTestLabel on at least one output")
+}
+
+func TestListOutputs_IncludeLabels_False(t *testing.T) {
+	// given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+	given.Action(activeStorage).Processed()
+
+	// when: includeLabels omitted/false (default zero value)
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: false,
+	})
+
+	// then:
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Outputs)
+	for _, output := range result.Outputs {
+		assert.Empty(t, output.Labels, "IncludeLabels=false should leave labels empty")
+	}
+}
+
+func TestListOutputs_IncludeLabels_Internalize(t *testing.T) {
+	// given: internalized output with known labels (transaction-level)
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	internalizeArgs := fixtures.DefaultInternalizeActionArgs(t, wdk.BasketInsertionProtocol)
+	internalizeResult, err := activeStorage.InternalizeAction(ctx, testusers.Alice.AuthID(), internalizeArgs)
+	require.NoError(t, err)
+
+	outpoint := primitives.NewOutpointString(internalizeResult.TxID, 0)
+
+	// when: includeLabels=true
+	result, err := activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: true,
+	})
+	require.NoError(t, err)
+
+	// then: labels from internalize are present on the output
+	output, _ := testutils.FindOutput(t, result.Outputs, func(p *wdk.WalletOutput) bool {
+		return p.Outpoint == outpoint
+	})
+	require.NotNil(t, output)
+	for _, label := range internalizeArgs.Labels {
+		assert.Contains(t, output.Labels, label)
+	}
+
+	// when: includeLabels=false
+	result, err = activeStorage.ListOutputs(ctx, testusers.Alice.AuthID(), wdk.ListOutputsArgs{
+		Limit:         100,
+		IncludeLabels: false,
+	})
+	require.NoError(t, err)
+
+	// then: labels are empty
+	output, _ = testutils.FindOutput(t, result.Outputs, func(p *wdk.WalletOutput) bool {
+		return p.Outpoint == outpoint
+	})
+	require.NotNil(t, output)
+	assert.Empty(t, output.Labels)
 }

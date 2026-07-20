@@ -539,6 +539,8 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 		}
 
+		query = applyListActionsTimeFilters(query, filter)
+
 		if err = query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
@@ -578,6 +580,8 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 	if len(filter.Labels) > 0 {
 		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
 	}
+
+	query = applyListActionsTimeFilters(query, filter)
 
 	return query.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
 }
