@@ -1,7 +1,6 @@
 package validate
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
@@ -16,14 +15,14 @@ func ProveCertificateArgs(args sdk.ProveCertificateArgs) error {
 	}
 
 	if len(cert.Type) != 0 {
-		str := primitives.Base64String(cert.Type.Base64())
+		str := primitives.Base64String(primitives.EncodeBytes32Base64([32]byte(cert.Type)))
 		if err := str.Validate(); err != nil {
 			return fmt.Errorf("invalid certificate type: base64 encoded validation check: %w", err)
 		}
 	}
 
 	if len(cert.SerialNumber) != 0 {
-		str := primitives.Base64String(base64.StdEncoding.EncodeToString(cert.SerialNumber[:]))
+		str := primitives.Base64String(primitives.EncodeBytes32Base64([32]byte(cert.SerialNumber)))
 		if err := str.Validate(); err != nil {
 			return fmt.Errorf("invalid certificate serial number: base64 encoded validation check: %w", err)
 		}

@@ -17,6 +17,113 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
+// TestProcessSyncChunkPopulatesProvenTxIDMap verifies issue #852:
+// processSyncChunk must populate SyncMap idMap entries for provenTx and provenTxReq
+// so transaction.provenTxId round-trips correctly across storages.
+func TestProcessSyncChunkPopulatesProvenTxIDMap(t *testing.T) {
+	// given:
+	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)
+	defer cleanup()
+
+	sourceProvider := givenSourceDB.Provider().GORM()
+	sourceStorageManager := givenSourceDB.StorageManagerForUser(testusers.Alice, sourceProvider)
+
+	seed := givenSourceDB.SeedDB(sourceProvider, testusers.Alice)
+	ownedMinedTx := seed.OwnsMinedTransaction()
+	ownedUnminedTx := seed.OwnsTransaction()
+
+	// Capture reader-side numeric IDs from the source storage chunk.
+	sourceArgs := givenSourceDB.RequestSyncChunk(testusers.Alice).Args()
+	sourceChunk, err := sourceProvider.GetSyncChunk(t.Context(), sourceArgs)
+	require.NoError(t, err)
+	require.NotEmpty(t, sourceChunk.ProvenTxs, "expected at least one provenTx (mined)")
+	require.NotEmpty(t, sourceChunk.ProvenTxReqs, "expected at least one provenTxReq (unmined)")
+
+	sourceProvenTxIDs := map[string]int{}
+	for _, pt := range sourceChunk.ProvenTxs {
+		sourceProvenTxIDs[pt.TxID] = pt.ProvenTxID
+	}
+	sourceProvenTxReqIDs := map[string]int{}
+	for _, ptr := range sourceChunk.ProvenTxReqs {
+		sourceProvenTxReqIDs[ptr.TxID] = ptr.ProvenTxReqID
+	}
+	require.Contains(t, sourceProvenTxIDs, ownedMinedTx.ID().String())
+	require.Contains(t, sourceProvenTxReqIDs, ownedUnminedTx.ID().String())
+
+	// and:
+	givenBackupDB, cleanup := testabilities.GivenCustomStorage(t, fixtures.SecondStorageServerPrivKey, fixtures.SecondStorageName)
+	defer cleanup()
+	backupProvider := givenBackupDB.Provider().GORMWithCleanDatabase()
+
+	// when:
+	_, err = sourceStorageManager.MakeAvailable(t.Context())
+	require.NoError(t, err)
+	_, _, err = sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
+	require.NoError(t, err)
+
+	// then: writer-side sync state has populated provenTx / provenTxReq idMaps
+	userOnWriter, err := backupProvider.FindOrInsertUser(t.Context(), testusers.Alice.IdentityKey(t))
+	require.NoError(t, err)
+	writerAuth := wdk.AuthID{
+		IdentityKey: testusers.Alice.IdentityKey(t),
+		UserID:      to.Ptr(userOnWriter.User.UserID),
+	}
+
+	syncStateResp, err := backupProvider.FindOrInsertSyncStateAuth(
+		t.Context(),
+		writerAuth,
+		fixtures.StorageIdentityKey,
+		fixtures.StorageName,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, syncStateResp.SyncState)
+
+	syncMap, err := wdk.NewSyncMapFromJSON([]byte(syncStateResp.SyncState.SyncMap))
+	require.NoError(t, err)
+
+	provenTxEntity := syncMap[wdk.ProvenTxEntityName]
+	require.NotNil(t, provenTxEntity, "provenTx sync map entity must exist")
+	require.NotEmpty(t, provenTxEntity.IDMap, "provenTx idMap must be populated (issue #852)")
+
+	provenTxReqEntity := syncMap[wdk.ProvenTxReqEntityName]
+	require.NotNil(t, provenTxReqEntity, "provenTxReq sync map entity must exist")
+	require.NotEmpty(t, provenTxReqEntity.IDMap, "provenTxReq idMap must be populated (issue #852)")
+
+	// and: every reader-side provenTx / provenTxReq ID is mapped to a positive writer ID
+	for txID, readerID := range sourceProvenTxIDs {
+		writerID, ok := provenTxEntity.IDMap[readerID]
+		require.Truef(t, ok, "provenTx idMap missing readerID %d for tx %s", readerID, txID)
+		require.Positivef(t, writerID, "provenTx writerID for readerID %d must be > 0", readerID)
+	}
+	for txID, readerID := range sourceProvenTxReqIDs {
+		writerID, ok := provenTxReqEntity.IDMap[readerID]
+		require.Truef(t, ok, "provenTxReq idMap missing readerID %d for tx %s", readerID, txID)
+		require.Positivef(t, writerID, "provenTxReq writerID for readerID %d must be > 0", readerID)
+	}
+
+	// and: writer-side GetSyncChunk IDs match the idMap values (full round-trip)
+	backupArgs := fixtures.DefaultRequestSyncChunkArgs(
+		testusers.Alice.IdentityKey(t),
+		fixtures.SecondStorageIdentityKey,
+		fixtures.StorageIdentityKey,
+	)
+	backupChunk, err := backupProvider.GetSyncChunk(t.Context(), backupArgs)
+	require.NoError(t, err)
+
+	for _, pt := range backupChunk.ProvenTxs {
+		readerID, ok := sourceProvenTxIDs[pt.TxID]
+		require.Truef(t, ok, "unexpected provenTx %s on writer", pt.TxID)
+		assert.Equalf(t, pt.ProvenTxID, provenTxEntity.IDMap[readerID],
+			"writer provenTxID for %s should equal idMap[%d]", pt.TxID, readerID)
+	}
+	for _, ptr := range backupChunk.ProvenTxReqs {
+		readerID, ok := sourceProvenTxReqIDs[ptr.TxID]
+		require.Truef(t, ok, "unexpected provenTxReq %s on writer", ptr.TxID)
+		assert.Equalf(t, ptr.ProvenTxReqID, provenTxReqEntity.IDMap[readerID],
+			"writer provenTxReqID for %s should equal idMap[%d]", ptr.TxID, readerID)
+	}
+}
+
 func TestSyncProcess(t *testing.T) {
 	// given:
 	givenSourceDB, cleanup := testabilities.GivenSyncFixture(t)

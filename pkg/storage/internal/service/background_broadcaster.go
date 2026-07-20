@@ -130,7 +130,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 		if len(res.Errors) > 0 {
 			broadcastError := &wdk.CurrentTxError{
 				CompetingTxs: res.CompetingTxs,
-				Errors:       res.Errors,
+				Errors:       map[string]error(res.Errors),
 			}
 			msg.Error = broadcastError
 		}

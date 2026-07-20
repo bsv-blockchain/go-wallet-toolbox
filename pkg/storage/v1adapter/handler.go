@@ -319,7 +319,7 @@ func (h *Handler) createAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var args wdk.ValidCreateActionArgs
-	if err := json.Unmarshal(argsRaw, &args); err != nil { //nolint:musttag // wdk.OutPoint (nested) has no JSON tags; decoded by wdk package conventions.
+	if err := json.Unmarshal(argsRaw, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid args for createAction")
 		return
 	}

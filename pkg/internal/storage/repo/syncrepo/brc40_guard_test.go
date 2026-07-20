@@ -32,7 +32,7 @@ func TestBRC40Guard_KnownTx_StaleSkip(t *testing.T) {
 	var blockHeight uint32 = 845123
 
 	// Seed newer (proven) record
-	isNew, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	isNew, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:   tNewer,
 		UpdatedAt:   tNewer,
 		TxID:        txID,
@@ -46,7 +46,7 @@ func TestBRC40Guard_KnownTx_StaleSkip(t *testing.T) {
 	require.True(t, isNew)
 
 	// Stale incoming: older updated_at, attempts to overwrite with unknown/no-merkle
-	isNew, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	isNew, _, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:  tStale,
 		UpdatedAt:  tStale,
 		TxID:       txID,
@@ -86,7 +86,7 @@ func TestBRC40Guard_KnownTx_EqualSkip(t *testing.T) {
 	blockHash := "hash-equal"
 	var blockHeight uint32 = 100
 
-	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:   t0,
 		UpdatedAt:   t0,
 		TxID:        txID,
@@ -99,7 +99,7 @@ func TestBRC40Guard_KnownTx_EqualSkip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Equal updated_at — strict `>` boundary: MUST skip
-	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:  t0,
 		UpdatedAt:  t0,
 		TxID:       txID,
@@ -125,7 +125,7 @@ func TestBRC40Guard_KnownTx_HappyUpdate(t *testing.T) {
 	tNew := time.Date(2026, 4, 23, 13, 0, 0, 0, time.UTC)
 	txID := "0011223344556677889900aabbccddeeff00112233445566778899aabbccddee"
 
-	_, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: tOld,
 		UpdatedAt: tOld,
 		TxID:      txID,
@@ -137,7 +137,7 @@ func TestBRC40Guard_KnownTx_HappyUpdate(t *testing.T) {
 	merkleRoot := "root"
 	blockHash := "hash"
 	var blockHeight uint32 = 10
-	_, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	_, _, err = repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt:   tOld,
 		UpdatedAt:   tNew,
 		TxID:        txID,

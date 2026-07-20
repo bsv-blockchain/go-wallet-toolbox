@@ -82,7 +82,12 @@ func (l *listActions) ListActions(ctx context.Context, auth wdk.AuthID, args *wd
 		return nil, fmt.Errorf("failed to load raw transactions: %w", err)
 	}
 
-	if err := l.mapInputsOutputsLabels(actions, txs, inputMap, outputMap, labelMap, rawTxMap, args); err != nil {
+	if err := l.mapInputsOutputsLabels(actions, txs, mapActionDetails{
+		inputMap:  inputMap,
+		outputMap: outputMap,
+		labelMap:  labelMap,
+		rawTxMap:  rawTxMap,
+	}, args, filter.TimeFilterRequested); err != nil {
 		return nil, fmt.Errorf("failed to map inputs/outputs/labels: %w", err)
 	}
 
