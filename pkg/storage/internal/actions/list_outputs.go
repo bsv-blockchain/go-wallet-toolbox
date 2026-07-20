@@ -40,7 +40,6 @@ func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo Kno
 }
 
 func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
-	// TODO: Handle args.KnownTxids
 	// TODO: Handle args.IncludeLabels
 
 	userID := *auth.UserID
