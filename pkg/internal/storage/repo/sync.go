@@ -16,6 +16,9 @@ type Sync struct {
 	*syncrepo.SyncLabelMap
 	*syncrepo.SyncTag
 	*syncrepo.SyncTagMap
+	*syncrepo.SyncCertificate
+	*syncrepo.SyncCertificateField
+	*syncrepo.SyncCommission
 
 	db *gorm.DB
 }
@@ -24,13 +27,16 @@ func NewSync(db *gorm.DB, query *genquery.Query) *Sync {
 	return &Sync{
 		db: db,
 
-		SyncBasket:      syncrepo.NewSyncBasket(db, query),
-		SyncKnownTx:     syncrepo.NewSyncKnownTx(db, query),
-		SyncTransaction: syncrepo.NewSyncTransaction(db, query),
-		SyncOutput:      syncrepo.NewSyncOutput(db, query),
-		SyncLabel:       syncrepo.NewSyncLabel(db, query),
-		SyncLabelMap:    syncrepo.NewSyncLabelMap(db, query),
-		SyncTag:         syncrepo.NewSyncTag(db, query),
-		SyncTagMap:      syncrepo.NewSyncTagMap(db, query),
+		SyncBasket:           syncrepo.NewSyncBasket(db, query),
+		SyncKnownTx:          syncrepo.NewSyncKnownTx(db, query),
+		SyncTransaction:      syncrepo.NewSyncTransaction(db, query),
+		SyncOutput:           syncrepo.NewSyncOutput(db, query),
+		SyncLabel:            syncrepo.NewSyncLabel(db, query),
+		SyncLabelMap:         syncrepo.NewSyncLabelMap(db, query),
+		SyncTag:              syncrepo.NewSyncTag(db, query),
+		SyncTagMap:           syncrepo.NewSyncTagMap(db, query),
+		SyncCertificate:      syncrepo.NewSyncCertificate(db, query),
+		SyncCertificateField: syncrepo.NewSyncCertificateField(db, query),
+		SyncCommission:       syncrepo.NewSyncCommission(db, query),
 	}
 }

@@ -141,6 +141,24 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 		}
 	}
 
+	for _, certificate := range p.chunk.Certificates {
+		if err = p.upsertCertificate(certificate); err != nil {
+			return nil, fmt.Errorf("failed to upsert certificate: %w", err)
+		}
+	}
+
+	for _, certificateField := range p.chunk.CertificateFields {
+		if err = p.upsertCertificateField(certificateField); err != nil {
+			return nil, fmt.Errorf("failed to upsert certificate field: %w", err)
+		}
+	}
+
+	for _, commission := range p.chunk.Commissions {
+		if err = p.upsertCommission(commission); err != nil {
+			return nil, fmt.Errorf("failed to upsert commission: %w", err)
+		}
+	}
+
 	p.logger.DebugContext(p.ctx, "updating sync state on chunk processed")
 	err = p.repo.UpdateSyncState(p.ctx, p.syncState)
 	if err != nil {
@@ -660,6 +678,144 @@ func (p *ChunkProcessor) upsertTagMap(chunkTagMap *wdk.TableOutputTagMap) error 
 	return nil
 }
 
+func (p *ChunkProcessor) upsertCertificate(chunkCertificate *wdk.TableCertificate) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkCertificate.UserID {
+		return fmt.Errorf("chunk certificate user ID %d does not match chunk user ID %d", chunkCertificate.UserID, p.chunk.User.UserID)
+	}
+
+	p.logger.DebugContext(p.ctx, "upserting certificate",
+		slog.String("serialNumber", string(chunkCertificate.SerialNumber)),
+		slog.String("certifier", string(chunkCertificate.Certifier)),
+	)
+
+	verifier := ""
+	if chunkCertificate.Verifier != nil {
+		verifier = string(*chunkCertificate.Verifier)
+	}
+
+	isNew, certificateID, err := p.repo.UpsertCertificateForSync(p.ctx, &pkgentity.Certificate{
+		CreatedAt:          chunkCertificate.CreatedAt,
+		UpdatedAt:          chunkCertificate.UpdatedAt,
+		UserID:             p.user.ID,
+		Type:               string(chunkCertificate.Type),
+		SerialNumber:       string(chunkCertificate.SerialNumber),
+		Certifier:          string(chunkCertificate.Certifier),
+		Subject:            string(chunkCertificate.Subject),
+		Verifier:           verifier,
+		RevocationOutpoint: string(chunkCertificate.RevocationOutpoint),
+		Signature:          string(chunkCertificate.Signature),
+		IsDeleted:          chunkCertificate.IsDeleted,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert certificate %q: %w", chunkCertificate.SerialNumber, err)
+	}
+
+	readerID, err := to.IntFromUnsigned(chunkCertificate.CertificateID)
+	if err != nil {
+		return fmt.Errorf("failed to convert certificate ID %d to int: %w", chunkCertificate.CertificateID, err)
+	}
+
+	p.incrementOperations(isNew)
+	err = p.updateSyncState(wdk.CertificateEntityName, chunkCertificate.UpdatedAt, idDictionary{
+		readerID: readerID,
+		writerID: certificateID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for certificate %q: %w", chunkCertificate.SerialNumber, err)
+	}
+
+	return nil
+}
+
+func (p *ChunkProcessor) upsertCertificateField(chunkField *wdk.TableCertificateField) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkField.UserID {
+		return fmt.Errorf("chunk certificate field user ID %d does not match chunk user ID %d", chunkField.UserID, p.chunk.User.UserID)
+	}
+
+	p.logger.DebugContext(p.ctx, "upserting certificate field",
+		logging.Number("certificateID", chunkField.CertificateID),
+		slog.String("fieldName", chunkField.FieldName),
+	)
+
+	certificateIDOnWriterSide, err := translateID(p, wdk.CertificateEntityName, chunkField.CertificateID)
+	if err != nil {
+		return fmt.Errorf("failed to translate certificate ID %d: %w", chunkField.CertificateID, err)
+	}
+
+	isNew, err := p.repo.UpsertCertificateFieldForSync(p.ctx, &pkgentity.CertificateField{
+		CreatedAt:     chunkField.CreatedAt,
+		UpdatedAt:     chunkField.UpdatedAt,
+		UserID:        p.user.ID,
+		CertificateID: certificateIDOnWriterSide,
+		FieldName:     chunkField.FieldName,
+		FieldValue:    chunkField.FieldValue,
+		MasterKey:     string(chunkField.MasterKey),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert certificate field %q for certificate ID %d: %w", chunkField.FieldName, chunkField.CertificateID, err)
+	}
+
+	// certificateField has no ID map (see wdk.SyncMapEntity comment).
+	p.incrementOperations(isNew)
+	err = p.updateSyncState(wdk.CertificateFieldEntityName, chunkField.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for certificate field %q: %w", chunkField.FieldName, err)
+	}
+
+	return nil
+}
+
+func (p *ChunkProcessor) upsertCommission(chunkCommission *wdk.TableCommission) error {
+	if p.chunk.User != nil && p.chunk.User.UserID != chunkCommission.UserID {
+		return fmt.Errorf("chunk commission user ID %d does not match chunk user ID %d", chunkCommission.UserID, p.chunk.User.UserID)
+	}
+
+	p.logger.DebugContext(p.ctx, "upserting commission",
+		logging.Number("commissionID", chunkCommission.CommissionID),
+		logging.Number("transactionID", chunkCommission.TransactionID),
+	)
+
+	transactionIDOnWriterSide, err := translateID(p, wdk.TransactionEntityName, chunkCommission.TransactionID)
+	if err != nil {
+		return fmt.Errorf("failed to translate transaction ID %d: %w", chunkCommission.TransactionID, err)
+	}
+
+	satoshis, err := to.UInt64(chunkCommission.Satoshis)
+	if err != nil {
+		return fmt.Errorf("failed to convert commission satoshis %d to uint64: %w", chunkCommission.Satoshis, err)
+	}
+
+	isNew, commissionID, err := p.repo.UpsertCommissionForSync(p.ctx, &pkgentity.Commission{
+		CreatedAt:     chunkCommission.CreatedAt,
+		UpdatedAt:     chunkCommission.UpdatedAt,
+		UserID:        p.user.ID,
+		TransactionID: transactionIDOnWriterSide,
+		Satoshis:      satoshis,
+		KeyOffset:     chunkCommission.KeyOffset,
+		IsRedeemed:    chunkCommission.IsRedeemed,
+		LockingScript: []byte(chunkCommission.LockingScript),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert commission for transaction ID %d: %w", chunkCommission.TransactionID, err)
+	}
+
+	readerID, err := to.IntFromUnsigned(chunkCommission.CommissionID)
+	if err != nil {
+		return fmt.Errorf("failed to convert commission ID %d to int: %w", chunkCommission.CommissionID, err)
+	}
+
+	p.incrementOperations(isNew)
+	err = p.updateSyncState(wdk.CommissionEntityName, chunkCommission.UpdatedAt, idDictionary{
+		readerID: readerID,
+		writerID: commissionID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update sync state for commission %d: %w", chunkCommission.CommissionID, err)
+	}
+
+	return nil
+}
+
 func (p *ChunkProcessor) incrementOperations(isCreateOperation bool) {
 	if isCreateOperation {
 		p.result.Inserts++
@@ -708,7 +864,10 @@ func (p *ChunkProcessor) emptyChunk() bool {
 		len(p.chunk.TxLabels) == 0 &&
 		len(p.chunk.TxLabelMaps) == 0 &&
 		len(p.chunk.OutputTags) == 0 &&
-		len(p.chunk.OutputTagMaps) == 0
+		len(p.chunk.OutputTagMaps) == 0 &&
+		len(p.chunk.Certificates) == 0 &&
+		len(p.chunk.CertificateFields) == 0 &&
+		len(p.chunk.Commissions) == 0
 }
 
 func (p *ChunkProcessor) getBasketNameByNumID(basketNumID uint) (string, error) {

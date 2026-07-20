@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -118,7 +119,11 @@ func TestGetSyncChunk(t *testing.T) {
 		WithOutputTag(chunk.Outputs[10].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(1)).
 		WithOutputTag(chunk.Outputs[11].OutputID, fixtures.CreateActionTestTag, fixtures.FaucetTag(0))
 
-	// TODO: Remember to add more assertions for other entities when implemented
+	// certificates / certificate fields / commissions are empty in this seed
+	// (no certs or commissions created by OwnsTransaction fixtures).
+	require.Empty(t, chunk.Certificates)
+	require.Empty(t, chunk.CertificateFields)
+	require.Empty(t, chunk.Commissions)
 }
 
 func TestGetSyncChunkNoOffsets(t *testing.T) {

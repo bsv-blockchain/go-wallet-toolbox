@@ -54,6 +54,10 @@ type ValidSyncChunkAssertion interface {
 	TagsCount(length int) ValidSyncChunkAssertion
 	TagsMapCount(length int) ValidSyncChunkAssertion
 	WithOutputTag(outputID uint, tags ...string) ValidSyncChunkAssertion
+
+	CertificatesCount(length int) ValidSyncChunkAssertion
+	CertificateFieldsCount(length int) ValidSyncChunkAssertion
+	CommissionsCount(length int) ValidSyncChunkAssertion
 }
 
 type BasketAssertion interface {
@@ -173,6 +177,27 @@ func (s *syncChunkAssertion) AllCountZero() ValidSyncChunkAssertion {
 	s.LabelsMapCount(0)
 	s.TagsCount(0)
 	s.TagsMapCount(0)
+	s.CertificatesCount(0)
+	s.CertificateFieldsCount(0)
+	s.CommissionsCount(0)
+	return s
+}
+
+func (s *syncChunkAssertion) CertificatesCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	require.Len(s, s.chunk.Certificates, length)
+	return s
+}
+
+func (s *syncChunkAssertion) CertificateFieldsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	require.Len(s, s.chunk.CertificateFields, length)
+	return s
+}
+
+func (s *syncChunkAssertion) CommissionsCount(length int) ValidSyncChunkAssertion {
+	s.Helper()
+	require.Len(s, s.chunk.Commissions, length)
 	return s
 }
 
