@@ -26,7 +26,7 @@ func TestKnownTxNotify_UpsertPersistsOpaquePayload(t *testing.T) {
 	txID := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 	notifyPayload := `{"transactionIds":[42,99],"origin":"js-wallet"}`
 
-	isNew, _, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
+	isNew, _, err := repos.UpsertKnownTxForSync(t.Context(), &entity.KnownTx{
 		CreatedAt: t0,
 		UpdatedAt: t0,
 		TxID:      txID,
