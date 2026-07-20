@@ -29,6 +29,7 @@ type StorageProviderResponses struct {
 	RelinquishOutput      StorageProviderMethodOnlyErrorResponse
 	ListCertificates      StorageProviderMethodResponse[*wdk.ListCertificatesResult]
 	ListOutputs           StorageProviderMethodResponse[*wdk.ListOutputsResult]
+	GetBalance            StorageProviderMethodResponse[uint64]
 }
 
 type StorageProviderMethodOnlyErrorResponse struct {
@@ -121,6 +122,7 @@ func ExpectNoInteraction() func(*StorageProviderResponses) {
 		responses.RelinquishOutput.times(zero)
 		responses.ListCertificates.times(zero)
 		responses.ListOutputs.times(zero)
+		responses.GetBalance.times(zero)
 	}
 }
 
@@ -138,6 +140,7 @@ func SetupMockStorageProvider(t testing.TB, provider *MockWalletStorageProvider,
 	responses.RelinquishOutput.limitCallTimes(provider.EXPECT().RelinquishOutput(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.RelinquishOutput.result()))
 	responses.ListCertificates.limitCallTimes(provider.EXPECT().ListCertificates(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.ListCertificates.result()))
 	responses.ListOutputs.limitCallTimes(provider.EXPECT().ListOutputs(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.ListOutputs.result()))
+	responses.GetBalance.limitCallTimes(provider.EXPECT().GetBalance(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.GetBalance.result()))
 }
 
 func DefaultResponses(t testing.TB) StorageProviderResponses {
@@ -289,6 +292,9 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 					},
 				},
 			},
+		},
+		GetBalance: StorageProviderMethodResponse[uint64]{
+			Success: 0,
 		},
 	}
 }

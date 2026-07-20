@@ -59,4 +59,8 @@ type WalletStorageBasic interface {
 	// ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
 	// @Read
 	ListTransactions(ctx context.Context, args ListTransactionsArgs) (*ListTransactionsResult, error)
+	// GetBalance returns total spendable satoshis in the given basket for the authenticated user.
+	// Empty basket defaults to BasketNameForChange ("default").
+	// @Read
+	GetBalance(ctx context.Context, basket string) (uint64, error)
 }

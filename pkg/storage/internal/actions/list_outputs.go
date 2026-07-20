@@ -48,19 +48,10 @@ func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wd
 	}()
 
 	if specops.IsWalletBalanceSpecOp(string(args.Basket)) {
-		balanceFilter := entity.ListOutputsFilter{
-			UserID: userID,
-			Basket: "default",
-			Limit:  -1,
-		}
-		var outputModels []*pkgentity.Output
-		outputModels, _, err = l.outputsRepo.ListAndCountOutputs(ctx, balanceFilter)
-		if err != nil {
-			return nil, fmt.Errorf("error listing outputs for balance: %w", err)
-		}
 		var totalSatoshis uint64
-		for _, o := range outputModels {
-			totalSatoshis += must.ConvertToUInt64(o.Satoshis)
+		totalSatoshis, err = sumSpendableBasketSatoshis(ctx, l.outputsRepo, userID, wdk.BasketNameForChange)
+		if err != nil {
+			return nil, err
 		}
 		return &wdk.ListOutputsResult{
 			TotalOutputs: primitives.PositiveInteger(totalSatoshis),

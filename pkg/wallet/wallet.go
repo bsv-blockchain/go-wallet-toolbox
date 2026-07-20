@@ -604,6 +604,22 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 	return mappedResult, nil
 }
 
+// Balance returns the total spendable satoshis in the wallet's default change basket.
+func (w *Wallet) Balance(ctx context.Context) (balance uint64, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Wallet-Balance")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	w.logger.DebugContext(ctx, "Balance call")
+
+	balance, err = w.storage.GetBalance(ctx, wdk.BasketNameForChange)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get wallet's balance: %w", err)
+	}
+	return balance, nil
+}
+
 // RelinquishOutput relinquishes an output from a basket, removing it from tracking without spending it.
 func (w *Wallet) RelinquishOutput(ctx context.Context, args sdk.RelinquishOutputArgs, originator string) (*sdk.RelinquishOutputResult, error) {
 	var err error
