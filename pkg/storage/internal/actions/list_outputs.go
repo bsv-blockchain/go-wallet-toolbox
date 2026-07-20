@@ -40,8 +40,6 @@ func newListOutputs(logger *slog.Logger, outputsRepo OutputRepo, knownTxRepo Kno
 }
 
 func (l *listOutputs) ListOutputs(ctx context.Context, auth wdk.AuthID, args *wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error) {
-	// TODO: Handle args.KnownTxids
-
 	userID := *auth.UserID
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "StorageActions-ListOutputs", attribute.Int("userID", userID))
