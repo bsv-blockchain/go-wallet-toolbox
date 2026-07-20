@@ -36,7 +36,7 @@ func TestUpsertCertificateForSync_CreateUpdateAndStaleSkip(t *testing.T) {
 		Type:               fixtures.TypeField,
 		SerialNumber:       fixtures.SerialNumber,
 		Certifier:          fixtures.Certifier,
-		Subject:            string(testusers.Alice.PubKey(t)),
+		Subject:            testusers.Alice.PubKey(t),
 		RevocationOutpoint: fixtures.RevocationOutpoint,
 		Signature:          fixtures.Signature,
 	})
@@ -162,7 +162,7 @@ func TestUpsertCertificateFieldForSync_CreateUpdateAndStaleSkip(t *testing.T) {
 		Type:               fixtures.TypeField,
 		SerialNumber:       fixtures.SerialNumber,
 		Certifier:          fixtures.Certifier,
-		Subject:            string(testusers.Alice.PubKey(t)),
+		Subject:            testusers.Alice.PubKey(t),
 		RevocationOutpoint: fixtures.RevocationOutpoint,
 		Signature:          fixtures.Signature,
 	})

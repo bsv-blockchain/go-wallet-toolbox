@@ -105,7 +105,7 @@ func TestSyncProcess_CertificatesAndFields(t *testing.T) {
 
 	inserts, updates, err := sourceStorageManager.SyncToWriter(t.Context(), backupProvider)
 	require.NoError(t, err)
-	assert.Greater(t, inserts, 0)
+	assert.Positive(t, inserts)
 	_ = updates
 
 	// Verify certificate landed on backup via ListCertificates.
@@ -166,5 +166,5 @@ func TestProcessSyncChunk_CertOnlyDoesNotMarkDone(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.False(t, result.Done, "cert-only chunk must not mark sync done")
-	require.Greater(t, result.Inserts, 0)
+	require.Positive(t, result.Inserts)
 }
