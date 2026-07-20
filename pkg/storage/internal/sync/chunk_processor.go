@@ -213,7 +213,7 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		return fmt.Errorf("failed to get history notes for TxID %q: %w", chunkProvenTxReq.TxID, err)
 	}
 
-	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
+	isNew, knownTxNumID, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
 		CreatedAt:           chunkProvenTxReq.CreatedAt,
 		UpdatedAt:           chunkProvenTxReq.UpdatedAt,
 		TxID:                chunkProvenTxReq.TxID,
@@ -222,6 +222,7 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		WasBroadcast:        chunkProvenTxReq.WasBroadcast || chunkProvenTxReq.Status.WasBroadcastStatus(),
 		RebroadcastAttempts: chunkProvenTxReq.RebroadcastAttempts,
 		Notified:            chunkProvenTxReq.Notified,
+		Notify:              chunkProvenTxReq.Notify,
 		RawTx:               chunkProvenTxReq.RawTx,
 		InputBEEF:           chunkProvenTxReq.InputBEEF,
 		TxNotes:             historyNotes,
@@ -231,7 +232,10 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 	}
 
 	p.incrementOperations(isNew)
-	err = p.updateSyncState(wdk.ProvenTxReqEntityName, chunkProvenTxReq.UpdatedAt)
+	err = p.updateSyncState(wdk.ProvenTxReqEntityName, chunkProvenTxReq.UpdatedAt, idDictionary{
+		readerID: chunkProvenTxReq.ProvenTxReqID,
+		writerID: knownTxNumID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update sync state for proven tx req %q: %w", chunkProvenTxReq.TxID, err)
 	}
@@ -266,7 +270,7 @@ func (p *ChunkProcessor) getHistoryNotes(txID, encoded string) ([]*pkgentity.TxH
 func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {
 	p.logger.DebugContext(p.ctx, "upserting proven tx", slog.String("txid", chunkProvenTx.TxID))
 
-	isNew, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
+	isNew, knownTxNumID, err := p.repo.UpsertKnownTxForSync(p.ctx, &pkgentity.KnownTx{
 		CreatedAt:   chunkProvenTx.CreatedAt,
 		UpdatedAt:   chunkProvenTx.UpdatedAt,
 		TxID:        chunkProvenTx.TxID,
@@ -282,7 +286,10 @@ func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error 
 	}
 
 	p.incrementOperations(isNew)
-	err = p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt)
+	err = p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt, idDictionary{
+		readerID: chunkProvenTx.ProvenTxID,
+		writerID: knownTxNumID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update sync state for proven tx %q: %w", chunkProvenTx.TxID, err)
 	}

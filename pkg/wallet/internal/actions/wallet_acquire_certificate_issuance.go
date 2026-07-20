@@ -106,8 +106,8 @@ func PrepareIssuanceActionData(ctx context.Context, p PrepareIssuanceActionDataP
 		masterKeyring[to.String(k)] = to.String(v)
 	}
 
-	// Build certificate signing request
-	certTypeB64 := base64.StdEncoding.EncodeToString(p.Args.Type[:])
+	// Build certificate signing request — trim zero-pad so certifiers see the original short type.
+	certTypeB64 := primitives.EncodeBytes32Base64([32]byte(p.Args.Type))
 	body, err := json.Marshal(&walletcerts.ProtocolIssuanceRequest{
 		Type:          certTypeB64,
 		Nonce:         p.Nonce,
