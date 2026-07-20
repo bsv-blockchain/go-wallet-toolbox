@@ -1,7 +1,6 @@
 package wdk
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
@@ -208,37 +207,21 @@ func parseSignature(s primitives.HexString) (*ec.Signature, error) {
 }
 
 // parseSerialNumber decodes a base64-encoded string into an sdk.SerialNumber.
-// Returns the decoded SerialNumber, or an error if decoding fails.
+// Accepts decoded lengths ≤ 32 (zero-padded), matching the TS SDK Base64String wire format.
 func parseSerialNumber(s string) (sdk.SerialNumber, error) {
-	serialBytes, err := base64.StdEncoding.DecodeString(s)
+	serial, err := primitives.DecodeBytes32Base64(s)
 	if err != nil {
 		return sdk.SerialNumber{}, fmt.Errorf("failed to decode certificate serial number: %w", err)
 	}
-
-	var serial sdk.SerialNumber
-	if len(serialBytes) != len(serial) {
-		return sdk.SerialNumber{}, fmt.Errorf("serial bytes length: %d is not equal to sdk.SerialNumber bytes length: %d", len(serialBytes), len(serial))
-	}
-
-	copy(serial[:], serialBytes)
-
-	return serial, nil
+	return sdk.SerialNumber(serial), nil
 }
 
 // parseCertificationType decodes a base64-encoded string into an sdk.CertificateType.
-// Returns the decoded CertificateType, or an error if decoding fails.
+// Accepts decoded lengths ≤ 32 (zero-padded), matching the TS SDK Base64String wire format.
 func parseCertificationType(s string) (sdk.CertificateType, error) {
-	certBytes, err := base64.StdEncoding.DecodeString(s)
+	certType, err := primitives.DecodeBytes32Base64(s)
 	if err != nil {
 		return sdk.CertificateType{}, fmt.Errorf("failed to decode certificate type: %w", err)
 	}
-
-	var certType sdk.CertificateType
-	if len(certType) != len(certBytes) {
-		return sdk.CertificateType{}, fmt.Errorf("certificate type bytes length: %d is not equal to sdk.CertificateType bytes length: %d", len(certBytes), len(certType))
-	}
-
-	copy(certType[:], certBytes)
-
-	return certType, nil
+	return sdk.CertificateType(certType), nil
 }
