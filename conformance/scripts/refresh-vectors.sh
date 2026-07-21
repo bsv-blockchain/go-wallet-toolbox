@@ -36,7 +36,9 @@ VECTOR_PATHS=(
 )
 
 # Resolve ref → full commit SHA so the pin is immutable.
-SHA="$(curl -sSL \
+# --proto / --proto-redir restrict both the initial request and any redirects
+# to HTTPS (shell:S6506).
+SHA="$(curl --proto '=https' --proto-redir '=https' -sSL \
   -H 'Accept: application/vnd.github+json' \
   "https://api.github.com/repos/${UPSTREAM_REPO}/commits/${REF}" \
   | sed -n 's/^[[:space:]]*"sha":[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p' \
@@ -54,7 +56,7 @@ for path in "${VECTOR_PATHS[@]}"; do
   dest="$ROOT_DIR/$path"
   mkdir -p "$(dirname "$dest")"
   echo "  $path"
-  curl -fsSL "$url" -o "$dest"
+  curl --proto '=https' --proto-redir '=https' -fsSL "$url" -o "$dest"
 done
 
 cat > "$SOURCE_FILE" <<EOF

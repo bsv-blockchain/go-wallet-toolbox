@@ -29,7 +29,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # =============================================================================
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata curl postgresql-client
+RUN apk add --no-cache ca-certificates tzdata curl postgresql-client \
+    && adduser -D -H -u 1000 app
 
 WORKDIR /app
 
@@ -41,11 +42,11 @@ COPY --from=builder /out/infra /app/infra
 COPY infra-config-docker.yaml /app/infra-config.yaml
 
 # Create a data directory (in case any local files are written)
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data \
+    && chown -R app:app /app
 
-# Run as root for development convenience (mounted config files, etc.)
-# For production you can switch to a non-root user.
-# USER 1000
+# Run as non-root to limit container privilege (docker:S6471)
+USER app
 
 EXPOSE 8100
 
