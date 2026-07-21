@@ -97,9 +97,9 @@ func (s *SyncState) UpdateSyncState(ctx context.Context, syncState *entity.SyncS
 	}
 
 	toUpdate := map[string]any{
-		"status":   syncState.Status,
-		"sync_map": syncMapJSON,
-		"when":     syncState.When,
+		"status":  syncState.Status,
+		"syncMap": syncMapJSON,
+		"when":    syncState.When,
 	}
 
 	if syncState.Satoshis != nil {

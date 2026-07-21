@@ -2,8 +2,8 @@ package models
 
 type TxLabelsMap struct {
 	Timestamps
-	TxLabelID     uint `gorm:"column:tx_label_id;primaryKey"`
-	TransactionID uint `gorm:"column:transaction_id;primaryKey"`
+	TxLabelID     uint `gorm:"column:txLabelId;primaryKey"`
+	TransactionID uint `gorm:"column:transactionId;primaryKey;index"`
 	IsDeleted     bool `gorm:"column:isDeleted;default:false"`
 }
 

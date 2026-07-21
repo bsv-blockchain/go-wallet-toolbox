@@ -323,12 +323,10 @@ func TestAbortAction_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
 		Created()
 
 	// and: find the internal transaction row ID to query its outputs
-	txRows, err := activeStorage.TransactionEntity().Read().
-		Reference().Equals(createResult.Reference).
-		Find(t.Context())
+	txRow, err := activeStorage.Repo().FindTransactionByReference(t.Context(), testusers.Alice.ID, createResult.Reference)
 	require.NoError(t, err)
-	require.Len(t, txRows, 1)
-	transactionID := txRows[0].ID
+	require.NotNil(t, txRow)
+	transactionID := txRow.ID
 
 	// when:
 	_, err = activeStorage.AbortAction(
@@ -339,9 +337,7 @@ func TestAbortAction_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
 	require.NoError(t, err)
 
 	// then: outputs created by the aborted TX are all not spendable
-	outputs, err := activeStorage.OutputsEntity().Read().
-		TransactionID().Equals(transactionID).
-		Find(t.Context())
+	outputs, err := activeStorage.Repo().FindOutputsByTransactionID(t.Context(), transactionID)
 	require.NoError(t, err)
 	require.NotEmpty(t, outputs, "expected to find outputs for the aborted transaction")
 

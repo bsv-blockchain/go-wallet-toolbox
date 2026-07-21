@@ -133,7 +133,7 @@ type ProvenTxReq struct {
 
 	ProvenTxID          *uint
 	Status              wdk.ProvenTxReqStatus
-	Attempts            uint32
+	Attempts            uint64
 	Notified            bool
 	TxID                string
 	Batch               *string
@@ -142,7 +142,7 @@ type ProvenTxReq struct {
 	RawTx               []byte
 	InputBEEF           []byte
 	WasBroadcast        bool
-	RebroadcastAttempts uint32
+	RebroadcastAttempts uint64
 }
 
 // ProvenTxReqReadSpecification defines criteria for querying proven tx requests.
@@ -152,7 +152,7 @@ type ProvenTxReqReadSpecification struct {
 	TxIDs               []string
 	IncludeHistoryNotes bool
 	Status              *Comparable[wdk.ProvenTxReqStatus]
-	Attempts            *Comparable[uint32]
+	Attempts            *Comparable[uint64]
 	Notified            *Comparable[bool]
 	Batch               *Comparable[string]
 }

@@ -186,6 +186,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		if o.Basket != nil {
 			name := string(*o.Basket)
 			if _, ok := basketIDMap[name]; !ok {
+				if err := c.basketRepo.FindOrCreateBasket(ctx, userID, name); err != nil {
+					return nil, fmt.Errorf("failed to ensure basket %s exists: %w", name, err)
+				}
 				b, err := c.basketRepo.FindBasketByName(ctx, userID, name)
 				if err != nil {
 					return nil, fmt.Errorf("basket %s not found: %w", name, err)

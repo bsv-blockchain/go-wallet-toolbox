@@ -117,8 +117,9 @@ func TestHandleReorg_MultipleTxsInSameBlock(t *testing.T) {
 	activeStorage := givenProvider.GORM()
 
 	// and: multiple transactions in the same block
-	txSpec1, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
-	txSpec2, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	faucet := given.Faucet(activeStorage, testusers.Alice)
+	txSpec1, _ := faucet.TopUp(100_000)
+	txSpec2, _ := faucet.TopUp(100_000)
 	txID1 := txSpec1.ID().String()
 	txID2 := txSpec2.ID().String()
 
@@ -167,7 +168,7 @@ func TestHandleReorg_MultipleTxsInSameBlock(t *testing.T) {
 		TxNotes(func(then testabilities.TxNotesAssertion) {
 			then.Count(2) // first note from sync, second from reorg
 			then.Note(history.NotifyTxOfProofHistoryNote, nil, map[string]any{
-				"transactionId": uint(1),
+				"transactionId": uint(2),
 			})
 			then.Note(history.ReorgInvalidatedProof, nil, map[string]any{
 				"orhpaned_block_hash": testservices.TestBlockHash,

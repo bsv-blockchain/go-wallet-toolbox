@@ -57,7 +57,27 @@ func (f *funderFixture) UTXO() UserUTXOFixture {
 }
 
 func (f *funderFixture) Save(utxo *models.Output) {
-	err := f.db.DB.Create(&utxo).Error
+	// Create the owning transaction and basket explicitly first and backfill the FKs ourselves:
+	// GORM's belongsTo auto-backfill isn't reliable here once OutputID is set explicitly (as it
+	// is for every UTXO fixture, to keep IDs deterministic across a test's multiple Stored()
+	// calls), and different basket names must resolve to different real basket IDs rather than
+	// all sharing one hardcoded dummy ID.
+	if utxo.Transaction != nil {
+		err := f.db.DB.Create(utxo.Transaction).Error
+		require.NoError(f.t, err)
+		utxo.TransactionID = utxo.Transaction.TransactionID
+		utxo.Transaction = nil
+	}
+
+	if utxo.Basket != nil {
+		basket := utxo.Basket
+		err := f.db.DB.Where("name = ? AND userId = ?", basket.Name, basket.UserID).FirstOrCreate(basket).Error
+		require.NoError(f.t, err)
+		utxo.BasketID = &basket.BasketID
+		utxo.Basket = nil
+	}
+
+	err := f.db.DB.Create(utxo).Error
 	require.NoError(f.t, err)
 	f.createdUTXOs = append(f.createdUTXOs, utxo)
 }

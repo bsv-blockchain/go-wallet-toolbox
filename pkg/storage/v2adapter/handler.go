@@ -21,23 +21,23 @@ import (
 //
 // Routes:
 //
-//	GET  /storage/v2/settings
-//	POST /storage/v2/migrate
-//	POST /storage/v2/users                 (FindOrInsertUser)
-//	POST /storage/v2/actions
-//	POST /storage/v2/actions/process
-//	POST /storage/v2/actions/abort
-//	POST /storage/v2/actions/internalize
-//	POST /storage/v2/list/actions
-//	POST /storage/v2/list/outputs
-//	POST /storage/v2/list/certificates     (ListCertificates)
-//	POST /storage/v2/list/transactions     (ListTransactions)
-//	POST /storage/v2/certificates
-//	POST /storage/v2/certificates/relinquish
-//	POST /storage/v2/outputs/relinquish
-//	POST /storage/v2/sync/active
-//	POST /storage/v2/sync/chunk
-//	POST /storage/v2/sync/state
+//	GET  /storage/v1/settings
+//	POST /storage/v1/migrate
+//	POST /storage/v1/users                 (FindOrInsertUser)
+//	POST /storage/v1/actions
+//	POST /storage/v1/actions/process
+//	POST /storage/v1/actions/abort
+//	POST /storage/v1/actions/internalize
+//	POST /storage/v1/list/actions
+//	POST /storage/v1/list/outputs
+//	POST /storage/v1/list/certificates     (ListCertificates)
+//	POST /storage/v1/list/transactions     (ListTransactions)
+//	POST /storage/v1/certificates
+//	POST /storage/v1/certificates/relinquish
+//	POST /storage/v1/outputs/relinquish
+//	POST /storage/v1/sync/active
+//	POST /storage/v1/sync/chunk
+//	POST /storage/v1/sync/state
 //
 // Request bodies: most mutating endpoints accept their argument struct fields
 // directly at the JSON root (e.g. { "reference": "..." }). Only createAction uses
@@ -61,33 +61,33 @@ func NewHandler(provider wdk.WalletStorageProvider, parentLogger *slog.Logger) h
 	mux := http.NewServeMux()
 
 	// Settings & lifecycle
-	mux.HandleFunc("GET /storage/v2/settings", h.getSettings)
-	mux.HandleFunc("POST /storage/v2/migrate", h.migrate)
-	mux.HandleFunc("POST /storage/v2/users", h.findOrInsertUser)
+	mux.HandleFunc("GET /storage/v1/settings", h.getSettings)
+	mux.HandleFunc("POST /storage/v1/migrate", h.migrate)
+	mux.HandleFunc("POST /storage/v1/users", h.findOrInsertUser)
 
 	// Actions
-	mux.HandleFunc("POST /storage/v2/actions", h.createAction)
-	mux.HandleFunc("POST /storage/v2/actions/process", h.processAction)
-	mux.HandleFunc("POST /storage/v2/actions/abort", h.abortAction)
-	mux.HandleFunc("POST /storage/v2/actions/internalize", h.internalizeAction)
+	mux.HandleFunc("POST /storage/v1/actions", h.createAction)
+	mux.HandleFunc("POST /storage/v1/actions/process", h.processAction)
+	mux.HandleFunc("POST /storage/v1/actions/abort", h.abortAction)
+	mux.HandleFunc("POST /storage/v1/actions/internalize", h.internalizeAction)
 
 	// Lists
-	mux.HandleFunc("POST /storage/v2/list/actions", h.listActions)
-	mux.HandleFunc("POST /storage/v2/list/outputs", h.listOutputs)
-	mux.HandleFunc("POST /storage/v2/list/certificates", h.listCertificates)
-	mux.HandleFunc("POST /storage/v2/list/transactions", h.listTransactions)
+	mux.HandleFunc("POST /storage/v1/list/actions", h.listActions)
+	mux.HandleFunc("POST /storage/v1/list/outputs", h.listOutputs)
+	mux.HandleFunc("POST /storage/v1/list/certificates", h.listCertificates)
+	mux.HandleFunc("POST /storage/v1/list/transactions", h.listTransactions)
 
 	// Certificates
-	mux.HandleFunc("POST /storage/v2/certificates", h.insertCertificate) // or prove/relinquish variants
-	mux.HandleFunc("POST /storage/v2/certificates/relinquish", h.relinquishCertificate)
+	mux.HandleFunc("POST /storage/v1/certificates", h.insertCertificate) // or prove/relinquish variants
+	mux.HandleFunc("POST /storage/v1/certificates/relinquish", h.relinquishCertificate)
 
 	// Outputs
-	mux.HandleFunc("POST /storage/v2/outputs/relinquish", h.relinquishOutput)
+	mux.HandleFunc("POST /storage/v1/outputs/relinquish", h.relinquishOutput)
 
 	// Sync (HTTP shape only — GASP message content is out of scope for this adapter conformance)
-	mux.HandleFunc("POST /storage/v2/sync/active", h.syncActive)
-	mux.HandleFunc("POST /storage/v2/sync/chunk", h.syncChunk)
-	mux.HandleFunc("POST /storage/v2/sync/state", h.syncState)
+	mux.HandleFunc("POST /storage/v1/sync/active", h.syncActive)
+	mux.HandleFunc("POST /storage/v1/sync/chunk", h.syncChunk)
+	mux.HandleFunc("POST /storage/v1/sync/state", h.syncState)
 
 	return mux
 }

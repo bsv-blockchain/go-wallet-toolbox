@@ -25,7 +25,7 @@ type Repository interface {
 	FindProvenTxReqsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTxReq, error)
 	FindProvenTxsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableProvenTx, error)
 	UpsertProvenTxReqForSync(ctx context.Context, entity *pkgentity.ProvenTxReq) (isNew bool, err error)
-	UpsertProvenTxForSync(ctx context.Context, entity *pkgentity.ProvenTx) (isNew bool, err error)
+	UpsertProvenTxForSync(ctx context.Context, entity *pkgentity.ProvenTx) (isNew bool, provenTxID uint, err error)
 
 	FindTransactionsForSync(ctx context.Context, userID int, opts ...queryopts.Options) ([]*wdk.TableTransaction, error)
 	UpsertTransactionForSync(ctx context.Context, entity *pkgentity.Transaction) (isNew bool, transactionID uint, err error)

@@ -339,7 +339,7 @@ func (p *Provider) ListCertificates(ctx context.Context, auth wdk.AuthID, args w
 	}
 
 	opts := queryopts.WithPage(queryopts.Paging{Limit: must.ConvertToIntFromUnsigned(args.Limit), Offset: must.ConvertToIntFromUnsigned(args.Offset), Sort: "asc"})
-	certsCount, err := p.repo.Certificates.CountCertifiers(ctx, spec, opts)
+	certsCount, err := p.repo.Certificates.CountCertifiers(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("error during counting certificates action: %w", err)
 	}

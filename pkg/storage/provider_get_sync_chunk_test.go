@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-softwarelab/common/pkg/to"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
@@ -49,13 +47,15 @@ func TestGetSyncChunk(t *testing.T) {
 	thenChunk.BasketsCount(1).
 		BasketAtIndex(0).WithUserID(testusers.Alice.ID).HasValidID().IsDefaultBasket()
 
-	// and proven tx requests:
-	thenChunk.ProvenTxReqsCount(2)
+	// and proven tx requests: every owned tx gets its own proven_tx_req row (mined or not),
+	// ordered newest-created first: internalizedTx, then ownedTx2, then ownedTx1.
+	thenChunk.ProvenTxReqsCount(3)
 	thenChunk.ProvenTxReqAtIndex(0).
 		WithTxID(internalizedTxID).
 		HasHistoryNotes("internalizeAction", "postBeefSuccess", "postBeefError", "aggregateResults")
 
-	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx1)
+	thenChunk.ProvenTxReqAtIndex(1).AlignsWithTxSpec(ownedTx2)
+	thenChunk.ProvenTxReqAtIndex(2).AlignsWithTxSpec(ownedTx1)
 
 	// and proven txs:
 	thenChunk.ProvenTxsCount(1)
@@ -211,7 +211,7 @@ func TestGetSyncChunkSinceAsPast(t *testing.T) {
 	then.Chunk(chunk).WithoutError(err).
 		WithGeneralInfo(&args).
 		BasketsCount(1).
-		ProvenTxReqsCount(1).
+		ProvenTxReqsCount(2). // one req per owned tx (mined or not)
 		ProvenTxsCount(1).
 		TransactionsCount(2).
 		OutputsCount(2).
@@ -280,13 +280,34 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			ProvenTxsCount(0)
 	})
 
+	// ProvenTxReq and ProvenTx are independently-offset entities (one req row per owned tx: 2
+	// total; one tx row only for the mined one: 1 total), so they're paged one at a time separately.
+	// ProvenTx is synced before ProvenTxReq: a req references its tx by ID, so the tx must be
+	// synced (and its writer-side ID registered) first.
+	t.Run("one by one for provenTxs: 0", func(t *testing.T) {
+		// given:
+		args = argsFixture.
+			WithOffset(wdk.OutputBasketEntityName, 1).
+			WithOffset(wdk.ProvenTxEntityName, 0).
+			Args()
+
+		// when:
+		chunk, err := activeStorage.GetSyncChunk(t.Context(), args)
+
+		// then:
+		thenChunk := then.Chunk(chunk).WithoutError(err)
+		thenChunk.WithGeneralInfo(&args)
+		thenChunk.BasketsCount(0).
+			ProvenTxReqsCount(0).
+			ProvenTxsCount(1)
+	})
+
 	for i := range 2 {
-		mined := i == 0 // first transaction is mined, second is not
-		t.Run(fmt.Sprintf("one by one for provenTxs: %d", i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("one by one for provenTxReqs: %d", i), func(t *testing.T) {
 			// given::
 			args = argsFixture.
-				WithOffset(wdk.OutputBasketEntityName, 1).
-				WithOffset(wdk.ProvenTxEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
+				WithOffset(wdk.ProvenTxEntityName, 1).
+				WithOffset(wdk.ProvenTxReqEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 
 			// when:
@@ -296,8 +317,8 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 			thenChunk := then.Chunk(chunk).WithoutError(err)
 			thenChunk.WithGeneralInfo(&args)
 			thenChunk.BasketsCount(0).
-				ProvenTxsCount(to.IfThen(mined, 1).ElseThen(0)).
-				ProvenTxReqsCount(to.IfThen(!mined, 1).ElseThen(0))
+				ProvenTxReqsCount(1).
+				ProvenTxsCount(0)
 		})
 	}
 
@@ -305,7 +326,8 @@ func TestGetSyncChunkOneByOne(t *testing.T) {
 		t.Run(fmt.Sprintf("one by one for user transactions: %d", i), func(t *testing.T) {
 			// given:
 			args = argsFixture.
-				WithOffset(wdk.ProvenTxEntityName, 2).
+				WithOffset(wdk.ProvenTxReqEntityName, 2).
+				WithOffset(wdk.ProvenTxEntityName, 1).
 				WithOffset(wdk.TransactionEntityName, uint64(i)). //nolint:gosec // test fixture, i is always small
 				Args()
 

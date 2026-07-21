@@ -38,5 +38,9 @@ type Output struct {
 	Transaction        *Transaction `gorm:"foreignKey:TransactionID;references:TransactionID"`
 	SpentByTransaction *Transaction `gorm:"foreignKey:SpentBy;references:TransactionID"`
 
-	Tags []*OutputTag `gorm:"many2many:output_tags_map;joinForeignKey:OutputID;joinReferences:OutputTagID"`
+	// Tags is populated/persisted manually via bsv_output_tags_map (see repo.Outputs) rather than
+	// through a GORM many2many association: GORM's automatic join-table column derivation always
+	// strips explicit `column:` tags and re-derives snake_case names, which cannot represent this
+	// table's required camelCase FK columns (outputId/outputTagId per target-schema.md).
+	Tags []*OutputTag `gorm:"-"`
 }

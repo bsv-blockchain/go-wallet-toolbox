@@ -23,7 +23,11 @@ type Transaction struct {
 
 	Outputs    []*Output   `gorm:"foreignKey:TransactionID;references:TransactionID"`
 	Inputs     []*Output   `gorm:"foreignKey:SpentBy;references:TransactionID"`
-	Labels     []*TxLabel  `gorm:"many2many:tx_labels_map;joinForeignKey:TransactionID;joinReferences:TxLabelID"`
+	// Labels is populated/persisted manually via bsv_tx_labels_map (see repo.Transactions) rather than
+	// through a GORM many2many association: GORM's automatic join-table column derivation always
+	// strips explicit `column:` tags and re-derives snake_case names, which cannot represent this
+	// table's required camelCase FK columns (transactionId/txLabelId per target-schema.md).
+	Labels []*TxLabel `gorm:"-"`
 	Commission *Commission `gorm:"foreignKey:TransactionID"`
 	ProvenTx   *ProvenTx   `gorm:"foreignKey:ProvenTxID"`
 }

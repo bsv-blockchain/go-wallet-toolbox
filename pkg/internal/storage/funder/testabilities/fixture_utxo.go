@@ -95,8 +95,6 @@ func (f *userUtxoFixture) Stored() {
 		return
 	}
 
-	basketId := uint(1) // dummy basket id
-
 	txStatus := wdk.TxStatusUnproven
 	if f.status == wdk.UTXOStatusMined {
 		txStatus = wdk.TxStatusCompleted
@@ -105,11 +103,14 @@ func (f *userUtxoFixture) Stored() {
 	}
 
 	utxo := &models.Output{
-		UserID:             f.userID,
-		OutputID:           f.index,
-		Satoshis:           int64(f.satoshis),
-		BasketID:           &basketId,
-		Spendable:          true,
+		UserID: f.userID,
+		// +1: OutputID is an autoincrement PK starting at 1; using f.index (0-based) directly
+		// would let the first UTXO (index 0) be treated as "unset" and auto-assigned to 1,
+		// colliding with a later UTXO explicitly requesting index 1.
+		OutputID:  f.index + 1,
+		Satoshis:  int64(f.satoshis),
+		Spendable: true,
+		Type:      string(wdk.OutputTypeP2PKH),
 		Basket: &models.OutputBasket{
 			Name:                    f.basket.Name,
 			UserID:                  f.basket.UserID,

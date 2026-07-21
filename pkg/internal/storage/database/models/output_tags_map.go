@@ -2,8 +2,8 @@ package models
 
 type OutputTagsMap struct {
 	Timestamps
-	OutputTagID uint `gorm:"column:output_tag_id;primaryKey"`
-	OutputID    uint `gorm:"column:output_id;primaryKey"`
+	OutputTagID uint `gorm:"column:outputTagId;primaryKey"`
+	OutputID    uint `gorm:"column:outputId;primaryKey;index"`
 	IsDeleted   bool `gorm:"column:isDeleted;default:false"`
 }
 

@@ -108,11 +108,10 @@ func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 	logger := a.logger.With(logging.Number("transactionID", id))
 
 	return a.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
-		logger.DebugContext(txCtx, "Unreserving UTXOs for transaction")
-		if err := repos.UTXORepo().UnreserveUTXOsByTransactionID(txCtx, id); err != nil {
-			return fmt.Errorf("failed to unreserve UTXOs for transaction: %w", err)
-		}
-
+		// NOTE: RecreateSpentOutputs below both restores spendability and clears SpentBy
+		// for outputs consumed by this transaction, so no separate unreserve step is needed
+		// here (running UnreserveUTXOsByTransactionID first would clear SpentBy and make
+		// RecreateSpentOutputs' SpentBy-based lookup match nothing).
 		logger.DebugContext(txCtx, "Recreating spent outputs for transaction")
 		if err := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); err != nil {
 			return fmt.Errorf("failed to recreate spent outputs for transaction: %w", err)

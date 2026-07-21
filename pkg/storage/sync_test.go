@@ -44,7 +44,7 @@ func TestSyncProcess(t *testing.T) {
 
 	// then:
 	require.NoError(t, err)
-	assert.Equal(t, 36, inserts)
+	assert.Equal(t, 37, inserts)
 	assert.Equal(t, 1, updates)
 
 	// and:
@@ -201,12 +201,13 @@ func TestSyncProcessWithManyTransactionsOnSeveralChunks(t *testing.T) {
 	require.NoError(t, err)
 
 	knownTxCount := numberOfTxs
+	provenTxCount := (numberOfTxs + 1) / 2 // PopulateTransactionsBatch mines every other tx (i%2==0)
 	userTxsCount := numberOfTxs
 	outputsCount := numberOfTxs
 	tagsCount := numberOfTxs + 1    // One for the "fixtures.CreateActionTestTag"
 	tagMapsCount := 2 * numberOfTxs // Each transaction has two tags
 
-	allCount := knownTxCount + userTxsCount + outputsCount + tagsCount + tagMapsCount
+	allCount := knownTxCount + provenTxCount + userTxsCount + outputsCount + tagsCount + tagMapsCount
 	assert.Equal(t, allCount, inserts)
 	assert.Equal(t, 1, updates)
 
@@ -459,7 +460,7 @@ func TestSyncProcessWhenLabelAndTagChanges(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 4, inserts)
-	assert.Equal(t, 3, updates)
+	assert.Equal(t, 2, updates)
 
 	// and:
 	thenDBState.HasUserTransactionByReference(testusers.Alice, reference).

@@ -38,7 +38,7 @@ func TestInternalizeCrossUser(t *testing.T) {
 
 		// Verify it's sending
 		var check models.ProvenTxReq
-		err = activeStorage.Database.DB.First(&check, "tx_id = ?", txID).Error
+		err = activeStorage.Database.DB.First(&check, "txid = ?", txID).Error
 		require.NoError(t, err)
 		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status)
 	})
@@ -78,7 +78,7 @@ func TestInternalizeCrossUser(t *testing.T) {
 
 		// Check the global ProvenTxReq status again
 		var check models.ProvenTxReq
-		err = activeStorage.Database.DB.First(&check, "tx_id = ?", txID).Error
+		err = activeStorage.Database.DB.First(&check, "txid = ?", txID).Error
 		require.NoError(t, err)
 
 		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status, "ProvenTxReq was correctly preserved as Sending")

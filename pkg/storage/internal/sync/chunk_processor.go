@@ -90,14 +90,14 @@ func (p *ChunkProcessor) Process() (*wdk.ProcessSyncChunkResult, error) {
 		}
 	}
 
-	for _, provenTxReq := range p.chunk.ProvenTxReqs {
-		if err = p.upsertProvenTxReqs(provenTxReq); err != nil {
+	for _, provenTx := range p.chunk.ProvenTxs {
+		if err = p.upsertProvenTx(provenTx); err != nil {
 			return nil, err
 		}
 	}
 
-	for _, provenTx := range p.chunk.ProvenTxs {
-		if err = p.upsertProvenTx(provenTx); err != nil {
+	for _, provenTxReq := range p.chunk.ProvenTxReqs {
+		if err = p.upsertProvenTxReqs(provenTxReq); err != nil {
 			return nil, err
 		}
 	}
@@ -210,14 +210,24 @@ func (p *ChunkProcessor) upsertProvenTxReqs(chunkProvenTxReq *wdk.TableProvenTxR
 		return fmt.Errorf("failed to get history notes for TxID %q: %w", chunkProvenTxReq.TxID, err)
 	}
 
+	var provenTxID *uint
+	if chunkProvenTxReq.ProvenTxID != nil {
+		provenTxIDOnWriterSide, err := translateID(p, wdk.ProvenTxEntityName, *chunkProvenTxReq.ProvenTxID)
+		if err != nil {
+			return fmt.Errorf("failed to translate proven tx ID %d: %w", *chunkProvenTxReq.ProvenTxID, err)
+		}
+		provenTxID = &provenTxIDOnWriterSide
+	}
+
 	isNew, err := p.repo.UpsertProvenTxReqForSync(p.ctx, &pkgentity.ProvenTxReq{
 		CreatedAt:           chunkProvenTxReq.CreatedAt,
 		UpdatedAt:           chunkProvenTxReq.UpdatedAt,
+		ProvenTxID:          provenTxID,
 		TxID:                chunkProvenTxReq.TxID,
 		Status:              chunkProvenTxReq.Status,
-		Attempts:            uint32(chunkProvenTxReq.Attempts),
+		Attempts:            chunkProvenTxReq.Attempts,
 		WasBroadcast:        chunkProvenTxReq.WasBroadcast || chunkProvenTxReq.Status.WasBroadcastStatus(),
-		RebroadcastAttempts: uint32(chunkProvenTxReq.RebroadcastAttempts),
+		RebroadcastAttempts: chunkProvenTxReq.RebroadcastAttempts,
 		Notified:            chunkProvenTxReq.Notified,
 		RawTx:               chunkProvenTxReq.RawTx,
 		InputBEEF:           chunkProvenTxReq.InputBEEF,
@@ -254,7 +264,7 @@ func (p *ChunkProcessor) getHistoryNotes(txID, encoded string) (pkgentity.Proven
 func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error {
 	p.logger.DebugContext(p.ctx, "upserting proven tx", slog.String("txid", chunkProvenTx.TxID))
 
-	isNew, err := p.repo.UpsertProvenTxForSync(p.ctx, &pkgentity.ProvenTx{
+	isNew, provenTxID, err := p.repo.UpsertProvenTxForSync(p.ctx, &pkgentity.ProvenTx{
 		CreatedAt:  chunkProvenTx.CreatedAt,
 		UpdatedAt:  chunkProvenTx.UpdatedAt,
 		TxID:       chunkProvenTx.TxID,
@@ -270,7 +280,10 @@ func (p *ChunkProcessor) upsertProvenTx(chunkProvenTx *wdk.TableProvenTx) error 
 	}
 
 	p.incrementOperations(isNew)
-	err = p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt)
+	err = p.updateSyncState(wdk.ProvenTxEntityName, chunkProvenTx.UpdatedAt, idDictionary{
+		readerID: chunkProvenTx.ProvenTxID,
+		writerID: provenTxID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update sync state for proven tx %q: %w", chunkProvenTx.TxID, err)
 	}

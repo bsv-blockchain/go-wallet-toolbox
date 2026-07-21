@@ -42,7 +42,7 @@ func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name s
 		First(&outputBasket).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, wdk.ErrNotFoundError
 		}
 		return nil, fmt.Errorf("failed to find output basket: %w", err)
 	}

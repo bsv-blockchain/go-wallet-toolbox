@@ -164,7 +164,7 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*pkgentity.Output) []wd
 			Tags:               o.Tags,
 			OutputIndex:        o.Vout,
 			OutputDescription:  o.Description,
-			Basket:             "",
+			Basket:             o.BasketName,
 			LockingScript:      hex.EncodeToString(o.LockingScript),
 			CustomInstructions: optional.OfPtr(o.CustomInstructions).OrZeroValue(),
 		})
@@ -175,9 +175,6 @@ func (l *listActions) mapToWalletActionOutputs(outputs []*pkgentity.Output) []wd
 
 func (l *listActions) mapInputsToAction(action *wdk.WalletAction, tx *pkgentity.Transaction, inputMap map[uint][]*pkgentity.Output, rawTxMap map[string][]byte, args *wdk.ListActionsArgs) error {
 	rawTx := rawTxMap[*tx.TxID]
-	if rawTx == nil {
-		return nil
-	}
 
 	inputs := inputMap[tx.ID]
 	mappedInputs, err := l.mapToWalletActionInputs(inputs, rawTx, args.IncludeInputSourceLockingScripts, args.IncludeInputUnlockingScripts)

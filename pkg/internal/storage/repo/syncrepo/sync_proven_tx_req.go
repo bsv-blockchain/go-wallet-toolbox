@@ -2,10 +2,12 @@ package syncrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/go-softwarelab/common/pkg/slices"
+	"github.com/go-softwarelab/common/pkg/to"
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -46,6 +48,15 @@ func (s *SyncProvenTxReq) FindProvenTxReqsForSync(ctx context.Context, userID in
 }
 
 func (s *SyncProvenTxReq) UpsertProvenTxReqForSync(ctx context.Context, entity *entity.ProvenTxReq) (isNew bool, err error) {
+	historyJSON, err := json.Marshal(entity.History)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal history: %w", err)
+	}
+	notifyJSON, err := json.Marshal(entity.Notify)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal notify: %w", err)
+	}
+
 	model := models.ProvenTxReq{
 		Timestamps: models.Timestamps{
 			CreatedAt: entity.CreatedAt,
@@ -61,16 +72,9 @@ func (s *SyncProvenTxReq) UpsertProvenTxReqForSync(ctx context.Context, entity *
 		InputBeef:           entity.InputBEEF,
 		ProvenTxID:          entity.ProvenTxID,
 		Batch:               entity.Batch,
+		History:             string(historyJSON),
+		Notify:              string(notifyJSON),
 	}
-
-	// NOTE: We don't overwrite History and Notify in sync directly since they are JSON and might have complex merge semantics,
-	// but according to previous behavior, we did a `Updates(model)` which updates all non-zero fields.
-	// Since we are creating/updating from sync, History is just stored as string.
-	// However, the `entity.ProvenTxReq` doesn't have `TxNotes` like the old `KnownTx`. The task for `C-entity` was:
-	// "redirect addTxNote/addTxNotes ... to serialize into ProvenTxReq.history instead of inserting TxNote rows".
-	// The sync payload for `History` and `Notify` isn't fully detailed in the current scope, so we can set them to "{}" if they are empty.
-	model.History = "{}" // We initialize as empty for now, or we'd map it if entity had it as a string
-	model.Notify = "{}"
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing models.ProvenTxReq
@@ -127,10 +131,16 @@ func (s *SyncProvenTxReq) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {
 }
 
 func (s *SyncProvenTxReq) mapModelToTableProvenTxReqForSync(model *models.ProvenTxReq) *wdk.TableProvenTxReq {
+	var provenTxID *int
+	if model.ProvenTxID != nil {
+		provenTxID = to.Ptr(int(*model.ProvenTxID))
+	}
+
 	return &wdk.TableProvenTxReq{
 		CreatedAt:           model.CreatedAt,
 		UpdatedAt:           model.UpdatedAt,
 		ProvenTxReqID:       int(model.ProvenTxReqID),
+		ProvenTxID:          provenTxID,
 		Status:              model.Status,
 		Attempts:            model.Attempts,
 		WasBroadcast:        model.WasBroadcast || model.Status.WasBroadcastStatus(),

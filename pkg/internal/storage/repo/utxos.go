@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
+	"gorm.io/gen/field"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -60,17 +61,7 @@ func (u *UTXOs) FindNotReservedUTXOsForUpdate(
 		wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusSending,
 	)
 
-	
-		// LOGGING
-		var allOutputs []map[string]interface{}
-		tx.Table("bsv_outputs").Find(&allOutputs)
-		fmt.Printf("ALL OUTPUTS: %+v\n", allOutputs)
-		
-		var allTxs []map[string]interface{}
-		tx.Table("bsv_transactions").Find(&allTxs)
-		fmt.Printf("ALL TXS: %+v\n", allTxs)
-
-		query := tx.WithContext(ctx).Debug().
+	query := tx.WithContext(ctx).
 		Table("bsv_outputs").
 		Joins("INNER JOIN bsv_transactions ON bsv_outputs.transactionId = bsv_transactions.transactionId").
 		Where("bsv_outputs.spendable = ?", true).
@@ -148,23 +139,20 @@ func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID
 }
 
 func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error {
-	// This function was previously calling getOutputsWithTxStatus and createUTXOsFromOutputs.
-	// Since UTXOs are just spendable outputs now, we just ensure outputs are marked spendable if they should be.
-	// In the new model, we shouldn't need a separate UserUTXO record.
-	// We'll update the outputs to be spendable if needed. The actual logic for this might be handled upstream or just setting spendable=true.
-	// For compatibility we leave it or replace it with a spendable update.
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-CreateUTXOForSpendableOutputsByTxID", attribute.String("TxID", txID))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	err = u.query.DBTransaction(func(query *genquery.Query) error {
-		// Just a no-op or updating outputs? Wait, output is spendable initially if needed.
-		// "CreateUTXOForSpendableOutputsByTxID" is probably obsolete but we'll leave a stub or remove it.
-		// Wait, I will just make it a no-op or return nil if it's no longer used, but wait: the signature might be called.
-		return nil
-	})
+	txTable := &u.query.Transaction
+	outTable := &u.query.Output
+	subquery := txTable.WithContext(ctx).Select(txTable.TransactionID).Where(txTable.TxID.Eq(txID))
+
+	_, err = outTable.WithContext(ctx).
+		Where(field.ContainsSubQuery([]field.Expr{outTable.TransactionID}, subquery.UnderlyingDB())).
+		Where(outTable.SpentBy.IsNull()).
+		UpdateSimple(outTable.Spendable.Value(true))
 	if err != nil {
 		return fmt.Errorf("failed to make outputs spendable by txID: %q: %w", txID, err)
 	}

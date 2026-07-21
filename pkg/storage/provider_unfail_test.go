@@ -186,15 +186,11 @@ func TestUnFail_WithMerklePath_CreatedOutputsAreRestoredToSpendable(t *testing.T
 		WithStatus(wdk.TxStatusUnproven)
 
 	// and: outputs created by the recovered TX are spendable again
-	txRows, err := activeStorage.TransactionEntity().Read().
-		TxID().Equals(txID).
-		Find(t.Context())
+	transactionIDs, err := activeStorage.Repo().FindTransactionIDsByTxID(t.Context(), txID)
 	require.NoError(t, err)
-	require.Len(t, txRows, 1)
+	require.Len(t, transactionIDs, 1)
 
-	outputs, err := activeStorage.OutputsEntity().Read().
-		TransactionID().Equals(txRows[0].ID).
-		Find(t.Context())
+	outputs, err := activeStorage.Repo().FindOutputsByTransactionID(t.Context(), transactionIDs[0])
 	require.NoError(t, err)
 	require.NotEmpty(t, outputs)
 
@@ -258,15 +254,11 @@ func TestUnFail_NoMerklePath_CreatedOutputsRemainNotSpendable(t *testing.T) {
 		HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusInvalid)
 
 	// and: outputs created by the TX remain not spendable
-	txRows, err := activeStorage.TransactionEntity().Read().
-		TxID().Equals(txID).
-		Find(t.Context())
+	transactionIDs, err := activeStorage.Repo().FindTransactionIDsByTxID(t.Context(), txID)
 	require.NoError(t, err)
-	require.Len(t, txRows, 1)
+	require.Len(t, transactionIDs, 1)
 
-	outputs, err := activeStorage.OutputsEntity().Read().
-		TransactionID().Equals(txRows[0].ID).
-		Find(t.Context())
+	outputs, err := activeStorage.Repo().FindOutputsByTransactionID(t.Context(), transactionIDs[0])
 	require.NoError(t, err)
 	require.NotEmpty(t, outputs)
 

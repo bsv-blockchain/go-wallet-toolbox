@@ -12,6 +12,7 @@ import (
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -85,7 +86,15 @@ func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx)
 		return fmt.Errorf("failed to create new transaction model: %w", err)
 	}
 
-	
+	if err = linkTxLabels(tx, newTx.UserID, model.TransactionID, model.Labels); err != nil {
+		return fmt.Errorf("failed to link transaction labels: %w", err)
+	}
+
+	for _, output := range model.Outputs {
+		if err = linkOutputTags(tx, newTx.UserID, output.OutputID, output.Tags); err != nil {
+			return fmt.Errorf("failed to link output tags: %w", err)
+		}
+	}
 
 	if err = txs.markReservedOutputsAsNotSpendable(tx, model.TransactionID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
 		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
@@ -93,8 +102,6 @@ func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx)
 
 	return nil
 }
-
-
 
 func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transaction, error) {
 	outputs, err := slices.MapOrError(newTx.Outputs, func(output *entity.NewOutput) (*models.Output, error) {
@@ -110,13 +117,13 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 		IsOutgoing:  newTx.IsOutgoing,
 		Satoshis:    newTx.Satoshis,
 		Description: newTx.Description,
-		Version:            ptrUint32(newTx.Version),
-		LockTime:           ptrUint32(newTx.LockTime),
+		Version:     ptrUint32(newTx.Version),
+		LockTime:    ptrUint32(newTx.LockTime),
 		InputBeef:   newTx.InputBeef,
 		TxID:        newTx.TxID,
 		Labels: slices.Map(newTx.Labels, func(label primitives.StringUnder300) *models.TxLabel {
 			return &models.TxLabel{
-				Label:   string(label),
+				Label:  string(label),
 				UserID: newTx.UserID,
 			}
 		}),
@@ -143,7 +150,7 @@ func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.Ne
 func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput, utxoStatus wdk.UTXOStatus) (*models.Output, error) {
 	tags := slices.Map(output.Tags, func(tag string) *models.OutputTag {
 		return &models.OutputTag{
-			Tag:   tag,
+			Tag:    tag,
 			UserID: userID,
 		}
 	})
@@ -173,8 +180,8 @@ func (txs *Transactions) makeNewOutput(userID int, output *entity.NewOutput, utx
 		CustomInstructions: output.CustomInstructions,
 		SenderIdentityKey:  output.SenderIdentityKey,
 		BasketID:           output.BasketID,
-		
-		Tags:               tags,
+
+		Tags: tags,
 	}
 	return &out, nil
 }
@@ -190,7 +197,7 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 		Where("spentBy IS NULL").
 		Updates(map[string]interface{}{
 			"spendable": false,
-			"spentBy":  spendingTransactionID,
+			"spentBy":   spendingTransactionID,
 		}).
 		Error
 	if err != nil {
@@ -207,13 +214,18 @@ func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, use
 	}()
 
 	var transaction models.Transaction
-	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("txid = ?", txID).Preload("Labels").First(&transaction).Error
+	err = txs.db.WithContext(ctx).Scopes(scopes.UserID(userID)).Where("txid = ?", txID).First(&transaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = nil
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to find transaction: %w", err)
+	}
+
+	transaction.Labels, err = fetchLabelsForTransaction(ctx, txs.db, transaction.TransactionID)
+	if err != nil {
+		return nil, err
 	}
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
@@ -281,7 +293,6 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	err = txs.db.WithContext(ctx).
 		Scopes(scopes.UserID(userID)).
 		Where("reference = ?", reference).
-		Preload("Labels").
 		First(&transaction).
 		Error
 	if err != nil {
@@ -291,6 +302,11 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 		}
 
 		return nil, fmt.Errorf("failed to find transaction by reference: %w", err)
+	}
+
+	transaction.Labels, err = fetchLabelsForTransaction(ctx, txs.db, transaction.TransactionID)
+	if err != nil {
+		return nil, err
 	}
 
 	return txs.mapModelToTransactionEntity(&transaction), nil
@@ -308,19 +324,21 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			Scopes(scopes.UserID(updatedTx.UserID)).
 			Where("transactionId = ?", updatedTx.TransactionID).
 			Updates(map[string]any{
-				"txid":       updatedTx.TxID,
+				"txid":      updatedTx.TxID,
 				"inputBeef": nil, // input_beef per user's transaction won't be needed anymore; it is moved to the KnownTx (storage-wide)
-				"status":     updatedTx.TxStatus,
+				"status":    updatedTx.TxStatus,
 			}).Error
 		if err != nil {
 			return err
 		}
 
-		
-
 		var changeOutputs []*models.Output
 		err = tx.Model(&models.Output{}).
-			Select(txs.query.Output.TransactionID.ColumnName().String(), txs.query.Output.Vout.ColumnName().String()).
+			Select(
+				txs.query.Output.OutputID.ColumnName().String(),
+				txs.query.Output.TransactionID.ColumnName().String(),
+				txs.query.Output.Vout.ColumnName().String(),
+			).
 			Scopes(scopes.UserID(updatedTx.UserID)).
 			Where(txs.query.Output.TransactionID.Eq(updatedTx.TransactionID)).
 			Where(txs.query.Output.BasketID.IsNotNull()).
@@ -498,13 +516,13 @@ func (txs *Transactions) GetLabelsForSelectedActions(ctx context.Context, userID
 		var closeErr error
 		var rows *sql.Rows
 		rows, err = tx.Table("bsv_tx_labels tl").
-				Select("tlm.transaction_id, tl.label AS label_name").
-				Joins("JOIN bsv_tx_labels_map tlm ON tlm.tx_label_id = tl.txLabelId").
-				Joins("JOIN (?) s ON s.transactionId = tlm.transaction_id", selected).
-				Where("tl.label IS NOT NULL").
-				Where("tl.isDeleted = ?", false).
-				Where("tlm.isDeleted = ?", false).
-				Rows()
+			Select("tlm.transactionId, tl.label AS label_name").
+			Joins("JOIN bsv_tx_labels_map tlm ON tlm.txLabelId = tl.txLabelId").
+			Joins("JOIN (?) s ON s.transactionId = tlm.transactionId", selected).
+			Where("tl.label IS NOT NULL").
+			Where("tl.isDeleted = ?", false).
+			Where("tlm.isDeleted = ?", false).
+			Rows()
 		if err != nil {
 			return fmt.Errorf("failed to query labels rows: %w", err)
 		}
@@ -551,10 +569,12 @@ func (txs *Transactions) GetLabelsForTransactions(ctx context.Context, txIDs []u
 
 	var rows []resultRow
 	err = txs.db.WithContext(ctx).
-		Model(&models.TxLabelsMap{}).
-		Select("transaction_id, label_name").
-		Where("transactionId IN ?", txIDs).
-		Where("label_name IS NOT NULL").
+		Table("bsv_tx_labels_map tlm").
+		Select("tlm.transactionId AS transaction_id, tl.label AS label_name").
+		Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.txLabelId").
+		Where("tlm.transactionId IN ?", txIDs).
+		Where("tl.isDeleted = ?", false).
+		Where("tlm.isDeleted = ?", false).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to batch fetch labels: %w", err)
@@ -585,15 +605,15 @@ func (txs *Transactions) GetLabelsForTxIDs(ctx context.Context, txIDs []string) 
 
 	var rows []resultRow
 	err = txs.db.WithContext(ctx).
-			Table("bsv_transactions t").
-			Select("t.txid, tl.label AS label_name").
-			Joins("JOIN bsv_tx_labels_map tlm ON tlm.transaction_id = t.transactionId").
-			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.tx_label_id").
-			Where("t.txid IN ?", txIDs).
-			Where("tl.label IS NOT NULL").
-			Where("tl.isDeleted = ?", false).
-			Where("tlm.isDeleted = ?", false).
-			Scan(&rows).Error
+		Table("bsv_transactions t").
+		Select("t.txid, tl.label AS label_name").
+		Joins("JOIN bsv_tx_labels_map tlm ON tlm.transactionId = t.transactionId").
+		Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.txLabelId").
+		Where("t.txid IN ?", txIDs).
+		Where("tl.label IS NOT NULL").
+		Where("tl.isDeleted = ?", false).
+		Where("tlm.isDeleted = ?", false).
+		Scan(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to batch fetch labels by txID: %w", err)
 	}
@@ -612,38 +632,18 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 		tracing.EndTracing(span, err)
 	}()
 
-	newLabels := slices.Map(labels, func(value string) any {
+	newLabels := slices.Map(labels, func(value string) *models.TxLabel {
 		return &models.TxLabel{
-			Label:   value,
+			Label:  value,
 			UserID: userID,
 		}
 	})
 
-	transactionModel := models.Transaction{}
-
 	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err = tx.Model(models.Transaction{}).
-			Select("*").
-			Where("transactionId = ?", transactionID).
-			Preload("Labels").
-			First(&transactionModel).Error
-		if err != nil {
-			return fmt.Errorf("failed to find transaction: %w", err)
-		}
-
-		association := tx.
-			Model(&transactionModel).
-			Association("Labels")
-
-		err = association.Append(newLabels...)
-		if err != nil {
-			return fmt.Errorf("failed to append new labels: %w", err)
-		}
-
-		return nil
+		return linkTxLabels(tx, userID, transactionID, newLabels)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to replace labels: %w", err)
+		return fmt.Errorf("failed to add labels: %w", err)
 	}
 
 	return nil
@@ -652,15 +652,15 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
 		subQuery := tx.Table("bsv_tx_labels_map tlm").
-			Select("tlm.transaction_id").
-			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.tx_label_id").
+			Select("tlm.transactionId").
+			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.txLabelId").
 			Where("tl.label IN ?", filter.Labels).
 			Where("tl.userId = ?", userID).
 			Where("tl.isDeleted = ?", false).
 			Where("tlm.isDeleted = ?", false)
 
 		if filter.LabelQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("tlm.transaction_id").Having("COUNT(DISTINCT tl.label) = ?", len(filter.Labels))
+			subQuery = subQuery.Group("tlm.transactionId").Having("COUNT(DISTINCT tl.label) = ?", len(filter.Labels))
 		}
 
 		return query.Where("bsv_transactions.transactionId IN (?)", subQuery)
@@ -701,7 +701,7 @@ func (txs *Transactions) FindTransactionIDsForAbort(ctx context.Context, opts ..
 
 	query := txs.db.WithContext(ctx).
 		Model(&models.Transaction{}).
-		Select(txTable+".id").
+		Select(txTable+"."+txs.query.Transaction.TransactionID.ColumnName().String()).
 		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.txid = %s.txid", knownTxTable, knownTxTable, txTable)).
 		Where(
 			fmt.Sprintf(
@@ -759,8 +759,8 @@ func (txs *Transactions) AddTransaction(ctx context.Context, tx *pkgentity.Trans
 		IsOutgoing:  tx.IsOutgoing,
 		Satoshis:    tx.Satoshis,
 		Description: tx.Description,
-		Version:            derefUint32(tx.Version),
-		LockTime:           derefUint32(tx.LockTime),
+		Version:     derefUint32(tx.Version),
+		LockTime:    derefUint32(tx.LockTime),
 		TxID:        tx.TxID,
 		Labels:      labels,
 	}
@@ -809,10 +809,16 @@ func (txs *Transactions) FindTransactions(ctx context.Context, spec *pkgentity.T
 	rows, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
 		Where(txs.conditionsBySpec(ctx, spec)...).
-		Preload(table.Labels).
 		Find()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find transactions: %w", err)
+	}
+
+	for _, row := range rows {
+		row.Labels, err = fetchLabelsForTransaction(ctx, txs.db, row.TransactionID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return slices.Map(rows, txs.mapModelToTransactionEntity), nil
@@ -923,6 +929,54 @@ func (txs *Transactions) labelConditions(ctx context.Context, labels *pkgentity.
 	return conds
 }
 
+// linkTxLabels upserts each label (by label+userId) and links it to transactionID via
+// bsv_tx_labels_map, leaving any labels the transaction already had (not present in `labels`) untouched.
+func linkTxLabels(tx *gorm.DB, userID int, transactionID uint, labels []*models.TxLabel) error {
+	for _, l := range labels {
+		labelID, err := upsertTxLabel(tx, userID, l.Label)
+		if err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&models.TxLabelsMap{TxLabelID: labelID, TransactionID: transactionID}).Error; err != nil {
+			return fmt.Errorf("failed to link tx label %q to transaction %d: %w", l.Label, transactionID, err)
+		}
+	}
+	return nil
+}
+
+func upsertTxLabel(tx *gorm.DB, userID int, label string) (uint, error) {
+	m := &models.TxLabel{Label: label, UserID: userID}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(m).Error; err != nil {
+		return 0, fmt.Errorf("failed to upsert tx label %q: %w", label, err)
+	}
+	if m.TxLabelID != 0 {
+		return m.TxLabelID, nil
+	}
+
+	var existing models.TxLabel
+	if err := tx.Where("label = ? AND userId = ?", label, userID).First(&existing).Error; err != nil {
+		return 0, fmt.Errorf("failed to find existing tx label %q: %w", label, err)
+	}
+	return existing.TxLabelID, nil
+}
+
+// fetchLabelsForTransaction loads the labels linked to transactionID via bsv_tx_labels_map.
+func fetchLabelsForTransaction(ctx context.Context, tx *gorm.DB, transactionID uint) ([]*models.TxLabel, error) {
+	var labels []*models.TxLabel
+	err := tx.WithContext(ctx).
+		Table("bsv_tx_labels tl").
+		Select("tl.*").
+		Joins("JOIN bsv_tx_labels_map tlm ON tlm.txLabelId = tl.txLabelId").
+		Where("tlm.transactionId = ?", transactionID).
+		Where("tl.isDeleted = ?", false).
+		Where("tlm.isDeleted = ?", false).
+		Scan(&labels).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch labels for transaction: %w", err)
+	}
+	return labels, nil
+}
 
 func derefUint32(v *uint32) uint32 {
 	if v == nil {

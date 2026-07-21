@@ -19,9 +19,6 @@ func NewMigrator(db *gorm.DB) *Migrator {
 }
 
 func (m *Migrator) Migrate(ctx context.Context) error {
-	
-	
-
 	err := m.db.WithContext(ctx).AutoMigrate(
 		models.Setting{},
 		models.User{},
@@ -50,7 +47,6 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 	if err = backfillKnownTxBroadcastState(m.db.WithContext(ctx)); err != nil {
 		return fmt.Errorf("failed to backfill known tx broadcast state: %w", err)
 	}
-
 
 	return nil
 }

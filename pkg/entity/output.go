@@ -27,7 +27,8 @@ type Output struct {
 	DerivationPrefix *string
 	DerivationSuffix *string
 
-	BasketID *uint
+	BasketID   *uint
+	BasketName string
 
 	Spendable bool
 	Change    bool

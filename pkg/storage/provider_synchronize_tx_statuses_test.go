@@ -77,9 +77,10 @@ func TestSynchronizeManyTxs(t *testing.T) {
 	const count = 150
 
 	// and:
+	faucet := given.Faucet(activeStorage, testusers.Alice)
 	txIDs := make([]string, count)
 	for i := range count {
-		txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+		txSpec, _ := faucet.TopUp(100_000)
 		givenProvider.ARC().WhenQueryingTx(txSpec.ID().String()).WillReturnWithMindedTx()
 		txIDs[i] = txSpec.ID().String()
 	}
@@ -680,15 +681,11 @@ func TestSynchronizeTxFailed_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
 		WithStatus(wdk.TxStatusFailed)
 
 	// and: outputs created by the failed TX are all not spendable
-	txRows, err := activeStorage.TransactionEntity().Read().
-		TxID().Equals(txID).
-		Find(t.Context())
+	transactionIDs, err := activeStorage.Repo().FindTransactionIDsByTxID(t.Context(), txID)
 	require.NoError(t, err)
-	require.Len(t, txRows, 1)
+	require.Len(t, transactionIDs, 1)
 
-	outputs, err := activeStorage.OutputsEntity().Read().
-		TransactionID().Equals(txRows[0].ID).
-		Find(t.Context())
+	outputs, err := activeStorage.Repo().FindOutputsByTransactionID(t.Context(), transactionIDs[0])
 	require.NoError(t, err)
 	require.NotEmpty(t, outputs)
 

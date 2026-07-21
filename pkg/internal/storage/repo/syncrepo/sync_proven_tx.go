@@ -45,7 +45,7 @@ func (s *SyncProvenTx) FindProvenTxsForSync(ctx context.Context, userID int, opt
 	return slices.Map(resultModels, s.mapModelToTableProvenTxForSync), nil
 }
 
-func (s *SyncProvenTx) UpsertProvenTxForSync(ctx context.Context, entity *entity.ProvenTx) (isNew bool, err error) {
+func (s *SyncProvenTx) UpsertProvenTxForSync(ctx context.Context, entity *entity.ProvenTx) (isNew bool, provenTxID uint, err error) {
 	model := models.ProvenTx{
 		Timestamps: models.Timestamps{
 			CreatedAt: entity.CreatedAt,
@@ -68,6 +68,8 @@ func (s *SyncProvenTx) UpsertProvenTxForSync(ctx context.Context, entity *entity
 			First(&existing).Error
 
 		if existsErr == nil {
+			provenTxID = existing.ProvenTxID
+
 			if !model.UpdatedAt.After(existing.UpdatedAt) {
 				return nil
 			}
@@ -91,15 +93,16 @@ func (s *SyncProvenTx) UpsertProvenTxForSync(ctx context.Context, entity *entity
 			return fmt.Errorf("failed to create proven tx: %w", err)
 		}
 
+		provenTxID = model.ProvenTxID
 		isNew = true
 
 		return nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("transaction failed: %w", err)
+		return false, 0, fmt.Errorf("transaction failed: %w", err)
 	}
 
-	return isNew, nil
+	return isNew, provenTxID, nil
 }
 
 func (s *SyncProvenTx) whereExistsScope(userID int) func(*gorm.DB) *gorm.DB {

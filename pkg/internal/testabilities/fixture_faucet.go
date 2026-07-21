@@ -9,6 +9,8 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
@@ -144,16 +146,19 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 			MerklePath: txObj.MerklePath.Bytes(),
 			MerkleRoot: to.Ptr(merkleRoot),
 			BlockHash:  to.Ptr(TestBlockHash),
+			RawTx:      spec.TX().Bytes(),
 		}
 
 		transaction.Status = wdk.TxStatusCompleted
 	}
 
 	tx := f.db.DB.WithContext(f.t.Context())
-	
+
 	// We insert transaction first
 	err = tx.Create(transaction).Error
 	require.NoError(f.t, err)
+
+	linkFaucetTxLabels(f.t, tx, transaction.TransactionID, transaction.Labels)
 
 	// Set the transaction ID on the output
 	output.TransactionID = transaction.TransactionID
@@ -162,17 +167,67 @@ func (f *faucetFixture) TopUp(satoshis satoshi.Value, opts ...TopUpOpts) (txtest
 	err = tx.Create(output).Error
 	require.NoError(f.t, err, "Failed to create faucet output")
 
-	var res []map[string]interface{}
-	tx.Raw("SELECT basketId, txid FROM bsv_outputs").Scan(&res)
-	panic(fmt.Sprintf("DB AFTER CREATE PANIC: %+v", res))
+	linkFaucetOutputTags(f.t, tx, output.OutputID, output.Tags)
 
 	if provenTx != nil {
-		tx.Create(provenTx)
+		err = tx.Create(provenTx).Error
+		require.NoError(f.t, err, "Failed to create faucet proven tx")
 		knownTx.ProvenTxID = &provenTx.ProvenTxID
+
+		err = tx.Model(&models.Transaction{}).
+			Where("transactionId = ?", transaction.TransactionID).
+			Update("provenTxId", provenTx.ProvenTxID).Error
+		require.NoError(f.t, err, "Failed to link faucet transaction to proven tx")
 	}
-	tx.Create(knownTx)
+
+	err = tx.Create(knownTx).Error
+	require.NoError(f.t, err, "Failed to create faucet known tx")
 
 	f.index++
 
 	return spec, output
+}
+
+// linkFaucetOutputTags upserts each tag (by tag+userId) and links it to outputID via
+// bsv_output_tags_map. Tags are no longer a GORM-managed association (see models.Output.Tags),
+// so callers that create outputs directly (bypassing repo.Transactions) must link tags themselves.
+func linkFaucetOutputTags(t testing.TB, tx *gorm.DB, outputID uint, tags []*models.OutputTag) {
+	t.Helper()
+
+	for _, tag := range tags {
+		tagModel := &models.OutputTag{Tag: tag.Tag, UserID: tag.UserID}
+		err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(tagModel).Error
+		require.NoError(t, err, "Failed to upsert output tag")
+
+		if tagModel.OutputTagID == 0 {
+			err = tx.Where("tag = ? AND userId = ?", tag.Tag, tag.UserID).First(tagModel).Error
+			require.NoError(t, err, "Failed to find existing output tag")
+		}
+
+		err = tx.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&models.OutputTagsMap{OutputID: outputID, OutputTagID: tagModel.OutputTagID}).Error
+		require.NoError(t, err, "Failed to link output tag")
+	}
+}
+
+// linkFaucetTxLabels upserts each label (by label+userId) and links it to transactionID via
+// bsv_tx_labels_map. Labels are no longer a GORM-managed association (see models.Transaction.Labels),
+// so callers that create transactions directly (bypassing repo.Transactions) must link labels themselves.
+func linkFaucetTxLabels(t testing.TB, tx *gorm.DB, transactionID uint, labels []*models.TxLabel) {
+	t.Helper()
+
+	for _, label := range labels {
+		labelModel := &models.TxLabel{Label: label.Label, UserID: label.UserID}
+		err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(labelModel).Error
+		require.NoError(t, err, "Failed to upsert tx label")
+
+		if labelModel.TxLabelID == 0 {
+			err = tx.Where("label = ? AND userId = ?", label.Label, label.UserID).First(labelModel).Error
+			require.NoError(t, err, "Failed to find existing tx label")
+		}
+
+		err = tx.Clauses(clause.OnConflict{DoNothing: true}).
+			Create(&models.TxLabelsMap{TxLabelID: labelModel.TxLabelID, TransactionID: transactionID}).Error
+		require.NoError(t, err, "Failed to link tx label")
+	}
 }

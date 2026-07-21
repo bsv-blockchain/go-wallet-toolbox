@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"time"
 
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/slices"
@@ -13,6 +14,7 @@ import (
 	"gorm.io/gen"
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
@@ -173,17 +175,17 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			Model(&models.Output{}).
 			Where("userId = ?", filter.UserID).
 			Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-				return db.Select("outputId, txid")
+				return db.Select("transactionId, txid")
 			})
 
 		var omitFields []string
 
 		if !filter.IncludeLockingScripts {
-			omitFields = append(omitFields, "locking_script")
+			omitFields = append(omitFields, "lockingScript")
 		}
 
 		if !filter.IncludeCustomInstructions {
-			omitFields = append(omitFields, "custom_instructions")
+			omitFields = append(omitFields, "customInstructions")
 		}
 
 		if len(omitFields) > 0 {
@@ -195,11 +197,13 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 		}
 
 		if filter.Basket != "" {
-			query = query.Where("basket_name = ?", filter.Basket)
-		}
-
-		if filter.IncludeTags {
-			query = query.Preload("Tags")
+			query = query.Where(
+				"basketId IN (?)",
+				tx.Model(&models.OutputBasket{}).
+					Select("basketId").
+					Where("userId = ?", filter.UserID).
+					Where("name = ?", filter.Basket),
+			)
 		}
 
 		if len(filter.Tags) > 0 {
@@ -212,20 +216,33 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 		}
 		query = query.Where(
 			"transactionId IN (?)",
-		).
-		Where(func(db *gorm.DB) *gorm.DB {
-			return db.
+			tx.Model(&models.Transaction{}).
+				Select("transactionId").
 				Where("userId = ?", filter.UserID).
-				Where("status IN ?", allowedStatuses)
-		})
+				Where("status IN ?", allowedStatuses),
+		)
 
 		if err := query.Count(&total).Error; err != nil {
 			return fmt.Errorf("count failed: %w", err)
 		}
 
-		if err := query.Limit(filter.Limit).Offset(filter.Offset).Order("bsv_outputs.id ASC").Find(&outputs).Error; err != nil {
+		if err := query.Limit(filter.Limit).Offset(filter.Offset).Order("bsv_outputs.outputId ASC").Find(&outputs).Error; err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
+
+		if filter.IncludeTags {
+			outputIDs := slices.Map(outputs, func(o *models.Output) uint { return o.OutputID })
+			tagsByOutputID, err := fetchTagsForOutputIDs(ctx, tx, outputIDs)
+			if err != nil {
+				return err
+			}
+			for _, output := range outputs {
+				output.Tags = slices.Map(tagsByOutputID[output.OutputID], func(tag string) *models.OutputTag {
+					return &models.OutputTag{Tag: tag}
+				})
+			}
+		}
+
 		return nil
 	}); err != nil {
 		return nil, 0, fmt.Errorf("transaction failed: %w", err)
@@ -249,13 +266,19 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 			Where(
 				"transactionId IN (?)",
 				tx.Model(&models.Transaction{}).
-					Select("outputId").
+					Select("transactionId").
 					Scopes(scopes.UserID(userID)).
 					Where("txid = ?", outpoint.TxID),
 			)
 
 		if basketName != nil {
-			query = query.Where("basket_name = ?", *basketName)
+			query = query.Where(
+				"basketId IN (?)",
+				tx.Model(&models.OutputBasket{}).
+					Select("basketId").
+					Where("userId = ?", userID).
+					Where("name = ?", *basketName),
+			)
 		}
 
 		var output models.Output
@@ -304,13 +327,15 @@ func (o *Outputs) FindOutputsByOutpoints(ctx context.Context, userID int, outpoi
 	})
 	outputTableName := o.query.Output.TableName()
 	transactionTableName := o.query.Transaction.TableName()
+	// Aliased as tx_id (not txid) to avoid colliding with bsv_outputs' own (unrelated, largely
+	// unpopulated) txid column when both are selected from the same derived-table subquery.
 	query := o.db.WithContext(ctx).Table(
 		"(?) as out",
 		o.db.Model(&models.Output{}).
-			Select(fmt.Sprintf("%s.*, tx.txid as txid", outputTableName)).
+			Select(fmt.Sprintf("%s.*, tx.txid as tx_id", outputTableName)).
 			Joins(fmt.Sprintf("INNER JOIN %s tx ON tx.transactionId = %s.transactionId", transactionTableName, outputTableName)).
 			Where(fmt.Sprintf("%s.userId = ?", outputTableName), userID),
-	).Where("(txid,vout) IN (?)", outpointStrings)
+	).Where("(tx_id,vout) IN (?)", outpointStrings)
 
 	type outputWithTxID struct {
 		*models.Output
@@ -351,7 +376,7 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 		Where(
 			"transactionId IN (?)",
 			o.db.Model(&models.Transaction{}).
-				Select("outputId").
+				Select("transactionId").
 				Scopes(scopes.UserID(userID)).
 				Where("txid = ?", outpoint.TxID),
 		).
@@ -385,10 +410,9 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	query := o.db.WithContext(ctx).
 		Model(&models.Output{}).
 		Preload("Transaction", func(db *gorm.DB) *gorm.DB {
-			return db.Select("outputId, txid")
+			return db.Select("transactionId, txid")
 		}).
 		Preload("Basket").
-		Preload("Tags").
 		Where("transactionId IN ? OR spentBy IN ?", txIDs, txIDs)
 
 	if !includeLockingScripts {
@@ -398,6 +422,17 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	var allOutputs []*models.Output
 	if err := query.Find(&allOutputs).Error; err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
+	}
+
+	outputIDs := slices.Map(allOutputs, func(o *models.Output) uint { return o.OutputID })
+	tagsByOutputID, err := fetchTagsForOutputIDs(ctx, o.db, outputIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, out := range allOutputs {
+		out.Tags = slices.Map(tagsByOutputID[out.OutputID], func(tag string) *models.OutputTag {
+			return &models.OutputTag{Tag: tag}
+		})
 	}
 
 	inputMap := make(map[uint][]*pkgentity.Output)
@@ -463,14 +498,14 @@ func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity
 	}
 	if len(filter.Labels) > 0 {
 		subQuery := tx.Table("bsv_tx_labels_map tlm").
-			Select("tlm.transaction_id").
-			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.tx_label_id").
+			Select("tlm.transactionId").
+			Joins("JOIN bsv_tx_labels tl ON tl.txLabelId = tlm.txLabelId").
 			Where("tl.label IN ?", filter.Labels).
 			Where("tl.userId = ?", userID).
 			Where("tl.isDeleted = ?", false).
 			Where("tlm.isDeleted = ?", false)
 		if filter.LabelQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("tlm.transaction_id").Having("COUNT(DISTINCT tl.label) = ?", len(filter.Labels))
+			subQuery = subQuery.Group("tlm.transactionId").Having("COUNT(DISTINCT tl.label) = ?", len(filter.Labels))
 		}
 		selected = selected.Where("transactionId IN (?)", subQuery)
 	}
@@ -486,11 +521,12 @@ func (o *Outputs) buildOutputsJoinQuery(tx, selected *gorm.DB, userID int, inclu
 		Table(outputTable+" o").
 		Joins("JOIN (?) s ON s.transactionId = o.transactionId OR s.transactionId = o.spentBy", selected).
 		Joins("LEFT JOIN "+txTable+" t ON t.transactionId = o.transactionId").
-		Joins("LEFT JOIN bsv_output_tags_map otm ON otm.output_id = o.outputId AND otm.isDeleted = false").
-		Joins("LEFT JOIN bsv_output_tags ot ON ot.outputTagId = otm.output_tag_id AND ot.userId = o.userId AND ot.isDeleted = false").
+		Joins("LEFT JOIN bsv_output_tags_map otm ON otm.outputId = o.outputId AND otm.isDeleted = false").
+		Joins("LEFT JOIN bsv_output_tags ot ON ot.outputTagId = otm.outputTagId AND ot.userId = o.userId AND ot.isDeleted = false").
+		Joins("LEFT JOIN bsv_output_baskets ob ON ob.basketId = o.basketId").
 		Where("o.userId = ?", userID).
 		Order("o.outputId ASC").
-		Select("o.*, t.txid as txid, ot.tag as tag")
+		Select("o.*, t.txid as txid, ot.tag as tag, ob.name as basket_name")
 
 	if !includeLockingScripts {
 		dbq = dbq.Omit("o.lockingScript")
@@ -503,8 +539,9 @@ func (o *Outputs) readOutputsIntoMaps(tx *gorm.DB, rows *sql.Rows) (map[uint][]*
 	type readRow struct {
 		models.Output
 
-		TxID *string `gorm:"column:txid"`
-		Tag  *string `gorm:"column:tag"`
+		TxID       *string `gorm:"column:txid"`
+		Tag        *string `gorm:"column:tag"`
+		BasketName *string `gorm:"column:basket_name"`
 	}
 
 	inputMap := make(map[uint][]*pkgentity.Output)
@@ -521,6 +558,9 @@ func (o *Outputs) readOutputsIntoMaps(tx *gorm.DB, rows *sql.Rows) (map[uint][]*
 		e := o.mapModelToOutputEntity(&r.Output)
 		if r.TxID != nil {
 			e.TxID = r.TxID
+		}
+		if r.BasketName != nil {
+			e.BasketName = *r.BasketName
 		}
 		if prev, ok := tmpByID[e.ID]; ok {
 			if r.Tag != nil {
@@ -566,57 +606,37 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 		tracing.EndTracing(span, err)
 	}()
 
-	type outputWithTags struct {
-		Output models.Output
-		Tags   []any
-	}
-
-	modelsToStore := slices.Map(outputs, func(output *pkgentity.Output) *outputWithTags {
-		res := &outputWithTags{
-			Output: models.Output{
-				OutputID:           output.ID,
-				UserID:             output.UserID,
-				TransactionID:      output.TransactionID,
-				SpentBy:            output.SpentBy,
-				Vout:               output.Vout,
-				Satoshis:           output.Satoshis,
-				LockingScript:      output.LockingScript,
-				CustomInstructions: output.CustomInstructions,
-				DerivationPrefix:   output.DerivationPrefix,
-				DerivationSuffix:   output.DerivationSuffix,
-				BasketID:           output.BasketID,
-				Spendable:          output.Spendable,
-				Change:             output.Change,
-				Description:        output.Description,
-				ProvidedBy:         output.ProvidedBy,
-				Purpose:            output.Purpose,
-				Type:               output.Type,
-				SenderIdentityKey:  output.SenderIdentityKey,
-			},
-			Tags: slices.Map(output.Tags, func(tag string) any {
-				return &models.OutputTag{
-					Tag:    tag,
-					UserID: output.UserID,
-				}
-			}),
+	modelsToStore := slices.Map(outputs, func(output *pkgentity.Output) *models.Output {
+		return &models.Output{
+			OutputID:           output.ID,
+			UserID:             output.UserID,
+			TransactionID:      output.TransactionID,
+			SpentBy:            output.SpentBy,
+			Vout:               output.Vout,
+			Satoshis:           output.Satoshis,
+			LockingScript:      output.LockingScript,
+			CustomInstructions: output.CustomInstructions,
+			DerivationPrefix:   output.DerivationPrefix,
+			DerivationSuffix:   output.DerivationSuffix,
+			BasketID:           output.BasketID,
+			Spendable:          output.Spendable,
+			Change:             output.Change,
+			Description:        output.Description,
+			ProvidedBy:         output.ProvidedBy,
+			Purpose:            output.Purpose,
+			Type:               output.Type,
+			SenderIdentityKey:  output.SenderIdentityKey,
 		}
-
-		return res
 	})
 
 	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, model := range modelsToStore {
-			err = tx.Save(&model.Output).Error
+		for i, model := range modelsToStore {
+			err = tx.Save(model).Error
 			if err != nil {
 				return fmt.Errorf("failed to save output: %w", err)
 			}
 
-			association := tx.
-				Model(&model.Output).
-				Association("Tags")
-
-			err = association.Replace(model.Tags...)
-			if err != nil {
+			if err = replaceOutputTags(tx, model.UserID, model.OutputID, outputs[i].Tags); err != nil {
 				return fmt.Errorf("failed to save current tags for output: %w", err)
 			}
 		}
@@ -743,18 +763,24 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 		output.TxID = model.Transaction.TxID
 		output.TxStatus = model.Transaction.Status
 	}
+	if model.Basket != nil {
+		output.BasketName = model.Basket.Name
+	}
 	return output
 }
 
 func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) func(db *gorm.DB) *gorm.DB {
 	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.OutputTag{}).
-			Select("outputId").
-			Where("tag IN ?", filter.Tags).
-			Where("userId = ?", filter.UserID)
+		subQuery := tx.Table("bsv_output_tags_map otm").
+			Select("otm.outputId").
+			Joins("JOIN bsv_output_tags ot ON ot.outputTagId = otm.outputTagId").
+			Where("ot.tag IN ?", filter.Tags).
+			Where("ot.userId = ?", filter.UserID).
+			Where("ot.isDeleted = ?", false).
+			Where("otm.isDeleted = ?", false)
 
 		if filter.TagsQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("outputId").Having("COUNT(DISTINCT tag) = ?", len(filter.Tags))
+			subQuery = subQuery.Group("otm.outputId").Having("COUNT(DISTINCT ot.tag) = ?", len(filter.Tags))
 		}
 
 		return query.Where("outputId IN (?)", subQuery)
@@ -818,6 +844,7 @@ func (o *Outputs) MarkCreatedOutputsAsSpendableByTxID(ctx context.Context, txID 
 
 	_, err = outTable.WithContext(ctx).
 		Where(field.ContainsSubQuery([]field.Expr{outTable.TransactionID}, subquery.UnderlyingDB())).
+		Where(outTable.SpentBy.IsNull()).
 		UpdateSimple(outTable.Spendable.Value(true))
 	if err != nil {
 		return fmt.Errorf("failed to mark created outputs as spendable for tx %s: %w", txID, err)
@@ -840,10 +867,97 @@ func (o *Outputs) AddOutput(ctx context.Context, out *pkgentity.Output) error {
 	}
 
 	model := mapEntityToModelOutput(out)
-	if err := o.db.WithContext(ctx).Create(model).Error; err != nil {
-		return fmt.Errorf("failed to insert output: %w", err)
+	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(model).Error; err != nil {
+			return fmt.Errorf("failed to insert output: %w", err)
+		}
+		return linkOutputTags(tx, model.UserID, model.OutputID, model.Tags)
+	})
+	if err != nil {
+		return err
 	}
 	return nil
+}
+
+// linkOutputTags upserts each tag (by tag+userId) and links it to outputID via bsv_output_tags_map,
+// leaving any tags the output already had (not present in `tags`) untouched. Reviving a
+// previously soft-deleted link (isDeleted=true) is treated the same as creating a new one, so
+// that sync (which relies on isDeleted + updated_at) can propagate the change.
+func linkOutputTags(tx *gorm.DB, userID int, outputID uint, tags []*models.OutputTag) error {
+	for _, t := range tags {
+		tagID, err := upsertOutputTag(tx, userID, t.Tag)
+		if err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "outputTagId"}, {Name: "outputId"}},
+			DoUpdates: clause.Assignments(map[string]any{"isDeleted": false, "updated_at": time.Now()}),
+		}).Create(&models.OutputTagsMap{OutputID: outputID, OutputTagID: tagID}).Error; err != nil {
+			return fmt.Errorf("failed to link output tag %q to output %d: %w", t.Tag, outputID, err)
+		}
+	}
+	return nil
+}
+
+// replaceOutputTags makes outputID's linked tags exactly match `tags`: soft-unlinking any tags no
+// longer present (so sync can propagate the removal) and linking/reviving any current ones.
+func replaceOutputTags(tx *gorm.DB, userID int, outputID uint, tags []string) error {
+	if err := tx.Model(&models.OutputTagsMap{}).
+		Where("outputId = ?", outputID).
+		Updates(map[string]any{"isDeleted": true, "updated_at": time.Now()}).Error; err != nil {
+		return fmt.Errorf("failed to unlink existing output tags: %w", err)
+	}
+	tagModels := slices.Map(tags, func(tag string) *models.OutputTag {
+		return &models.OutputTag{Tag: tag, UserID: userID}
+	})
+	return linkOutputTags(tx, userID, outputID, tagModels)
+}
+
+func upsertOutputTag(tx *gorm.DB, userID int, tag string) (uint, error) {
+	m := &models.OutputTag{Tag: tag, UserID: userID}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(m).Error; err != nil {
+		return 0, fmt.Errorf("failed to upsert output tag %q: %w", tag, err)
+	}
+	if m.OutputTagID != 0 {
+		return m.OutputTagID, nil
+	}
+
+	var existing models.OutputTag
+	if err := tx.Where("tag = ? AND userId = ?", tag, userID).First(&existing).Error; err != nil {
+		return 0, fmt.Errorf("failed to find existing output tag %q: %w", tag, err)
+	}
+	return existing.OutputTagID, nil
+}
+
+// fetchTagsForOutputIDs batch-loads tag names for the given outputs, grouped by output ID.
+func fetchTagsForOutputIDs(ctx context.Context, tx *gorm.DB, outputIDs []uint) (map[uint][]string, error) {
+	if len(outputIDs) == 0 {
+		return map[uint][]string{}, nil
+	}
+
+	type tagRow struct {
+		OutputID uint
+		Tag      string
+	}
+
+	var rows []tagRow
+	err := tx.WithContext(ctx).
+		Table("bsv_output_tags_map otm").
+		Select("otm.outputId AS output_id, ot.tag AS tag").
+		Joins("JOIN bsv_output_tags ot ON ot.outputTagId = otm.outputTagId").
+		Where("otm.outputId IN ?", outputIDs).
+		Where("ot.isDeleted = ?", false).
+		Where("otm.isDeleted = ?", false).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tags for outputs: %w", err)
+	}
+
+	result := make(map[uint][]string, len(outputIDs))
+	for _, r := range rows {
+		result[r.OutputID] = append(result[r.OutputID], r.Tag)
+	}
+	return result, nil
 }
 
 // UpdateOutput updates an existing output by spec.

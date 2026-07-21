@@ -32,15 +32,12 @@ func TestWithChangeBasket_SetsDefaultsForNewUsers(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.IsNew)
 
-	basket, err := activeStorage.OutputBasketsEntity().Read().
-		UserID().Equals(resp.User.UserID).
-		Name().Equals(wdk.BasketNameForChange).
-		Find(t.Context())
+	basket, err := activeStorage.Repo().FindBasketByName(t.Context(), resp.User.UserID, wdk.BasketNameForChange)
 
 	require.NoError(t, err)
-	require.Len(t, basket, 1)
-	assert.Equal(t, int64(5000), basket[0].NumberOfDesiredUTXOs)
-	assert.Equal(t, uint64(2000), basket[0].MinimumDesiredUTXOValue)
+	require.NotNil(t, basket)
+	assert.Equal(t, int64(5000), basket.NumberOfDesiredUTXOs)
+	assert.Equal(t, uint64(2000), basket.MinimumDesiredUTXOValue)
 }
 
 func TestSetDefaultChangeBasket_AffectsOnlySubsequentNewUsers(t *testing.T) {
@@ -66,23 +63,17 @@ func TestSetDefaultChangeBasket_AffectsOnlySubsequentNewUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	// then: alice keeps original defaults
-	aliceBaskets, err := activeStorage.OutputBasketsEntity().Read().
-		UserID().Equals(respAlice.User.UserID).
-		Name().Equals(wdk.BasketNameForChange).
-		Find(t.Context())
+	aliceBasket, err := activeStorage.Repo().FindBasketByName(t.Context(), respAlice.User.UserID, wdk.BasketNameForChange)
 	require.NoError(t, err)
-	require.Len(t, aliceBaskets, 1)
-	assert.Equal(t, int64(32), aliceBaskets[0].NumberOfDesiredUTXOs)
+	require.NotNil(t, aliceBasket)
+	assert.Equal(t, int64(32), aliceBasket.NumberOfDesiredUTXOs)
 
 	// and: bob gets the new defaults
-	bobBaskets, err := activeStorage.OutputBasketsEntity().Read().
-		UserID().Equals(respBob.User.UserID).
-		Name().Equals(wdk.BasketNameForChange).
-		Find(t.Context())
+	bobBasket, err := activeStorage.Repo().FindBasketByName(t.Context(), respBob.User.UserID, wdk.BasketNameForChange)
 	require.NoError(t, err)
-	require.Len(t, bobBaskets, 1)
-	assert.Equal(t, int64(10000), bobBaskets[0].NumberOfDesiredUTXOs)
-	assert.Equal(t, uint64(500), bobBaskets[0].MinimumDesiredUTXOValue)
+	require.NotNil(t, bobBasket)
+	assert.Equal(t, int64(10000), bobBasket.NumberOfDesiredUTXOs)
+	assert.Equal(t, uint64(500), bobBasket.MinimumDesiredUTXOValue)
 }
 
 func TestUpdateChangeBasket_UpdatesSpecificUserInDB(t *testing.T) {
@@ -105,23 +96,17 @@ func TestUpdateChangeBasket_UpdatesSpecificUserInDB(t *testing.T) {
 	require.NoError(t, err)
 
 	// then: alice's basket reflects the update
-	aliceBaskets, err := activeStorage.OutputBasketsEntity().Read().
-		UserID().Equals(respAlice.User.UserID).
-		Name().Equals(wdk.BasketNameForChange).
-		Find(t.Context())
+	aliceBasket, err := activeStorage.Repo().FindBasketByName(t.Context(), respAlice.User.UserID, wdk.BasketNameForChange)
 	require.NoError(t, err)
-	require.Len(t, aliceBaskets, 1)
-	assert.Equal(t, int64(9999), aliceBaskets[0].NumberOfDesiredUTXOs)
-	assert.Equal(t, uint64(777), aliceBaskets[0].MinimumDesiredUTXOValue)
+	require.NotNil(t, aliceBasket)
+	assert.Equal(t, int64(9999), aliceBasket.NumberOfDesiredUTXOs)
+	assert.Equal(t, uint64(777), aliceBasket.MinimumDesiredUTXOValue)
 
 	// and: bob's basket is unchanged
-	bobBaskets, err := activeStorage.OutputBasketsEntity().Read().
-		UserID().Equals(respBob.User.UserID).
-		Name().Equals(wdk.BasketNameForChange).
-		Find(t.Context())
+	bobBasket, err := activeStorage.Repo().FindBasketByName(t.Context(), respBob.User.UserID, wdk.BasketNameForChange)
 	require.NoError(t, err)
-	require.Len(t, bobBaskets, 1)
-	assert.Equal(t, int64(32), bobBaskets[0].NumberOfDesiredUTXOs)
+	require.NotNil(t, bobBasket)
+	assert.Equal(t, int64(32), bobBasket.NumberOfDesiredUTXOs)
 }
 
 func TestUpdateChangeBasket_ReturnsErrorForUnknownUser(t *testing.T) {

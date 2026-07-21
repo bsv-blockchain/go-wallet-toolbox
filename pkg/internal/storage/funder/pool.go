@@ -24,7 +24,7 @@ type utxoPool struct {
 func newUTXOPool(utxos []*models.Output) *utxoPool {
 	p := &utxoPool{}
 	for _, u := range utxos {
-		tier := statusToTier(wdk.UTXOStatus(u.Transaction.Status))
+		tier := statusToTier(u.Transaction.Status.ToUTXOStatus())
 		p.tiers[tier] = append(p.tiers[tier], u)
 	}
 	for i := range p.tiers {

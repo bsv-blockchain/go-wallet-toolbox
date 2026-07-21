@@ -616,7 +616,7 @@ func (p *ProvenTxReqRepo) conditionsBySpec(spec *pkgentity.ProvenTxReqReadSpecif
 
 	var conditions []gen.Condition
 	if spec.Attempts != nil {
-		conditions = append(conditions, cmpCondition(table.Attempts, mapComparableUint32ToUint64(spec.Attempts)))
+		conditions = append(conditions, cmpCondition(table.Attempts, spec.Attempts))
 	}
 	if spec.Status != nil {
 		conditions = append(conditions, cmpCondition(table.Status, spec.Status.ToStringComparable()))
@@ -649,45 +649,48 @@ func (p *ProvenTxReqRepo) InvalidateMerkleProofsByBlockHash(ctx context.Context,
 	var affected int64
 
 	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var affectedTxs []struct {
-			TxID      string
-			BlockHash string
-		}
+		var affectedProvenTxs []*models.ProvenTx
 
-		if err = tx.Model(&models.ProvenTxReq{}).
-			Select("txid", "blockHash").
+		// blockHash/merklePath/height/merkleRoot live on bsv_proven_txs (models.ProvenTx),
+		// not bsv_proven_tx_reqs; find the affected proofs there first.
+		if err = tx.Model(&models.ProvenTx{}).
+			Select("txid", "blockHash", "provenTxId").
 			Where("blockHash IN ?", blockHashes).
-			Find(&affectedTxs).Error; err != nil {
-			return fmt.Errorf("failed to find affected transactions: %w", err)
+			Find(&affectedProvenTxs).Error; err != nil {
+			return fmt.Errorf("failed to find affected proven txs: %w", err)
 		}
-		if len(affectedTxs) == 0 {
+		if len(affectedProvenTxs) == 0 {
 			return nil
 		}
 
+		provenTxIDs := slices.Map(affectedProvenTxs, func(t *models.ProvenTx) uint {
+			return t.ProvenTxID
+		})
+
 		res := tx.Model(&models.ProvenTxReq{}).
-			Where("blockHash IN ?", blockHashes).
+			Where("provenTxId IN ?", provenTxIDs).
 			Updates(map[string]any{
-				"merkle_path":  nil,
-				"block_height": nil,
-				"merkle_root":  nil,
-				"blockHash":   nil,
+				"provenTxId":   nil,
 				"attempts":     0,
 				"wasBroadcast": true,
 				"status":       wdk.ProvenTxStatusReorg,
 			})
 		if res.Error != nil {
-			err = res.Error
-			return fmt.Errorf("failed to invalidate merkle proofs: %w", err)
+			return fmt.Errorf("failed to invalidate merkle proofs: %w", res.Error)
 		}
 
 		affected = res.RowsAffected
 
 		// add history notes about reorg
-		notes := make([]*pkgentity.TxHistoryNote, 0, len(affectedTxs))
-		for _, tx := range affectedTxs {
+		notes := make([]*pkgentity.TxHistoryNote, 0, len(affectedProvenTxs))
+		for _, t := range affectedProvenTxs {
+			var blockHash string
+			if t.BlockHash != nil {
+				blockHash = *t.BlockHash
+			}
 			note := history.NewBuilder().
-				ReorgInvalidatedProof(tx.BlockHash).
-				Entity(tx.TxID)
+				ReorgInvalidatedProof(blockHash).
+				Entity(t.TxID)
 			notes = append(notes, note)
 		}
 
@@ -697,6 +700,9 @@ func (p *ProvenTxReqRepo) InvalidateMerkleProofsByBlockHash(ctx context.Context,
 
 		return nil
 	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to invalidate merkle proofs by block hash: %w", err)
+	}
 
 	return affected, nil
 }
@@ -709,12 +715,13 @@ func mapModelToEntityKnownTx(model *models.ProvenTxReq) *pkgentity.ProvenTxReq {
 	knownTx := &pkgentity.ProvenTxReq{
 		CreatedAt:           model.CreatedAt,
 		UpdatedAt:           model.UpdatedAt,
+		ProvenTxID:          model.ProvenTxID,
 		TxID:                model.TxID,
 		Status:              model.Status,
-		Attempts:            uint32(model.Attempts),
+		Attempts:            model.Attempts,
 		Notified:            model.Notified,
 		WasBroadcast:        model.WasBroadcast || model.Status.WasBroadcastStatus(),
-		RebroadcastAttempts: uint32(model.RebroadcastAttempts),
+		RebroadcastAttempts: uint64(model.RebroadcastAttempts),
 		RawTx:               model.RawTx,
 		InputBEEF:           model.InputBeef,
 	}
@@ -724,22 +731,4 @@ func mapModelToEntityKnownTx(model *models.ProvenTxReq) *pkgentity.ProvenTxReq {
 	}
 
 	return knownTx
-}
-
-func mapComparableUint32ToUint64(c *pkgentity.Comparable[uint32]) *pkgentity.Comparable[uint64] {
-	if c == nil {
-		return nil
-	}
-	var inValues []uint64
-	if c.InValues != nil {
-		for _, v := range c.InValues {
-			inValues = append(inValues, uint64(v))
-		}
-	}
-	return &pkgentity.Comparable[uint64]{
-		Value:      uint64(c.Value),
-		ValueRight: uint64(c.ValueRight),
-		InValues:   inValues,
-		Cmp:        c.Cmp,
-	}
 }

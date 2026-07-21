@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
@@ -292,11 +293,11 @@ func TestCreateActionWithCommission(t *testing.T) {
 	assert.Empty(t, commissionOutput.Tags)
 
 	// when:
-	commissions, err := activeStorage.CommissionEntity().Read().
-		IsRedeemed(false).
-		Satoshis().Equals(10).
-		UserID(testusers.Alice.ID).
-		Find(t.Context())
+	commissions, err := activeStorage.Repo().FindCommissions(t.Context(), &entity.CommissionReadSpecification{
+		IsRedeemed: to.Ptr(false),
+		Satoshis:   &entity.Comparable[uint64]{Value: 10, Cmp: entity.Equal},
+		UserID:     to.Ptr(testusers.Alice.ID),
+	})
 
 	// then:
 	require.NoError(t, err)
