@@ -151,3 +151,23 @@ func TestUTXOManagementValidate(t *testing.T) {
 		require.NoError(t, cfg.Validate(feeModel(100), defs.Commission{}))
 	})
 }
+
+func TestLiveTestThroughputProfile(t *testing.T) {
+	cfg := defs.DefaultUTXOManagement()
+	cfg.Strategy = defs.StrategyThroughput
+	cfg.Throughput.ExpectedTxSizeBytes = 200
+	cfg.Throughput.ExpectedOutputSatoshis = 0
+	cfg.Throughput.TargetTPS = 1000
+	// Keep other defaults from DefaultUTXOManagement (fanout, water marks, baskets, top_up).
+
+	fee := feeModel(100)
+	commission := defs.DefaultCommission()
+
+	denom, err := cfg.Throughput.Denomination(fee, commission)
+	require.NoError(t, err)
+	require.Equal(t, uint64(20), denom)
+	require.Greater(t, denom, defs.MarginalFuelInputFee(fee))
+
+	require.NoError(t, cfg.Validate(fee, commission))
+	require.Equal(t, uint64(450_000), cfg.Throughput.TargetPool()) // 1000 * 300 * 1.5
+}

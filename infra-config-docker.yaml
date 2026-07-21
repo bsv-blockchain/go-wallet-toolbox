@@ -116,6 +116,10 @@ fee_model:
   type: sat/kb
   value: 100
 
+# --- UTXO management (standard / privacy) ---
+utxo_management:
+  strategy: privacy
+
 # --- Transaction Status Sync ---
 synchronize_tx_statuses:
   blocks_delay: 1
