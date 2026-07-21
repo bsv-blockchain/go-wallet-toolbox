@@ -2,16 +2,23 @@
 
 Branch: `feat/throughput-demo-dashboard`
 Baseline: `4758c367` — chore(dashboard): baseline throughput demo scaffold
-Briefs: `067c9685`
+HEAD: `dac48529`
 
 ## Tasks
 
-- [x] Task 1: Stream package harden — complete (`8d1a1d34`, review implementer-clean)
-- [x] Task 2: Funding package harden — complete (`a7e21f17`)
-- [x] Task 3: Metrics sampler + tests — complete (`be9b1c20`)
-- [x] Task 4: Web UI polish — complete (`79a5e31d`)
-- [x] Task 5: Packaging + docs — complete (`0d7cd4ec`)
-- Wave 1 merge: `0d7cd4ec`, `go test ./cmd/throughput_dashboard/...` PASS
-- [ ] Task 6: Config + connect
-- [ ] Task 7: API + main wiring + API tests
-- [ ] Task 8: Final verification + whole-branch review
+- [x] Task 1: Stream package harden — `8d1a1d34`
+- [x] Task 2: Funding package harden — `a7e21f17`
+- [x] Task 3: Metrics sampler + tests — `be9b1c20`
+- [x] Task 4: Web UI polish — `79a5e31d`
+- [x] Task 5: Packaging + docs — `0d7cd4ec`
+- [x] Wave 1 merge — tests green
+- [x] Task 6: Config + connect — `2fa07149`
+- [x] Task 7: API + main wiring + API tests — `dac48529`
+- [x] Task 8: Final verification + whole-branch review — **Approved**
+
+## Final verification
+
+- `go test ./cmd/throughput_dashboard/...` PASS
+- builds OK
+- compose config OK
+- Final review: no Critical/Important findings
