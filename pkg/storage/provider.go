@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/crud"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/actions"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/sync"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -47,6 +49,14 @@ type Provider struct {
 	services      wdk.Services
 
 	defaultChangeBasket atomic.Pointer[wdk.BasketConfiguration]
+
+	// fuelDenomination is the resolved fuel UTXO value in satoshis when the
+	// throughput strategy is enabled; 0 under the privacy strategy.
+	fuelDenomination uint64
+
+	// unregisterPoolGauges removes the OTel pool gauge callback on Stop;
+	// nil under the privacy strategy.
+	unregisterPoolGauges func()
 }
 
 type providersWrapper struct {
@@ -107,6 +117,15 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		MinimumDesiredUTXOValue: options.ChangeBasket.MinimumDesiredUTXOValue,
 	}
 
+	var fuelDenomination uint64
+	if options.UTXOManagement.Enabled() {
+		// verify() already validated the throughput config, so derivation cannot fail here.
+		fuelDenomination, err = options.UTXOManagement.Throughput.Denomination(options.FeeModel, options.Commission)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve fuel denomination: %w", err)
+		}
+	}
+
 	p := &Provider{
 		Chain:         chain,
 		Database:      db,
@@ -125,18 +144,65 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			options.beefVerifier(),
 			options.scriptsVerifier(),
 			options.BackgroundBroadcasterChannel,
+			actions.ThroughputConfig{
+				Enabled:            options.UTXOManagement.Enabled(),
+				Denomination:       fuelDenomination,
+				SpendPolicy:        options.UTXOManagement.Throughput.SpendPolicy,
+				PoolBasket:         options.UTXOManagement.Throughput.PoolBasket,
+				ReserveBasket:      options.UTXOManagement.Throughput.ReserveBasket,
+				FanoutOutputsPerTx: options.UTXOManagement.Throughput.FanoutOutputsPerTx,
+			},
 		),
-		options:  &options,
-		logger:   log,
-		services: services,
+		options:          &options,
+		logger:           log,
+		services:         services,
+		fuelDenomination: fuelDenomination,
 	}
 	p.defaultChangeBasket.Store(&defaultBasketCfg)
+
+	if options.UTXOManagement.Enabled() {
+		p.unregisterPoolGauges, err = metrics.RegisterPoolGauges(metrics.PoolGaugeConfig{
+			PoolBasket:        options.UTXOManagement.Throughput.PoolBasket,
+			ReserveBasket:     options.UTXOManagement.Throughput.ReserveBasket,
+			Denomination:      fuelDenomination,
+			TargetTPS:         options.UTXOManagement.Throughput.TargetTPS,
+			FanoutFeeOverhead: 0.15,
+		}, p.poolSnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to register pool gauges: %w", err)
+		}
+	}
+
 	return p, nil
+}
+
+// poolSnapshot returns the not-reserved UTXO inventory grouped by basket and
+// status. It runs once per metrics export interval, never on the funding path.
+func (p *Provider) poolSnapshot(ctx context.Context) ([]metrics.PoolRow, error) {
+	var rows []metrics.PoolRow
+	err := p.Database.DB.WithContext(ctx).
+		Model(&models.UserUTXO{}).
+		Select("basket_name AS basket, utxo_status AS status, COUNT(*) AS count, SUM(satoshis) AS satoshis").
+		Where("reserved_by_id IS NULL").
+		Where("basket_name IN ?", []string{
+			p.options.UTXOManagement.Throughput.PoolBasket,
+			p.options.UTXOManagement.Throughput.ReserveBasket,
+		}).
+		Group("basket_name, utxo_status").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to snapshot UTXO pool: %w", err)
+	}
+	return rows, nil
 }
 
 // Stop gracefully terminates the background broadcaster and releases related resources.
 func (p *Provider) Stop() {
 	p.actions.StopBackgroundBroadcaster()
+
+	if p.unregisterPoolGauges != nil {
+		p.unregisterPoolGauges()
+	}
 
 	if err := p.Database.Close(); err != nil {
 		p.logger.ErrorContext(context.Background(), "Failed to close database", slog.Any("err", err))
@@ -395,7 +461,7 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		ctx,
 		identityKey,
 		settings.StorageIdentityKey,
-		*p.defaultChangeBasket.Load(),
+		p.seedBaskets()...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert user: %w", err)
@@ -423,6 +489,39 @@ func (p *Provider) FindOrInsertUser(ctx context.Context, identityKey string) (*w
 		User:  *user.ToWDK(),
 		IsNew: true,
 	}, nil
+}
+
+// seedBaskets returns the basket configurations every new user is created
+// with: the default change basket, plus — under the throughput strategy — the
+// fuel basket (min value = denomination, desired = target pool size, both
+// informational since throughput funding bypasses the change heuristics) and
+// the reserve basket (0/0, like other non-change baskets).
+func (p *Provider) seedBaskets() []wdk.BasketConfiguration {
+	baskets := make([]wdk.BasketConfiguration, 0, 3)
+	baskets = append(baskets, *p.defaultChangeBasket.Load())
+	if !p.options.UTXOManagement.Enabled() {
+		return baskets
+	}
+
+	throughput := &p.options.UTXOManagement.Throughput
+	targetPool := throughput.TargetPool()
+	desired := int64(math.MaxInt64)
+	if targetPool <= math.MaxInt64 {
+		desired = int64(targetPool)
+	}
+
+	return append(baskets,
+		wdk.BasketConfiguration{
+			Name:                    primitives.StringUnder300(throughput.PoolBasket),
+			NumberOfDesiredUTXOs:    desired,
+			MinimumDesiredUTXOValue: p.fuelDenomination,
+		},
+		wdk.BasketConfiguration{
+			Name:                    primitives.StringUnder300(throughput.ReserveBasket),
+			NumberOfDesiredUTXOs:    wdk.NonChangeBasketConfiguration.NumberOfDesiredUTXOs,
+			MinimumDesiredUTXOValue: wdk.NonChangeBasketConfiguration.MinimumDesiredUTXOValue,
+		},
+	)
 }
 
 // SetDefaultChangeBasket updates the basket configuration used when creating new users.

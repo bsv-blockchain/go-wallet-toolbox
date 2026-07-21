@@ -21,6 +21,18 @@ type Actions struct {
 	*getBeef
 }
 
+// ThroughputConfig is the resolved runtime configuration of the throughput
+// UTXO-management strategy (defs.StrategyThroughput). The zero value means the
+// strategy is disabled and funding behaves exactly as before.
+type ThroughputConfig struct {
+	Enabled            bool
+	Denomination       uint64
+	SpendPolicy        defs.SpendPolicy
+	PoolBasket         string
+	ReserveBasket      string
+	FanoutOutputsPerTx uint64
+}
+
 func New(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -34,6 +46,7 @@ func New(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
+	throughput ThroughputConfig,
 ) *Actions {
 	processAction := newProcessAction(
 		ctx,
@@ -69,6 +82,7 @@ func New(
 			services,
 			beefVerifier,
 			scriptsVerifier,
+			throughput,
 		),
 		internalize: newInternalizeAction(
 			logger,

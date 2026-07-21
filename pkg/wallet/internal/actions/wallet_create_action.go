@@ -22,6 +22,11 @@ type CreateAction struct {
 	WalletOpts              *wallet_opts.Flags
 	PendingSignActionsCache pending.SignActionsRepository
 
+	// WdkArgsMutator, when set, adjusts the mapped wdk args before validation.
+	// It carries toolbox extensions that have no representation in the BRC-100
+	// sdk args (e.g. fuel fan-out shaping).
+	WdkArgsMutator func(*wdk.ValidCreateActionArgs)
+
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string
 }
@@ -29,6 +34,9 @@ type CreateAction struct {
 func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (*wallet.CreateActionResult, error) {
 	a.originator = originator
 	a.wdkArgs = mapping.MapCreateActionArgs(args, *a.WalletOpts)
+	if a.WdkArgsMutator != nil {
+		a.WdkArgsMutator(&a.wdkArgs)
+	}
 
 	if a.wdkArgs.Options.KnownTxids == nil {
 		knownTxIDs, err := wp.GetKnownTxIDs()

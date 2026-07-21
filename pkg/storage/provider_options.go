@@ -31,9 +31,10 @@ type ProviderConfig struct {
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
 
-	FeeModel     defs.FeeModel
-	Commission   defs.Commission
-	ChangeBasket defs.ChangeBasket
+	FeeModel       defs.FeeModel
+	Commission     defs.Commission
+	ChangeBasket   defs.ChangeBasket
+	UTXOManagement defs.UTXOManagement
 
 	BackgroundBroadcasterContext context.Context
 	BackgroundBroadcasterChannel chan<- wdk.CurrentTxStatus
@@ -158,6 +159,16 @@ func WithChangeBasket(cfg defs.ChangeBasket) ProviderOption {
 	}
 }
 
+// WithUTXOManagement selects the UTXO management strategy for the provider.
+// With StrategyThroughput, funding claims exact-denomination fuel UTXOs from
+// the configured pool basket (falling back to the default change basket), and
+// new users are seeded with the fuel and reserve baskets.
+func WithUTXOManagement(cfg defs.UTXOManagement) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.UTXOManagement = cfg
+	}
+}
+
 func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConfig {
 	return ProviderConfig{
 		DBConfig:                     defs.DefaultDBConfig(),
@@ -169,6 +180,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		FeeModel:                     defs.DefaultFeeModel(),
 		Commission:                   defs.DefaultCommission(),
 		ChangeBasket:                 defs.DefaultChangeBasket(),
+		UTXOManagement:               defs.DefaultUTXOManagement(),
 		Logger:                       slog.Default(),
 		BackgroundBroadcasterContext: context.Background(),
 	}
@@ -180,6 +192,9 @@ func (p *ProviderConfig) verify() error {
 	}
 	if err := p.Commission.Validate(); err != nil {
 		return fmt.Errorf("provided Commission is invalid: %w", err)
+	}
+	if err := p.UTXOManagement.Validate(p.FeeModel, p.Commission); err != nil {
+		return fmt.Errorf("provided UTXO management config is invalid: %w", err)
 	}
 	return nil
 }

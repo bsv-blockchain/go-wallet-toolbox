@@ -37,6 +37,7 @@ type ProviderFixture interface {
 	WithFailAbandonedMinTxAge(seconds uint) ProviderFixture
 	WithSynchronizeTxStatuses(config defs.SynchronizeTxStatuses) ProviderFixture
 	WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture
+	WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -56,6 +57,7 @@ type providerFixture struct {
 	failAbandoned          defs.FailAbandoned
 	syncTxStatuses         defs.SynchronizeTxStatuses
 	changeBasket           defs.ChangeBasket
+	utxoManagement         defs.UTXOManagement
 	randomizer             wdk.Randomizer
 	services               wdk.Services
 	beefVerifierFixture    *beefVerifierFixture
@@ -105,6 +107,11 @@ func (p *providerFixture) WithSynchronizeTxStatuses(config defs.SynchronizeTxSta
 
 func (p *providerFixture) WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture {
 	p.changeBasket = cfg
+	return p
+}
+
+func (p *providerFixture) WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture {
+	p.utxoManagement = cfg
 	return p
 }
 
@@ -161,6 +168,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithFailAbandoned(p.failAbandoned),
 		storage.WithSynchronizeTxStatuses(p.syncTxStatuses),
 		storage.WithChangeBasket(p.changeBasket),
+		storage.WithUTXOManagement(p.utxoManagement),
 	)
 	p.require.NoError(err)
 

@@ -135,3 +135,11 @@ pkg/storage/v1adapter/handler.go:generic-api-key:114
 pkg/storage/v1adapter/handler.go:generic-api-key:130
 pkg/storage/v1adapter/handler.go:generic-api-key:152
 pkg/storage/v1adapter/handler.go:generic-api-key:427
+
+# Test userIdentityKey values are placeholder compressed secp256k1 PUBLIC keys
+# (same fixture as provider_find_or_insert_user_test.go). Usable for tests only —
+# not secrets; Gitleaks generic-api-key is a false positive.
+pkg/storage/provider_throughput_baskets_test.go:generic-api-key:29
+pkg/storage/provider_throughput_baskets_test.go:generic-api-key:74
+b02e902a48a7b3b93c2da4586972f56aeee48774:pkg/storage/provider_throughput_baskets_test.go:generic-api-key:29
+b02e902a48a7b3b93c2da4586972f56aeee48774:pkg/storage/provider_throughput_baskets_test.go:generic-api-key:74

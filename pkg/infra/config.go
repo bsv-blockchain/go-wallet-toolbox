@@ -29,6 +29,8 @@ type Config struct {
 	FailAbandoned         defs.FailAbandoned         `mapstructure:"fail_abandoned"`
 	TracingConfig         defs.TracingConfig         `mapstructure:"tracing"`
 	ChangeBasket          defs.ChangeBasket          `mapstructure:"change_basket"`
+	UTXOManagement        defs.UTXOManagement        `mapstructure:"utxo_management"`
+	Observability         defs.Observability         `mapstructure:"observability"`
 }
 
 // DBConfig is the configuration for the database
@@ -90,6 +92,8 @@ func Defaults() Config {
 		FailAbandoned:         defs.DefaultFailAbandoned(),
 		TracingConfig:         defs.DefaultTracingConfig(),
 		ChangeBasket:          defs.DefaultChangeBasket(),
+		UTXOManagement:        defs.DefaultUTXOManagement(),
+		Observability:         defs.DefaultObservability(),
 	}
 }
 
@@ -148,6 +152,18 @@ func (c *Config) Validate() (err error) {
 
 	if err = c.TracingConfig.Validate(); err != nil {
 		return fmt.Errorf("invalid tracing config: %w", err)
+	}
+
+	if err = c.UTXOManagement.Validate(c.FeeModel, c.Commission); err != nil {
+		return fmt.Errorf("invalid utxo management config: %w", err)
+	}
+
+	if err = c.Observability.Validate(); err != nil {
+		return fmt.Errorf("invalid observability config: %w", err)
+	}
+	// Metrics ride the tracing OTLP endpoint; tracing.enabled gates spans only.
+	if c.Observability.Metrics.Enabled && c.TracingConfig.DialAddr == "" {
+		return fmt.Errorf("observability.metrics.enabled requires tracing.dialAddr to be set")
 	}
 
 	return nil

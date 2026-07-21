@@ -62,6 +62,7 @@ type TopUpOptions struct {
 	Mined   bool
 	Labels  []string
 	Purpose string
+	Basket  string
 }
 
 type TopUpOpts = func(*TopUpOptions)
@@ -75,6 +76,14 @@ func WithMinedTopUp() TopUpOpts {
 func WithLabelsTopUp(labels ...string) TopUpOpts {
 	return func(o *TopUpOptions) {
 		o.Labels = labels
+	}
+}
+
+// WithBasketTopUp deposits the top-up into the named basket instead of the
+// fixture's default (change) basket.
+func WithBasketTopUp(basket string) TopUpOpts {
+	return func(o *TopUpOptions) {
+		o.Basket = basket
 	}
 }
 
@@ -135,6 +144,7 @@ func newStorageFixture(t testing.TB, identityKey, name string, configModifiers .
 		failAbandoned:          defs.DefaultFailAbandoned(),
 		syncTxStatuses:         defs.DefaultSynchronizeTxStatuses(),
 		changeBasket:           defs.DefaultChangeBasket(),
+		utxoManagement:         defs.DefaultUTXOManagement(),
 		randomizer:             randomizer.New(),
 		beefVerifierFixture:    newBeefVerifierFixture(),
 		scriptsVerifierFixture: newScriptsVerifierFixture(),

@@ -418,7 +418,11 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 		BasketName:         basketName,
 	}
 
-	if chunkOutput.Spendable && basketName != nil && *basketName == wdk.BasketNameForChange {
+	// Materialize a UserUTXO for every spendable change output regardless of
+	// basket (mirrors repo.isChangeDaoScope): fuel/reserve outputs of the
+	// throughput strategy are change rows in non-default baskets, and gating
+	// on the default basket would strand the pool after a sync/migration.
+	if chunkOutput.Spendable && chunkOutput.Change && basketName != nil && chunkOutput.Satoshis > 0 {
 		var satoshis uint64
 		satoshis, err = to.UInt64(chunkOutput.Satoshis)
 		if err != nil {
@@ -427,7 +431,7 @@ func (p *ChunkProcessor) upsertOutput(chunkOutput *wdk.TableOutput) error {
 
 		output.UserUTXO = &pkgentity.UserUTXO{
 			UserID:             p.user.ID,
-			BasketName:         wdk.BasketNameForChange,
+			BasketName:         *basketName,
 			Satoshis:           satoshis,
 			EstimatedInputSize: txutils.EstimatedInputSizeByType(wdk.OutputType(output.Type)),
 			CreatedAt:          chunkOutput.CreatedAt,
