@@ -182,8 +182,11 @@ func TestListFailedActions_IncludesAbortedWithDistinctStatus(t *testing.T) {
 	// 'unfail' - this is what the Status != TxStatusFailed guard in
 	// markActionsForUnfail actually prevents (AbortAction itself never touches
 	// KnownTx, so it stays at its pre-abort 'nosend' status; if the guard were
-	// removed, this would be flipped to 'unfail' and the later UnFail cron would
-	// cascade it back to 'failed', re-erasing the aborted status)
+	// removed, this would be flipped to 'unfail', spuriously triggering on-chain
+	// re-verification and wastefully affecting any other, genuinely-failed
+	// Transactions sharing that same KnownTx row - note the aborted Transaction row
+	// itself is separately protected from being re-failed by process_unfail.go's
+	// positive CAS requiring the Transaction's current status to be 'failed')
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(abortedTxID).WithStatus(wdk.ProvenTxStatusNoSend)
 }
