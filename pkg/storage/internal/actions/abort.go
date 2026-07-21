@@ -185,7 +185,7 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transa
 
 func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
 	switch txStatus {
-	case wdk.TxStatusCompleted, wdk.TxStatusFailed, wdk.TxStatusSending, wdk.TxStatusUnproven:
+	case wdk.TxStatusCompleted, wdk.TxStatusFailed, wdk.TxStatusAborted, wdk.TxStatusSending, wdk.TxStatusUnproven:
 		return fmt.Errorf("%w: action with status %s cannot be aborted", wdk.ErrNotAbortableAction, txStatus)
 	case wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		return nil

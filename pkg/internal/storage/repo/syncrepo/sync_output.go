@@ -287,7 +287,7 @@ func (s *SyncOutput) utxoStatusByTxStatus(txStatus wdk.TxStatus) wdk.UTXOStatus 
 		return wdk.UTXOStatusSending
 	case wdk.TxStatusUnproven:
 		return wdk.UTXOStatusUnproven
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusFailed, wdk.TxStatusAborted, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return wdk.UTXOStatusUnknown

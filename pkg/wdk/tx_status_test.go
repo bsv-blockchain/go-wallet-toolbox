@@ -250,3 +250,42 @@ func TestProvenTxReqStatusPredicates(t *testing.T) {
 		})
 	}
 }
+
+// TestTxStatusMappings pins ToUTXOStatus and ToStandardizedStatus for every TxStatus
+// value. The coverage guard forces this table to be extended whenever a new TxStatus
+// is added to the enum.
+func TestTxStatusMappings(t *testing.T) {
+	type expectation struct {
+		status       wdk.TxStatus
+		utxo         wdk.UTXOStatus
+		standardized wdk.StandardizedTxStatus
+	}
+
+	table := []expectation{
+		{wdk.TxStatusCompleted, wdk.UTXOStatusMined, wdk.TxUpdateStatusMined},
+		{wdk.TxStatusFailed, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusInvalidTx},
+		{wdk.TxStatusUnprocessed, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
+		{wdk.TxStatusSending, wdk.UTXOStatusSending, wdk.TxUpdateStatusWaiting},
+		{wdk.TxStatusUnproven, wdk.UTXOStatusUnproven, wdk.TxUpdateStatusBroadcasted},
+		{wdk.TxStatusUnsigned, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
+		{wdk.TxStatusNoSend, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
+		{wdk.TxStatusNonFinal, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
+		{wdk.TxStatusUnfail, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
+		{wdk.TxStatusAborted, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusFailed},
+	}
+
+	allStatuses := []wdk.TxStatus{
+		wdk.TxStatusCompleted, wdk.TxStatusFailed, wdk.TxStatusUnprocessed,
+		wdk.TxStatusSending, wdk.TxStatusUnproven, wdk.TxStatusUnsigned,
+		wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail,
+		wdk.TxStatusAborted,
+	}
+	assert.Len(t, table, len(allStatuses), "mapping table must cover all TxStatus values")
+
+	for _, row := range table {
+		t.Run(string(row.status), func(t *testing.T) {
+			assert.Equalf(t, row.utxo, row.status.ToUTXOStatus(), "ToUTXOStatus(%q)", row.status)
+			assert.Equalf(t, row.standardized, row.status.ToStandardizedStatus(), "ToStandardizedStatus(%q)", row.status)
+		})
+	}
+}
